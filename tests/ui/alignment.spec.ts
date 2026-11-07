@@ -75,20 +75,6 @@ async function glyphInk(locator: Locator): Promise<Box> {
   })
 }
 
-async function titleCaps(locator: Locator) {
-  return locator.evaluate((el) => {
-    const context = document.createElement('canvas').getContext('2d')!
-    context.font = getComputedStyle(el).font
-    const height = context.measureText('H').actualBoundingBoxAscent
-    const baseline = document.createElement('span')
-    baseline.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline'
-    el.append(baseline)
-    const y = baseline.getBoundingClientRect().y
-    baseline.remove()
-    return { height, centre: y - height / 2 }
-  })
-}
-
 async function newNote(page: Page, title: string) {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(titleField(page)).toHaveValue('')
@@ -212,9 +198,7 @@ test("the list header's toggle and name share the toolbars' centre line, and New
   await sameLine('Trash name and count', await box(header.locator('.toolbar-title')))
 })
 
-test('title ink follows the text caps in every view and both styles; toolbar ink stays inside its box', async ({
-  page,
-}) => {
+test('toolbar ink stays inside its box in both icon styles', async ({ page }) => {
   await page.addInitScript(() => {
     const w = window
     const ipc = w['__TAURI_INTERNALS__']
@@ -230,45 +214,9 @@ test('title ink follows the text caps in every view and both styles; toolbar ink
     }
   })
   await page.reload()
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await newNote(page, 'Plan')
-  const tag = page.getByRole('combobox', { name: 'Add Tag' })
-  await tag.fill('urgent')
-  await tag.press('Enter')
-  await page.getByRole('button', { name: 'New Notebook', exact: true }).click()
-  const notebook = page.getByRole('textbox', { name: 'Notebook name' })
-  await notebook.fill('Work')
-  await notebook.press('Enter')
-  const header = page.locator('.list-header')
-  const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
   for (const iconStyle of ['sfSymbols', 'lucide'] as const) {
-    await changeEditorSettingsElsewhere(page, { iconStyle, sidebarMaterial: false })
-    for (const view of ['Templates', 'Work', 'Active', 'urgent', 'Trash', 'All Notes']) {
-      const row =
-        view === 'Work'
-          ? sidebar.getByRole('treeitem', { name: /^Work\b/ }).locator('> .book-row')
-          : sidebar.getByRole('button', { name: new RegExp(`^${view}\\b`) })
-      await row.click()
-      await expect(header.locator('.headline')).toHaveText(view)
-      const caps = await titleCaps(header.locator('.headline'))
-      if (view === 'All Notes') {
-        await expect(header.locator('.headline-icon')).toHaveCount(0)
-        continue
-      }
-      if (view === 'urgent') {
-        const dot = await box(header.locator('.headline-dot'))
-        expect(Math.abs(centreY(dot) - caps.centre)).toBeLessThanOrEqual(0.75)
-        expect(dot.height).toBeLessThan(caps.height)
-        continue
-      }
-      const glyph = header.locator('.headline-icon > .icon, .headline-icon > svg')
-      await expect(glyph).toHaveClass(/icon-title/)
-      if (iconStyle === 'sfSymbols') await expect(glyph).not.toHaveCSS('mask-image', 'none')
-      const ink = await glyphInk(glyph)
-      expect(ink.height / caps.height, `${iconStyle} ${view}`).toBeGreaterThanOrEqual(0.95)
-      expect(ink.height / caps.height, `${iconStyle} ${view}`).toBeLessThanOrEqual(1.3)
-      expect(Math.abs(centreY(ink) - caps.centre), `${iconStyle} ${view}`).toBeLessThanOrEqual(0.75)
-    }
+    await changeEditorSettingsElsewhere(page, { iconStyle })
     for (const glyph of await page.locator('.toolbar .tool > .icon, .toolbar .tool > svg').all()) {
       if (!(await glyph.isVisible())) continue
       if (iconStyle === 'sfSymbols') await expect(glyph).not.toHaveCSS('mask-image', 'none')

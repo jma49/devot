@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, openApp, pickMenuItem, test } from './fixtures'
+import { expect, openApp, pickMenuItem, test } from './fixtures'
 
 test.use({ viewport: { width: 1280, height: 480 } })
 
@@ -252,31 +252,4 @@ test('the editor toolbar ends on the keyline, its controls centred in its height
   await expect(bar).toHaveCSS('padding-right', '32px')
   const control = await box(bar.locator('button').first())
   expect(control.y - outer.y).toBe(10)
-})
-
-test('Classic keeps its rows, depth and footer, with no fade or guide', async ({ page }) => {
-  await setUp(page)
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  const list = scroller(page)
-  await expect(list).toHaveCSS('mask-image', 'none')
-  await expect(list).toHaveCSS('overflow-y', 'auto')
-  await expect(sidebar(page)).toHaveCSS('padding-inline-start', '10px')
-  await expect(sidebar(page)).toHaveCSS('padding-bottom', '12px')
-  await expect(source(page, 'All Notes')).toHaveCSS('padding-left', '6px')
-  await expect(row(page, 'Work')).toHaveCSS('padding-left', '6px')
-  await expect(row(page, 'Plans')).toHaveCSS('padding-left', '24px')
-  await expect(sidebar(page).locator('.footer-toggle')).toHaveCSS('height', '30px')
-  await list.evaluate((el) => {
-    el.scrollTop = 40
-  })
-  const hairline = await sidebar(page)
-    .locator('> .sources')
-    .first()
-    .evaluate((el) => getComputedStyle(el, '::after').content)
-  expect(hairline).toBe('none')
-  const guide = await page
-    .locator('[role="group"]')
-    .first()
-    .evaluate((el) => getComputedStyle(el, '::before').content)
-  expect(guide).toBe('none')
 })

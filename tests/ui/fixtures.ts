@@ -235,8 +235,6 @@ export async function mockTauri(page: Page): Promise<void> {
             )
             return snapshot
           }
-          if (cmd === 'sidebar_material_sync')
-            return (w.devotEditorSettings?.['sidebarMaterial'] ?? true) !== false
           // Follow the system unless a test chose otherwise, so the suite's emulated Reduce Motion stays in charge.
           if (cmd === 'editor_settings_get')
             return {
@@ -688,11 +686,9 @@ export async function tokenColour(page: Page, token: `--color-${string}`): Promi
 export async function paintedBackground(element: Locator): Promise<string> {
   return paintedColour(
     await element.evaluate((el) => {
-      const sheet =
-        el.matches('.list, .content, .settings-main') &&
-        document.documentElement.dataset['sidebarMaterial'] === 'on'
-          ? el.closest('.window, .settings')
-          : null
+      const sheet = el.matches('.list, .content, .settings-main')
+        ? el.closest('.window, .settings')
+        : null
       return sheet
         ? getComputedStyle(sheet, '::before').backgroundColor
         : getComputedStyle(el).backgroundColor

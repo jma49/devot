@@ -41,7 +41,7 @@ describe('floating bar motion and states', () => {
     })
   })
 
-  it('blurs what is under the bar and its tooltip in the Glass interface, and nothing otherwise', () => {
+  it('blurs what is under the bar and its tooltip', () => {
     for (const selector of ['.cm-tooltip.cm-float-bar', '.cm-float-tip']) {
       const surface = rule(selector)
       expect(surface.backdropFilter).toBe('var(--glass-backdrop, none)')
@@ -68,15 +68,10 @@ describe('floating bar motion and states', () => {
     expect(height).toBe(38)
   })
 
-  it('is a capsule in Glass, its end buttons concentric with its ends', () => {
-    const bar = rule("&[data-sidebar-material='on'] .cm-tooltip.cm-float-bar")
-    expect(bar.paddingInline).toBe('var(--size-float-toolbar-end)')
-    expect(rule("&[data-sidebar-material='on'] .cm-float-tip").borderRadius).toBe(
-      'var(--radius-glass-tooltip)',
-    )
-    expect(rule("&[data-sidebar-material='on'] .cm-float-kbd").borderRadius).toBe(
-      'var(--radius-button)',
-    )
+  it('is a capsule, its end buttons concentric with its ends', () => {
+    expect(rule('.cm-tooltip.cm-float-bar').paddingInline).toBe('var(--size-float-toolbar-end)')
+    expect(rule('.cm-float-tip').borderRadius).toBe('var(--radius-glass-tooltip)')
+    expect(rule('.cm-float-kbd').borderRadius).toBe('var(--radius-button)')
   })
 
   it('shows a button icon at its own size, never scaled by the mask', () => {

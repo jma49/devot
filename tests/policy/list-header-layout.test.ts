@@ -12,9 +12,8 @@ describe('the note list header layout', () => {
     expect(title.body.get('justify-content')).toBe('flex-start')
     expect(title.body.get('min-width')).toBe('0')
     expect(title.body.get('padding-inline')).toBe('var(--space-5) var(--space-3)')
+    expect(title.body.get('align-items')).toBe('flex-start')
     expect(rule('.list-header .headline')!.body.get('text-overflow')).toBe('ellipsis')
-    const glass = rule(":root[data-sidebar-material='on'] .list .list-header .toolbar-title")!
-    expect(glass.body.get('align-items')).toBe('flex-start')
   })
 
   it('makes New Note a round tool of the list action size', () => {

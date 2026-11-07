@@ -7,7 +7,7 @@ import { listFiles } from '../support/git-files'
 // the theme card's ring sits beside its selection ring. Native form controls keep the system ring.
 const UI_ROOT = 'src/renderer/src'
 const RING = 'var(--size-focus-ring) solid var(--color-focus-ring)'
-/** The ring of Add Tag in Glass: dashed, as it is a place to type, not a control (design/layout.md). */
+/** The ring of Add Tag: dashed, as it is a place to type, not a control (design/layout.md). */
 const DASHED_RING = 'var(--size-focus-ring) dashed var(--color-focus-ring)'
 const OFFSETS = new Set(['0', 'calc(-1 * var(--size-focus-ring))', 'var(--size-focus-ring)'])
 /** Not a focus ring: where a drag will drop (`.drop-target`), dashed. */

@@ -25,9 +25,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`${colorScheme} Settings glass`, () => {
     test.use({ colorScheme, viewport: { width: 900, height: 680 } })
 
-    test('floats navigation above a shared sheet and restores Classic without losing the pane', async ({
-      page,
-    }, testInfo) => {
+    test('floats navigation above a shared sheet', async ({ page }, testInfo) => {
       await openSettings(page, 'Appearance')
       const nav = page.locator('.settings-nav')
       const pane = page.locator('.settings-pane')
@@ -40,15 +38,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(frame?.height).toBe(664)
       await expect(page.locator('.settings-card').first()).toHaveCSS('border-radius', '18px')
       await page.screenshot({ path: testInfo.outputPath(`settings-${colorScheme}.png`) })
-
-      await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-      await expect(nav).toHaveCSS('margin-top', '0px')
-      await expect(nav).toHaveCSS('border-radius', '0px')
-      await expect(pane).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-      await expect(page.getByRole('tab', { name: 'Appearance', exact: true })).toHaveAttribute(
-        'aria-selected',
-        'true',
-      )
     })
 
     test('uses opaque surfaces when the system requests more contrast', async ({ page }) => {
@@ -87,11 +76,7 @@ for (const appearance of ['light', 'dark'] as const) {
               r instanceof CSSStyleRule && r.selectorText.replaceAll('"', "'") === selector,
           )!.style.cssText
         const proxy = document.createElement('span')
-        proxy.style.cssText =
-          rule('.slider::-webkit-slider-thumb') +
-          (document.documentElement.dataset['sidebarMaterial'] === 'on'
-            ? rule(":root[data-sidebar-material='on'] .slider::-webkit-slider-thumb")
-            : '')
+        proxy.style.cssText = rule('.slider::-webkit-slider-thumb')
         proxy.style.display = 'inline-block'
         el.parentElement!.append(proxy)
         const style = getComputedStyle(proxy)
@@ -119,33 +104,23 @@ for (const appearance of ['light', 'dark'] as const) {
         ),
       ).toBe('32px')
     }
-    await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-    expect(await thumb()).toEqual({ width: '22px', height: '22px', alpha: 255 })
-    await expect(page.locator('.choice-frame').first()).toHaveCSS('border-radius', '12px')
-    await expect(toggle).toHaveCSS('width', '38px')
-    await expect(page.locator('.settings-card').first()).toHaveCSS('border-radius', '12px')
   })
 }
 
-for (const sidebarMaterial of [true, false]) {
-  test(`a switch's knob stays inside its track in ${sidebarMaterial ? 'Glass' : 'Classic'}`, async ({
-    page,
-  }) => {
-    await openSettings(page, 'Appearance')
-    await changeEditorSettingsElsewhere(page, { sidebarMaterial })
-    const toggle = page.getByRole('switch').first()
-    await expect(toggle).toBeVisible()
-    const { track, knob, inset } = await toggle.evaluate((el) => {
-      const after = getComputedStyle(el, '::after')
-      return {
-        track: el.getBoundingClientRect().height,
-        knob: Number.parseFloat(after.height),
-        inset: Number.parseFloat(after.top),
-      }
-    })
-    expect(knob + 2 * inset).toBeLessThanOrEqual(track)
+test("a switch's knob stays inside its track", async ({ page }) => {
+  await openSettings(page, 'Appearance')
+  const toggle = page.getByRole('switch').first()
+  await expect(toggle).toBeVisible()
+  const { track, knob, inset } = await toggle.evaluate((el) => {
+    const after = getComputedStyle(el, '::after')
+    return {
+      track: el.getBoundingClientRect().height,
+      knob: Number.parseFloat(after.height),
+      inset: Number.parseFloat(after.top),
+    }
   })
-}
+  expect(knob + 2 * inset).toBeLessThanOrEqual(track)
+})
 
 test('a footnote sits close under its card, with its icon on the first line', async ({ page }) => {
   await openSettings(page, 'Appearance')

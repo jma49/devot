@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
+import { expect, test } from './fixtures'
 
 /** A token as the page paints it, so the comparison holds in any appearance. */
 const token = (page: Page, name: string) =>
@@ -32,7 +32,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`${colorScheme} appearance`, () => {
     test.use({ colorScheme })
 
-    test('in Glass, sidebar icons are secondary, the selected one accent, and counts tertiary', async ({
+    test('sidebar icons are secondary, the selected one accent, and counts tertiary', async ({
       page,
     }) => {
       await page.goto('/')
@@ -57,7 +57,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect.poll(() => iconColour(allNotes)).toBe(secondary)
     })
 
-    test('in Glass, a selected status keeps its status colour', async ({ page }) => {
+    test('a selected status keeps its status colour', async ({ page }) => {
       await page.goto('/')
       const active = sourceIcon(page, 'Active')
       await expect(active).toBeVisible()
@@ -70,7 +70,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
         .toBe(await token(page, '--color-status-active-mark'))
     })
 
-    test('in Glass, only the active view segment in the toolbar is accent', async ({ page }) => {
+    test('only the active view segment in the toolbar is accent', async ({ page }) => {
       await page.goto('/')
       await page.getByRole('button', { name: 'New Note', exact: true }).click()
       const modes = page.getByRole('group', { name: 'View mode' })
@@ -89,20 +89,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await focus.click()
       await expect(focus).toHaveAttribute('aria-pressed', 'true')
       await expect(focus).toHaveCSS('color', secondary)
-    })
-
-    test('Classic keeps the accent on sidebar icons and secondary counts', async ({ page }) => {
-      await page.goto('/')
-      await expect(sourceIcon(page, 'Templates')).toBeVisible()
-      await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-      const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
-      await expect
-        .poll(() => iconColour(sourceIcon(page, 'Templates')))
-        .toBe(await token(page, '--color-accent-text'))
-      await expect(sidebar.locator('.source-count').first()).toHaveCSS(
-        'color',
-        await token(page, '--color-text-secondary'),
-      )
     })
   })
 }

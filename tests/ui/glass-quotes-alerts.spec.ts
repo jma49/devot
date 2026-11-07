@@ -65,26 +65,6 @@ test('Glass preview draws tinted alert cards and a straight quote bar', async ({
   await page.screenshot({ path: testInfo.outputPath('preview-glass-light.png') })
 })
 
-test('Classic preview keeps the border bars', async ({ page }, testInfo) => {
-  await openNote(page)
-  await showPreview(page)
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-
-  const quote = page.locator('.preview blockquote')
-  await expect(quote).toHaveCSS('border-left-width', '3px')
-  await expect(quote).toHaveCSS('padding-left', '12px')
-  expect(await before(quote, 'content')).toBe('none')
-  for (const kind of KINDS) {
-    const alert = page.locator(`.preview .alert-${kind}`)
-    await expect(alert).toHaveCSS('border-left-width', '3px')
-    await expect(alert).toHaveCSS('border-radius', '0px')
-    await expect(alert).toHaveCSS('background-color', TRANSPARENT)
-    await expect(alert).toHaveCSS('box-shadow', 'none')
-    await expect(alert).toHaveCSS('padding', '2px 0px 2px 12px')
-  }
-  await page.screenshot({ path: testInfo.outputPath('preview-classic.png') })
-})
-
 test('Glass editor rounds the quote bar and tints alert lines as one card', async ({
   page,
 }, testInfo) => {
@@ -127,34 +107,4 @@ test('Glass editor rounds the quote bar and tints alert lines as one card', asyn
   )
   expect(edges[1]!.top).toBe(edges[0]!.bottom)
   await page.screenshot({ path: testInfo.outputPath('editor-glass-light.png') })
-})
-
-test('Classic editor keeps the square bars', async ({ page }, testInfo) => {
-  await openNote(page)
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false, highlightActiveLine: true })
-
-  const quote = page.locator('.cm-line.cm-md-quote:not(.cm-md-alert)').first()
-  await expect.poll(() => before(quote, 'top')).toBe('0px')
-  expect(await before(quote, 'width')).toBe('3px')
-  expect(await before(quote, 'border-top-left-radius')).toBe('0px')
-
-  const line = page.locator('.cm-line.cm-md-alert-note').first()
-  const colour = await page.evaluate(() => {
-    const probe = document.createElement('i')
-    probe.style.color = 'var(--color-alert-note)'
-    document.body.append(probe)
-    const value = getComputedStyle(probe).color
-    probe.remove()
-    return value
-  })
-  expect(await before(line, 'background-color')).toBe(colour)
-  expect(await before(line, 'width')).toBe('3px')
-  expect(await before(line, 'border-top-left-radius')).toBe('0px')
-  expect(await before(line, 'border-top-width')).toBe('0px')
-  await line.click()
-  await expect(page.locator('.cm-line.cm-activeLine')).not.toHaveCSS(
-    'background-color',
-    TRANSPARENT,
-  )
-  await page.screenshot({ path: testInfo.outputPath('editor-classic.png') })
 })

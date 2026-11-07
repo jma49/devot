@@ -168,14 +168,6 @@ test('the title, the first pill and the text start 32 from the divider', async (
   expect(Math.round((await inkLeft(page.locator('.cm-line').first())) - origin)).toBe(32)
 })
 
-test('Classic keeps its own edges', async ({ page }) => {
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  await noteWithBody(page, 'Plan', 'Text')
-  await expect(page.locator('.editor-toolbar')).toHaveCSS('padding-left', '16px')
-  await expect(page.locator('.title')).toHaveCSS('margin-left', '24px')
-  await expect(page.locator('.list-filter')).toHaveCSS('padding-left', '12px')
-})
-
 test('the notebook name field fills the sidebar row', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'New Notebook' }).click()

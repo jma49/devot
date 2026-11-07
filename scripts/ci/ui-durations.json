@@ -126,7 +126,6 @@
   "tests/ui/settings-glass.spec.ts": 31845,
   "tests/ui/settings.spec.ts": 151914,
   "tests/ui/shell.spec.ts": 26758,
-  "tests/ui/sidebar-material.spec.ts": 46484,
   "tests/ui/sidebar-motion.spec.ts": 16525,
   "tests/ui/sidebar-surround.spec.ts": 11746,
   "tests/ui/sidebar-tree.spec.ts": 67873,

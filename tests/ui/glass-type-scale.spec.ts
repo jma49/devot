@@ -120,16 +120,3 @@ test('the editor heading lines match the scale and follow the editor font size',
   await changeEditorSettingsElsewhere(page, { fontSize: 26 })
   await expect(page.locator('.cm-line.cm-md-h2')).toHaveCSS('font-size', '38px')
 })
-
-test('Classic keeps its title, headings and body', async ({ page }) => {
-  await openNote(page)
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  await expect(page.locator(':root')).toHaveAttribute('data-sidebar-material', 'off')
-  await expect(page.locator('.title')).toHaveCSS('font-size', '24px')
-  await expect(page.locator('.title')).toHaveCSS('letter-spacing', 'normal')
-  await expect(page.locator('.cm-line.cm-md-h2')).toHaveCSS('font-size', /^20\.3/)
-  await showPreview(page)
-  await expect(page.locator('.preview p').first()).toHaveCSS('font-size', '15px')
-  await expect(page.locator('.preview p').first()).toHaveCSS('line-height', '24.75px')
-  await expect(page.locator('.preview h2')).toHaveCSS('border-bottom-width', '1px')
-})

@@ -3,9 +3,9 @@ import { expect, it } from 'vitest'
 import { cssRules } from '../support/css-rules'
 
 const rules = cssRules(readFileSync('src/renderer/src/preview/content.css', 'utf8'))
-it('rounds only Glass tables and uses separators instead of cell grids', () => {
+it('rounds only tables in the app and uses separators instead of cell grids', () => {
   const glass = rules.filter((r) =>
-    r.selector.includes(":root[data-sidebar-material='on'] .preview"),
+    r.selector.startsWith(".preview:is([data-devot-part='preview'], .gallery-page)"),
   )
   const table = glass.find((r) => r.selector.endsWith(' table'))
   expect(table?.body.get('border-radius')).toBe('var(--radius-list-row)')

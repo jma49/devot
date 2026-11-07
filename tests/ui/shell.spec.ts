@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { light } from '../../src/renderer/src/theme/tokens'
-import { changeEditorSettingsElsewhere, expect, symbolRequests, test, openApp } from './fixtures'
+import { expect, symbolRequests, test, openApp } from './fixtures'
 
 function rgb(hex: string): string {
   const n = Number.parseInt(hex.slice(1), 16)
@@ -194,9 +194,7 @@ test('coded console warnings reach the local log without other arguments', async
     .toContainEqual({ level: 'warn', code: 'W_UI_TEST', ids: [id] })
 })
 
-test('the selected view mode is a raised glass segment, and a neutral grey one in Classic', async ({
-  page,
-}) => {
+test('the selected view mode is a raised glass segment', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' })
   await freshStart(page)
   await createNote(page, 'Modes')
@@ -208,8 +206,6 @@ test('the selected view mode is a raised glass segment, and a neutral grey one i
   await expect
     .poll(() => css(split, 'background-color'))
     .toBe(await tokenColor(page, '--color-fill-glass-control'))
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  await expect.poll(() => css(split, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
 })
 
 test('the window stays put while the caret scrolls to the end of a long note', async ({ page }) => {

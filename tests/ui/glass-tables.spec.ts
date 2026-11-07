@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
-import { changeEditorSettingsElsewhere, expect, openApp, test } from './fixtures'
+import { expect, openApp, test } from './fixtures'
 
-test('Glass preview tables round and scroll inside the pane; Classic and export keep the grid', async ({
+test('preview tables round and scroll inside the pane; export keeps the grid', async ({
   page,
 }, testInfo) => {
   await openApp(page)
@@ -29,9 +29,6 @@ test('Glass preview tables round and scroll inside the pane; Classic and export 
     true,
   )
   await page.screenshot({ path: testInfo.outputPath('glass-table.png') })
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  await expect(table).toHaveCSS('border-radius', '0px')
-  await expect(table).toHaveCSS('border-collapse', 'collapse')
   await page.setContent(
     '<article class="preview"><table><thead><tr><th>Export</th></tr></thead><tbody><tr><td>Cell</td></tr></tbody></table></article>',
   )
@@ -40,7 +37,6 @@ test('Glass preview tables round and scroll inside the pane; Classic and export 
       readFileSync('src/renderer/src/theme/tokens.css', 'utf8') +
       readFileSync('src/renderer/src/preview/content.css', 'utf8'),
   })
-  await expect(page.locator('html')).not.toHaveAttribute('data-sidebar-material')
   await expect(page.locator('table')).toHaveCSS('border-radius', '0px')
   await expect(page.locator('table')).toHaveCSS('border-collapse', 'collapse')
   await expect(page.locator('td')).toHaveCSS('border-top-width', '1px')

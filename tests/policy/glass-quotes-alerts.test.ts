@@ -3,13 +3,15 @@ import { expect, it } from 'vitest'
 import { cssRules } from '../support/css-rules'
 
 const rules = cssRules(readFileSync('src/renderer/src/preview/content.css', 'utf8'))
-const glass = rules.filter((r) => r.selector.includes(":root[data-sidebar-material='on'] .preview"))
-const about = (pattern: RegExp) => glass.filter((r) => pattern.test(r.selector))
+const app = rules.filter((r) =>
+  r.selector.startsWith(".preview:is([data-devot-part='preview'], .gallery-page)"),
+)
+const about = (pattern: RegExp) => app.filter((r) => pattern.test(r.selector))
 const declared = (value: string | undefined) =>
   value?.replace(/\(\s+/g, '(').replace(/,?\s+\)/g, ')')
 const base = (exact: string) => rules.find((r) => r.selector === exact)
 
-it('draws no Glass quote or alert with a left border', () => {
+it('draws no quote or alert in the app with a left border', () => {
   const blocks = about(/\.alert|blockquote/)
   expect(blocks.length).toBeGreaterThan(0)
   for (const rule of blocks) {

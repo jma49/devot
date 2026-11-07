@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, openApp, test } from './fixtures'
+import { expect, openApp, test } from './fixtures'
 
 const DOC = 'Some `inline` code.\n\n```\nplain block\n```\n\n```ts\nconst titled = 1\n```\n\nAfter.'
 
@@ -209,7 +209,7 @@ test('the Write button takes the toolbar hover wash, pressed or not', async ({ p
   }
 })
 
-test('tables and alerts keep their edges in Glass', async ({ page }) => {
+test('tables and alerts keep their edges', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Note body' }).click()
@@ -217,26 +217,4 @@ test('tables and alerts keep their edges in Glass', async ({ page }) => {
   await showPreview(page)
   await expect(page.locator('.preview table')).toHaveCSS('box-shadow', /1px/)
   await expect(page.locator('.preview .alert')).toHaveCSS('box-shadow', /inset/)
-})
-
-test('Classic keeps its pills, Add Tag and code borders', async ({ page }) => {
-  await openNote(page)
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  await expect(page.locator(':root')).toHaveAttribute('data-sidebar-material', 'off')
-  await expect(page.locator('.note-meta .tag-field-short')).toBeHidden()
-  await expect(addTag(page)).toHaveAttribute('placeholder', 'Add Tag')
-  await expect(addTag(page)).toHaveCSS('border-top-style', 'dashed')
-  await expect(page.locator('.note-meta .popup').first()).toHaveCSS('height', '22px')
-  await expect(page.locator('.cm-md-code').first()).toHaveCSS('border-top-width', '1px')
-  await page.locator('.cm-line').last().click()
-  await page.keyboard.insertText('\n\n| a |\n| - |\n| b |')
-  expect(
-    await page
-      .locator('.cm-md-table-first')
-      .first()
-      .evaluate((el) => getComputedStyle(el, '::before').borderTopWidth),
-  ).toBe('1px')
-  await showPreview(page)
-  await expect(page.locator('.preview pre').first()).toHaveCSS('border-top-width', '1px')
-  await expect(page.locator('.preview p > code')).toHaveCSS('border-top-left-radius', '4px')
 })

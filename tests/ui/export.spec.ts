@@ -667,11 +667,8 @@ test('a page setup that cannot be saved stops the print and names the code', asy
   expect(await calls(page, 'note_print')).toHaveLength(0)
 })
 
-test('Exported and printed pages keep the plain quote and alert bars while Glass is on', async ({
-  page,
-}) => {
+test('exported and printed pages keep the plain quote and alert bars', async ({ page }) => {
   await createNote(page, 'Plan', '> A quote\n\n> [!NOTE]\n> Check.\n\n> [!TIP]\n> Try.\n')
-  await expect(page.locator(':root')).toHaveAttribute('data-sidebar-material', 'on')
   await mockExport(page, { export_begin: { id: 3, fileName: 'Plan.html' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as HTML…')
   await expect.poll(async () => (await calls(page, 'export_finish')).length).toBe(1)
@@ -683,7 +680,6 @@ test('Exported and printed pages keep the plain quote and alert bars while Glass
 
   for (const html of [exported, printed]) {
     await page.setContent(html)
-    await expect(page.locator(':root')).not.toHaveAttribute('data-sidebar-material')
     const quote = page.locator('blockquote')
     await expect(quote).toHaveCSS('border-left-width', '3px')
     await expect(quote).toHaveCSS('padding-left', '12px')
