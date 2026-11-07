@@ -45,7 +45,8 @@ struct AiPane: View {
         let shown = view[view.active]
         let name = catalog("aiSettings.provider.\(view.active)")
         return Section {
-            Picker(L10n.phoneAiProvider(), selection: Binding(get: { view.active }, set: choose)) {
+            // A closure, not `set: choose`: Swift 6.3's IR generation crashes on that method reference's thunk.
+            Picker(L10n.phoneAiProvider(), selection: Binding(get: { view.active }, set: { choose($0) })) {
                 ForEach(AiView.providers, id: \.self) { Text(catalog("aiSettings.provider.\($0)")).tag($0) }
             }
             .pickerStyle(.segmented)
