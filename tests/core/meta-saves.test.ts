@@ -105,6 +105,26 @@ describe('saves that change only a note’s fields', () => {
     })
   })
 
+  it('write the fields alone after taking in a stored copy that holds the whole document', async () => {
+    const { sqlite, writes, service } = watched()
+    const here = service('mac1')
+    const id = await here.create('Plan')
+    await here.setBody(id, 'Ours')
+    await here.flush()
+    const there = service('mac2')
+    await there.open(id)
+    await there.setBody(id, 'Ours and theirs')
+    await there.flush()
+    await here.mergeStored()
+    await here.flush()
+    writes.length = 0
+
+    await here.setPinned(id, true)
+    await here.flush()
+    expect(writes).toEqual(['meta'])
+    expect(await sqlite.getNote(id)).toMatchObject({ pinned: true, bodyMd: 'Ours and theirs' })
+  })
+
   it('write the whole note when the stored body falls short of the document', async () => {
     const { sqlite, writes, service } = watched()
     const notes = service()

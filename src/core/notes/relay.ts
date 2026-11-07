@@ -169,6 +169,8 @@ export function relayMethods(
             note.storedChanges = -1
             note.edits += 1
             schedule(note)
+          } else {
+            note.storedChanges = note.changes
           }
           if (note.record.title !== title || note.retitled) {
             retitled.push({ id, title: note.record.title })
