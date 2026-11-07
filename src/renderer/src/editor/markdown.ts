@@ -442,3 +442,16 @@ export function mayBeFrontMatter(doc: Text, pos: number): boolean {
   for (let n = 2; n < last; n++) if (FENCE.test(doc.line(n).text)) return false
   return true
 }
+
+const xmlBlocks = LanguageDescription.matchLanguageName(languages, 'xml')
+
+/**
+ * Lets go of the last note parsed. The tag tokenizers of @lezer/html and
+ * @lezer/xml (```xml blocks) keep their last input, and with it that note's
+ * text and what is kept by the text (its syntax tree, Write mode's blocks and
+ * tables) until they parse again; parsing a tag of no note's moves it there.
+ */
+export function releaseParsedNote(): void {
+  noteMarkdown.language.parser.parse('<a>')
+  xmlBlocks?.support?.language.parser.parse('<a/>')
+}

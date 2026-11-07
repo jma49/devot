@@ -10,6 +10,7 @@ import {
   type PreviewPiece,
 } from '../../src/core'
 import { splitBlocks } from '../../src/core/preview/blocks'
+import { KEPT_CHARACTERS } from '../../src/core/preview'
 import { sampleNote } from '../../scripts/bench/fixtures'
 import { labels, noteFields } from '../support/preview-html'
 
@@ -97,6 +98,18 @@ const CASES: Record<string, string> = {
   'code with titles': '```ts title="a.ts"\nlet a = 1\n```\n\n```py line=3-4\nx = 1\n\ny = 2\n```',
   'processing instructions': 'A.\n\n<?php\n\necho 1;\n\n?>\n\nB.',
   'empty and blank notes': '\n\n\n',
+}
+
+const LONG_NOTE = [...Array(500).keys()]
+  .map((i) => `Paragraph ${i}: ${'word '.repeat(70)}`)
+  .join('\n\n')
+
+/** Characters of source whose pieces came back from the cache. */
+function keptOf(first: readonly PreviewPiece[], again: readonly PreviewPiece[]): number {
+  const ends = [...again.slice(1).map((piece) => piece.offset), LONG_NOTE.length]
+  return again
+    .map((piece, i) => (piece.key === first[i]?.key ? ends[i]! - piece.offset : 0))
+    .reduce((sum, length) => sum + length, 0)
 }
 
 describe('createPieceRenderer', () => {
@@ -223,7 +236,31 @@ describe('createPieceRenderer', () => {
     await render('D.', options)
     const again = await render('A.\n\nB.\n\nC.', options)
     expect(again[0]!.key).not.toBe(first[0]!.key)
-    expect(again[2]!.key).not.toBe(first[2]!.key)
+    expect(again[1]!.key).not.toBe(first[1]!.key)
+    expect(again[2]!.key).toBe(first[2]!.key)
+  })
+
+  it('keeps little of a note it showed before, however long the note', async () => {
+    expect(LONG_NOTE.length).toBeGreaterThan(3 * KEPT_CHARACTERS)
+    const render = createPieceRenderer()
+    const first = await render(LONG_NOTE, options)
+    await render('Another note.', options)
+    expect(keptOf(first, await render(LONG_NOTE, options))).toBeLessThanOrEqual(KEPT_CHARACTERS)
+  })
+
+  it('keeps little of a note whose preview closed, with no other note shown', async () => {
+    const render = createPieceRenderer()
+    const first = await render(LONG_NOTE, options)
+    render.forgetShown()
+    expect(keptOf(first, await render(LONG_NOTE, options))).toBeLessThanOrEqual(KEPT_CHARACTERS)
+  })
+
+  it('keeps little of a note whose preview closed while it was rendered', async () => {
+    const render = createPieceRenderer()
+    const rendering = render(LONG_NOTE, options)
+    render.forgetShown()
+    const first = await rendering
+    expect(keptOf(first, await render(LONG_NOTE, options))).toBeLessThanOrEqual(KEPT_CHARACTERS)
   })
 
   it('keeps every piece of a note larger than its capacity, so only an edited piece is sent again', async () => {

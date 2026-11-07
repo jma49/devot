@@ -61,7 +61,7 @@ import { tableToolbar } from './TableToolbar'
 import { tableTyping } from './tableTyping'
 import { editorTheme, popupSpace } from './theme'
 import { yjsHistory } from './undo'
-import { writeFocusTracking, writeMode, type WriteRenderer } from './write'
+import { tableDrawings, writeFocusTracking, writeMode, type WriteRenderer } from './write'
 
 // The note being left while the next one loads: on screen, but nothing typed may land in it.
 export const pausedSlot = new Compartment()
@@ -221,6 +221,8 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
     noteHighlighting(noteHighlightStyle),
     markdownLineStyles,
     writeFocusTracking,
+    // Outside the slot, so the note's tables are not drawn again each time Write mode comes back.
+    tableDrawings,
     writeSlot.of(writeFor(refs.writing.current, core)),
     noteMarkdown,
     EditorView.perLineTextDirection.of(true),

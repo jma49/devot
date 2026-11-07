@@ -8,6 +8,7 @@ import {
   EditorSelection,
   EditorState,
   Prec,
+  StateField,
   type Extension,
   type Range,
   type Transaction,
@@ -289,8 +290,14 @@ type Drawing = Record<keyof BlockLayers, Placed[]>
 
 // A table no selection range meets draws the same wherever it is, so the
 // drawing is kept by its shape and text, relative to its start: a keystroke or
-// a caret move elsewhere draws no table again. Cleared when it grows past this.
-const drawings = new Map<string, Drawing>()
+// a caret move elsewhere draws no table again. The drawings go with the note's
+// editor states, so a note left lets go of its tables; the note's base
+// extensions hold the field too, so it outlives a switch to Edit mode.
+// Cleared when they grow past this.
+export const tableDrawings = StateField.define<Map<string, Drawing>>({
+  create: () => new Map(),
+  update: (drawings) => drawings,
+})
 const DRAWINGS_KEPT = 1000
 // The same table (one note text and tree) is placed once: a caret move places no table again.
 const placed = new WeakMap<WriteTable, BlockLayers>()
@@ -331,6 +338,7 @@ function placedOf(state: EditorState, table: WriteTable): BlockLayers {
   }
   const known = placed.get(table)
   if (known) return known
+  const drawings = state.field(tableDrawings)
   const key = drawingKey(state, table)
   let drawing = drawings.get(key)
   if (!drawing) {
@@ -516,6 +524,7 @@ const gridSelectionClip = ViewPlugin.fromClass(
 
 export const writeTables: Extension = [
   composedTables,
+  tableDrawings,
   writeBlockRule.of(tableRule),
   keepStructure,
   formatCells,

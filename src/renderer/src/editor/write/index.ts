@@ -28,6 +28,7 @@ import { atomic, decorationOf, drawn, writeNoteLoader } from './widgets'
 export { writeBlockRule, type BlockRule } from './blocks'
 export type { WriteRenderer } from './rendered'
 export { setWriteFocus, writeFocusTracking } from './focus'
+export { tableDrawings } from './tableGrid'
 export { writeActive } from './active'
 
 function rangesIn(view: EditorView): { all: DecorationSet; atomic: DecorationSet } {

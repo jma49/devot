@@ -104,7 +104,7 @@ So the preview treats note content as untrusted.
 7. **Math, Mermaid, emoji:** math renders to MathML with temml (no fonts or inline styles; the web view lays it out) and passes a MathML allowlist.
    Inline `$` next to a space stays text, so prices are not math.
    Mermaid is an island.
-   It runs in a hidden frame (`mermaid.html`), created on the first diagram, because Mermaid and its libraries assign to prototypes, which fails in the main window where `freezePrototype` freezes `Object.prototype` (Tauri freezes the main frame only).
+   It runs in a hidden frame (`mermaid.html`), created on the first diagram and removed 30 s after none is shown ([Performance](performance.md)), because Mermaid and its libraries assign to prototypes, which fails in the main window where `freezePrototype` freezes `Object.prototype` (Tauri freezes the main frame only).
    The frame is sandboxed (`sandbox="allow-scripts"`), so its origin is opaque and it cannot reach the main window or its IPC even if a diagram ran script in it.
    An opaque origin makes every module script, dynamic `import()` and `crossorigin` stylesheet a CORS request from `null`, which the app's asset protocol refuses, so the frame loads one classic script: `mermaid-frame.ts` built as an IIFE with its dynamic imports inlined (`scripts/vite/mermaid-frame.ts`, a Vite plugin that serves it in dev and emits `mermaid-frame.js` into the build, so `pnpm dev`, `pnpm ui:build` and the UI tests all use it and nothing generated is tracked).
    Its one style is set through the CSSOM.

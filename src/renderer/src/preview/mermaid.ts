@@ -2,7 +2,8 @@
 // it needs a real page to measure text, and its libraries assign to
 // prototypes, which fails in this window, where Object.prototype is frozen.
 // The sandbox gives the frame an opaque origin, so it cannot reach this
-// window or its IPC. The frame is created on the first diagram. Its SVG is rebuilt here
+// window or its IPC. The frame is created on the first diagram and removed a
+// while after no diagram is shown, which frees its libraries. Its SVG is rebuilt here
 // node by node under the strict CSP: the embedded <style> becomes a
 // constructed stylesheet and `style` attributes go through the CSSOM, so no
 // inline style is ever parsed. Scripts, event handlers, foreign objects,
@@ -11,6 +12,7 @@ import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import { format as fill, t } from '../i18n'
 import { dark, light, sizes, type ThemeColor } from '../theme/tokens'
 import { pointsElsewhere, withoutRemoteCss } from './diagram-css'
+import { FRAME_IDLE_MS, frameLifetime } from './frameLifetime'
 import type { IslandContent, IslandContext, PreviewIsland } from './islands'
 import { keptAnswers } from './kept'
 import {
@@ -41,6 +43,7 @@ const LOAD_TIMEOUT_MS = 30_000
 let frame: HTMLIFrameElement | undefined
 let port: Promise<MessagePort> | undefined
 let connect: ((port: MessagePort) => void) | undefined
+let listening: ((event: MessageEvent) => void) | undefined
 let counter = 0
 const waiting = new Map<number, (message: FrameMessage) => void>()
 
@@ -59,7 +62,7 @@ function rendererPort(): Promise<MessagePort> {
     element.setAttribute('aria-hidden', 'true')
     element.tabIndex = -1
     element.setAttribute('sandbox', MERMAID_FRAME_SANDBOX)
-    window.addEventListener('message', (event) => {
+    listening = (event) => {
       if (event.data !== READY || event.source !== element.contentWindow) return
       if (event.origin !== FRAME_ORIGIN) return
       const channel = new MessageChannel()
@@ -72,13 +75,27 @@ function rendererPort(): Promise<MessagePort> {
       } else {
         port = Promise.resolve(channel.port1)
       }
-    })
+    }
+    window.addEventListener('message', listening)
     port = new Promise((resolve) => (connect = resolve))
     element.src = new URL('mermaid.html', location.href).href
     document.body.appendChild(element)
   }
   return port ?? Promise.reject(new Error('E_MERMAID_FRAME'))
 }
+
+function closeFrame(): void {
+  if (!frame) return
+  if (listening) window.removeEventListener('message', listening)
+  void port?.then((open) => open.close())
+  frame.remove()
+  frame = undefined
+  port = undefined
+  connect = undefined
+  listening = undefined
+}
+
+const holdFrame = frameLifetime(FRAME_IDLE_MS, closeFrame)
 
 type Answer =
   | { type: 'rendered'; svg: string }
@@ -134,12 +151,14 @@ async function renderInFrame(
     const answer = await drawn(
       JSON.stringify([kind, appearance, palette, font.fontFamily, font.fontSize, width, source]),
       () => {
+        const release = holdFrame()
         const turn = queue.then((): Answer | Promise<Answer> =>
           signal?.aborted
             ? { type: 'skipped' }
             : ask(source, appearance, palette, font, width, kind),
         )
         queue = turn
+        turn.then(release, release)
         return turn
       },
     )
@@ -299,7 +318,15 @@ async function render(
   try {
     const { svg, css } = importSvg(answer.svg)
     labelDiagram(svg, diagramLabel(source))
-    return { node: svg, dispose: adopt(css, styleRoot) }
+    const unadopt = adopt(css, styleRoot)
+    const release = holdFrame()
+    return {
+      node: svg,
+      dispose: () => {
+        unadopt()
+        release()
+      },
+    }
   } catch {
     logFailure('svg')
     return errorContent('svg')
