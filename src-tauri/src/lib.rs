@@ -570,7 +570,7 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     watch::start(app.handle());
     #[cfg(desktop)]
     install_desktop(app)?;
-    // The settings as stored: the page starts from the same settings, so its first paint matches the window.
+    #[cfg(desktop)]
     let stored = editor_settings
         .get()
         .unwrap_or_else(|_| editor_settings::Snapshot {
