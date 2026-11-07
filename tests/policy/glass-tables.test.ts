@@ -23,3 +23,11 @@ it('scrolls every table on screen sideways in its own box, its cells keeping the
   )
   expect(cells?.body.get('overflow-wrap')).toBe('break-word')
 })
+
+it('keeps cell words whole on paper too: the cell rule sits outside the screen-only block', () => {
+  const css = readFileSync('src/renderer/src/preview/content.css', 'utf8')
+  const screenBlock = css.slice(css.indexOf('@media screen'))
+  const end = screenBlock.indexOf('\n}\n')
+  expect(screenBlock.slice(0, end)).not.toContain('overflow-wrap')
+  expect(css).toMatch(/\.preview :is\(th, td\) \{\s*overflow-wrap: break-word;/)
+})

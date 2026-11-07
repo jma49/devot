@@ -264,6 +264,10 @@
 
 /* Breaking words anywhere would squeeze a wide table's columns to a letter a
    line, so on screen it scrolls sideways instead; paper cannot scroll. */
+.preview :is(th, td) {
+  overflow-wrap: break-word;
+}
+
 @media screen {
   .preview table {
     display: block;
@@ -271,10 +275,6 @@
     max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
-  }
-
-  .preview :is(th, td) {
-    overflow-wrap: break-word;
   }
 }
 
