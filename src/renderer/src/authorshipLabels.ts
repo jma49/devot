@@ -1,6 +1,7 @@
 // How the UI names a writer (ADR 0007): the name a client gave, always with its kind, so a client
 // can never pass for Edit with AI or the owner (risk 4). The HTTP API and Edit with AI have no name
-// and show their kind alone.
+// and show their kind alone. The clients Settings connects show by their product names; stored rows
+// keep the raw name, so the mapping is made here, where old writes are shown too.
 import type { WriterKind } from '../../core/authorship'
 import { currentLocale, format, t } from './i18n'
 
@@ -9,13 +10,38 @@ export interface WriterRef {
   name: string
 }
 
-export function writerLabel(writer: WriterRef): string {
-  const kind = t(`authorship.kind.${writer.kind}`)
-  return writer.name ? format(t('authorship.writerNamed'), { name: writer.name, kind }) : kind
+type Product = 'claudeCode' | 'claudeDesktop' | 'codex'
+
+const PRODUCTS: ReadonlyMap<string, Product> = new Map([
+  ['claude-code', 'claudeCode'],
+  ['claude-ai', 'claudeDesktop'],
+  ['local-agent-mode-devot', 'claudeDesktop'],
+  ['codex-mcp-client', 'codex'],
+])
+
+const productOf = (writer: WriterRef): Product | undefined =>
+  writer.kind === 'mcp' ? PRODUCTS.get(writer.name) : undefined
+
+/** The writer's name as shown: a known client's product name, else the name it gave. */
+export function writerName(writer: WriterRef): string {
+  const product = productOf(writer)
+  return product ? t(`integrations.${product}`) : writer.name
 }
 
-/** One key per writer across sessions, as Undo All groups them. */
-export const writerKey = (writer: WriterRef): string => `${writer.kind}:${writer.name}`
+export function writerLabel(writer: WriterRef): string {
+  const kind = t(`authorship.kind.${writer.kind}`)
+  const name = writerName(writer)
+  return name ? format(t('authorship.writerNamed'), { name, kind }) : kind
+}
+
+/**
+ * One key per writer across sessions, as Undo All groups them: a product's names share one.
+ * The separators differ, so a client that gives a product's name as its own never shares its key.
+ */
+export function writerKey(writer: WriterRef): string {
+  const product = productOf(writer)
+  return product ? `${writer.kind}#${product}` : `${writer.kind}:${writer.name}`
+}
 
 /** The writers' labels joined as a list, each once, in the order given. */
 export function writersLabel(writers: readonly WriterRef[]): string {
@@ -40,12 +66,13 @@ const around = (text: string, slot: string): [string, string] => {
 export function writerLabelParts(writer: WriterRef, template = '{writer}'): LabelParts {
   const [outerBefore, outerAfter] = around(template, '{writer}')
   const kind = t(`authorship.kind.${writer.kind}`)
-  const [innerBefore, innerAfter] = writer.name
+  const name = writerName(writer)
+  const [innerBefore, innerAfter] = name
     ? around(t('authorship.writerNamed'), '{name}').map((part) => format(part, { kind }))
     : [kind, '']
   return {
     before: `${outerBefore}${innerBefore}`,
-    name: writer.name,
+    name,
     after: `${innerAfter}${outerAfter}`,
     full: format(template, { writer: writerLabel(writer) }),
   }
