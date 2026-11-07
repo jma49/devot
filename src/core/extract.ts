@@ -82,21 +82,28 @@ export interface TaskProgress {
   total: number
 }
 
-/** Front matter and code blocks hold none. */
-export function taskProgress(markdown: string): TaskProgress {
-  let start = 0
+/** Where the body of `markdown` starts: after its front matter, when it has some. */
+export function frontMatterEnd(markdown: string): number {
   const open = FRONT_MATTER_OPEN.exec(markdown)
-  if (open) {
-    FRONT_MATTER_CLOSE.lastIndex = open[0].length - 1
-    if (FRONT_MATTER_CLOSE.exec(markdown)) start = FRONT_MATTER_CLOSE.lastIndex
-  }
+  if (!open) return 0
+  const close = new RegExp(FRONT_MATTER_CLOSE)
+  close.lastIndex = open[0].length - 1
+  return close.exec(markdown) ? close.lastIndex : 0
+}
+
+/**
+ * The task items in `text`, which starts at the start of a line, read with the code fence
+ * `fence` open; and the fence open at its end.
+ */
+export function tasksIn(
+  text: string,
+  fence?: string,
+): TaskProgress & { fence: string | undefined } {
   let done = 0
   let total = 0
-  let fence: string | undefined
   const lines = new RegExp(TASK_LINES)
-  lines.lastIndex = start
-  for (let found = lines.exec(markdown); found; found = lines.exec(markdown)) {
-    const before = markdown.charCodeAt(found.index - 1)
+  for (let found = lines.exec(text); found; found = lines.exec(text)) {
+    const before = text.charCodeAt(found.index - 1)
     if (before === 0x2028 || before === 0x2029) {
       lines.lastIndex = found.index + 1
       continue
@@ -113,5 +120,12 @@ export function taskProgress(markdown: string): TaskProgress {
     total += 1
     if (found[2] !== ' ') done += 1
   }
+  return { done, total, fence }
+}
+
+/** Front matter and code blocks hold none. */
+export function taskProgress(markdown: string): TaskProgress {
+  const start = frontMatterEnd(markdown)
+  const { done, total } = tasksIn(start > 0 ? markdown.slice(start) : markdown)
   return { done, total }
 }

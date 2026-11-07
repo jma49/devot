@@ -128,3 +128,49 @@ test('with 10,000 notes a keystroke stays within its budget and renders no row',
   test.skip(median >= budget && overloaded, `machine overloaded (${median.toFixed(1)} ms)`)
   expect(median).toBeLessThan(budget)
 })
+
+// A note with many code blocks: each block's copy button is an icon, and each icon reads the
+// appearance (a media query while the window follows the system's).
+function codeNote(blocks: number): string {
+  return Array.from(
+    { length: blocks },
+    (_, i) => `## Part ${i}\n\nProse of part ${i}.\n\n\`\`\`ts\nconst part = ${i}\n\`\`\`\n`,
+  ).join('\n')
+}
+
+test('typing in Split view renders neither the preview nor its copy buttons', async ({ page }) => {
+  await countRenders(page, ['Preview', 'CopyButton'])
+  await page.addInitScript(() => {
+    const w = window
+    w.devotMediaQueries = 0
+    const query = w.matchMedia.bind(w)
+    w.matchMedia = (media: string) => {
+      w.devotMediaQueries += 1
+      return query(media)
+    }
+  })
+  await seedNotes(page, 1)
+  await openNote(page, 'Note 1')
+  await page.keyboard.insertText(codeNote(60))
+  await page
+    .getByRole('group', { name: 'View mode' })
+    .getByRole('button', { name: 'Split' })
+    .click()
+  const preview = page.getByRole('article', { name: 'Preview' })
+  await expect(preview.locator('.code-copy')).toHaveCount(60)
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await resetRenderCounts(page)
+  await page.evaluate(() => (window.devotMediaQueries = 0))
+
+  for (const key of KEYS) {
+    await page.keyboard.press(key)
+    await page.waitForTimeout(20)
+  }
+  await expect(preview.locator('p').last()).toHaveText(KEYS)
+  // A save renders the window and the preview with it once; a key renders neither.
+  const { renders, writes } = await renderCounts(page)
+  expect(renders['Preview']).toBeLessThanOrEqual(writes)
+  expect(renders['CopyButton']).toBe(0)
+  expect(await page.evaluate(() => window.devotMediaQueries)).toBeLessThanOrEqual(KEYS.length)
+})

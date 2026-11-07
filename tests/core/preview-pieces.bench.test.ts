@@ -1,5 +1,7 @@
 import { describe, it } from 'vitest'
-import { createPieceRenderer, type PreviewOptions } from '../../src/core'
+import { createPieceRenderer, PIECE_LENGTH, type PreviewOptions } from '../../src/core'
+import { createBlockSplitter, shareSplitter } from '../../src/core/preview/blocks'
+import { createLivePreviewRenderer } from '../../src/core/preview/live'
 import { sampleNote } from '../../scripts/bench/fixtures'
 import { expectWithinBudget } from '../support/budget'
 import { labels } from '../support/preview-html'
@@ -40,5 +42,41 @@ describe('the live preview of a 250 KB note with footnotes and reference definit
       known = pieces.map((piece) => piece.key)
     }
     expectWithinBudget(context, median(times), EDIT_BUDGET_MS)
+  })
+})
+
+// The pieces before and after an edit are known: cutting the note, keying its pieces and counting
+// its tasks and lines start again only around the edit, and the note is cut once for all of them.
+// What is left grows with the count of pieces (on a loaded machine, about 47 ms per edit at 5 MB
+// when the cut compared a character at a time and ran twice; about 15 ms now).
+const BIG_EDIT_BUDGETS_MS: [number, number][] = [
+  [2_000_000, 25],
+  [5_000_000, 30],
+]
+
+describe.each(BIG_EDIT_BUDGETS_MS)('the live preview of a %d-byte note', (bytes, budget) => {
+  it('renders an edit in the middle within its budget', { timeout: 240_000 }, async (context) => {
+    const noteSplitter = shareSplitter(createBlockSplitter(PIECE_LENGTH))
+    const render = createLivePreviewRenderer({
+      renderPieces: createPieceRenderer({ split: noteSplitter() }),
+      linkTargets: async () => ({}),
+      onTargetsFailed: () => undefined,
+      split: noteSplitter(),
+    })
+    const note = sampleNote(bytes)
+    let known = (await render(note, options, [], '')).pieces.map((piece) => piece.key)
+    const at = note.indexOf('goes on for a while', note.length / 2)
+    // Flat, as a note the page posts arrives.
+    const edits = Array.from({ length: EDITS }, (_, i) =>
+      JSON.parse(JSON.stringify(`${note.slice(0, at)}${'x'.repeat(i + 1)}${note.slice(at)}`)),
+    ) as string[]
+    const times: number[] = []
+    for (const edited of edits) {
+      const start = performance.now()
+      const { pieces } = await render(edited, options, known, '')
+      times.push(performance.now() - start)
+      known = pieces.map((piece) => piece.key)
+    }
+    expectWithinBudget(context, median(times), budget)
   })
 })
