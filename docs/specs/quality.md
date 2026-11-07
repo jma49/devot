@@ -96,6 +96,7 @@ Every PR must test the logic it changes, which review checks.
   The screens package's tests read the same message fixtures as Vitest and `cargo test` (`tests/fixtures/screens/`).
 - `iphone-ui`, a macOS job in the `rust` gate with a 40 minute limit, builds the iPhone app for the simulator with the release UI (`pnpm tauri ios build`, whose `beforeBuildCommand` is `pnpm ui:release`), installs it and runs the XCUITest in `src-tauri/apple/DevotUITests` (`scripts/ci/iphone-ui-tests.sh`).
   The test launches the app by its bundle ID, switches all four tabs of the native tab bar and runs `performAccessibilityAudit()` on the bar; the page inside the web view is not audited there.
+  The Settings test audits the root at the top of its list and at its foot; an element whose issue is measured against a system bar's glass must also show clear of the bars in one of the two places, where it is audited for real.
   It is the only job that runs the shipping app, so it is what catches a web view that fails to move between the tabs or a tab item without a name.
   A failed run uploads the test's result bundle as the `iphone-ui-xcresult` artifact, with each audit issue's element and the screenshots.
   A pull request runs it only when it changes `src-tauri/apple/`, `src-tauri/gen/apple/`, `src-tauri/src/native/ios/`, a `screens/` folder or `src/renderer/src/phone/` (`scripts/ci/changed-code.sh`); every other run includes it.

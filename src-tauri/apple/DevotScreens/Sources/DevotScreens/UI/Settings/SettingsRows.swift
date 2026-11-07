@@ -148,7 +148,7 @@ struct ActionRow: View {
     }
 }
 
-/// A section's header over its card, in place of the system's fainter header style.
+/// A section's header over its card, as written, in place of the system's fainter, uppercased header style.
 struct Header: View {
     let text: String
 
@@ -157,7 +157,7 @@ struct Header: View {
     }
 
     var body: some View {
-        Text(text).modifier(SettingsType(size: 14, line: 19, weight: .medium, secondary: true))
+        Text(text).modifier(SettingsType(size: 14, line: 19, weight: .medium, secondary: true)).textCase(nil)
     }
 }
 

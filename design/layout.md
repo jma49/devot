@@ -66,7 +66,7 @@ Its keyline is `size.phone-grouped-pad-x` (16) from a card's edge: section heade
 - **Disabled:** the row's contents fade once to `opacity.disabled`, its control drawn as an enabled one and its label in the body colour; the hairline above it does not fade.
   A disabled action row fades the same way.
 - **Focus:** the ring goes round the whole row, inside it, since the card clips anything outside.
-- **Headers and footers:** 14/19 in `color.phone.text-secondary` on the keyline, a header medium and `space.4` above its card, a footer `space.4` below it.
+- **Headers and footers:** 14/19 in `color.phone.text-secondary` on the keyline, a header medium, in the case it is written in, and `space.4` above its card, a footer `space.4` below it.
   At most one footer per card.
 
 ## Note rows

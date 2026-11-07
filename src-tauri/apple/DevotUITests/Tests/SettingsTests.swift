@@ -73,28 +73,79 @@ final class SettingsTests: XCTestCase {
         }
     }
 
-    func testTheSettingsRootPassesTheAccessibilityAudit() throws {
-        continueAfterFailure = true
-        let bar = app.tabBars.firstMatch.frame
-        let allowed = { (issue: XCUIAccessibilityAuditIssue) -> Bool in
+    private struct Element: Hashable, CustomStringConvertible {
+        let type: XCUIElement.ElementType
+        let label: String
+        var description: String { "\(type.rawValue) '\(label)'" }
+    }
+
+    /// An issue on a control the system draws, which the app does not.
+    private static func systemControl(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        let type = issue.element?.elementType
+        // The chevron keeps the system's fixed disclosure size, as UIKit's own does.
+        if issue.auditType == .dynamicType && type == .image { return true }
+        if issue.auditType == .textClipped && type == .searchField { return true }
+        // Its frame is 36 pt but it takes touches over the full target (SettingsRootScreenTests).
+        if issue.auditType == .hitRegion && type == .button && issue.element?.label == L10n.phoneSettingsPair() {
+            return true
+        }
+        return false
+    }
+
+    /// The screen between the navigation bar and the tab bar.
+    private func clearOfTheBars() -> CGRect {
+        let screen = app.windows.firstMatch.frame
+        let top = app.navigationBars.firstMatch.frame.maxY
+        return CGRect(x: screen.minX, y: top, width: screen.width, height: app.tabBars.firstMatch.frame.minY - top)
+    }
+
+    /// Audits what shows and returns the elements with an issue over a system bar, which the audit
+    /// measures against the bar's glass; every other issue fails.
+    private func audit(clear: CGRect) throws -> Set<Element> {
+        var overABar: Set<Element> = []
+        let handle = { (issue: XCUIAccessibilityAuditIssue) -> Bool in
+            if Self.systemControl(issue) { return true }
             let element = issue.element
-            let type = element?.elementType
             let frame = element?.frame ?? .null
-            // The chevron keeps the system's fixed disclosure size, as UIKit's own does.
-            if issue.auditType == .dynamicType && type == .image { return true }
-            // The system's search field, which the app does not draw.
-            if issue.auditType == .textClipped && type == .searchField { return true }
-            // The system's bar button: its frame is 36 pt, but its glass platter takes touches over 44 by 44.
-            if issue.auditType == .hitRegion && type == .button && element?.label == L10n.phoneSettingsPair() {
+            // An element is found again by its type and label, so one without a label cannot be deferred.
+            if let element, !element.label.isEmpty, !frame.isNull, !clear.contains(frame) {
+                overABar.insert(Element(type: element.elementType, label: element.label))
+                print("audit issue over a bar: \(issue.compactDescription) on \(element.elementType.rawValue) '\(element.label)' \(frame)")
                 return true
             }
-            // Rows scroll under the system's glass tab bar, which the audit measures them against.
-            if issue.auditType == .contrast && frame.intersects(bar) { return true }
-            print("audit issue: \(issue.compactDescription) on \(type.map { "\($0.rawValue)" } ?? "-") '\(element?.label ?? "")' \(frame)")
+            print("audit issue: \(issue.compactDescription) on \(element.map { "\($0.elementType.rawValue)" } ?? "-") '\(element?.label ?? "")' \(frame)")
             return false
         }
         // Contrast runs alone: audited with the rest, a row under the tab bar comes without its element.
-        try app.performAccessibilityAudit(for: XCUIAccessibilityAuditType.all.subtracting(.contrast), allowed)
-        try app.performAccessibilityAudit(for: .contrast, allowed)
+        try app.performAccessibilityAudit(for: XCUIAccessibilityAuditType.all.subtracting(.contrast), handle)
+        try app.performAccessibilityAudit(for: .contrast, handle)
+        return overABar
+    }
+
+    /// The elements that show whole between the bars.
+    private func shownClear(_ clear: CGRect) throws -> Set<Element> {
+        var shown: Set<Element> = []
+        func walk(_ snapshot: any XCUIElementSnapshot) {
+            if !snapshot.label.isEmpty && !snapshot.frame.isEmpty && clear.contains(snapshot.frame) {
+                shown.insert(Element(type: snapshot.elementType, label: snapshot.label))
+            }
+            snapshot.children.forEach(walk)
+        }
+        walk(try app.snapshot())
+        return shown
+    }
+
+    func testTheSettingsRootPassesTheAccessibilityAudit() throws {
+        continueAfterFailure = true
+        var overABar: Set<Element> = []
+        var auditedClear: Set<Element> = []
+        // At the top, then at the foot of the list, where the last rows show above the tab bar.
+        for foot in [false, true] {
+            if foot { XCTAssertTrue(row(L10n.settingsPaneLicence()).exists) }
+            let clear = clearOfTheBars()
+            auditedClear.formUnion(try shownClear(clear))
+            overABar.formUnion(try audit(clear: clear))
+        }
+        XCTAssertEqual(overABar.subtracting(auditedClear), [], "audited only over a system bar")
     }
 }
