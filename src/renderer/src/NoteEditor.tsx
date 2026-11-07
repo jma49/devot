@@ -697,7 +697,7 @@ export function NoteEditor({
         handle: editorHandle(ready, doc, noteId, applyStep, () => shown.current === s),
       }
       shown.current = s
-      loaded.current?.(text.toString())
+      loaded.current?.(body)
       reportText()
       publish(s)
       // Opened before this editor was published: changes sent in between reached no editor.

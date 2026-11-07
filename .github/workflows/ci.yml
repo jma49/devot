@@ -322,7 +322,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       # Tauri compiles against the Linux webview stack even though Devot ships
       # for macOS; macOS-only code sits behind cfg(target_os = "macos").
-      # The change watch tests write from a second process through the sqlite3 shell.
+      # The change watch and backup tests reach the database from a second process through the sqlite3 shell.
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
@@ -440,14 +440,11 @@ jobs:
       # Tauri's beforeBuildCommand builds the release UI, which the app embeds.
       - run: pnpm tauri ios build --debug --target aarch64-sim
       - run: sh scripts/ci/iphone-ui-tests.sh
-        env:
-          DEVOT_UI_RESULT: ${{ runner.temp }}/DevotUITests.xcresult
-      # The result bundle names each failed audit issue's element and holds the screenshots.
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: iphone-ui-xcresult
-          path: ${{ runner.temp }}/DevotUITests.xcresult
+          path: test-results/iphone-ui.xcresult/
           if-no-files-found: ignore
           retention-days: 7
 

@@ -2,9 +2,13 @@
 // matter, rendered images, formulas, diagrams and embeds, tables). CodeMirror takes
 // those only from state, never from a view plugin, so they live in one state
 // field fed by `writeBlockRule`: a step adds a rule, not another field. An edit
-// or a caret move draws again only the blocks it touches (changes.ts).
+// or a caret move draws again only the blocks it touches (changes.ts). The
+// editor compares every decoration it reads from state on every update, so it
+// reads only those that take or join lines; the rest it is given for the
+// viewport alone.
 import { syntaxTree } from '@codemirror/language'
 import {
+  type ChangeSet,
   Facet,
   MapMode,
   RangeSet,
@@ -14,8 +18,16 @@ import {
   type Extension,
   Transaction,
   type Range,
+  type Text,
 } from '@codemirror/state'
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import {
+  Decoration,
+  EditorView,
+  ViewPlugin,
+  WidgetType,
+  type DecorationSet,
+  type ViewUpdate,
+} from '@codemirror/view'
 import { t } from '../../i18n'
 import { FRONT_MATTER } from '../markdown'
 import { revealedIn, setWriteFocus } from './focus'
@@ -141,8 +153,12 @@ const renderedBlockRule: BlockRule = {
   carry: carryWriteBlocks,
 }
 
-type Layers = Record<keyof BlockLayers, DecorationSet>
-const LAYERS = ['decorations', 'outer', 'atomic'] as const
+/** A rule's `decorations` split: `lines` are those that take or join lines, `inline` the rest. */
+type Layer = 'lines' | 'inline' | 'outer' | 'atomic'
+type Layers = Record<Layer, DecorationSet>
+
+const takesLines = (doc: Text, { from, to, value }: Range<Decoration>) =>
+  value.spec.block === true || (value.point && to > from && to > doc.lineAt(from).to)
 
 /** Where a piece's decorations lie: it moves with the text as they do, edges outward, and is never dropped. */
 class Extent extends RangeValue {
@@ -166,14 +182,14 @@ function piecesIn(state: EditorState, revealed: Revealed, from: number, to: numb
   return out
 }
 
-function rangesOf(pieces: readonly BlockPiece[]): Record<keyof BlockLayers, Range<Decoration>[]> {
-  const out: Record<keyof BlockLayers, Range<Decoration>[]> = {
-    decorations: [],
-    outer: [],
-    atomic: [],
+function rangesOf(doc: Text, pieces: readonly BlockPiece[]): Record<Layer, Range<Decoration>[]> {
+  const out: Record<Layer, Range<Decoration>[]> = { lines: [], inline: [], outer: [], atomic: [] }
+  for (const { layers } of pieces) {
+    for (const range of layers.decorations)
+      out[takesLines(doc, range) ? 'lines' : 'inline'].push(range)
+    for (const range of layers.outer) out.outer.push(range)
+    for (const range of layers.atomic) out.atomic.push(range)
   }
-  for (const { layers } of pieces)
-    for (const layer of LAYERS) for (const range of layers[layer]) out[layer].push(range)
   return out
 }
 
@@ -182,10 +198,11 @@ const extentsOf = (pieces: readonly BlockPiece[]) =>
 
 function build(state: EditorState): Blocks {
   const pieces = piecesIn(state, revealedIn(state), 0, state.doc.length)
-  const ranges = rangesOf(pieces)
+  const ranges = rangesOf(state.doc, pieces)
   return {
     layers: {
-      decorations: Decoration.set(ranges.decorations, true),
+      lines: Decoration.set(ranges.lines, true),
+      inline: Decoration.set(ranges.inline, true),
       outer: Decoration.set(ranges.outer, true),
       atomic: RangeSet.of(ranges.atomic, true),
     },
@@ -196,7 +213,8 @@ function build(state: EditorState): Blocks {
 
 const mapped = (value: Blocks, tr: Transaction, stale: boolean): Blocks => ({
   layers: {
-    decorations: value.layers.decorations.map(tr.changes),
+    lines: value.layers.lines.map(tr.changes),
+    inline: value.layers.inline.map(tr.changes),
     outer: value.layers.outer.map(tr.changes),
     atomic: value.layers.atomic.map(tr.changes),
   },
@@ -243,9 +261,10 @@ function redraw(value: Blocks, tr: Transaction, spans: readonly Span[]): Blocks 
         filterFrom: from,
         filterTo: to,
       })
-    const ranges = rangesOf(found)
+    const ranges = rangesOf(state.doc, found)
     layers = {
-      decorations: replace(layers.decorations, ranges.decorations),
+      lines: replace(layers.lines, ranges.lines),
+      inline: replace(layers.inline, ranges.inline),
       outer: replace(layers.outer, ranges.outer),
       atomic: replace(layers.atomic, ranges.atomic),
     }
@@ -295,14 +314,87 @@ const blocks = StateField.define<Blocks>({
     return redraw(value, tr, spansOf(tr, read))
   },
   provide: (field) => [
-    EditorView.decorations.from(field, (value) => value.layers.decorations),
-    EditorView.outerDecorations.from(field, (value) => value.layers.outer),
+    EditorView.decorations.from(field, (value) => value.layers.lines),
     EditorView.atomicRanges.of((view) => view.state.field(field).layers.atomic),
   ],
 })
 
+/**
+ * What of `set` meets `from`-`to`, less what takes lines: a line break typed
+ * or synced into a hidden piece while the blocks are only mapped stretches it
+ * across lines, which the editor refuses from a plugin, until it is drawn again.
+ */
+function within(set: DecorationSet, doc: Text, { from, to }: { from: number; to: number }) {
+  const ranges: Range<Decoration>[] = []
+  set.between(from, to, (a, b, value) => {
+    const range = value.range(a, b)
+    if (!takesLines(doc, range)) ranges.push(range)
+  })
+  return Decoration.set(ranges, true)
+}
+
+function insertsLineBreak(changes: ChangeSet): boolean {
+  let found = false
+  changes.iterChanges((_fromA, _toA, _fromB, _toB, text) => {
+    if (text.lines > 1) found = true
+  })
+  return found
+}
+
+const inView = ViewPlugin.fromClass(
+  class {
+    inline: DecorationSet
+    outer: DecorationSet
+    private layers: Layers
+
+    constructor(view: EditorView) {
+      this.layers = view.state.field(blocks).layers
+      this.inline = within(this.layers.inline, view.state.doc, view.viewport)
+      this.outer = within(this.layers.outer, view.state.doc, view.viewport)
+    }
+
+    update(update: ViewUpdate) {
+      const { layers } = update.state.field(blocks)
+      if (layers === this.layers && !update.viewportChanged) return
+      this.layers = layers
+      const { doc } = update.state
+      // Moved with the text inside a composition, as the blocks are.
+      if (update.view.compositionStarted && !update.viewportChanged) {
+        this.inline = this.inline.map(update.changes)
+        if (insertsLineBreak(update.changes))
+          this.inline = within(this.inline, doc, { from: 0, to: doc.length })
+        this.outer = this.outer.map(update.changes)
+        return
+      }
+      this.inline = within(layers.inline, doc, update.view.viewport)
+      this.outer = within(layers.outer, doc, update.view.viewport)
+    }
+  },
+  {
+    decorations: (plugin) => plugin.inline,
+    provide: (plugin) =>
+      EditorView.outerDecorations.of((view) => view.plugin(plugin)?.outer ?? Decoration.none),
+  },
+)
+
+/** What the editor is given of the blocks that neither take nor join lines: those that meet its viewport. */
+export function viewBlocks(view: EditorView): { inline: DecorationSet; outer: DecorationSet } {
+  return view.plugin(inView) ?? { inline: Decoration.none, outer: Decoration.none }
+}
+
+/** All the blocks draw over the whole note, of which the editor is given what meets its viewport. */
+export function drawnBlocks(state: EditorState): {
+  decorations: readonly DecorationSet[]
+  outer: DecorationSet
+} {
+  const layers = state.field(blocks, false)?.layers
+  if (!layers) return { decorations: [], outer: Decoration.none }
+  return { decorations: [layers.lines, layers.inline], outer: layers.outer }
+}
+
 export const writeBlocks: Extension = [
   blocks,
+  inView,
   writeBlockRule.of(frontMatterRule),
   writeBlockRule.of(renderedBlockRule),
 ]

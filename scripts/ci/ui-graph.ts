@@ -1,6 +1,11 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
-import { MERMAID_FRAME_ENTRY, MERMAID_FRAME_SCRIPT } from '../vite/mermaid-frame-entry.ts'
+import {
+  DIAGRAM_ENGINES,
+  engineEntry,
+  MERMAID_FRAME_ENTRY,
+  MERMAID_FRAME_SCRIPT,
+} from '../vite/mermaid-frame-entry.ts'
 
 // The UI's module graph, read with patterns rather than a parser so the change detection needs no
 // installed packages. Reading too many edges only runs more specs; a missed edge would skip specs,
@@ -10,6 +15,8 @@ const SOURCES = ['src/**/*.{ts,tsx,css,md,svg}', 'design/app-icon/*.svg']
 const SPECS = ['tests/ui/**/*.ts', 'tests/ui-csp/**/*.ts']
 // Scripts a Vite plugin builds from a module of its own, which a page loads by their built name.
 const BUILT_SCRIPTS = new Map([[MERMAID_FRAME_SCRIPT, MERMAID_FRAME_ENTRY]])
+// Built scripts a module loads by name at run time, as if it imported their modules.
+const LOADED_SCRIPTS = new Map([[MERMAID_FRAME_ENTRY, DIAGRAM_ENGINES.map(engineEntry)]])
 const IGNORED = /\.(?:bench\.)?test\.[cm]?[jt]sx?$|\.d\.ts$/
 
 const SPECIFIERS = [
@@ -59,17 +66,23 @@ export function uiGraph(root: string): UiGraph {
     ),
   )
   const importers = new Map<string, Set<string>>()
+  const link = (target: string, importer: string) => {
+    files.add(target)
+    const set = importers.get(target) ?? new Set<string>()
+    set.add(importer)
+    importers.set(target, set)
+  }
+  for (const [loader, modules] of LOADED_SCRIPTS) {
+    if (!files.has(loader)) continue
+    for (const module of modules) if (existsSync(join(root, module))) link(module, loader)
+  }
   for (const file of files) {
     if (!/\.[cm]?[jt]sx?$/.test(file)) continue
     const text = readFileSync(join(root, file), 'utf8')
     for (const pattern of SPECIFIERS) {
       for (const [, specifier] of text.matchAll(pattern)) {
         const target = resolveSpecifier(root, file, specifier ?? '')
-        if (!target) continue
-        files.add(target)
-        const set = importers.get(target) ?? new Set<string>()
-        set.add(file)
-        importers.set(target, set)
+        if (target) link(target, file)
       }
     }
   }

@@ -114,6 +114,9 @@ Every write the phone offers goes through one gate (`phone/requireEditing.ts`), 
 Note: a note opens in Preview, and an empty one in Edit, chosen once when its body has loaded.
 While editing is locked a note opens in Preview and stays there: the mode toggle, a task box, the title, the chips and the AI circle show the lock's sheet instead.
 Its text, in Edit and Preview, shares the title's left and right edges. A later change to the body never changes the mode. Back and Forward return to a note in the mode it was left in; leaving the note's screen forgets that. The top bar has a back circle, the notebook's path in mono, and a capsule of the mode toggle and info. Below it the title 26 bold, wrapping to as many lines as it needs (Return adds none), the chips, a long name cut with an ellipsis at the screen's width, then the edit time and word count in `.phone-figures`; there is no per-note sync state. The bottom has a glass capsule of Back and Forward, a find circle and, in Edit, an AI circle with its sparkle in the caret colour. While typing the bottom fades and the formatting bar sits on the keyboard, with a hide-keyboard circle.
+Under the native screens a note is its own screen pushed over the list, full bleed under the system bar, which holds Back, Info and the mode toggle; the toggle shows the mode it switches to.
+The page then draws neither its top bar nor the Back and Forward capsule, since the screens' stack is the note's history, and a link pushes the linked note's screen.
+The bar shows the title only once the note's own has scrolled under it.
 
 Find: the editor's own find, in a glass bar on the keyboard with a count, its numbers in `.phone-figures` and its words in the body font, previous, next and a close circle. It switches a note in Preview to Edit.
 While editing is locked that editor takes no caret, so a tap in the text raises no keyboard.

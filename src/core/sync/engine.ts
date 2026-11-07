@@ -6,13 +6,14 @@
 // holds (`fingerprint`).
 //
 // It runs one task at a time. Pushes wait for 3 s without writes, and go at least every 10 s while
-// writes go on; a large backlog goes out in batches (`pushMany`). It refuses to sync while this
-// device's clock is more than 5 minutes off the relay's, and a new vault epoch (a relay that lost its
-// data, or a new one) means every record is uploaded again. Revoked, unknown or refused devices stop
-// until the user acts; the relay's quota cap pauses pushes until its next 00:00 UTC, another
-// transport's pause lasts as long as it says (a full iCloud until it is looked at again); anything
-// else retries with backoff and jitter. The cursor and each record's change tag are the
-// transport's, never read here (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md).
+// writes go on; a large note waits longer between its pushes (`pushPaceMs`), and a large backlog
+// goes out in batches (`pushMany`). It refuses to sync while this device's clock is more than 5
+// minutes off the relay's, and a new vault epoch (a relay that lost its data, or a new one) means
+// every record is uploaded again. Revoked, unknown or refused devices stop until the user acts; the
+// relay's quota cap pauses pushes until its next 00:00 UTC, another transport's pause lasts as long
+// as it says (a full iCloud until it is looked at again); anything else retries with backoff and
+// jitter. The cursor and each record's change tag are the transport's, never read here
+// (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md).
 
 import * as Y from 'yjs'
 import { textEdits } from '../diff'
@@ -85,6 +86,27 @@ import {
 
 export const PUSH_IDLE_MS = 3_000
 export const PUSH_EVERY_MS = 10_000
+/** About the most bytes a second one record's pushes average while it is edited. */
+const PACE_BYTES_PER_S = 100_000
+const MAX_PACE_MS = 60_000
+
+/**
+ * How long a note of `bytes` of state waits after the engine last read it before it is pushed
+ * again: each push reads and sends the whole record, so a large note goes out less often (2 MB
+ * about every 20 s). One that would wait no longer than a run of writes does (1 MB) is not paced.
+ */
+export function pushPaceMs(bytes: number): number {
+  const wait = Math.min(MAX_PACE_MS, Math.round((bytes * 1_000) / PACE_BYTES_PER_S))
+  return wait > PUSH_EVERY_MS ? wait : 0
+}
+
+interface PassOptions {
+  /** Large notes read lately wait out their pace (`pushPaceMs`); a flush, Sync Now and a backlog do not. */
+  paced?: boolean
+  /** On iCloud, a push timer's pass also fetches; the pace's own pass and a flush do not. */
+  pull?: boolean
+}
+
 const MAX_PUSH_RETRIES = 5
 const MAX_CLOCK_SKEW_MS = 5 * 60_000
 const RETRY_BASE_MS = 250
@@ -229,6 +251,8 @@ export interface SyncEngine {
   status(): SyncStatus
   /** Pulls and pushes now (connecting first when needed); resolves when done. */
   syncNow(): Promise<void>
+  /** The app goes out of sight or quits: what waits for a push timer or a large note's pace goes now. */
+  flush(): Promise<void>
   /** Resolves once no task is running or queued. */
   idle(): Promise<void>
   /**
@@ -442,6 +466,17 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   let reconnectDelay = RECONNECT_MIN_MS
   let pushTimer: ReturnType<typeof setTimeout> | undefined
   let firstTouch: number | undefined
+  /** When each large note may be pushed again (`pushPaceMs`), and the timer of the pass for the first one waiting. */
+  const pacedUntil = new Map<string, number>()
+  let pacedTimer: ReturnType<typeof setTimeout> | undefined
+  /** The last push pass passed a note over for its pace, so not everything here is synced. */
+  let heldBack = false
+  /**
+   * The body stamp a passed-over note gets once it is read: taken by the pass that saw its latest
+   * `edits`, never before the body's last change, so an edit after a trash elsewhere still brings
+   * the note back. Any write during the wait moves it on, so a trash made before that write loses.
+   */
+  const seenEdits = new Map<string, { edits: number; hlc: string }>()
   /** Record ID to the fingerprint the relay refused as too large; a changed record is tried again. */
   const tooLarge = new Map<string, string>()
   /** Past the retry cap: left until the next `changed`. */
@@ -589,8 +624,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   }
 
   /** A device that was stopped (revoked, refused) stays so until sync is turned off and on, or a recheck (`again`). */
-  async function connect(again = false) {
-    if (connected) return syncAll()
+  async function connect(again = false, pass: PassOptions = {}) {
+    if (connected) return syncAll(pass)
     if (status.state === 'stopped' && !again) return
     if (await waitsForRestoreChoice()) return
     set({ state: 'connecting' })
@@ -623,7 +658,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }
     connected = true
     reconnectDelay = RECONNECT_MIN_MS
-    await syncAll()
+    await syncAll(pass)
   }
 
   /** A library that never synced has nothing later to bring back, so nobody is asked. */
@@ -712,14 +747,18 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }
   }
 
-  async function syncAll() {
+  async function syncAll(pass: PassOptions = {}) {
     set({ state: 'syncing' })
     await pullAll()
-    await pushAll()
+    await pushAll(pass)
     await finishPass()
   }
 
   async function finishPass() {
+    if (heldBack) {
+      set({ state: 'idle', code: null })
+      return
+    }
     const at = now()
     await sync.syncSetState('lastSync', String(at))
     set({ state: 'idle', code: null, lastSync: at })
@@ -790,10 +829,13 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const entry = local.entry
     const row = local.note
     const kept = { bodyHlc: entry?.bodyHlc ?? '', bodyFp: entry?.bodyFp ?? '' }
+    const seen = seenEdits.get(local.id)
+    seenEdits.delete(local.id)
     if (!row || row.purged) return kept
     const print = bodyPrint(row.note.ydoc)
     if (print === kept.bodyFp) return kept
-    return { bodyHlc: row.note.deletedAt === null ? clock.tick() : kept.bodyHlc, bodyFp: print }
+    const hlc = seen && seen.edits === entry?.edits ? seen.hlc : clock.tick()
+    return { bodyHlc: row.note.deletedAt === null ? hlc : kept.bodyHlc, bodyFp: print }
   }
 
   async function applyPulled(pulled: PulledRecord): Promise<boolean> {
@@ -1023,17 +1065,80 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     for (const [id, times] of pushTimes) if ((times.at(-1) ?? 0) <= since) pushTimes.delete(id)
   }
 
-  async function pushAll() {
+  async function pushAll({ paced = true }: PassOptions = {}) {
+    const pace = paced ? passPace() : undefined
     try {
-      await pushEach()
+      await pushEach(pace)
     } finally {
       forgetOldPushes()
     }
+    heldBack = pace?.until !== undefined
+    armPaced(pace?.until)
+  }
+
+  /** One pass's large notes waiting out their pace: `waits` passes one over, `until` is when the first wait ends. */
+  function passPace() {
+    let until: number | undefined
+    return {
+      get until() {
+        return until
+      },
+      waits(id: string, edits: number) {
+        const end = pacedUntil.get(id)
+        if (end === undefined) return false
+        const left = end - now()
+        // A clock set back since the read would stretch the wait: it is over.
+        if (left <= 0 || left > MAX_PACE_MS) {
+          pacedUntil.delete(id)
+          return false
+        }
+        until = Math.min(until ?? end, end)
+        if (seenEdits.get(id)?.edits !== edits) seenEdits.set(id, { edits, hlc: clock.tick() })
+        return true
+      },
+    }
+  }
+  type PassPace = ReturnType<typeof passPace>
+
+  /** The engine read the whole of a note: a large one is paced from now. */
+  const readWhole = (local: SyncLocal) => {
+    const row = local.note
+    const wait = row && !row.purged ? pushPaceMs(row.note.ydoc.length) : 0
+    if (wait > 0) pacedUntil.set(local.id, now() + wait)
+    else pacedUntil.delete(local.id)
+  }
+
+  function armPaced(until: number | undefined) {
+    clearTimeout(pacedTimer)
+    pacedTimer = undefined
+    if (!running || until === undefined) return
+    pacedTimer = setTimeout(
+      () => {
+        pacedTimer = undefined
+        void enqueue(() => pushPass({ pull: false })).catch(() => undefined)
+      },
+      Math.max(0, until - now()),
+    )
+  }
+
+  /** What a push timer runs: a pass on the connection, or the stamps of edits made offline. */
+  async function pushPass({ paced = true, pull = true }: PassOptions = {}) {
+    if (!connected) {
+      const pace = paced ? passPace() : undefined
+      await stampAll(pace)
+      armPaced(pace?.until)
+      return
+    }
+    set({ state: 'syncing' })
+    await pushAll({ paced })
+    // iCloud has no socket to say what changed meanwhile, and a silent push may not come.
+    if (pull && via === 'icloud') await pullAll()
+    await finishPass()
   }
 
   const kept = (id: string) => tooLarge.has(id) || unsynced.has(id) || parked.has(id)
 
-  async function pushEach() {
+  async function pushEach(pace: PassPace | undefined) {
     const upload = await trackUpload()
     let full: Paused | undefined
     const refused = (paused: Paused | undefined) => {
@@ -1046,8 +1151,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         if (upload) {
           await pushBatches(upload, refused)
         } else {
-          await pending(async (id) => {
-            if (!parked.has(id)) refused(await pushOne(id))
+          await pending(async (id, edits) => {
+            if (parked.has(id) || pace?.waits(id, edits)) return
+            refused(await pushOne(id))
           })
         }
         full ??= shownRefused
@@ -1141,12 +1247,13 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
    */
   const stampedEdits = new Map<string, number>()
 
-  async function stampAll() {
+  async function stampAll(pace?: PassPace) {
     await pending(async (id, edits) => {
-      if (stampedEdits.get(id) === edits) return
+      if (stampedEdits.get(id) === edits || pace?.waits(id, edits)) return
       const [local] = await sync.syncRead([id])
       const entry = local?.entry
       if (!local || !entry || !local.note) return
+      readWhole(local)
       const stamped = stamp(local)
       if (stamped.bodyFp !== entry.bodyFp) await sync.syncPut({ ...entry, ...stamped })
       stampedEdits.set(id, edits)
@@ -1197,6 +1304,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const [local] = await sync.syncRead([id])
     const entry: SyncEntry | null | undefined = local?.entry
     if (!local || !entry) return null
+    readWhole(local)
     if (id === MOVED_ID) {
       console.warn('W_SYNC_RESERVED_ID', id)
       await sync.syncPut({ ...entry, synced: entry.edits })
@@ -1366,11 +1474,16 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       connected = false
       clearTimeout(reconnectTimer)
       clearTimeout(pushTimer)
+      clearTimeout(pacedTimer)
       clearInterval(pollTimer)
       pollTimer = undefined
       connectQueued = false
       reconnectTimer = undefined
       pushTimer = undefined
+      pacedTimer = undefined
+      pacedUntil.clear()
+      seenEdits.clear()
+      heldBack = false
       firstTouch = undefined
       passQueued = false
       await transport.close().catch(() => undefined)
@@ -1388,14 +1501,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       pushTimer = setTimeout(() => {
         pushTimer = undefined
         firstTouch = undefined
-        void enqueue(async () => {
-          if (!connected) return stampAll()
-          set({ state: 'syncing' })
-          await pushAll()
-          // iCloud has no socket to say what changed meanwhile, and a silent push may not come.
-          if (via === 'icloud') await pullAll()
-          await finishPass()
-        }).catch(() => undefined)
+        void enqueue(() => pushPass()).catch(() => undefined)
       }, wait)
     },
     received(event) {
@@ -1438,7 +1544,19 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       queuePass()
     },
     pushesRemembered: () => pushTimes.size,
-    syncNow: () => enqueue(() => connect()).catch(() => undefined),
+    syncNow: () => enqueue(() => connect(false, { paced: false })).catch(() => undefined),
+    flush() {
+      if (!running) return Promise.resolve()
+      return enqueue(async () => {
+        if (pushTimer === undefined && pacedTimer === undefined) return
+        clearTimeout(pushTimer)
+        clearTimeout(pacedTimer)
+        pushTimer = undefined
+        pacedTimer = undefined
+        firstTouch = undefined
+        await pushPass({ paced: false, pull: false })
+      }).catch(() => undefined)
+    },
     async idle() {
       for (let seen: Promise<void> | undefined; seen !== queue;) {
         seen = queue

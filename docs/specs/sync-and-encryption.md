@@ -72,6 +72,16 @@ Part of the [architecture overview](../architecture.md).
   - **What changed:** every write of a note row, its tag rows, a notebook or a tag moves its `sync_records.edits` on (triggers in `migrations/0019_sync.sql`, so every writer counts); the engine looks at a record while `edits` differs from `synced` and pushes it only when its fingerprint (the fields, and the body's state vector and delete set, so equal content gives an equal print whatever the bytes) differs from the one the relay's version stands for here (`fingerprint`).
     The engine's own writes of another device's state set that print, so they are never pushed back.
   - **Push timing:** after 3 s without writes, at most 10 s after the first of a run of writes (`PUSH_IDLE_MS`, `PUSH_EVERY_MS`).
+    Every push reads and sends a note's whole record, so a large note waits longer: after the engine read it, the next push of a note whose state is more than 1 MB waits one second for every 100 KB, at most a minute (`pushPaceMs`; 2 MB about every 20 s), and a pass that finds it waiting runs again when the wait ends.
+    Past about 6 MB the minute's cap is reached, so what such a note sends a minute grows with it again.
+    While offline its stamps are read at the same pace.
+    Every change to such a note waits the same way (a rename, a trash, a move, a tag or a pin), and a flush, Sync Now or a quit sends it at once.
+    The body stamp is taken by the pass that sees the note's latest write, as before, so it is never earlier than the body's last change and an edit made after a trash on another device still brings the note back.
+    A trash made on another device after that pass wins as it did before.
+    A pass during the wait sees only that the note changed, not what: when a rename or another write follows a body edit during the wait, the stamp moves on to the pass that sees it, so a trash made on another device between the two is overturned and the note comes back with both (nothing is lost).
+    A pass that leaves a note waiting keeps the last sync time as it was, since not everything here is synced.
+    When the app goes out of sight or quits, whatever waits for a push timer or a pace goes at once (`flush`; a quit that skips the quit handshake leaves it for the next launch); a large backlog (`pushMany`) and the push again after a rejected one never wait.
+    The wait's own pass does not fetch from iCloud.
     A push is based on the version this device last saw; the relay's compare-and-swap rejects it when another device wrote first, and the engine pulls (which merges), then pushes again, at most 5 times with backoff and jitter; past that the record waits for the next `changed`.
     One record pushed more than 30 times in a minute is a loop, not typing: sync stops with `E_SYNC_CIRCUIT_OPEN`.
     The engine keeps each record's push times only while they are inside that minute; every push pass ends by dropping the rest.

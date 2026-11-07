@@ -44,7 +44,8 @@ export function skipIfOverloaded(context: TestContext, why: string): void {
 /**
  * Expects `ms` under `budgetMs` (stretched on a hosted runner). Over budget on an overloaded local
  * machine skips instead of failing. `exact` keeps the budget unstretched, for an `it.fails` that
- * must stay over its budget on every machine.
+ * must stay over its budget on every machine, or for a budget made of another measurement taken
+ * on the same machine.
  */
 export function expectWithinBudget(
   context: TestContext,

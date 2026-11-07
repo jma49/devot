@@ -2,6 +2,7 @@
 // editor share one sheet; the sidebar floats inset from it, so the sheet leaves a rounded hole where
 // the sidebar is and the sidebar paints its own glass surface there. The page measures the sidebar
 // and tells CSS where the hole is, following it as it moves, resizes, hides and shows.
+import { onlyNoteContent } from './noteContent'
 import { sizes } from './theme/tokens'
 
 export interface SidebarBox {
@@ -58,13 +59,6 @@ function measure(doc: Document): SidebarBox | null {
   return surroundFrame(sidebar?.getBoundingClientRect(), { visible })
 }
 
-function surround(doc: Document): SidebarBox | null {
-  return doc.defaultView?.matchMedia('(prefers-reduced-transparency: reduce)').matches ||
-    doc.defaultView?.matchMedia('(prefers-contrast: more)').matches
-    ? null
-    : measure(doc)
-}
-
 let started = false
 
 /** Keeps the sheet's cutout where the sidebar is, as it moves, resizes, hides and shows. Once per page. */
@@ -72,21 +66,20 @@ export function startSidebarSurround(doc: Document = document): void {
   if (started) return
   started = true
   const root = doc.documentElement
+  const media = (query: string) => doc.defaultView?.matchMedia(query)
+  const plain = [media('(prefers-reduced-transparency: reduce)'), media('(prefers-contrast: more)')]
   let queued = 0
+  let sent: string | null = null
 
   const send = () => {
-    const frame = surround(doc)
-    if (frame) {
-      root.style.setProperty(
-        '--sidebar-surround-clip',
-        sidebarSurround(frame, {
-          width: root.clientWidth,
-          height: root.clientHeight,
-        }),
-      )
-    } else {
-      root.style.removeProperty('--sidebar-surround-clip')
-    }
+    const frame = plain.some((query) => query?.matches) ? null : measure(doc)
+    const clip = frame
+      ? sidebarSurround(frame, { width: root.clientWidth, height: root.clientHeight })
+      : null
+    if (clip === sent) return
+    sent = clip
+    if (clip) root.style.setProperty('--sidebar-surround-clip', clip)
+    else root.style.removeProperty('--sidebar-surround-clip')
   }
 
   const schedule = () => {
@@ -100,7 +93,9 @@ export function startSidebarSurround(doc: Document = document): void {
   const resized = new ResizeObserver(schedule)
   resized.observe(root)
   let watched: Element | null = null
-  const changed = new MutationObserver(() => {
+  const changed = new MutationObserver((records) => {
+    // A render of the note moves no sidebar.
+    if (onlyNoteContent(records)) return
     const sidebar = doc.querySelector('.window > .sidebar, .settings > .settings-nav')
     if (sidebar !== watched) {
       if (watched) resized.unobserve(watched)
@@ -118,12 +113,8 @@ export function startSidebarSurround(doc: Document = document): void {
   // Panes slide by transforms (paneMotion.ts), which no observer reports: measure where they settle.
   doc.addEventListener('transitionend', schedule)
   doc.addEventListener('animationend', schedule)
-  for (const query of [
-    '(prefers-reduced-transparency: reduce)',
-    '(prefers-contrast: more)',
-    '(prefers-color-scheme: dark)',
-  ]) {
-    doc.defaultView?.matchMedia(query).addEventListener('change', schedule)
+  for (const query of [...plain, media('(prefers-color-scheme: dark)')]) {
+    query?.addEventListener('change', schedule)
   }
   schedule()
 }

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { DIAGRAM_ENGINES, engineScript } from '../../scripts/vite/mermaid-frame-entry'
 import { MERMAID_FRAME_SANDBOX } from '../../src/renderer/src/preview/mermaid'
 
 type Csp = Record<string, string>
@@ -23,14 +24,15 @@ describe('production CSP (tauri.conf.json)', () => {
     expect(sources('style-src')).toEqual(["'self'"])
   })
 
-  it("lets the sandboxed diagram frame load its scripts without 'self'", () => {
+  it("lets the sandboxed diagram frame load its scripts and its engines' without 'self'", () => {
     // The frame's origin is opaque, and WebKit then matches no tauri: URL to 'self'.
     expect(MERMAID_FRAME_SANDBOX.split(' ')).not.toContain('allow-same-origin')
     const html = readFileSync('src/renderer/mermaid.html', 'utf8')
-    const scripts = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map(
-      ([, src]) => new URL(src!, `${APP_ORIGIN}/mermaid.html`).href,
+    const page = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map(([, src]) => src!)
+    expect(page).not.toEqual([])
+    const scripts = [...page, ...DIAGRAM_ENGINES.map((engine) => `/${engineScript(engine)}`)].map(
+      (src) => new URL(src, `${APP_ORIGIN}/mermaid.html`).href,
     )
-    expect(scripts).not.toEqual([])
     const named = sources('script-src').filter((source) => source !== "'self'")
     const allowed = (script: string) =>
       named.some((source) => script.startsWith(source.endsWith('/') ? source : `${source}/`))

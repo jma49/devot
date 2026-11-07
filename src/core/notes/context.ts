@@ -10,6 +10,8 @@ export interface Live {
   record: NoteRecord
   saved: NoteRecord
   doc: Y.Doc
+  /** `doc` encoded, as read or last saved, until anything changes it: an open sends it as it is. */
+  state: Uint8Array | undefined
   timer: Timer | undefined
   edits: number
   savedEdits: number

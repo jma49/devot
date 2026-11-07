@@ -15,6 +15,10 @@ export const SCREENS_OPS = [
   'tabs.popToRoot',
   'settings.showPane',
   'settings.notebooks',
+  'editor.show',
+  'editor.hide',
+  'editor.setMode',
+  'editor.info',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
 
@@ -31,9 +35,17 @@ export interface SettingsOpen {
   readonly focusKey: boolean
 }
 
+export type EditorMode = 'edit' | 'preview'
+
 export type ScreensNotice =
   | ({ readonly notice: 'tabs.state' } & TabsState)
   | ({ readonly notice: 'settings.open' } & SettingsOpen)
+  | { readonly notice: 'nav.openNote'; readonly noteId: string; readonly title: string }
+  | { readonly notice: 'nav.back' }
+  | { readonly notice: 'editor.ready'; readonly noteId: string }
+  | { readonly notice: 'editor.mode'; readonly noteId: string; readonly mode: EditorMode }
+  | { readonly notice: 'editor.title'; readonly id: string; readonly title: string }
+  | { readonly notice: 'editor.scroll'; readonly titleVisible: boolean }
 
 export interface ScreensRequest {
   readonly id: number

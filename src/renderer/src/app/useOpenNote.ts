@@ -88,7 +88,6 @@ export function useOpenNote({
     if (!keepSelection) setMulti(undefined)
     setBuiltIn(undefined)
     const open = startOpening(id)
-    await saveEdits(core)
     // Another note's body is asked for before its title, so it has usually
     // arrived with the title and shows in the same frame. A body later than
     // the title is left to the editor, which keeps the note on screen until then.
@@ -108,6 +107,9 @@ export function useOpenNote({
       console.warn('W_NOTE_OPEN_FAILED', id, errorCode(e))
       return undefined
     })
+    // The note left is saved once this one has opened: its edits are in the core already,
+    // which writes each note's in order, and again on quit, so the open need not wait.
+    void saveEdits(core)
     const overtaken = open !== opens.current
     if (another && (overtaken || name === undefined || !body)) void core.unhold(id)
     if (overtaken) return false

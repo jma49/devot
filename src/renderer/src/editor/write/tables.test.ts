@@ -7,11 +7,11 @@ import {
   type Range,
   type TransactionSpec,
 } from '@codemirror/state'
-import { EditorView, type Decoration, type DecorationSet } from '@codemirror/view'
+import type { Decoration } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { noteMarkdown } from '../markdown'
 import { parseTable, printTable } from '../table'
-import { writeBlocks, type BlockLayers } from './blocks'
+import { drawnBlocks, writeBlocks, type BlockLayers } from './blocks'
 import { writeFocusTracking } from './focus'
 import {
   SheetAdoption,
@@ -373,12 +373,9 @@ describe('the grid', () => {
   /** The source and class of each cell box, by where it starts. */
   const boxes = (state: EditorState) => {
     const out: [number, string][] = []
-    for (const source of state.facet(EditorView.outerDecorations)) {
-      if (typeof source === 'function') continue
-      ;(source as DecorationSet).between(0, state.doc.length, (from, to, deco) => {
-        out.push([from, `${state.doc.sliceString(from, to)}=${deco.spec.class as string}`])
-      })
-    }
+    drawnBlocks(state).outer.between(0, state.doc.length, (from, to, deco) => {
+      out.push([from, `${state.doc.sliceString(from, to)}=${deco.spec.class as string}`])
+    })
     return out.sort((a, b) => a[0] - b[0]).map(([, box]) => box)
   }
 
@@ -395,9 +392,8 @@ describe('the grid', () => {
   it('draws the cells a short row leaves out, to be written on a click', () => {
     const state = stateOf('| a | b | c |\n| - | - | - |\n| 1 |')
     const missing: string[] = []
-    for (const source of state.facet(EditorView.decorations)) {
-      if (typeof source === 'function') continue
-      ;(source as DecorationSet).between(0, state.doc.length, (from, _to, deco) => {
+    for (const source of drawnBlocks(state).decorations) {
+      source.between(0, state.doc.length, (from, _to, deco) => {
         const widget = deco.spec.widget as { column?: number } | undefined
         if (widget?.column !== undefined) missing.push(`${from}:${widget.column}`)
       })
@@ -440,9 +436,8 @@ describe('the grid', () => {
     const doc = '| a | b | c |\n| - | - | - |\n| Tea |\n\nBelow'
     const missingSelected = (state: EditorState) => {
       const out: boolean[] = []
-      for (const source of state.facet(EditorView.decorations)) {
-        if (typeof source === 'function') continue
-        ;(source as DecorationSet).between(0, state.doc.length, (_from, _to, deco) => {
+      for (const source of drawnBlocks(state).decorations) {
+        source.between(0, state.doc.length, (_from, _to, deco) => {
           const widget = deco.spec.widget as { className?: string } | undefined
           if (widget?.className?.includes('cm-wm-cell-missing'))
             out.push(widget.className.includes('cm-wm-cell-selected'))

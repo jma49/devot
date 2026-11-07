@@ -34,12 +34,15 @@ const note = (id: string, bookId: string | null = null): NoteSummary => ({
   tagIds: [],
 })
 
-/** A core whose notes open at once, unless a title is held back with `holdTitle`. */
-function fakeCore(known: readonly string[]) {
+/** A core whose notes open at once, unless a title is held back with `holdTitle`; with `saving`, saves never end. */
+function fakeCore(known: readonly string[], { saving = false } = {}) {
   const calls: string[] = []
   const held = new Map<string, () => void>()
   const core = {
-    flush: async () => void calls.push('flush'),
+    flush: () => {
+      calls.push('flush')
+      return saving ? new Promise<void>(() => {}) : Promise.resolve()
+    },
     hold: async (id: string) => void calls.push(`hold ${id}`),
     unhold: async (id: string) => void calls.push(`unhold ${id}`),
     open: async (id: string) => {
@@ -186,13 +189,28 @@ const step = async (nav: { current: Navigation }, by: -1 | 1) => {
 }
 
 describe('useOpenNote: select', () => {
-  it('saves first, then opens the note and shows its title', async () => {
+  it('opens the note and shows its title, then saves the note left', async () => {
     const { core, calls } = fakeCore(['a'])
     const nav = render({ core, notes: [note('a')] })
     expect(await select(nav, 'a')).toBe(true)
-    expect(calls.slice(0, 4)).toEqual(['flush', 'hold a', 'open a', 'title a'])
+    expect(calls.slice(0, 4)).toEqual(['hold a', 'open a', 'title a', 'flush'])
     expect(nav.current.selected).toBe('a')
     expect(nav.current.opening.title).toBe('Title a')
+  })
+
+  it('opens a note while the note left is still being saved', async () => {
+    const { core, calls } = fakeCore(['a', 'b'], { saving: true })
+    const nav = render({ core, notes: [note('a'), note('b')] })
+    const waited = () => new Promise((resolve) => setTimeout(() => resolve('waited'), 100))
+    for (const id of ['a', 'b']) {
+      let opened: unknown
+      await act(async () => {
+        opened = await Promise.race([nav.current.open.select(id), waited()])
+      })
+      expect(opened).toBe(true)
+    }
+    expect(nav.current.selected).toBe('b')
+    expect(calls.filter((c) => c === 'flush')).toHaveLength(2)
   })
 
   it('leaves the selection alone for a note that is gone, logging its id and code', async () => {
@@ -360,6 +378,6 @@ describe('useOpenNote: pre-opening', () => {
     await select(nav, 'a')
     calls.length = 0
     await select(nav, 'a')
-    expect(calls).toEqual(['flush', 'title a'])
+    expect(calls).toEqual(['title a', 'flush'])
   })
 })

@@ -115,10 +115,12 @@ export function createSaving(
       const datesSet = (note.record.datesHlc ?? '') > (note.saved.datesHlc ?? '')
       const derived = rowsOf(note)
       rows = derived.rows
+      const state = Y.encodeStateAsUpdate(note.doc)
+      note.state = state
       note.record = {
         ...note.record,
         bodyMd: note.doc.getText(BODY).toString(),
-        ydoc: Y.encodeStateAsUpdate(note.doc),
+        ydoc: state,
         updatedAt: datesSet ? note.record.updatedAt : Math.max(now(), note.record.createdAt),
       }
       return derived.changed ? { ...note.record, agentWrites: derived.changed } : note.record
