@@ -10,8 +10,7 @@ const WRITE_TRIES = 5
 
 const isStale = (error: unknown) => errorCode(error) === 'E_NOTE_BODY_STALE'
 
-export const metaOf = ({ bodyMd: _body, ydoc: _state, ...fields }: NoteRecord): NoteFields =>
-  fields
+export const metaOf = ({ bodyMd: _body, ydoc: _state, ...fields }: NoteRecord): NoteFields => fields
 
 export const asWritten = <T extends NoteMeta>(record: T): T => ({
   ...record,

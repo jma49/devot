@@ -163,4 +163,52 @@ describe('the encoded state a note keeps', () => {
     expect(textOf(saved.state)).toBe('Edit Two\n')
     expect((await notes.open(two)).state).not.toBe(saved.state)
   })
+
+  it('stays as the whole save encoded it through a fields-only save of a held note', async () => {
+    const { notes, id, storage } = await setup('One\n')
+    const writes = watchWrites(storage)
+    await notes.hold(id)
+    await notes.applyUpdate(id, typed((await notes.open(id)).state, 'Edit '))
+    await notes.flush()
+    await notes.setTitle(id, 'Renamed')
+    await notes.flush()
+    expect(writes.kinds).toEqual(['note', 'meta'])
+    const back = await notes.open(id)
+    expect(back.state).toBe(writes.states[0])
+    expect(textOf(back.state)).toBe('Edit One\n')
+  })
+
+  it('is neither encoded nor kept by a fields-only save of a note that does not keep it', async () => {
+    const { notes, ids, storage } = await setup('One\n', 'Two\n')
+    const [one, two] = ids as [string, string]
+    const writes = watchWrites(storage)
+    await notes.hold(one)
+    await notes.unhold(one)
+    await notes.applyUpdate(two, typed((await notes.open(two)).state, 'Edit '))
+    await notes.flush()
+    expect((await notes.open(two)).state).not.toBe(writes.states[0])
+    await notes.setTitle(two, 'Renamed')
+    await notes.flush()
+    expect(writes.kinds).toEqual(['note', 'meta'])
+    const shown = await notes.open(two)
+    expect((await notes.open(two)).state).not.toBe(shown.state)
+    expect(textOf(shown.state)).toBe('Edit Two\n')
+  })
 })
+
+function watchWrites(storage: SqliteAdapter) {
+  const kinds: ('note' | 'meta')[] = []
+  const states: Uint8Array[] = []
+  const put = storage.putNote.bind(storage)
+  const putMeta = storage.putNoteMeta.bind(storage)
+  storage.putNote = (record) => {
+    kinds.push('note')
+    states.push(record.ydoc)
+    return put(record)
+  }
+  storage.putNoteMeta = (record) => {
+    kinds.push('meta')
+    return putMeta(record)
+  }
+  return { kinds, states }
+}
