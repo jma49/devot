@@ -17,7 +17,6 @@ export interface PieceNote {
   offset: number
   /** Calls in the note itself, to other notes. */
   calls: Element[]
-  /** How many of its elements carry a line or an offset. */
   marks: number
   /** The text of its headings to name, in order. */
   headings: string[]
@@ -53,7 +52,7 @@ function callsIn(nodes: readonly (RootContent | ElementContent)[], out: Element[
   return out
 }
 
-/** The label the piece's render gave the item's first back reference, `number` being its place there. */
+// The label the piece's render gave the item's first back reference, `number` being its place there.
 function backLabelOf(item: Element, number: number): readonly [string, string] {
   const found = firstBackReference(item)
   const link = found?.parent.children[found.at] as Element | undefined
@@ -62,7 +61,7 @@ function backLabelOf(item: Element, number: number): readonly [string, string] {
   return at < 0 ? [label, ''] : [label.slice(0, at), label.slice(at + String(number).length)]
 }
 
-/** The list of notes and the paragraph of calls a piece's render added, which come without a source position. */
+// The list of notes and the paragraph of calls a piece's render added, which come without a source position.
 function added(tree: HastRoot): { node: Element; parent: Parent }[] {
   const out: { node: Element; parent: Parent }[] = []
   const walk = (parent: Parent) => {
@@ -136,7 +135,6 @@ export function createNumbering() {
   return {
     order,
     counts,
-    /** Numbers `call` and returns what it got. */
     number(call: Element): string {
       const id = String(call.properties['href']).slice(CALL_HREF.length)
       let at = place.get(id)

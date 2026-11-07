@@ -22,7 +22,7 @@ export function normalizeLabel(label: string): string {
     .toUpperCase()
 }
 
-/** A footnote label has no white space; `[^a b]` is a link's. */
+// A footnote label has no white space; `[^a b]` is a link's.
 const labelOf = (raw: string): Label =>
   raw.startsWith('^') && !/\s/.test(raw) ? NOTE + normalizeLabel(raw.slice(1)) : normalizeLabel(raw)
 

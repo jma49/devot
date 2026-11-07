@@ -287,10 +287,10 @@ interface Rendered {
   headings: { node: Element; text: string }[]
   footnotes: PieceFootnotes
   length: number
-  /** What the text may refer to, and what it defines. */
+  // What the text may refer to, and what it defines.
   labels: Label[]
   defines: Definitions
-  /** The definitions from other pieces it was rendered with. */
+  // The definitions from other pieces it was rendered with.
   context: string
 }
 
@@ -301,23 +301,21 @@ interface Parsed {
   seeded: Label[]
 }
 
-/** The definitions a piece uses from other pieces, as tree nodes. */
+// The definitions a piece uses from other pieces, as tree nodes.
 interface PieceContext {
   key: string
   seeds: Label[]
   before: MdastContent[]
   after: MdastContent[]
-  /** Its own notes, called at its end so its render lists them. */
+  // Its own notes, called at its end so its render lists them.
   calls: MdastContent[]
 }
 
 /** Elements carrying a source line, and those carrying an offset into the note. */
 export const PIECE_LINE_PROPERTY = 'dataSourceLine'
 
-/**
- * The headings `headingIds` names, in its order, bar those in the list of notes a piece's render
- * added: the note's list is named after all its pieces.
- */
+// The headings `headingIds` names, in its order, bar those in the list of notes a piece's render
+// added: the note's list is named after all its pieces.
 function unnamedHeadings(nodes: readonly RootContent[], out: Rendered['headings']): void {
   for (const node of nodes) {
     if (node.type !== 'element') continue
@@ -345,7 +343,7 @@ function shift(node: RootContent | ElementContent, lines: number, chars: number)
   for (const child of node.children) shift(child, lines, chars)
 }
 
-/** The elements in `node` with a line or an offset, as the page counts them for `PiecePart`. */
+// The elements in `node` with a line or an offset, as the page counts them for `PiecePart`.
 function marksIn(node: RootContent | ElementContent): number {
   if (node.type !== 'element') return 0
   const own =
@@ -357,7 +355,7 @@ function marksIn(node: RootContent | ElementContent): number {
 }
 
 const HEADING = /^h[1-6]$/
-/** Shorter pieces cost more to set up than they save when one is rendered again. */
+// Shorter pieces cost more to set up than they save when one is rendered again.
 const PIECE_LENGTH = 2000
 
 /**
@@ -393,7 +391,7 @@ export function createPieceRenderer({
   let closings = 0
   const noteVersions = new Map<string, { shape: string; version: number }>()
 
-  /** Pieces with the same text get nodes of their own (their heading ids differ). */
+  // Pieces with the same text get nodes of their own (their heading ids differ).
   const keyOf = (text: string, first: boolean, copy: number, optionsKey: string) =>
     `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
 
@@ -605,7 +603,7 @@ export function createPieceRenderer({
       context.key = parts.join('\u0002')
       return context
     }
-    /** Whether a parse with `seeded` reads the text as one with `seeds` would. */
+    // Whether a parse with `seeded` reads the text as one with `seeds` would.
     const sameSeeds = (fresh: Parsed, seeds: readonly Label[]) => {
       const own = (label: Label) => fresh.defines.links.has(label) || fresh.defines.notes.has(label)
       const was = fresh.seeded.filter((label) => !own(label))
