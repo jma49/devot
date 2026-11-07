@@ -163,13 +163,15 @@ export function relayMethods(
             return
           }
           const title = note.record.title
+          // Deletions do not advance a state vector, so holdsMore cannot see a pending one.
+          const heldAll = note.storedChanges === note.changes
           takeIn(note, stored)
           if (holdsMore(note.doc, stored)) {
             // Storage lacks part of the document: that save writes it whole.
             note.storedChanges = -1
             note.edits += 1
             schedule(note)
-          } else {
+          } else if (heldAll) {
             note.storedChanges = note.changes
           }
           if (note.record.title !== title || note.retitled) {

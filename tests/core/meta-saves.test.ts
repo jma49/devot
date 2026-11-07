@@ -1,7 +1,14 @@
 // A save that changed no text writes the note's fields alone: the body and its Yjs state, which
 // can take several MiB, stay as stored, and the result is the same as a whole write.
 import { describe, expect, it } from 'vitest'
-import { createBookService, createNoteService, type StorageAdapter } from '../../src/core'
+import * as Y from 'yjs'
+import {
+  createBookService,
+  createNoteService,
+  newWriter,
+  WRITES,
+  type StorageAdapter,
+} from '../../src/core'
 import { createClock } from '../../src/core/hlc'
 import { createIdGenerator } from '../../src/core/ids'
 import { observeWrites } from '../../src/core/observeWrites'
@@ -123,6 +130,35 @@ describe('saves that change only a note’s fields', () => {
     await here.flush()
     expect(writes).toEqual(['meta'])
     expect(await sqlite.getNote(id)).toMatchObject({ pinned: true, bodyMd: 'Ours and theirs' })
+  })
+
+  it('write a pending deletion whole after taking in a stored copy another process moved', async () => {
+    const { sqlite, writes, service } = watched()
+    const here = service('mac1')
+    const id = await here.create('Plan')
+    await here.setBody(id, 'Ours')
+    await here.agentWrite(id, {
+      writer: newWriter('mcp', 'Claude Code', 'mcp00aa11bb22cc'),
+      markdown: 'Agent text.\n',
+    })
+    await here.flush()
+    const storedWrites = async () => {
+      const doc = new Y.Doc()
+      Y.applyUpdate(doc, (await sqlite.getNote(id))!.ydoc)
+      return doc.getMap(WRITES).size
+    }
+    expect(await storedWrites()).toBeGreaterThan(0)
+    const there = service('mac2')
+    await there.open(id)
+    await there.setPinned(id, true)
+    await there.flush()
+
+    await here.clearAuthorship(id)
+    await here.mergeStored()
+    writes.length = 0
+    await here.flush()
+    expect(writes).toEqual(['note'])
+    expect(await storedWrites()).toBe(0)
   })
 
   it('write the whole note when the stored body falls short of the document', async () => {
