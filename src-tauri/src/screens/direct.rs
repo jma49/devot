@@ -1,13 +1,14 @@
 //! Rust-direct operations (docs/specs/iphone-screens.md, Rust-direct operations): the native
 //! Settings read and write the domains Rust owns through the same bodies the Tauri commands run,
-//! so validation and change events are never written twice, and no page is needed. Nothing here
-//! reaches a note.
+//! so validation and change events are never written twice, and no page is needed. Notes are only
+//! read, through `lists::Reads`; nothing here writes one.
 
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use super::lists::{self, Page};
 use super::message::{Empty, Reply};
 use crate::ai::{self, Ai, provider::ProviderId, settings::AiSettings};
 use crate::editor_settings::{self, EditorSettingsStore};
@@ -27,6 +28,7 @@ pub struct Services {
     pub shop: Shop,
     pub sync: Arc<SyncService>,
     pub counts: NoteCounts,
+    pub lists: lists::Reads,
 }
 
 #[derive(Clone, PartialEq, Deserialize)]
@@ -205,6 +207,12 @@ pub enum Op {
     SyncIcloudLeave(RecoveryKey),
     #[serde(rename = "direct.sync.icloudStorage")]
     SyncIcloudStorage(Empty),
+    #[serde(rename = "direct.lists.notes")]
+    ListsNotes(Page),
+    #[serde(rename = "direct.lists.library")]
+    ListsLibrary(Empty),
+    #[serde(rename = "direct.lists.trash")]
+    ListsTrash(Empty),
 }
 
 pub const OPS: &[&str] = &[
@@ -249,6 +257,9 @@ pub const OPS: &[&str] = &[
     "direct.sync.icloudRotate",
     "direct.sync.icloudLeave",
     "direct.sync.icloudStorage",
+    "direct.lists.notes",
+    "direct.lists.library",
+    "direct.lists.trash",
 ];
 
 /// A request Rust answers itself, under the name Swift sent.
@@ -279,6 +290,7 @@ pub async fn run(services: &Services, op: Op) -> Result<Value, &'static str> {
         shop,
         sync,
         counts,
+        lists,
     } = services;
     match op {
         Op::EditorSettingsGet(Empty {}) => {
@@ -351,6 +363,9 @@ pub async fn run(services: &Services, op: Op) -> Result<Value, &'static str> {
             value(sync::sync_icloud_leave_inner(sync, recovery_key).await)
         }
         Op::SyncIcloudStorage(Empty {}) => value(sync::sync_icloud_storage_inner(counts).await),
+        Op::ListsNotes(page) => value(lists.notes(page).await),
+        Op::ListsLibrary(Empty {}) => value(lists.library().await),
+        Op::ListsTrash(Empty {}) => value(lists.trash().await),
     }
 }
 
@@ -460,6 +475,7 @@ mod tests {
             shop: Shop(None),
             sync: Arc::new(sync),
             counts: NoteCounts::of(&db),
+            lists: lists::Reads::of(&db),
         };
         Setup {
             services,
@@ -510,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn every_operation_belongs_to_a_settings_area_and_none_to_notes() {
+    fn every_operation_belongs_to_a_settings_area_or_reads_the_lists() {
         const AREAS: [&str; 7] = [
             "editorSettings",
             "fonts",
@@ -520,11 +536,20 @@ mod tests {
             "store",
             "sync",
         ];
+        const LISTS: [&str; 3] = [
+            "direct.lists.notes",
+            "direct.lists.library",
+            "direct.lists.trash",
+        ];
         assert_eq!(variants(), OPS);
         let mut seen = HashSet::new();
         for name in OPS {
+            assert!(seen.insert(name), "{name} twice");
             let mut parts = name.split('.');
             assert_eq!(parts.next(), Some("direct"), "{name}");
+            if LISTS.contains(name) {
+                continue;
+            }
             assert!(
                 parts.next().is_some_and(|area| AREAS.contains(&area)),
                 "{name}"
@@ -533,22 +558,44 @@ mod tests {
             for note in ["note", "book", "tag", "trash", "revision", "search"] {
                 assert!(!lower.contains(note), "{name}");
             }
-            assert!(seen.insert(name), "{name} twice");
         }
+        assert!(LISTS.iter().all(|name| OPS.contains(name)));
         assert!(message::OPS.iter().all(|op| !op.starts_with("direct.")));
     }
 
     #[test]
-    fn the_operations_hold_no_way_to_the_database_but_two_counts() {
+    fn the_operations_reach_the_database_only_through_two_counts_and_the_list_reads() {
         let source = include_str!("direct.rs");
         let code = source.split("#[cfg(test)]").next().unwrap_or_default();
         let words: HashSet<&str> = code
             .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
             .collect();
-        for way in ["Db", "storage", "notes", "Store", "put_note"] {
+        for way in ["Db", "storage", "Store", "put_note"] {
             assert!(!words.contains(way), "{way}");
         }
+        assert!(!code.contains(".write("));
         assert!(words.contains("NoteCounts"));
+        assert!(words.contains("Reads"));
+    }
+
+    #[test]
+    fn the_list_reads_borrow_the_store_to_read_and_call_only_its_reads() {
+        let source = include_str!("lists.rs");
+        let code = source.split("#[cfg(test)]").next().unwrap_or_default();
+        assert!(!code.contains("&mut Store") && !code.contains(".write("));
+        let called: HashSet<&str> = code
+            .split("store.")
+            .skip(1)
+            .map(|rest| rest.split('(').next().unwrap_or_default())
+            .collect();
+        let reads = HashSet::from([
+            "list_notes_page",
+            "list_books",
+            "list_tags",
+            "list_saved_searches",
+            "list_trash",
+        ]);
+        assert!(called.is_subset(&reads), "{called:?}");
     }
 
     #[test]

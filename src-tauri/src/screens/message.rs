@@ -7,6 +7,7 @@ use serde_json::{Map, Value, json};
 
 use super::direct;
 use crate::commands::notes::{MAX_TITLE_CHARS, valid_note_id};
+use crate::storage::NOTE_STATUSES;
 
 pub const VERSION: u64 = 1;
 /// The store bridge's reply limit (`STORE_REPLY_LIMIT`).
@@ -14,6 +15,8 @@ pub const MAX_MESSAGE_BYTES: usize = 4 << 20;
 /// The rows a list shows at once, with room to spare.
 const MAX_EXCERPT_IDS: usize = 60;
 const MAX_CHANGED_IDS: usize = 10_000;
+/// A multiple selection: every row of a long list.
+const MAX_BATCH_IDS: usize = 10_000;
 /// The core reads at most 10 clauses of at most 100 characters (MAX_SEARCH_TERMS and
 /// MAX_TERM_CHARS in src/core/search.ts), each with up to 16 more for a qualifier, a minus, quotes
 /// and a space; it never reads a longer query further.
@@ -127,6 +130,59 @@ pub struct ModeArgs {
     pub mode: Mode,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct BookChoice {
+    pub book_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StatusChoice {
+    pub status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PinChoice {
+    pub pinned: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct TagChoice {
+    pub tag_id: String,
+}
+
+/// `BatchChange` in src/core/batch.ts, less the tag made by name, which the native lists never send.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+pub enum Change {
+    Book(BookChoice),
+    Status(StatusChoice),
+    Pinned(PinChoice),
+    PutTag(TagChoice),
+    RemoveTag(TagChoice),
+    Trash(Empty),
+    Restore(Empty),
+    Purge(Empty),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Batch {
+    pub ids: Vec<String>,
+    pub change: Change,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct TemplateApply {
+    pub template_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub book_id: Option<String>,
+}
+
 /// What Swift may ask the page for: an operation joins with the pull request that first sends it.
 /// What Rust answers itself is a `direct::Op`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,6 +216,16 @@ pub enum Op {
     EditorInfo(Empty),
     #[serde(rename = "editor.focus")]
     EditorFocus(Empty),
+    #[serde(rename = "notes.batch")]
+    NotesBatch(Batch),
+    #[serde(rename = "trash.empty")]
+    TrashEmpty(Empty),
+    #[serde(rename = "template.create")]
+    TemplateCreate(Empty),
+    #[serde(rename = "template.apply")]
+    TemplateApply(TemplateApply),
+    #[serde(rename = "note.text")]
+    NoteText(NoteArgs),
 }
 
 pub const OPS: &[&str] = &[
@@ -177,6 +243,11 @@ pub const OPS: &[&str] = &[
     "editor.setMode",
     "editor.info",
     "editor.focus",
+    "notes.batch",
+    "trash.empty",
+    "template.create",
+    "template.apply",
+    "note.text",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -184,6 +255,9 @@ pub const OPS: &[&str] = &[
 pub struct NotesChanged {
     pub rev: u64,
     pub ids: Vec<String>,
+    /// Sync or another process changed notes the page cannot name: every list reads again.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub all: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -267,6 +341,12 @@ pub enum Notice {
     EditorScroll(EditorScroll),
     #[serde(rename = "note.new")]
     NoteNew(NoteNew),
+    #[serde(rename = "books.changed")]
+    BooksChanged(Empty),
+    #[serde(rename = "tags.changed")]
+    TagsChanged(Empty),
+    #[serde(rename = "savedSearches.changed")]
+    SavedSearchesChanged(Empty),
 }
 
 const NOTICES: &[&str] = &[
@@ -280,6 +360,9 @@ const NOTICES: &[&str] = &[
     "editor.mode",
     "editor.scroll",
     "note.new",
+    "books.changed",
+    "tags.changed",
+    "savedSearches.changed",
 ];
 
 /// The notices Rust sends Swift itself; the page can send none of them.
@@ -536,14 +619,43 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             (_, None) | (WebPane::Sync, Some(PaneAnchor::Pairing)) => Ok(()),
             _ => Err("E_SCREENS_ARGS_INVALID"),
         },
-        Op::EditorShow(ShowNote { note_id, .. }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::EditorShow(ShowNote { note_id, .. }) | Op::NoteText(NoteArgs { note_id }) => {
+            note_ids(std::slice::from_ref(note_id), 1)
+        }
+        Op::NotesBatch(batch) => {
+            if batch.ids.is_empty() {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            note_ids(&batch.ids, MAX_BATCH_IDS)?;
+            change(&batch.change)
+        }
+        Op::TemplateApply(apply) => {
+            note_ids(std::slice::from_ref(&apply.template_id), 1)?;
+            book(apply.book_id.as_ref())
+        }
         Op::TabsShow(_)
         | Op::TabsPopToRoot(_)
         | Op::SettingsNotebooks(_)
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
         | Op::EditorInfo(_)
-        | Op::EditorFocus(_) => Ok(()),
+        | Op::EditorFocus(_)
+        | Op::TrashEmpty(_)
+        | Op::TemplateCreate(_) => Ok(()),
+    }
+}
+
+fn change(change: &Change) -> Result<(), &'static str> {
+    match change {
+        Change::Book(BookChoice { book_id }) => book(book_id.as_ref()),
+        Change::Status(StatusChoice { status }) if NOTE_STATUSES.contains(&status.as_str()) => {
+            Ok(())
+        }
+        Change::Status(_) => Err("E_SCREENS_ARGS_INVALID"),
+        Change::PutTag(TagChoice { tag_id }) | Change::RemoveTag(TagChoice { tag_id }) => {
+            note_ids(std::slice::from_ref(tag_id), 1)
+        }
+        Change::Pinned(_) | Change::Trash(_) | Change::Restore(_) | Change::Purge(_) => Ok(()),
     }
 }
 
@@ -566,7 +678,10 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
         Notice::TabsState(_)
         | Notice::SettingsOpen(_)
         | Notice::NavBack(_)
-        | Notice::EditorScroll(_) => Ok(()),
+        | Notice::EditorScroll(_)
+        | Notice::BooksChanged(_)
+        | Notice::TagsChanged(_)
+        | Notice::SavedSearchesChanged(_) => Ok(()),
     }
 }
 
