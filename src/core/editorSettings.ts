@@ -1,5 +1,7 @@
-// Editor settings: how the note editor looks and behaves on this device, plus the window's Glass and Material Transparency and the gradient themes' Gradient (Settings > Appearance). A local preference, never note
-// data: Rust keeps them in their own file (src-tauri/src/editor_settings.rs, which checks the same lists and ranges as this module) and they never sync.
+// Editor settings: how the note editor looks and behaves on this device, plus the window's
+// transparency and gradient (Settings > Appearance). A local preference, never note data: Rust
+// keeps them in their own file (src-tauri/src/editor_settings.rs, which checks the same lists and
+// ranges as this module) and they never sync.
 
 import { DAILY_TITLE_FORMATS, type DailyTitleFormat } from './dailyNotes'
 

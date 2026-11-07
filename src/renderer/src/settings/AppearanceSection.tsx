@@ -297,9 +297,10 @@ function ThemePicker({
 
 /**
  * Settings > Appearance: the color scheme (Auto, Light or Dark) and how see-through the window is;
- * a theme for each appearance, the one in effect marked Active (Ivory has its own accent, so the system accent option is hidden while it is in
- * effect), and under them, while either is a gradient theme, how strong its gradient is; whether things move; the icon style; and the editor's and preview's type. Every change
- * applies at once, and changes made elsewhere show here as they happen.
+ * a theme for each appearance, the one in effect marked Active (Ivory has its own accent, so the
+ * system accent option is hidden while it is in effect), and the gradient's strength while either
+ * is a gradient theme; whether things move; the icon style; and the editor's and preview's type.
+ * Every change applies at once, and changes made elsewhere show here as they happen.
  */
 export function AppearanceSection() {
   const settings = useEditorSettings()

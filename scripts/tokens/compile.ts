@@ -224,10 +224,12 @@ const GRADIENT_STRENGTH = 'calc(var(--gradient-strength, 100) * 1%)'
 function backdropGradient(token: FlatToken): string {
   const stops = token.value as GradientStop[]
   const solid = cssColor(colourAt(stops, 0.5))
-  const mixed = stops.map(
-    (s) =>
-      `color-mix(in srgb, ${cssColor(s.color)} ${GRADIENT_STRENGTH}, ${solid}) ${round(s.position * 100)}%`,
-  )
+  const mixed = stops.map((s) => {
+    const colour = cssColor(s.color)
+    const mix =
+      colour === solid ? colour : `color-mix(in srgb, ${colour} ${GRADIENT_STRENGTH}, ${solid})`
+    return `${mix} ${round(s.position * 100)}%`
+  })
   return `linear-gradient(${BACKDROP_DEGREES}deg, ${mixed.join(', ')})`
 }
 

@@ -253,7 +253,7 @@ describe('token compiler', () => {
       ])
     })
 
-    it('takes the stop at the middle as the solid colour when there is one', () => {
+    it('takes the stop at the middle as the solid colour when there is one, and writes that stop unmixed', () => {
       const three = {
         backdrop: {
           $type: 'gradient',
@@ -270,7 +270,7 @@ describe('token compiler', () => {
         },
       }
       expect(backdropThemes(three)[0]!.light).toBe(
-        `linear-gradient(160deg, ${mixed('rgb(255 0 0 / 0.5)', '#336699')} 0%, ${mixed('#336699', '#336699')} 50%, ${mixed('rgb(0 255 0 / 0.5)', '#336699')} 100%)`,
+        `linear-gradient(160deg, ${mixed('rgb(255 0 0 / 0.5)', '#336699')} 0%, #336699 50%, ${mixed('rgb(0 255 0 / 0.5)', '#336699')} 100%)`,
       )
     })
 
