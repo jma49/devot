@@ -24,6 +24,7 @@ import {
   notchElement,
   notchLeft,
   notchStyles,
+  outsideNotch,
 } from './notch'
 import type { Tip } from './toolbarButtons'
 
@@ -173,14 +174,15 @@ export function FloatSeparator(): ReactNode {
 }
 
 /**
- * One bar element holds the glass material and a box shadow (on the bar only,
- * no filter): the glass rim, then one soft layer; its notch is a separate
- * element behind it (`notch.ts`). A tooltip bubble draws the same notch with
- * its two pseudo-elements, pointing at its button.
+ * One bar element holds the glass material and the rim's highlight (no
+ * filter); a layer behind it casts the rim edge and one soft shade around its
+ * notch, a separate element behind it too (`notch.ts`). A tooltip bubble draws
+ * the same notch with its two pseudo-elements, pointing at its button.
  */
 const barShade =
   '0 var(--shadow-float-bar-y) var(--shadow-float-bar-blur) var(--color-shadow-float-bar)'
-const barShadow = `var(--glass-rim), ${barShade}`
+const shadeReach = 'calc(2 * var(--shadow-float-bar-blur) + var(--shadow-float-bar-y))'
+const shadeClip = outsideNotch(BAR_NOTCH_TIP, shadeReach)
 const popoverShadow = 'var(--glass-rim), var(--popover-shadow)'
 const tipNotch = 'var(--tip-notch, 50%)'
 const notchWidth = `${NOTCH_WIDTH}px`
@@ -207,14 +209,25 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     background: 'var(--glass-material-bg)',
     backdropFilter: 'var(--glass-backdrop, none)',
     WebkitBackdropFilter: 'var(--glass-backdrop, none)',
-    boxShadow: barShadow,
+    boxShadow: 'var(--glass-rim-highlight)',
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',
   },
   '.cm-tooltip.cm-tooltip-below.cm-float-bar': {
     background: `${highlightBesideNotch(BAR_NOTCH_TIP, notchWidth)}, var(--glass-material-bg)`,
-    boxShadow: `var(--glass-rim-edge), ${barShade}`,
+    boxShadow: 'none',
   },
+  '.cm-tooltip.cm-float-bar::before': {
+    content: '""',
+    position: 'absolute',
+    inset: '0',
+    zIndex: '-1',
+    borderRadius: 'inherit',
+    boxShadow: `var(--glass-rim-edge), ${barShade}`,
+    pointerEvents: 'none',
+  },
+  '.cm-tooltip.cm-tooltip-above.cm-float-bar::before': { clipPath: shadeClip.down },
+  '.cm-tooltip.cm-tooltip-below.cm-float-bar::before': { clipPath: shadeClip.up },
   '.cm-float-content': { display: 'flex', alignItems: 'center', minWidth: '0' },
   ...notchStyles,
   '.cm-float-buttons': {

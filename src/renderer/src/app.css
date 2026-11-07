@@ -245,7 +245,8 @@ body {
   );
   --glass-backdrop: blur(var(--space-9)) saturate(1.8);
   --glass-rim-edge: 0 0 0 0.5px var(--color-line-glass-edge);
-  --glass-rim: inset 0 1px 0 var(--color-line-glass-highlight), var(--glass-rim-edge);
+  --glass-rim-highlight: inset 0 1px 0 var(--color-line-glass-highlight);
+  --glass-rim: var(--glass-rim-highlight), var(--glass-rim-edge);
   /* The rim's highlight as a background layer, for surfaces with a notch on the top edge. */
   --glass-highlight: linear-gradient(
     var(--color-line-glass-highlight),
@@ -8249,6 +8250,7 @@ dialog[open].sheet.import {
     --glass-material: var(--color-surface-editor);
     --glass-tint: var(--color-surface-editor);
     --glass-material-bg: var(--color-surface-editor);
+    --glass-sheen: none;
     --glass-sheen-top: none;
     --color-line-glass-edge: var(--color-line-control);
   }

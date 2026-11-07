@@ -101,9 +101,10 @@ describe('the glass material', () => {
   })
 
   it('stops the top highlight either side of a notch on the top edge', () => {
-    expect(body.body.get('--glass-rim')).toBe(
-      'inset 0 1px 0 var(--color-line-glass-highlight), var(--glass-rim-edge)',
+    expect(body.body.get('--glass-rim-highlight')).toBe(
+      'inset 0 1px 0 var(--color-line-glass-highlight)',
     )
+    expect(body.body.get('--glass-rim')).toBe('var(--glass-rim-highlight), var(--glass-rim-edge)')
     for (const up of [
       ".tool-tip.note-card-pop[data-side='below']",
       ".picker-popover:not([data-side='above'])",
@@ -177,6 +178,7 @@ describe('the glass material', () => {
     const fallback = reduceRules.find((r) => r.selector === 'body')!
     expect(fallback.body.get('--glass-material-bg')).toBe('var(--color-surface-editor)')
     expect(fallback.body.get('--glass-tint')).toBe('var(--color-surface-editor)')
+    expect(fallback.body.get('--glass-sheen')).toBe('none')
     expect(fallback.body.get('--glass-sheen-top')).toBe('none')
     const sidebar = reduceRules.find((r) => r.selector === ':is(.sidebar, .settings-nav)')
     expect(sidebar?.body.get('background')).toBe('var(--color-surface-sidebar-opaque)')

@@ -10,6 +10,7 @@ import {
   highlightBesideNotch,
   notchLeft,
   notchStyles,
+  outsideNotch,
 } from './notch'
 import { notchOffset } from './toolbarPlacement'
 
@@ -42,7 +43,7 @@ describe('notch geometry', () => {
     const edge = rule('.cm-tooltip-above > .cm-float-notch::before')
     const fill = rule('.cm-tooltip-above > .cm-float-notch::after')
     expect(edge.background).toBe('var(--color-line-glass-edge)')
-    expect(fill.background).toBe('var(--glass-tint)')
+    expect(fill.background).toMatch(/, var\(--glass-tint\)$/)
     expect(fill.clipPath).toBe('polygon(0 0, 100% 0, 50% 100%)')
     expect(fill.top).toBe('-0.5px')
     const both = rule('.cm-float-notch::before, .cm-float-notch::after')
@@ -51,10 +52,29 @@ describe('notch geometry', () => {
     expect(rule('.cm-float-notch').zIndex).toBe('-1')
   })
 
-  it('carries the sheen only on a notch that meets the top edge', () => {
+  it('carries the sheen at full strength on a notch that meets the top edge', () => {
     const fill = rule('.cm-tooltip-below > .cm-float-notch::after')
     expect(fill.background).toBe('var(--glass-sheen-top), var(--glass-tint)')
     expect(fill.bottom).toBe('-0.5px')
+  })
+
+  it('carries on the bar sheen where it has not faded out by the bottom edge', () => {
+    // The fill's top lies half a pixel above the bar's bottom edge; the sheen starts at the bar's top.
+    expect(rule('.cm-tooltip-above > .cm-float-notch::after').background).toBe(
+      'var(--glass-sheen) 0 calc(0.5px - var(--size-float-toolbar-height)) / 100% var(--size-glass-sheen) no-repeat, var(--glass-tint)',
+    )
+  })
+
+  it('leaves the notch out of the layer that casts the outer shadows, inside reach of the bar', () => {
+    const clip = outsideNotch('var(--x)', '9px')
+    const around =
+      'calc(-1 * 9px) calc(-1 * 9px), calc(100% + 9px) calc(-1 * 9px), calc(100% + 9px) calc(100% + 9px), calc(-1 * 9px) calc(100% + 9px), calc(-1 * 9px) calc(-1 * 9px)'
+    expect(clip.down).toBe(
+      `polygon(evenodd, ${around}, calc(var(--x) - 6px) 100%, var(--x) calc(100% + 6px), calc(var(--x) + 6px) 100%, calc(var(--x) - 6px) 100%)`,
+    )
+    expect(clip.up).toBe(
+      `polygon(evenodd, ${around}, calc(var(--x) - 6px) 0, var(--x) -6px, calc(var(--x) + 6px) 0, calc(var(--x) - 6px) 0)`,
+    )
   })
 
   it('clips the edge to its outline, so the translucent material never shows it through', () => {
@@ -80,7 +100,7 @@ describe('notch geometry', () => {
     )
   })
 
-  it('needs no seam strip: the notch, behind the bar, paints over its rim', () => {
+  it('needs no seam strip: the rim stops at the notch, which lies behind the bar', () => {
     expect(Object.keys(notchStyles).some((k) => k.includes('.cm-float-bar::after'))).toBe(false)
   })
 })

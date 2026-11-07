@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { floatStyles, placeFloatTip } from './floating'
-import { EDGE, NOTCH_HEIGHT, NOTCH_WIDTH, highlightBesideNotch, notchStyles } from './notch'
+import {
+  BAR_NOTCH_TIP,
+  EDGE,
+  NOTCH_HEIGHT,
+  NOTCH_WIDTH,
+  highlightBesideNotch,
+  notchStyles,
+  outsideNotch,
+} from './notch'
 
 type Rule = Record<string, string>
 const rule = (selector: string) => floatStyles[selector] as Rule
@@ -26,15 +34,18 @@ describe('floating bar motion and states', () => {
     expect(transition).not.toContain('background')
   })
 
-  it('is one element: the glass material, the glass rim and one soft box shadow layer, no filter and no animation', () => {
+  it('is the glass material with the rim highlight, its outer shadows on a layer behind it, no filter and no animation', () => {
     const bar = rule('.cm-tooltip.cm-float-bar')
     expect(bar.outline).toBeUndefined()
-    expect(bar.boxShadow).toMatch(/^var\(--glass-rim\), /)
+    expect(bar.boxShadow).toBe('var(--glass-rim-highlight)')
     expect(bar.border).toBe('0')
     expect(bar.background).toBe('var(--glass-material-bg)')
-    expect(bar.boxShadow!.split('), ')).toHaveLength(2)
-    expect(bar.boxShadow).toContain('var(--color-shadow-float-bar)')
-    expect(bar.boxShadow).not.toContain('popover')
+    const shade = rule('.cm-tooltip.cm-float-bar::before')
+    expect(shade.boxShadow).toMatch(/^var\(--glass-rim-edge\), /)
+    expect(shade.boxShadow!.split('), ')).toHaveLength(2)
+    expect(shade.boxShadow).toContain('var(--color-shadow-float-bar)')
+    expect(shade.boxShadow).not.toContain('popover')
+    expect([shade.inset, shade.zIndex, shade.borderRadius]).toEqual(['0', '-1', 'inherit'])
     expect(bar.filter).toBeUndefined()
     expect(bar.animation).toBeUndefined()
     expect(floatStyles['@keyframes cm-fade-in']).toEqual({
@@ -135,10 +146,19 @@ describe('floating bar motion and states', () => {
       `${highlightBesideNotch('var(--tip-notch, 50%)', `${NOTCH_WIDTH}px`)}, var(--glass-material-bg)`,
     )
     const bar = rule('.cm-tooltip.cm-tooltip-below.cm-float-bar')
-    expect(bar.boxShadow).toMatch(/^var\(--glass-rim-edge\), /)
-    expect(bar.boxShadow).toContain('var(--color-shadow-float-bar)')
+    expect(bar.boxShadow).toBe('none')
     expect(bar.background).toBe(
       `${highlightBesideNotch('var(--float-notch-x, 25px)', `${NOTCH_WIDTH}px`)}, var(--glass-material-bg)`,
+    )
+  })
+
+  it('casts the rim edge and the shade around the notch, never under its translucent material', () => {
+    const reach = 'calc(2 * var(--shadow-float-bar-blur) + var(--shadow-float-bar-y))'
+    expect(rule('.cm-tooltip.cm-tooltip-above.cm-float-bar::before').clipPath).toBe(
+      outsideNotch(BAR_NOTCH_TIP, reach).down,
+    )
+    expect(rule('.cm-tooltip.cm-tooltip-below.cm-float-bar::before').clipPath).toBe(
+      outsideNotch(BAR_NOTCH_TIP, reach).up,
     )
   })
 

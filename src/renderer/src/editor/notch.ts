@@ -1,9 +1,9 @@
 // The notch of a floating bar: a small clipped box behind the bar holding two
 // clipped layers, the glass edge as a band along the slanted sides and the
 // material as a triangle shifted EDGE pixels in, so the edge shows as a thin
-// outline. The box sits at the bar's edge, outside its rectangle, and paints
-// over the rim's outer edge where the two meet; on the top edge the rim's
-// highlight stops either side of it (`highlightBesideNotch`). It is never
+// outline. The box sits at the bar's edge, outside its rectangle. The bar's
+// rim edge and shade go around it (`outsideNotch`), and on the top edge the
+// rim's highlight stops either side of it (`highlightBesideNotch`). It is never
 // turned: a transform would misalign the window-aligned gradient in its fill.
 import { sizes } from '../theme/tokens'
 
@@ -32,6 +32,8 @@ const half = NOTCH_WIDTH / 2
 const inset = `${(half / NOTCH_HEIGHT) * EDGE}px`
 const edge = 'var(--color-line-glass-edge)'
 const tint = 'var(--glass-tint)'
+// The bar's sheen is longer than the bar is tall; every bar is `size.float-toolbar-height` tall.
+const sheenPastBar = `var(--glass-sheen) 0 calc(${EDGE}px - var(--size-float-toolbar-height)) / 100% var(--size-glass-sheen) no-repeat`
 
 /** The edge band's outline, pointing down (the surface above its anchor) and up. */
 export const NOTCH_EDGE_CLIP = {
@@ -47,6 +49,23 @@ export const NOTCH_EDGE_CLIP = {
 export const NOTCH_FILL_CLIP = {
   down: `polygon(${inset} ${EDGE}px, calc(100% - ${inset}) ${EDGE}px, 50% 100%)`,
   up: `polygon(${inset} calc(100% - ${EDGE}px), calc(100% - ${inset}) calc(100% - ${EDGE}px), 50% 0)`,
+}
+
+/**
+ * The clip of the layer behind a bar that casts its rim edge and shade: all
+ * within `reach` of the bar but the notch with its tip `at`, whose translucent
+ * material would show them through.
+ */
+export function outsideNotch(at: string, reach: string): { down: string; up: string } {
+  const near = `calc(-1 * ${reach})`
+  const far = `calc(100% + ${reach})`
+  const around = `${near} ${near}, ${far} ${near}, ${far} ${far}, ${near} ${far}, ${near} ${near}`
+  const left = `calc(${at} - ${half}px)`
+  const right = `calc(${at} + ${half}px)`
+  return {
+    down: `polygon(evenodd, ${around}, ${left} 100%, ${at} calc(100% + ${NOTCH_HEIGHT}px), ${right} 100%, ${left} 100%)`,
+    up: `polygon(evenodd, ${around}, ${left} 0, ${at} -${NOTCH_HEIGHT}px, ${right} 0, ${left} 0)`,
+  }
 }
 
 const highlight = 'var(--glass-highlight)'
@@ -90,7 +109,7 @@ export const notchStyles = {
   },
   '.cm-tooltip-above > .cm-float-notch::after': {
     top: `-${EDGE}px`,
-    background: tint,
+    background: `${sheenPastBar}, ${tint}`,
     clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
   },
   // Pointing up, the notch meets the bar's top edge, where the sheen is at its strongest.
