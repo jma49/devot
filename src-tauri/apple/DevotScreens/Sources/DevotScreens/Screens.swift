@@ -22,18 +22,32 @@ final class Screens {
     /// Set with the launch argument `-DevotScreensOff YES`; the app then keeps the web shell.
     static let killSwitch = "DevotScreensOff"
 
-    let root = ScreensRootController()
+    let root: ScreensRootController
     var onNotice: ((NoticeKind, [String: JSONValue]) -> Void)?
     private let rust: any RustSide
     private var nextID: UInt64 = 1
     private var waiting: [UInt64: (Outcome) -> Void] = [:]
+    private var tabModel = TabModel()
+    private let selection = UISelectionFeedbackGenerator()
 
-    private init(rust: any RustSide) {
+    private init(rust: any RustSide, webView: WKWebView) {
         self.rust = rust
+        root = ScreensRootController(webView: webView)
+        root.log = { [weak self] in self?.rust.log($0, $1) }
+        root.tabs.onAppear = { [weak self] tab in
+            guard let self else { return }
+            run(tabModel.appeared(tab))
+        }
+        root.tabs.onReselect = { [weak self] tab in
+            guard let self else { return }
+            let effects = tabModel.reselected(tab)
+            if !effects.isEmpty { selection.selectionChanged() }
+            run(effects)
+        }
     }
 
-    /// Checks what Rust handed over and attaches the empty root, or answers nil. Tao's window may
-    /// not be up yet: containment needs none.
+    /// Checks what Rust handed over and attaches the root, or answers nil. Tao's window may not be
+    /// up yet: containment needs none.
     static func attach(
         webView: AnyObject, root: AnyObject, rust: any RustSide, defaults: UserDefaults = .standard
     ) -> Screens? {
@@ -41,11 +55,11 @@ final class Screens {
             rust.log(.info, "I_SCREENS_SWITCHED_OFF")
             return nil
         }
-        guard webView is WKWebView, let root = root as? UIViewController else {
+        guard let webView = webView as? WKWebView, let root = root as? UIViewController else {
             rust.log(.warn, "W_SCREENS_INSTALL_REFUSED reason=class")
             return nil
         }
-        let screens = Screens(rust: rust)
+        let screens = Screens(rust: rust, webView: webView)
         UIView.performWithoutAnimation { screens.root.attach(to: root) }
         return screens
     }
@@ -81,6 +95,36 @@ final class Screens {
             rust.log(.warn, "W_SCREENS_NOTICE_INVALID")
             return
         }
-        onNotice?(kind, fields)
+        guard kind == .tabsState else {
+            onNotice?(kind, fields)
+            return
+        }
+        guard let state = TabModel.PageState(fields) else {
+            rust.log(.warn, "W_SCREENS_NOTICE_INVALID notice=tabs.state")
+            return
+        }
+        run(tabModel.pageState(tab: state.tab, barHidden: state.barHidden, attention: state.attention))
+    }
+
+    private func run(_ effects: [TabModel.Effect]) {
+        for effect in effects {
+            switch effect {
+            case .show(let tab): ask(.tabsShow, tab, answered: true)
+            case .popToRoot(let tab): ask(.tabsPopToRoot, tab, answered: false)
+            case .select(let tab): root.tabs.select(tab)
+            case .hideBar(let hidden): root.tabs.setTabBarHidden(hidden, animated: true)
+            case .badge(let on): root.tabs.setAttention(on)
+            }
+        }
+    }
+
+    private func ask(_ op: Op, _ tab: Tab, answered: Bool) {
+        request(op, ["tab": .string(tab.rawValue)]) { [weak self] outcome in
+            guard let self else { return }
+            if answered { tabModel.showAnswered() }
+            if case .failed(let code) = outcome {
+                rust.log(.warn, "W_SCREENS_TAB_FAILED op=\(op.rawValue) code=\(code)")
+            }
+        }
     }
 }

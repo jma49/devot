@@ -1,0 +1,69 @@
+import UIKit
+
+/// The system tab bar: icons only, each tab a navigation stack whose root holds the web view.
+final class DevotTabBarController: UITabBarController, UITabBarControllerDelegate {
+    var onAppear: ((Tab) -> Void)?
+    var onReselect: ((Tab) -> Void)?
+    private var screens: [Tab: WebTabScreen] = [:]
+
+    init(host: WebViewHost) {
+        super.init(nibName: nil, bundle: nil)
+        viewControllers = TabModel.tabs.map { tab in
+            let screen = WebTabScreen(tab: tab, host: host) { [weak self] in self?.onAppear?($0) }
+            screens[tab] = screen
+            let navigation = UINavigationController(rootViewController: screen)
+            navigation.setNavigationBarHidden(true, animated: false)
+            navigation.tabBarItem = Self.item(tab)
+            return navigation
+        }
+        selectedIndex = TabModel.tabs.firstIndex(of: .library) ?? 0
+        delegate = self
+        tabBarMinimizeBehavior = .never
+        tabBar.tintColor = Tokens.Color.accentText
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    /// UIBarItem has no large content title; the viewer shows the symbol and VoiceOver reads the label.
+    private static func item(_ tab: Tab) -> UITabBarItem {
+        let image = UIImage(systemName: TabModel.symbol(tab))
+        let item = UITabBarItem(
+            title: nil, image: image, selectedImage: UIImage(systemName: TabModel.symbol(tab) + ".fill"))
+        item.accessibilityLabel = name(tab)
+        item.largeContentSizeImage = image
+        return item
+    }
+
+    private static func name(_ tab: Tab) -> String {
+        switch tab {
+        case .notes: L10n.phoneTabNotes()
+        case .library: L10n.phoneTabLibrary()
+        case .activity: L10n.phoneTabActivity()
+        case .settings, .search: L10n.phoneTabSettings()
+        }
+    }
+
+    func screen(_ tab: Tab) -> WebTabScreen? {
+        screens[tab]
+    }
+
+    func select(_ tab: Tab) {
+        guard let index = TabModel.tabs.firstIndex(of: tab), index != selectedIndex else { return }
+        selectedIndex = index
+    }
+
+    func setAttention(_ on: Bool) {
+        guard let index = TabModel.tabs.firstIndex(of: .settings),
+            let item = viewControllers?[index].tabBarItem
+        else { return }
+        item.badgeValue = TabModel.badgeValue(on)
+        item.accessibilityValue = on ? L10n.phoneBadgeAttention() : nil
+    }
+
+    func tabBarController(_ tabBarController: UITabBarController, shouldSelect viewController: UIViewController) -> Bool {
+        if viewController === selectedViewController, let index = viewControllers?.firstIndex(of: viewController) {
+            onReselect?(TabModel.tabs[index])
+        }
+        return true
+    }
+}
