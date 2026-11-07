@@ -1,6 +1,13 @@
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createClock, createIdGenerator, createNoteService } from '../../src/core'
+import {
+  createBookService,
+  createClock,
+  createIdGenerator,
+  createNoteService,
+  createTagService,
+  createTemplateService,
+} from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -140,6 +147,33 @@ describe('task counts', () => {
     const batched = vi.spyOn(storage, 'getBodies')
     expect((await fresh.taskCounts([id]))[id]).toEqual({ done: 1, total: 2 })
     expect(batched).toHaveBeenCalledTimes(1)
+  })
+
+  it('follows an append from an agent and a restored version', async () => {
+    const { notes } = setup()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, '- [x] one\n')
+    await notes.flush({ versions: true })
+    await notes.appendToNote(id, '- [ ] two', { position: 'append' })
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 1, total: 2 })
+    await notes.flush({ versions: true })
+    const versions = (await notes.history(id)).filter((e) => e.kind === 'body')
+    await notes.restoreRevision(id, versions.at(-1)!.id)
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 1, total: 1 })
+  })
+
+  it('follows a template applied to a note', async () => {
+    const { notes, storage } = setup()
+    const clock = createClock('mac1')
+    const newId = createIdGenerator()
+    const books = createBookService({ storage, clock, newId })
+    const tags = createTagService({ storage, clock, newId })
+    const templates = createTemplateService({ storage, notes, books, tags, clock, newId })
+    const template = await templates.create('Checklist')
+    await notes.setBody(template, '- [ ] Pack\n- [x] Book\n')
+    const id = await notes.create('Trip')
+    await templates.applyTo(template, id, { now: 0 })
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 1, total: 2 })
   })
 })
 
