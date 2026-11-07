@@ -10,6 +10,7 @@ import {
   type Rgb,
 } from '../../src/renderer/src/theme/contrast'
 import { dark, ivoryDark, ivoryLight, light, sizes } from '../../src/renderer/src/theme/tokens'
+import { ciede2000, srgbToLab } from '../support/ciede2000'
 
 // Every theme has the default theme's tokens in light and dark; the palette checks pin
 // the design values (design/README.md "Themes").
@@ -322,6 +323,37 @@ describe('the gradient themes', () => {
         }
       }
     }
+  })
+
+  it('differ from one another by at least CIEDE2000 10 at every stop', () => {
+    const failures: string[] = []
+    for (const appearance of APPEARANCES) {
+      const sidebar = parseColor(system[appearance]['color.surface.sidebar-opaque']!).rgb
+      const stops = (id: string) =>
+        (
+          backdrops.find((t) => t.path === `backdrop.${id}.${appearance}`)!.value as {
+            color: { hex: string; alpha: number }
+            position: number
+          }[]
+        ).map((stop) => ({
+          position: stop.position,
+          lab: srgbToLab(
+            composite({ rgb: parseColor(stop.color.hex).rgb, alpha: stop.color.alpha }, sidebar),
+          ),
+        }))
+      for (const [i, a] of GRADIENT_THEMES.entries()) {
+        for (const b of GRADIENT_THEMES.slice(i + 1)) {
+          const [ours, theirs] = [stops(a), stops(b)]
+          expect(ours.map((s) => s.position)).toEqual(theirs.map((s) => s.position))
+          for (const [k, stop] of ours.entries()) {
+            const difference = ciede2000(stop.lab, theirs[k]!.lab)
+            if (difference < 10)
+              failures.push(`${appearance} ${a}/${b} at ${stop.position}: ${difference.toFixed(1)}`)
+          }
+        }
+      }
+    }
+    expect(failures).toEqual([])
   })
 
   it('keep the iPhone page text and marks readable over every stop', () => {
