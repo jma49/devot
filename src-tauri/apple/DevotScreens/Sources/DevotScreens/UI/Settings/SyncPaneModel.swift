@@ -52,6 +52,8 @@ final class SyncPaneModel {
     private(set) var pairingEnded: String?
     @ObservationIgnored private var poll: Task<Void, Never>?
     @ObservationIgnored private var checks = 0
+    @ObservationIgnored private var gone = false
+    @ObservationIgnored private var savingDraft: String?
     @ObservationIgnored var copy: @MainActor (String) -> Void = SyncPaneModel.copySecret
 
     init(store: SettingsStore) {
@@ -189,14 +191,23 @@ final class SyncPaneModel {
     }
 
     func saveUrl() {
+        savingUrl {}
+    }
+
+    /// Saves a relay the owner typed but did not submit, then goes on: the page saves it on blur.
+    private func savingUrl(then next: @escaping () -> Void) {
         guard let draft = url, draft.trimmingCharacters(in: .whitespaces) != snapshot.relayUrl else {
             url = nil
-            return
+            return next()
         }
+        // Done also ends the field's focus, and each saves.
+        if busy, draft == savingDraft { return }
+        savingDraft = draft
         change(.syncSet, ["patch": .object(["relayUrl": .string(draft)])], failing: "syncSettings.urlFailed") {
             [weak self] in
             self?.store.adoptSync($0)
             self?.url = nil
+            next()
         }
     }
 
@@ -207,10 +218,15 @@ final class SyncPaneModel {
     func backOut() {
         secret = ""
         path = nil
+        saveUrl()
     }
 
     func create() {
         guard !secret.trimmingCharacters(in: .whitespaces).isEmpty, !busy, !locked else { return }
+        savingUrl { [weak self] in self?.createVault() }
+    }
+
+    private func createVault() {
         change(.syncVaultCreate, ["relaySecret": .string(secret)], failing: "syncSettings.vaultFailed") {
             [weak self] value in
             guard let self else { return }
@@ -244,6 +260,11 @@ final class SyncPaneModel {
     func join(recovery byKey: Bool, icloud: Bool) {
         let text = byKey ? recovery : code
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty, !busy, !locked else { return }
+        if icloud { return joinOn(recovery: byKey, icloud: true, text) }
+        savingUrl { [weak self] in self?.joinOn(recovery: byKey, icloud: false, text) }
+    }
+
+    private func joinOn(recovery byKey: Bool, icloud: Bool, _ text: String) {
         if icloud {
             if byKey {
                 send(.syncIcloudUse, ["recoveryKey": .string(text)])
@@ -294,11 +315,16 @@ final class SyncPaneModel {
 
     static let confirmed: Set<ICloudAttention.Action> = [.moveHere, .uploadAgain]
 
+    /// Asks first for a confirmed action; the alert's button then calls `perform`.
     func act(_ action: ICloudAttention.Action) {
-        if Self.confirmed.contains(action), confirm != .icloud(action) {
+        if Self.confirmed.contains(action) {
             confirm = .icloud(action)
-            return
+        } else {
+            perform(action)
         }
+    }
+
+    func perform(_ action: ICloudAttention.Action) {
         confirm = nil
         guard let (op, args) = Self.icloudRuns[action] else { return }
         change(op, args, failing: "syncSettings.icloudChangeFailed") { [weak self] in self?.store.adoptSync($0) }
@@ -370,6 +396,7 @@ final class SyncPaneModel {
             busy = false
             switch result {
             case .success(let value):
+                if gone { return store.run(.syncPairingCancel) { _ in } }
                 guard let shown = ShownPairing(value) else {
                     return failed("syncSettings.pairFailed", "E_SYNC_PAIRING_INVALID", op: .syncPairingOpen)
                 }
@@ -458,8 +485,10 @@ final class SyncPaneModel {
         catalog(unreachable ? "syncSettings.pairRetrying" : progress == .taken ? "syncSettings.pairTaken" : "syncSettings.pairWaiting")
     }
 
-    /// The pane left the stack: a pairing on show ends with it.
+    /// The pane left the stack: a pairing on show, or still opening, ends with it, and a typed relay is kept.
     func left() {
+        gone = true
         cancelPairing()
+        saveUrl()
     }
 }

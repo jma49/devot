@@ -50,6 +50,57 @@ final class SyncPaneModelTests: XCTestCase {
         XCTAssertTrue(bridge.ops.contains("direct.sync.pairingCancel"))
     }
 
+    func testAPairingThatOpensAfterThePaneLeftIsCancelledAndNotShown() {
+        let (model, bridge) = model(relayVault)
+        model.showPairing()
+        model.left()
+        bridge.answer("direct.sync.pairingOpen", .ok(shown))
+        XCTAssertNil(model.pairing)
+        XCTAssertEqual(bridge.ops, ["direct.sync.pairingCancel"])
+    }
+
+    func testARelayTypedButNotSubmittedIsSavedBeforeJoining() {
+        let (model, bridge) = model()
+        model.url = "https://relay.example.test"
+        model.code = "ABCD-EFGH"
+        model.join(recovery: false, icloud: false)
+        XCTAssertEqual(bridge.ops, ["direct.sync.set"])
+        XCTAssertEqual(bridge.sent.first?.args, ["patch": .object(["relayUrl": .string("https://relay.example.test")])])
+        bridge.answer("direct.sync.set", .ok(.object(["relayUrl": .string("https://relay.example.test")])))
+        XCTAssertNil(model.url)
+        XCTAssertEqual(bridge.sent.first { $0.op == "direct.sync.joinCode" }?.args, ["code": .string("ABCD-EFGH")])
+    }
+
+    func testARelayTypedButNotSubmittedIsSavedBeforeCreatingAndWhenThePaneLeaves() {
+        let (model, bridge) = model(["relayUrl": .string("https://old.example.test")])
+        model.url = "https://relay.example.test"
+        model.secret = "s3cret"
+        model.create()
+        XCTAssertEqual(bridge.ops, ["direct.sync.set"])
+        bridge.answer("direct.sync.set", .ok(.object(["relayUrl": .string("https://relay.example.test")])))
+        XCTAssertEqual(bridge.ops, ["direct.sync.vaultCreate"])
+        model.url = "https://other.example.test"
+        model.left()
+        XCTAssertEqual(bridge.sent.last?.args, ["patch": .object(["relayUrl": .string("https://other.example.test")])])
+    }
+
+    func testARelaySubmittedAndLeftAtOnceIsSavedOnce() {
+        let (model, bridge) = model()
+        model.url = "https://relay.example.test"
+        model.saveUrl()
+        model.saveUrl()
+        XCTAssertEqual(bridge.ops, ["direct.sync.set"])
+    }
+
+    func testChangingTheSetupKeepsATypedRelay() {
+        let (model, bridge) = model()
+        model.choose(.first)
+        model.url = "https://relay.example.test"
+        model.backOut()
+        XCTAssertNil(model.path)
+        XCTAssertEqual(bridge.sent.first?.args, ["patch": .object(["relayUrl": .string("https://relay.example.test")])])
+    }
+
     func testARelayOutOfReachKeepsThePairingAndAnyOtherFailureEndsIt() {
         let (model, bridge) = model(relayVault)
         pairing(model, bridge)
@@ -125,12 +176,13 @@ final class SyncPaneModelTests: XCTestCase {
         XCTAssertNil(model.recoveryKey)
     }
 
-    func testAConfirmedICloudActionAsksFirst() {
+    func testAConfirmedICloudActionAsksFirstAndRunsOnceTheAlertHasClosed() {
         let (model, bridge) = model()
         model.act(.uploadAgain)
         XCTAssertEqual(model.confirm, .icloud(.uploadAgain))
         XCTAssertTrue(bridge.sent.isEmpty)
-        model.act(.uploadAgain)
+        model.confirm = nil
+        model.perform(.uploadAgain)
         XCTAssertNil(model.confirm)
         XCTAssertEqual(bridge.ops, ["direct.sync.icloudUploadAgain"])
         model.act(.turnOff)

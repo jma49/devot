@@ -9,6 +9,7 @@ struct SyncPane: View {
     let anchor: PaneAnchor?
     let buy: () -> Void
     @State private var landed = false
+    @FocusState private var focused: SyncLayout.Row.ID?
 
     private static let quietModules = 4
     private static let qrSide = Tokens.Space.space10 * 4
@@ -67,6 +68,7 @@ struct SyncPane: View {
             case .relayField:
                 field(row, text: Binding(get: { model.url ?? model.snapshot.relayUrl }, set: { model.url = $0 }),
                     prompt: catalog("syncSettings.relayPlaceholder"), keyboard: .URL, submit: model.saveUrl)
+                    .onChange(of: focused) { was, _ in if was == row.id { model.saveUrl() } }
             case .secret(let connect, let cancellable):
                 field(row, text: $model.secret, secure: true, submit: model.create)
                 if cancellable { ActionRow(title: L10n.dialogCancel(), action: model.backOut) }
@@ -182,6 +184,7 @@ struct SyncPane: View {
             .textInputAutocapitalization(characters ? .characters : .never)
             .submitLabel(.done)
             .onSubmit(submit)
+            .focused($focused, equals: row.id)
             .accessibilityIdentifier(row.id)
         }
         .settingsRow(described: true)
@@ -300,7 +303,7 @@ struct SyncPane: View {
 
     private func run(_ confirm: SyncPaneModel.Confirm) {
         switch confirm {
-        case .icloud(let action): model.act(action)
+        case .icloud(let action): model.perform(action)
         case .moveToICloud: model.moveToICloud()
         case .leaveVault: model.leaveVault()
         case .removeDevice(let device): model.remove(device)
