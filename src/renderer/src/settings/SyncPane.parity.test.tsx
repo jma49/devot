@@ -27,7 +27,7 @@ const cases = shared.cases as Case[]
 const shown: { case?: Case } = {}
 
 vi.mock('../ipc', () => ({
-  invoke: vi.fn(async (cmd: string) => {
+  invoke: vi.fn<(cmd: string) => Promise<unknown>>(async (cmd) => {
     const now = shown.case!
     switch (cmd) {
       case 'licence_get':
@@ -102,11 +102,11 @@ it.each(cases.map((c) => [c.name, c] as const))('lays out Sync on the phone: %s'
     want.notes.forEach((key, n) =>
       expect(group.notes[n]).toMatch(new RegExp(`^${escape(upToPlaceholder(key))}`)),
     )
-    if (want.footer === null) expect(group.footer).toBeNull()
-    else expect(group.footer).toMatch(new RegExp(`^${escape(upToPlaceholder(want.footer))}`))
+    const footer = want.footer === null ? null : upToPlaceholder(want.footer)
+    expect(group.footer?.slice(0, footer?.length ?? 0) ?? null).toBe(footer)
   })
 })
 
-function escape(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+function escape(source: string): string {
+  return source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
