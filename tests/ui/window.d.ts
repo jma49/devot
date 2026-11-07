@@ -27,6 +27,7 @@ interface Window {
   devotInitialEditorSettings: unknown
   devotKeyMs: number[]
   devotKeys: { work: number; frame: number }[]
+  devotLastUpdate: number
   devotMarker?: boolean
   devotMeasured: number
   devotPreviewKeys: number[]

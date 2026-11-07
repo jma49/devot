@@ -1,7 +1,13 @@
 import type { Locator } from '@playwright/test'
 
+export interface StateLike {
+  doc: { length: number; toString(): string }
+  selection: { main: { head: number } }
+  update(...specs: unknown[]): unknown
+}
+
 export interface ViewLike {
-  state: { doc: { length: number; toString(): string } }
+  state: StateLike
   dispatch(spec: unknown): void
   focus(): void
   update(transactions: unknown): void
@@ -28,6 +34,16 @@ export function watchKeys(content: Locator) {
     }
     timed('update')
     timed('measure')
+    const state = Object.getPrototypeOf(view.state) as StateLike
+    const transaction = state.update
+    state.update = function (this: StateLike, ...specs: unknown[]) {
+      const start = w.performance.now()
+      try {
+        return transaction.apply(this, specs)
+      } finally {
+        if (current) current.work += w.performance.now() - start
+      }
+    }
     w.addEventListener(
       'keydown',
       () => {

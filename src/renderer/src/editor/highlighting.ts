@@ -13,7 +13,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view'
 import type { Tree } from '@lezer/common'
-import { highlightTree, type Highlighter } from '@lezer/highlight'
+import { getStyleTags, highlightTree, type Highlighter } from '@lezer/highlight'
 import { joinOperatorRuns, type StyledSpan } from '../../../core/operatorRuns'
 
 const CODE_NODES = new Set(['FencedCode', 'CodeBlock', 'InlineCode'])
@@ -30,7 +30,23 @@ export function highlightSpans(
   tree: Tree = syntaxTree(state),
 ): StyledSpan<string>[] {
   let spans: StyledSpan<string>[] = []
-  highlightTree(tree, highlighter, (f, t, style) => spans.push({ from: f, to: t, style }), from, to)
+  const put = (f: number, t: number, style: string) => spans.push({ from: f, to: t, style })
+  const top = tree.topNode
+  if (getStyleTags(top)) highlightTree(tree, highlighter, put, from, to)
+  else {
+    // highlightTree steps past every top-level block before `from` (11,550 in a 600 KB note) on each
+    // keystroke; a top node without styles leaves each block's highlighting to the block alone.
+    for (let block = top.childAfter(from); block && block.from < to; block = block.nextSibling) {
+      const at = block.from
+      highlightTree(
+        block.toTree(),
+        highlighter,
+        (f, t, style) => put(f + at, t + at, style),
+        Math.max(from, at) - at,
+        Math.min(to, block.to) - at,
+      )
+    }
+  }
   tree.iterate({
     from,
     to,
