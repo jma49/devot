@@ -14,7 +14,7 @@ import {
 import type { CompactableVersion, RevisionKind } from '../storage'
 import { noteCounts } from '../noteCounts'
 import { BODY, bodyText } from './body'
-import type { HeldRecord, Live, NoteContext } from './context'
+import type { Live, NoteContext, NoteMeta } from './context'
 
 const asBody = (version: CompactableVersion) => ({
   ...version,
@@ -31,7 +31,7 @@ const byNote = (versions: readonly CompactableVersion[]) => {
   return notes
 }
 
-const eventValue = (kind: Exclude<RevisionKind, 'body'>, record: HeldRecord): string | null => {
+const eventValue = (kind: Exclude<RevisionKind, 'body'>, record: NoteMeta): string | null => {
   if (kind === 'title') return record.title
   if (kind === 'book') return record.bookId
   if (kind === 'status') return record.status
@@ -189,7 +189,7 @@ export function createVersions(ctx: NoteContext) {
     return true
   }
 
-  const recordEvents = (rev: Live['rev'] | undefined, before: HeldRecord, after: HeldRecord) => {
+  const recordEvents = (rev: Live['rev'] | undefined, before: NoteMeta, after: NoteMeta) => {
     const at = now()
     for (const kind of EVENT_KINDS) {
       const value = eventValue(kind, after)

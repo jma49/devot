@@ -3,14 +3,14 @@ import { errorCode } from '../errors'
 import { clipTitle } from '../noteLimits'
 import type { NoteRecord, OpenedRecord } from '../storage'
 import { BODY } from './body'
-import type { HeldRecord, Live } from './context'
+import type { HeldRecord, Live, NoteMeta } from './context'
 
 /** Attempts when storage keeps refusing because another process wrote first; then the write fails like any other (see failed). */
 const WRITE_TRIES = 5
 
 const isStale = (error: unknown) => errorCode(error) === 'E_NOTE_BODY_STALE'
 
-export const asWritten = <T extends HeldRecord>(record: T): T => ({
+export const asWritten = <T extends NoteMeta>(record: T): T => ({
   ...record,
   bodyVersion: record.bodyVersion + 1,
 })
@@ -44,17 +44,17 @@ export const heldOf = (record: OpenedRecord & Partial<NoteRecord>): HeldRecord =
   return held
 }
 
-export const hlcOf = (record: HeldRecord, field: MetaField) =>
+export const hlcOf = (record: NoteMeta, field: MetaField) =>
   field === 'book' ? record.bookHlc : field === 'status' ? record.statusHlc : record.pinnedHlc
 
-export const withField = (record: HeldRecord, from: HeldRecord, field: MetaField): HeldRecord => {
+export const withField = (record: HeldRecord, from: NoteMeta, field: MetaField): HeldRecord => {
   if (field === 'book') return { ...record, bookId: from.bookId, bookHlc: from.bookHlc }
   if (field === 'status') return { ...record, status: from.status, statusHlc: from.statusHlc }
   return { ...record, pinned: from.pinned, pinnedHlc: from.pinnedHlc }
 }
 
 /** Storage's merge: per field the newer HLC wins. A title past the limit is cut. */
-export const withNewer = (to: HeldRecord, from: HeldRecord): HeldRecord => ({
+export const withNewer = (to: HeldRecord, from: NoteMeta): HeldRecord => ({
   ...to,
   ...(from.titleHlc > to.titleHlc ? { title: clipTitle(from.title), titleHlc: from.titleHlc } : {}),
   ...(from.bookHlc > to.bookHlc ? { bookId: from.bookId, bookHlc: from.bookHlc } : {}),

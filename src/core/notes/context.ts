@@ -6,8 +6,14 @@ import type { NoteServiceOptions } from './types'
 
 export type Timer = ReturnType<typeof setTimeout>
 
-/** A record of a note in memory: its body is read from the note's document, so the record leaves it out. */
-export type HeldRecord = Omit<NoteRecord, 'bodyMd' | 'ydoc' | 'agentWrites'>
+export type NoteMeta = Omit<NoteRecord, 'bodyMd' | 'ydoc' | 'agentWrites'>
+
+/** A record of a note in memory: its body is read from the note's document, so the record cannot hold a stored one. */
+export type HeldRecord = NoteMeta & {
+  bodyMd?: never
+  ydoc?: never
+  agentWrites?: never
+}
 
 export interface Live {
   record: HeldRecord

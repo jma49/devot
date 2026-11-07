@@ -66,11 +66,23 @@ function typedIn(state: Uint8Array, blocks: readonly string[]): Uint8Array {
   return Y.encodeStateAsUpdate(doc, known)
 }
 
-const used = () => {
+// A macrotask first, so no state an awaited call returned is still reachable from a suspended frame.
+const used = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 0))
   collect()
   collect()
   const { heapUsed, arrayBuffers } = process.memoryUsage()
   return heapUsed + arrayBuffers
+}
+
+async function docOf(notes: NoteService, id: string): Promise<Y.Doc> {
+  const doc = new Y.Doc()
+  Y.applyUpdate(doc, (await notes.open(id)).state)
+  return doc
+}
+
+async function openOnly(notes: NoteService, id: string): Promise<void> {
+  await notes.open(id)
 }
 
 describe('big notes in memory', () => {
@@ -91,24 +103,20 @@ describe('big notes in memory', () => {
       const warmUp = await writer.create('Warm-up')
       await writer.flush()
 
-      let before = used()
+      let before = await used()
       const docs: Y.Doc[] = []
-      for (const id of ids) {
-        const doc = new Y.Doc()
-        Y.applyUpdate(doc, (await writer.open(id)).state)
-        docs.push(doc)
-      }
-      const docsOnly = used() - before
+      for (const id of ids) docs.push(await docOf(writer, id))
+      const docsOnly = (await used()) - before
       expect(docs).toHaveLength(SIZES_MB.length)
       docs.length = 0
 
       const reader = service(path)
-      await reader.open(warmUp)
-      before = used()
-      for (const id of ids) await reader.open(id)
-      const held = used() - before
+      await openOnly(reader, warmUp)
+      before = await used()
+      for (const id of ids) await openOnly(reader, id)
+      const held = (await used()) - before
 
-      expect(held - docsOnly).toBeLessThan(0.25 * bodyBytes)
+      expect(held - docsOnly).toBeLessThan(0.08 * bodyBytes)
     },
     TIMEOUT_MS,
   )
