@@ -35,6 +35,7 @@ Part of the [architecture overview](../architecture.md).
   Names are checked on both sides (no quotes or backslashes) before they go into the CSS font list, and every list ends with SF Mono, so a font that is missing, invalid or still loading shows SF Mono.
 - **The iPhone's own appearance:** Default Notebook is in the iPhone's General pane as on the Mac.
   Glass Transparency is not an editor setting: it is this iPhone's own value in `UserDefaults` (`devot.phone.glassTransparency`), never synced, taken once from the page's storage key of the same name the first time the native screens show (`glass.get`), and set on the page's glass with `glass.set`.
+  When that read fails nothing is sent, so the page keeps its value and the next launch takes it.
   The native screens apply a theme, a colour scheme and the gradient strength before Rust stores them, so the change shows in the next frame; the page follows through `devot://editor-settings-changed`.
 - **Live in every window:** after each change Rust sends `devot://editor-settings-changed` with the full settings and a revision to every window (the Settings window may listen to events for this).
   The revision goes up by one with each stored change, so a window ignores an answer or event older than one it has seen (two changes can announce themselves out of order).

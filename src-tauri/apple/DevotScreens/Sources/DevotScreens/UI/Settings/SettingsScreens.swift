@@ -18,7 +18,7 @@ final class SettingsScreens {
     let store = SettingsStore()
     let query = SettingsQuery()
     let themes = ThemeStore.shared
-    let glass = GlassStyleStore.shared
+    let glass: GlassStyleStore
     let router: SettingsRouter
     let navigation: SettingsNavigationController
     private(set) var root: SettingsRootScreen!
@@ -33,8 +33,9 @@ final class SettingsScreens {
         set { store.bridge = newValue }
     }
 
-    init(host: WebViewHost) {
+    init(host: WebViewHost, glass: GlassStyleStore = .shared) {
         self.host = host
+        self.glass = glass
         router = SettingsRouter { _ in UIViewController() }
         navigation = SettingsNavigationController()
         navigation.navigationBar.prefersLargeTitles = true
@@ -59,7 +60,8 @@ final class SettingsScreens {
     }
 
     /// Once the screens show: the theme from the editor settings, and the glass on the page from
-    /// this iPhone's value, taken from the page the first time.
+    /// this iPhone's value, taken from the page the first time. A failed read sends nothing, so the
+    /// page keeps its value for the next launch to take.
     func start() {
         guard !started else { return }
         started = true
@@ -76,7 +78,6 @@ final class SettingsScreens {
                 sendGlass(glass.transparency)
             case .failed(let code):
                 store.log("W_PHONE_GLASS_MIGRATE_FAILED code=\(code)")
-                sendGlass(glass.transparency)
             }
         }
     }
