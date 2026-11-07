@@ -1,86 +1,9 @@
-// What Settings' search finds: the panes themselves and the settings named in
-// them. The list is static so a search never has to render a pane; a setting
-// that is added to a pane without an entry here is still found by its pane.
-// An entry marked for one device names a row that only that device shows.
+// What Settings' search finds: the panes themselves and the settings named in them
+// (searchEntries.ts). The iPhone's native Settings runs a Swift port over the same entries, and
+// tests/fixtures/settings-search.json keeps the two in step.
 import type { MessageKey } from '../i18n'
 import { PANES, PANE_TABS, type PaneId } from './panes'
-
-interface SettingsEntry {
-  pane: PaneId
-  label: MessageKey
-  only?: 'mac' | 'phone'
-}
-
-const ENTRIES: readonly SettingsEntry[] = [
-  { pane: 'general', label: 'generalSettings.defaultNotebook', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.dailyNotes', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.listDates', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.boardDropped', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.activityStrip', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.dataFolder', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.backups', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.commandLineTool', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.keepInMenuBar', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.updates', only: 'mac' },
-  { pane: 'general', label: 'generalSettings.crashReports' },
-  { pane: 'appearance', label: 'appearanceSettings.colorScheme' },
-  { pane: 'appearance', label: 'appearanceSettings.glassAmount', only: 'mac' },
-  { pane: 'appearance', label: 'appearanceSettings.materialAmount', only: 'mac' },
-  { pane: 'appearance', label: 'phone.appearance.transparency', only: 'phone' },
-  { pane: 'appearance', label: 'appearanceSettings.gradient' },
-  { pane: 'appearance', label: 'appearanceSettings.systemAccent', only: 'mac' },
-  { pane: 'appearance', label: 'appearanceSettings.lightMode' },
-  { pane: 'appearance', label: 'appearanceSettings.darkMode' },
-  { pane: 'appearance', label: 'appearanceSettings.iconStyle', only: 'mac' },
-  { pane: 'appearance', label: 'phone.appearance.textSize', only: 'phone' },
-  { pane: 'appearance', label: 'editorSettings.noteFont' },
-  { pane: 'appearance', label: 'appearanceSettings.previewFontSize' },
-  { pane: 'appearance', label: 'appearanceSettings.animations' },
-  { pane: 'editing', label: 'editorSettings.toolbar' },
-  { pane: 'editing', label: 'editorSettings.lineNumbers' },
-  { pane: 'editing', label: 'editorSettings.highlightActiveLine' },
-  { pane: 'editing', label: 'editorSettings.lineWrapping' },
-  { pane: 'editing', label: 'editorSettings.inlineImages' },
-  { pane: 'editing', label: 'editorSettings.readableWidth' },
-  { pane: 'editing', label: 'editorSettings.scrollPastEnd' },
-  { pane: 'editing', label: 'editorSettings.showCounts', only: 'mac' },
-  { pane: 'editing', label: 'editorSettings.cursorScrollMargin' },
-  { pane: 'editing', label: 'editorSettings.listMarker' },
-  { pane: 'editing', label: 'editorSettings.indentUnit' },
-  { pane: 'editing', label: 'editorSettings.tabWidth' },
-  { pane: 'editing', label: 'editorSettings.pasteUrl' },
-  { pane: 'editing', label: 'editorSettings.spellCheck' },
-  { pane: 'editing', label: 'editorSettings.fontSize', only: 'mac' },
-  { pane: 'editing', label: 'editorSettings.fontWeight' },
-  { pane: 'editing', label: 'editorSettings.lineHeight' },
-  { pane: 'editing', label: 'editorSettings.showInvisibles' },
-  { pane: 'editing', label: 'editorSettings.highlightTrailingWhitespace' },
-  { pane: 'preview', label: 'previewSettings.syncScroll', only: 'mac' },
-  { pane: 'preview', label: 'previewSettings.remoteImages' },
-  { pane: 'mirror', label: 'mirror.folderLabel' },
-  { pane: 'mirror', label: 'mirror.includeAttachments' },
-  { pane: 'sync', label: 'syncSettings.relay' },
-  { pane: 'sync', label: 'syncSettings.secret' },
-  { pane: 'sync', label: 'syncSettings.setup' },
-  { pane: 'sync', label: 'syncSettings.usage.title' },
-  { pane: 'sync', label: 'syncSettings.enabled' },
-  { pane: 'sync', label: 'syncSettings.status' },
-  { pane: 'ai', label: 'aiSettings.active', only: 'mac' },
-  { pane: 'ai', label: 'phone.ai.provider', only: 'phone' },
-  { pane: 'ai', label: 'aiSettings.suggestOnIdle' },
-  { pane: 'ai', label: 'aiSettings.endpoint' },
-  { pane: 'ai', label: 'aiSettings.model' },
-  { pane: 'ai', label: 'aiSettings.key' },
-  { pane: 'licence', label: 'licenceSettings.status' },
-  { pane: 'licence', label: 'licenceSettings.trial' },
-  { pane: 'licence', label: 'licenceSettings.key' },
-  { pane: 'integrations', label: 'httpApi.title' },
-  { pane: 'integrations', label: 'httpApi.enabled' },
-  { pane: 'integrations', label: 'httpApi.port' },
-  { pane: 'integrations', label: 'httpApi.token' },
-  { pane: 'plugins', label: 'plugins.permissions' },
-  { pane: 'plugins', label: 'plugins.reviewAsks' },
-]
+import { SETTINGS_ENTRIES } from './searchEntries'
 
 export interface SettingsResult {
   pane: PaneId
@@ -124,7 +47,7 @@ export function searchSettings(
     const name = PANE_TABS[pane].label
     if (panes.includes(pane) && matches(label(name))) found.push({ pane, label: name })
   }
-  for (const entry of ENTRIES) {
+  for (const entry of SETTINGS_ENTRIES) {
     if (!panes.includes(entry.pane) || (entry.only ?? device) !== device) continue
     if (!matches(label(entry.label))) continue
     found.push({ pane: entry.pane, label: entry.label, paneLabel: PANE_TABS[entry.pane].label })
