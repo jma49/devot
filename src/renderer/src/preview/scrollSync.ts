@@ -336,17 +336,22 @@ export interface PreviewScrollPane extends ScrollPane {
   rendered(lines: number, pieces: readonly PreviewPiece[]): void
   /** Something in the preview changed size without a render (a diagram drawn). */
   changed(): void
+  /** Pieces that were waiting got their blocks, after the others (see `PreviewPiece.pending`). */
+  built(): void
   dispose(): void
 }
 
 /**
  * One piece of the preview as its scroll pane reads it: the line it starts
  * on, and among `marked`, in document order, its blocks that carry a line.
- * A piece that stays the same object kept its blocks (its lines may move).
+ * A piece that stays the same object kept its blocks (its lines may move),
+ * unless it was `pending`: not built yet, it has no blocks until it is, and
+ * the pieces waiting are always the last ones.
  */
 export interface PreviewPiece {
   readonly line: number
   readonly marked: readonly Element[]
+  readonly pending?: unknown
 }
 
 const shifts = new WeakMap<Element, (by: number) => void>()
@@ -371,6 +376,7 @@ const lineOf = (el: Element) => {
 }
 
 interface Shape {
+  of: readonly Element[]
   blocks: Element[]
   /** Each block's offset below the first. */
   below: number[]
@@ -444,6 +450,7 @@ export function previewScrollPane(
     const known = placed.get(piece)
     if (known?.epoch === epoch) return known.anchors
     let shape = shapes.get(piece)
+    if (shape?.of !== piece.marked) shape = undefined
     // A kept piece that changed inside with nothing said (a new font along with a render) shows it at its last block.
     if (shape && shape.blocks.length > 1) {
       const last = shape.blocks[shape.blocks.length - 1]!.getBoundingClientRect().top - origin()
@@ -452,7 +459,7 @@ export function previewScrollPane(
     if (!shape) {
       const blocks = piece.marked.filter((el) => lineOf(el) !== undefined)
       const tops = blocks.map((el) => el.getBoundingClientRect().top - origin())
-      shape = { blocks, below: tops.map((top) => top - tops[0]!) }
+      shape = { of: piece.marked, blocks, below: tops.map((top) => top - tops[0]!) }
       shapes.set(piece, shape)
       heads.set(piece, { epoch, top: tops[0] })
     }
@@ -544,13 +551,15 @@ export function previewScrollPane(
     let out = lastBefore(at)
     // The piece found by its first block can keep only blocks past the place: start earlier.
     while (at > 0 && out[0]![key] > value) out = lastBefore((at -= 1))
-    for (let next = at; next < pieces.length; next += 1) {
+    let next = at
+    for (; next < pieces.length && pieces[next]!.pending === undefined; next += 1) {
       for (const anchor of anchorsOf(pieces[next]!)) {
         keep(out, anchor)
         if (out.length > 1 && out[out.length - 1]![key] > value) return out
       }
     }
-    keep(out, { line: lines + 1, top: height })
+    // What is not built yet starts at the bottom of what is.
+    keep(out, { line: pieces[next]?.line ?? lines + 1, top: height })
     return out
   }
   const lineFor = (top: number) => lineAt(nearby('top', top), top)
@@ -559,14 +568,17 @@ export function previewScrollPane(
   const notify = () => {
     for (const listener of listeners) listener()
   }
-  // Images and diagrams land a few at a time: the panes line up again once a frame.
-  let pending: number | undefined
-  const resized = () => {
-    relaidOut()
-    pending ??= frame(() => {
-      pending = undefined
+  // Images, diagrams and pieces built later land a few at a time: the panes line up again once a frame.
+  let queued: number | undefined
+  const notifySoon = () => {
+    queued ??= frame(() => {
+      queued = undefined
       notify()
     })
+  }
+  const resized = () => {
+    relaidOut()
+    notifySoon()
   }
   // The line read, as of the last scroll.
   let read: number | undefined
@@ -619,12 +631,19 @@ export function previewScrollPane(
       notify()
     },
     changed: resized,
+    // Pieces built after the others move none of them, so what was measured of those holds.
+    built: () => {
+      filled = undefined
+      epoch += 1
+      told = true
+      notifySoon()
+    },
     dispose: () => {
       resize.disconnect()
       element.removeEventListener('scroll', scrolled)
       element.removeEventListener('load', resized, true)
-      if (pending !== undefined) cancel(pending)
-      pending = undefined
+      if (queued !== undefined) cancel(queued)
+      queued = undefined
       listeners.clear()
       moves.clear()
       if (shifts.get(element) === shift) shifts.delete(element)

@@ -225,6 +225,51 @@ describe('Preview', () => {
     expect(body().textContent).toContain('Split off with')
   }, 60_000)
 
+  it('maps lines to the blocks of a note opened while the last one still builds', async () => {
+    // Blocks sit 10 pixels a line down in the scrolled pane; one no longer on the page sits nowhere near.
+    const box = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      const line = Number(this.getAttribute('data-source-line') ?? 0)
+      const scrolled = line > 0 ? (this.closest('.preview')?.scrollTop ?? 0) : 0
+      const top = this.isConnected ? line * 10 - scrolled : -100_000
+      return { top, bottom: top + 10, left: 0, right: 100, width: 100, height: 10 } as DOMRect
+    })
+    try {
+      const { core, renders } = fakeCore()
+      const { render, body, handles } = show(core, note(200_000, 'one'), 'n1')
+      await firstRender(renders)
+      const lineOf = (markdown: string, heading: string) =>
+        markdown.slice(0, markdown.indexOf(`## ${heading}`)).split('\n').length
+      const first = note(200_000, 'one')
+      expect(handles.pane!.offsetOf(lineOf(first, 'one section 3'))).toBe(
+        lineOf(first, 'one section 3') * 10,
+      )
+      const other = `Intro\n\n${note(200_000, 'two')}`
+      render(other, 'n2')
+      await act(async () => {
+        await renders[1]
+        for (let i = 0; i < 20; i += 1) await Promise.resolve()
+      })
+      const sections = other.split('## ').length - 1
+      expect(body().querySelectorAll('h2').length).toBeLessThan(sections)
+      // A look below what is built first passes over the pieces still waiting.
+      const pane = body().closest<HTMLElement>('.preview')!
+      pane.scrollTop = lineOf(other, 'two section 899') * 10
+      handles.pane!.topLine()
+      for (const heading of ['two section 3', 'two section 900']) {
+        const line = lineOf(other, heading)
+        expect(handles.pane!.offsetOf(line)).toBe(line * 10)
+      }
+      await settle()
+      expect(body().querySelectorAll('h2')).toHaveLength(sections)
+      const last = lineOf(other, `two section ${sections}`)
+      expect(handles.pane!.offsetOf(last)).toBe(last * 10)
+    } finally {
+      box.mockRestore()
+    }
+  }, 60_000)
+
   it('shows another note anew rather than reusing what the last one showed', async () => {
     const { core, asked } = fakeCore()
     const { render, body } = show(core, note(6_000, 'one'), 'n1')

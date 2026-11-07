@@ -480,6 +480,73 @@ describe('previewScrollPane', () => {
     pane.dispose()
   })
 
+  it('maps pieces built after the render, keeping what it measured of the others', () => {
+    stubResizeObserver()
+    const note = bigNote(100)
+    const waitFrom = 150
+    const waitLine = note.pieces[waitFrom]![0]!.line
+    const builtHeight = note.pieces[waitFrom]![0]!.top
+    const preview = fakePreview(note.pieces, builtHeight)
+    const runs = preview.runs.map((run, at) =>
+      at < waitFrom ? run : { line: run.line, marked: [] as Element[], pending: [] },
+    )
+    const frame = frameQueue()
+    const pane = previewScrollPane(preview.scroller, frame)
+    pane.rendered(note.lines, runs)
+    let laidOut = 0
+    pane.onLayout!(() => laidOut++)
+    // What is not built yet sits below the bottom, rather than squeezed into the last pixels.
+    const built = measuredAll(note.pieces.slice(0, waitFrom), waitLine - 1, builtHeight)
+    preview.element.scrollTop = builtHeight - 30
+    expect(pane.topLine()).toBe(lineAt(built, builtHeight - 30))
+    expect(pane.offsetOf(waitLine + 100)).toBe(builtHeight)
+    expect(pane.offsetOf(80)).toBe(topOf(built, 80))
+    for (const [at, run] of runs.entries()) {
+      if (at < waitFrom) continue
+      Object.assign(run, { marked: preview.runs[at]!.marked })
+      delete (run as { pending?: unknown }).pending
+    }
+    preview.element.scrollHeight = note.height
+    preview.counter.reads = 0
+    pane.built()
+    const all = measuredAll(note.pieces, note.lines, note.height)
+    expect(pane.offsetOf(waitLine + 100)).toBe(topOf(all, waitLine + 100))
+    expect(pane.offsetOf(80)).toBe(topOf(all, 80))
+    expect(pane.topLine()).toBe(lineAt(all, builtHeight - 30))
+    expect(preview.counter.reads).toBeLessThan(30)
+    frame.flush()
+    expect(laidOut).toBe(1)
+    pane.dispose()
+  })
+
+  it('reads a line its `reach` builds as built, after a look past the bottom', () => {
+    stubResizeObserver()
+    const note = bigNote(20)
+    const waitFrom = 30
+    const preview = fakePreview(note.pieces, note.pieces[waitFrom]![0]!.top)
+    const runs = preview.runs.map((run, at) =>
+      at < waitFrom ? run : { line: run.line, marked: [] as Element[], pending: [] },
+    )
+    const reach = (line: number) => {
+      let at = waitFrom
+      for (; at < runs.length && runs[at]!.line <= line + 8; at += 1) {
+        if (!('pending' in runs[at]!)) continue
+        Object.assign(runs[at]!, { marked: preview.runs[at]!.marked })
+        delete (runs[at] as { pending?: unknown }).pending
+      }
+      preview.element.scrollHeight = note.pieces[at]?.[0]!.top ?? note.height
+      pane.built()
+    }
+    const pane = previewScrollPane(preview.scroller, { ...frameQueue(), reach })
+    pane.rendered(note.lines, runs)
+    preview.element.scrollTop = preview.element.scrollHeight - 10
+    pane.topLine()
+    const line = note.pieces[waitFrom + 4]![0]!.line
+    const all = measuredAll(note.pieces, note.lines, note.height)
+    expect(pane.offsetOf(line)).toBe(topOf(all, line))
+    pane.dispose()
+  })
+
   it('measures afresh when the content changed height on its own (a diagram)', () => {
     stubResizeObserver()
     const pieces = [[{ line: 1, top: 0 }], [{ line: 4, top: 50 }]]
