@@ -5,7 +5,7 @@
 // syntax tree and drawn as decorations over the source; the text is never
 // changed.
 import { syntaxTree } from '@codemirror/language'
-import { type EditorState, type Range, type RangeSet } from '@codemirror/state'
+import type { EditorState, Range, RangeSet } from '@codemirror/state'
 import {
   Decoration,
   EditorView,

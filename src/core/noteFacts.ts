@@ -1,6 +1,6 @@
 // What the open note's Note Info summary and card count, read from its Markdown.
 import { taskProgress, type TaskProgress } from './extract'
-import { frontMatter } from './import'
+import { frontMatter } from './frontMatter'
 import { noteCounts, type NoteCounts } from './noteCounts'
 import { frontMatterView, type FrontMatterView } from './preview/frontMatterView'
 import type { PreviewNote } from './preview/registry'

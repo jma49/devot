@@ -236,8 +236,9 @@ export function App() {
   useEffect(() => {
     if (!core || !restored || warmed.current) return
     warmed.current = true
-    warmUp(core)
-  }, [core, restored])
+    const listed = view.listedIds
+    warmUp(core, () => ({ text: editorRef.current?.text() ?? '', listed }))
+  }, [core, restored, view.listedIds])
   const mirror = useMarkdownMirror(core, restored && primary)
   const lastStateParts = useLastState({
     store: lastStateStore,

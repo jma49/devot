@@ -1,63 +1,67 @@
 import { LanguageDescription } from '@codemirror/language'
-import { languages } from '@codemirror/language-data'
+import { languages as editorLanguages } from '@codemirror/language-data'
+import type { WarmFeatures } from '../../core/preview/warmFeatures'
 import type { Core } from './core-client'
 import { patchPieces } from './preview/dom'
 import { previewLabels } from './preview/Preview'
 
-/** The code fence languages notes use most; others still load on first use. */
-export const WARM_LANGUAGES = [
-  'javascript',
-  'typescript',
-  'python',
-  'json',
-  'shell',
-  'css',
-  'html',
-  'rust',
-  'go',
-  'sql',
-  'java',
-  'yaml',
-] as const
+const blocks = (math: boolean) =>
+  [
+    '## Blocks',
+    'Some **bold**, *emphasis*, ~~strike~~, `code` and a [link](https://example.com).',
+    '- One\n  - Nested\n- [x] Done\n- [ ] Open',
+    '1. Step',
+    '> [!NOTE]\n> An alert.',
+    '| A | B |\n| --- | ---: |\n| 1 | 2 |',
+    ...(math ? ['$$\nx^2\n$$'] : []),
+    '---',
+  ].join('\n\n')
 
-const WARM_BLOCKS = [
-  '## Blocks',
-  'Some **bold**, *emphasis*, ~~strike~~, `code` and a [link](https://example.com).',
-  '- One\n  - Nested\n- [x] Done\n- [ ] Open',
-  '1. Step',
-  '> [!NOTE]\n> An alert.',
-  '| A | B |\n| --- | ---: |\n| 1 | 2 |',
-  '$$\nx^2\n$$',
-  '---',
-].join('\n\n')
-
-/** Just long enough for two pieces, so the first piece's path and the others' both run. */
-export const WARM_SAMPLE = [
-  '# Warm',
-  ':sparkles: $e^{i\\pi} + 1 = 0$',
-  ...WARM_LANGUAGES.map((lang) => `\`\`\`${lang}\nx\n\`\`\``),
-  ...Array.from({ length: 12 }, () => WARM_BLOCKS),
-].join('\n\n')
+/**
+ * The blocks any note may show, just long enough for two pieces, with only the code languages,
+ * math and emoji the notes use: warming a fixed list whatever the notes held kept their grammars
+ * in memory (issue 742).
+ */
+export function warmSample({ languages, math, emoji }: WarmFeatures): string {
+  const opening = [...(emoji ? [':sparkles:'] : []), ...(math ? ['$e^{i\\pi} + 1 = 0$'] : [])]
+  return [
+    '# Warm',
+    ...(opening.length > 0 ? [opening.join(' ')] : []),
+    ...languages.map((lang) => `\`\`\`${lang}\nx\n\`\`\``),
+    ...Array.from({ length: 12 }, () => blocks(math)),
+  ].join('\n\n')
+}
 
 type Idle = (run: () => void, options: { timeout: number }) => unknown
 
+/** The open note's text and the IDs the note list shows, in order. */
+export type WarmSource = () => { text: string; listed: readonly string[] }
+
 /**
- * Runs what the first note open would otherwise run cold (the piecewise preview render and patch,
- * highlighting, math, emoji, the editor's code languages) once the window is idle, so the first
- * open costs what later ones do.
+ * Runs what the first preview would otherwise run cold (the piecewise preview render and patch,
+ * and the highlighting, math, emoji and editor languages the open note and the first listed notes
+ * use) once the window is idle. `source` is read only then.
  */
-export function warmUp(core: Core, schedule: Idle = idle): void {
+export function warmUp(core: Core, source: WarmSource, schedule: Idle = idle): void {
   schedule(
     () => {
+      const { text, listed } = source()
       void core
-        .renderPreviewPieces(WARM_SAMPLE, { labels: previewLabels(), loadedEmbeds: [] }, [])
+        .warmFeatures(text, [...listed])
+        .then((features) => {
+          for (const name of features.languages) {
+            void LanguageDescription.matchLanguageName(editorLanguages, name)
+              ?.load()
+              .catch(() => {})
+          }
+          return core.renderPreviewPieces(
+            warmSample(features),
+            { labels: previewLabels(), loadedEmbeds: [] },
+            [],
+          )
+        })
         .then((pieces) => patchPieces(document.createElement('div'), [], pieces))
         .catch(() => {})
-      for (const name of WARM_LANGUAGES) {
-        void LanguageDescription.matchLanguageName(languages, name)
-          ?.load()
-          .catch(() => {})
-      }
     },
     { timeout: 3000 },
   )

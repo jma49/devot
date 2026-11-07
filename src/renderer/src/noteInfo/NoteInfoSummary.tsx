@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { frontMatterHead, type NoteFacts } from '../../../core/noteFacts'
-import { propertyCount } from '../../../core/preview/frontMatterView'
+import { propertyCount } from '../../../core/preview/propertyCount'
 import { errorCode } from '../../../core/errors'
 import { titleWithKey } from '../commands/titles'
 import type { Core } from '../core-client'
