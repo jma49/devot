@@ -59,6 +59,12 @@ final class InstallTests: XCTestCase {
         }
     }
 
+    private func requests(_ rust: FakeRust, _ op: Op) throws -> [UInt64] {
+        try rust.calls.compactMap { call in
+            if case .request(let id, let sent, _) = try Message(json: call.1), sent == op { id } else { nil }
+        }
+    }
+
     /// The tab requests by name and tab, whatever their IDs after the reads the screens send as they show.
     private func tabShows(_ rust: FakeRust) throws -> [String] {
         try tabRequests(rust).compactMap {
@@ -114,7 +120,8 @@ final class InstallTests: XCTestCase {
             Screens.attach(webView: WKWebView(), root: root, rust: rust, defaults: defaults))
         root.view.layoutIfNeeded()
         settle()
-        screens.replied(1, try Message.reply(id: 1, outcome: .ok(.object([:]))).json())
+        let shown = try XCTUnwrap(try requests(rust, .tabsShow).first)
+        screens.replied(shown, try Message.reply(id: shown, outcome: .ok(.object([:]))).json())
         let tabs = screens.root.tabs
         XCTAssertTrue(screens.selectionFeedback.view === tabs.view)
         _ = tabs.tabBarController(tabs, shouldSelect: try XCTUnwrap(tabs.selectedViewController))
@@ -214,6 +221,7 @@ final class InstallTests: XCTestCase {
         let rust = FakeRust()
         let screens = try XCTUnwrap(
             Screens.attach(webView: WKWebView(), root: try shownRoot(), rust: rust, defaults: defaults))
+        screens.root.view.layoutIfNeeded()
         settle()
         screens.delivered(Data(#"{"v":1,"notice":"settings.open","pane":"licence","focusKey":true}"#.utf8))
         settle()
@@ -242,11 +250,12 @@ final class InstallTests: XCTestCase {
     func testOnceShownTheThemeIsReadAndThePageGetsThisIPhonesGlass() throws {
         let rust = FakeRust()
         let root = UIViewController()
-        _ = try XCTUnwrap(Screens.attach(webView: WKWebView(), root: root, rust: rust, defaults: defaults))
+        let screens = try XCTUnwrap(Screens.attach(webView: WKWebView(), root: root, rust: rust, defaults: defaults))
         XCTAssertEqual(rust.calls.count, 0)
         try show(root)
         root.view.layoutIfNeeded()
         settle()
+        withExtendedLifetime(screens) {}
         let ops = try sent(rust).compactMap { message -> String? in
             switch message {
             case .direct(_, let op, _): op.rawValue
@@ -254,7 +263,7 @@ final class InstallTests: XCTestCase {
             default: nil
             }
         }
-        XCTAssertTrue(ops.contains("direct.editorSettings.get"))
+        XCTAssertEqual(ops.filter { $0 == "direct.editorSettings.get" }.count, 1)
         XCTAssertTrue(ops.contains("glass.get") || ops.contains("glass.set"))
     }
 }
