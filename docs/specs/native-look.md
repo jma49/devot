@@ -285,6 +285,8 @@ Part of the [design system](design-system.md).
   UIKit lays the symbol out for a display scale of 1, on whole points as AppKit does: its PNG is then within a pixel of the Mac's in size and in where the symbol sits, 8 bits a channel in sRGB like AppKit's (laid out for the screen's scale, UIKit sizes it in thirds of a point and it sits higher).
   It is an async command whose render runs on a blocking thread, one render at a time (AppKit uses an image on one thread at a time) in an autorelease pool of its own, never on the main thread: Tauri runs a synchronous command there, and at launch the main thread also routes the page's first IPC, which the first paint's 22 icons held up for about 115 ms (80 of them on the first, when AppKit loads the symbols).
   The UI caches results per name, size and appearance, and re-requests them when the appearance changes.
+  The window's own icons, placed in their boxes, are also kept in localStorage for the next launches of the same build (`icons/keptSymbols.ts`, the newest 300), so a launch asks Rust only for symbols the last one did not show; a catalog's symbols (the notebook icon picker) are not kept.
+  Every icon shares one pixel-ratio query.
 - Share sheet (iPhone): `phone_share` presents UIKit's share sheet (`native/ios.rs`) over the key window's top-most view controller, so it rises from the bottom as every iPhone app's does.
   A page's own share sheet shows in the web view as a clipped popover.
   A popover, as an iPad would show, points at the bottom middle of that controller's view, so the sheet always has a source.
