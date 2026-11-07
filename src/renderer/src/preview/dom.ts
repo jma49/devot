@@ -253,9 +253,9 @@ function patchRange(
 
 /**
  * Brings `host` from the pieces it shows to `next` and returns what it shows
- * then. Pieces at the start and the end that kept their key stay as they are
- * (bar their lines and offsets); the run between is patched in place. A piece
- * sent without nodes must be one the host shows.
+ * then. Pieces that kept their key stay as they are (bar their lines and
+ * offsets); each run between them is patched in place. A piece sent without
+ * nodes must be one the host shows.
  */
 export function patchPieces(
   host: Element,
@@ -288,37 +288,61 @@ export function patchPieces(
     return made
   }
 
-  let middle: ShownPiece[]
-  if (newMiddle.every((piece) => piece.nodes)) {
-    const nodes = patchRange(
-      host,
-      oldMiddle.flatMap((piece) => piece.nodes),
-      newMiddle.flatMap((piece) => piece.nodes!),
-      before,
-    )
-    let at = 0
-    middle = newMiddle.map((piece) => {
-      const count = piece.nodes!.filter(isShown).length
-      at += count
-      return fresh(piece, nodes.slice(at - count, at))
-    })
+  // Where each kept piece is now and was before; they stay put if they kept their order.
+  const shownAt = new Map(oldMiddle.map((piece, at) => [piece.key, at]))
+  const kept: { at: number; was: number }[] = []
+  let inOrder = true
+  for (const [at, piece] of newMiddle.entries()) {
+    if (piece.nodes) continue
+    const was = shownAt.get(piece.key)
+    if (was === undefined || was <= (kept.at(-1)?.was ?? -1)) inOrder = false
+    else kept.push({ at, was })
+  }
+
+  let middle: ShownPiece[] = []
+  if (inOrder) {
+    let fromNew = 0
+    let fromOld = 0
+    for (const { at, was } of [...kept, { at: newMiddle.length, was: oldMiddle.length }]) {
+      const run = newMiddle.slice(fromNew, at)
+      const until = oldMiddle.slice(was).find((piece) => piece.nodes.length > 0)?.nodes[0] ?? before
+      const nodes = patchRange(
+        host,
+        oldMiddle.slice(fromOld, was).flatMap((piece) => piece.nodes),
+        run.flatMap((piece) => piece.nodes!),
+        until,
+      )
+      let taken = 0
+      for (const piece of run) {
+        const count = piece.nodes!.filter(isShown).length
+        taken += count
+        middle.push(fresh(piece, nodes.slice(taken - count, taken)))
+      }
+      const stays = oldMiddle[was]
+      if (stays) {
+        moveTo(stays, newMiddle[at]!.line, newMiddle[at]!.offset)
+        middle.push(stays)
+      }
+      fromNew = at + 1
+      fromOld = was + 1
+    }
   } else {
     // A piece moved: the others in the run are built anew.
     const known = new Map(oldMiddle.map((piece) => [piece.key, piece]))
-    const kept = new Set<ShownPiece>()
+    const reused = new Set<ShownPiece>()
     middle = newMiddle.map((piece) => {
       if (piece.nodes) {
         const nodes = piece.nodes.filter(isShown).map((n) => create(n, host.namespaceURI))
         return fresh(piece, nodes as ChildNode[])
       }
       const old = known.get(piece.key)
-      if (!old || kept.has(old)) throw new Error('E_PREVIEW_PIECE_MISSING')
-      kept.add(old)
+      if (!old || reused.has(old)) throw new Error('E_PREVIEW_PIECE_MISSING')
+      reused.add(old)
       moveTo(old, piece.line, piece.offset)
       return old
     })
     for (const piece of oldMiddle) {
-      if (!kept.has(piece)) for (const node of piece.nodes) node.remove()
+      if (!reused.has(piece)) for (const node of piece.nodes) node.remove()
     }
     for (const piece of middle) for (const node of piece.nodes) host.insertBefore(node, before)
   }

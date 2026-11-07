@@ -90,7 +90,26 @@ const CASES: Record<string, string> = {
   'link definitions':
     'See [a] and [b][].\n\nText.\n\n[a]: https://example.com/a\n\n[b]: https://example.com/b',
   footnotes: 'Note[^1] and more[^n].\n\nText.\n\n[^1]: First.\n\n[^n]: Second.',
-  'definitions in containers': '> [a]: https://example.com\n\nSee [a].',
+  'definitions in containers':
+    '> [a]: https://example.com\n\nSee [a].\n\n- item\n\n  [^q]: In a list.\n\nCall[^q].',
+  'footnotes called again and from other pieces':
+    'One[^a] and two[^b].\n\nAgain[^a] and [^A].\n\n[^b]: Bee *b*.\n\n[^a]: Ay with [link].\n\n[link]: https://example.com/l "Title"\n\nLast[^b].',
+  'footnotes inside footnotes': 'Call[^x].\n\n[^x]: Outer, see[^y].\n\n[^y]: Inner[^x].',
+  'a footnote ending in a code block': 'Call[^c].\n\n[^c]: Text.\n\n        code\n\nAfter[^c].',
+  'repeated definitions':
+    '[a] and [^n].\n\n[a]: https://example.com/first\n\n[^n]: First note.\n\n[a]: https://example.com/second\n\n[^n]: Second note.\n\n[a][] again[^n].',
+  'definitions in code':
+    '```ts\ntype A = {\n  [key: string]: number\n}\n```\n\nText.\n\n```\n[^x]: not a note\n```\n\nCall [^x] stays text.',
+  'unused definitions': 'Text.\n\n[^u]: Never called.\n\n[u]: https://example.com\n\nMore.',
+  'labels by case and spacing':
+    'See [Foo  Bar] and [^Note One].\n\n[foo bar]: https://example.com/fb\n\n[^note one]: Spaced.',
+  'images by reference':
+    '![alt][img]\n\nText.\n\n[img]: devot://attachment/0b0b0b0b-0000-4000-8000-000000000000',
+  'front matter and footnotes': '---\ntitle: A\n---\n\nCall[^1].\n\n[^1]: Note.',
+  'tasks and math in footnotes':
+    'Call[^m].\n\nText.\n\n[^m]: Math $x^2$ and a list:\n\n    - [ ] inside\n    - [x] done\n\nAfter.',
+  'an unclosed fence after footnotes':
+    'Call[^1] and [r].\n\n[^1]: Note.\n\n[r]: https://example.com\n\n```\nopen [r] [^1]\n\nstill code',
   'crlf line ends': '# A\r\n\r\nText\r\n\r\n```\r\na\r\n\r\nb\r\n```\r\n\r\n- [ ] t\r\n',
   'tabs and spaces': 'A\n\n\tindented\n\n  two spaces\n\nB',
   diagrams:
@@ -133,9 +152,7 @@ describe('createPieceRenderer', () => {
   })
 
   it('renders notes built from shuffled cases as the whole note does', async () => {
-    const parts = Object.entries(CASES)
-      .filter(([name]) => !/definitions|footnotes/.test(name))
-      .map(([, md]) => md)
+    const parts = Object.values(CASES)
     let seed = 7
     const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
     for (let round = 0; round < 25; round += 1) {
@@ -146,9 +163,77 @@ describe('createPieceRenderer', () => {
     }
   })
 
-  it('keeps one piece for a note with definitions', () => {
-    expect(splitBlocks(CASES['link definitions']!)).toHaveLength(1)
-    expect(splitBlocks(CASES['footnotes']!)).toHaveLength(1)
+  it('cuts a note with definitions into pieces', () => {
+    expect(splitBlocks(CASES['link definitions']!, 1)).toHaveLength(4)
+    expect(splitBlocks(CASES['footnotes']!, 1)).toHaveLength(4)
+  })
+
+  it('sends again only the edited piece of a note with footnotes and reference definitions', async () => {
+    const render = small()
+    const note = (edit: string) =>
+      [...Array(12).keys()]
+        .map(
+          (i) =>
+            `Para ${i}${i === 5 ? edit : ''} calls[^n${i}] and [ref ${i}].\n\n[^n${i}]: Note ${i}, [ref ${i}].\n\n[ref ${i}]: https://example.com/${i}`,
+        )
+        .join('\n\n')
+    const kept = new Map<string, RootContent[]>()
+    const first = await render(note(''), options)
+    assemble(first, kept)
+    expect(first.length).toBeGreaterThan(30)
+    const markdown = note(' edited')
+    const second = await render(markdown, options, [...kept.keys()])
+    expect(second.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([31])
+    expect(blocksOnly(assemble(second, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
+  })
+
+  it('sends the list of notes again only when a note in it changed', async () => {
+    const render = createPieceRenderer({ pieceLength: 30 })
+    const note = (edit: string, noteEdit = '') =>
+      [...Array(8).keys()]
+        .map(
+          (i) =>
+            `Para ${i}${i === 5 ? edit : ''} calls[^n${i}].\n\n[^n${i}]: Note ${i}${i === 5 ? noteEdit : ''}.`,
+        )
+        .join('\n\n')
+    const kept = new Map<string, RootContent[]>()
+    const first = await render(note(''), options)
+    assemble(first, kept)
+    const edited = await render(note(' edited'), options, [...kept.keys()])
+    expect(edited.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([21])
+    assemble(edited, kept)
+    const markdown = note(' edited', ' edited')
+    const both = await render(markdown, options, [...kept.keys()])
+    expect(both.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([21, 1])
+    expect(blocksOnly(assemble(both, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
+  })
+
+  it('numbers the footnotes again when a call is added before them', async () => {
+    const render = small()
+    const kept = new Map<string, RootContent[]>()
+    const before = 'A[^a].\n\nB[^b].\n\n[^a]: Ay.\n\n[^b]: Bee.'
+    assemble(await render(before, options), kept)
+    const markdown = 'B first[^b]. A[^a].\n\nB[^b].\n\n[^a]: Ay.\n\n[^b]: Bee.'
+    const second = await render(markdown, options, [...kept.keys()])
+    expect(blocksOnly(assemble(second, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
+  })
+
+  it('renders a piece again when a definition it uses changes in another piece', async () => {
+    const render = small()
+    const kept = new Map<string, RootContent[]>()
+    assemble(await render('See [a].\n\n[a]: https://example.com/1', options), kept)
+    const markdown = 'See [a].\n\n[a]: https://example.com/2'
+    const second = await render(markdown, options, [...kept.keys()])
+    expect(second[0]!.nodes).toBeDefined()
+    expect(blocksOnly(assemble(second, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
   })
 
   it('still tells a tag that closes itself from one that stays open', () => {

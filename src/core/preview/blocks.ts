@@ -1,9 +1,8 @@
 // Where a note can be cut into pieces that parse on their own exactly as they
 // do in the whole note, so the preview re-renders only the pieces that change.
 // A cut is made only at a blank line followed by a line that can only start a
-// new top-level block. When in doubt the piece grows: a note with a link
-// reference or footnote definition (they reach across the whole note) is one
-// piece.
+// new top-level block; when in doubt the piece grows. Definitions reach across
+// pieces: see definitions.ts.
 
 export interface Block {
   text: string
@@ -12,7 +11,6 @@ export interface Block {
   line: number
 }
 
-const DEFINITION = /^(?:[ \t>]|(?:[-*+]|\d{1,9}[.)])[ \t])*\[(?:[^\]\\]|\\[\s\S]){1,999}\]:/m
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/
 const MATH = /^ {0,3}(\${2,})(.*)$/
 const LIST_ITEM = /^(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/
@@ -82,7 +80,6 @@ function tagsIn(text: string): number {
 
 /** Pieces are at least `minLength` long (bar the last): each piece costs some setting up. */
 export function splitBlocks(markdown: string, minLength = 1): Block[] {
-  if (DEFINITION.test(markdown)) return [{ text: markdown, offset: 0, line: 1 }]
   const blocks: Block[] = []
   let start = 0
   let startLine = 1
