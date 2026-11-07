@@ -1,0 +1,10 @@
+{
+  "from": "page",
+  "message": {
+    "v": 1,
+    "notice": "tabs.state",
+    "tab": "library",
+    "barHidden": true,
+    "attention": false
+  }
+}

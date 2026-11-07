@@ -1,7 +1,14 @@
 import { errorCode } from '../../../../core/errors'
 import { invoke } from '../../ipc'
 import { keepListening, listenHere } from '../../windowEvents'
-import { parseRequest, refused, replied, type ScreensReply } from './message'
+import {
+  noticed,
+  parseRequest,
+  refused,
+  replied,
+  type ScreensNotice,
+  type ScreensReply,
+} from './message'
 import { SCREENS_HANDLERS, type ScreensHandlers } from './ops'
 
 export const SCREENS_EVENT = 'devot://screens'
@@ -9,6 +16,8 @@ export const SCREENS_EVENT = 'devot://screens'
 export interface ScreensBridge {
   /** Whether the native screens attached; without them the page keeps the web shell. */
   readonly installed: Promise<boolean>
+  /** Sends a notice to the native screens; before they are known to be installed, or without them, it is dropped. */
+  readonly notify: (notice: ScreensNotice) => void
   readonly stop: () => void
 }
 
@@ -28,7 +37,7 @@ const isTaken = (value: unknown): value is Taken =>
  * asks Rust for the requests that came before, so none is lost in between.
  */
 export function startScreensBridge(handlers: ScreensHandlers = SCREENS_HANDLERS): ScreensBridge {
-  if (DEVOT_UI_TEST) return { installed: Promise.resolve(false), stop: () => {} }
+  if (DEVOT_UI_TEST) return { installed: Promise.resolve(false), notify: () => {}, stop: () => {} }
   const post = (reply: ScreensReply) =>
     invoke('screens_post', { message: JSON.stringify(reply) }).catch((error: unknown) =>
       console.warn(`W_SCREENS_POST_FAILED id=${reply.id} code=${errorCode(error)}`),
@@ -54,6 +63,13 @@ export function startScreensBridge(handlers: ScreensHandlers = SCREENS_HANDLERS)
     }
     await post(reply)
   }
+  let attached = false
+  const notify = (notice: ScreensNotice) => {
+    if (!attached || listening.stopped()) return
+    invoke('screens_post', { message: JSON.stringify(noticed(notice)) }).catch((error: unknown) =>
+      console.warn(`W_SCREENS_NOTICE_FAILED notice=${notice.notice} code=${errorCode(error)}`),
+    )
+  }
   const listening = keepListening(
     listenHere<unknown>(SCREENS_EVENT, (event) => void run(event.payload)),
   )
@@ -65,6 +81,7 @@ export function startScreensBridge(handlers: ScreensHandlers = SCREENS_HANDLERS)
           listening.stop()
           return false
         }
+        attached = true
         for (const request of taken.pending) void run(request)
         return true
       },
@@ -74,5 +91,5 @@ export function startScreensBridge(handlers: ScreensHandlers = SCREENS_HANDLERS)
         return false
       },
     )
-  return { installed, stop: listening.stop }
+  return { installed, notify, stop: listening.stop }
 }

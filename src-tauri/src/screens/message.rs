@@ -43,6 +43,22 @@ pub struct Search {
     pub scope: Scope,
 }
 
+/// A tab of the native tab bar; Search joins when it has a screen of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Tab {
+    Notes,
+    Library,
+    Activity,
+    Settings,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TabArgs {
+    pub tab: Tab,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct NoteCreate {
@@ -64,9 +80,20 @@ pub enum Op {
     Search(Search),
     #[serde(rename = "note.create")]
     NoteCreate(NoteCreate),
+    #[serde(rename = "tabs.show")]
+    TabsShow(TabArgs),
+    #[serde(rename = "tabs.popToRoot")]
+    TabsPopToRoot(TabArgs),
 }
 
-const OPS: &[&str] = &["ping", "excerpts", "search", "note.create"];
+const OPS: &[&str] = &[
+    "ping",
+    "excerpts",
+    "search",
+    "note.create",
+    "tabs.show",
+    "tabs.popToRoot",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -82,6 +109,15 @@ pub struct EditorTitle {
     pub title: String,
 }
 
+/// What the page shows under the native tab bar.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct TabsState {
+    pub tab: Tab,
+    pub bar_hidden: bool,
+    pub attention: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "notice", content = "fields")]
 pub enum Notice {
@@ -89,9 +125,11 @@ pub enum Notice {
     NotesChanged(NotesChanged),
     #[serde(rename = "editor.title")]
     EditorTitle(EditorTitle),
+    #[serde(rename = "tabs.state")]
+    TabsState(TabsState),
 }
 
-const NOTICES: &[&str] = &["notes.changed", "editor.title"];
+const NOTICES: &[&str] = &["notes.changed", "editor.title", "tabs.state"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
@@ -310,6 +348,7 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             }
             create.title.as_deref().map_or(Ok(()), title)
         }
+        Op::TabsShow(_) | Op::TabsPopToRoot(_) => Ok(()),
     }
 }
 
@@ -320,6 +359,7 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
             note_ids(std::slice::from_ref(&editor.id), 1)?;
             title(&editor.title)
         }
+        Notice::TabsState(_) => Ok(()),
     }
 }
 

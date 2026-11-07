@@ -2,10 +2,28 @@
 // Rust checks every message before it comes and after it leaves; the page checks only the
 // envelope, so a request from another version of the app is dropped rather than misread.
 
+import type { PhoneTab } from '../navigation'
+
 export const SCREENS_VERSION = 1
 
-export const SCREENS_OPS = ['ping', 'excerpts', 'search', 'note.create'] as const
+export const SCREENS_OPS = [
+  'ping',
+  'excerpts',
+  'search',
+  'note.create',
+  'tabs.show',
+  'tabs.popToRoot',
+] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
+
+/** What the page shows under the native tab bar, and whether the bar should be up over it. */
+export interface TabsState {
+  readonly tab: PhoneTab
+  readonly barHidden: boolean
+  readonly attention: boolean
+}
+
+export type ScreensNotice = { readonly notice: 'tabs.state' } & TabsState
 
 export interface ScreensRequest {
   readonly id: number
@@ -50,3 +68,5 @@ export const refused = (id: number, code: string): ScreensReply => ({
   ok: false,
   code: REPLY_CODE.test(code) ? code : 'E_SCREENS_OP_FAILED',
 })
+
+export const noticed = (notice: ScreensNotice) => ({ v: SCREENS_VERSION, ...notice })

@@ -1,0 +1,11 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 13,
+    "op": "tabs.popToRoot",
+    "args": {
+      "tab": "settings"
+    }
+  }
+}
