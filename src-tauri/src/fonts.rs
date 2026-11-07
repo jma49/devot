@@ -284,6 +284,7 @@ pub(crate) async fn fonts_list_inner(
 
 /// The iPhone's document picker hands Rust its copy in the app's temporary folder; a path
 /// anywhere else is refused unread.
+#[cfg(any(target_os = "ios", test))]
 pub(crate) async fn font_import_picked_inner(
     fonts: &std::sync::Arc<Fonts>,
     path: String,
@@ -295,12 +296,15 @@ pub(crate) async fn font_import_picked_inner(
     .await
 }
 
+#[cfg(any(target_os = "ios", test))]
 fn picked_copy(path: &Path) -> Option<PathBuf> {
     if !path.is_absolute() {
         return None;
     }
     let path = path.canonicalize().ok()?;
-    let temp = std::env::temp_dir().canonicalize().ok()?;
+    // The document picker copies into the app's own TMPDIR; /tmp is std's fallback on Unix.
+    let temp = std::env::var_os("TMPDIR").map_or_else(|| PathBuf::from("/tmp"), PathBuf::from);
+    let temp = temp.canonicalize().ok()?;
     (path.starts_with(&temp) && path.is_file()).then_some(path)
 }
 
