@@ -49,6 +49,7 @@ Its keyline is `size.phone-grouped-pad-x` (16) from a card's edge: section heade
   A row on the Settings screen keeps its icon in `size.phone-row-icon`.
 - **Separator:** a `size.phone-separator` hairline in `color.phone.separator` between rows, from the keyline (the label's keyline on the Settings screen) to the card's right edge; none above a card's first row.
 - **Text:** label 16/23 in the body colour; at most one short description under it, 14/19 in `color.phone.text-secondary`, `space.2` below the label.
+  The native Settings draws both sizes in one modifier that scales them with Dynamic Type from the body style (`@ScaledMetric`), since the type scale has no token for them.
 - **Trailing edge:** a value, a switch, a stepper and a chevron end on one right edge, `size.phone-grouped-pad-x` from the card's edge, in every row and every pane.
   At the accessibility sizes a select or a stepper goes under its label and stays on that edge.
 - **Values and pickers:** a select's value is 14/19 in `color.phone.text-secondary`, at most 40% of the row, on one line cut with an ellipsis, then the disclosure chevron.

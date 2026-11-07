@@ -130,7 +130,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 | Several notes at once                                                       | core                                  | `batch(ids, change)`                                                            |
 | History, AI edits, import, export                                           | core, drawn in the page until stage 4 | as today                                                                        |
 | Licence state and the gate                                                  | Rust-direct                           | `direct.licence.*`, the bodies of the `licence_*` commands                      |
-| Purchases, restoring them, the Mac key                                      | Rust-direct                           | `direct.store.*`; buying stays with StoreKit's sheet in Swift                   |
+| Purchases, restoring them, the Mac key                                      | Rust-direct                           | `direct.store.*`; StoreKit's own sheet takes the payment                        |
 | Sync settings, pairing, devices, iCloud                                     | Rust-direct                           | `direct.sync.*`, the bodies of the `sync_*` commands Settings calls             |
 | Editor settings, themes, fonts, AI providers, crash reports                 | Rust-direct                           | `direct.editorSettings.*`, `.fonts.list`, `.ai.*`, `.crashReports.*`            |
 | Glass Transparency (this iPhone's own)                                      | Swift's `UserDefaults`                | moved from `src/renderer/src/phone/glassPrefs.ts` in stage 1                    |
@@ -149,7 +149,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 | Crash reports   | `direct.crashReports.get`, `.set { on }`                                                           | `crash_reports_get`, `crash_reports_set`         |
 | AI providers    | `direct.ai.get`, `.set { settings }`, `.keySet { provider, key }`, `.keyClear { provider }`        | `ai_settings_get`, `ai_settings_set`, `ai_key_*` |
 | Licence         | `direct.licence.get`, `.set { key }`, `.remove`, `.refresh`                                        | `licence_*`                                      |
-| App Store       | `direct.store.restore`, `.macKey`, `.refund`                                                       | `store_restore`, `store_mac_key`, `store_refund` |
+| App Store       | `direct.store.products`, `.purchase { product }`, `.restore`, `.macKey`, `.refund`                 | `store_*` of the same name                       |
 | Sync settings   | `direct.sync.get`, `.set { patch }`, `.devices`, `.usage`, `.deviceRemove { device }`              | the `sync_*` command of the same name            |
 | Sync vault      | `direct.sync.vaultCreate { relaySecret }`, `.vaultRotate { relaySecret }`, `.vaultLeave`           | the `sync_vault_*` command of the same name      |
 | Recovery key    | `direct.sync.recoveryKey`, `.recoverySaved`, `.joinRecovery { recoveryKey }`                       | the `sync_*` command of the same name            |
@@ -165,7 +165,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - A change made this way emits the command's own events (`devot://editor-settings-changed`, `devot://licence-changed`, `devot://sync-changed`), so the page follows a change made in native Settings.
 - The operations reach the database only through `NoteCounts`, the two counts sync's settings show, so no Rust-direct request can write a note; a test over the operation enum holds every name to a settings area.
 - A failure is logged as `W_SCREENS_DIRECT_FAILED op=… id=… code=…`, and a request's arguments, which may hold a licence key, an AI key or a relay secret, are never logged.
-- Buying and the product list are not Rust-direct: the purchase sheet buys through StoreKit in Swift.
+- The native purchase sheet reads StoreKit's price with `direct.store.products` and buys with `direct.store.purchase`, the bodies the page's sheet calls, so StoreKit's own sheet takes the payment either way.
 - Importing a font joins with the Appearance pane that first sends it.
 - The sync engine's commands (`sync_connect`, `sync_pull`, `sync_push`, `sync_disconnect`, `sync_status_report`) stay the core's.
 
@@ -178,7 +178,8 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 
 ### Tabs
 
-Until the lists are native, each of the four tabs (Notes, Library, Activity, Settings) is a navigation stack with a hidden bar whose root, `WebTabScreen`, holds the web view while its tab is shown, and the page draws that tab's stack.
+Until the lists are native, the Notes, Library and Activity tabs are each a navigation stack with a hidden bar whose root, `WebTabScreen`, holds the web view while its tab is shown, and the page draws that tab's stack.
+The Settings tab is native (Settings tree below); the page still follows it with `tabs.show`, sent whenever the tab appears, whatever page is on its top.
 The tab bar is the system's, icon-only: each item's image is the web tab bar's symbol and its filled variant when selected, its title is nil, and its name is its VoiceOver label.
 UIKit's bar items have no large content title, so the large content viewer shows the symbol alone.
 The page keeps its own tab bar and compose circle only when the screens are not installed; under the system bar, New Note is a button in the Notes and Library list capsule.
@@ -290,6 +291,9 @@ Glass is the system's, on the navigation layer only; content is never glass.
 ## Settings tree
 
 Every pane is a SwiftUI form in a hosting controller pushed on the Settings tab's own navigation controller, so push, pop and the edge swipe are UIKit's.
+The root's rows are buttons that push through `SettingsRouter`, never SwiftUI navigation links, since no SwiftUI navigation container holds them.
+Appearance and Sync are still the page's panes: their rows push a `WebPaneScreen`, which takes the web view under the native bar and asks the page for the pane with `settings.showPane`.
+The web view keeps its size there; its safe area takes in the bar, so the page's top inset clears it.
 Rows have a label, at most one short description and one trailing edge (a value with a chevron, a switch, or nothing), with no info buttons.
 A choice of three or fewer sits inline as checkmark rows, and a longer one pushes a checkmark page.
 Every choice applies in the next frame with no transition, before it is saved.
@@ -321,6 +325,19 @@ Settings root (large title, the system search field, a Pair a Device bar button 
   Wherever the shell draws a theme's `Backdrop`, each stop is mixed in sRGB towards the gradient's middle colour (its stop at 0.5) by strength / 100: 0 is that colour alone, 100 the stops as designed.
   A change applies on every move of the slider and is saved when the finger lifts, as Glass Transparency is.
 - App Font is not on the phone.
+- The panes read their snapshots (editor settings, crash reports, licence, AI, sync) through Rust-direct operations each time the root shows, and Default Notebook's choices from the page with `settings.notebooks`, so a pushed page never waits for a first read.
+- A change applies to the snapshot first and then goes to Rust; Rust's newer snapshot replaces it, an older one never does, and a refused write puts the old value back, raises the `appearanceSettings.failed` alert and logs `W_PHONE_SETTINGS_SAVE_FAILED key=… code=…`.
+- Pair a Device opens Sync; the page's Sync pane has no pairing anchor to scroll to yet.
+- `SettingsRouter.open` sets the stack to the root and the page in one `setViewControllers`, so Back lands on the root; it animates only while the app is in front.
+- Enter License Key in the page's Pro sheet sends the `settings.open { pane: "licence", focusKey }` notice, and Swift opens License over the root with its key field focused once the push lands.
+
+| Message                            | From  | Meaning                                                                      |
+| ---------------------------------- | ----- | ---------------------------------------------------------------------------- |
+| `settings.showPane { pane }`       | Swift | the page shows `appearance` or `sync` in the web view, without its own bar   |
+| `settings.notebooks`               | Swift | the page answers the notebooks, each with `id`, `name` and `depth`, in order |
+| `settings.open { pane, focusKey }` | page  | the page asks Swift to open License, its key field focused or not            |
+
+- Settings search runs `settings/search.ts`'s matching in Swift over `Generated/SettingsIndex.swift`, which `pnpm i18n:apple` writes from the same entries; `tests/fixtures/settings-search.json` holds what the page finds for a set of queries, and both suites check it.
 - A purchase on the License page goes through StoreKit only, never a link outside it (ADR 0014).
 - Settings text comes from the message catalog by key, as everywhere else.
 
