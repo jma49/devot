@@ -1,6 +1,7 @@
-//! Rust-direct operations (docs/specs/iphone-screens.md, Operations): the native Settings read and
-//! write the domains Rust owns through the same bodies the Tauri commands run, so validation and
-//! change events are never written twice, and no page is needed. Nothing here reaches a note.
+//! Rust-direct operations (docs/specs/iphone-screens.md, Rust-direct operations): the native
+//! Settings read and write the domains Rust owns through the same bodies the Tauri commands run,
+//! so validation and change events are never written twice, and no page is needed. Nothing here
+//! reaches a note.
 
 use std::sync::Arc;
 
