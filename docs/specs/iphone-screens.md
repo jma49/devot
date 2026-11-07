@@ -41,8 +41,9 @@ UIApplication (tao's app delegate, unchanged)
 2. On the main thread, inside `with_webview`, Rust passes the web view and tao's view controller to the package's install function, which answers `true` or `false`.
 3. Swift checks both objects' classes, attaches the root and builds the containers.
    Tao's window need not be up yet: containment needs none, and the root follows the window's bounds once it is.
-   Swift moves the web view into `WebStage`, with animations off, only from the root's `viewIsAppearing`, when it has a window, so the web view's window is never nil.
-   In stage 0 it attaches only the empty root, and the web view stays where tao put it.
+   Swift moves the web view only from a screen's `viewIsAppearing`, when it has a window, so the web view's window is never nil.
+   Stage 0 attached only the empty root; stage 1 attaches the tab bar over the web view (Tabs, below).
+   Once the root appears with its scene foreground-active, Swift makes tao's window key, which tao leaves to another window after launch, and logs `I_SCREENS_WINDOW_KEY`; it checks again each time the scene becomes active.
 4. On `false` the app keeps today's web shell unchanged.
    Swift answers `false` when the kill switch is on or when an object is of another class, and logs why with a code.
 5. At start the page calls `screens_take`, which answers `{ installed, pending }`: whether the screens attached, and the operations queued before the page listened.
@@ -51,7 +52,7 @@ UIApplication (tao's app delegate, unchanged)
 
 The kill switch is the `DevotScreensOff` key of the app's own `UserDefaults`, which the launch argument `-DevotScreensOff YES` sets for one run; the privacy manifest gives reason `CA92.1` for reading it.
 The kill switch stays until stage 4 has shipped one release with no fallback in crash reports.
-In stage 0 the root is empty and transparent and passes every touch through, so the app behaves exactly as before.
+In stage 0 the root was empty and transparent and passed every touch through, so the app behaved exactly as before.
 
 ## Bridge
 
@@ -141,6 +142,29 @@ In stage 0 the root is empty and transparent and passes every touch through, so 
 - It also sends `books.changed`, `tags.changed` and `savedSearches.changed`.
 - Swift reads only the changed rows again from Rust and applies them to the list's diffable snapshot, so moves and inserts take the system's list animation.
 - When a `rev` is not the next one, Swift reloads the whole first page (200 rows) rather than guess.
+
+### Tabs
+
+Until the lists are native, each of the four tabs (Notes, Library, Activity, Settings) is a navigation stack with a hidden bar whose root, `WebTabScreen`, holds the web view while its tab is shown, and the page draws that tab's stack.
+The tab bar is the system's, icon-only: each item's image is the web tab bar's symbol and its filled variant when selected, its title is nil, and its name is its VoiceOver label.
+UIKit's bar items have no large content title, so the large content viewer shows the symbol alone.
+The page keeps its own tab bar and compose circle only when the screens are not installed; under the system bar, New Note is a button in the Notes and Library list capsule.
+
+| Message                                    | From  | Meaning                                                                                         |
+| ------------------------------------------ | ----- | ----------------------------------------------------------------------------------------------- |
+| `tabs.show { tab }`                        | Swift | a tab appeared: the page shows that tab's stack, as it was, and never pops it                   |
+| `tabs.popToRoot { tab }`                   | Swift | the selected tab was tapped again: the page pops that stack to its root                         |
+| `tabs.state { tab, barHidden, attention }` | page  | the page's tab, whether the bar should hide, and whether Settings needs the licence's attention |
+
+- `tab` is one of `notes`, `library`, `activity` and `settings`; anything else is `E_SCREENS_ARGS_INVALID`.
+- The page sends `tabs.state` whenever one of its fields changes; it is idempotent, and Swift applies only what differs.
+- Swift selects the page's tab when the page changes tab itself (All Notes from the Library, the gate's licence pane), but ignores the page's tab while a `tabs.show` is unanswered, so a stale notice never undoes a tap.
+- The bar hides over a note, search or a sheet the page draws over the whole screen, since those cover where the bar sits, and stays over a pushed list or pane.
+- Settings shows the web shell's `!` badge while the licence needs attention, with "Needs attention" as its VoiceOver value.
+- The web view rests in `WebStage` when a tab's screen disappears, and the next tab's screen takes it, so a tab switch never takes it out of the window.
+- `WebTabScreen` sets its additional safe area so its safe area equals the window's: the page lays itself out by `env(safe-area-inset-*)` exactly as without the system bar, and its own room for a floating bar at the bottom clears the system's.
+- The bar's tint is `color.accent.text` and it is never minimised on scroll.
+  Glass Transparency does not reach it: the floating tab bar ignores a bar tint (spike: bar tint).
 
 ## Editor screen protocol
 

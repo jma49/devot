@@ -64,6 +64,9 @@ A notebook's path and the Mac key use `.phone-mono`, the mono font.
 
 Tab bar: four icon-only tabs (Notes, Library, Activity, Settings) in a `size.phone-glass-bar` glass bar at x 16, as wide as the screen leaves beside the `size.phone-compose` glass circle: 286 on a 390 screen, with the circle at x 312. The selected tab has a lens (inset 4 on every side at every tab, `radius.phone-lens-bar`, concentric with the bar) and a filled icon in the accent; the lens stretches between tabs by width and never reaches past the bar's inner edge, and it can be dragged along the bar; Settings shows a badge when the licence needs attention. The circle is offered on the Notes and Library screens that can take a new note, and hidden on Activity, Settings, Templates, Trash, a note and a pane.
 
+With the native screens installed the tab bar is the system's (`docs/specs/iphone-screens.md`, Tabs): the same four icon-only tabs and symbols, the selected one in `color.accent-text`, Settings with the same badge, and no compose circle.
+New Note is then a glass button in the Notes and Library list capsule, after Search, on the screens that offered the circle.
+
 New Note: the circle makes an empty note, in the notebook the list shows, else the default notebook, else none, and pushes its screen at once with the caret in the body.
 Where the screen below would not list it (a status list, a tag list, the Library), its notebook's list or All Notes slides in under it on the same tab, so Back finds it.
 Back from a note left untouched deletes it for good.
