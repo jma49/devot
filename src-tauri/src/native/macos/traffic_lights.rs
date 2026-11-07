@@ -116,7 +116,6 @@ impl TitleBar {
 
 type Observer = Retained<ProtocolObject<dyn NSObjectProtocol>>;
 
-/// A window whose buttons are held at an inset, with what it observes.
 struct Held {
     window: Weak<NSWindow>,
     address: usize,
@@ -239,7 +238,7 @@ fn hold(window: &NSWindow, x: f64, y: f64) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Calls `handler(address)` on the main thread for every `name` from `object`.
+// The handler always runs on the main thread, whichever thread posts the notification.
 fn observe(
     name: &NSNotificationName,
     object: Option<&AnyObject>,
@@ -399,7 +398,7 @@ fn place(address: usize) {
     APPLIED.set(APPLIED.get() + 1);
 }
 
-/// Observes the frames of the views the inset moves, again whenever AppKit has replaced them.
+// AppKit replaces these views on some layouts, so the observers follow the new ones.
 fn watch(address: usize, bar: &TitleBar) {
     // SAFETY: main thread; `superview` reads the view tree.
     let title_bar = unsafe { bar.buttons[0].superview() };
