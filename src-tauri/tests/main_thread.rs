@@ -50,6 +50,12 @@ fn main() {
             Err(code) => panic!("the glass's active look: {code}"),
         }
 
+        macos::self_test_traffic_lights_stay()
+            .expect("the traffic lights come back to their inset whatever moves them");
+        println!(
+            "main_thread: traffic lights return to the inset after AppKit moves them; no loop"
+        );
+
         macos::self_test_editor_menu()
             .expect("the editor's menu offers guesses, the page's and the system's items");
         println!(

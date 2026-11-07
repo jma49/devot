@@ -22,6 +22,10 @@ Part of the [design system](design-system.md).
   That script carries the settings read at launch into every load, so the page also keeps the newest snapshot it has confirmed in `sessionStorage` and, after a reload (a backup restore reloads it), starts from that one when it is newer.
   A note window and the quick capture window have no effect: a note window paints `color.surface.window` under its panes and quick capture `color.surface.editor`, and both draw the same Glass controls.
 - Overlay title bar: traffic lights in the sidebar's top bar, a unified toolbar over the list and editor.
+  The main windows and Settings place their traffic lights at `trafficLightPosition` (20, 28: `tauri.conf.json`, `TRAFFIC_LIGHTS` in `settings.rs`), and the buttons stay there.
+  AppKit moves them back to the system's place whenever it lays the title bar out again (key and main state, activation, screen and backing scale changes, appearance, title), while tao puts them back only when its view draws and after full screen.
+  So `native::macos::keep_traffic_lights` observes the frames of the three buttons and the title bar views above them, and the window's and the app's notifications, and applies tao's inset again at once whenever a button is off its place.
+  It never moves a button that is in place, gives way after 120 placements in a second rather than fight AppKit, leaves a window in full screen alone, and lets a window go when it closes.
 - macOS type scale: body 13 pt, captions 11 pt, sidebar rows 28 px.
 - The menu bar and context menus are native (Tauri menus).
   Settings live in the app menu.
