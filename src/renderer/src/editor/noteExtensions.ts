@@ -51,6 +51,7 @@ import {
 } from './noteKeys'
 import { noteLinkHover } from './noteLinkHover'
 import { overwrite } from './overwrite'
+import { parseToView } from './parseToView'
 import { pasteUrls } from './paste'
 import { pasteChooser, type PasteFetcher } from './pasteChooser'
 import { editorLayoutWatch } from './scrollPane'
@@ -225,6 +226,7 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
     tableDrawings,
     writeSlot.of(writeFor(refs.writing.current, core)),
     noteMarkdown,
+    parseToView,
     EditorView.perLineTextDirection.of(true),
     images.extension,
     pasteUrls,
