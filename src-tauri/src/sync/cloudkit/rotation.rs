@@ -23,7 +23,10 @@ pub(crate) fn successor_name(from: &str, to: &str) -> String {
 pub(crate) fn make_successor(kit: &dyn CloudKit, next: &Vault) -> Result<(), &'static str> {
     let id = next.id().to_string();
     let zone = vault_zone(&id);
-    if !current::zone_exists(kit, &zone)? {
+    let exists = kit
+        .zones_exist(std::slice::from_ref(&zone))
+        .map_err(failure)?;
+    if !exists.first().copied().unwrap_or(false) {
         kit.save_zones(&[zone]).map_err(failure)?;
     }
     transport::fetch_epoch(kit, &id)?;
