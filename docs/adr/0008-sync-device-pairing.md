@@ -80,9 +80,12 @@ Leave This Vault in Settings > Sync is the way out for a device stuck on a relay
   Leaving an iCloud vault is ADR 0015's and is refused here (`E_SYNC_LEAVE_ICLOUD`).
 - A dialog confirms it and says what stays and what goes.
   The notes stay on this device.
-  The vault key, the device-only token item, a rotation's `-next` items and the `rotating` and `rotated` records go from this device, and sync turns off.
+  The vault key, the device-only token item, a rotation's `-next` items, the `rotating` and `rotated` records and the record that the vault's recovery key was saved go from this device, and sync turns off.
+  A move to iCloud that this device started and did not finish is called off.
   Nothing changes on the relay or on the other devices: the relay still lists the device until Remove on another device takes it off.
 - Sync turns off first and the vault item goes last, so a leave that fails part way keeps the key and a retry ends the same.
+  The windows hear that sync is off even when a later step fails.
+- A leave waits for a connect or a move to iCloud under way to end, so neither keeps a token, a record or a connection of the vault left.
 - The relay's address stays set, so the device can join again at once, with a pairing code or a recovery key, as a device that holds no vault.
   Any vault may then be joined, as on a new device.
 - The next join treats the device as one with no vault: its whole library goes up to the joined vault (a new epoch, ADR 0002).

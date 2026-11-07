@@ -1,13 +1,15 @@
 //! Leaving a relay vault against the Node relay: the device forgets the key and its token, keeps
 //! its notes, and can join a vault again, uploading its whole library there.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
+use serde_json::Value;
 use zeroize::Zeroizing;
 
 use super::relay_tests::{NodeRelay, SECRET, Secrets};
-use super::service::{SettingsPatch, SyncService};
+use super::service::{CHANGED_EVENT, SettingsPatch, SyncService};
 use super::settings::{DeviceCredentials, FILE, SettingsStore};
 use super::{SecretStore, SyncError, Vault};
 use crate::licence::Gate;
@@ -168,7 +170,12 @@ fn leaving_drops_a_rotation_part_way_and_leaves_the_relay_and_the_other_devices_
     for account in ACCOUNTS {
         assert!(!mac.holds(account), "{account} is forgotten");
     }
-    assert!(!mac.settings_text().contains("rotating"));
+    let settings = mac.settings_text();
+    assert!(!settings.contains("rotating"));
+    assert!(
+        !settings.contains(&vault),
+        "the record that the recovery key was saved goes with the vault"
+    );
     assert_eq!(mac.service.leave_vault().err(), Some("E_SYNC_NO_VAULT_KEY"));
 
     // Nothing changed on the relay: the phone syncs on, and the Mac is still among its devices.
@@ -176,6 +183,40 @@ fn leaving_drops_a_rotation_part_way_and_leaves_the_relay_and_the_other_devices_
     phone.service.disconnect();
     assert!(phone.service.devices().unwrap().iter().any(|d| d.id == own));
     assert_eq!(phone.vault_id(), vault);
+
+    mac.join(&phone).unwrap();
+    assert!(
+        mac.service.recovery_key().unwrap().is_none(),
+        "a device that joins again knows the key it joined with, so it is not offered again"
+    );
+}
+
+#[test]
+fn a_connect_under_way_when_the_device_leaves_keeps_nothing_of_the_vault() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let phone = Device::paired(&relay, &mac);
+    let (paused, go) = phone.service.pause_next_connect();
+    std::thread::scope(|threads| {
+        let connect = threads.spawn(|| phone.service.connect(false).map(drop));
+        paused.recv().unwrap();
+        let leave = threads.spawn(|| phone.service.leave_vault().map(drop));
+        std::thread::sleep(Duration::from_millis(200));
+        let waited = !leave.is_finished();
+        go.send(()).unwrap();
+        assert_eq!(connect.join().unwrap(), Ok(()));
+        assert_eq!(leave.join().unwrap(), Ok(()));
+        assert!(waited, "the leave waits for the connect");
+    });
+    for account in ACCOUNTS {
+        assert!(!phone.holds(account), "{account} is forgotten");
+    }
+    assert_eq!(
+        phone.service.pull("").err(),
+        Some("E_SYNC_OFFLINE"),
+        "the connection that connect opened is closed"
+    );
+    assert_eq!(phone.service.connect(false).err(), Some("E_SYNC_OFF"));
 }
 
 #[test]
@@ -229,10 +270,16 @@ fn a_leave_that_failed_part_way_keeps_the_key_and_is_retried_to_the_same_end() {
     let mac = Device::first(&relay);
     let dir = tempfile::tempdir().unwrap();
     let store: Arc<KeepsTheVaultOnce> = Arc::default();
+    let sent: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let emitted = Arc::clone(&sent);
     let phone = SyncService::new(
         SettingsStore::new(&dir.path().join(FILE)),
         store.clone(),
-        Arc::new(|_, _| ()),
+        Arc::new(move |event, payload| {
+            if event == CHANGED_EVENT {
+                emitted.lock().unwrap().push(payload);
+            }
+        }),
         Gate::open(),
     );
     phone
@@ -251,6 +298,13 @@ fn a_leave_that_failed_part_way_keeps_the_key_and_is_retried_to_the_same_end() {
         "sync is off and the key stays"
     );
     assert_eq!(phone.connect(false).err(), Some("E_SYNC_OFF"));
+    let last = sent.lock().unwrap().last().cloned().unwrap();
+    assert_eq!(
+        last["enabled"],
+        Value::Bool(false),
+        "the windows hear that sync is off"
+    );
+    assert_eq!(last["vault"], Value::Bool(true));
 
     let left = phone.leave_vault().unwrap();
     assert!(!left.vault && !left.enabled);

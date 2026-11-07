@@ -1693,6 +1693,25 @@ mod moving_from_a_relay {
     }
 
     #[test]
+    fn leaving_the_relay_vault_calls_off_a_move_to_icloud_under_way() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, _phone) = two_on_relay(&relay, &kit);
+        quit_after_the_marker(&mac, &kit);
+        assert!(mac.service.snapshot().move_started);
+        let left = mac.service.leave_vault().unwrap();
+        assert!(!left.vault && !left.move_started);
+        assert_eq!(moving(&mac), "");
+        assert_eq!(kept_unseen(&mac), None);
+        mac.service.report(stopped_on_the_marker()).unwrap();
+        assert_eq!(
+            mac.service.snapshot().transport,
+            "relay",
+            "no move finishes"
+        );
+    }
+
+    #[test]
     fn a_device_that_quit_after_leaving_the_marker_finishes_the_move_at_its_next_launch() {
         let relay = NodeRelay::start();
         let kit = Arc::new(Fake::new());
