@@ -9,13 +9,7 @@ import {
 } from '../../../core/books'
 import { countMatches, savedSearchQuery } from '../../../core/savedSearches'
 import { highlightTerms, parseSearch, searchPattern, type SearchScope } from '../../../core/search'
-import {
-  filterNotes,
-  noteGroups,
-  statusCounts,
-  tagCounts,
-  type NoteFilter,
-} from '../../../core/tags'
+import { noteGroups, statusCounts, tagCounts, type NoteFilter } from '../../../core/tags'
 import { findBookNode, workspaceParents, workspaceTree } from '../../../core/workspace'
 import { inNotes, useAgentWrites } from '../agentWrites'
 import { writerLabel } from '../authorshipLabels'
@@ -39,6 +33,7 @@ import { agentFilter, type Selection, type SidebarWorkspace } from '../Sidebar'
 import { useKept } from '../stable'
 import type { useSearch } from '../useSearch'
 import type { LibraryLists } from './useLibraryLists'
+import { useCountedNotes, useNoteGroups } from './useListedNotes'
 
 /** The view the window shows (library, workspace, filter, layout, selection) and the lists, counts and names derived from it. */
 export function useLibraryView({
@@ -81,8 +76,9 @@ export function useLibraryView({
     () => publishTemplates(templates.map((n) => ({ id: n.id, title: n.title }))),
     [templates],
   )
+  const counted = useCountedNotes(notes)
   const counts = useKept(
-    useMemo(() => bookCounts(notes, books), [notes, books]),
+    useMemo(() => bookCounts(counted, books), [counted, books]),
     sameCounts,
   )
   const libraryBook = library.kind === 'book' ? books.find((b) => b.id === library.id) : undefined
@@ -106,10 +102,10 @@ export function useLibraryView({
     () =>
       workspaceNode && workspaceIds
         ? new Set(
-            notes.filter((n) => n.bookId !== null && workspaceIds.has(n.bookId)).map((n) => n.id),
+            counted.filter((n) => n.bookId !== null && workspaceIds.has(n.bookId)).map((n) => n.id),
           )
         : undefined,
-    [notes, workspaceNode, workspaceIds],
+    [counted, workspaceNode, workspaceIds],
   )
   const agents = useMemo(
     () =>
@@ -173,20 +169,7 @@ export function useLibraryView({
     }),
     [order, showOrder],
   )
-  const groups = useMemo(
-    () =>
-      noteGroups(
-        applyOrder(
-          filterNotes(notes, books, {
-            bookId: libraryBook?.id ?? null,
-            by: activeFilter,
-          }),
-          order,
-          locales,
-        ),
-      ),
-    [notes, books, libraryBook, activeFilter, order, locales],
-  )
+  const groups = useNoteGroups(notes, books, libraryBook?.id ?? null, activeFilter, order, locales)
   // A card moved shows in its new column at once, until the lists have the change.
   const [movedTo, setMovedTo] = useState<ReadonlyMap<string, NoteStatus>>(() => new Map())
   const boardNotes = useMemo(() => {
@@ -226,9 +209,9 @@ export function useLibraryView({
   const sidebarNotes = useMemo(
     () =>
       workspaceNode && workspaceIds
-        ? notes.filter((n) => n.bookId !== null && workspaceIds.has(n.bookId))
-        : notes,
-    [notes, workspaceNode, workspaceIds],
+        ? counted.filter((n) => n.bookId !== null && workspaceIds.has(n.bookId))
+        : counted,
+    [counted, workspaceNode, workspaceIds],
   )
   const statuses = useKept(
     useMemo(() => statusCounts(sidebarNotes), [sidebarNotes]),
@@ -277,7 +260,7 @@ export function useLibraryView({
         : undefined,
     [tree, workspaceNode],
   )
-  const pinnedCount = useMemo(() => notes.filter((n) => n.pinned).length, [notes])
+  const pinnedCount = useMemo(() => counted.filter((n) => n.pinned).length, [counted])
   const filterLabel =
     activeFilter === null
       ? undefined

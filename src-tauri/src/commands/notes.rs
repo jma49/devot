@@ -1,12 +1,13 @@
 use super::authorship::validate_agent_writes;
 use crate::storage::{
-    AgentWriteRow, Db, NOTE_STATUSES, NoteBody, NoteQuery, NoteRecord, NoteSummary, SetKind,
-    TrashedNote, Write,
+    AgentWriteRow, Db, NOTE_STATUSES, NoteBody, NoteMeta, NoteQuery, NoteRecord, NoteSummary,
+    SetKind, TrashedNote, Write,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
 use tauri::State;
+use tauri::ipc::{InvokeBody, Request};
 
 pub(crate) const MAX_TITLE_CHARS: usize = 1_000;
 pub(crate) const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
@@ -91,8 +92,30 @@ pub(crate) fn valid_hlc(hlc: &str) -> bool {
         && node.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'z'))
 }
 
-impl NoteDto {
-    fn into_record(self) -> Result<NoteRecord, &'static str> {
+/// A note's fields without its body: what `note_put_meta` takes, and the fields of a `note_put` frame.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteMetaDto {
+    pub id: String,
+    pub title: String,
+    pub title_hlc: String,
+    pub body_version: i64,
+    pub book_id: Option<String>,
+    pub book_hlc: String,
+    pub status: String,
+    pub status_hlc: String,
+    pub pinned: bool,
+    pub pinned_hlc: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    #[serde(default)]
+    pub dates_hlc: String,
+    pub deleted_at: Option<i64>,
+    pub deleted_hlc: Option<String>,
+}
+
+impl NoteMetaDto {
+    fn into_meta(self) -> Result<NoteMeta, &'static str> {
         if !valid_note_id(&self.id) {
             return Err("E_NOTE_ID_INVALID");
         }
@@ -120,27 +143,16 @@ impl NoteDto {
         {
             return Err("E_NOTE_HLC_INVALID");
         }
-        if self.body_md.len() > MAX_BODY_BYTES {
-            return Err("E_NOTE_BODY_TOO_LARGE");
-        }
         if self.created_at < 0 || self.updated_at < self.created_at {
             return Err("E_NOTE_TIME_INVALID");
         }
         if !(0..MAX_BODY_VERSION).contains(&self.body_version) {
             return Err("E_NOTE_VERSION_INVALID");
         }
-        let ydoc = STANDARD
-            .decode(self.ydoc.as_bytes())
-            .map_err(|_| "E_NOTE_YDOC_INVALID")?;
-        if ydoc.is_empty() || ydoc.len() > MAX_YDOC_BYTES {
-            return Err("E_NOTE_YDOC_INVALID");
-        }
-        Ok(NoteRecord {
+        Ok(NoteMeta {
             id: self.id,
             title: self.title,
             title_hlc: self.title_hlc,
-            body_md: self.body_md,
-            ydoc,
             body_version: self.body_version,
             book_id: self.book_id,
             book_hlc: self.book_hlc,
@@ -155,6 +167,79 @@ impl NoteDto {
             deleted_hlc: self.deleted_hlc,
         })
     }
+}
+
+fn valid_record(
+    meta: NoteMeta,
+    body_md: String,
+    ydoc: Vec<u8>,
+) -> Result<NoteRecord, &'static str> {
+    if body_md.len() > MAX_BODY_BYTES {
+        return Err("E_NOTE_BODY_TOO_LARGE");
+    }
+    if ydoc.is_empty() || ydoc.len() > MAX_YDOC_BYTES {
+        return Err("E_NOTE_YDOC_INVALID");
+    }
+    Ok(NoteRecord::from_meta(meta, body_md, ydoc))
+}
+
+impl NoteDto {
+    fn into_record(self) -> Result<NoteRecord, &'static str> {
+        let ydoc = STANDARD.decode(self.ydoc.as_bytes());
+        let meta = NoteMetaDto {
+            id: self.id,
+            title: self.title,
+            title_hlc: self.title_hlc,
+            body_version: self.body_version,
+            book_id: self.book_id,
+            book_hlc: self.book_hlc,
+            status: self.status,
+            status_hlc: self.status_hlc,
+            pinned: self.pinned,
+            pinned_hlc: self.pinned_hlc,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            dates_hlc: self.dates_hlc,
+            deleted_at: self.deleted_at,
+            deleted_hlc: self.deleted_hlc,
+        }
+        .into_meta()?;
+        valid_record(meta, self.body_md, ydoc.map_err(|_| "E_NOTE_YDOC_INVALID")?)
+    }
+}
+
+/// The JSON part of a `note_put` frame.
+#[derive(Deserialize)]
+struct FrameFields {
+    note: NoteMetaDto,
+    links: Vec<String>,
+    writes: Option<Vec<AgentWriteRow>>,
+}
+
+/// A length (4 bytes, little-endian) and that many bytes, then the rest.
+fn framed_part(data: &[u8]) -> Option<(&[u8], &[u8])> {
+    let (length, rest) = data.split_first_chunk::<4>()?;
+    let length = usize::try_from(u32::from_le_bytes(*length)).ok()?;
+    (length <= rest.len()).then(|| rest.split_at(length))
+}
+
+/// A note as `noteFrame` in src/renderer/src/storage/wire.ts lays it out: the length of the JSON of
+/// its fields, its links and its agent_writes rows (4 bytes, little-endian), that JSON, the length
+/// of its body, the body as UTF-8, then its Yjs state.
+pub(crate) fn note_frame(
+    data: &[u8],
+) -> Result<(NoteRecord, Vec<String>, Option<Vec<AgentWriteRow>>), &'static str> {
+    const INVALID: &str = "E_NOTE_FRAME_INVALID";
+    let (json, rest) = framed_part(data).ok_or(INVALID)?;
+    let (body, ydoc) = framed_part(rest).ok_or(INVALID)?;
+    let fields: FrameFields = serde_json::from_slice(json).map_err(|_| INVALID)?;
+    if body.len() > MAX_BODY_BYTES {
+        return Err("E_NOTE_BODY_TOO_LARGE");
+    }
+    let body_md = std::str::from_utf8(body).map_err(|_| INVALID)?.to_owned();
+    let meta = fields.note.into_meta()?;
+    let record = valid_record(meta, body_md, ydoc.to_vec())?;
+    Ok((record, fields.links, fields.writes))
 }
 
 fn validate_list_page(exclude_book_id: Option<&str>) -> Result<(), &'static str> {
@@ -295,20 +380,38 @@ pub async fn notes_bodies(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Not
         .map_err(|e| e.to_string())
 }
 
+/// The note as a raw frame (`note_frame`), so a note of several MiB crosses with no JSON or base64
+/// work on the UI thread. The frame names the note IDs the body links to, for the link index, and
+/// the note's rows of the agent_writes index, derived from its Yjs state (`null` leaves the stored
+/// rows alone).
 #[tauri::command]
-/// `links`: the note IDs the body links to, for the link index. `writes`: the note's rows of the
-/// agent_writes index, derived from its Yjs state; `None` leaves the stored rows alone.
-pub async fn note_put(
-    db: State<'_, Db>,
-    note: NoteDto,
-    links: Vec<String>,
-    writes: Option<Vec<AgentWriteRow>>,
-) -> Result<(), String> {
-    put_note(&db, note, links, writes).await
+pub async fn note_put(db: State<'_, Db>, request: Request<'_>) -> Result<(), String> {
+    let InvokeBody::Raw(data) = request.body() else {
+        return Err("E_NOTE_FRAME_INVALID".into());
+    };
+    let (record, links, writes) = note_frame(data).map_err(String::from)?;
+    put_record(&db, record, links, writes).await
 }
 
-/// A note's first save creates user content; only a save of a note already stored is a body
-/// edit, which the gate still lets land for a short grace after editing ends.
+/// A save that changed no text: the fields alone (`Store::put_note_meta`), with the note's
+/// agent_writes rows when they changed.
+#[tauri::command]
+pub async fn note_put_meta(
+    db: State<'_, Db>,
+    note: NoteMetaDto,
+    writes: Option<Vec<AgentWriteRow>>,
+) -> Result<(), String> {
+    let meta = note.into_meta().map_err(String::from)?;
+    if let Some(rows) = &writes {
+        validate_agent_writes(rows).map_err(String::from)?;
+    }
+    db.write(Write::Body, move |store| {
+        store.put_note_meta(&meta, writes.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 pub(crate) async fn put_note(
     db: &Db,
     note: NoteDto,
@@ -316,6 +419,17 @@ pub(crate) async fn put_note(
     writes: Option<Vec<AgentWriteRow>>,
 ) -> Result<(), String> {
     let record = note.into_record().map_err(String::from)?;
+    put_record(db, record, links, writes).await
+}
+
+/// A note's first save creates user content; only a save of a note already stored is a body
+/// edit, which the gate still lets land for a short grace after editing ends.
+async fn put_record(
+    db: &Db,
+    record: NoteRecord,
+    links: Vec<String>,
+    writes: Option<Vec<AgentWriteRow>>,
+) -> Result<(), String> {
     validate_links(&links).map_err(String::from)?;
     if let Some(rows) = &writes {
         validate_agent_writes(rows).map_err(String::from)?;
@@ -670,6 +784,74 @@ mod tests {
             validate_links(&vec![id; MAX_LINKS + 1]),
             Err("E_NOTE_LINKS_TOO_MANY")
         );
+    }
+
+    fn frame(fields: &serde_json::Value, body: &[u8], ydoc: &[u8]) -> Vec<u8> {
+        let json = serde_json::to_vec(fields).unwrap();
+        let mut out = Vec::new();
+        out.extend_from_slice(&u32::try_from(json.len()).unwrap().to_le_bytes());
+        out.extend_from_slice(&json);
+        out.extend_from_slice(&u32::try_from(body.len()).unwrap().to_le_bytes());
+        out.extend_from_slice(body);
+        out.extend_from_slice(ydoc);
+        out
+    }
+
+    fn frame_fields() -> serde_json::Value {
+        let mut note = serde_json::to_value(dto()).unwrap();
+        let fields = note.as_object_mut().unwrap();
+        fields.remove("bodyMd");
+        fields.remove("ydoc");
+        serde_json::json!({ "note": note, "links": [ID], "writes": null })
+    }
+
+    #[test]
+    fn reads_a_note_frame_as_the_record_note_put_writes() {
+        let (record, links, writes) = note_frame(&frame(
+            &frame_fields(),
+            "# T\u{e9}\n".as_bytes(),
+            &[1, 2, 3],
+        ))
+        .unwrap();
+        let expected = NoteRecord {
+            body_md: "# T\u{e9}\n".into(),
+            ydoc: vec![1, 2, 3],
+            ..dto().into_record().unwrap()
+        };
+        assert_eq!(record, expected);
+        assert_eq!((links, writes), (vec![ID.to_owned()], None));
+    }
+
+    #[test]
+    fn refuses_a_malformed_note_frame() {
+        let good = frame(&frame_fields(), b"body", &[1, 2, 3]);
+        let json_len = serde_json::to_vec(&frame_fields()).unwrap().len();
+        let mut bad_fields = frame_fields();
+        bad_fields["note"]["status"] = "urgent".into();
+        let cases: [(Vec<u8>, &str); 8] = [
+            (Vec::new(), "E_NOTE_FRAME_INVALID"),
+            (good[..3].to_vec(), "E_NOTE_FRAME_INVALID"),
+            // A length past the end.
+            (
+                [&[255, 255, 255, 0], &good[4..]].concat(),
+                "E_NOTE_FRAME_INVALID",
+            ),
+            // No length of the body.
+            (good[..4 + json_len].to_vec(), "E_NOTE_FRAME_INVALID"),
+            (
+                frame(&serde_json::json!({ "note": 1 }), b"", &[1]),
+                "E_NOTE_FRAME_INVALID",
+            ),
+            (
+                frame(&frame_fields(), &[0xff, 0xfe], &[1]),
+                "E_NOTE_FRAME_INVALID",
+            ),
+            (frame(&frame_fields(), b"body", &[]), "E_NOTE_YDOC_INVALID"),
+            (frame(&bad_fields, b"body", &[1]), "E_NOTE_STATUS_INVALID"),
+        ];
+        for (data, code) in cases {
+            assert_eq!(note_frame(&data).unwrap_err(), code);
+        }
     }
 
     #[test]

@@ -43,7 +43,8 @@ export function reportingWrites(storage: WireStorage, onWrote: () => void): Wire
   return {
     ...storage,
     purgeNote: after((id, at, hlc) => storage.purgeNote(id, at, hlc)),
-    putNote: after((note, links) => storage.putNote(note, links)),
+    putNote: after((note) => storage.putNote(note)),
+    putNoteMeta: after((note) => storage.putNoteMeta(note)),
     putFile: after((meta, data) => storage.putFile(meta, data)),
     copyFiles: after((noteId, copies) => storage.copyFiles(noteId, copies)),
     putBook: after((book) => storage.putBook(book)),

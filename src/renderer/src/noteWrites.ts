@@ -34,8 +34,12 @@ export function reportingNoteWrites(
   }
   return {
     ...storage,
-    async putNote(note, links) {
-      await storage.putNote(note, links)
+    async putNote(note) {
+      await storage.putNote(note)
+      report(note.id, note.updatedAt, note.withRows)
+    },
+    async putNoteMeta(note) {
+      await storage.putNoteMeta(note)
       report(note.id, note.updatedAt, note.agentWrites !== undefined)
     },
   }

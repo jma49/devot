@@ -42,17 +42,22 @@ export function trashMethods(
           // Written apart: when it fails, the note stays as it was. With the
           // body as the document holds it, which may have taken in what
           // another process wrote since the last write (see mergeStored).
-          await put(note, () => {
-            const { changed } = rowsOf(note)
-            return {
-              ...note.record,
+          await put(
+            note,
+            () => {
+              const { changed } = rowsOf(note)
+              return {
+                ...note.record,
+                deletedAt: now(),
+                deletedHlc: clock.tick(),
+                ...(changed ? { agentWrites: changed } : {}),
+              }
+            },
+            () => ({
               bodyMd: note.doc.getText(BODY).toString(),
               ydoc: Y.encodeStateAsUpdate(note.doc),
-              deletedAt: now(),
-              deletedHlc: clock.tick(),
-              ...(changed ? { agentWrites: changed } : {}),
-            }
-          })
+            }),
+          )
           drop(note)
         })
       })

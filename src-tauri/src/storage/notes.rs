@@ -2,7 +2,8 @@ use rusqlite::{OptionalExtension, params};
 
 use super::agent_writes::{AGENT_WRITES_KEEP_SQL, AGENT_WRITES_PUT_SQL};
 use super::{
-    AgentWriteRow, NoteBody, NoteRecord, NoteSummary, Result, StorageError, Store, TrashedNote,
+    AgentWriteRow, NoteBody, NoteMeta, NoteRecord, NoteSummary, Result, StorageError, Store,
+    TrashedNote,
 };
 
 /// The same statements as the TypeScript adapter's (tests/support/sqlite-adapter.ts, LIST_SQL; a test compares
@@ -248,46 +249,76 @@ impl Store {
             ],
         )?;
         if written == 0 {
-            // Nothing written: the note was purged (left alone), or its body
-            // moved on from the version the write is based on.
-            let purged: bool = tx.query_row(
-                "SELECT purged_at IS NOT NULL FROM notes WHERE id = ?1",
-                [&note.id],
-                |row| row.get(0),
-            )?;
-            if purged {
-                return Err(StorageError::Purged);
-            }
-            return Err(StorageError::BodyStale);
+            return Err(refusal(&tx, &note.id)?);
         }
-        if written > 0 {
-            tx.execute("DELETE FROM links WHERE source_id = ?1", [&note.id])?;
-            let mut insert =
-                tx.prepare("INSERT OR IGNORE INTO links (source_id, target_id) VALUES (?1, ?2)")?;
-            for target in links {
-                insert.execute(params![note.id, target])?;
-            }
-            if let Some(rows) = writes {
-                let ids = serde_json::to_string(
-                    &rows.iter().map(|row| &row.write_id).collect::<Vec<_>>(),
-                )
-                .map_err(|_| StorageError::Refused("E_NOTE_WRITES_INVALID"))?;
-                tx.execute(
-                    AGENT_WRITES_KEEP_SQL,
-                    rusqlite::named_params! { "@noteId": note.id, "@ids": ids },
-                )?;
-                let mut put = tx.prepare_cached(AGENT_WRITES_PUT_SQL)?;
-                for row in rows {
-                    put.execute(rusqlite::named_params! {
-                        "@noteId": note.id,
-                        "@writeId": row.write_id,
-                        "@kind": row.kind,
-                        "@name": row.name,
-                        "@at": row.at,
-                        "@created": row.created,
-                    })?;
-                }
-            }
+        tx.execute("DELETE FROM links WHERE source_id = ?1", [&note.id])?;
+        let mut insert =
+            tx.prepare("INSERT OR IGNORE INTO links (source_id, target_id) VALUES (?1, ?2)")?;
+        for target in links {
+            insert.execute(params![note.id, target])?;
+        }
+        drop(insert);
+        if let Some(rows) = writes {
+            put_agent_writes(&tx, &note.id, rows)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// `put_note_with_writes` for a write whose body is the one stored at `note.body_version`: the
+    /// same merge of each metadata field and the same compare-and-set, which moves the version on
+    /// as any write does (another process reads a moved version as a write to take in), while the
+    /// body, its Yjs state and the link index stay as stored. A note with no row is refused with
+    /// `E_NOTE_NOT_FOUND`, so its writer writes it whole.
+    pub fn put_note_meta(
+        &mut self,
+        note: &NoteMeta,
+        writes: Option<&[AgentWriteRow]>,
+    ) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        let written = tx.execute(
+            "UPDATE notes SET
+               title = CASE WHEN ?3 > title_hlc THEN ?2 ELSE title END,
+               title_hlc = MAX(?3, title_hlc),
+               book_id = CASE WHEN ?5 > book_hlc THEN ?4 ELSE book_id END,
+               book_hlc = MAX(?5, book_hlc),
+               status = CASE WHEN ?7 > status_hlc THEN ?6 ELSE status END,
+               status_hlc = MAX(?7, status_hlc),
+               pinned = CASE WHEN ?9 > pinned_hlc THEN ?8 ELSE pinned END,
+               pinned_hlc = MAX(?9, pinned_hlc),
+               deleted_at = CASE WHEN COALESCE(?13, '') > COALESCE(deleted_hlc, '')
+                                 THEN ?12 ELSE deleted_at END,
+               deleted_hlc = CASE WHEN COALESCE(?13, '') > COALESCE(deleted_hlc, '')
+                                  THEN ?13 ELSE deleted_hlc END,
+               body_version = ?15 + 1,
+               created_at = CASE WHEN ?14 > dates_hlc THEN ?10 ELSE created_at END,
+               updated_at = CASE WHEN ?14 > dates_hlc
+                                 THEN ?11 ELSE MAX(?11, updated_at) END,
+               dates_hlc = MAX(?14, dates_hlc)
+             WHERE id = ?1 AND purged_at IS NULL AND body_version = ?15",
+            params![
+                note.id,
+                note.title,
+                note.title_hlc,
+                note.book_id,
+                note.book_hlc,
+                note.status,
+                note.status_hlc,
+                note.pinned,
+                note.pinned_hlc,
+                note.created_at,
+                note.updated_at,
+                note.deleted_at,
+                note.deleted_hlc,
+                note.dates_hlc,
+                note.body_version
+            ],
+        )?;
+        if written == 0 {
+            return Err(refusal(&tx, &note.id)?);
+        }
+        if let Some(rows) = writes {
+            put_agent_writes(&tx, &note.id, rows)?;
         }
         tx.commit()?;
         Ok(())
@@ -338,4 +369,47 @@ impl Store {
         let rows = statement.query_map([ids], |row| Ok((row.get(0)?, row.get(1)?)))?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
+}
+
+/// Why a note write changed no row: the note was purged (left alone), its body moved on from the
+/// version the write is based on, or it has no row at all.
+fn refusal(tx: &rusqlite::Transaction<'_>, id: &str) -> Result<StorageError> {
+    let purged: Option<bool> = tx
+        .query_row(
+            "SELECT purged_at IS NOT NULL FROM notes WHERE id = ?1",
+            [id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(match purged {
+        Some(true) => StorageError::Purged,
+        Some(false) => StorageError::BodyStale,
+        None => StorageError::Refused("E_NOTE_NOT_FOUND"),
+    })
+}
+
+/// Replaces the note's agent_writes rows, each keeping whether it was seen.
+fn put_agent_writes(
+    tx: &rusqlite::Transaction<'_>,
+    note_id: &str,
+    rows: &[AgentWriteRow],
+) -> Result<()> {
+    let ids = serde_json::to_string(&rows.iter().map(|row| &row.write_id).collect::<Vec<_>>())
+        .map_err(|_| StorageError::Refused("E_NOTE_WRITES_INVALID"))?;
+    tx.execute(
+        AGENT_WRITES_KEEP_SQL,
+        rusqlite::named_params! { "@noteId": note_id, "@ids": ids },
+    )?;
+    let mut put = tx.prepare_cached(AGENT_WRITES_PUT_SQL)?;
+    for row in rows {
+        put.execute(rusqlite::named_params! {
+            "@noteId": note_id,
+            "@writeId": row.write_id,
+            "@kind": row.kind,
+            "@name": row.name,
+            "@at": row.at,
+            "@created": row.created,
+        })?;
+    }
+    Ok(())
 }

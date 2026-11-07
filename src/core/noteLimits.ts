@@ -9,7 +9,7 @@ import {
   type AgentWriteRow,
 } from './authorship'
 import { MAX_NOTE_LINKS, noteLinks } from './links'
-import type { NoteRecord } from './storage'
+import type { NoteFields, NoteRecord } from './storage'
 import { utf8Length, wellFormed } from './text'
 
 export const MAX_TITLE_CHARS = 1000
@@ -62,17 +62,23 @@ function checkAgentWrites(rows: readonly AgentWriteRow[]): void {
   }
 }
 
-/** Throws the code note_put refuses `note` with. */
-export function checkNote(note: NoteRecord, links?: readonly string[]): void {
-  const { title, bodyMd, bodyVersion, ydoc } = note
+/** Throws the code note_put_meta refuses `note` with. */
+export function checkNoteMeta(note: NoteFields): void {
+  const { title, bodyVersion } = note
   if (note.agentWrites) checkAgentWrites(note.agentWrites)
   if (/[\r\n]/.test(title) || cutAt(title, MAX_TITLE_CHARS) < title.length) {
     throw new Error('E_NOTE_TITLE_INVALID')
   }
-  if (overBytes(bodyMd, MAX_BODY_BYTES)) throw new Error('E_NOTE_BODY_TOO_LARGE')
   if (!Number.isSafeInteger(bodyVersion) || bodyVersion < 0 || bodyVersion >= MAX_BODY_VERSION) {
     throw new Error('E_NOTE_VERSION_INVALID')
   }
+}
+
+/** Throws the code note_put refuses `note` with. */
+export function checkNote(note: NoteRecord, links?: readonly string[]): void {
+  const { bodyMd, ydoc } = note
+  checkNoteMeta(note)
+  if (overBytes(bodyMd, MAX_BODY_BYTES)) throw new Error('E_NOTE_BODY_TOO_LARGE')
   if (ydoc.length === 0 || ydoc.length > MAX_YDOC_BYTES) throw new Error('E_NOTE_YDOC_INVALID')
   if (bodyMd.length <= MAX_NOTE_LINKS * LINK_CHARS) return
   if ((links ?? noteLinks(bodyMd)).length > MAX_NOTE_LINKS) throw new Error('E_NOTE_LINKS_TOO_MANY')

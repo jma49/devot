@@ -24,6 +24,7 @@
     "allow-books-list",
     "allow-book-is-live",
     "allow-note-put",
+    "allow-note-put-meta",
     "allow-note-purge",
     "allow-tags-list",
     "allow-revision-put",

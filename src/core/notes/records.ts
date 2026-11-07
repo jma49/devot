@@ -1,7 +1,7 @@
 import * as Y from 'yjs'
 import { errorCode } from '../errors'
 import { clipTitle } from '../noteLimits'
-import type { NoteRecord, OpenedRecord } from '../storage'
+import type { NoteFields, NoteRecord, OpenedRecord } from '../storage'
 import { BODY } from './body'
 import type { HeldRecord, Live, NoteMeta } from './context'
 
@@ -9,6 +9,9 @@ import type { HeldRecord, Live, NoteMeta } from './context'
 const WRITE_TRIES = 5
 
 const isStale = (error: unknown) => errorCode(error) === 'E_NOTE_BODY_STALE'
+
+export const metaOf = ({ bodyMd: _body, ydoc: _state, ...fields }: NoteRecord): NoteFields =>
+  fields
 
 export const asWritten = <T extends NoteMeta>(record: T): T => ({
   ...record,
@@ -39,7 +42,7 @@ export const stampsOf = (record: OpenedRecord) => META_HLCS.map((key) => record[
 export type MetaField = 'book' | 'status' | 'pinned'
 
 /** The record without its body, as a note in memory keeps it. */
-export const heldOf = (record: OpenedRecord & Partial<NoteRecord>): HeldRecord => {
+export const heldOf = (record: NoteMeta & Partial<NoteRecord>): HeldRecord => {
   const { ydoc: _, bodyMd: __, agentWrites: ___, ...held } = record
   return held
 }

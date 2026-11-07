@@ -1,6 +1,6 @@
 import { clipTitle } from '../noteLimits'
 import { NOTE_STATUSES, type NoteRecord } from '../storage'
-import { dirty, hlcOf, untilWritten, withField, type MetaField } from './records'
+import { dirty, hlcOf, metaOf, untilWritten, withField, type MetaField } from './records'
 import type { Live, NoteContext } from './context'
 import type { Kernel } from './kernel'
 import type { MetaChange, NoteService } from './types'
@@ -74,7 +74,7 @@ export function metaMethods(
           text: stored.bodyMd,
           at: stored.updatedAt,
         })
-        await storage.putNote(record)
+        await storage.putNoteMeta(metaOf(record))
         recordEvents(undefined, before, record)
         sweep()
       }),
