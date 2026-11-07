@@ -30,6 +30,11 @@ export interface OpenedNote {
   state: Uint8Array
 }
 
+export interface MergedStored {
+  retitled: { id: string; title: string }[]
+  unchanged: string[]
+}
+
 export interface SaveProblem {
   id: string
   code: string
@@ -170,6 +175,8 @@ export interface NoteService {
   backlinks(id: string): Promise<NoteSummary[]>
   /** Pending edits included; a missing or trashed note is left out. */
   linkTargets(ids: readonly string[]): Promise<Record<string, NoteLinkTarget>>
+  /** The list's rows of `ids`, as stored; a trashed, purged or unknown note is left out. */
+  summaries(ids: readonly string[]): Promise<NoteSummary[]>
   /** Pending edits are saved first so a link pasted a moment ago keeps its image. */
   purge(id: string): Promise<void>
   /**
@@ -246,10 +253,11 @@ export interface NoteService {
   ): Promise<Record<string, StripDay[]>>
   /**
    * Takes in what another process wrote (a writer on another connection; see `devot://db-changed`), so the next write keeps the other's changes.
-   * Every note in memory merges the stored state, and another window that may hold a note this core does not is relayed its stored state. Returns the notes whose title the other process changed.
+   * Every note in memory whose stored body version moved merges the stored state, and another window that may hold a note this core does not is relayed its stored state.
+   * Returns the notes whose title the other process changed, and the notes in memory whose stored version had not moved, which were left as they were.
    * A note deleted for good meanwhile is let go; the others stay in memory (letting one go could lose an edit that has just loaded it). A note that cannot be read is left as it was.
    */
-  mergeStored(): Promise<{ id: string; title: string }[]>
+  mergeStored(): Promise<MergedStored>
   /**
    * Takes in what another window's core relayed. A note not in memory ignores it: it is read from storage when used, and asks then for what
    * the others hold beyond that. A change taken in is saved by the window that made it, which also keeps the versions of its own typing.

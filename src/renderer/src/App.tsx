@@ -194,7 +194,17 @@ export function App() {
 
   useSearchRuns(searchState, { scope: view.searchScope, inView: view.inView })
   const searchIndex = useSearchIndex(core, refresh)
-  useExternalMerge({ core, selected, inTrash, opens, editorRef, setTitle, refresh, agentWrites })
+  useExternalMerge({
+    core,
+    selected,
+    inTrash,
+    opens,
+    editorRef,
+    setTitle,
+    refresh,
+    patch: lists.patch,
+    agentWrites,
+  })
 
   useQuickCapture(core, refresh)
   useHttpApi(core)

@@ -305,6 +305,7 @@ const coreApi = {
   peekTrashed: (id: string) => required().peekTrashed(id),
   backlinks: (id: string) => required().backlinks(id),
   linkTargets: (ids: string[]) => required().linkTargets(ids),
+  noteSummaries: (ids: string[]) => required().summaries(ids),
   purge: (id: string) => required().purge(id),
   discardEmpty: (id: string) => required().discardEmpty(id),
   emptyTrash: () => required().emptyTrash(),

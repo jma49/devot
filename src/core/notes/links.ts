@@ -12,11 +12,13 @@ const MAX_LINK_TARGETS = MAX_BODY_IDS
 export function linkMethods(
   ctx: NoteContext,
   k: Kernel,
-): Pick<NoteService, 'backlinks' | 'linkTargets'> {
+): Pick<NoteService, 'backlinks' | 'linkTargets' | 'summaries'> {
   const { storage, live } = ctx
-  const { bodies } = k.memory
+  const { bodies, summaries } = k.memory
   return {
     backlinks: (id) => findBacklinks(storage, id),
+
+    summaries,
 
     async linkTargets(ids) {
       const want = new Set(ids.slice(0, MAX_LINK_TARGETS))

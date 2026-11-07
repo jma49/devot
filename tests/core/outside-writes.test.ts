@@ -157,7 +157,7 @@ describe('writes from another process', () => {
     await b.notes.setBook(id, inbox)
     await b.notes.flush()
 
-    const retitled = await a.notes.mergeStored()
+    const { retitled } = await a.notes.mergeStored()
     expect(retitled).toEqual([{ id, title: 'Renamed in B' }])
     await a.notes.flush()
     const stored = await a.storage.getNote(id)
@@ -173,7 +173,7 @@ describe('writes from another process', () => {
     await a.notes.setTitle(id, 'Typed in A')
     await b.notes.setBody(id, 'text from B')
     await b.notes.flush()
-    expect(await a.notes.mergeStored()).toEqual([])
+    expect((await a.notes.mergeStored()).retitled).toEqual([])
   })
 
   it("takes the other's changes into every note in memory, open or not", async () => {
@@ -223,6 +223,7 @@ describe('writes from another process', () => {
     })
     const id = await notes.create('Plan')
     await notes.flush()
+    await appendStored(sqlite, id, ' (from outside)')
 
     holdNextRead = true
     const merging = notes.mergeStored()
@@ -242,7 +243,7 @@ describe('writes from another process', () => {
     await b.notes.trash(id)
     await b.notes.purge(id)
 
-    expect(await a.notes.mergeStored()).toEqual([])
+    expect((await a.notes.mergeStored()).retitled).toEqual([])
     await a.notes.flush()
     await expect(a.notes.open(id)).rejects.toThrow('E_NOTE_NOT_FOUND')
     expect(await a.storage.getNote(id, { trashed: true })).toBeNull()
@@ -301,8 +302,8 @@ describe('a write made before the window hears of an outside write', () => {
     await a.notes.flush()
     expect((await a.storage.getNote(id))?.title).toBe('Renamed in B')
 
-    expect(await a.notes.mergeStored()).toEqual([{ id, title: 'Renamed in B' }])
-    expect(await a.notes.mergeStored()).toEqual([])
+    expect((await a.notes.mergeStored()).retitled).toEqual([{ id, title: 'Renamed in B' }])
+    expect((await a.notes.mergeStored()).retitled).toEqual([])
   })
 
   it('reads a note another window opened only when its stored write moved', async () => {
@@ -456,5 +457,93 @@ describe('a write made before the window hears of an outside write', () => {
     await notes.flush()
     await expect(notes.open(id)).rejects.toThrow('E_NOTE_NOT_FOUND')
     expect(await sqlite.getNote(id, { trashed: true })).toBeNull()
+  })
+})
+
+// Records the ID of each note its storage reads whole.
+function processCountingOn(path: string, node: string) {
+  const sqlite = openSqliteAdapter(path)
+  open.push(sqlite)
+  const reads: string[] = []
+  const storage = Object.assign(Object.create(sqlite) as SqliteAdapter, {
+    getNote(id: string, options?: { trashed?: boolean }) {
+      reads.push(id)
+      return sqlite.getNote(id, options)
+    },
+  })
+  const notes = createNoteService({
+    storage,
+    clock: createClock(node),
+    newId: createIdGenerator(),
+    saveDelayMs: 5,
+  })
+  return { notes, storage: sqlite, reads }
+}
+
+describe('what an outside write reads back', () => {
+  const big = 'A long paragraph of the note, written once and read many times. '.repeat(16_000)
+
+  async function holding() {
+    const path = join(tempDir('devot-outside-'), 'devot.sqlite')
+    const a = processCountingOn(path, 'a1')
+    const b = processOn(path, 'b1')
+    const large = await shared(a.notes, b.notes, big)
+    const small = await shared(a.notes, b.notes, 'small')
+    a.reads.length = 0
+    return { a, b, large, small }
+  }
+
+  it('reads back only the note the other process wrote', async () => {
+    const { a, b, large, small } = await holding()
+    await appendStored(b.storage, small, ' and more')
+
+    const merged = await a.notes.mergeStored()
+    expect(a.reads).toEqual([small])
+    expect(merged.unchanged).toEqual([large])
+    expect(textOf((await a.notes.open(small)).state)).toBe('small and more')
+  })
+
+  it('reads nothing back when no note it holds was written', async () => {
+    const { a, b, large, small } = await holding()
+    await b.notes.create('Elsewhere')
+    await b.notes.flush()
+
+    const merged = await a.notes.mergeStored()
+    expect(a.reads).toEqual([])
+    expect([...merged.unchanged].sort()).toEqual([large, small].sort())
+  })
+
+  it('merges a note both wrote and reads none it wrote itself', async () => {
+    const { a, b, large, small } = await holding()
+    await a.notes.setBody(large, `${big}typed here`)
+    await a.notes.flush()
+    await a.notes.setBody(small, 'typed small')
+    await appendStored(b.storage, small, ' plus outside')
+    a.reads.length = 0
+
+    const merged = await a.notes.mergeStored()
+    expect(a.reads).not.toContain(large)
+    expect(merged.unchanged).toContain(large)
+    await a.notes.flush()
+    expect((await a.storage.getNote(small))?.bodyMd).toBe('typed small plus outside')
+  })
+
+  it('reads back a held note the other process trashed', async () => {
+    const { a, b, large, small } = await holding()
+    await b.notes.trash(small)
+
+    const merged = await a.notes.mergeStored()
+    expect(a.reads).toEqual([small])
+    expect(merged.unchanged).toEqual([large])
+  })
+
+  it('reports a title a retried write took in, though the note did not move since', async () => {
+    const { a, b, small } = await holding()
+    await b.notes.setTitle(small, 'Renamed in B')
+    await b.notes.flush()
+    await a.notes.setBody(small, 'typed small')
+    await a.notes.flush()
+
+    expect((await a.notes.mergeStored()).retitled).toEqual([{ id: small, title: 'Renamed in B' }])
   })
 })
