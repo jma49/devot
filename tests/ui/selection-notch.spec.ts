@@ -111,23 +111,23 @@ for (const scheme of ['light', 'dark'] as const) {
           // A glass bar is translucent, so its fill is the colour it paints just inside the edge, not its CSS colour.
           const insideY = Math.round(placement === 'below' ? box.y + 4 : box.y + box.height - 5)
           const [r = 0, g = 0, b = 0] = shot.at(Math.round(cx), insideY)
-          // The bar's edge row, read beside the notch where the edge is straight: the outline, or the row past it when a dark glass outline is close to the fill.
+          // The pixel rows the bar's 1 px outline ring touches, just outside its edge.
+          const ringTop = placement === 'below' ? box.y - 1 : box.y + box.height
+          const ringRows: number[] = []
+          for (let y = Math.floor(ringTop); y < Math.ceil(ringTop + 1); y++) ringRows.push(y)
           const x0 = Math.round(notch.x)
           const x1 = Math.round(notch.x + notch.width)
           const besideX = cx < box.x + box.width / 2 ? x1 + 4 : x0 - 4
-          const edgeY = Math.round(placement === 'below' ? box.y : box.y + box.height)
-          const rows =
-            placement === 'below' ? [edgeY - 2, edgeY - 1, edgeY] : [edgeY - 1, edgeY, edgeY + 1]
-          let baseY = edgeY
-          let strongest = 0
-          for (const y of rows) {
-            const d = distance(shot.at(besideX, y), [r, g, b])
-            if (d > strongest) [strongest, baseY] = [d, y]
-          }
-          expect(strongest, 'the outline is drawn beside the notch').toBeGreaterThan(8)
-          // The seam strip lies over the bar's outline, which a translucent glass fill lets through faintly.
-          for (let x = x0 + 3; x < x1 - 3; x++)
-            expect(distance(shot.at(x, baseY), [r, g, b]), `base pixel ${x}`).toBeLessThanOrEqual(4)
+          const outline = Math.max(...ringRows.map((y) => distance(shot.at(besideX, y), [r, g, b])))
+          expect(outline, 'the outline is drawn beside the notch').toBeGreaterThan(8)
+          // The seam strip covers the outline under the notch base.
+          // A dark glass outline is within a few levels of the fill, so only a light bar shows a missing strip.
+          for (const y of ringRows)
+            for (let x = x0 + 3; x < x1 - 3; x++)
+              expect(
+                distance(shot.at(x, y), [r, g, b]),
+                `base pixel ${x},${y}`,
+              ).toBeLessThanOrEqual(4)
 
           // Halfway up the notch the slanted sides are outlined: a pixel differs from the fill within a pixel of each side.
           const midY = Math.round(notch.y + notch.height / 2)
@@ -141,8 +141,10 @@ for (const scheme of ['light', 'dark'] as const) {
               )
             expect(sides, `outline on the ${side < 0 ? 'left' : 'right'} side`).toBeGreaterThan(2)
           }
-          // Inside, the notch is the fill, with the bar's shadow showing faintly through a glass fill.
-          expect(distance(shot.at(Math.round(cx), midY), [r, g, b])).toBeLessThanOrEqual(4)
+          // Inside, the notch is the fill; a light glass fill lets the bar's shadow through faintly.
+          expect(distance(shot.at(Math.round(cx), midY), [r, g, b])).toBeLessThanOrEqual(
+            scheme === 'light' ? 4 : 2,
+          )
         })
       }
     }
