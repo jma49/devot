@@ -80,6 +80,8 @@ export const sizes = {
   "radius.phone-theme-thumb": "10px",
   "radius.phone-row-press": "16px",
   "radius.phone-grouped-card": "24px",
+  "radius.phone-scheme-mini": "16px",
+  "radius.phone-glass-sample": "16px",
   "radius.phone-menu-row": "20px",
   "radius.settings-row": "8px",
   "radius.settings-card": "12px",
@@ -160,6 +162,14 @@ export const sizes = {
   "size.phone-theme-thumb-height": "56px",
   "size.phone-theme-ring-gap": "2px",
   "size.phone-theme-ring": "2px",
+  "size.phone-scheme-card": "150px",
+  "size.phone-scheme-mini-width": "56px",
+  "size.phone-scheme-mini-height": "96px",
+  "size.phone-swatch": "56px",
+  "size.phone-swatch-box": "66px",
+  "size.phone-swatch-ring": "3px",
+  "size.phone-swatch-badge": "20px",
+  "size.phone-glass-sample": "120px",
   "size.phone-group-title": "10px",
   "size.phone-topbar-top": "12px",
   "size.phone-topbar-band": "68px",
@@ -1384,3 +1394,113 @@ export type ThemeColor = keyof typeof light
 
 /** The CSS custom property for a theme colour, for inline styles. */
 export const cssVar = (color: ThemeColor) => `var(--${color.replaceAll('.', '-')})`
+
+/** The iPhone's own theme colours (design/tokens/phone-themes.tokens.json). */
+export const phoneThemes = {
+  "dawn": {
+    "light": {
+      "glow-start": "rgb(245 196 216 / 0.9)",
+      "glow-end": "rgb(253 238 220 / 0.9)",
+      "background": "#fcedf3",
+      "card": "rgb(255 255 255 / 0.3)",
+      "separator": "rgb(120 40 75 / 0.13)",
+      "text-secondary": "#5f4651",
+      "accent": "#b83a68",
+      "accent-mark": "#9a2b55",
+      "glass-tint": "#fdf2f6"
+    },
+    "dark": {
+      "glow-start": "rgb(74 34 54 / 0.75)",
+      "glow-end": "rgb(61 44 37 / 0.7)",
+      "background": "#1e1219",
+      "card": "rgb(238 127 166 / 0.08)",
+      "separator": "rgb(255 210 230 / 0.12)",
+      "text-secondary": "#c9adba",
+      "accent": "#ee7fa6",
+      "accent-mark": "#f5a3c0",
+      "glass-tint": "#32262d"
+    }
+  },
+  "tide": {
+    "light": {
+      "glow-start": "rgb(196 216 247 / 0.9)",
+      "glow-end": "rgb(198 229 242 / 0.9)",
+      "background": "#eef2fd",
+      "card": "rgb(255 255 255 / 0.3)",
+      "separator": "rgb(40 60 130 / 0.13)",
+      "text-secondary": "#485069",
+      "accent": "#4553c9",
+      "accent-mark": "#3a47b5",
+      "glass-tint": "#f2f5fe"
+    },
+    "dark": {
+      "glow-start": "rgb(30 47 80 / 0.8)",
+      "glow-end": "rgb(22 58 68 / 0.75)",
+      "background": "#11141d",
+      "card": "rgb(165 147 245 / 0.08)",
+      "separator": "rgb(200 215 255 / 0.12)",
+      "text-secondary": "#a9b1cb",
+      "accent": "#a593f5",
+      "accent-mark": "#bcb5ff",
+      "glass-tint": "#222738"
+    }
+  },
+  "sage": {
+    "light": {
+      "glow-start": "rgb(201 230 210 / 0.9)",
+      "glow-end": "rgb(218 233 191 / 0.9)",
+      "background": "#edf5ea",
+      "card": "rgb(255 255 255 / 0.3)",
+      "separator": "rgb(40 90 55 / 0.14)",
+      "text-secondary": "#4c5c51",
+      "accent": "#1f7468",
+      "accent-mark": "#1a6359",
+      "glass-tint": "#f2f8ef"
+    },
+    "dark": {
+      "glow-start": "rgb(30 58 42 / 0.8)",
+      "glow-end": "rgb(47 55 32 / 0.75)",
+      "background": "#111712",
+      "card": "rgb(92 192 176 / 0.08)",
+      "separator": "rgb(210 240 220 / 0.12)",
+      "text-secondary": "#a8b9ad",
+      "accent": "#5cc0b0",
+      "accent-mark": "#86d8ca",
+      "glass-tint": "#202a23"
+    }
+  },
+  "ember": {
+    "light": {
+      "glow-start": "rgb(249 218 149 / 0.9)",
+      "glow-end": "rgb(255 198 160 / 0.9)",
+      "background": "#fcefe4",
+      "card": "rgb(255 255 255 / 0.3)",
+      "separator": "rgb(120 60 30 / 0.13)",
+      "text-secondary": "#5e4c43",
+      "accent": "#a8560f",
+      "accent-mark": "#8a4508",
+      "glass-tint": "#fdf3eb"
+    },
+    "dark": {
+      "glow-start": "rgb(79 59 14 / 0.8)",
+      "glow-end": "rgb(99 36 25 / 0.66)",
+      "background": "#1d140c",
+      "card": "rgb(243 154 82 / 0.08)",
+      "separator": "rgb(255 225 205 / 0.12)",
+      "text-secondary": "#c5b0a6",
+      "accent": "#f39a52",
+      "accent-mark": "#ffb47c",
+      "glass-tint": "#312820"
+    }
+  },
+  "ivory": {
+    "light": {
+      "glow-start": "rgb(239 230 210 / 0.6)",
+      "glow-end": "rgb(236 227 207 / 0.5)"
+    },
+    "dark": {
+      "glow-start": "rgb(61 56 48 / 0.6)",
+      "glow-end": "rgb(58 53 44 / 0.5)"
+    }
+  }
+} as const

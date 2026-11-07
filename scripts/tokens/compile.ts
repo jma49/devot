@@ -253,6 +253,56 @@ export function backdropThemes(
   })
 }
 
+/** The iPhone's own theme slots (`phone-theme.<id>.light|dark.<slot>`) that stand in for a theme colour. */
+export const PHONE_THEME_COLOURS: Readonly<Record<string, string>> = {
+  background: 'color.phone.background',
+  card: 'color.phone.card',
+  separator: 'color.phone.separator',
+  'text-secondary': 'color.phone.text-secondary',
+  'glass-tint': 'color.phone.glass-opaque',
+  accent: 'color.accent.fill',
+  'accent-mark': 'color.accent.text',
+}
+const PHONE_THEME_GLOW = ['glow-start', 'glow-end']
+
+export interface PhoneTheme {
+  id: string
+  light: Map<string, ColorValue>
+  dark: Map<string, ColorValue>
+}
+
+/** Each theme's iPhone slots; a slot or theme Devot does not know is refused. */
+export function phoneThemes(tree: TokenTree, known: readonly string[]): PhoneTheme[] {
+  const flat = flatten(tree)
+  const ids = [...new Set(flat.map((t) => t.path.split('.')[1]!))]
+  return ids.map((id) => {
+    if (!known.includes(id)) throw new Error(`E_TOKEN_PHONE_THEME ${id}`)
+    const slots = (appearance: 'light' | 'dark') =>
+      new Map(
+        flat
+          .filter((t) => t.path.startsWith(`phone-theme.${id}.${appearance}.`))
+          .map((t) => {
+            const slot = t.path.split('.').at(-1)!
+            if (
+              t.type !== 'color' ||
+              !(slot in PHONE_THEME_COLOURS || PHONE_THEME_GLOW.includes(slot))
+            ) {
+              throw new Error(`E_TOKEN_PHONE_THEME_SLOT ${t.path}`)
+            }
+            return [slot, t.value as ColorValue] as const
+          }),
+      )
+    return { id, light: slots('light'), dark: slots('dark') }
+  })
+}
+
+/** The phone colours a theme's slots replace, as declarations; the accent stays the Mac's on the page. */
+function phoneDeclarations(slots: Map<string, ColorValue>): string[] {
+  return [...slots]
+    .filter(([slot]) => PHONE_THEME_COLOURS[slot]?.startsWith('color.phone.'))
+    .map(([slot, colour]) => `  ${cssVarName(PHONE_THEME_COLOURS[slot]!)}: ${cssColor(colour)};`)
+}
+
 /**
  * Only theme colours and non-colour base tokens are exported: components never use primitive
  * colours. `themes` follow the default `light`/`dark`, scoped by `data-theme`, with the same tokens;
@@ -264,6 +314,7 @@ export function compile(
   dark: TokenTree,
   themes: readonly ThemeTokens[] = [],
   backdrops: TokenTree = {},
+  phoneTree: TokenTree = {},
 ): CompiledTokens {
   const baseFlat = flatten(base)
   const shared = baseFlat.filter((t) => t.type !== 'color')
@@ -289,6 +340,8 @@ export function compile(
     return own
   })
 
+  const gradients = backdropThemes(backdrops)
+  const phone = phoneThemes(phoneTree, [...themes.map((t) => t.id), ...gradients.map((t) => t.id)])
   const lightDeclarations = lightTheme.map((t) => themeDeclaration(t, 'light'))
   const darkDeclarations = darkTheme.map((t) => themeDeclaration(t, 'dark'))
   const css = [
@@ -325,10 +378,17 @@ export function compile(
         theme.dark.map((t) => themeDeclaration(t, 'dark', false)),
       ),
     ]),
-    ...backdropThemes(backdrops).flatMap((theme) => [
-      `/* The ${theme.id} gradient theme: data-theme='${theme.id}' on the root element. */`,
-      ...themeRules(theme.id, [`  --backdrop: ${theme.light};`], [`  --backdrop: ${theme.dark};`]),
-    ]),
+    ...gradients.flatMap((theme) => {
+      const own = phone.find((p) => p.id === theme.id)
+      return [
+        `/* The ${theme.id} gradient theme: data-theme='${theme.id}' on the root element. */`,
+        ...themeRules(
+          theme.id,
+          [`  --backdrop: ${theme.light};`, ...phoneDeclarations(own?.light ?? new Map())],
+          [`  --backdrop: ${theme.dark};`, ...phoneDeclarations(own?.dark ?? new Map())],
+        ),
+      ]
+    }),
   ].join('\n')
 
   const constants = (list: FlatToken[]) =>
@@ -352,6 +412,21 @@ export function compile(
     '',
     '/** The CSS custom property for a theme colour, for inline styles. */',
     "export const cssVar = (color: ThemeColor) => `var(--${color.replaceAll('.', '-')})`",
+    '',
+    "/** The iPhone's own theme colours (design/tokens/phone-themes.tokens.json). */",
+    `export const phoneThemes = ${JSON.stringify(
+      Object.fromEntries(
+        phone.map((p) => [
+          p.id,
+          {
+            light: Object.fromEntries([...p.light].map(([k, v]) => [k, cssColor(v)])),
+            dark: Object.fromEntries([...p.dark].map(([k, v]) => [k, cssColor(v)])),
+          },
+        ]),
+      ),
+      null,
+      2,
+    )} as const`,
     '',
   ].join('\n')
 

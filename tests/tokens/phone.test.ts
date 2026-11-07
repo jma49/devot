@@ -59,8 +59,31 @@ describe('the phone layout tokens', () => {
     ['radius.phone-theme-thumb', 10],
     ['radius.phone-sheet', 34],
     ['radius.phone-menu-row', 20],
+    ['size.phone-scheme-card', 150],
+    ['size.phone-scheme-mini-width', 56],
+    ['size.phone-scheme-mini-height', 96],
+    ['radius.phone-scheme-mini', 16],
+    ['size.phone-swatch', 56],
+    ['size.phone-swatch-box', 66],
+    ['size.phone-swatch-ring', 3],
+    ['size.phone-swatch-badge', 20],
+    ['size.phone-glass-sample', 120],
+    ['radius.phone-glass-sample', 16],
   ] as const)('%s is %i', (token, value) => {
     expect(px(token)).toBe(value)
+  })
+
+  it('keeps the Appearance cards concentric: what sits 8 inside a card is 8 rounder less', () => {
+    const inner = px('radius.phone-grouped-card') - 8
+    expect(px('radius.phone-scheme-mini')).toBe(inner)
+    expect(px('radius.phone-glass-sample')).toBe(inner)
+  })
+
+  it('rings a swatch inside its box: swatch, gap and ring', () => {
+    expect(
+      px('size.phone-swatch') +
+        2 * (px('size.phone-theme-ring-gap') + px('size.phone-swatch-ring')),
+    ).toBeLessThanOrEqual(px('size.phone-swatch-box'))
   })
 
   it('fits the tab bar and the compose circle on a 390 screen', () => {
