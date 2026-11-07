@@ -13,6 +13,7 @@ import { errorCode } from '../../../core/errors'
 import { useExternalChanges } from '../externalChanges'
 import { saveEdits } from '../saveGuards'
 import { welcomeContent } from '../welcome/content'
+import { listSeeded } from '../welcome/seed'
 
 export interface PhoneData {
   readonly core: Core | null
@@ -82,7 +83,7 @@ export function usePhoneData(): PhoneStore {
       core.listTrash(),
       newestBackup(),
     ])
-    setData({
+    const next = {
       core,
       notes: listed.notes,
       templates: listed.templates,
@@ -92,7 +93,9 @@ export function usePhoneData(): PhoneStore {
       trash,
       lastBackup,
       loadedAt: Date.now(),
-    })
+    }
+    setData(next)
+    return next
   }, [])
 
   const refresh = useCallback(async () => {
@@ -114,12 +117,12 @@ export function usePhoneData(): PhoneStore {
         started = core
         if (!alive) return stopCore(core)
         coreRef.current = core
-        if (!DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome) {
-          await core.seedWelcome(welcomeContent()).catch((e: unknown) => {
-            console.warn('W_WELCOME_FAILED', errorCode(e))
-          })
-        }
-        await load(core)
+        const seeds =
+          !DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome
+        await listSeeded(
+          () => load(core),
+          seeds ? () => core.seedWelcome(welcomeContent()) : undefined,
+        )
       })
       .catch((e: unknown) => console.warn('W_PHONE_CORE_START_FAILED', errorCode(e)))
     return () => {

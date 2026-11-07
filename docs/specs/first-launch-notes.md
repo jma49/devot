@@ -10,5 +10,6 @@ Copies that were both edited keep both texts whole, one after the other, never m
 The text is bundled Markdown in `src/renderer/src/welcome/`; `{{key:<command>}}` is replaced with the command's default key from the registry.
 Storage writes them in one call (`StorageAdapter.seedWelcome`), which the app's store answers with its own bundled copy (`welcome_seed` in `src-tauri/src/commands/welcome.rs`, from `welcome_seed.json`): it takes only the clock stamp and the time, never text, so the licence gate lets it through without a licence (`Write::Welcome`, docs/specs/licences.md) and a library that has never held anything gets the notes before a trial or a purchase.
 It writes nothing once the library holds any note, any notebook but Templates, anything in the Trash, or a row with one of the notes' IDs, however deleted or purged.
+A start lists the library first and asks for the seed only when the lists show it has never held anything (`listSeeded` in `src/renderer/src/welcome/seed.ts`), then lists it again; every later start lists once and never builds or sends the seed.
 `src/renderer/src/welcome/content.test.ts` checks that the bundled copy is the seed the window's text makes; after changing the text, `pnpm vitest run src/renderer/src/welcome -u` writes it again.
 The UI tests' libraries start empty unless a test sets `devotSeedWelcome`.

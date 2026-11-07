@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import type { TakenIn } from '../../core'
+import type { ListedLibrary, TakenIn } from '../../core'
 import { errorCode, onRestoreElsewhere } from './backups'
 import { startCore, stopCore, type Core } from './core-client'
 import { listenExitCancelled } from './exitCancelled'
@@ -9,6 +9,7 @@ import type { RelayLink } from './noteRelay'
 import type { QuitGuard } from './saving'
 import { answerAsked, listenCloseAsked, saveEdits } from './saveGuards'
 import { welcomeContent } from './welcome/content'
+import { listSeeded } from './welcome/seed'
 
 export function useCoreSession() {
   const [core, setCore] = useState<Core>()
@@ -60,7 +61,7 @@ export function useCoreStart(
     primary: boolean
     lists: { wrote: () => void }
     relay: { link: RelayLink }
-    refresh: (c: Core) => Promise<unknown>
+    refresh: (c: Core) => Promise<ListedLibrary>
     nextSheet: () => void
     onSaveProblems: Parameters<typeof startCore>[0]
     showWrites: (writes: ReadonlyMap<string, number>) => void
@@ -83,17 +84,14 @@ export function useCoreStart(
         started = c
         if (!alive) return stopCore(c)
         adopt(c)
-        // A library that has never held anything starts with a few notes. The
-        // UI tests' libraries start empty, unless a test asks for the notes.
-        if (
+        // The UI tests' libraries start empty, unless a test asks for the first-launch notes.
+        const seeds =
           primary &&
           (!DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome)
-        ) {
-          await c.seedWelcome(welcomeContent()).catch((e: unknown) => {
-            console.warn('W_WELCOME_FAILED', errorCode(e))
-          })
-        }
-        await refresh(c)
+        await listSeeded(
+          () => refresh(c),
+          seeds ? () => c.seedWelcome(welcomeContent()) : undefined,
+        )
         setListsLoaded(true)
         nextSheet()
       })

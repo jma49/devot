@@ -25,6 +25,7 @@ import type { NoteService } from './notes'
 import { isStarterTemplate, type StarterTemplate } from './starterTemplates'
 import type { BookRecord, NoteStatus, NoteSummary, StorageAdapter } from './storage'
 import { sameName, type TagService } from './tags'
+import { splitTemplates } from './libraryLists'
 import { lineFeeds } from './text'
 
 const TEMPLATES_BOOK_NAME = 'Templates'
@@ -282,14 +283,7 @@ export function createTemplateService(options: TemplateServiceOptions): Template
     list: async () =>
       (await storage.listNotes()).filter((note) => note.bookId === TEMPLATES_BOOK_ID),
 
-    async listWithNotes() {
-      const library: NoteSummary[] = []
-      const templates: NoteSummary[] = []
-      for (const note of await storage.listNotes()) {
-        ;(note.bookId === TEMPLATES_BOOK_ID ? templates : library).push(note)
-      }
-      return { notes: library, templates }
-    },
+    listWithNotes: async () => splitTemplates(await storage.listNotes()),
 
     async create(title = '') {
       await ensureBook()

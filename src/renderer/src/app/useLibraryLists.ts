@@ -40,9 +40,12 @@ const trashRow = (n: TrashedNote): NoteSummary => ({
 export function useLibraryLists({
   rerunSearch,
   setResults,
+  listLibrary,
 }: {
   rerunSearch: () => void
   setResults: Dispatch<SetStateAction<SearchResults | undefined>>
+  /** The notes and templates from the page's own storage, so the list is not copied to the core worker and back. */
+  listLibrary: () => Promise<{ notes: NoteSummary[]; templates: NoteSummary[] }>
 }) {
   const [listsLoaded, setListsLoaded] = useState(false)
   const [notes, setNotes] = useState<NoteSummary[]>([])
@@ -60,7 +63,7 @@ export function useLibraryLists({
   const refresh = useCallback(
     async (c: Core) => {
       const [listed, nextBooks, nextTags, nextTrash, nextSearches] = await Promise.all([
-        c.listWithTemplates(),
+        listLibrary(),
         c.listBooks(),
         c.listTags(),
         c.listTrash(),
@@ -79,9 +82,9 @@ export function useLibraryLists({
       // Results follow edits, renames, trash and restore.
       rerunSearch()
       window.dispatchEvent(new CustomEvent(NOTES_LOADED))
-      return { notes: nextNotes, templates: listed.templates, books: nextBooks }
+      return { notes: nextNotes, templates: listed.templates, books: nextBooks, trash: nextTrash }
     },
-    [authorshipChanged, rerunSearch],
+    [authorshipChanged, rerunSearch, listLibrary],
   )
 
   // Every note write dates the note in the lists at once, so an edited note moves without a reload.
