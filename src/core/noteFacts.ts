@@ -1,6 +1,7 @@
 // What the open note's Note Info summary and card count, read from its Markdown.
 import { taskProgress, type TaskProgress } from './extract'
 import { frontMatter } from './frontMatter'
+import { frontMatterHead } from './frontMatterHead'
 import { noteCounts, type NoteCounts } from './noteCounts'
 import { frontMatterView, type FrontMatterView } from './preview/frontMatterView'
 import type { PreviewNote } from './preview/registry'
@@ -14,15 +15,6 @@ export interface NoteFacts {
 /** What the whole note is counted for, once per pause: the footer's counts and Note Info's. */
 export interface NoteTally extends NoteCounts {
   readonly tasks: TaskProgress
-}
-
-const CLOSE = /(?:\r\n?|\n)---[ \t]*(?=\r\n?|\n|(?![\s\S]))/g
-
-/** The front matter fence and what it holds, so a long note is not parsed whole to find it. */
-export function frontMatterHead(markdown: string): string | null {
-  if (!/^---[ \t]*(?:\r\n?|\n)/.test(markdown)) return null
-  CLOSE.lastIndex = 3
-  return CLOSE.exec(markdown) ? markdown.slice(0, CLOSE.lastIndex) : null
 }
 
 export function noteTally(markdown: string): NoteTally {
