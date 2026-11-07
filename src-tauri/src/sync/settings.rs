@@ -11,6 +11,7 @@ use zeroize::Zeroizing;
 
 use super::client::RelayUrl;
 use super::cloudkit::ICloudState;
+use super::names;
 use super::{SecretStore, SyncError};
 use crate::settings_file::{Codes, SettingsFile};
 
@@ -53,6 +54,14 @@ pub(crate) struct SyncSettings {
     /// place.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rotated: Option<Rotation>,
+    /// How many times this device left a relay vault. It marks the epoch the engine sees, so a
+    /// join after a leave uploads the whole library, even into the vault left.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub leaves: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,6 +99,15 @@ impl SyncSettings {
     /// What this device keeps of `vault` on iCloud, when that vault is on iCloud.
     pub(crate) fn icloud_for(&self, vault: &str) -> Option<&ICloudState> {
         self.icloud.as_ref().filter(|state| state.vault == vault)
+    }
+
+    /// The epoch the engine sees for the store's `epoch`: marked for store names, and for each leave.
+    pub(crate) fn engine_epoch(&self, epoch: &str) -> String {
+        let epoch = names::epoch(epoch);
+        match self.leaves {
+            0 => epoch,
+            leaves => format!("{epoch}+left{leaves}"),
+        }
     }
 
     /// The successor this device knows of for `vault`, when it found that vault retired.

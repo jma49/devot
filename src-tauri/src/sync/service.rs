@@ -33,6 +33,7 @@ mod devices;
 mod enrollment;
 mod icloud_join;
 mod icloud_move;
+mod leave;
 mod pairing_code;
 mod records;
 mod rotation;
@@ -100,6 +101,9 @@ pub(crate) struct SyncService {
     /// Held while a vault switches to iCloud, so a move the owner asked for and one finished at a
     /// pass never make two device IDs.
     switching: Mutex<()>,
+    /// Held through a connect and a leave, so a connect under way keeps nothing of a vault left.
+    /// Taken before `switching`.
+    membership: Mutex<()>,
     /// Moves this service's clock in tests of expiry.
     shifted: AtomicI64,
     /// Fails the next switch to iCloud as if the app quit just before it.
@@ -114,7 +118,13 @@ pub(crate) struct SyncService {
     /// Fails the next retire of a rotation as if the app quit just before it.
     #[cfg(test)]
     quits_before_retire: std::sync::atomic::AtomicBool,
+    /// Holds the next connect once it has the vault and the token, until the test lets it go.
+    #[cfg(test)]
+    pauses_connect: Mutex<Option<ConnectPause>>,
 }
+
+#[cfg(test)]
+type ConnectPause = (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>);
 
 const MAX_SAFE: u64 = 9_007_199_254_740_991;
 
@@ -156,6 +166,7 @@ impl SyncService {
             handover: Arc::new(SyncedKeychain::new(handover::SERVICE, false)),
             look: Mutex::new(None),
             switching: Mutex::new(()),
+            membership: Mutex::new(()),
             shifted: AtomicI64::new(0),
             #[cfg(test)]
             quits_before_switch: std::sync::atomic::AtomicBool::new(false),
@@ -165,6 +176,8 @@ impl SyncService {
             fails_marker: std::sync::atomic::AtomicBool::new(false),
             #[cfg(test)]
             quits_before_retire: std::sync::atomic::AtomicBool::new(false),
+            #[cfg(test)]
+            pauses_connect: Mutex::new(None),
         }
     }
 
@@ -210,6 +223,26 @@ impl SyncService {
     #[cfg(test)]
     pub(crate) fn quit_before_next_retire(&self) {
         self.quits_before_retire.store(true, Ordering::Relaxed);
+    }
+
+    /// Returns where the next connect says it paused, and where the test lets it go on.
+    #[cfg(test)]
+    pub(crate) fn pause_next_connect(
+        &self,
+    ) -> (std::sync::mpsc::Receiver<()>, std::sync::mpsc::Sender<()>) {
+        let (paused, on_pause) = std::sync::mpsc::channel();
+        let (go, on_go) = std::sync::mpsc::channel();
+        *self.pauses_connect.lock().unwrap() = Some((paused, on_go));
+        (on_pause, go)
+    }
+
+    #[cfg(test)]
+    fn wait_if_paused(&self) {
+        let pause = self.pauses_connect.lock().unwrap().take();
+        if let Some((paused, go)) = pause {
+            paused.send(()).unwrap();
+            go.recv().unwrap();
+        }
     }
 
     /// From the settings alone, without the keychain `snapshot` reads.

@@ -1311,6 +1311,15 @@ fn a_leave_that_failed_part_way_is_retried_to_the_same_end() {
 }
 
 #[test]
+fn leaving_a_relay_vault_is_refused_for_a_vault_on_icloud() {
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    mac.service.use_icloud(None, 0).unwrap();
+    assert_eq!(mac.service.leave_vault().err(), Some("E_SYNC_LEAVE_ICLOUD"));
+    assert!(held(&mac).is_some() && mac.service.snapshot().enabled);
+}
+
+#[test]
 fn a_device_that_connects_part_way_through_a_leave_stops_instead_of_making_the_vault_again() {
     use super::cloudkit::error::code;
     use super::cloudkit::kit::CkError;
@@ -1681,6 +1690,25 @@ mod moving_from_a_relay {
         assert_eq!(snapshot.transport, "relay");
         assert!(!snapshot.move_started);
         assert_eq!(moving(&mac), "");
+    }
+
+    #[test]
+    fn leaving_the_relay_vault_calls_off_a_move_to_icloud_under_way() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, _phone) = two_on_relay(&relay, &kit);
+        quit_after_the_marker(&mac, &kit);
+        assert!(mac.service.snapshot().move_started);
+        let left = mac.service.leave_vault().unwrap();
+        assert!(!left.vault && !left.move_started);
+        assert_eq!(moving(&mac), "");
+        assert_eq!(kept_unseen(&mac), None);
+        mac.service.report(stopped_on_the_marker()).unwrap();
+        assert_eq!(
+            mac.service.snapshot().transport,
+            "relay",
+            "no move finishes"
+        );
     }
 
     #[test]

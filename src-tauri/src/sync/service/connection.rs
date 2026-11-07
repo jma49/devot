@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 
+use super::super::Vault;
 use super::super::client::{self, Connection, Event, RelayUrl, Welcome};
 use super::super::cloudkit::{self, ICloud, ICloudState};
 use super::super::settings::DeviceCredentials;
-use super::super::{Vault, names};
 use super::{
     Connected, DEVICE_LABEL, Live, LiveRef, PAIRING_EVENT, REVOKED, SOCKET_EVENT, SyncService,
     VAULT_ROTATED,
@@ -15,6 +15,7 @@ impl SyncService {
     /// `has_synced` is the library's own "has synced" state (`sync_state`), which decides on
     /// iCloud whether a vault zone found gone is a deletion to ask about.
     pub(crate) fn connect(&self, has_synced: bool) -> Result<Connected, &'static str> {
+        let _membership = self.membership.lock().map_err(|_| "E_SYNC_INTERNAL")?;
         let settings = self.settings.get();
         if !settings.enabled {
             return Err("E_SYNC_OFF");
@@ -30,7 +31,7 @@ impl SyncService {
                 .connect_icloud(vault, state, has_synced)
                 .map(|welcome| {
                     Connected::ICloud(cloudkit::Welcome {
-                        epoch: names::epoch(&welcome.epoch),
+                        epoch: settings.engine_epoch(&welcome.epoch),
                         ..welcome
                     })
                 });
@@ -50,6 +51,8 @@ impl SyncService {
                 Some(c) if c.fits(relay.as_str(), &vault_id) => c,
                 _ => self.enroll_here(&relay, &vault)?,
             };
+        #[cfg(test)]
+        self.wait_if_paused();
         self.disconnect();
         let opened = match self.open(&relay, &vault_id, &credentials.token) {
             // The relay's own secret changed, which makes every token invalid: enroll again.
@@ -75,7 +78,7 @@ impl SyncService {
             vault: Arc::new(vault),
         });
         Ok(Connected::Relay(Welcome {
-            epoch: names::epoch(&welcome.epoch),
+            epoch: settings.engine_epoch(&welcome.epoch),
             ..welcome
         }))
     }

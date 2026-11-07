@@ -57,6 +57,13 @@ pub async fn sync_vault_rotate(
     .await
 }
 
+/// Leaves the relay vault this device holds: its key and token go here, its notes stay, and
+/// nothing changes on the relay or the other devices.
+#[tauri::command]
+pub async fn sync_vault_leave(sync: State<'_, Arc<SyncService>>) -> Result<Snapshot, String> {
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", SyncService::leave_vault).await
+}
+
 /// The recovery key until this device says it was saved; then `null`.
 #[tauri::command]
 pub async fn sync_recovery_key(
