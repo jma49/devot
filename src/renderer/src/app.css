@@ -8280,26 +8280,18 @@ dialog[open].sheet.import {
   mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-depth, 0px));
 }
 
-/* No deeper than the pane has scrolled (app/useScrollEdges.ts), so the first line keeps its colour until it reaches the edge. */
-.content[data-scrolled] > .panes:not(.panes-split) {
-  --scroll-edge-size: min(
-    var(--size-scroll-edge),
-    var(--pane-scrolled-by, var(--size-scroll-edge))
-  );
+/* The depth scrolled (app/useScrollEdges.ts), set on the element whose fade it sizes: inherited, it would restyle
+   every block of the preview on every scroll. */
+@property --scrolled-by {
+  syntax: '*';
+  inherits: false;
 }
 
-.panes-split[data-editor-scrolled] > .editor {
-  --scroll-edge-size: min(
-    var(--size-scroll-edge),
-    var(--editor-scrolled-by, var(--size-scroll-edge))
-  );
-}
-
+/* No deeper than the pane has scrolled, so the first line keeps its colour until it reaches the edge. */
+.content[data-scrolled] > .panes:not(.panes-split),
+.panes-split[data-editor-scrolled] > .editor,
 .panes-split[data-preview-scrolled] > .preview {
-  --scroll-edge-size: min(
-    var(--size-scroll-edge),
-    var(--preview-scrolled-by, var(--size-scroll-edge))
-  );
+  --scroll-edge-size: min(var(--size-scroll-edge), var(--scrolled-by, var(--size-scroll-edge)));
 }
 
 :root[data-motion='reduced'] .content > .panes,

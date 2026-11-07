@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useEditorSetting } from '../editorSettings'
 import { editorOnly, type Mode } from '../ModeControl'
 import { syncScrolling, type ScrollPane } from '../preview/scrollSync'
-import { isScrolled, scrolledBy } from '../scrollEdge'
+import { hideScrolledBy, isScrolled, showScrolledBy } from '../scrollEdge'
 
 /** The open note's scroll panes: the edges they show scrolled, and Split keeping them at the same line. */
 export function useScrollEdges({
@@ -22,18 +22,24 @@ export function useScrollEdges({
     const panes = panesRef.current
     const content = panes?.closest('.content')
     if (!panes || !content) return
-    const style = (el: Element) => (el as HTMLElement).style
+    // On the element whose fade it sizes: on .panes or .content it would restyle every block of the preview.
+    const faded = new Set<HTMLElement>()
+    const show = (pane: HTMLElement | null, top: number) => {
+      if (!pane) return
+      faded.add(pane)
+      showScrolledBy(pane, top)
+    }
     const update = () => {
       const editorTop = editorPane?.element.scrollTop ?? 0
       const previewTop = previewPane?.element.scrollTop ?? 0
       const editor = isScrolled(editorTop)
       const preview = isScrolled(previewTop)
-      const leadTop = editorOnly(mode) ? editorTop : mode === 'preview' ? previewTop : 0
       panes.toggleAttribute('data-editor-scrolled', editor)
       panes.toggleAttribute('data-preview-scrolled', preview)
-      style(panes).setProperty('--editor-scrolled-by', scrolledBy(editorTop))
-      style(panes).setProperty('--preview-scrolled-by', scrolledBy(previewTop))
-      style(content).setProperty('--pane-scrolled-by', scrolledBy(leadTop))
+      if (mode === 'split') {
+        show(panes.querySelector<HTMLElement>(':scope > .editor'), editorTop)
+        show(panes.querySelector<HTMLElement>(':scope > .preview'), previewTop)
+      } else show(panes, editorOnly(mode) ? editorTop : previewTop)
       content.toggleAttribute(
         'data-scrolled',
         editorOnly(mode) ? editor : mode === 'preview' ? preview : editor || preview,
@@ -45,9 +51,7 @@ export function useScrollEdges({
     return () => {
       for (const el of scrollers) el.removeEventListener('scroll', update)
       content.removeAttribute('data-scrolled')
-      style(content).removeProperty('--pane-scrolled-by')
-      style(panes).removeProperty('--editor-scrolled-by')
-      style(panes).removeProperty('--preview-scrolled-by')
+      for (const pane of faded) hideScrolledBy(pane)
       panes.removeAttribute('data-editor-scrolled')
       panes.removeAttribute('data-preview-scrolled')
     }
