@@ -180,7 +180,10 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The note screen pushes as any note does, with nothing beneath it changing that the user can see, and no motion of its own.
   A list that shows the note slides in under it in the same push when the screen below would not list it.
   The keyboard rises with the push, held by a hidden field the tap focused, and the body takes it with the caret once the push has landed; the screen makes room for the keyboard only then.
-  Under Reduce Motion the push crossfades.
+  Under the native screens the tap pushes the new note's screen in the same turn with the system's push, before the note exists; its cover holds, with no title, until the note exists and the page has painted it, then fades as any note's cover does.
+  There the list the note belongs to is moved to under the list's still, so Back lands on the note's row.
+  There the keyboard rises once the push has landed, held by a hidden native field, and the body then takes it; where the page takes no caret (a note that opens in Preview) it goes down again at once.
+  Under Reduce Motion the push crossfades, and under the native screens the system decides its look.
 - **Returning from a new note:** rule 2.
   The note's row is already in place when the list comes back, and nothing moves into the list: the row only fades out of the accent wash over `motion.duration.phone-flash`.
   An untouched new note (no title, no body, no chip changed) is gone before the list shows, with no motion and no toast.
@@ -198,6 +201,9 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Not Now, Escape and a drag down close it the same way.
   Its contents never animate: a check in progress or a message replaces its line at once (rule 2).
   A tap while it is up raises no second sheet.
+  Under the native screens the tap pushes nothing: the sheet rises in the same turn with the system's sheet motion, the haptic made ready while a locked list shows, and the grabber closes it too; nothing behind it takes a touch while it is up.
+  There, when the sheet's own action unlocked writing, New Note pushes once the sheet has gone, never under a falling sheet.
+  There a write Rust refuses although the snapshot let it through pops its screen under its cover, with nothing ever shown in it, and then the sheet rises.
   Under Reduce Motion it crossfades, as any sheet does.
 - **Mac licence key sheet** (App Store builds, Settings > Get a Mac License Key): rule 3, as the detail sheet. Getting the key, the key, a failure and Copied appear in place with no motion (rule 2). Copy Key, Share and Try Again press as glass controls; Share opens the system share sheet, which rises from the bottom with its own motion.
 - **Restore Purchases row:** rule 2. The row presses as any Settings row; its value changes in place to Restoring and then to the outcome.

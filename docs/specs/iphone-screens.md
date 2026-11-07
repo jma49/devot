@@ -211,6 +211,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 | `nav.back`                                  | page → Swift | the page left the note (it was trashed from Info): Swift pops its screen                                                |
 | `editor.prepare { noteId }`                 | Swift → page | a native row was pressed: the core opens and holds the note so its bytes are in memory                                  |
 | `editor.show { noteId }`                    | Swift → page | the web view is in the note's screen: the page swaps the note into its one editor and shows it                          |
+| `editor.focus`                              | Swift → page | a new note's push has landed with the keyboard up: the page puts the caret in the body and answers `{ focused }`        |
 | `editor.hide`                               | Swift → page | the web view is back in a list: the page hides its editor and answers once the list is painted                          |
 | `editor.setMode { mode }`                   | Swift → page | the bar's toggle: `edit` or `preview`; Edit still goes through the write gate                                           |
 | `editor.info`                               | Swift → page | the bar's Info button: the page opens Note Info                                                                         |
@@ -221,6 +222,10 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 | `editor.insets { bottom, duration, curve }` | Swift → page | the keyboard moved; the page sets its bottom inset and CodeMirror's scroll margin at once and animates nothing          |
 | `editor.format { id }`                      | Swift → page | a button on the native formatting bar, by the editor's format ID                                                        |
 | `editor.gate { what }`                      | page → Swift | a write was tried while writes are locked: Swift opens the gate's sheet                                                 |
+| `note.new { bookId? }`                      | page → Swift | New Note in a list's capsule: Swift's gate decides, then pushes the editor and asks for the note                        |
+| `note.create { bookId? }`                   | Swift → page | the core makes an empty note and answers `{ id, rev }`, `rev` being its write's `notes.changed` revision                |
+| `note.discard { noteId }`                   | Swift → page | a new note's screen left untouched: the page purges the note if it is still as made                                     |
+| `licence.changed`                           | Rust → Swift | the licence changed: Swift reads its snapshot again; only Rust may send it                                              |
 
 - Each message joins the bridge with the change that first sends it: `editor.prepare` with the native lists, `editor.show`'s `focus` with New Note, and `editor.insets`, `editor.format` and `editor.gate` with the native toolbar and gate.
 - Until the lists are native, the page prepares a note itself when a finger lands on its row (`phone/screens/prepared.ts`): it holds and opens the note, and the editor takes the opened state when Swift shows it; a note no tap took is let go after 1.5 s.
@@ -268,15 +273,32 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
 
 ### New Note
 
-1. New Note is the trailing item of the navigation bar on the Notes root, every notebook's list and Library; a long press offers New Note in a notebook and From Template.
-2. On a tap the gate reads Swift's licence snapshot.
-   When writes are locked it opens its sheet, plays the warning haptic, and pushes and creates nothing; an unlock from the sheet runs New Note once, after the sheet has gone.
-3. Otherwise Swift pushes `EditorScreen` at once with an empty title on the cover, and sends `note.create { bookId }` in the same frame; its reply is followed by `editor.show { noteId, focus: "body" }`.
-   The notebook is the one New Note files into on the Mac: the view's notebook, else the default notebook, else none.
-4. The snapshot only decides what the screen shows; Rust's write gate decides what is stored.
-   If the core answers a licence code, Swift pops the editor while its cover is still up, opens the gate's sheet once the pop completes and reads the licence again; the user sees no code.
-5. The keyboard rises after the push has settled, on the system's curve, by the path the keyboard spike chooses.
-6. Back from a new note left untouched purges it when its screen leaves the stack, and removes its row without animation before the pop's first frame.
+1. Until the lists are native, New Note is the button in the page's list capsule; the page sends `note.new` with the notebook New Note files into on the Mac: the view's notebook, else the default notebook, else none.
+   A template list keeps the page's own flow.
+2. Swift's gate (below) decides from its licence snapshot alone, in the same turn as the tap.
+   When writes are locked it shows its sheet and pushes and creates nothing.
+3. Otherwise Swift pushes a new `EditorScreen` at once with no title on its cover, which holds without a timeout until the note exists, and sends `note.create { bookId }` in the same turn.
+   Its reply `{ id, rev }` is followed by `editor.show { noteId, focus: "body" }` once the screen holds the web view; `focus` only lets the page take the caret.
+4. The keyboard follows spike S2: once the push has landed (`viewDidAppear`), a hidden 1 by 1 native field becomes first responder, then the web view does, then `editor.focus` asks the page to focus the body.
+   When the page answers anything but `{ focused: true }` (a note that opens in Preview), Swift ends editing and the keyboard goes down.
+5. If the core answers a licence code (`E_LICENCE_REQUIRED`, `E_LICENCE_UNREADABLE`), Swift logs `W_PHONE_WRITE_LOCKED op=note.create code=…`, pops the screen while its cover is still up, and once the pop completes reads the licence again and shows the gate's sheet with nothing held; any other code pops it with `W_PHONE_NEW_NOTE_FAILED code=…`.
+   The user never sees a code.
+6. Swift marks a new note touched when a `notes.changed` with a later `rev` than its create names it.
+   When a new note's screen is in no stack any more (its pop completed, before `editor.hide`, or the create answered after the screen had gone), Swift sends `note.discard` for an untouched one; a back swipe turned back keeps it.
+   The page checks again that the note is still as made (no title, no body, no chip changed) before it purges it, so a missed `notes.changed` keeps an empty note rather than losing a word.
+7. The list under the pushed editor is the page's list for the note, moved to under the list's still; native lists replace it in stage 2.
+
+### The gate
+
+- Every write the native screens start goes through one `ProGate` (`UI/ProGate.swift`), which decides from the licence snapshot (`UI/LicenceSnapshotStore.swift`) and never waits on the bridge.
+- The snapshot is only the UI's guess: Rust's write gate refuses every locked write whatever Swift decided, and a snapshot not yet read lets the write go to Rust's gate.
+- The snapshot is read through `direct.licence.get` each time the app becomes active, when Rust sends `licence.changed`, when Settings shows, and before a held write runs again.
+- Locked, the gate shows one surface, as `lockSurface` in `requireEditing.ts` chooses it, and holds the write's intent (what was picked, never text): the purchase sheet headed for the state in an App Store build that needs a purchase, otherwise the short Pro sheet (checking, key, attention, seat or unreadable).
+  `tests/fixtures/licence-gate.json` holds both sides to the same table.
+- A tap while the surface is up shows no second one.
+- The intent runs only when the sheet's own action (a purchase, Restore Purchases or Try Again) unlocked writing, in the sheet's dismissal completion, through the gate again after a fresh read; it is dropped when the sheet goes without one, when the app leaves the foreground, and after 10 minutes.
+- Enter License Key and Open License Settings close the sheet, drop the intent and open License over the Settings root.
+- The debug launch argument `-DevotLicenceFixture A1|A2|A3|K1|K2|X1` (`Debug/LicenceFixture.swift`) fixes the snapshot for the UI tests; Rust, which does not gate a debug build, still takes every write.
 
 ## Glass map
 
