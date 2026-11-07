@@ -19,10 +19,11 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
   const { relay, relayChanges } = k.relay
   const liveNote = (record: NoteRecord, doc: Y.Doc, fresh: boolean): Live => {
     relayChanges(record.id, doc)
-    return {
+    const note: Live = {
       record,
       saved: record,
       doc,
+      state: undefined,
       timer: undefined,
       edits: 0,
       savedEdits: 0,
@@ -42,6 +43,10 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
         title: undefined,
       },
     }
+    doc.on('update', () => {
+      note.state = undefined
+    })
+    return note
   }
 
   const drop = (note: Live) => {
@@ -120,6 +125,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
             bodyMd: doc.getText(BODY).toString(),
           }
           const note = liveNote(record, doc, false)
+          note.state = opened.ydoc
           note.users = pending.users
           live.set(id, note)
           if (options.relay) relay({ kind: 'want', noteId: id, data: Y.encodeStateVector(doc) })

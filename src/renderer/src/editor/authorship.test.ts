@@ -101,7 +101,7 @@ describe('the marks’ state', () => {
     expect(typed.field(field).segments).toEqual([{ fromLine: 3, toLine: 3, writeIds: [write!.id] }])
   })
 
-  it('reads no runs into a state whose text is not yet the replica’s', () => {
+  it('reads the replica’s runs into a note shown again with its kept history', () => {
     const writer = newWriter('mcp', 'Claude Code', 'p')
     const core = new Y.Doc()
     core.getText('body').insert(0, 'hello\n')
@@ -129,6 +129,18 @@ describe('the marks’ state', () => {
     )
 
     expect(state.doc.toString()).toBe(longer)
+    const fresh = EditorState.create({ doc: longer, extensions: field })
+    expect(state.field(field).runs).toEqual(fresh.field(field).runs)
+    expect(state.field(field).runs).not.toEqual([])
+  })
+
+  it('reads no runs into a state whose text is not the replica’s', () => {
+    const writer = newWriter('mcp', 'Claude Code', 'p')
+    const ydoc = new Y.Doc()
+    ydoc.getText('body').insert(0, 'hello\n')
+    applyAgentEdit(ydoc, { writer, at: 1, markdown: 'hello\nagent line\n' })
+    const field = authoredField(ydoc, 'note')
+    const state = EditorState.create({ doc: 'hello\n', extensions: field })
     expect(state.field(field).runs).toEqual([])
   })
 

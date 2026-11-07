@@ -29,7 +29,7 @@ export function readingMethods(
       using(id, (note) => ({
         id,
         title: note.record.title,
-        state: Y.encodeStateAsUpdate(note.doc, known),
+        state: (known ? undefined : note.state) ?? Y.encodeStateAsUpdate(note.doc, known),
       })),
 
     title: (id) => using(id, (note) => note.record.title),

@@ -109,7 +109,7 @@ export interface Authored {
 }
 
 const NONE: Authored = { runs: [], writes: new Map(), segments: [] }
-/** Not read yet: the state was made from other text than the replica's (a note shown again with its kept history). */
+/** Not read yet: the state was made from other text than the replica's. */
 const UNREAD: Authored = { runs: [], writes: new Map(), segments: [] }
 
 const setAuthored = StateEffect.define<Omit<Authored, 'segments'>>()
@@ -148,12 +148,12 @@ export function rereadAuthored(
 /** The marks of the document's runs: set again after each change to the Yjs document, mapped through the editor's changes until then. */
 export function authoredField(ydoc: Y.Doc, noteId: string) {
   return StateField.define<Authored>({
-    create: (state) => {
-      const text = ydoc.getText(BODY)
-      return text.length === state.doc.length && text.toString() === state.doc.toString()
+    // Every state is made from the replica's text (noteState too); one that is not yet the
+    // replica's has another length, and is read when the replica settles.
+    create: (state) =>
+      ydoc.getText(BODY).length === state.doc.length
         ? withSegments(read(ydoc, noteId), state.doc)
-        : UNREAD
-    },
+        : UNREAD,
     update(value, tr) {
       for (const effect of tr.effects) {
         if (effect.is(setAuthored)) return withSegments(effect.value, tr.state.doc)
