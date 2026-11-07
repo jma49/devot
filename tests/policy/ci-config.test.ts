@@ -239,6 +239,20 @@ it('caches the WebKit download per Playwright version, restored by every shard a
   )
 })
 
+it('keeps the generated Swift tokens and strings current, and compiles them for the iPhone', () => {
+  expect(commands(job('web-checks'))).toEqual(
+    expect.arrayContaining(['pnpm tokens:check', 'pnpm i18n:apple:check', 'pnpm lint']),
+  )
+  expect(scripts['lint']).toContain('node scripts/tokens/swift-literals.ts')
+  expect(
+    commands(job('ios-check')).filter(
+      (command) =>
+        command.startsWith('xcrun --sdk iphonesimulator swiftc -typecheck -swift-version 6') &&
+        command.endsWith('apple/DevotScreens/Sources/DevotScreens/Generated/*.swift'),
+    ),
+  ).toHaveLength(1)
+})
+
 it('builds no UI for the Rust jobs, which compile against a placeholder page', () => {
   // generate_context! needs frontendDist to exist; no Rust test reads the real pages.
   for (const name of ['rust-check', 'ios-check']) {

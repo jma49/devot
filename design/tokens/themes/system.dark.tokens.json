@@ -182,6 +182,16 @@
         },
         "$description": "The wide drop shadow under a glass control."
       },
+      "float-shadow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.22
+        },
+        "$description": "On the native iPhone screens: the shadow under Devot's own glass views (shadow.phone-float-offset and -radius)."
+      },
       "glass-shadow-near": {
         "$type": "color",
         "$value": {
