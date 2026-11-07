@@ -86,7 +86,7 @@ Part of the [design system](design-system.md).
 - **Duplicate** (`duplicateNote` in `src/core/duplicate.ts`): the copy has the original's body (as Yjs state), notebook, status and tags, and the title "<title> copy" (the suffix comes from the message catalog; an untitled note's copy stays untitled, and a title is cut to the title limit).
   It is not pinned: a pin is a place in the list, and two pinned twins would crowd it.
   A tag that cannot be put on the copy is left off and logged by code; the copy is still made.
-- Note list header (`src/renderer/src/ListHeader.tsx`): the toolbar has the sidebar toggle and the view's name over its count (left-aligned, cut off with an ellipsis); New Note is the last control of the search row below it, and a view's own action (Empty in the Trash) takes its place.
+- Note list header (`src/renderer/src/ListHeader.tsx`): the toolbar has the sidebar toggle and the view's name over its count (left-aligned, cut off with an ellipsis); New Note is the last control of the search row below it, and a view's own action takes its place (Empty Trash in the Trash, a round icon button like New Note, named by its label and tooltip).
   Layout is in `design/layout.md`.
 - Note list order (`src/core/sort.ts`, `src/renderer/src/noteSort.ts`): a sort button in the list header opens a native pop-up under it with six check items (title A to Z or Z to A; date updated or date created, newest or oldest first) and Use as Default.
   The order is a view preference kept in the webview's local storage, never in the database, so it does not sync.
@@ -115,6 +115,7 @@ Part of the [design system](design-system.md).
   The column under the pointer is marked as the drop target, except the dragged cards' own column when they all come from it.
   Control+Command+Right and Left (`status.next` and `status.previous`, in Settings > Keyboard Shortcuts, the palette, and the note menu on a board) move each selected card, or the focused one, to the next or previous column; a card in the last column stays.
   Status changes go through the note service as a batch (`applyBatch`), so sync, history and AI tools see ordinary status events; a moved card shows in its new column at once.
+  A status changed another way (a key, a menu, the editor) shows in its new column at once too, so an Undo straight after it takes that change back.
   Each move (a drop or a key press) is one step of the board's own undo history (`createMoveHistory`, the last 50 moves of each board view, kept in memory for the last 20 boards shown, so it lasts across a visit to another view): Cmd+Z and Shift+Cmd+Z while a card or column has the keyboard take the last move back or make it again, each note whose status changed since left alone.
   A move whose write failed keeps only the notes that were written, and a step that changes nothing any more is passed over.
   A view with no notes shows the list's empty message and tip in place of the columns.

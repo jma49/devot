@@ -23,6 +23,7 @@
   "tests/ui/editor-code-blocks.spec.ts": 13304,
   "tests/ui/editor-commands.spec.ts": 50350,
   "tests/ui/editor-menu.spec.ts": 83426,
+  "tests/ui/editor-popup-layer.spec.ts": 12000,
   "tests/ui/editor-settings.spec.ts": 111769,
   "tests/ui/export.spec.ts": 157836,
   "tests/ui/external-changes.spec.ts": 26275,

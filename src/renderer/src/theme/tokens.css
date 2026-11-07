@@ -2322,84 +2322,84 @@
 
 /* The dawn gradient theme: data-theme='dawn' on the root element. */
 :root[data-theme='dawn'] {
-  --backdrop: linear-gradient(160deg, rgb(245 211 230 / 0.7) 0%, rgb(249 233 238 / 0.7) 50%, rgb(250 226 198 / 0.7) 100%);
+  --backdrop: linear-gradient(160deg, rgb(245 196 216 / 0.7) 0%, rgb(248 216 227 / 0.7) 50%, rgb(253 238 220 / 0.7) 100%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme='dawn']:not([data-appearance='light']) {
-    --backdrop: linear-gradient(160deg, rgb(69 41 59 / 0.6) 0%, rgb(47 37 48 / 0.6) 50%, rgb(69 49 31 / 0.6) 100%);
+    --backdrop: linear-gradient(160deg, rgb(74 34 54 / 0.6) 0%, rgb(58 31 44 / 0.6) 50%, rgb(61 44 37 / 0.6) 100%);
   }
 }
 
 :root[data-theme='dawn'][data-appearance='dark'], [data-theme-preview='dawn'][data-appearance-preview='dark'] {
   color-scheme: dark;
-  --backdrop: linear-gradient(160deg, rgb(69 41 59 / 0.6) 0%, rgb(47 37 48 / 0.6) 50%, rgb(69 49 31 / 0.6) 100%);
+  --backdrop: linear-gradient(160deg, rgb(74 34 54 / 0.6) 0%, rgb(58 31 44 / 0.6) 50%, rgb(61 44 37 / 0.6) 100%);
 }
 
 :root[data-theme='dawn'][data-appearance='light'], [data-theme-preview='dawn'][data-appearance-preview='light'] {
   color-scheme: light;
-  --backdrop: linear-gradient(160deg, rgb(245 211 230 / 0.7) 0%, rgb(249 233 238 / 0.7) 50%, rgb(250 226 198 / 0.7) 100%);
+  --backdrop: linear-gradient(160deg, rgb(245 196 216 / 0.7) 0%, rgb(248 216 227 / 0.7) 50%, rgb(253 238 220 / 0.7) 100%);
 }
 
 /* The tide gradient theme: data-theme='tide' on the root element. */
 :root[data-theme='tide'] {
-  --backdrop: linear-gradient(160deg, rgb(205 223 249 / 0.7) 0%, rgb(230 233 248 / 0.7) 50%, rgb(224 214 245 / 0.7) 100%);
+  --backdrop: linear-gradient(160deg, rgb(196 216 247 / 0.7) 0%, rgb(216 227 248 / 0.7) 50%, rgb(198 229 242 / 0.7) 100%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme='tide']:not([data-appearance='light']) {
-    --backdrop: linear-gradient(160deg, rgb(34 49 77 / 0.6) 0%, rgb(36 40 59 / 0.6) 50%, rgb(48 40 73 / 0.6) 100%);
+    --backdrop: linear-gradient(160deg, rgb(30 47 80 / 0.6) 0%, rgb(27 40 65 / 0.6) 50%, rgb(22 58 68 / 0.6) 100%);
   }
 }
 
 :root[data-theme='tide'][data-appearance='dark'], [data-theme-preview='tide'][data-appearance-preview='dark'] {
   color-scheme: dark;
-  --backdrop: linear-gradient(160deg, rgb(34 49 77 / 0.6) 0%, rgb(36 40 59 / 0.6) 50%, rgb(48 40 73 / 0.6) 100%);
+  --backdrop: linear-gradient(160deg, rgb(30 47 80 / 0.6) 0%, rgb(27 40 65 / 0.6) 50%, rgb(22 58 68 / 0.6) 100%);
 }
 
 :root[data-theme='tide'][data-appearance='light'], [data-theme-preview='tide'][data-appearance-preview='light'] {
   color-scheme: light;
-  --backdrop: linear-gradient(160deg, rgb(205 223 249 / 0.7) 0%, rgb(230 233 248 / 0.7) 50%, rgb(224 214 245 / 0.7) 100%);
+  --backdrop: linear-gradient(160deg, rgb(196 216 247 / 0.7) 0%, rgb(216 227 248 / 0.7) 50%, rgb(198 229 242 / 0.7) 100%);
 }
 
 /* The sage gradient theme: data-theme='sage' on the root element. */
 :root[data-theme='sage'] {
-  --backdrop: linear-gradient(160deg, rgb(205 233 215 / 0.7) 0%, rgb(232 241 228 / 0.7) 50%, rgb(242 232 194 / 0.7) 100%);
+  --backdrop: linear-gradient(160deg, rgb(201 230 210 / 0.7) 0%, rgb(220 236 214 / 0.7) 50%, rgb(218 233 191 / 0.7) 100%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme='sage']:not([data-appearance='light']) {
-    --backdrop: linear-gradient(160deg, rgb(33 57 43 / 0.6) 0%, rgb(35 45 38 / 0.6) 50%, rgb(58 56 33 / 0.6) 100%);
+    --backdrop: linear-gradient(160deg, rgb(30 58 42 / 0.6) 0%, rgb(29 42 34 / 0.6) 50%, rgb(47 55 32 / 0.6) 100%);
   }
 }
 
 :root[data-theme='sage'][data-appearance='dark'], [data-theme-preview='sage'][data-appearance-preview='dark'] {
   color-scheme: dark;
-  --backdrop: linear-gradient(160deg, rgb(33 57 43 / 0.6) 0%, rgb(35 45 38 / 0.6) 50%, rgb(58 56 33 / 0.6) 100%);
+  --backdrop: linear-gradient(160deg, rgb(30 58 42 / 0.6) 0%, rgb(29 42 34 / 0.6) 50%, rgb(47 55 32 / 0.6) 100%);
 }
 
 :root[data-theme='sage'][data-appearance='light'], [data-theme-preview='sage'][data-appearance-preview='light'] {
   color-scheme: light;
-  --backdrop: linear-gradient(160deg, rgb(205 233 215 / 0.7) 0%, rgb(232 241 228 / 0.7) 50%, rgb(242 232 194 / 0.7) 100%);
+  --backdrop: linear-gradient(160deg, rgb(201 230 210 / 0.7) 0%, rgb(220 236 214 / 0.7) 50%, rgb(218 233 191 / 0.7) 100%);
 }
 
 /* The ember gradient theme: data-theme='ember' on the root element. */
 :root[data-theme='ember'] {
-  --backdrop: linear-gradient(160deg, rgb(226 208 244 / 0.7) 0%, rgb(243 225 239 / 0.7) 50%, rgb(249 215 194 / 0.7) 100%);
+  --backdrop: linear-gradient(160deg, rgb(249 218 149 / 0.7) 0%, rgb(252 211 170 / 0.7) 50%, rgb(255 198 160 / 0.7) 100%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme='ember']:not([data-appearance='light']) {
-    --backdrop: linear-gradient(160deg, rgb(53 37 72 / 0.6) 0%, rgb(46 35 51 / 0.6) 50%, rgb(74 42 32 / 0.6) 100%);
+    --backdrop: linear-gradient(160deg, rgb(79 59 14 / 0.6) 0%, rgb(74 44 20 / 0.6) 50%, rgb(99 36 25 / 0.6) 100%);
   }
 }
 
 :root[data-theme='ember'][data-appearance='dark'], [data-theme-preview='ember'][data-appearance-preview='dark'] {
   color-scheme: dark;
-  --backdrop: linear-gradient(160deg, rgb(53 37 72 / 0.6) 0%, rgb(46 35 51 / 0.6) 50%, rgb(74 42 32 / 0.6) 100%);
+  --backdrop: linear-gradient(160deg, rgb(79 59 14 / 0.6) 0%, rgb(74 44 20 / 0.6) 50%, rgb(99 36 25 / 0.6) 100%);
 }
 
 :root[data-theme='ember'][data-appearance='light'], [data-theme-preview='ember'][data-appearance-preview='light'] {
   color-scheme: light;
-  --backdrop: linear-gradient(160deg, rgb(226 208 244 / 0.7) 0%, rgb(243 225 239 / 0.7) 50%, rgb(249 215 194 / 0.7) 100%);
+  --backdrop: linear-gradient(160deg, rgb(249 218 149 / 0.7) 0%, rgb(252 211 170 / 0.7) 50%, rgb(255 198 160 / 0.7) 100%);
 }
