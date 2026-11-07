@@ -1,9 +1,10 @@
 use std::ffi::c_void;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use tauri::{Emitter, Manager};
 
+use crate::screens::direct::{self, Services};
 use crate::screens::hub::{Hub, Posted, Taken};
 use crate::screens::message::MAX_MESSAGE_BYTES;
 
@@ -56,7 +57,45 @@ extern "C" fn screens_call(request: u64, json: *const u8, len: usize, reply: Scr
         reply,
         send,
         forward,
+        run_direct,
     );
+}
+
+/// The app's own services, once its launch has managed them all. The database is reached only
+/// through `NoteCounts`, so no Rust-direct request can write a note.
+fn services(app: &tauri::AppHandle) -> Option<Services> {
+    use crate::{ai::Ai, editor_settings, fonts::Fonts, licence, sync};
+    let announcer = app.clone();
+    Some(Services {
+        editor_settings: Arc::clone(
+            app.try_state::<Arc<editor_settings::EditorSettingsStore>>()?
+                .inner(),
+        ),
+        announce: Arc::new(move |next| editor_settings::announce(&announcer, next)),
+        fonts: Arc::clone(app.try_state::<Arc<Fonts>>()?.inner()),
+        ai: Arc::clone(app.try_state::<Arc<Ai>>()?.inner()),
+        licence: Arc::clone(app.try_state::<Arc<licence::Licence>>()?.inner()),
+        shop: licence::app_store::Shop(app.try_state::<licence::app_store::Shop>()?.0.clone()),
+        sync: Arc::clone(app.try_state::<Arc<sync::service::SyncService>>()?.inner()),
+        counts: sync::commands::NoteCounts::of(app.try_state::<crate::storage::Db>()?.inner()),
+    })
+}
+
+/// A Rust-direct request runs on the async runtime and answers Swift once, also when it panics.
+fn run_direct(reply: ScreensReply, asked: direct::Asked) {
+    let id = asked.id;
+    let Some(services) = APP.get().and_then(services) else {
+        return send(reply, id, &direct::refused(id, "E_SCREENS_NOT_READY"));
+    };
+    tauri::async_runtime::spawn(async move {
+        let task =
+            tauri::async_runtime::spawn(async move { direct::answer(&services, asked).await });
+        let json = task.await.unwrap_or_else(|_| {
+            log::error!("E_SCREENS_PANIC id={id}");
+            direct::refused(id, "E_SCREENS_INTERNAL")
+        });
+        send(reply, id, &json);
+    });
 }
 
 fn forward(message: serde_json::Value) -> bool {

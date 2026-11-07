@@ -6,7 +6,8 @@ use std::sync::{Mutex, MutexGuard};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::message::{self, FromPage, Reply};
+use super::direct;
+use super::message::{self, Asked, FromPage, Reply};
 
 /// Requests Swift waits on at once, the page's queue included; far above what one screen asks.
 const MAX_WAITING: usize = 1024;
@@ -29,6 +30,8 @@ pub enum Called<R> {
     Forward(Value),
     /// Held until the page takes it.
     Queued,
+    /// For Rust to answer, page or none.
+    Direct(R, direct::Asked),
 }
 
 #[derive(Debug, PartialEq)]
@@ -88,14 +91,18 @@ impl<R: Copy> Hub<R> {
             log::warn!("W_SCREENS_REQUEST_REFUSED id={request} code={code}");
             Called::Answer(reply, encoded(&Reply::refused(request, code)))
         };
-        let checked = match message::from_swift(request, bytes) {
-            Ok(checked) => checked,
+        let asked = match message::from_swift(request, bytes) {
+            Ok(asked) => asked,
             Err(code) => return refuse(code),
         };
         let mut state = self.state();
         if !state.installed {
             return refuse("E_SCREENS_NOT_INSTALLED");
         }
+        let checked = match asked {
+            Asked::Page(checked) => checked,
+            Asked::Direct(asked) => return Called::Direct(reply, asked),
+        };
         if state.waiting.contains_key(&checked.id) {
             return refuse("E_SCREENS_ID_IN_USE");
         }
@@ -115,8 +122,9 @@ impl<R: Copy> Hub<R> {
     }
 
     /// Swift's call, answered through `send` at most once: refused, forwarded (`forward` says
-    /// whether the page was reached) or queued. A panic on the way abandons the request, and Swift
-    /// hears `E_SCREENS_INTERNAL` unless it was answered already.
+    /// whether the page was reached), queued, or handed to `direct`, which answers it itself. A
+    /// panic on the way abandons the request, and Swift hears `E_SCREENS_INTERNAL` unless it was
+    /// answered already.
     pub fn serve(
         &self,
         request: u64,
@@ -124,6 +132,7 @@ impl<R: Copy> Hub<R> {
         reply: R,
         send: impl Fn(R, u64, &[u8]),
         forward: impl FnOnce(Value) -> bool,
+        direct: impl FnOnce(R, direct::Asked),
     ) {
         let answered = Cell::new(false);
         let answer = |reply: R, json: &[u8]| {
@@ -149,6 +158,10 @@ impl<R: Copy> Hub<R> {
                     }
                 }
                 Called::Queued => {}
+                Called::Direct(reply, asked) => {
+                    direct(reply, asked);
+                    answered.set(true);
+                }
             }
         }));
         if caught.is_ok() {
@@ -394,6 +407,7 @@ mod tests {
             'a',
             |reply, id, json: &[u8]| sent.borrow_mut().push((reply, id, json.to_vec())),
             forward,
+            |_, asked| panic!("{} went to Rust", asked.name),
         );
         sent.into_inner()
     }
@@ -426,6 +440,7 @@ mod tests {
             'b',
             |reply, id, json: &[u8]| sent.borrow_mut().push((reply, id, json.to_vec())),
             |_| true,
+            |_, _| {},
         );
         assert_eq!(
             sent.into_inner(),
@@ -451,6 +466,7 @@ mod tests {
             'b',
             |reply, id, json: &[u8]| sent.borrow_mut().push((reply, id, json.to_vec())),
             |_| true,
+            |_, _| {},
         );
         assert_eq!(
             sent.into_inner(),
@@ -467,6 +483,7 @@ mod tests {
                 panic!("send");
             },
             |_| true,
+            |_, _| {},
         );
         assert_eq!(
             sent.into_inner(),
@@ -484,5 +501,60 @@ mod tests {
         );
         let bad = json!({ "v": 1, "notice": "notes.changed", "rev": 3, "ids": ["x"] });
         assert_eq!(hub.post(&bytes(bad)), Err("E_SCREENS_NOTE_ID_INVALID"));
+    }
+
+    fn licence_get(id: u64) -> Vec<u8> {
+        bytes(json!({ "v": 1, "id": id, "op": "direct.licence.get", "args": {} }))
+    }
+
+    #[test]
+    fn rust_answers_a_direct_request_itself_and_never_hands_it_to_the_page() {
+        let hub = installed();
+        match hub.call(1, &licence_get(1), 'a') {
+            Called::Direct('a', asked) => {
+                assert_eq!((asked.id, asked.name), (1, "direct.licence.get"));
+            }
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(hub.take().pending, Vec::<Value>::new());
+        assert_eq!(hub.post(&ok(1)), Ok(Posted::Unmatched(1)));
+        assert!(matches!(
+            hub.call(1, &licence_get(1), 'b'),
+            Called::Direct('b', _)
+        ));
+        assert_eq!(
+            Hub::<char>::new().call(2, &licence_get(2), 'c'),
+            Called::Answer('c', refusal(2, "E_SCREENS_NOT_INSTALLED"))
+        );
+    }
+
+    #[test]
+    fn serves_a_direct_request_through_its_runner_and_answers_a_panic_there() {
+        let hub = installed();
+        let ran = std::cell::RefCell::new(Vec::new());
+        let sent = std::cell::RefCell::new(Vec::new());
+        let send = |reply, id, json: &[u8]| sent.borrow_mut().push((reply, id, json.to_vec()));
+        hub.serve(
+            3,
+            || Ok(licence_get(3)),
+            'a',
+            send,
+            |_| panic!("forwarded"),
+            |reply, asked| ran.borrow_mut().push((reply, asked.id)),
+        );
+        assert_eq!(ran.into_inner(), vec![('a', 3)]);
+        assert!(sent.borrow().is_empty());
+        hub.serve(
+            4,
+            || Ok(licence_get(4)),
+            'b',
+            send,
+            |_| panic!("forwarded"),
+            |_, _| panic!("run"),
+        );
+        assert_eq!(
+            sent.into_inner(),
+            vec![('b', 4, refusal(4, "E_SCREENS_INTERNAL"))]
+        );
     }
 }
