@@ -18,7 +18,7 @@ export interface PieceNote {
   /** Calls in the note itself, to other notes. */
   calls: Element[]
   marks: number
-  /** The text of its headings to name, in order. */
+  /** The slugs of its headings to name, in order. */
   headings: string[]
   /** Its back reference's label, split where the note's number goes. */
   backLabel: readonly [string, string]

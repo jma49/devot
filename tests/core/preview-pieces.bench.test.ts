@@ -1,5 +1,6 @@
 import { describe, it } from 'vitest'
-import { createPieceRenderer, type PreviewOptions } from '../../src/core'
+import { createPieceRenderer, PIECE_LENGTH, type PreviewOptions } from '../../src/core'
+import { createBlockSplitter, shareSplitter } from '../../src/core/preview/blocks'
 import { createLivePreviewRenderer } from '../../src/core/preview/live'
 import { sampleNote } from '../../scripts/bench/fixtures'
 import { expectWithinBudget } from '../support/budget'
@@ -45,18 +46,24 @@ describe('the live preview of a 250 KB note with footnotes and reference definit
 })
 
 // The pieces before and after an edit are known: cutting the note, keying its pieces and counting
-// its tasks and lines start again only around the edit (about 40 ms per edit at 2 MB when the
-// whole note was cut, keyed and counted again; about 14 ms now on the same machine).
-const BIG_EDIT_BUDGET_MS = 25
+// its tasks and lines start again only around the edit, and the note is cut once for all of them.
+// What is left grows with the count of pieces (on a loaded machine, about 47 ms per edit at 5 MB
+// when the cut compared a character at a time and ran twice; about 15 ms now).
+const BIG_EDIT_BUDGETS_MS: [number, number][] = [
+  [2_000_000, 25],
+  [5_000_000, 30],
+]
 
-describe('the live preview of a 2 MB note', () => {
-  it('renders an edit in the middle within its budget', { timeout: 120_000 }, async (context) => {
+describe.each(BIG_EDIT_BUDGETS_MS)('the live preview of a %d-byte note', (bytes, budget) => {
+  it('renders an edit in the middle within its budget', { timeout: 240_000 }, async (context) => {
+    const noteSplitter = shareSplitter(createBlockSplitter(PIECE_LENGTH))
     const render = createLivePreviewRenderer({
-      renderPieces: createPieceRenderer(),
+      renderPieces: createPieceRenderer({ split: noteSplitter() }),
       linkTargets: async () => ({}),
       onTargetsFailed: () => undefined,
+      split: noteSplitter(),
     })
-    const note = sampleNote(2_000_000)
+    const note = sampleNote(bytes)
     let known = (await render(note, options, [], '')).pieces.map((piece) => piece.key)
     const at = note.indexOf('goes on for a while', note.length / 2)
     // Flat, as a note the page posts arrives.
@@ -70,6 +77,6 @@ describe('the live preview of a 2 MB note', () => {
       times.push(performance.now() - start)
       known = pieces.map((piece) => piece.key)
     }
-    expectWithinBudget(context, median(times), BIG_EDIT_BUDGET_MS)
+    expectWithinBudget(context, median(times), budget)
   })
 })

@@ -173,6 +173,10 @@ export interface NoteSplit {
   was: number[]
 }
 
+// Comparing a slice compares memory; `startsWith` reads a character at a time, about 7 times slower in V8.
+const textAt = (markdown: string, text: string, at: number) =>
+  markdown.slice(at, at + text.length) === text
+
 /**
  * `splitBlocks` for a note that changes a little at a time: each split cuts again only from the
  * block before the first that changed, until a cut meets a block whose text runs unchanged to the
@@ -188,10 +192,7 @@ export function createBlockSplitter(minLength = 1): (markdown: string) => NoteSp
 
   const splitAgain = (markdown: string, before: string, old: readonly Block[]): NoteSplit => {
     let changed = 0
-    while (
-      changed < old.length - 1 &&
-      markdown.startsWith(old[changed]!.text, old[changed]!.offset)
-    )
+    while (changed < old.length - 1 && textAt(markdown, old[changed]!.text, old[changed]!.offset))
       changed += 1
     const from = Math.max(0, changed - 1)
     const delta = markdown.length - before.length
@@ -200,7 +201,7 @@ export function createBlockSplitter(minLength = 1): (markdown: string) => NoteSp
     while (
       same > from + 1 &&
       old[same - 1]!.offset + delta > old[from]!.offset &&
-      markdown.startsWith(old[same - 1]!.text, old[same - 1]!.offset + delta)
+      textAt(markdown, old[same - 1]!.text, old[same - 1]!.offset + delta)
     )
       same -= 1
     const resumes = new Map<number, number>()
@@ -253,5 +254,29 @@ export function createBlockSplitter(minLength = 1): (markdown: string) => NoteSp
           : splitAfresh(markdown)
     last = { markdown, split }
     return split
+  }
+}
+
+/**
+ * One splitter for several readers of the same texts: each text is cut once, and each reader's
+ * `was` names the blocks of the split that reader read before (none when it missed a text).
+ */
+export function shareSplitter(
+  split: (markdown: string) => NoteSplit,
+): () => (markdown: string) => NoteSplit {
+  // Splits are told apart by count, so the one before is not kept with its note's text.
+  let last: (NoteSplit & { markdown: string; count: number }) | undefined
+  return () => {
+    let read = 0
+    return (markdown) => {
+      if (last?.markdown !== markdown) {
+        last = { ...split(markdown), markdown, count: (last?.count ?? 0) + 1 }
+      }
+      const { blocks, count } = last
+      const was =
+        read === count - 1 ? last.was : blocks.map(read === count ? (_, i) => i : () => -1)
+      read = count
+      return { blocks, was }
+    }
   }
 }

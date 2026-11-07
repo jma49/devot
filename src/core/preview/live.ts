@@ -26,6 +26,8 @@ export interface LivePreviewSources {
   ) => Promise<PreviewPiece[]>
   linkTargets: (ids: readonly string[]) => Promise<Targets>
   onTargetsFailed: () => void
+  /** A reader of the splitter `renderPieces` cuts with (`shareSplitter`), so a text is cut once. */
+  split?: (markdown: string) => NoteSplit
 }
 
 /** Link targets asked for at once by different previews (scopes) kept before the oldest is dropped. */
@@ -91,7 +93,7 @@ export function createLivePreviewRenderer(
   scope: string,
 ) => Promise<LivePreview> {
   const kept = new Map<string, Promise<Targets | undefined>>()
-  const facts = createSplitFacts(createBlockSplitter(PIECE_LENGTH))
+  const facts = createSplitFacts(sources.split ?? createBlockSplitter(PIECE_LENGTH))
 
   const targetsFor = (ids: string[], scope: string): Promise<Targets | undefined> => {
     if (ids.length === 0) return Promise.resolve({})

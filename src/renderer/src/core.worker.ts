@@ -42,7 +42,13 @@ import { createClock } from '../../core/hlc'
 import { createIdGenerator } from '../../core/ids'
 import { createNoteService } from '../../core/notes/service'
 import { observeWrites } from '../../core/observeWrites'
-import { createPieceRenderer, createPreviewRegistry, renderPreview } from '../../core/preview'
+import {
+  createPieceRenderer,
+  createPreviewRegistry,
+  PIECE_LENGTH,
+  renderPreview,
+} from '../../core/preview'
+import { createBlockSplitter, shareSplitter } from '../../core/preview/blocks'
 import { createSavedSearchService } from '../../core/savedSearches'
 import { createTagService } from '../../core/tags'
 import { createTemplateService } from '../../core/templates'
@@ -108,7 +114,9 @@ let coreParts:
 let previewRegistry = createPreviewRegistry({ builtins: true })
 let pluginRevision = 0
 let pluginRender: RenderPluginBlock | undefined
+const noteSplitter = shareSplitter(createBlockSplitter(PIECE_LENGTH))
 const pieces = createPieceRenderer({
+  split: noteSplitter(),
   registry: {
     register: (renderer) => previewRegistry.register(renderer),
     ids: () => previewRegistry.ids(),
@@ -126,6 +134,7 @@ const livePreview = createLivePreviewRenderer({
     pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
   linkTargets: (ids) => required().linkTargets(ids),
   onTargetsFailed: () => console.warn('W_LINK_TARGETS_FAILED'),
+  split: noteSplitter(),
 })
 
 const requiredTags = () => {

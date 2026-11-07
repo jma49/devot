@@ -32,7 +32,7 @@ import {
   type PieceFootnotes,
   type PieceNote,
 } from './footnotes'
-import { createSlugger, headingIds, ID_PREFIX } from './headingIds'
+import { createSlugger, headingIds, ID_PREFIX, slug as headingSlug } from './headingIds'
 import { remarkHighlightMarks } from './highlightMarks'
 import { remarkSoftBreaks } from './softBreaks'
 import {
@@ -284,7 +284,7 @@ export interface PiecePart {
 interface Rendered {
   id: number
   nodes: RootContent[]
-  headings: { node: Element; text: string }[]
+  headings: { node: Element; slug: string }[]
   footnotes: PieceFootnotes
   length: number
   // What the text may refer to, and what it defines.
@@ -326,7 +326,7 @@ function unnamedHeadings(nodes: readonly RootContent[], out: Rendered['headings'
     )
       continue
     if (HEADING.test(node.tagName) && node.properties['id'] === undefined) {
-      out.push({ node, text: textOf(node) })
+      out.push({ node, slug: headingSlug(textOf(node)) })
     }
     unnamedHeadings(node.children, out)
   }
@@ -510,7 +510,7 @@ export function createPieceRenderer({
       note.marks = marksIn(note.item)
       const named: Rendered['headings'] = []
       unnamedHeadings(note.item.children, named)
-      note.headings = named.map((heading) => heading.text)
+      note.headings = named.map((heading) => heading.slug)
     }
     for (const id of noteVersions.keys()) {
       if (noteVersions.size <= KEPT_NOTE_VERSIONS) break
@@ -689,8 +689,8 @@ export function createPieceRenderer({
       const { id, nodes, headings, footnotes } = rendered[i]!
       let key = String(id)
       if (next) {
-        const named = headings.map(({ node, text }) => {
-          const slug = next(text)
+        const named = headings.map(({ node, slug: base }) => {
+          const slug = next(base)
           if (slug) node.properties['id'] = ID_PREFIX + slug
           else delete node.properties['id']
           return slug
@@ -726,7 +726,7 @@ export function createPieceRenderer({
       listed.push({ ...defined, index, count: numbering.counts.get(id)!, calls })
     }
     if (listed.length === 0) return pieces
-    const named = listed.map(({ note }) => (next ? note.headings.map((text) => next(text)) : []))
+    const named = listed.map(({ note }) => (next ? note.headings.map((base) => next(base)) : []))
     const key = `notes ${listed
       .map(
         ({ note, index, count, calls }, at) =>

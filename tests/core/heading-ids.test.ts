@@ -60,7 +60,8 @@ describe('slug', () => {
 
 describe('createSlugger', () => {
   it('numbers repeats and avoids a heading named like a repeat', () => {
-    const next = createSlugger()
+    const name = createSlugger()
+    const next = (text: string) => name(slug(text))
     expect([next('A'), next('A'), next('a'), next('a-1'), next('A')]).toEqual([
       'a',
       'a-1',
