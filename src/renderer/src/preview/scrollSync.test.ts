@@ -395,6 +395,91 @@ describe('previewScrollPane', () => {
     }
   })
 
+  it('agrees with measuring every block when blocks inside a piece go back up', () => {
+    stubResizeObserver()
+    const check = (pieces: FakeBlock[][], lines: number, height: number) => {
+      const all = measuredAll(pieces, lines, height)
+      const preview = fakePreview(pieces, height)
+      const pane = previewScrollPane(preview.scroller)
+      pane.rendered(lines, preview.runs)
+      for (let at = 0; at <= lines + 2; at += 0.5)
+        expect([at, pane.offsetOf(at)]).toEqual([at, topOf(all, at)])
+      for (let at = 0; at <= height - 100; at += 5) {
+        preview.element.scrollTop = at
+        expect([at, pane.topLine()]).toEqual([at, lineAt(all, at)])
+      }
+      pane.dispose()
+    }
+    check(
+      [
+        [{ line: 1, top: 0 }],
+        [
+          { line: 10, top: 100 },
+          { line: 5, top: 50 },
+        ],
+        [
+          { line: 7, top: 70 },
+          { line: 20, top: 200 },
+        ],
+        [{ line: 22, top: 240 }],
+      ],
+      24,
+      400,
+    )
+    // Each piece reaches past every block before it somewhere, not always at its end.
+    let seed = 11
+    const random = () => (seed = (seed * 48_271) % 2_147_483_647) / 2_147_483_647
+    const step = (n: number) => Math.floor(random() * n)
+    for (let note = 0; note < 40; note += 1) {
+      const pieces: FakeBlock[][] = []
+      let line = 1
+      let top = 0
+      for (let piece = 0; piece < 30; piece += 1) {
+        const count = step(4)
+        const high = step(count)
+        const blocks: FakeBlock[] = []
+        for (let k = 0; k < count; k += 1)
+          blocks.push(
+            k === high
+              ? { line: line + 1 + step(3), top: top + 15 + step(3) * 15 }
+              : {
+                  line: Math.max(1, line - 3 + step(7)),
+                  top: Math.max(0, top - 30 + step(5) * 15),
+                },
+          )
+        for (const block of blocks) {
+          line = Math.max(line, block.line)
+          top = Math.max(top, block.top)
+        }
+        pieces.push(blocks)
+      }
+      check(pieces, line + 3, top + 300)
+    }
+  })
+
+  it('measures a kept piece afresh when it changed inside along with a render', () => {
+    stubResizeObserver()
+    const pieces = [
+      [
+        { line: 1, top: 0 },
+        { line: 3, top: 40 },
+      ],
+      [{ line: 6, top: 100 }],
+    ]
+    const preview = fakePreview(pieces, 200)
+    const pane = previewScrollPane(preview.scroller)
+    pane.rendered(8, preview.runs)
+    expect(pane.offsetOf(3)).toBe(40)
+    // A larger font lands in the same frame as an edit further down.
+    pieces[0]![1]!.top = 60
+    pieces[1]![0]!.top = 150
+    preview.element.scrollHeight = 300
+    pane.rendered(8, preview.runs)
+    expect(pane.offsetOf(3)).toBe(60)
+    expect(pane.offsetOf(2)).toBe(30)
+    pane.dispose()
+  })
+
   it('measures afresh when the content changed height on its own (a diagram)', () => {
     stubResizeObserver()
     const pieces = [[{ line: 1, top: 0 }], [{ line: 4, top: 50 }]]

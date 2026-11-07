@@ -362,6 +362,9 @@ export function shiftScroll(element: HTMLElement, by: number): void {
   else element.scrollTop += by
 }
 
+const passes = (anchor: Anchor, before: readonly Anchor[]) =>
+  before.every((other) => anchor.line > other.line && anchor.top > other.top)
+
 const lineOf = (el: Element) => {
   const line = Number(el.getAttribute('data-source-line'))
   return Number.isInteger(line) && line >= 1 ? line : undefined
@@ -441,6 +444,11 @@ export function previewScrollPane(
     const known = placed.get(piece)
     if (known?.epoch === epoch) return known.anchors
     let shape = shapes.get(piece)
+    // A kept piece that changed inside with nothing said (a new font along with a render) shows it at its last block.
+    if (shape && shape.blocks.length > 1) {
+      const last = shape.blocks[shape.blocks.length - 1]!.getBoundingClientRect().top - origin()
+      if (last - (headTop(piece) ?? 0) !== shape.below[shape.below.length - 1]) shape = undefined
+    }
     if (!shape) {
       const blocks = piece.marked.filter((el) => lineOf(el) !== undefined)
       const tops = blocks.map((el) => el.getBoundingClientRect().top - origin())
@@ -489,9 +497,10 @@ export function previewScrollPane(
 
   /**
    * The last anchor before piece `at`, as normalizing every anchor would
-   * leave it. A piece's first block is kept unless it is no lower than the
-   * last block before it (a piece of no height): then the pieces before it
-   * are looked at too.
+   * leave it. A piece's first block is kept when it lies past every block of
+   * the piece before it, in line and offset; otherwise (a piece of no height)
+   * the pieces before it are looked at too. That is exact while each piece
+   * reaches, somewhere, past every block before it.
    */
   const lastBefore = (at: number): Anchor[] => {
     filled ??= pieces.findIndex((piece) => piece.marked.some((el) => lineOf(el) !== undefined))
@@ -504,9 +513,8 @@ export function previewScrollPane(
         break
       }
       const prior = filledBefore(back)
-      const last = prior >= 0 ? anchorsOf(pieces[prior]!).at(-1) : undefined
       const first = anchors[0]!
-      if (!last || (first.line > last.line && first.top > last.top)) {
+      if (prior < 0 || passes(first, anchorsOf(pieces[prior]!))) {
         out = [first]
         runs.push(anchors.slice(1))
         break
@@ -532,9 +540,11 @@ export function previewScrollPane(
     return out
   }
   const measureAround = (key: keyof Anchor, value: number): Anchor[] => {
-    const at = search(key, value)
-    const out = lastBefore(Math.max(at, 0))
-    for (let next = Math.max(at, 0); next < pieces.length; next += 1) {
+    let at = Math.max(search(key, value), 0)
+    let out = lastBefore(at)
+    // The piece found by its first block can keep only blocks past the place: start earlier.
+    while (at > 0 && out[0]![key] > value) out = lastBefore((at -= 1))
+    for (let next = at; next < pieces.length; next += 1) {
       for (const anchor of anchorsOf(pieces[next]!)) {
         keep(out, anchor)
         if (out.length > 1 && out[out.length - 1]![key] > value) return out

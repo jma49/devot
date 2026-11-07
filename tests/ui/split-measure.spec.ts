@@ -1,10 +1,8 @@
 import type { Page } from '@playwright/test'
 import { expect, openApp, test } from './fixtures'
 
-// Split view keeps the preview at the editor's line by measuring the preview's blocks. In a
-// 200 KB note it measured all of them (about 6,000) after each render that changed a line count
-// or a height, about 3,700 box reads a keystroke; it now measures only those around the line it
-// looks for, under 100 a keystroke (a 2 MB note: about 85, where it measured 61,000).
+// Each box read of a preview block forces layout; measuring every block of a big note after each
+// keystroke held typing in Split view back (docs/specs/performance.md).
 const NOTE_CHARS = 200_000
 const READS_PER_KEY = 150
 
