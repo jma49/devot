@@ -72,6 +72,27 @@ impl Device {
             .token
     }
 
+    fn device_id(&self) -> String {
+        DeviceCredentials::load(self.secrets.as_ref())
+            .unwrap()
+            .unwrap()
+            .device
+    }
+
+    /// The devices Settings lists that have not joined the vault this one rotated to, by ID.
+    fn not_joined(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .service
+            .devices()
+            .unwrap()
+            .into_iter()
+            .filter(|device| device.unseen)
+            .map(|device| device.id)
+            .collect();
+        ids.sort();
+        ids
+    }
+
     fn settings_text(&self) -> String {
         std::fs::read_to_string(self._dir.path().join(FILE)).unwrap()
     }
@@ -374,4 +395,206 @@ fn a_connected_device_is_told_at_once_and_a_retire_is_kept_for_the_first_success
     let answer = client::send_raw(&socket, json!({ "type": "devices" })).unwrap();
     assert_eq!(answer.message["type"], "devices");
     socket.close();
+}
+
+#[test]
+fn the_rotating_device_names_the_old_vaults_devices_until_each_joins_or_is_removed() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let phone = Device::paired(&relay, &mac);
+    let lost = Device::paired(&relay, &mac);
+    let (phone_old, lost_old) = (phone.device_id(), lost.device_id());
+    assert!(mac.not_joined().is_empty());
+
+    mac.service.rotate_vault(SECRET).unwrap();
+    assert!(mac.holds("device-retired"));
+    let mut both = vec![phone_old.clone(), lost_old.clone()];
+    both.sort();
+    assert_eq!(mac.not_joined(), both);
+    let listed = mac.service.devices().unwrap();
+    assert_eq!(listed.iter().filter(|d| d.current).count(), 1);
+    assert!(listed.iter().all(|d| !(d.current && d.unseen)));
+
+    assert_eq!(phone.service.connect(false).err(), Some(ROTATED));
+    let code = mac.service.pairing_open().unwrap().code;
+    phone.service.join_with_code(&code).unwrap();
+    assert!(
+        !phone.holds("device-retired"),
+        "only the rotating device keeps its old token"
+    );
+    assert_eq!(mac.not_joined(), vec![lost_old.clone()]);
+    let listed = mac.service.devices().unwrap();
+    assert!(
+        listed
+            .iter()
+            .any(|d| d.id == phone.device_id() && !d.unseen)
+    );
+
+    assert_eq!(
+        mac.service.remove_device(&mac.device_id()).err(),
+        Some("E_SYNC_DEVICE_SELF")
+    );
+    let left = mac.service.remove_device(&lost_old).unwrap();
+    assert!(left.iter().all(|d| !d.unseen));
+    assert!(
+        !mac.holds("device-retired"),
+        "the old token goes once no device is left to join"
+    );
+    assert!(mac.not_joined().is_empty());
+    mac.service.disconnect();
+    phone.service.disconnect();
+}
+
+#[test]
+fn a_device_that_joins_the_successor_with_the_recovery_key_leaves_the_list_too() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let phone = Device::paired(&relay, &mac);
+    let recovery = mac
+        .service
+        .rotate_vault(SECRET)
+        .unwrap()
+        .recovery_key
+        .unwrap();
+    assert_eq!(mac.not_joined(), vec![phone.device_id()]);
+
+    phone.service.join_with_recovery(&recovery).unwrap();
+    assert!(mac.not_joined().is_empty());
+    assert!(!mac.holds("device-retired"));
+}
+
+#[test]
+fn leaving_the_successor_forgets_the_old_vaults_token() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let _phone = Device::paired(&relay, &mac);
+    mac.service.rotate_vault(SECRET).unwrap();
+    assert!(mac.holds("device-retired"));
+    mac.service.leave_vault().unwrap();
+    assert!(!mac.holds("device-retired"));
+}
+
+#[test]
+fn a_second_rotation_keeps_naming_the_first_old_vaults_devices() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let phone = Device::paired(&relay, &mac);
+    let lost = Device::paired(&relay, &mac);
+    let lost_old = lost.device_id();
+    mac.service.rotate_vault(SECRET).unwrap();
+    assert_eq!(phone.service.connect(false).err(), Some(ROTATED));
+    phone
+        .service
+        .join_with_code(&mac.service.pairing_open().unwrap().code)
+        .unwrap();
+    let phone_second = phone.device_id();
+    assert_eq!(mac.not_joined(), vec![lost_old.clone()]);
+
+    mac.service.rotate_vault(SECRET).unwrap();
+    let mut both = vec![lost_old.clone(), phone_second];
+    both.sort();
+    assert_eq!(mac.not_joined(), both);
+
+    assert_eq!(phone.service.connect(false).err(), Some(ROTATED));
+    phone
+        .service
+        .join_with_code(&mac.service.pairing_open().unwrap().code)
+        .unwrap();
+    assert_eq!(mac.not_joined(), vec![lost_old.clone()]);
+    assert!(mac.holds("device-retired"));
+    mac.service.remove_device(&lost_old).unwrap();
+    assert!(mac.not_joined().is_empty());
+    assert!(!mac.holds("device-retired"));
+    mac.service.disconnect();
+    phone.service.disconnect();
+}
+
+#[test]
+fn a_device_that_follows_a_rotation_made_elsewhere_drops_the_tokens_it_kept() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let phone = Device::paired(&relay, &mac);
+    let _lost = Device::paired(&relay, &mac);
+    mac.service.rotate_vault(SECRET).unwrap();
+    assert_eq!(phone.service.connect(false).err(), Some(ROTATED));
+    phone
+        .service
+        .join_with_code(&mac.service.pairing_open().unwrap().code)
+        .unwrap();
+    assert!(mac.holds("device-retired"));
+
+    phone.service.rotate_vault(SECRET).unwrap();
+    assert_eq!(mac.service.connect(false).err(), Some(ROTATED));
+    mac.service
+        .join_with_code(&phone.service.pairing_open().unwrap().code)
+        .unwrap();
+    assert!(
+        !mac.holds("device-retired"),
+        "the first old vault's devices are not this successor's to name"
+    );
+    assert!(mac.not_joined().is_empty());
+    assert!(phone.not_joined().is_empty());
+    mac.service.disconnect();
+    phone.service.disconnect();
+}
+
+#[test]
+fn the_old_token_goes_once_another_old_device_removes_this_ones_old_row() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let mac_old = mac.device_id();
+    let old_id = mac.vault().id().to_string();
+    let lost = Device::paired(&relay, &mac);
+    mac.service.rotate_vault(SECRET).unwrap();
+    assert_eq!(
+        mac.service.remove_device(&mac_old).err(),
+        Some("E_SYNC_DEVICE_SELF")
+    );
+    assert_eq!(mac.not_joined(), vec![lost.device_id()]);
+
+    let (socket, _) =
+        Connection::open(&relay.url, &old_id, &lost.token(), Box::new(|_| ())).unwrap();
+    client::revoke(&socket, &mac_old).unwrap();
+    socket.close();
+    assert!(mac.not_joined().is_empty());
+    assert!(!mac.holds("device-retired"));
+}
+
+#[test]
+fn an_old_vault_the_relay_does_not_list_this_time_keeps_its_token() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let phone = Device::paired(&relay, &mac);
+    mac.service.rotate_vault(SECRET).unwrap();
+
+    mac.service.fail_next_retired_list();
+    let listed = mac.service.devices().unwrap();
+    assert_eq!(listed.len(), 1);
+    assert!(listed[0].current && !listed[0].unseen);
+    assert!(mac.holds("device-retired"));
+    assert_eq!(mac.not_joined(), vec![phone.device_id()]);
+}
+
+#[test]
+fn removing_an_old_device_that_has_just_joined_succeeds() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let phone = Device::paired(&relay, &mac);
+    let lost = Device::paired(&relay, &mac);
+    let phone_old = phone.device_id();
+    mac.service.rotate_vault(SECRET).unwrap();
+    let mut both = vec![phone_old.clone(), lost.device_id()];
+    both.sort();
+    assert_eq!(mac.not_joined(), both);
+
+    assert_eq!(phone.service.connect(false).err(), Some(ROTATED));
+    phone
+        .service
+        .join_with_code(&mac.service.pairing_open().unwrap().code)
+        .unwrap();
+    let listed = mac.service.remove_device(&phone_old).unwrap();
+    assert!(listed.iter().all(|d| d.id != phone_old));
+    assert_eq!(mac.not_joined(), vec![lost.device_id()]);
+    mac.service.disconnect();
+    phone.service.disconnect();
 }

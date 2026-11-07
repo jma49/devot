@@ -67,6 +67,7 @@ vi.mock('../ipc', () => ({
           rotated: false,
         }
       case 'sync_devices':
+      case 'sync_device_remove':
         return answers.devices
       case 'sync_icloud_storage':
         return 2_500_000
@@ -299,6 +300,40 @@ describe.each([
     expect(rows.find((row) => row.includes('Pocket'))).not.toMatch(/Not on iCloud yet/)
     expect(el.textContent).toMatch(/follow the move/)
     expect(buttons(el).some((b) => b.text.startsWith('Remove'))).toBe(false)
+  })
+
+  it('names the old key\u2019s devices that have not joined after a key change, and removes one from the list', async () => {
+    answers.devices = [
+      ...DEVICES,
+      {
+        id: 'lost',
+        label: 'Slate',
+        created: Date.UTC(2026, 8, 1, 12),
+        current: false,
+        unseen: true,
+      },
+    ]
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, phone)
+    const rows = [...el.querySelectorAll('.sync-device')].map((row) => row.textContent ?? '')
+    expect(rows).toHaveLength(3)
+    const lost = rows.find((row) => row.includes('Slate'))
+    expect(lost).toMatch(/Added Sep 1, 2026/)
+    expect(lost).toMatch(/Not joined yet/)
+    expect(rows.find((row) => row.includes('Pocket'))).not.toMatch(/Not joined yet/)
+    expect(el.textContent).toMatch(/join(ed)? the new key/)
+    expect(el.textContent).not.toMatch(/Not on iCloud yet/)
+    const remove = [...el.querySelectorAll<HTMLButtonElement>('.sync-device button')].find((b) =>
+      b.getAttribute('aria-label')?.includes('Slate'),
+    )
+    await act(async () => remove?.click())
+    expect(document.body.textContent).toMatch(/opens nothing new/)
+    answers.devices = DEVICES
+    await act(async () => button(el, 'Remove')?.click())
+    await settle()
+    expect(calls.filter((c) => c.cmd === 'sync_device_remove').map((c) => c.args)).toEqual([
+      { device: 'lost' },
+    ])
+    expect(el.textContent).not.toMatch(/Not joined yet|join(ed)? the new key/)
   })
 
   it('says nothing of the move once every device is on iCloud', async () => {
