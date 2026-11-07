@@ -84,6 +84,16 @@ pub enum PaneAnchor {
     Pairing,
 }
 
+/// The iPhone's Glass Transparency: -100 is solid, 0 the design, 100 the clearest, in steps of 5.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GlassSet {
+    pub transparency: i32,
+}
+
+pub const GLASS_TRANSPARENCY_MAX: i32 = 100;
+pub const GLASS_TRANSPARENCY_STEP: i32 = 5;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShowPane {
@@ -113,6 +123,10 @@ pub enum Op {
     SettingsShowPane(ShowPane),
     #[serde(rename = "settings.notebooks")]
     SettingsNotebooks(Empty),
+    #[serde(rename = "glass.get")]
+    GlassGet(Empty),
+    #[serde(rename = "glass.set")]
+    GlassSet(GlassSet),
 }
 
 pub const OPS: &[&str] = &[
@@ -124,6 +138,8 @@ pub const OPS: &[&str] = &[
     "tabs.popToRoot",
     "settings.showPane",
     "settings.notebooks",
+    "glass.get",
+    "glass.set",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -425,7 +441,17 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             (_, None) | (WebPane::Sync, Some(PaneAnchor::Pairing)) => Ok(()),
             _ => Err("E_SCREENS_ARGS_INVALID"),
         },
-        Op::TabsShow(_) | Op::TabsPopToRoot(_) | Op::SettingsNotebooks(_) => Ok(()),
+        Op::GlassSet(GlassSet { transparency }) => {
+            if transparency.abs() > GLASS_TRANSPARENCY_MAX
+                || transparency % GLASS_TRANSPARENCY_STEP != 0
+            {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            Ok(())
+        }
+        Op::TabsShow(_) | Op::TabsPopToRoot(_) | Op::SettingsNotebooks(_) | Op::GlassGet(_) => {
+            Ok(())
+        }
     }
 }
 

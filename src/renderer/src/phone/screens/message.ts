@@ -15,6 +15,8 @@ export const SCREENS_OPS = [
   'tabs.popToRoot',
   'settings.showPane',
   'settings.notebooks',
+  'glass.get',
+  'glass.set',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
 

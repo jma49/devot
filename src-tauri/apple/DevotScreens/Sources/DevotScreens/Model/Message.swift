@@ -86,6 +86,8 @@ public enum Op: String, CaseIterable, Sendable {
     case tabsPopToRoot = "tabs.popToRoot"
     case settingsShowPane = "settings.showPane"
     case settingsNotebooks = "settings.notebooks"
+    case glassGet = "glass.get"
+    case glassSet = "glass.set"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {

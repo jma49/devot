@@ -55,6 +55,7 @@ import { startLicence, useLicence } from '../licence'
 import { choicesFromTree } from '../notebookChoices'
 import { startScreensBridge, type ScreensBridge } from './screens/bridge'
 import { SCREENS_HANDLERS } from './screens/ops'
+import { glassHandlers } from './screens/glass'
 import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
 import { modalOpen, watchModals } from './modal'
@@ -337,6 +338,7 @@ export function PhoneApp() {
         showPane: (pane, anchor) => nativeSettings.current?.showPane(pane, anchor),
         notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
+      ...glassHandlers(),
     })
     bridge.current = started
     let live = true
