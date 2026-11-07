@@ -1088,8 +1088,8 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
         return
       }
       for (const batch of chunks(ops, CHUNK.ops)) {
-        // Sent without a look at the note's file: what Rust finds there is
-        // news, not a try.
+        // Sent without a look at the note's file: that it changed is news,
+        // not a try.
         const blind = new Set(
           batch.flatMap((op) =>
             op.kind === 'note' && op.from !== null && !disk.has(op.from) ? [entryKey(op)] : [],
@@ -1115,7 +1115,7 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
           } else if (RETRYABLE.has(code) && result.path !== undefined) {
             disk.set(result.path, result.state ?? null)
             const key = entryKey(op)
-            if (blind.has(key) && !forgiven.has(key)) {
+            if (code === 'E_MIRROR_CHANGED' && blind.has(key) && !forgiven.has(key)) {
               forgiven.add(key)
               continue
             }

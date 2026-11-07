@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSummary, TrashedNote } from '../../../core'
 import { renderHook, unmountAll } from '../../../../tests/support/render-hook'
 import type { Core } from '../core-client'
+import type { WireRelay } from '../noteRelay'
 import type { SearchResults } from '../useSearch'
-import { useLibraryLists } from './useLibraryLists'
+import { useLibraryLists, useNoteWindowChanges, type LibraryLists } from './useLibraryLists'
 
 afterEach(unmountAll)
 
@@ -79,5 +80,32 @@ describe('useLibraryLists', () => {
     await act(() => hook.current.refresh(fakeCore([note('a')])))
     act(() => hook.current.retitleListed('a', 'Renamed'))
     expect(hook.current.notes[0]?.title).toBe('Renamed')
+  })
+})
+
+describe('useNoteWindowChanges', () => {
+  it("names a note window's saved note to the mirror", async () => {
+    let hear: ((message: WireRelay) => void) | undefined
+    const relay = {
+      link: {
+        send: () => {},
+        listen: (handler: (message: WireRelay) => void) => {
+          hear = handler
+          return Promise.resolve(() => {})
+        },
+      },
+    }
+    const mirrorTouch = vi.fn<(noteIds?: readonly string[]) => Promise<void>>(async () => {})
+    const core = { relayIn: async () => {}, mirrorTouch } as unknown as Core
+    const shown = {
+      showWrites: () => {},
+      retitleListed: () => {},
+      refresh: async () => {},
+      authorshipChanged: () => {},
+    } as unknown as LibraryLists
+    const knownNotes = { current: new Map([['a', note('a')]]) }
+    renderHook(useNoteWindowChanges, { props: { core, relay, lists: shown, knownNotes } })
+    act(() => hear?.({ kind: 'saved', noteId: 'a', updatedAt: 5 }))
+    expect(mirrorTouch).toHaveBeenCalledExactlyOnceWith(['a'])
   })
 })

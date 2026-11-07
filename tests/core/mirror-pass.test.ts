@@ -211,6 +211,29 @@ describe('a pass after an edit', () => {
     expect(lib.folders().mirror).toEqual(lib.folders().reference)
     expect(lib.errors).toEqual([])
   })
+
+  it('plans only the note a note window saved, once the main window names it', async () => {
+    const lib = await populated(30)
+    const id = lib.ids[1]!
+    // A note window writes through its own worker, which the main window's storage never sees.
+    const window = createNoteService({
+      storage: lib.sqlite,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+    })
+    clear(lib)
+    await window.setBody(id, 'Typed in its own window.\n')
+    await window.release(id)
+    await window.flush()
+    lib.mirror.runner.touch([id])
+    lib.reference.runner.touch()
+    await lib.settled()
+    expect(lib.mirror.calls.bodies).toEqual([id])
+    expect(lib.mirror.calls.files).toEqual([])
+    expect(lib.folders().mirror).toEqual(lib.folders().reference)
+    expect(lib.errors).toEqual([])
+  })
 })
 
 describe('the folder a pass leaves', () => {

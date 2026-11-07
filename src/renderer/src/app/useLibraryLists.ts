@@ -173,7 +173,7 @@ export function useNoteWindowChanges({
         if (knownNotes.current.has(message.noteId)) {
           showWrites(new Map([[message.noteId, message.updatedAt]]))
         } else void refresh(core).catch(() => {})
-        void core.mirrorTouch()
+        void core.mirrorTouch([message.noteId])
       } else if (message.kind === 'title') {
         retitleListed(message.noteId, message.title)
       }

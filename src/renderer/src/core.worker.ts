@@ -475,7 +475,8 @@ const coreApi = {
   },
   /** A full pass soon, unless one for Rust's `generation` ran already. */
   mirrorReconcile: (generation?: number) => mirror?.reconcile(generation),
-  mirrorTouch: () => mirror?.touch(),
+  /** A pass soon: for the named notes only when nothing else changed, or for every note. */
+  mirrorTouch: (noteIds?: readonly string[]) => mirror?.touch(noteIds),
   mirrorWake: () => mirror?.wake(),
   mirrorStop: () => mirror?.stop(),
   /** Runs the sync engine on Rust's store and socket, which the page passes in. */
