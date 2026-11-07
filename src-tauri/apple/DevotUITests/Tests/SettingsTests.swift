@@ -9,6 +9,12 @@ final class SettingsTests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
+        launch()
+    }
+
+    private func launch(_ arguments: [String] = []) {
+        app.terminate()
+        app.launchArguments = arguments
         app.launch()
         let bar = app.tabBars.firstMatch
         // A cold debug build starts slowly on a CI simulator.
@@ -34,8 +40,8 @@ final class SettingsTests: XCTestCase {
 
     func testOpensEveryNativePaneAndComesBackToTheRoot() {
         let panes = [
-            L10n.settingsPaneGeneral(), L10n.settingsPaneEditing(), L10n.settingsPanePreview(), L10n.settingsPaneAi(),
-            L10n.settingsPaneLicence(),
+            L10n.settingsPaneGeneral(), L10n.settingsPaneAppearance(), L10n.settingsPaneEditing(),
+            L10n.settingsPanePreview(), L10n.settingsPaneAi(), L10n.settingsPaneLicence(),
         ]
         for pane in panes {
             let open = row(pane)
@@ -71,6 +77,74 @@ final class SettingsTests: XCTestCase {
         } else {
             XCTAssertTrue(app.navigationBars[L10n.settingsPaneLicence()].waitForExistence(timeout: 10))
         }
+    }
+
+    private func openAppearance() {
+        row(L10n.settingsPaneAppearance()).tap()
+        XCTAssertTrue(app.navigationBars[L10n.settingsPaneAppearance()].waitForExistence(timeout: 10))
+    }
+
+    /// Scrolls the pane until `element` shows whole between the bars, down the pane or back up it.
+    private func scrolled(to element: XCUIElement, back: Bool = false) -> XCUIElement {
+        let list = app.collectionViews.firstMatch
+        for _ in 0..<6 where !(element.exists && element.isHittable && clearOfTheBars().contains(element.frame)) {
+            if back { list.swipeDown(velocity: .slow) } else { list.swipeUp(velocity: .slow) }
+        }
+        XCTAssertTrue(element.exists)
+        return element
+    }
+
+    private func transparency() -> XCUIElement {
+        scrolled(to: app.sliders[L10n.phoneAppearanceTransparency()])
+    }
+
+    private static func signed(_ value: Int) -> String {
+        value.formatted(.number.sign(strategy: .always(includingZero: false)))
+    }
+
+    /// Drags the slider to `value`, nudging it where the drag lands a step off.
+    private func drag(_ slider: XCUIElement, to value: Int) {
+        let expected = Self.signed(value)
+        for _ in 0..<3 where slider.value as? String != expected {
+            let shown = Int((slider.value as? String ?? "").replacingOccurrences(of: "+", with: "")) ?? 0
+            let position = slider.normalizedSliderPosition + CGFloat(value - shown) / 200
+            slider.adjust(toNormalizedSliderPosition: min(max(position, 0), 1))
+        }
+        XCTAssertEqual(slider.value as? String, expected)
+    }
+
+    func testAThemeCardRingsBothOfItsSwatches() {
+        openAppearance()
+        let ember = L10n.appearanceSettingsThemeEmber()
+        let card = scrolled(to: app.buttons[ember])
+        let light = app.buttons[L10n.phoneSettingsAppearanceThemeLight(theme: ember)]
+        let dark = app.buttons[L10n.phoneSettingsAppearanceThemeDark(theme: ember)]
+        // The card's middle is between its swatches; its name is the card's alone.
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)).tap()
+        XCTAssertTrue(light.wait(for: \.isSelected, toEqual: true, timeout: 5))
+        XCTAssertTrue(dark.wait(for: \.isSelected, toEqual: true, timeout: 5))
+        XCTAssertTrue(card.isSelected)
+        let standard = scrolled(to: app.buttons[L10n.appearanceSettingsThemeDefault()], back: true)
+        standard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)).tap()
+        XCTAssertTrue(light.wait(for: \.isSelected, toEqual: false, timeout: 5))
+        XCTAssertFalse(dark.isSelected)
+    }
+
+    func testGlassTransparencyIsKeptAcrossALaunch() {
+        openAppearance()
+        drag(transparency(), to: -50)
+        launch()
+        openAppearance()
+        let slider = transparency()
+        XCTAssertEqual(slider.value as? String, Self.signed(-50))
+        drag(slider, to: 0)
+    }
+
+    func testUnderReduceTransparencyTheGlassSliderIsLockedAndSaysWhy() {
+        launch([LaunchArgument.reduceTransparency])
+        openAppearance()
+        XCTAssertFalse(transparency().isEnabled)
+        XCTAssertTrue(app.staticTexts[L10n.phoneSettingsAppearanceTransparencyReduced()].exists)
     }
 
     private struct Element: Hashable, CustomStringConvertible {
@@ -146,6 +220,21 @@ final class SettingsTests: XCTestCase {
         // At the top, then at the foot of the list, where the last rows show above the tab bar.
         for foot in [false, true] {
             if foot { XCTAssertTrue(row(L10n.settingsPaneLicence()).exists) }
+            let clear = clearOfTheBars()
+            auditedClear.formUnion(try shownClear(clear))
+            overABar.formUnion(try audit(clear: clear))
+        }
+        XCTAssertEqual(overABar.subtracting(auditedClear), [], "audited only over a system bar")
+    }
+
+    func testTheAppearancePanePassesTheAccessibilityAudit() throws {
+        continueAfterFailure = true
+        openAppearance()
+        var overABar: Set<Element> = []
+        var auditedClear: Set<Element> = []
+        // The pane is about three screens long: its top, then a screen further down each time.
+        for page in 0..<4 {
+            if page > 0 { app.collectionViews.firstMatch.swipeUp(velocity: .slow) }
             let clear = clearOfTheBars()
             auditedClear.formUnion(try shownClear(clear))
             overABar.formUnion(try audit(clear: clear))

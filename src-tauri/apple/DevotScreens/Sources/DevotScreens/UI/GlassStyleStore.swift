@@ -24,7 +24,10 @@ final class GlassStyleStore {
 
     init(
         defaults: UserDefaults = .standard,
-        reduced: @escaping () -> Bool = { UIAccessibility.isReduceTransparencyEnabled || UIAccessibility.isDarkerSystemColorsEnabled },
+        reduced: @escaping () -> Bool = {
+            UIAccessibility.isReduceTransparencyEnabled || UIAccessibility.isDarkerSystemColorsEnabled
+                || ProcessInfo.processInfo.arguments.contains(LaunchArgument.reduceTransparency)
+        },
         center: NotificationCenter = .default
     ) {
         self.defaults = defaults
@@ -75,4 +78,10 @@ final class GlassStyleStore {
         view.topEdgeEffect.style = barEdge.uiKit
         view.bottomEdgeEffect.style = barEdge.uiKit
     }
+}
+
+/// Arguments the UI tests launch Devot with.
+public enum LaunchArgument {
+    /// A UI test cannot switch the system's Reduce Transparency, so it launches with this instead.
+    public static let reduceTransparency = "-DevotReduceTransparency"
 }
