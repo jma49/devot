@@ -69,7 +69,8 @@ beforeEach(() => {
   answers = {}
   openedLicence = []
   vi.mocked(invoke).mockImplementation(async (command) => {
-    if (command === 'licence_get') return current
+    if (command === 'licence_get')
+      return answers['licence_get'] ? answers['licence_get']() : current
     if (command === 'store_products')
       return [{ product: 'pro', displayName: 'Devot Pro', displayPrice: STOREKIT_PRICE }]
     return answers[command]?.()
@@ -119,6 +120,7 @@ const button = (name: string) =>
 const press = async (name: string) => {
   await act(async () => button(name)?.click())
 }
+const line = () => dialog()?.querySelector('[role="status"]')?.textContent
 const unlock = async (licence: unknown = RUNNING) => {
   current = licence
   await act(async () => void (await readCurrentLicence()))
@@ -298,16 +300,37 @@ describe('a write while editing is locked', () => {
     const write = asked()
     await write.tap()
     await vi.waitFor(() => expect(button('Try Again')).toBeDefined())
+    let read: (licence: unknown) => void = () => {}
+    answers['licence_get'] = () => new Promise((resolve) => (read = resolve))
     await press('Try Again')
+    expect(line()).toBe('Checking…')
+    delete answers['licence_get']
+    await act(async () => read(current))
     await vi.waitFor(() =>
       expect(button('Try Again')?.getAttribute('aria-disabled')).not.toBe('true'),
     )
+    expect(line()).toBe('Editing is still not available.')
     expect(write.runs.count).toBe(0)
     expect(dialog()?.textContent).toContain('Devot could not read its license from the keychain.')
     current = RUNNING
     await press('Try Again')
     await vi.waitFor(() => expect(write.runs.count).toBe(1))
     expect(dialog()).toBeNull()
+  })
+
+  it('says so under Try Again when the license could not be read', async () => {
+    await lockedAs(LOCKED.X1)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const write = asked()
+    await write.tap()
+    await vi.waitFor(() => expect(button('Try Again')).toBeDefined())
+    answers['licence_get'] = () => Promise.reject(new Error('E_LICENCE_KEYCHAIN'))
+    await press('Try Again')
+    await vi.waitFor(() =>
+      expect(line()).toBe('The check did not go through. Try again in a moment.'),
+    )
+    expect(write.runs.count).toBe(0)
+    expect(document.body.textContent).not.toMatch(/\b[EWI]_[A-Z0-9_]+/)
   })
 
   it('opens License with the key field for Enter License Key, and drops the write', async () => {
@@ -365,19 +388,27 @@ describe('a write while editing is locked', () => {
     expect(write.runs.count).toBe(0)
   })
 
-  it('shows the sheet for a write refused on a stale state, and logs only the code', async () => {
+  it('shows the sheet for a write refused on a stale state, logs only the code, and never runs it again', async () => {
     await lockedAs(RUNNING)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     current = LOCKED.K1
-    await act(async () => {
-      watchWrite('newNotebook', Promise.reject(new Error('E_LICENCE_REQUIRED')))
-    })
+    const runs = { count: 0 }
+    await act(async () =>
+      requireEditing({ op: 'newNotebook', id: null }, () => {
+        runs.count += 1
+        watchWrite('newNotebook', Promise.reject(new Error('E_LICENCE_REQUIRED')))
+      }),
+    )
     await vi.waitFor(() =>
       expect(dialog()?.getAttribute('aria-label')).toBe('Your trial has ended'),
     )
     expect(warn).toHaveBeenCalledWith('W_PHONE_WRITE_LOCKED op=newNotebook code=E_LICENCE_REQUIRED')
     expect(vi.mocked(invoke).mock.calls.filter(([c]) => c === 'licence_get')).toHaveLength(2)
     expect(document.body.textContent).not.toContain('E_LICENCE_REQUIRED')
+    await unlock()
+    expect(runs.count).toBe(1)
+    expect(dialogs()).toBeLessThanOrEqual(1)
+    expect(haptics()).toEqual([{ kind: 'warning' }])
   })
 
   it('logs any other failure of a write without a sheet', async () => {

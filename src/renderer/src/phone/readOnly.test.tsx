@@ -17,7 +17,15 @@ vi.stubGlobal('DEVOT_UI_TEST', true)
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 
 const shownEditors: { readOnly: boolean | undefined; noKeyboard: boolean | undefined }[] = []
-const handle = { toggleTask: vi.fn<(at: number) => void>(), suggest: vi.fn<() => void>() }
+// Like NoteEditor, the stand-in takes its lock from props in an effect, after the render.
+let editorLocked = false
+const toggled: { at: number; locked: boolean }[] = []
+const handle = {
+  toggleTask: vi.fn<(at: number) => void>((at) => {
+    toggled.push({ at, locked: editorLocked })
+  }),
+  suggest: vi.fn<() => void>(),
+}
 
 vi.mock('../NoteEditor', () => ({
   NoteEditor: (props: {
@@ -28,6 +36,9 @@ vi.mock('../NoteEditor', () => ({
   }) => {
     shownEditors.push({ readOnly: props.readOnly, noKeyboard: props.noKeyboard })
     const loaded = useRef(false)
+    useEffect(() => {
+      editorLocked = props.readOnly === true
+    }, [props.readOnly])
     useEffect(() => {
       if (loaded.current) return
       loaded.current = true
@@ -129,6 +140,7 @@ beforeEach(() => {
   refuse = null
   shownEditors.length = 0
   handle.toggleTask.mockClear()
+  toggled.length = 0
   vi.mocked(invoke).mockImplementation(async (command) =>
     command === 'licence_get' ? current : undefined,
   )
@@ -156,6 +168,10 @@ async function open(licence: unknown) {
   await act(async () => root.render(<Screen store={store()} />))
 }
 
+const unlock = async () => {
+  current = RUNNING
+  await act(async () => void (await readCurrentLicence()))
+}
 const mode = () => host.querySelector('.phone-note-body')?.getAttribute('data-mode')
 const named = (name: string) => host.querySelector<HTMLElement>(`[aria-label="${name}"]`)
 const dialogNames = () =>
@@ -200,6 +216,32 @@ describe('a note while editing is locked', () => {
     await tap(named('Task'))
     await proSheetShown()
     expect(handle.toggleTask).not.toHaveBeenCalled()
+  })
+
+  it('toggles the task once the unlock has reached the editor', async () => {
+    await open(ENDED)
+    await tap(named('Task'))
+    await proSheetShown()
+    await unlock()
+    await vi.waitFor(() => expect(toggled).toEqual([{ at: 3, locked: false }]))
+    expect(dialogNames()).toEqual([])
+  })
+
+  it('focuses the title once the unlock has made it editable', async () => {
+    await open(ENDED)
+    const title = named('Title') as HTMLTextAreaElement
+    const focused: boolean[] = []
+    const focus = title.focus.bind(title)
+    vi.spyOn(title, 'focus').mockImplementation((options) => {
+      focused.push(title.readOnly)
+      focus(options)
+    })
+    await tap(title)
+    await proSheetShown()
+    focused.length = 0
+    await unlock()
+    await vi.waitFor(() => expect(focused).toEqual([false]))
+    expect(document.activeElement).toBe(title)
   })
 
   it('toggles a task while editing is allowed', async () => {

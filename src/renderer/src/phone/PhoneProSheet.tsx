@@ -16,6 +16,7 @@ import { PhoneSheet, type SheetHandle } from './PhoneSheet'
 import {
   closeGate,
   gateUnlocked,
+  useContinueUnlocked,
   useProSheet,
   type ProSheetKind,
   type ProSheetState,
@@ -76,10 +77,14 @@ function ProSheet(props: { state: ProSheetState; onOpenLicence: (focusKey: boole
       return
     }
     setBusy('check')
+    setMessage(t('phone.pro.checking'))
     readCurrentLicence()
       .then(
-        () => editingAllowed() && gateUnlocked(),
-        () => console.warn('W_LICENCE_READ_FAILED'),
+        () => (editingAllowed() ? gateUnlocked() : setMessage(t('phone.pro.stillLocked'))),
+        () => {
+          console.warn('W_LICENCE_READ_FAILED')
+          setMessage(t('phone.pro.checkFailed'))
+        },
       )
       .finally(() => setBusy(null))
   }
@@ -148,13 +153,17 @@ function ProSheet(props: { state: ProSheetState; onOpenLicence: (focusKey: boole
   )
 }
 
-/** The gate's surfaces, over every tab: the purchase sheet (also Buy's and the welcome's) and the short Pro sheet. */
+/**
+ * The gate's surfaces, over every tab: the purchase sheet (also Buy's and the welcome's) and the
+ * short Pro sheet. It renders after the screens, so the write an unlock was for runs after their effects.
+ */
 export function PhoneGate(props: {
   licence: LicenceSnapshot
   onOpenLicence: (focusKey: boolean) => void
 }) {
   const purchasing = usePurchaseOpen()
   const proSheet = useProSheet()
+  useContinueUnlocked()
   return (
     <>
       {purchasing && (

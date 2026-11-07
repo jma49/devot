@@ -5850,6 +5850,18 @@ public enum L10n {
     text("phone.pro.notNow", "Not Now")
   }
 
+  public static func phoneProChecking() -> String {
+    text("phone.pro.checking", "Checking…")
+  }
+
+  public static func phoneProStillLocked() -> String {
+    text("phone.pro.stillLocked", "Editing is still not available.")
+  }
+
+  public static func phoneProCheckFailed() -> String {
+    text("phone.pro.checkFailed", "The check did not go through. Try again in a moment.")
+  }
+
   public static func phoneHintDone() -> String {
     text("phone.hint.done", "Done")
   }

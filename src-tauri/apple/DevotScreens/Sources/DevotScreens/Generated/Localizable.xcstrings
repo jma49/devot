@@ -14862,6 +14862,28 @@
         }
       }
     },
+    "phone.pro.checkFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The check did not go through. Try again in a moment."
+          }
+        }
+      }
+    },
+    "phone.pro.checking" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
+        }
+      }
+    },
     "phone.pro.inactiveTitle" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14891,6 +14913,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open License Settings"
+          }
+        }
+      }
+    },
+    "phone.pro.stillLocked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editing is still not available."
           }
         }
       }

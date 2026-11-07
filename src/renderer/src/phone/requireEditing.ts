@@ -1,6 +1,6 @@
 // The one gate every write the phone offers goes through while editing may be locked. It decides
 // from the licence snapshot it holds, never by trying the write; Rust still refuses on its own.
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { errorCode } from '../../../core/errors'
 import {
   editingAllowed,
@@ -10,6 +10,7 @@ import {
   readCurrentLicence,
   soldOnAppStore,
   subscribeLicence,
+  useEditing,
   type LicenceSnapshot,
 } from '../licence'
 import {
@@ -75,14 +76,24 @@ export function lockSurface(licence: LicenceSnapshot): LockSurface {
   return pro('key')
 }
 
-let pending: { intent: WriteIntent; run: () => void; at: number } | null = null
+interface Asked {
+  readonly intent: WriteIntent
+  readonly run: () => void
+}
+
+let pending: (Asked & { at: number }) | null = null
+let unlocked: Asked | null = null
 let proSheet: ProSheetState | null = null
 let surface: LockSurface['kind'] | null = null
 const listeners = new Set<() => void>()
 
+const notify = () => {
+  for (const listener of listeners) listener()
+}
+
 const setProSheet = (next: ProSheetState | null) => {
   proSheet = next
-  for (const listener of listeners) listener()
+  notify()
 }
 
 let watching = false
@@ -133,6 +144,7 @@ export const useRequireEditing = (): typeof requireEditing => requireEditing
 /** Forgets what was asked for: the user went elsewhere, so nothing is written behind their back. */
 export function dropIntent(): void {
   pending = null
+  unlocked = null
 }
 
 /** Not Now, a drag down or a way out to Settings: the surface goes and the intent with it. */
@@ -143,12 +155,33 @@ export function closeGate(): void {
   setProSheet(null)
 }
 
-/** A surface's own action unlocked editing (Try Free, a purchase, Restore, Try Again). */
+/**
+ * A surface's own action unlocked editing (Try Free, a purchase, Restore, Try Again). The write
+ * asked for runs from `useContinueUnlocked`, once React has drawn the unlock.
+ */
 export function gateUnlocked(): void {
   const asked = pending
   pending = null
   closeGate()
-  if (asked && Date.now() - asked.at < INTENT_MS) requireEditing(asked.intent, asked.run)
+  if (asked && Date.now() - asked.at < INTENT_MS) {
+    unlocked = asked
+    notify()
+  }
+}
+
+/**
+ * Runs the write an unlock was for through the gate again, once the screens have drawn the
+ * snapshot: the editor and the title drop their lock only in the effects of that render. The
+ * component that calls this must render after the screens, so its effect runs after theirs.
+ */
+export function useContinueUnlocked(): void {
+  const editing = useEditing()
+  const next = useSyncExternalStore(subscribeGate, () => unlocked)
+  useEffect(() => {
+    if (!next || editing !== editingAllowed()) return
+    unlocked = null
+    requireEditing(next.intent, next.run)
+  }, [editing, next])
 }
 
 /**
@@ -178,11 +211,11 @@ export function watchWrite(
   })
 }
 
-function subscribeProSheet(listener: () => void): () => void {
+function subscribeGate(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
 
 export function useProSheet(): ProSheetState | null {
-  return useSyncExternalStore(subscribeProSheet, () => proSheet)
+  return useSyncExternalStore(subscribeGate, () => proSheet)
 }
