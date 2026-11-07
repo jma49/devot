@@ -13,7 +13,7 @@ const pbxproj = () =>
     ...read('src-tauri/gen/apple/devot.xcodeproj/project.pbxproj').matchAll(
       /IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);/g,
     ),
-  ].map((m) => m[1])
+  ].map((m) => m[1] ?? '')
 const podfile = () => /platform :ios, '([\d.]+)'/.exec(read('src-tauri/gen/apple/Podfile'))?.[1]
 
 describe('iPhone deployment target', () => {
