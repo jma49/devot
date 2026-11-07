@@ -884,7 +884,7 @@
   color: var(--color-text-secondary);
 }
 
-:root[data-sidebar-material='on'] .preview table {
+.preview:is([data-devot-part='preview'], .gallery-page) table {
   display: block;
   width: fit-content;
   max-width: 100%;
@@ -896,7 +896,7 @@
   box-shadow: 0 0 0 1px var(--color-line-hairline);
 }
 
-:root[data-sidebar-material='on'] .preview :is(th, td) {
+.preview:is([data-devot-part='preview'], .gallery-page) :is(th, td) {
   padding: var(--space-3) var(--space-6);
   border-top: 0;
   border-inline-end: 0;
@@ -904,42 +904,46 @@
   border-bottom: 1px solid var(--color-line-separator);
 }
 
-:root[data-sidebar-material='on'] .preview :is(th, td) + :is(th, td) {
+.preview:is([data-devot-part='preview'], .gallery-page) :is(th, td) + :is(th, td) {
   border-inline-start: 1px solid var(--color-line-separator);
 }
 
-:root[data-sidebar-material='on'] .preview table > :last-child > tr:last-child > :is(th, td) {
+.preview:is([data-devot-part='preview'], .gallery-page)
+  table
+  > :last-child
+  > tr:last-child
+  > :is(th, td) {
   border-bottom: 0;
 }
 
-:root[data-sidebar-material='on'] .preview th {
+.preview:is([data-devot-part='preview'], .gallery-page) th {
   text-align: start;
 }
 
-:root[data-sidebar-material='on'] .preview :is(pre, .code-block) {
+.preview:is([data-devot-part='preview'], .gallery-page) :is(pre, .code-block) {
   border-radius: var(--radius-list-row);
 }
 
-:root[data-sidebar-material='on'] .preview .code-block > pre {
+.preview:is([data-devot-part='preview'], .gallery-page) .code-block > pre {
   border-radius: 0;
 }
 
-:root[data-sidebar-material='on'] .preview :is(pre, .code-block) {
+.preview:is([data-devot-part='preview'], .gallery-page) :is(pre, .code-block) {
   border: 0;
 }
 
-:root[data-sidebar-material='on'] .preview .code-header {
+.preview:is([data-devot-part='preview'], .gallery-page) .code-header {
   border-bottom: 0;
 }
 
-:root[data-sidebar-material='on'] .preview :not(pre) > code {
+.preview:is([data-devot-part='preview'], .gallery-page) :not(pre) > code {
   border-radius: var(--radius-inline-code);
 }
 
 /* One point of the scale at the reader's preview size. :where keeps the
    rules below at the base rules' specificity, so first, last and stacked
    headings keep their own margins. */
-:root[data-sidebar-material='on'] .preview {
+.preview:is([data-devot-part='preview'], .gallery-page) {
   --note-pt: calc(var(--note-font-size) / var(--note-heading-glass-preview-reference));
   --note-line: calc(
     var(--note-heading-glass-body-size) * var(--note-pt) * var(--note-heading-glass-body-line)
@@ -948,29 +952,28 @@
   line-height: var(--note-heading-glass-body-line);
 }
 
-:where(:root[data-sidebar-material='on'])
-  .preview
+.preview:where([data-devot-part='preview'], .gallery-page)
   :where(p, ul, ol, dl, blockquote, details, .alert) {
   margin-bottom: calc(var(--note-space-paragraph) * var(--note-pt));
 }
 
-:where(:root[data-sidebar-material='on']) .preview :is(h1, h2, h3) {
+.preview:where([data-devot-part='preview'], .gallery-page) :is(h1, h2, h3) {
   padding-bottom: 0;
 }
 
-:where(:root[data-sidebar-material='on']) .preview h1 {
+.preview:where([data-devot-part='preview'], .gallery-page) h1 {
   font-size: calc(var(--note-heading-glass-h1-size) * var(--note-pt));
   line-height: calc(var(--note-heading-glass-h1-line) * var(--note-pt));
 }
 
-:where(:root[data-sidebar-material='on']) .preview h2 {
+.preview:where([data-devot-part='preview'], .gallery-page) h2 {
   margin-top: calc(var(--note-space-h2-above) * var(--note-pt));
   margin-bottom: calc(var(--note-space-h2-below) * var(--note-pt));
   font-size: calc(var(--note-heading-glass-h2-size) * var(--note-pt));
   line-height: calc(var(--note-heading-glass-h2-line) * var(--note-pt));
 }
 
-:where(:root[data-sidebar-material='on']) .preview h3 {
+.preview:where([data-devot-part='preview'], .gallery-page) h3 {
   margin-top: calc(var(--note-space-h3-above) * var(--note-pt));
   margin-bottom: calc(var(--note-space-h3-below) * var(--note-pt));
   font-size: calc(var(--note-heading-glass-h3-size) * var(--note-pt));
@@ -978,13 +981,13 @@
   font-weight: var(--font-weight-semibold);
 }
 
-:root[data-sidebar-material='on'] .preview blockquote {
+.preview:is([data-devot-part='preview'], .gallery-page) blockquote {
   position: relative;
   padding-left: var(--space-8);
   border: 0;
 }
 
-:root[data-sidebar-material='on'] .preview blockquote::before {
+.preview:is([data-devot-part='preview'], .gallery-page) blockquote::before {
   content: '';
   position: absolute;
   top: var(--space-1);
@@ -995,7 +998,7 @@
   background-color: var(--color-quote-bar);
 }
 
-:root[data-sidebar-material='on'] .preview .alert {
+.preview:is([data-devot-part='preview'], .gallery-page) .alert {
   padding: var(--size-alert-pad-top) var(--size-alert-pad-inline) var(--space-6);
   border: 0;
   border-radius: var(--radius-list-row);
@@ -1008,7 +1011,7 @@
     color-mix(in srgb, var(--alert-color) calc(var(--opacity-alert-edge) * 100%), transparent);
 }
 
-:root[data-sidebar-material='on'] .preview .alert:has(+ .alert) {
+.preview:is([data-devot-part='preview'], .gallery-page) .alert:has(+ .alert) {
   margin-bottom: var(--space-5);
 }
 

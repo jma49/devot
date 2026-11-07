@@ -11,7 +11,6 @@ import type { IconName } from '../icons/symbols'
 import { closingRef } from '../closing'
 import { sizes } from '../theme/tokens'
 import { closingStyles, closingTooltips, motionKeyframes, tipIn } from './motion'
-import { glass } from './boxes'
 import { BAR_GAP, NOTCH_X, notchElement, notchStyles } from './notch'
 import type { Tip } from './toolbarButtons'
 
@@ -195,6 +194,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     alignItems: 'center',
     height: 'var(--size-float-toolbar-height)',
     padding: 'var(--space-2) var(--space-3)',
+    paddingInline: 'var(--size-float-toolbar-end)',
     border: '0',
     borderRadius: 'var(--radius-floating-bar)',
     backgroundColor: 'var(--color-surface-float-bar)',
@@ -204,7 +204,6 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',
   },
-  [glass('.cm-tooltip.cm-float-bar')]: { paddingInline: 'var(--size-float-toolbar-end)' },
   '.cm-float-content': { display: 'flex', alignItems: 'center', minWidth: '0' },
   ...notchStyles,
   '.cm-float-buttons': {
@@ -275,7 +274,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     alignItems: 'center',
     gap: 'var(--space-2)',
     padding: 'var(--space-3) var(--space-5)',
-    borderRadius: 'var(--radius-card)',
+    borderRadius: 'var(--radius-glass-tooltip)',
     backgroundColor: 'var(--color-surface-popover)',
     backdropFilter: 'var(--glass-backdrop, none)',
     WebkitBackdropFilter: 'var(--glass-backdrop, none)',
@@ -314,23 +313,16 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     borderRight: hairline,
     borderBottom: hairline,
   },
+  // The app's tooltip keycap (app.css, .tool-tip).
   '.cm-float-kbd': {
     padding: '0 var(--space-3)',
-    borderRadius: 'var(--radius-control)',
-    boxShadow: 'inset 0 0 0 1px var(--color-line-control)',
-    fontFamily: 'var(--font-family-ui)',
-    fontSize: 'var(--font-size-caption)',
-    lineHeight: 'var(--size-segment-height)',
-    color: 'var(--color-text-secondary)',
-  },
-  // The app's Glass tooltip and keycap (app.css, .tool-tip).
-  [glass('.cm-float-tip')]: { borderRadius: 'var(--radius-glass-tooltip)' },
-  [glass('.cm-float-kbd')]: {
     borderRadius: 'var(--radius-button)',
     backgroundColor: 'var(--color-fill-settings-card)',
     boxShadow: 'inset 0 0 0 0.5px var(--color-line-hairline)',
+    fontFamily: 'var(--font-family-ui)',
     fontSize: 'inherit',
     lineHeight: 'inherit',
+    color: 'var(--color-text-secondary)',
   },
 }
 

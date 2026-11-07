@@ -1,5 +1,4 @@
-/* An opaque window: the editor's wash lies over the window surface, as in the main window with
-   Translucent Window off. */
+/* An opaque window: the editor's wash lies over the window surface. */
 .note-window {
   background: var(--color-surface-window);
 }

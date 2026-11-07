@@ -17,7 +17,7 @@ import {
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { ALERT_KINDS, type AlertKind } from './blocks'
 import { markerField, scanMarkers, type MarkerScan } from './gutterMarkers'
-import { BOX_INSET, BOX_MARGIN, BOX_PAD, glass } from './boxes'
+import { BOX_INSET, BOX_MARGIN, BOX_PAD } from './boxes'
 
 export interface LineStyle {
   from: number
@@ -202,30 +202,6 @@ const plugin = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
-// Rules inside the editor's shadow root cannot see the root element's attribute (WebKit has no
-// `:host-context`), so the editor carries a copy. `view.dom` keeps it: CodeMirror rewrites only
-// the attributes it set itself.
-const glassMaterial = ViewPlugin.fromClass(
-  class {
-    private readonly observer: MutationObserver
-    constructor(view: EditorView) {
-      const root = view.dom.ownerDocument.documentElement
-      const follow = () => {
-        const material = root.dataset['sidebarMaterial']
-        if (material) view.dom.dataset['sidebarMaterial'] = material
-        else delete view.dom.dataset['sidebarMaterial']
-        view.requestMeasure()
-      }
-      this.observer = new MutationObserver(follow)
-      this.observer.observe(root, { attributeFilter: ['data-sidebar-material'] })
-      follow()
-    }
-    destroy() {
-      this.observer.disconnect()
-    }
-  },
-)
-
 // Gutter numbers sit on a heading's baseline: with the heading's line height, a baseline
 // moves 0.35 of the size difference (half of ascent minus descent in the editor's fonts).
 class HeadingGutter extends GutterMarker {
@@ -280,7 +256,6 @@ const headingGutter = markerField(scanMarkdownGutter)
 const token = (name: string) => `var(--color-${name})`
 const BODY_SIZE = 'var(--editor-font-size, var(--font-size-body))'
 const headingSize = (level: HeadingLevel) => `calc(var(--note-heading-h${level}) * ${BODY_SIZE})`
-const BOX_BORDER = `1px solid ${token('code-block-border')}`
 /** A quote's bar, drawn inside the border that holds the text's indent. */
 const QUOTE_BAR = 'var(--size-quote-bar)'
 /** The border: the bar, then the space between it and the text (the rest is padding). */
@@ -313,48 +288,35 @@ const gutterDrop = (size: string, line: string) => ({
   paddingTop: `max(0px, calc((${size} - ${BODY_SIZE}) * 0.35))`,
 })
 
-const headingStyles = Object.fromEntries(
-  LEVELS.flatMap((level) => [
-    [
-      `.cm-md-h${level}`,
-      { fontSize: headingSize(level), lineHeight: 'var(--note-line-height-heading)' },
-    ],
-    [
-      `.cm-gutterElement.cm-md-gutter-h${level}`,
-      gutterDrop(
-        headingSize(level),
-        `calc(${headingSize(level)} * var(--note-line-height-heading))`,
-      ),
-    ],
-  ]),
-)
-
 /** One point of the Glass scale at the reader's editor font size. */
 const GLASS_PT = `calc(${BODY_SIZE} / var(--note-heading-glass-editor-reference))`
 const glassScale = (level: number, name: 'size' | 'line') =>
   `calc(var(--note-heading-glass-h${level}-${name}) * ${GLASS_PT})`
-const GLASS_LEVELS = [1, 2, 3] as const
 
-const glassHeadingStyles = Object.fromEntries(
-  GLASS_LEVELS.flatMap((level) => [
-    [
-      glass(`.cm-md-h${level}`),
-      {
-        fontSize: glassScale(level, 'size'),
-        lineHeight: glassScale(level, 'line'),
-        ...(level === 3 ? { fontWeight: 'var(--font-weight-semibold)' } : {}),
-      },
-    ],
-    [
-      glass(`.cm-gutterElement.cm-md-gutter-h${level}`),
-      gutterDrop(glassScale(level, 'size'), glassScale(level, 'line')),
-    ],
-  ]),
+/** Levels 1 to 3 follow the Glass scale; the smaller ones keep the note's heading ratios. */
+const headingStyles = Object.fromEntries(
+  LEVELS.flatMap((level) => {
+    const scaled = level <= 3
+    const size = scaled ? glassScale(level, 'size') : headingSize(level)
+    const line = scaled
+      ? glassScale(level, 'line')
+      : `calc(${size} * var(--note-line-height-heading))`
+    return [
+      [
+        `.cm-md-h${level}`,
+        {
+          fontSize: size,
+          lineHeight: scaled ? line : 'var(--note-line-height-heading)',
+          ...(level === 3 ? { fontWeight: 'var(--font-weight-semibold)' } : {}),
+        },
+      ],
+      [`.cm-gutterElement.cm-md-gutter-h${level}`, gutterDrop(size, line)],
+    ]
+  }),
 )
 
 const theme = EditorView.theme({
   ...headingStyles,
-  ...glassHeadingStyles,
   '.cm-gutterElement.cm-md-gutter-table': {
     boxSizing: 'border-box',
     paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,
@@ -363,12 +325,11 @@ const theme = EditorView.theme({
   '.cm-md-task-done, .cm-md-task-done *': { textDecoration: 'line-through' },
   '.cm-md-code': {
     fontFamily: 'var(--code-font-family, var(--font-family-mono))',
-    border: `1px solid ${token('editor-code-border')}`,
+    border: '0',
     backgroundColor: token('editor-code-fill'),
-    borderRadius: 'var(--radius-mark)',
+    borderRadius: 'var(--radius-inline-code)',
     padding: '0 var(--space-1)',
   },
-  [glass('.cm-md-code')]: { border: '0', borderRadius: 'var(--radius-inline-code)' },
   '.cm-md-mark-tag, .cm-md-mark-tag *': {
     color: token('syntax-markup'),
     fontSize: '0.85em',
@@ -399,22 +360,22 @@ const theme = EditorView.theme({
   },
   '.cm-md-alert-label, .cm-md-alert-label *': { textDecoration: 'none' },
   ...alertColours,
-  [glass('.cm-md-quote-first::before')]: {
+  '.cm-md-quote-first::before': {
     top: 'var(--space-1)',
     borderTopLeftRadius: 'var(--radius-quote-bar)',
     borderTopRightRadius: 'var(--radius-quote-bar)',
   },
-  [glass('.cm-md-quote-last::before')]: {
+  '.cm-md-quote-last::before': {
     bottom: 'var(--space-1)',
     borderBottomLeftRadius: 'var(--radius-quote-bar)',
     borderBottomRightRadius: 'var(--radius-quote-bar)',
   },
-  [glass('.cm-md-alert')]: { paddingRight: `calc(${BOX_PAD} + ${BOX_INSET})` },
+  '.cm-md-alert': { paddingRight: `calc(${BOX_PAD} + ${BOX_INSET})` },
   // A tint over the active line would take an alert label under 4.5:1 (contrast.test.ts).
-  [glass('.cm-activeLine.cm-md-alert')]: { backgroundColor: 'transparent' },
+  '.cm-activeLine.cm-md-alert': { backgroundColor: 'transparent' },
   // One tint per line, closed by the outer lines. Under the selection layer (z-index -1), so
   // selected text keeps its contrast; the line must stay out of its own stacking context for that.
-  [glass('.cm-md-alert.cm-md-quote::before')]: {
+  '.cm-md-alert.cm-md-quote::before': {
     right: BOX_PAD,
     width: 'auto',
     zIndex: '-2',
@@ -422,12 +383,12 @@ const theme = EditorView.theme({
     borderLeft: ALERT_EDGE,
     borderRight: ALERT_EDGE,
   },
-  [glass('.cm-md-alert-first.cm-md-quote::before')]: {
+  '.cm-md-alert-first.cm-md-quote::before': {
     borderTop: ALERT_EDGE,
     borderTopLeftRadius: 'var(--radius-list-row)',
     borderTopRightRadius: 'var(--radius-list-row)',
   },
-  [glass('.cm-md-alert-last.cm-md-quote::before')]: {
+  '.cm-md-alert-last.cm-md-quote::before': {
     borderBottom: ALERT_EDGE,
     borderBottomLeftRadius: 'var(--radius-list-row)',
     borderBottomRightRadius: 'var(--radius-list-row)',
@@ -445,33 +406,20 @@ const theme = EditorView.theme({
     zIndex: '-1',
     pointerEvents: 'none',
     backgroundColor: token('code-block-bg'),
-    borderLeft: BOX_BORDER,
-    borderRight: BOX_BORDER,
   },
   '.cm-md-table-first': { paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})` },
   '.cm-md-table-last': { paddingBottom: `calc(${BOX_MARGIN} + ${BOX_PAD})` },
   '.cm-md-table-first::before': {
     top: BOX_MARGIN,
-    borderTop: BOX_BORDER,
-    borderTopLeftRadius: 'var(--radius-button)',
-    borderTopRightRadius: 'var(--radius-button)',
-  },
-  '.cm-md-table-last::before': {
-    bottom: BOX_MARGIN,
-    borderBottom: BOX_BORDER,
-    borderBottomLeftRadius: 'var(--radius-button)',
-    borderBottomRightRadius: 'var(--radius-button)',
-  },
-  [glass('.cm-md-table::before')]: { border: '0' },
-  [glass('.cm-md-table-first::before')]: {
     borderTopLeftRadius: 'var(--radius-list-row)',
     borderTopRightRadius: 'var(--radius-list-row)',
   },
-  [glass('.cm-md-table-last::before')]: {
+  '.cm-md-table-last::before': {
+    bottom: BOX_MARGIN,
     borderBottomLeftRadius: 'var(--radius-list-row)',
     borderBottomRightRadius: 'var(--radius-list-row)',
   },
   '.cm-md-table-header': { fontWeight: 'var(--font-weight-bold)' },
 })
 
-export const markdownLineStyles = [plugin, glassMaterial, headingGutter, theme]
+export const markdownLineStyles = [plugin, headingGutter, theme]
