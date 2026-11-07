@@ -106,6 +106,15 @@ impl Store {
         Ok(u64::try_from(count).unwrap_or(0))
     }
 
+    /// Whether a row for `id` is stored, trashed and purged notes included.
+    pub fn has_note(&self, id: &str) -> Result<bool> {
+        Ok(self.conn.query_row(
+            "SELECT EXISTS (SELECT 1 FROM notes WHERE id = ?1)",
+            [id],
+            |row| row.get(0),
+        )?)
+    }
+
     /// The bodies of `ids` in their order, trashed notes included; purged and unknown IDs are left out.
     pub fn get_bodies(&self, ids: &[String]) -> Result<Vec<NoteBody>> {
         let mut statement = self.conn.prepare_cached(NOTE_BODIES_SQL)?;

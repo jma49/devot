@@ -8,7 +8,8 @@ use super::format::{verify_licence, verify_revocations};
 use super::keys::{PRODUCTION, TEST, decode_key, gates};
 use super::store::MemoryKey;
 use super::testing::{
-    ID, LICENSEE, key, licence_json, sign, sign_raw, test_keys, trial_over, vectors,
+    ID, LICENSEE, gated_db, has_note, key, licence_json, save_note, sign, sign_raw, test_keys,
+    trial_over, vectors,
 };
 use super::*;
 use crate::data_folder::Build;
@@ -266,7 +267,7 @@ fn a_revocation_list_needs_its_own_shape() {
 }
 
 struct Setup {
-    licence: Licence,
+    licence: Arc<Licence>,
     store: Arc<MemoryKey>,
     trial: Arc<MemoryKey>,
     now: Arc<AtomicI64>,
@@ -293,7 +294,7 @@ fn setup_with(dir: tempfile::TempDir, gated: bool, trial: Arc<MemoryKey>) -> Set
     )
     .with_clock(Arc::new(move || clock.load(Ordering::SeqCst)));
     Setup {
-        licence,
+        licence: Arc::new(licence),
         store,
         trial,
         now,
@@ -762,6 +763,40 @@ fn a_note_being_saved_as_the_trial_ends_still_lands_for_a_few_minutes() {
     assert_eq!(s.licence.require_write(Write::Body), Err(REQUIRED));
 }
 
+/// Notes `save_note` puts: one saved before editing ends, one first saved after.
+const KEPT: &str = "0192a6f0-0000-7000-8000-00000000000a";
+const NEW: &str = "0192a6f0-0000-7000-8000-00000000000b";
+
+#[test]
+fn as_the_trial_ends_a_note_that_exists_still_saves_but_a_new_note_does_not() {
+    let s = first_launch(true);
+    s.licence.snapshot();
+    let (_db_dir, db) = gated_db(&s.licence);
+    save_note(&db, KEPT, 0).expect("the trial runs");
+    let end = START + 30 * 24 * HOUR;
+    s.at(end + trial::GRACE_MS - 1);
+    assert_eq!(save_note(&db, KEPT, 1), Ok(()));
+    assert_eq!(save_note(&db, NEW, 0), Err(REQUIRED.to_owned()));
+    assert!(!has_note(&db, NEW));
+    let (_new_library_dir, new_library) = gated_db(&s.licence);
+    let seeded = tauri::async_runtime::block_on(crate::commands::welcome::seed(
+        &new_library,
+        "0001728000000000-0000-node".into(),
+        end,
+    ));
+    assert_eq!(seeded, Ok(true), "welcome seeding is not a first save");
+    s.at(end + trial::GRACE_MS);
+    assert_eq!(save_note(&db, KEPT, 2), Err(REQUIRED.to_owned()));
+}
+
+#[test]
+fn an_ungated_build_saves_a_new_note_and_its_edits_alike() {
+    let s = setup(false);
+    let (_db_dir, db) = gated_db(&s.licence);
+    assert_eq!(save_note(&db, NEW, 0), Ok(()));
+    assert_eq!(save_note(&db, NEW, 1), Ok(()));
+}
+
 #[test]
 fn setting_the_clock_back_ends_the_trial_and_setting_it_right_does_not_bring_it_back() {
     let s = first_launch(true);
@@ -1154,6 +1189,30 @@ mod seats {
         renew.store(true, Ordering::SeqCst);
         assert_eq!(s.licence.refresh_activation(), Ok(true));
         assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    }
+
+    #[test]
+    fn as_a_lease_runs_out_a_note_that_exists_still_saves_but_a_new_note_does_not() {
+        use super::super::SEAT_GRACE_MS;
+        use super::super::testing::{gated_db, has_note, save_note};
+        use super::{KEPT, NEW};
+        const EXPIRES: i64 = 1_790_035_200_000;
+        let s = seat_setup(|device| {
+            Ok(ActivationReply {
+                lease: lease_for(ID, device, "2026-09-22T00:00:00Z"),
+                used: 1,
+                limit: 3,
+            })
+        });
+        s.licence.set(&key(ID)).expect("set");
+        let (_db_dir, db) = gated_db(&s.licence);
+        save_note(&db, KEPT, 0).expect("the seat is active");
+        s.now.store(EXPIRES + SEAT_GRACE_MS - 1, Ordering::SeqCst);
+        assert_eq!(save_note(&db, KEPT, 1), Ok(()));
+        assert_eq!(save_note(&db, NEW, 0), Err(REQUIRED.to_owned()));
+        assert!(!has_note(&db, NEW));
+        s.now.store(EXPIRES + SEAT_GRACE_MS, Ordering::SeqCst);
+        assert_eq!(save_note(&db, KEPT, 2), Err(REQUIRED.to_owned()));
     }
 
     #[test]
