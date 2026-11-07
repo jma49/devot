@@ -185,6 +185,8 @@ export function useQuitAndClose({
               // A mirror pass ends after the batch it is in, so its manifest
               // lists every file it wrote; the next launch catches up.
               await core.mirrorStop()
+              // A large note's last edit may still wait for its pace (Rust's exit timeout bounds this).
+              await core.syncFlush()
             },
           )
         })
