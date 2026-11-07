@@ -5466,18 +5466,6 @@ public enum L10n {
     fill(text("phone.list.showMore", "Show more ({count} completed hidden)"), ["count": p0])
   }
 
-  public static func phoneCaptureTitle() -> String {
-    text("phone.capture.title", "Title")
-  }
-
-  public static func phoneCaptureNote() -> String {
-    text("phone.capture.note", "Note")
-  }
-
-  public static func phoneCaptureSave() -> String {
-    text("phone.capture.save", "Save note")
-  }
-
   public static func phoneNoteTitle() -> String {
     text("phone.note.title", "Title")
   }

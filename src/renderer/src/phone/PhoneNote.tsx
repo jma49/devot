@@ -186,8 +186,11 @@ const PICKER_OPS = { notebook: 'move', status: 'status', tags: 'tags' } as const
 
 /** A note New Note just made, whose body takes the keyboard once its push has landed. */
 export interface NewNoteArrival {
-  /** What was typed since the tap, or null once the keyboard has been handed over. */
-  takeTyped: () => readonly EarlyKey[] | null
+  /**
+   * What was typed since the tap, or null once the keyboard has been handed over. Text still being
+   * composed then comes later, through `typeLater`.
+   */
+  takeTyped: (typeLater: (keys: readonly EarlyKey[]) => void) => readonly EarlyKey[] | null
   /** Anything the user put in the note, so leaving it keeps it. */
   onTouched: () => void
 }
@@ -286,7 +289,11 @@ export function PhoneNote(props: {
   useEffect(() => {
     if (!landed || loadedId !== props.noteId || noteId !== props.noteId) return
     const shown = editor.current
-    const typed = shown ? arrival?.takeTyped() : null
+    const typed = shown
+      ? arrival?.takeTyped((late) => {
+          if (late.length && editor.current === shown) shown.type(late)
+        })
+      : null
     if (!typed || !shown) return
     shown.focusStart()
     if (typed.length) shown.type(typed)

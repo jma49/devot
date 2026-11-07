@@ -253,6 +253,12 @@ const without = (ids: ReadonlySet<string>, id: string): ReadonlySet<string> => {
   return next
 }
 
+const takeProxyText = (proxy: HTMLTextAreaElement): EarlyKey[] => {
+  const text = proxy.value
+  proxy.value = ''
+  return [...text].map((key) => ({ key, shift: false }))
+}
+
 export function PhoneApp() {
   const [state, dispatch] = useReducer(navigate, undefined, initialNavigation)
   const phoneData = usePhoneData()
@@ -281,6 +287,9 @@ export function PhoneApp() {
   const keyboardProxy = useRef<HTMLTextAreaElement>(null)
   const made = useRef(new Map<string, Made>())
   const earlyKeys = useRef<EarlyKeysTicket | null>(null)
+  const making = useRef(false)
+  const composing = useRef(false)
+  const committedLater = useRef<(() => void) | null>(null)
   const latest = useRef(state)
   useLayoutEffect(() => {
     latest.current = state
@@ -314,7 +323,11 @@ export function PhoneApp() {
   const releaseKeyboard = () => {
     earlyKeys.current?.fail()
     earlyKeys.current = null
-    if (document.activeElement === keyboardProxy.current) keyboardProxy.current?.blur()
+    committedLater.current?.()
+    const proxy = keyboardProxy.current
+    if (!proxy) return
+    if (document.activeElement === proxy) proxy.blur()
+    proxy.value = ''
   }
 
   const leaveNewNote = (id: string) => {
@@ -349,7 +362,10 @@ export function PhoneApp() {
       kind === 'template' ? null : newNoteBook(list, editorSettings().defaultNotebook, store.books)
     requireEditing({ op: 'newNote', id: bookId }, () => {
       const core = store.core
-      if (!core) return
+      if (!core || making.current) return
+      making.current = true
+      const from = latest.current
+      const fromTop = from.stacks[from.tab].at(-1)?.id
       // WebKit raises the keyboard only for a focus inside the tap: a hidden field holds it until the body can.
       releaseKeyboard()
       const ticket = startEarlyKeys()
@@ -357,12 +373,19 @@ export function PhoneApp() {
       keyboardProxy.current?.focus({ preventScroll: true })
       void makeNewNote(core, kind, bookId)
         .then(async (id) => {
+          await phoneData.refresh()
+          const shown = latest.current
+          // The user went elsewhere while the note was made: nobody saw it, so it goes.
+          if (shown.tab !== from.tab || shown.stacks[shown.tab].at(-1)?.id !== fromTop) {
+            if (earlyKeys.current === ticket) releaseKeyboard()
+            if (await discardNewNote(core, id)) await phoneData.refresh()
+            return
+          }
           made.current.set(id, {
             bookId: kind === 'template' ? TEMPLATES_BOOK_ID : bookId,
             touched: false,
             handedOver: false,
           })
-          await phoneData.refresh()
           go({ type: 'newNoteShown', listView: listUnderNewNote(list, kind, bookId), noteId: id })
         })
         .catch((error: unknown) => {
@@ -370,19 +393,37 @@ export function PhoneApp() {
           if (!refusedWrite('newNote', error))
             console.warn('W_PHONE_NEW_NOTE_FAILED', errorCode(error))
         })
+        .finally(() => {
+          making.current = false
+        })
     })
   }
 
-  const handOver = (id: string): readonly EarlyKey[] | null => {
+  const handOver = (
+    id: string,
+    typeLater: (keys: readonly EarlyKey[]) => void,
+  ): readonly EarlyKey[] | null => {
     const note = made.current.get(id)
     if (!note || note.handedOver) return null
     note.handedOver = true
     earlyKeys.current?.claim(id)
     earlyKeys.current = null
+    const keys = takeEarlyKeys(id)
     const proxy = keyboardProxy.current
-    const left = proxy?.value ?? ''
-    if (proxy) proxy.value = ''
-    return [...takeEarlyKeys(id), ...[...left].map((key) => ({ key, shift: false }))]
+    if (!proxy) return keys
+    if (!composing.current) return [...keys, ...takeProxyText(proxy)]
+    // Marked text is not the user's yet: it moves over once the input method commits it.
+    const committed = () => {
+      cancel()
+      typeLater(takeProxyText(proxy))
+    }
+    const cancel = () => {
+      proxy.removeEventListener('compositionend', committed)
+      committedLater.current = null
+    }
+    proxy.addEventListener('compositionend', committed)
+    committedLater.current = cancel
+    return keys
   }
 
   const touch = (id: string) => {
@@ -408,7 +449,12 @@ export function PhoneApp() {
           onBack={pop}
           onTrash={undoable.trash}
           {...(route.fresh
-            ? { arrival: { takeTyped: () => handOver(noteId), onTouched: () => touch(noteId) } }
+            ? {
+                arrival: {
+                  takeTyped: (typeLater) => handOver(noteId, typeLater),
+                  onTouched: () => touch(noteId),
+                },
+              }
             : {})}
         />
       )
@@ -527,6 +573,12 @@ export function PhoneApp() {
         aria-hidden="true"
         tabIndex={-1}
         inputMode="text"
+        onCompositionStart={() => {
+          composing.current = true
+        }}
+        onCompositionEnd={() => {
+          composing.current = false
+        }}
       />
       <PhoneToast toast={undoable.toast} />
       <PhoneGate

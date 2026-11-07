@@ -186,6 +186,85 @@ describe('New Note in the shell', () => {
     expect(editor.typed.map((k) => k.key)).toEqual(['H', 'i'])
   })
 
+  const proxy = () => host.querySelector<HTMLTextAreaElement>('[data-keyboard-proxy]')!
+  const land = async () => {
+    const layer = shownStack().querySelector(':scope > .phone-layer:last-of-type')!
+    await act(async () => layer.dispatchEvent(new Event('transitionend')))
+  }
+  const heldCreate = () => {
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const create = shell.notes.create.bind(shell.notes)
+    const spy = vi.spyOn(shell.notes, 'create').mockImplementation(async (...args) => {
+      await held
+      return create(...args)
+    })
+    return { spy, release: () => act(async () => release()) }
+  }
+
+  it('makes one note for a second tap while the first is still being made', async () => {
+    await start()
+    const { spy, release } = heldCreate()
+    await tap(compose())
+    await tap(compose())
+    await release()
+    await vi.waitFor(() => expect(screens()).toEqual(['Library', 'All Notes', 'Untitled']))
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect((await shell.core.listWithTemplates()).notes).toHaveLength(1)
+  })
+
+  it('pushes nothing and keeps no note when the tab changed before the note was made', async () => {
+    await start()
+    const { spy, release } = heldCreate()
+    await tap(compose())
+    await tap(tab('Settings'))
+    await release()
+    await vi.waitFor(async () => {
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect((await shell.core.listWithTemplates()).notes).toEqual([])
+    })
+    expect(currentTab()).toBe('Settings')
+    expect(screens()).toEqual(['Settings'])
+    await tap(tab('Library'))
+    expect(screens()).toEqual(['Library'])
+  })
+
+  it('types a composition the hidden field holds only once it is committed', async () => {
+    await start()
+    await newNote()
+    const editor = shownEditors.at(-1)!
+    const field = proxy()
+    act(() => {
+      field.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+      field.value = 'nihao'
+    })
+    await land()
+    expect(editor.focused).toBe(1)
+    expect(editor.typed).toEqual([])
+    act(() => {
+      field.value = '\u4f60\u597d'
+      field.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+    })
+    await vi.waitFor(() => expect(editor.typed.map((k) => k.key).join('')).toBe('\u4f60\u597d'))
+    expect(field.value).toBe('')
+  })
+
+  it('leaves nothing in the hidden field for the next note when a note is not made', async () => {
+    await start()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let fail = () => {}
+    vi.spyOn(shell.notes, 'create').mockImplementationOnce(
+      () => new Promise((_, reject) => (fail = () => reject(new Error('E_STORAGE_FULL')))),
+    )
+    await tap(compose())
+    proxy().value = 'stale'
+    await act(async () => fail())
+    expect(proxy().value).toBe('')
+    await newNote()
+    await land()
+    expect(shownEditors.at(-1)!.typed).toEqual([])
+  })
+
   it('from the Library root and a status list, slides All Notes in under it on the same tab', async () => {
     await start()
     await newNote()
