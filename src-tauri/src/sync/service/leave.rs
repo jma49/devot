@@ -2,7 +2,7 @@
 //! removed before a rotation or one whose relay is gone (docs/adr/0008-sync-device-pairing.md,
 //! Leaving a relay vault). Only this device changes: the relay and the other devices keep the vault.
 
-use super::super::settings::DeviceCredentials;
+use super::super::settings::{DeviceCredentials, RetiredTokens};
 use super::super::{SyncError, Vault};
 use super::{Snapshot, SyncService};
 
@@ -46,7 +46,7 @@ impl SyncService {
         };
         forgotten(Vault::delete_next(secrets).map(drop))?;
         forgotten(DeviceCredentials::forget_next(secrets))?;
-        forgotten(DeviceCredentials::forget_retired(secrets))?;
+        forgotten(RetiredTokens::forget(secrets))?;
         forgotten(DeviceCredentials::forget(secrets))?;
         forgotten(Vault::delete(secrets).map(drop))?;
         self.settings.update(|settings| {

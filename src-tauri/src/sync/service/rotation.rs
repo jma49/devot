@@ -5,7 +5,7 @@
 //! stays as it was until the relay retires it.
 
 use super::super::client::{self, Connection, Enrollment, RelayUrl, Retire, Welcome};
-use super::super::settings::{DeviceCredentials, Rotation};
+use super::super::settings::{DeviceCredentials, RetiredTokens, Rotation};
 use super::super::{SecretStore, Vault};
 use super::{Created, DEVICE_LABEL, REVOKED, SyncService, checked_relay_secret};
 
@@ -160,8 +160,8 @@ impl SyncService {
         if let Some(waiting) = DeviceCredentials::load_next(secrets).map_err(|e| e.code())?
             && waiting.vault == next.id().to_string()
         {
-            if let Some(from) = &settings.rotating {
-                self.keep_retired_token(&from.from);
+            if let Some(rotating) = &settings.rotating {
+                self.keep_retired_token(&rotating.from, &rotating.to);
             }
             waiting.save(secrets).map_err(|e| e.code())?;
         }
@@ -174,18 +174,33 @@ impl SyncService {
     }
 
     /// Keeps this device's token for `from` before the successor's token takes its place, so
-    /// Settings can list the devices of `from` that have not joined the successor yet.
-    fn keep_retired_token(&self, from: &str) {
+    /// Settings can list the devices of `from` that have not joined `to` yet. Tokens kept at an
+    /// earlier change of this same chain stay, since their devices have not joined `to` either.
+    fn keep_retired_token(&self, from: &str, to: &str) {
         let secrets = self.secrets.as_ref();
-        let kept = match DeviceCredentials::load(secrets) {
-            Ok(Some(old)) if old.vault == from && old.token != REVOKED => {
-                old.save_retired(secrets).map_err(|e| e.code())
+        let kept = (|| {
+            let mut retired = RetiredTokens::load(secrets)?.unwrap_or_default();
+            if retired.successor != from {
+                for dropped in &retired.tokens {
+                    log::info!(
+                        "I_SYNC_RETIRED_FORGOTTEN vault={} successor={}",
+                        dropped.vault,
+                        retired.successor
+                    );
+                }
+                retired.tokens.clear();
             }
-            Ok(_) => Ok(()),
-            Err(e) => Err(e.code()),
-        };
-        if let Err(code) = kept {
-            log::warn!("W_SYNC_RETIRED_KEEP {code} vault={from}");
+            retired.tokens.retain(|token| token.vault != from);
+            if let Some(old) = DeviceCredentials::load(secrets)?
+                .filter(|old| old.vault == from && old.token != REVOKED)
+            {
+                retired.tokens.push(old);
+            }
+            retired.successor = to.to_string();
+            retired.save(secrets)
+        })();
+        if let Err(e) = kept {
+            log::warn!("W_SYNC_RETIRED_KEEP {e} vault={from}");
         }
     }
 

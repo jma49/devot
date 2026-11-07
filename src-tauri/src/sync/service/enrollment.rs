@@ -111,7 +111,8 @@ impl SyncService {
     /// Enrolls this device in `vault` on `relay`, then keeps the token, the vault and sync on, in
     /// that order: a refused enrollment keeps nothing, and the engine, which needs the vault, never
     /// enrolls a second time meanwhile. `replaces` puts the vault in place of a retired one, which
-    /// this device then leaves with its old token.
+    /// this device then leaves with its old token, and drops the tokens of vaults this device
+    /// retired before another device retired that one.
     pub(super) fn join(
         &self,
         relay: &RelayUrl,
@@ -148,6 +149,9 @@ impl SyncService {
             log::info!("I_SYNC_SUCCESSOR_JOINED vault={}", vault.id());
         }
         self.settings.set(&settings)?;
+        if replaces {
+            self.forget_stale_retired(&vault.id().to_string());
+        }
         if let Some(old) = retired {
             self.leave_retired(&old);
         }
