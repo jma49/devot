@@ -7315,7 +7315,7 @@ button.popup:focus-visible {
   overflow-wrap: anywhere;
 }
 
-/* The footer under the panes (CountsFooter.tsx): words and characters, right-aligned to the history bar's margin. */
+/* The footer under the panes (CountsFooter.tsx): words and characters, right-aligned and inset space.10 from the content column's edge. */
 .editor-counts {
   display: flex;
   justify-content: flex-end;
