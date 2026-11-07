@@ -17,24 +17,24 @@ use super::tests::FailingStore;
 use super::{SecretStore, SyncError, Vault};
 use crate::licence::Gate;
 
-const NOTE: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789a1";
+pub(super) const NOTE: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789a1";
 const OTHER: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789a2";
 
 type Events = Arc<Mutex<Vec<(String, Json)>>>;
 
-struct Device {
-    service: SyncService,
-    secrets: service::Secrets,
-    events: Events,
-    _dir: tempfile::TempDir,
+pub(super) struct Device {
+    pub(super) service: SyncService,
+    pub(super) secrets: service::Secrets,
+    pub(super) events: Events,
+    pub(super) _dir: tempfile::TempDir,
 }
 
-fn device(kit: &Arc<Fake>) -> Device {
+pub(super) fn device(kit: &Arc<Fake>) -> Device {
     device_with(kit, &Arc::new(Secrets::default()))
 }
 
 /// A device on the Apple ID `kit` stands for, whose iCloud Keychain is `keychain`.
-fn device_with(kit: &Arc<Fake>, keychain: &Arc<Secrets>) -> Device {
+pub(super) fn device_with(kit: &Arc<Fake>, keychain: &Arc<Secrets>) -> Device {
     device_of(
         kit,
         Arc::clone(keychain) as _,
@@ -72,7 +72,7 @@ fn device_of(
     }
 }
 
-fn b64(bytes: &[u8]) -> String {
+pub(super) fn b64(bytes: &[u8]) -> String {
     STANDARD.encode(bytes)
 }
 
@@ -295,7 +295,7 @@ fn signed_in_to(kit: &Arc<Fake>, mac: &Device) -> SyncService {
     .with_handover(Arc::new(Secrets::default()))
 }
 
-fn epoch(connected: Connected) -> String {
+pub(super) fn epoch(connected: Connected) -> String {
     match connected {
         Connected::ICloud(welcome) => welcome.epoch,
         Connected::Relay(_) => panic!("connected through a relay"),
@@ -507,11 +507,11 @@ fn an_account_change_drops_the_connection_until_it_connects_again() {
     assert!(mac.service.pull("").is_ok());
 }
 
-fn held(device: &Device) -> Option<Vault> {
+pub(super) fn held(device: &Device) -> Option<Vault> {
     Vault::load(device.secrets.as_ref()).unwrap()
 }
 
-fn handed_over(keychain: &dyn SecretStore) -> Option<Vault> {
+pub(super) fn handed_over(keychain: &dyn SecretStore) -> Option<Vault> {
     super::handover::read(keychain).unwrap()
 }
 

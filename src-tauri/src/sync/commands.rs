@@ -313,6 +313,13 @@ pub async fn sync_icloud_upload_again(
     task::blocking_with(&sync, "E_SYNC_INTERNAL", |sync| sync.icloud_upload_again()).await
 }
 
+/// Changes the key of the vault on iCloud (docs/adr/0017-sync-key-rotation.md, On iCloud); the
+/// answer carries the new recovery key.
+#[tauri::command]
+pub async fn sync_icloud_rotate(sync: State<'_, Arc<SyncService>>) -> Result<Created, String> {
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", SyncService::rotate_icloud).await
+}
+
 /// Leave This Vault: the vault's recovery key confirms it.
 #[tauri::command]
 pub async fn sync_icloud_leave(

@@ -113,6 +113,14 @@ fn record_id(name: &str, zone: &CKRecordZoneID) -> Retained<CKRecordID> {
     }
 }
 
+/// A record or zone already gone, which a delete takes as done.
+fn gone(error: i64) -> bool {
+    matches!(
+        error,
+        code::UNKNOWN_ITEM | code::ZONE_NOT_FOUND | code::USER_DELETED_ZONE
+    )
+}
+
 /// `None` stays `None`; an error from CloudKit becomes its code, its wait and, for
 /// `serverRecordChanged`, the server's record.
 fn error_of(error: *mut NSError) -> Option<CkError> {
@@ -509,6 +517,56 @@ impl CloudKit for Native {
         })
     }
 
+    fn delete(&self, zone: &str, names: &[String]) -> Result<(), CkError> {
+        if !self.available {
+            return Err(CkError::of(code::MISSING_ENTITLEMENT));
+        }
+        if names.is_empty() {
+            return Ok(());
+        }
+        let zone = zone_id(zone);
+        let ids: Vec<_> = names.iter().map(|name| record_id(name, &zone)).collect();
+        let failed = Arc::new(Mutex::new(Option::<CkError>::None));
+        let seen = Arc::clone(&failed);
+        run("W_SYNC_ICLOUD_DELETE", WAIT, move |sender| {
+            // SAFETY: none to save and record IDs in the app's own zone to delete.
+            let operation = unsafe {
+                CKModifyRecordsOperation::initWithRecordsToSave_recordIDsToDelete(
+                    CKModifyRecordsOperation::alloc(),
+                    None,
+                    Some(&NSArray::from_retained_slice(&ids)),
+                )
+            };
+            let per_record = RcBlock::new(move |_: NonNull<CKRecordID>, error: *mut NSError| {
+                match error_of(error) {
+                    Some(error) if gone(error.code) => {}
+                    Some(error) => *lock(&seen) = Some(error),
+                    None => {}
+                }
+            });
+            let done = RcBlock::new(
+                move |_: *mut NSArray<CKRecord>,
+                      _: *mut NSArray<CKRecordID>,
+                      error: *mut NSError| {
+                    let whole = error_of(error)
+                        .filter(|e| e.code != code::PARTIAL_FAILURE && !gone(e.code));
+                    let _ = sender.send(match whole.or_else(|| lock(&failed).take()) {
+                        Some(error) => Err(error),
+                        None => Ok(()),
+                    });
+                },
+            );
+            // SAFETY: each block's arguments are as CloudKit documents them for this operation.
+            unsafe {
+                operation.setAtomic(false);
+                operation.setPerRecordDeleteBlock(Some(&per_record));
+                operation.setModifyRecordsCompletionBlock(Some(&done));
+            }
+            add(&operation);
+            Some(Retained::into_super(operation))
+        })
+    }
+
     fn fetch(&self, zone: &str, names: &[String]) -> Result<Vec<Option<CkRecord>>, CkError> {
         if !self.available {
             return Err(CkError::of(code::MISSING_ENTITLEMENT));
@@ -599,7 +657,7 @@ impl CloudKit for Native {
         if !sending.is_empty() {
             let into = Arc::clone(&got);
             run("W_SYNC_ICLOUD_SAVE", WAIT_TRANSFER, move |sender| {
-                // SAFETY: records to save and none to delete; records are never deleted.
+                // SAFETY: records to save and none to delete.
                 let operation = unsafe {
                     CKModifyRecordsOperation::initWithRecordsToSave_recordIDsToDelete(
                         CKModifyRecordsOperation::alloc(),

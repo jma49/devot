@@ -38,14 +38,23 @@ impl SyncService {
             .transpose()
             .map_err(|e| e.code())?;
         let held = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())?;
-        if let (Some(held), Some(named)) = (&held, &named)
-            && !held.same(named)
-        {
-            return Err("E_SYNC_VAULT_EXISTS");
-        }
+        let succeeds = match (&held, &named) {
+            (Some(held), Some(named)) if !held.same(named) => {
+                if self.icloud_successor_of(held).as_deref() != Some(&named.id().to_string()) {
+                    return Err("E_SYNC_VAULT_EXISTS");
+                }
+                true
+            }
+            _ => false,
+        };
         current::ready(self.kit.as_ref())?;
         let _switching = self.switching.lock().map_err(|_| "E_SYNC_INTERNAL")?;
         let vault = match (held, named) {
+            (Some(held), Some(named)) if succeeds => {
+                let vault = self.join_successor(&held, named)?;
+                log::info!("I_SYNC_SUCCESSOR_JOINED vault={} via=recovery", vault.id());
+                return Ok(self.changed());
+            }
             (Some(held), _) => {
                 self.claim(&held)?;
                 self.leave_relay(&held)?;
@@ -241,6 +250,27 @@ impl SyncService {
         Ok(vault)
     }
 
+    /// The successor recorded for `held` when it syncs through iCloud: the one vault a join may put
+    /// in its place there.
+    pub(super) fn icloud_successor_of(&self, held: &Vault) -> Option<String> {
+        let settings = self.settings.get();
+        let id = held.id().to_string();
+        settings.icloud_for(&id)?;
+        settings.successor_of(&id).map(str::to_string)
+    }
+
+    /// Puts `next`, the recorded successor of the iCloud vault `held`, in its place, once `current`
+    /// names it, and leaves it in the handover item.
+    pub(super) fn join_successor(&self, held: &Vault, next: Vault) -> Result<Vault, &'static str> {
+        if self.icloud_successor_of(held).as_deref() != Some(&next.id().to_string()) {
+            return Err("E_SYNC_VAULT_EXISTS");
+        }
+        self.named(&next.id().to_string())?;
+        self.switch_icloud(&next, &held.id().to_string(), true)?;
+        self.hand_over(&next);
+        Ok(next)
+    }
+
     /// When the owner chose to upload again after `E_SYNC_ICLOUD_DELETED`, or to move the vault
     /// into the Apple ID now signed in after `E_SYNC_ICLOUD_ACCOUNT_CHANGED`: `current` there names
     /// the vault (never replacing another), and the next connect makes its zone under a new epoch,
@@ -326,10 +356,13 @@ impl SyncService {
             log::warn!("W_SYNC_VAULT_REMOVE {e} vault={id}");
             e.code()
         })?;
+        Self::forget_next_items(self.secrets.as_ref());
         let mut settings = self.settings.get();
         settings.icloud = None;
         settings.icloud_declined.clear();
         settings.unseen = None;
+        settings.rotating = None;
+        settings.rotated = None;
         self.settings.set(&settings)?;
         if let Ok(mut look) = self.look.lock() {
             *look = None;

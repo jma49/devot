@@ -117,7 +117,7 @@ impl SyncService {
 
     /// The rotation's new key: the one waiting for this vault, or a new one, recorded before
     /// anything outside this device changes.
-    fn next_key(&self, vault: &Vault) -> Result<Vault, &'static str> {
+    pub(super) fn next_key(&self, vault: &Vault) -> Result<Vault, &'static str> {
         let secrets = self.secrets.as_ref();
         let from = vault.id().to_string();
         let mut settings = self.settings.get();
@@ -278,7 +278,7 @@ impl SyncService {
         }
     }
 
-    fn drop_rotation(&self) {
+    pub(super) fn drop_rotation(&self) {
         Self::forget_next_items(self.secrets.as_ref());
         let mut settings = self.settings.get();
         settings.rotating = None;
@@ -287,7 +287,7 @@ impl SyncService {
         }
     }
 
-    fn forget_next_items(secrets: &dyn SecretStore) {
+    pub(super) fn forget_next_items(secrets: &dyn SecretStore) {
         if Vault::delete_next(secrets).is_err() || DeviceCredentials::forget_next(secrets).is_err()
         {
             log::warn!("W_SYNC_ROTATION_FORGET_FAILED");

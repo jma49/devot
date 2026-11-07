@@ -16,14 +16,14 @@ use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
 use super::batch;
-use super::current;
 use super::encoding::{self, Size};
 use super::error::{self, Failure, Refused, classify};
 use super::kit::{
-    Account, CkError, CkRecord, CloudKit, SavePolicy, TYPE_CLOCK, TYPE_DEVICE, TYPE_META, Value,
-    ZONE_CLOCK, ZONE_DEVOT, vault_zone,
+    Account, CURRENT, CkError, CkRecord, CloudKit, SavePolicy, TYPE_CLOCK, TYPE_DEVICE, TYPE_META,
+    Value, ZONE_CLOCK, ZONE_DEVOT, vault_zone,
 };
 use super::staging::Staging;
+use super::{current, rotation};
 use crate::sync::client::DeviceInfo;
 use crate::sync::{Vault, names};
 
@@ -62,6 +62,10 @@ pub(crate) struct ICloudState {
     /// device that moved the vault sees it arrive; '' for none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub relay_device: String,
+    /// The vault this one succeeds after a rotation made here, whose zone and rows this device
+    /// still has to delete; '' for none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub retired: String,
 }
 
 impl ICloudState {
@@ -214,12 +218,27 @@ impl ICloud {
             log::warn!("W_SYNC_ICLOUD_DEVOT_GONE vault={}", state.vault);
             return Err(error::DELETED);
         }
+        let mut read = kit
+            .fetch(ZONE_DEVOT, &[CURRENT.to_string(), meta_name(&state.vault)])
+            .map_err(failure)?
+            .into_iter();
+        let named = read.next().flatten().and_then(|r| current::vault_of(&r));
+        let meta = read.next().flatten();
+        if let Some(successor) = named.as_deref().filter(|named| *named != state.vault)
+            && rotation::successor(kit, &self.vault, successor)?.is_some()
+        {
+            log::info!(
+                "I_SYNC_ICLOUD_SUCCEEDED vault={} successor={successor}",
+                state.vault
+            );
+            return Err(error::ROTATED);
+        }
         if vault_zone_gone && state.zone_seen && has_synced {
             log::warn!("W_SYNC_ICLOUD_ZONE_GONE vault={}", state.vault);
             return Err(error::DELETED);
         }
         // Every way into iCloud claims `current` first, so a vault it does not name was left.
-        if vault_zone_gone && current::read(kit)?.as_deref() != Some(state.vault.as_str()) {
+        if vault_zone_gone && named.as_deref() != Some(state.vault.as_str()) {
             log::warn!("W_SYNC_ICLOUD_NOT_CURRENT vault={}", state.vault);
             return Err(error::DELETED);
         }
@@ -242,7 +261,7 @@ impl ICloud {
 
         // A zone made for the first time keeps an epoch another device saved meanwhile. A device
         // that connected before checks `zone_seen` above; "upload again" clears it to get here.
-        let epoch = self.epoch(&state.vault, vault_zone_gone && connected_before)?;
+        let epoch = epoch(kit, &state.vault, meta, vault_zone_gone && connected_before)?;
         let time = self.clock(&state.device, now)?;
         self.offset.store(time - now, Ordering::Relaxed);
         self.device_row(&mut state, name, time);
@@ -258,48 +277,6 @@ impl ICloud {
             },
             state,
         ))
-    }
-
-    /// The epoch in `meta-<vault>`, saved only if absent; a vault zone made again gets a new one,
-    /// saved against the one read, so two devices doing it at once end with one.
-    fn epoch(&self, vault: &str, renew: bool) -> Result<String, &'static str> {
-        let name = format!("meta-{vault}");
-        let read = self
-            .kit
-            .fetch(ZONE_DEVOT, std::slice::from_ref(&name))
-            .map_err(failure)?
-            .into_iter()
-            .next()
-            .flatten();
-        if let Some(meta) = &read
-            && !renew
-            && let Some(epoch) = meta.text("epoch")
-        {
-            return Ok(epoch.to_string());
-        }
-        let fresh = uuid::Uuid::new_v4().simple().to_string();
-        let mut meta = CkRecord::new(TYPE_META, &name).with("epoch", Value::Text(fresh.clone()));
-        meta.system = read.and_then(|r| r.system);
-        let saved = self
-            .kit
-            .save(ZONE_DEVOT, &[meta], SavePolicy::IfUnchanged)
-            .map_err(failure)?
-            .into_iter()
-            .next()
-            .ok_or_else(|| error::empty("epoch-save"))?;
-        match saved {
-            Ok(_) => {
-                log::info!("I_SYNC_ICLOUD_EPOCH vault={vault}");
-                Ok(fresh)
-            }
-            Err(e) => match (classify(&e), &e.server_record) {
-                (Failure::Changed, Some(server)) => server
-                    .text("epoch")
-                    .map(str::to_string)
-                    .ok_or_else(|| error::unusable("epoch-record")),
-                _ => Err(error::code_of(&e, "epoch")),
-            },
-        }
     }
 
     /// Saves this device's clock record; the server's modification date is the time.
@@ -595,6 +572,61 @@ impl ICloud {
             version,
         })
     }
+}
+
+fn meta_name(vault: &str) -> String {
+    format!("meta-{vault}")
+}
+
+/// The epoch in `meta-<vault>`, as `read` holds it, saved only if absent; a vault zone made again
+/// gets a new one (`renew`), saved against the one read, so two devices doing it at once end with
+/// one.
+pub(crate) fn epoch(
+    kit: &dyn CloudKit,
+    vault: &str,
+    read: Option<CkRecord>,
+    renew: bool,
+) -> Result<String, &'static str> {
+    if let Some(meta) = &read
+        && !renew
+        && let Some(epoch) = meta.text("epoch")
+    {
+        return Ok(epoch.to_string());
+    }
+    let fresh = uuid::Uuid::new_v4().simple().to_string();
+    let mut meta =
+        CkRecord::new(TYPE_META, &meta_name(vault)).with("epoch", Value::Text(fresh.clone()));
+    meta.system = read.and_then(|r| r.system);
+    let saved = kit
+        .save(ZONE_DEVOT, &[meta], SavePolicy::IfUnchanged)
+        .map_err(failure)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| error::empty("epoch-save"))?;
+    match saved {
+        Ok(_) => {
+            log::info!("I_SYNC_ICLOUD_EPOCH vault={vault}");
+            Ok(fresh)
+        }
+        Err(e) => match (classify(&e), &e.server_record) {
+            (Failure::Changed, Some(server)) => server
+                .text("epoch")
+                .map(str::to_string)
+                .ok_or_else(|| error::unusable("epoch-record")),
+            _ => Err(error::code_of(&e, "epoch")),
+        },
+    }
+}
+
+/// The epoch of `vault`, fetched and saved if absent, as its first connect would.
+pub(crate) fn fetch_epoch(kit: &dyn CloudKit, vault: &str) -> Result<String, &'static str> {
+    let read = kit
+        .fetch(ZONE_DEVOT, &[meta_name(vault)])
+        .map_err(failure)?
+        .into_iter()
+        .next()
+        .flatten();
+    epoch(kit, vault, read, false)
 }
 
 fn answer_of(refused: Refused) -> PushAnswer {

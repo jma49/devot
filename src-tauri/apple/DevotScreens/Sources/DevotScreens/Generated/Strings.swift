@@ -7819,7 +7819,19 @@ public enum L10n {
   }
 
   public static func syncSettingsDeviceRemoveDetail() -> String {
-    text("syncSettings.deviceRemoveDetail", "Sync stops there and its notes stay. The device still holds this vault’s key, so whoever has it can join again; Devot cannot change the key yet.")
+    text("syncSettings.deviceRemoveDetail", "Sync stops there and its notes stay. The device still holds this vault’s key, so whoever has it can join again until you change the vault key.")
+  }
+
+  public static func syncSettingsDevicesNotJoinedHint() -> String {
+    text("syncSettings.devicesNotJoinedHint", "Some still have to join the new key")
+  }
+
+  public static func syncSettingsDeviceNotJoined(date p0: String) -> String {
+    fill(text("syncSettings.deviceNotJoined", "Added {date} · Not joined yet"), ["date": p0])
+  }
+
+  public static func syncSettingsDeviceNotJoinedRemoveDetail() -> String {
+    text("syncSettings.deviceNotJoinedRemoveDetail", "It leaves this list. The old key opens nothing new, so its notes and this vault stay as they are.")
   }
 
   public static func syncSettingsDeviceRemoveButton() -> String {
@@ -8150,8 +8162,28 @@ public enum L10n {
     text("syncSettings.rotateFailed", "The vault key could not be changed.")
   }
 
+  public static func syncSettingsRotateIcloudHint() -> String {
+    text("syncSettings.rotateIcloudHint", "Locks out a lost device that still has the key. Your notes move to a new vault, and your devices on this Apple ID follow on their own.")
+  }
+
+  public static func syncSettingsRotateIcloudWarning() -> String {
+    text("syncSettings.rotateIcloudWarning", "A device still signed in to this Apple ID with iCloud Keychain gets the new key too. Remove a lost device from your Apple ID first, then change the key.")
+  }
+
+  public static func syncSettingsRotatedAwayIcloud() -> String {
+    text("syncSettings.rotatedAwayIcloud", "The vault key was changed on another device, and the new key has not reached this one through iCloud Keychain yet. To sync again, enter a pairing code from a device that has the new key, or the new recovery key. Your notes stay here.")
+  }
+
   public static func syncSettingsRotated() -> String {
     text("syncSettings.rotated", "The vault key was changed. Save the new recovery key, then join your other devices again.")
+  }
+
+  public static func syncSettingsRotatedIcloud() -> String {
+    text("syncSettings.rotatedIcloud", "The vault key was changed. Save the new recovery key; your devices on this Apple ID follow on their own.")
+  }
+
+  public static func syncSettingsRotatedIcloudFollowed() -> String {
+    text("syncSettings.rotatedIcloudFollowed", "Another device changed the vault key first. This device now uses its new key; the new recovery key is shown on that device.")
   }
 
   public static func syncSettingsRotatedAway() -> String {

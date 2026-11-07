@@ -20,6 +20,7 @@ interface Answers {
   devices: Record<string, unknown>[]
   useFails?: string | undefined
   leaveFails?: string | undefined
+  rotatedKey?: string | null | undefined
 }
 
 const DEVICES = [
@@ -57,6 +58,11 @@ vi.mock('../ipc', () => ({
         if ((args as { relaySecret?: string }).relaySecret !== 'relay-secret')
           throw new Error('E_SYNC_RELAY_SECRET')
         return { snapshot: answers.snapshot, recoveryKey: 'ABCDE-FGHIJ-KLMNO' }
+      case 'sync_icloud_rotate':
+        return {
+          snapshot: answers.snapshot,
+          recoveryKey: answers.rotatedKey === undefined ? 'PQRST-UVWXY-Z0123' : answers.rotatedKey,
+        }
       case 'sync_vault_leave':
         if (answers.leaveFails) throw new Error(answers.leaveFails)
         return {
@@ -123,6 +129,7 @@ afterEach(() => {
   answers.devices = DEVICES
   answers.useFails = undefined
   answers.leaveFails = undefined
+  answers.rotatedKey = undefined
   vi.restoreAllMocks()
 })
 
@@ -741,10 +748,59 @@ describe('Change Vault Key', () => {
     expect(calls.some((c) => c.cmd === 'sync_vault_rotate')).toBe(false)
   })
 
-  it('is offered on the Mac for a relay vault only', async () => {
+  it('changes an iCloud vault\u2019s key once the warning about a lost device is confirmed', async () => {
+    const el = await show(snapshot({}), ICLOUD, false)
+    expect(el.textContent).toMatch(/devices on this Apple ID follow on their own/)
+    await act(async () => button(el, 'Change Vault Key…')?.click())
+    expect(el.textContent).toMatch(/Remove a lost device from your Apple ID first/)
+    expect(el.querySelector('input[type=password]')).toBeNull()
+    await act(async () => button(el, 'Cancel')?.click())
+    expect(calls.some((c) => c.cmd === 'sync_icloud_rotate')).toBe(false)
+    await act(async () => button(el, 'Change Vault Key…')?.click())
+    await act(async () => button(el, 'Change Key')?.click())
+    await settle()
+    expect(calls.filter((c) => c.cmd === 'sync_icloud_rotate')).toHaveLength(1)
+    expect(calls.some((c) => c.cmd === 'sync_vault_rotate')).toBe(false)
+    expect(el.textContent).toContain('PQRST-UVWXY-Z0123')
+    expect(button(el, 'Change Vault Key…')).toBeDefined()
+    await act(() => new Promise((resolve) => setTimeout(resolve, 60)))
+    const said = el.querySelector('[role="status"]')?.textContent
+    expect(said).toMatch(/devices on this Apple ID follow on their own/)
+    expect(said).not.toMatch(/join your other devices again/)
+  })
+
+  it('says so when another device\u2019s change of the iCloud vault\u2019s key won and this one follows it', async () => {
+    answers.rotatedKey = null
+    const el = await show(snapshot({}), ICLOUD, false)
+    await act(async () => button(el, 'Change Vault Key…')?.click())
+    await act(async () => button(el, 'Change Key')?.click())
+    await settle()
+    await act(() => new Promise((resolve) => setTimeout(resolve, 60)))
+    expect(el.querySelector('[role="alert"]')).toBeNull()
+    expect(el.querySelector('[role="status"]')?.textContent).toMatch(
+      /Another device changed the vault key first/,
+    )
+  })
+
+  it('asks an iCloud device whose key was changed elsewhere to join the successor, and shows no code', async () => {
+    for (const shown of [
+      snapshot({ rotated: true }),
+      snapshot({ status: { state: 'stopped', code: 'E_SYNC_VAULT_ROTATED' } }),
+    ]) {
+      const el = await show(shown, ICLOUD, false)
+      expect(el.textContent).toMatch(/has not reached this one through iCloud Keychain/)
+      expect(button(el, 'Join')).toBeDefined()
+      expect(button(el, 'Show Pairing Code')).toBeUndefined()
+      expect(button(el, 'Change Vault Key…')).toBeUndefined()
+      act(() => root?.unmount())
+      root = undefined
+    }
+  })
+
+  it('is offered on the Mac only, and on a relay only to an enrolled device', async () => {
     for (const [shown, icloud, phone] of [
       [snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, true],
-      [snapshot({}), ICLOUD, false],
+      [snapshot({}), ICLOUD, true],
       [snapshot({ transport: 'relay', enrolled: false }), NO_CONTAINER, false],
     ] as const) {
       const el = await show(shown, icloud, phone)

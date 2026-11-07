@@ -185,6 +185,7 @@ const SYNC: &[&str] = &[
     "sync_icloud_join",
     "sync_icloud_upload_again",
     "sync_icloud_leave",
+    "sync_icloud_rotate",
     "sync_icloud_storage",
     "sync_disconnect",
     "sync_status_report",

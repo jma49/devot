@@ -305,6 +305,21 @@ export async function rotateSyncVault(
   return { snapshot: next, recoveryKey: readRecoveryKey(v['recoveryKey']) }
 }
 
+/**
+ * Changes the key of the vault on iCloud: the devices still on the Apple ID follow through the iCloud
+ * Keychain. The new recovery key comes back to show until it is saved.
+ */
+export async function rotateICloudVault(): Promise<{
+  snapshot: SyncSnapshot | undefined
+  recoveryKey: string | null
+}> {
+  const value = await invoke<unknown>('sync_icloud_rotate')
+  const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>
+  const next = readSnapshot(v['snapshot'])
+  publish(next)
+  return { snapshot: next, recoveryKey: readRecoveryKey(v['recoveryKey']) }
+}
+
 /** Leaves the relay vault this device holds: its key and token go here, and its notes stay. */
 export const leaveSyncVault = async () => adoptSnapshot(await invoke<unknown>('sync_vault_leave'))
 

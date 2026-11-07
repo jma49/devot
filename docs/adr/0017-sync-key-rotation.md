@@ -1,6 +1,6 @@
 # Rotating the vault key moves the devices to a new vault and retires the old one
 
-Status: accepted (2026-11-05). Amends ADR 0002 (Relay), ADR 0008 (What the new device learns, Rules on both joins), ADR 0015 (Devices list, A lost device) and ADR 0016 (store names). The relay part is built, with clearing the relay of retired and abandoned vaults; the iCloud part and the other follow-ups below are separate issues.
+Status: accepted (2026-11-05). Amends ADR 0002 (Relay), ADR 0008 (What the new device learns, Rules on both joins), ADR 0015 (Devices list, A lost device) and ADR 0016 (store names). The relay part, with clearing the relay of retired and abandoned vaults, and the iCloud part (#641) are built; the follow-ups below are separate issues.
 
 A removed or lost device still holds the vault key. On a relay it can enroll again on purpose (ADR 0008); on iCloud it stays on the Apple ID until the owner removes it there (ADR 0015). Rotating the key is what locks it out: the devices the owner keeps move to a new vault, and the old vault stops taking anything.
 
@@ -114,12 +114,65 @@ The relay clears both on its own, with no new message, so it works for every bui
 
 ## On iCloud
 
-Not built yet; recorded here so the relay part does not decide it differently.
+### Who can rotate
 
-- **Who can rotate:** any device in the vault, from Settings > Sync. The Apple ID decides who is in (ADR 0015), so rotating there only helps once the lost device is off the Apple ID, or has no iCloud Keychain: a device still on both reads the new handover item like any other. Settings says so before it rotates.
-- **Steps:** keep the new key under `vault-next` and record `rotating`; make zone `devot-<new ID>` and its `meta-<new ID>` epoch; save in zone `devot` a successor record for the old vault, sealed under the old key and naming the new vault's ID, with a MAC under the new key over both IDs; save `current` naming the new vault under `.ifServerRecordUnchanged` against the `current` that named the old one (two rotations at once: one wins, and the other drops its key as on a relay); write the handover item with the new vault; switch the device-only item; upload; then delete zone `devot-<old ID>` and the old vault's meta and device rows.
-- **The other devices** find `current` naming another vault. When the successor record opens under their key and names the vault `current` names, and the handover item holds that vault and its MAC holds under the handover's key, they switch on their own and upload. When the handover item has not arrived, they offer the pairing code and the new recovery key, which may replace the held vault for that successor only. Without a successor record that opens, `current` naming another vault keeps meaning what ADR 0015 says: the device takes nothing on its own.
-- **Old records** go with the old zone, which the rotating device deletes once it switched. A device that was offline finds the zone gone and `current` naming the successor, and follows the same way.
+Any device in the vault, from Settings > Sync on the Mac.
+The Apple ID decides who is in (ADR 0015), so rotating there only helps once the lost device is off the Apple ID, or has no iCloud Keychain: a device still on both reads the new handover item like any other.
+Settings says so before it rotates, and Change Key is the confirmation; no secret is asked, since CloudKit's private database takes writes from the Apple ID's devices only.
+Rotation is not gated by the licence, as on a relay.
+
+### What zone `devot` holds for it
+
+- A successor record (`DevotSuccessor`) named `successor-<old ID>-<new ID>`, one per rotation, so the record of a rotation that lost the race never stands for the winner's.
+  It holds `sealed`, the new vault's ID sealed under the old key as a record of the new ID under its own label, and `mac`, HMAC-SHA256 over both IDs under a key derived from the new vault's key (HKDF-SHA256, its own label).
+  A device holding the old key opens the first; only the holder of the new key could make the second.
+- `current`, moved from the old vault to the new under `.ifServerRecordUnchanged`: the compare-and-swap is what decides between two rotations at once.
+
+### The rotating device
+
+Each step is kept before the next, and none needs a secret, so a rotation that stops anywhere carries on at the next connect from where it stopped:
+
+1. **Make the key.** The new vault goes under `vault-next` and the sync settings record `rotating: { from, to }`. A rotation started again takes the waiting key.
+2. **Make the successor's zone** `devot-<new ID>` and its epoch `meta-<new ID>`, saved only if absent.
+3. **Save the successor record** for the old vault.
+4. **Move `current`** to the new vault against the `current` that names the old one.
+   - Another rotation moved it first: this device deletes its new key and what it made (its zone, epoch and successor record, never while `current` names them) and follows the winner like any other device.
+     Once this device has followed, Change Vault Key answers without a recovery key, and Settings says the other device changed the key first.
+     If the new key has not reached it, Change Vault Key answers `E_SYNC_VAULT_ROTATED` and Settings shows the join rows, so a retry never rotates the winner's vault again.
+   - With no `current`, the vault was left meanwhile: the rotation is dropped.
+5. **Write the handover item** with the new vault; a failure is logged, and each connect rewrites an item that names another vault while `current` names this one (ADR 0015).
+6. **Switch.** The device-only vault item takes the new key, then the settings sync the new vault through iCloud, forget `rotating`, and the `-next` item goes. A switch that stops between the two is finished at the next connect, which finds the held vault recorded as the successor of the vault the settings name.
+7. **Delete what is left of the old vault:** zone `devot-<old ID>` with its records, then its `meta-<old ID>` and its device rows in zone `devot`.
+   The successor record stays, for a device that was offline.
+   Until it succeeds, the new vault's iCloud state keeps `retired: <old ID>`, and each connect tries again.
+
+The next connect finds the new epoch and uploads the whole library; the new recovery key is offered until the owner says it was saved.
+The upload comes after the old zone goes: every device holds all its records, so deleting first loses nothing and stops the other devices' pushes to the old vault sooner.
+
+A connect that finds `rotating` reads `current`.
+Naming the old vault, with the key waiting: the rotation carries on from step 2.
+Naming the new vault: it carries on from step 5; if the key was lost, the record is dropped and the device follows like any other.
+Naming a third vault: it lost the race, as in step 4.
+Naming none: the record and the waiting key are dropped (`I_SYNC_ROTATION_DROPPED`).
+
+### The other devices
+
+- Each connect fetches `current` with the vault's epoch, in one request.
+  When it names another vault, and the successor record of the held vault for that vault opens under the held key and names it, the device records `rotated: { vault, successor }`.
+- When the handover item holds that vault and the record's MAC holds under its key, the device switches on its own (device-only item, then settings) and its next connect uploads the whole library under the new epoch.
+  It never shows the new recovery key: it joined the successor, it did not make it.
+- When the handover item has not arrived, holds another vault or the MAC does not hold, the device stops with `E_SYNC_VAULT_ROTATED`, and Settings offers the pairing code through iCloud and the new recovery key; either may replace the held vault for that successor only (`E_SYNC_VAULT_EXISTS` for any other).
+  Each connect checks again, so a handover item that arrives later still lets it follow on its own.
+- Without a successor record that opens, `current` naming another vault keeps meaning what ADR 0015 says: the device takes nothing on its own.
+- A device that was offline finds the zone gone and `current` naming the successor; the successor record is checked before the zone's loss is read as a deletion, so it follows the same way.
+- A device two rotations behind finds no successor record for its vault and the one `current` names, so it takes nothing on its own.
+  Its owner leaves the vault on it with its recovery key (ADR 0015, Leaving the vault), which deletes nothing the newer vault uses, and it then joins as a device with no vault.
+
+### Older builds
+
+An older build sees `current` naming another vault while its own zone is there and syncs on into the old zone until the rotating device deletes it; then it reports `E_SYNC_ICLOUD_DELETED`.
+Its notes stay, and once updated it follows.
+The record type `DevotSuccessor` is deployed to CloudKit's Production schema before the release that rotates (docs/releasing.md).
 
 ## Considered
 
@@ -142,4 +195,4 @@ Not built yet; recorded here so the relay part does not decide it differently.
 - ADR 0008: "Locking out a lost device for good needs a new vault key" is this ADR. A join may replace a held vault that is retired, for its successor only. Leaving a relay vault, which ADR 0008 now records, lets any other vault be joined.
 - ADR 0015: locking a device out of an iCloud vault is removing it from the Apple ID and then rotating, as above.
 - ADR 0016: a rotation is a new vault, so every store name changes with it; a store can link old and new names only by timing and sizes, as after the move to store names.
-- Follow-ups: rotation on iCloud (#641); per-device keys so relay devices follow without pairing again (#642). Leaving a relay vault, the recovery path for a stuck device (#646), is built (ADR 0008), and so are listing on the rotating device the old vault's devices that have not joined the successor yet (#644, above) and clearing the relay of a retired vault's records and of an abandoned successor (#643).
+- Follow-ups: per-device keys so relay devices follow without pairing again (#642). Leaving a relay vault, the recovery path for a stuck device (#646), is built (ADR 0008), and so are listing on the rotating device the old vault's devices that have not joined the successor yet (#644, above) and clearing the relay of a retired vault's records and of an abandoned successor (#643).

@@ -23,6 +23,8 @@ pub(crate) const TYPE_DEVICE: &str = "DevotDevice";
 pub(crate) const TYPE_CLOCK: &str = "DevotClock";
 pub(crate) const TYPE_VAULT: &str = "DevotVault";
 pub(crate) const TYPE_PAIRING: &str = "DevotPairing";
+/// A rotated vault's successor (docs/adr/0017-sync-key-rotation.md, On iCloud).
+pub(crate) const TYPE_SUCCESSOR: &str = "DevotSuccessor";
 /// The record in zone `devot` that names the Apple ID's one vault.
 pub(crate) const CURRENT: &str = "current";
 
@@ -188,6 +190,8 @@ pub(crate) trait CloudKit: Send + Sync {
     fn save_zones(&self, zones: &[String]) -> Result<(), CkError>;
     /// Deletes these zones with every record in them; a zone already gone is no error.
     fn delete_zones(&self, zones: &[String]) -> Result<(), CkError>;
+    /// Deletes these records of `zone`; one already gone, or a zone already gone, is no error.
+    fn delete(&self, zone: &str, names: &[String]) -> Result<(), CkError>;
     /// The records of these names in `zone`, `None` for one that does not exist.
     fn fetch(&self, zone: &str, names: &[String]) -> Result<Vec<Option<CkRecord>>, CkError>;
     /// Saves not atomically: one result per record, in order, each the record as saved.
@@ -223,6 +227,9 @@ impl CloudKit for Unavailable {
         Err(unavailable())
     }
     fn delete_zones(&self, _: &[String]) -> Result<(), CkError> {
+        Err(unavailable())
+    }
+    fn delete(&self, _: &str, _: &[String]) -> Result<(), CkError> {
         Err(unavailable())
     }
     fn fetch(&self, _: &str, _: &[String]) -> Result<Vec<Option<CkRecord>>, CkError> {
