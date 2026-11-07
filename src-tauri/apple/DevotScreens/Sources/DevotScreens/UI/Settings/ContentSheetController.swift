@@ -16,6 +16,8 @@ final class ContentSheetController: UIViewController {
     /// Holds the content at its own height, so content taller than the sheet (the largest text
     /// sizes) scrolls instead of losing its last actions under the edge.
     let scrollView = UIScrollView()
+    /// Once the sheet has gone, however it went: the gate continues or drops its intent here.
+    var onDismiss: (() -> Void)?
 
     init(_ content: some View) {
         hosting = UIHostingController(rootView: AnyView(content))
@@ -47,6 +49,13 @@ final class ContentSheetController: UIViewController {
         addChild(hosting)
         scrollView.addSubview(hosting.view)
         hosting.didMove(toParent: self)
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard isBeingDismissed || presentingViewController == nil, let done = onDismiss else { return }
+        onDismiss = nil
+        done()
     }
 
     override func viewDidLayoutSubviews() {

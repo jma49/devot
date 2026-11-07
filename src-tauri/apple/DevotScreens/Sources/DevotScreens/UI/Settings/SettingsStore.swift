@@ -81,11 +81,15 @@ struct AiView: Equatable {
 @Observable
 @MainActor
 final class SettingsStore {
-    @ObservationIgnored weak var bridge: (any SettingsBridge)?
+    @ObservationIgnored weak var bridge: (any SettingsBridge)? {
+        didSet { licences.bridge = bridge }
+    }
+    /// The snapshot the gate decides from too.
+    let licences: LicenceSnapshotStore
     private(set) var editor: [String: JSONValue] = [:]
     @ObservationIgnored private var revision = -1.0
     private(set) var crashReports: CrashReports?
-    private(set) var licence: Licence?
+    var licence: Licence? { licences.licence }
     var ai: AiView?
     private(set) var sync: JSONValue?
     private(set) var notebooks: [NotebookChoice] = []
@@ -100,7 +104,8 @@ final class SettingsStore {
     @ObservationIgnored private var foreground: NSObjectProtocol?
     let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
 
-    init(center: NotificationCenter = .default) {
+    init(center: NotificationCenter = .default, licences: LicenceSnapshotStore = LicenceSnapshotStore()) {
+        self.licences = licences
         foreground = center.addObserver(
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil
         ) { [weak self] _ in
@@ -225,7 +230,7 @@ final class SettingsStore {
     }
 
     func adoptLicence(_ value: JSONValue) {
-        if let next = Licence(value) { licence = next }
+        licences.adopt(value)
         now = Date()
     }
 

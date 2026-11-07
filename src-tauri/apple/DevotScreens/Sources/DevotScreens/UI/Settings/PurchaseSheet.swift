@@ -82,6 +82,10 @@ struct PurchaseSheet: View {
     let store: SettingsStore
     let close: () -> Void
     let enterKey: () -> Void
+    /// Gate mode (a write the licence locked): the heading the gate gives, and the write runs on
+    /// once a purchase or a restore unlocked it.
+    var gateHeading: String?
+    var unlocked: () -> Void = {}
     @State private var busy: String?
     @State private var message: PurchaseMessage?
 
@@ -99,7 +103,7 @@ struct PurchaseSheet: View {
                 .accessibilityLabel(L10n.phoneClose())
             }
             SheetLens(symbol: "bird")
-            Text(offer.heading).font(.title3.bold()).multilineTextAlignment(.center)
+            Text(gateHeading ?? offer.heading).font(.title3.bold()).multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
             VStack(alignment: .leading, spacing: SheetMetrics.gap / 2) {
                 ForEach(offer.features, id: \.text) { feature in
@@ -149,6 +153,7 @@ struct PurchaseSheet: View {
             case .success(let bought):
                 if bought.string == "purchased" {
                     store.readLicence()
+                    unlocked()
                     close()
                 } else if bought.string == "pending" {
                     message = .pending
@@ -168,7 +173,12 @@ struct PurchaseSheet: View {
             switch result {
             case .success(let snapshot):
                 store.adoptLicence(snapshot)
-                if store.licence?.allows(Date()) == true { close() } else { message = .nothingRestored }
+                if store.licence?.allows(Date()) == true {
+                    unlocked()
+                    close()
+                } else {
+                    message = .nothingRestored
+                }
             case .failure(let failure):
                 store.log("W_PHONE_RESTORE_FAILED code=\(failure.code)")
                 message = .restoreFailed(failure.code)

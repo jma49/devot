@@ -51,8 +51,9 @@ final class EditorCover: UIView {
             width: width, height: height)
     }
 
-    /// Up at once over whatever the page drew last; it fades when `CoverModel` says.
-    func raise() {
+    /// Up at once over whatever the page drew last; it fades when `CoverModel` says. A new note's
+    /// cover holds until `arm`: until the note exists, a timeout would show the note shown last.
+    func raise(holding: Bool = false) {
         fader?.stopAnimation(true)
         fader = nil
         backgroundColor = Tokens.Color.phoneBackground
@@ -60,11 +61,16 @@ final class EditorCover: UIView {
         isHidden = false
         model.raise()
         raised += 1
-        let turn = raised
         frameLink?.invalidate()
         let link = CADisplayLink(target: self, selector: #selector(frameDrawn))
         link.add(to: .main, forMode: .common)
         frameLink = link
+        if !holding { arm() }
+    }
+
+    /// Starts the wait for the page, which the cover gives up after `timeout`.
+    func arm() {
+        let turn = raised
         DispatchQueue.main.asyncAfter(deadline: .now() + waitLimit) { [weak self] in
             guard let self, raised == turn, model.timedOut() else { return }
             fade()
