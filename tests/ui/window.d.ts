@@ -29,6 +29,7 @@ interface Window {
   devotKeys: { work: number; frame: number }[]
   devotLastUpdate: number
   devotMarker?: boolean
+  devotMediaQueries: number
   devotMeasured: number
   devotPreviewKeys: number[]
   devotNoteWrites: number

@@ -6,12 +6,23 @@ import type { NoteServiceOptions } from './types'
 
 export type Timer = ReturnType<typeof setTimeout>
 
+export type NoteMeta = Omit<NoteRecord, 'bodyMd' | 'ydoc' | 'agentWrites'>
+
+/** A record of a note in memory: its body is read from the note's document, so the record cannot hold a stored one. */
+export type HeldRecord = NoteMeta & {
+  bodyMd?: never
+  ydoc?: never
+  agentWrites?: never
+}
+
 export interface Live {
-  record: NoteRecord
-  saved: NoteRecord
+  record: HeldRecord
+  saved: HeldRecord
   doc: Y.Doc
-  /** `doc` encoded, as read or last saved, until anything changes it: an open sends it as it is. */
+  /** `doc` encoded, as read, sent or last saved, until anything changes it: an open sends it as it is. Only a note that keepsState holds one. */
   state: Uint8Array | undefined
+  /** The byte length of the note's Yjs state as last read or written (see saveDelay). */
+  stateBytes: number
   timer: Timer | undefined
   edits: number
   savedEdits: number
@@ -46,6 +57,8 @@ export interface NoteContext {
   readonly live: Map<string, Live>
   readonly loading: Map<string, { note: Promise<Live>; users: number }>
   readonly holds: Map<string, number>
+  /** The note whose last editor hold went most recently: it keeps its encoded state besides the held notes, so switching back to it sends that. */
+  lastLeft: string | undefined
   /**
    * Notes another window may hold: the stored write last relayed to it, its body version, and when it last said so (see relayStored).
    * A `want` or `saved` only says the window has the note; its stored state is relayed when that write moves, checked by body version before any record read.
@@ -66,6 +79,7 @@ export function createContext(options: NoteServiceOptions): NoteContext {
     live: new Map(),
     loading: new Map(),
     holds: new Map(),
+    lastLeft: undefined,
     heard: new Map(),
     coldWrites: new Map(),
     failing: new Map(),

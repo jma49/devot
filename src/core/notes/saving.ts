@@ -5,7 +5,7 @@ import type { NoteRecord } from '../storage'
 import { BODY } from './body'
 import type { Live, NoteContext } from './context'
 import type { Kernel } from './kernel'
-import { asWritten, dirty, untilWritten } from './records'
+import { asWritten, dirty, heldOf, untilWritten } from './records'
 import type { NoteService } from './types'
 
 /** Each save encodes a note's whole Yjs state, so a note whose state is past the first size waits longer after a pause, up to SAVE_DELAY_STRETCH times as long at the second. */
@@ -36,7 +36,7 @@ export function createSaving(
   const { unchecked, keepBaseline, recordEvents, sweep } = k.versions
   const { report, settle } = k.problems
   const { relay, takeIn } = k.relay
-  const { drop, getStored, trim } = k.memory
+  const { drop, getStored, keepsState, trim } = k.memory
   /** Serialises writes of a note so they never overlap and land in the order asked for. */
   const exclusive = <T>(note: Live, work: () => Promise<T>): Promise<T> => {
     note.writes += 1
@@ -116,14 +116,17 @@ export function createSaving(
       const derived = rowsOf(note)
       rows = derived.rows
       const state = Y.encodeStateAsUpdate(note.doc)
-      note.state = state
+      note.state = keepsState(note) ? state : undefined
       note.record = {
+        ...note.record,
+        updatedAt: datesSet ? note.record.updatedAt : Math.max(now(), note.record.createdAt),
+      }
+      return {
         ...note.record,
         bodyMd: note.doc.getText(BODY).toString(),
         ydoc: state,
-        updatedAt: datesSet ? note.record.updatedAt : Math.max(now(), note.record.createdAt),
+        ...(derived.changed ? { agentWrites: derived.changed } : {}),
       }
-      return derived.changed ? { ...note.record, agentWrites: derived.changed } : note.record
     })
     if (!record) return
     // A note's first write here writes its rows again; none where none were known tells no one.
@@ -136,7 +139,8 @@ export function createSaving(
       updatedAt: record.updatedAt,
       ...(authored ? { authored: true } : {}),
     })
-    const written = asWritten(record)
+    note.stateBytes = record.ydoc.byteLength
+    const written = asWritten(heldOf(record))
     note.record = { ...note.record, bodyVersion: written.bodyVersion }
     const before = note.saved
     note.saved = written
@@ -163,7 +167,7 @@ export function createSaving(
 
   const schedule = (note: Live) => {
     clearTimeout(note.timer)
-    const delay = saveDelay(saveDelayMs, note.saved.ydoc.byteLength)
+    const delay = saveDelay(saveDelayMs, note.stateBytes)
     note.timer = setTimeout(() => {
       note.timer = undefined
       save(note).catch(() => {})
