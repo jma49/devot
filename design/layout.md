@@ -119,6 +119,7 @@ A control or block in a note is filled or outlined, never both, and a dashed bor
   Coloured tags keep their tint.
 - **Add Tag:** the text "+ Tag" in tertiary with 8 padding. A dashed focus-ring outline shows only while it holds the keyboard.
 - **Code:** fill only. Blocks use `radius.list-row` (12), inline code `radius.inline-code` (5), in the preview and the editor. Edit mode's table box takes the same fill and `radius.list-row`.
+- **Wide tables:** a preview table wider than its column scrolls sideways inside its own box, as code does, and its columns keep their words whole (a word breaks only when it is wider than the box).
 
 ## Note info card
 
