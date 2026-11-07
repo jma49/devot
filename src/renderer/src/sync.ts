@@ -21,6 +21,7 @@ import { DB_CHANGED } from './externalChanges'
 import type { MessageKey } from './i18n'
 import { invoke } from './ipc'
 import { licenceEntitlements, startLicence, subscribeLicence } from './licence'
+import { saveEdits } from './saveGuards'
 import type { WirePulled, WireSync, WireSyncLocal, WireTransport } from './storage/syncWire'
 import { unlistenLater } from './windowEvents'
 
@@ -592,9 +593,16 @@ export function runSync(core: Core): () => void {
   window.addEventListener(DB_CHANGED, touched)
   const focused = () => void core.syncFocused().catch(() => undefined)
   window.addEventListener('focus', focused)
+  // Going out of sight or away: what waits for a push timer or a large note's pace goes now, after the editor's last save.
+  const gone = () =>
+    void saveEdits(core)
+      .then(() => core.syncFlush())
+      .catch(() => undefined)
+  window.addEventListener('pagehide', gone)
   // The iPhone's web view gets no focus event when the app comes back from the background.
   const shown = () => {
     if (document.visibilityState === 'visible') focused()
+    else gone()
   }
   document.addEventListener('visibilitychange', shown)
   const unlisten = unlistenLater(
@@ -612,6 +620,7 @@ export function runSync(core: Core): () => void {
     window.removeEventListener(DB_CHANGED, touched)
     window.removeEventListener('focus', focused)
     document.removeEventListener('visibilitychange', shown)
+    window.removeEventListener('pagehide', gone)
     unlisten()
     follow(snapshot)
   }

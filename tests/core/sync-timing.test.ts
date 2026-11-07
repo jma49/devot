@@ -16,10 +16,12 @@ import {
   PUSH_EVERY_MS,
   PUSH_IDLE_MS,
   pushPaceMs,
+  type SyncEngine,
 } from '../../src/core/sync/engine'
 import { decodeRecord } from '../../src/core/sync/records'
 import { pushOneByOne, type SyncTransport } from '../../src/core/sync/transport'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
+import { FakeTransport, FakeVault } from '../support/sync-fake'
 import { tempDir } from '../support/temp-dirs'
 
 let storage: SqliteAdapter
@@ -57,35 +59,62 @@ const bodyOf = (id: string, plaintext: Uint8Array) => {
   return doc.getText(BODY).toString()
 }
 
-/** About 1 MB of Markdown: a large note, whose whole state each push carries. */
+/** About 1.5 MB of Markdown: a large note, whose whole state each push carries (paced to about 15 s). */
 const largeBody = () => {
   let md = ''
-  for (let i = 0; md.length < 1_000_000; i += 1) {
+  for (let i = 0; md.length < 1_500_000; i += 1) {
     md += `## Part ${i}\n\nSome **bold** words and a [link](https://example.com/${i}).\n\n- one\n- two\n\n`
   }
   return md
 }
 
-async function typingSetup(transport: SyncTransport) {
-  const clock = createClock('mac')
+// A note this large takes a while to save and diff on a busy machine.
+const LARGE_MS = 30_000
+
+const opened: SqliteAdapter[] = []
+afterEach(() => {
+  for (const store of opened.splice(0)) store.close()
+})
+
+async function typingSetup(
+  transport: SyncTransport,
+  { name = 'mac', on = storage, via }: { name?: string; on?: SqliteAdapter; via?: 'icloud' } = {},
+) {
+  const clock = createClock(name)
   const newId = createIdGenerator()
   const engine = createSyncEngine({
-    storage,
-    sync: storage,
+    storage: on,
+    sync: on,
     transport,
     clock,
     newId,
     random: () => 0.5,
+    ...(via ? { via } : {}),
   })
+  if (transport instanceof FakeTransport) transport.onEvent = (event) => engine.received(event)
   const notes = createNoteService({
-    storage: observeWrites(storage, () => engine.touch()),
+    storage: observeWrites(on, () => engine.touch()),
     clock,
     newId,
     saveDelayMs: 300,
   })
   engine.start()
   await engine.idle()
-  return { engine, notes }
+  return { engine, notes, storage: on }
+}
+
+/** A large note the engine has just pushed, so its next push waits out its pace. */
+async function pushedLarge(
+  notes: Awaited<ReturnType<typeof typingSetup>>['notes'],
+  engine: SyncEngine,
+) {
+  const body = largeBody()
+  const id = await notes.create('Large')
+  await notes.setBody(id, body)
+  await notes.flush()
+  await vi.advanceTimersByTimeAsync(PUSH_IDLE_MS + 500)
+  await engine.idle()
+  return { id, body }
 }
 
 it('pushes 3 s after typing stops, and every 10 s while it goes on', async () => {
@@ -220,51 +249,41 @@ it('rechecks a quota pause at least hourly, so a timer that fell behind during s
   await engine.stop()
 })
 
-it('paces a large note by its size while typing pauses come and go, and sends the last edit', async () => {
-  const { transport, records } = stubRelay()
-  const { engine, notes } = await typingSetup(transport)
-  let body = largeBody()
-  const id = await notes.create('Large')
-  await notes.setBody(id, body)
-  await notes.flush()
-  await vi.advanceTimersByTimeAsync(PUSH_EVERY_MS + 1_000)
-  await engine.idle()
-  expect(records.filter((r) => r.id === id)).toHaveLength(1)
+it(
+  'paces a large note by its size while typing pauses come and go, and sends the last edit',
+  { timeout: LARGE_MS },
+  async () => {
+    const { transport, records } = stubRelay()
+    const { engine, notes } = await typingSetup(transport)
+    let { id, body } = await pushedLarge(notes, engine)
+    expect(records.filter((r) => r.id === id)).toHaveLength(1)
 
-  // A second of typing, then a pause past the idle wait, for a minute: each pause used to push.
-  for (let at = 0; at < 60_000; at += 4_500) {
-    for (let key = 0; key < 2; key += 1) {
-      body = `${body.slice(0, 500)}x${body.slice(500)}`
-      await notes.setBody(id, body)
-      await vi.advanceTimersByTimeAsync(500)
+    // A second of typing, then a pause past the idle wait, for a minute: each pause used to push.
+    for (let at = 0; at < 60_000; at += 4_500) {
+      for (let key = 0; key < 2; key += 1) {
+        body = `${body.slice(0, 500)}x${body.slice(500)}`
+        await notes.setBody(id, body)
+        await vi.advanceTimersByTimeAsync(500)
+      }
+      await vi.advanceTimersByTimeAsync(3_500)
     }
-    await vi.advanceTimersByTimeAsync(3_500)
-  }
-  await vi.advanceTimersByTimeAsync(60_000)
-  await engine.idle()
-  const mine = records.filter((r) => r.id === id)
-  const paceOf = (pushed: (typeof mine)[number]) => {
-    const record = decodeRecord(id, pushed.plaintext)
-    return pushPaceMs(record.kind === 'note' ? record.ydoc.length : 0)
-  }
-  expect(paceOf(mine[0]!)).toBeGreaterThan(PUSH_EVERY_MS / 2)
-  for (let at = 1; at < mine.length; at += 1) {
-    expect(mine[at]!.at - mine[at - 1]!.at).toBeGreaterThanOrEqual(paceOf(mine[at - 1]!))
-  }
-  expect(mine.length).toBeLessThanOrEqual(8)
-  expect(bodyOf(id, mine.at(-1)!.plaintext)).toBe(body)
-  await engine.stop()
-})
+    await vi.advanceTimersByTimeAsync(60_000)
+    await engine.idle()
+    const mine = records.filter((r) => r.id === id)
+    // About 1.5 MB of state waits 15 s between pushes; pushed at every pause it went 14 times.
+    for (let at = 1; at < mine.length; at += 1) {
+      expect(mine[at]!.at - mine[at - 1]!.at).toBeGreaterThanOrEqual(15_000)
+    }
+    expect(mine.length).toBeLessThanOrEqual(6)
+    expect(bodyOf(id, mine.at(-1)!.plaintext)).toBe(body)
+    await engine.stop()
+  },
+)
 
-it('pushes a paced note at once on Sync Now', async () => {
+it('pushes a paced note at once on Sync Now', { timeout: LARGE_MS }, async () => {
   const { transport, records } = stubRelay()
   const { engine, notes } = await typingSetup(transport)
-  let body = largeBody()
-  const id = await notes.create('Large')
-  await notes.setBody(id, body)
-  await notes.flush()
-  await vi.advanceTimersByTimeAsync(PUSH_IDLE_MS + 500)
-  await engine.idle()
+  let { id, body } = await pushedLarge(notes, engine)
   body = `${body}more`
   await notes.setBody(id, body)
   await notes.flush()
@@ -278,40 +297,134 @@ it('pushes a paced note at once on Sync Now', async () => {
   await engine.stop()
 })
 
-it('stamps a large note edited offline at its pace, not at every pause', async () => {
-  const transport: SyncTransport = {
-    connect: async () => {
-      throw new Error('E_SYNC_OFFLINE')
-    },
-    pull: async (since) => ({ records: [], next: since, more: false }),
-    push: async () => ({ type: 'failed', code: 'E_SYNC_OFFLINE' }),
-    pushMany: (items) => pushOneByOne(transport.push, items),
-    close: async () => {},
-  }
-  const { engine, notes } = await typingSetup(transport)
-  let body = largeBody()
-  const id = await notes.create('Large')
-  await notes.setBody(id, body)
-  await notes.flush()
-  await vi.advanceTimersByTimeAsync(PUSH_EVERY_MS + 1_000)
-  await engine.idle()
-  const read = vi.spyOn(storage, 'syncRead')
-  for (let at = 0; at < 30_000; at += 4_500) {
-    body = `${body.slice(0, 500)}x${body.slice(500)}`
+it(
+  'does not say a paced note is synced, and sends it when the app is hidden or quits',
+  { timeout: LARGE_MS },
+  async () => {
+    const { transport, records } = stubRelay()
+    const { engine, notes } = await typingSetup(transport)
+    let { id, body } = await pushedLarge(notes, engine)
+    body = `${body}The last paragraph.\n`
     await notes.setBody(id, body)
-    await vi.advanceTimersByTimeAsync(4_500)
-  }
-  await engine.idle()
-  const reads = read.mock.calls.filter(([ids]) => ids.includes(id)).length
-  expect(reads).toBeGreaterThan(0)
-  // A note of 1 MB waits about 10 s between reads.
-  expect(reads).toBeLessThanOrEqual(Math.ceil(30_000 / PUSH_EVERY_MS) + 1)
-  read.mockRestore()
-  await engine.stop()
-})
+    await notes.flush()
+    const editedAt = Date.now()
+    await vi.advanceTimersByTimeAsync(10_000)
+    await engine.idle()
+    expect(records.filter((r) => r.id === id)).toHaveLength(1)
+    expect(engine.status().lastSync ?? 0).toBeLessThan(editedAt)
+    await engine.flush()
+    const mine = records.filter((r) => r.id === id)
+    expect(mine).toHaveLength(2)
+    expect(bodyOf(id, mine.at(-1)!.plaintext)).toBe(body)
+    expect(engine.status()).toMatchObject({ state: 'idle' })
+    expect(engine.status().lastSync ?? 0).toBeGreaterThan(editedAt)
+    // Nothing waits any more: a second flush sends nothing.
+    await engine.flush()
+    expect(records.filter((r) => r.id === id)).toHaveLength(2)
+    await engine.stop()
+  },
+)
 
-it('paces only a note that would wait longer than the idle wait, and none past a minute', () => {
+it(
+  'keeps a note trashed on another device after an edit made here before the trash',
+  { timeout: LARGE_MS },
+  async () => {
+    const vault = new FakeVault()
+    vault.maxBytes = 20_000_000
+    const phoneStore = openSqliteAdapter(join(tempDir('devot-sync-timing-phone-'), 'db.sqlite'))
+    opened.push(phoneStore)
+    const mac = await typingSetup(new FakeTransport(vault))
+    const phone = await typingSetup(new FakeTransport(vault), { name: 'phone', on: phoneStore })
+    let { id, body } = await pushedLarge(mac.notes, mac.engine)
+    await phone.engine.syncNow()
+    await phone.notes.mergeStored()
+    expect((await phoneStore.getNote(id, { trashed: true }))?.bodyMd).toBe(body)
+
+    // The Mac adds a line and stops typing; within the Mac's pace, the phone trashes the note.
+    body = `${body}An edit before the trash.\n`
+    await mac.notes.setBody(id, body)
+    await mac.notes.flush()
+    await vi.advanceTimersByTimeAsync(10_000)
+    await mac.engine.idle()
+    await phone.engine.syncNow()
+    await phone.notes.mergeStored()
+    await phone.notes.trash(id)
+    await phone.notes.flush()
+    await phone.engine.syncNow()
+    await vi.advanceTimersByTimeAsync(2 * PUSH_EVERY_MS + 60_000)
+    await mac.engine.idle()
+    await mac.engine.syncNow()
+    await mac.notes.mergeStored()
+    await phone.engine.syncNow()
+    await phone.notes.mergeStored()
+    const onMac = await storage.getNote(id, { trashed: true })
+    const onPhone = await phoneStore.getNote(id, { trashed: true })
+    await mac.engine.stop()
+    await phone.engine.stop()
+    expect(onMac?.bodyMd).toBe(body)
+    expect({ mac: onMac?.deletedAt !== null, phone: onPhone?.deletedAt !== null }).toEqual({
+      mac: true,
+      phone: true,
+    })
+  },
+)
+
+it(
+  'ends a pace that a clock set back would stretch past a minute',
+  { timeout: LARGE_MS },
+  async () => {
+    const { transport, records } = stubRelay()
+    const { engine, notes } = await typingSetup(transport)
+    let { id, body } = await pushedLarge(notes, engine)
+    body = `${body}more`
+    await notes.setBody(id, body)
+    await notes.flush()
+    vi.setSystemTime(Date.now() - 4 * 60_000)
+    await vi.advanceTimersByTimeAsync(15_000 + PUSH_IDLE_MS)
+    await engine.idle()
+    const mine = records.filter((r) => r.id === id)
+    expect(mine).toHaveLength(2)
+    expect(bodyOf(id, mine.at(-1)!.plaintext)).toBe(body)
+    await engine.stop()
+  },
+)
+
+it(
+  'stamps a large note edited offline at its pace, not at every pause',
+  { timeout: LARGE_MS },
+  async () => {
+    const transport: SyncTransport = {
+      connect: async () => {
+        throw new Error('E_SYNC_OFFLINE')
+      },
+      pull: async (since) => ({ records: [], next: since, more: false }),
+      push: async () => ({ type: 'failed', code: 'E_SYNC_OFFLINE' }),
+      pushMany: (items) => pushOneByOne(transport.push, items),
+      close: async () => {},
+    }
+    const { engine, notes } = await typingSetup(transport)
+    let { id, body } = await pushedLarge(notes, engine)
+    await vi.advanceTimersByTimeAsync(PUSH_EVERY_MS)
+    await engine.idle()
+    const read = vi.spyOn(storage, 'syncRead')
+    for (let at = 0; at < 40_000; at += 4_500) {
+      body = `${body.slice(0, 500)}x${body.slice(500)}`
+      await notes.setBody(id, body)
+      await vi.advanceTimersByTimeAsync(4_500)
+    }
+    await engine.idle()
+    const reads = read.mock.calls.filter(([ids]) => ids.includes(id)).length
+    // A note of 1.5 MB waits 15 s between reads; read at every pause it was read 9 times.
+    expect(reads).toBeGreaterThan(0)
+    expect(reads).toBeLessThanOrEqual(4)
+    read.mockRestore()
+    await engine.stop()
+  },
+)
+
+it('paces only a note that would wait longer than a run of writes does, and none past a minute', () => {
   expect(pushPaceMs(250_000)).toBe(0)
+  expect(pushPaceMs(1_000_000)).toBe(0)
   expect(pushPaceMs(2_000_000)).toBe(20_000)
   expect(pushPaceMs(50_000_000)).toBe(60_000)
 })

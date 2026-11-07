@@ -4,8 +4,16 @@
 // between them is its work.
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { createClock, createIdGenerator, createNoteService, observeWrites } from '../../src/core'
-import { createSyncEngine } from '../../src/core/sync/engine'
+import * as Y from 'yjs'
+import {
+  BODY,
+  createClock,
+  createIdGenerator,
+  createNoteService,
+  observeWrites,
+} from '../../src/core'
+import { createSyncEngine, PUSH_IDLE_MS, pushPaceMs } from '../../src/core/sync/engine'
+import { decodeRecord } from '../../src/core/sync/records'
 import type { SyncTransport } from '../../src/core/sync/transport'
 import { fromWireSync, type WireSync } from '../../src/renderer/src/storage/syncWire'
 import { fromBase64, toBase64 } from '../../src/renderer/src/storage/wire'
@@ -66,10 +74,12 @@ async function typeFor() {
   const sent = { pushes: 0, bytes: 0, ms: 0 }
   let passFrom: number | undefined
   let version = 0
+  let last: { id: string; plaintext: Uint8Array } | undefined
   const transport: SyncTransport = {
     connect: async () => ({ time: Date.now(), epoch: 'e1', cursor: '', device: 'd' }),
     pull: async (since) => ({ records: [], next: since, more: false }),
-    push: async (_id, _base, plaintext) => {
+    push: async (id, _base, plaintext) => {
+      last = { id, plaintext }
       sent.bytes += fromBase64(ipc(toBase64(plaintext))).length
       sent.pushes += 1
       return { type: 'pushed', version: (version += 1), seq: version, tag: '' }
@@ -122,10 +132,14 @@ async function typeFor() {
       await vi.advanceTimersByTimeAsync(200)
     }
   }
-  await vi.advanceTimersByTimeAsync(5_000)
+  // Until the last edit has gone out, which a large note sends at its pace.
+  await vi.advanceTimersByTimeAsync(pushPaceMs(NOTE_BYTES) + PUSH_IDLE_MS)
   await engine.idle()
   await engine.stop()
-  return { keys, ...sent }
+  const record = last && decodeRecord(last.id, last.plaintext)
+  const doc = new Y.Doc()
+  if (record?.kind === 'note') Y.applyUpdate(doc, record.ydoc)
+  return { keys, ...sent, lastBody: doc.getText(BODY).toString(), body }
 }
 
 it(
@@ -137,8 +151,9 @@ it(
     console.info(
       `sync per keystroke ${perKey.toFixed(3)} ms, ${typed.pushes} pushes, ${typed.bytes} bytes, passes ${typed.ms.toFixed(0)} ms`,
     )
-    expect(typed.pushes).toBeLessThanOrEqual(4)
-    expect(typed.bytes).toBeLessThanOrEqual(4 * 1.1 * NOTE_BYTES)
+    expect(typed.lastBody).toBe(typed.body)
+    expect(typed.pushes).toBeLessThanOrEqual(5)
+    expect(typed.bytes).toBeLessThanOrEqual(5 * 1.1 * NOTE_BYTES)
     expectWithinBudget(context, perKey, 0.5)
   },
 )
