@@ -47,6 +47,8 @@ pub(crate) const SIGNED_OUT: &str = "E_SYNC_ICLOUD_SIGNED_OUT";
 pub(crate) const RESTRICTED: &str = "E_SYNC_ICLOUD_RESTRICTED";
 pub(crate) const ACCOUNT_CHANGED: &str = "E_SYNC_ICLOUD_ACCOUNT_CHANGED";
 pub(crate) const DELETED: &str = "E_SYNC_ICLOUD_DELETED";
+/// A recovery key for a vault whose leave stopped part way: it is about to vanish from iCloud.
+pub(crate) const LEAVING: &str = "E_SYNC_ICLOUD_LEAVING";
 pub(crate) const FULL: &str = "E_SYNC_ICLOUD_FULL";
 /// A timed pause: rate limited or CloudKit busy, for the wait CloudKit asked.
 pub(crate) const BUSY: &str = "E_SYNC_ICLOUD_BUSY";

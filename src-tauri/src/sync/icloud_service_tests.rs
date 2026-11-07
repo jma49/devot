@@ -1352,6 +1352,71 @@ fn a_device_that_connects_part_way_through_a_leave_stops_instead_of_making_the_v
 }
 
 #[test]
+fn a_recovery_key_entered_part_way_through_a_leave_is_refused() {
+    use super::cloudkit::error::code;
+    use super::cloudkit::kit::CkError;
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let (mac, _phone) = two_in_the_vault(&kit, &keychain);
+    let zone = vault_zone(&held(&mac).unwrap().id().to_string());
+    let key = recovery_key_of(&mac);
+    kit.fail_zone_delete(&zone, CkError::of(code::NETWORK_UNAVAILABLE));
+    assert_eq!(mac.service.icloud_leave(&key).err(), Some(error::OFFLINE));
+    assert!(kit.zone_exists(&zone) && !kit.zone_exists(ZONE_DEVOT));
+
+    let owner = device(&kit);
+    let (saves, zones) = (kit.calls(Op::Save), kit.calls(Op::SaveZones));
+    assert_eq!(
+        owner.service.use_icloud(Some(&key), 0).err(),
+        Some(error::LEAVING),
+        "the vault is about to vanish"
+    );
+    assert!(held(&owner).is_none());
+    assert!(!owner.service.snapshot().enabled);
+    assert_eq!(current_vault(&kit), None, "current is not claimed again");
+    assert_eq!(kit.calls(Op::Save), saves);
+    assert_eq!(
+        kit.calls(Op::SaveZones),
+        zones,
+        "zone devot is not made again"
+    );
+
+    mac.service.icloud_leave(&key).unwrap();
+    assert_eq!(
+        owner.service.use_icloud(Some(&key), 0).err(),
+        Some("E_SYNC_ICLOUD_NO_VAULT"),
+        "once left, the vault is not on this Apple ID"
+    );
+}
+
+#[test]
+fn upload_again_part_way_through_a_leave_syncs_until_the_leave_is_retried() {
+    use super::cloudkit::error::code;
+    use super::cloudkit::kit::CkError;
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let (mac, phone) = two_in_the_vault(&kit, &keychain);
+    let vault = held(&mac).unwrap().id().to_string();
+    let zone = vault_zone(&vault);
+    let key = recovery_key_of(&mac);
+    kit.fail_zone_delete(&zone, CkError::of(code::NETWORK_UNAVAILABLE));
+    assert_eq!(mac.service.icloud_leave(&key).err(), Some(error::OFFLINE));
+    assert_eq!(phone.service.connect(true).err(), Some(error::DELETED));
+
+    // Not refused: if the leave is never retried, Upload Again is the way back.
+    phone.service.icloud_upload_again().unwrap();
+    phone.service.connect(true).unwrap();
+    assert_eq!(current_vault(&kit), Some(vault.clone()));
+    assert!(kit.record(ZONE_DEVOT, &format!("meta-{vault}")).is_some());
+
+    mac.service.icloud_leave(&key).unwrap();
+    for zone in [zone.as_str(), ZONE_DEVOT, "devot-clock"] {
+        assert!(!kit.zone_exists(zone), "{zone}");
+    }
+    assert_eq!(phone.service.connect(true).err(), Some(error::DELETED));
+}
+
+#[test]
 fn a_device_that_never_synced_stops_after_a_leave_instead_of_making_the_vault_again() {
     let kit = Arc::new(Fake::new());
     let keychain = Arc::new(Secrets::default());
@@ -1504,7 +1569,8 @@ fn a_recovery_key_claims_current_for_a_vault_whose_zone_came_before_it() {
     let kit = Arc::new(Fake::new());
     let vault = Vault::generate().unwrap();
     let id = vault.id().to_string();
-    kit.save_zones(&[vault_zone(&id)]).unwrap();
+    kit.save_zones(&[ZONE_DEVOT.to_string(), vault_zone(&id)])
+        .unwrap();
     assert_eq!(current_vault(&kit), None);
 
     let phone = device(&kit);

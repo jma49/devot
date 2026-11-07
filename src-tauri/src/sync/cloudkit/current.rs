@@ -109,10 +109,27 @@ pub(crate) fn ensure_zone(kit: &dyn CloudKit) -> Result<(), &'static str> {
     kit.save_zones(&zone).map_err(code)
 }
 
-/// Whether a zone exists, as a recovery key's vault zone does on the Apple ID that holds it.
-pub(crate) fn zone_exists(kit: &dyn CloudKit, zone: &str) -> Result<bool, &'static str> {
-    let exists = kit.zones_exist(&[zone.to_string()]).map_err(code)?;
-    Ok(exists.first().copied().unwrap_or(false))
+/// Where a vault that no `current` names stands on this Apple ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Unclaimed {
+    /// Its zone is not there.
+    Absent,
+    /// Its zone is there beside zone `devot`, from before `current`.
+    There,
+    /// Its zone is there without zone `devot`: a leave stopped part way, and its retry deletes it.
+    BeingLeft,
+}
+
+pub(crate) fn unclaimed(kit: &dyn CloudKit, vault: &str) -> Result<Unclaimed, &'static str> {
+    let exist = kit
+        .zones_exist(&[ZONE_DEVOT.to_string(), vault_zone(vault)])
+        .map_err(code)?;
+    let there = |i: usize| exist.get(i).copied().unwrap_or(false);
+    Ok(match (there(0), there(1)) {
+        (_, false) => Unclaimed::Absent,
+        (true, true) => Unclaimed::There,
+        (false, true) => Unclaimed::BeingLeft,
+    })
 }
 
 fn vault_of(record: &CkRecord) -> Option<String> {

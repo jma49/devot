@@ -305,6 +305,8 @@ export const messages = {
   'syncSettings.why.icloudBusy': 'iCloud is busy. Try again in a few minutes.',
   'syncSettings.why.icloudOtherVault':
     'Your Apple ID already syncs another vault, which Devot never replaces. Join it with a pairing code from one of its devices instead.',
+  'syncSettings.why.icloudLeaving':
+    'That vault is being removed from this Apple ID’s iCloud on another device.',
   'syncSettings.why.icloudNoVault':
     'Your Apple ID does not sync the vault of that key. Check that this device is signed in to the Apple ID that syncs it.',
   'syncSettings.why.icloudNotUsed': 'This vault does not sync through iCloud.',
