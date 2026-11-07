@@ -508,7 +508,6 @@ mod tests {
         assert_eq!(pending(&store, "", 10), vec![NOTE.to_string()]);
     }
 
-    /// Every pending record, a page of `limit` at a time, as the engine reads them.
     fn pages(store: &Store, limit: u32) -> Vec<SyncPending> {
         let mut all: Vec<SyncPending> = Vec::new();
         loop {

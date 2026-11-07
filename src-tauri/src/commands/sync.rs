@@ -136,7 +136,7 @@ fn validate_ids(ids: &[String]) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// 16 lowercase hex digits, then a record ID (migration 0028).
+// Migration 0028: 16 lowercase hex digits, then a record ID.
 fn valid_upload_key(key: &str) -> bool {
     key.len() > 16
         && key.is_char_boundary(16)
