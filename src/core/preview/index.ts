@@ -35,6 +35,7 @@ export { videoEmbedUrl } from './builtins'
 export {
   codeLanguage,
   createCodeRenderer,
+  drawCodeMarks,
   parseCodeInfo,
   type CodeInfo,
   type Highlighter,
@@ -278,40 +279,48 @@ const PIECE_LENGTH = 2000
  * before them, so they are named across the whole note on every call.
  */
 /**
- * The cache holds pieces up to this many characters of source in all: every
- * keystroke in Split view makes a new version of one piece, and a count limit
- * kept hundreds of superseded versions (about 100 KB of tree each).
+ * Besides the pieces the note shows, the cache keeps pieces up to this many
+ * characters of source: superseded versions of an edited piece (a count limit
+ * kept hundreds, about 100 KB of tree each) and the notes shown before, so a
+ * note left keeps little of its trees (about 100 bytes a character).
  */
-const CACHE_CHARACTERS = 300_000
+export const KEPT_CHARACTERS = 50_000
+
+export interface PieceRenderer {
+  (markdown: string, options: PreviewOptions, known?: readonly string[]): Promise<PreviewPiece[]>
+  /** The preview closed: what it showed is kept only within the capacity, as a note left is. */
+  forgetShown(): void
+}
 
 export function createPieceRenderer({
   registry = defaultRegistry,
-  capacity = CACHE_CHARACTERS,
+  capacity = KEPT_CHARACTERS,
   pieceLength = PIECE_LENGTH,
-}: { registry?: PreviewRegistry; capacity?: number; pieceLength?: number } = {}): (
-  markdown: string,
-  options: PreviewOptions,
-  known?: readonly string[],
-) => Promise<PreviewPiece[]> {
+}: { registry?: PreviewRegistry; capacity?: number; pieceLength?: number } = {}): PieceRenderer {
   const cache = new Map<string, Rendered>()
   let cached = 0
   let ids = 0
+  /** Counts the times the preview closed: a render under way then shows nothing. */
+  let closings = 0
 
   /** Pieces with the same text get nodes of their own (their heading ids differ). */
   const keyOf = (text: string, first: boolean, copy: number, optionsKey: string) =>
     `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
 
   /**
-   * Drops the oldest pieces the note does not show right now, until the cache
-   * fits. A piece it shows is never dropped, or a note larger than the cache
-   * would render whole again on every keystroke.
+   * Drops the oldest pieces the note does not show right now, until the
+   * others fit. A piece it shows is never dropped, or a note larger than the
+   * cache would render whole again on every keystroke.
    */
   const trim = (shown: ReadonlySet<string>) => {
+    let others = cached
+    for (const key of shown) others -= cache.get(key)?.length ?? 0
     for (const [key, { length }] of cache) {
-      if (cached <= capacity) return
+      if (others <= capacity) return
       if (shown.has(key)) continue
       cache.delete(key)
       cached -= length
+      others -= length
     }
   }
 
@@ -343,7 +352,12 @@ export function createPieceRenderer({
     return rendered
   }
 
-  return async (markdown, options, known = []) => {
+  const render = async (
+    markdown: string,
+    options: PreviewOptions,
+    known: readonly string[] = [],
+  ) => {
+    const opened = closings
     const names = registry.renderers().includes(headingIds)
     const blocks = splitBlocks(markdown, pieceLength)
     // Only front matter shows the note's fields: other pieces do not render again when those change.
@@ -364,7 +378,7 @@ export function createPieceRenderer({
         rendered.push(await piece(keys[i]!, block.text, i === 0, pieceOptions))
       }
     } finally {
-      trim(new Set(keys))
+      trim(opened === closings ? new Set(keys) : new Set())
     }
     const have = new Set(known)
     const next = names ? createSlugger() : undefined
@@ -385,6 +399,12 @@ export function createPieceRenderer({
       return out
     })
   }
+  return Object.assign(render, {
+    forgetShown: () => {
+      closings += 1
+      trim(new Set())
+    },
+  })
 }
 
 /** remark-rehype's separator between top-level blocks. */

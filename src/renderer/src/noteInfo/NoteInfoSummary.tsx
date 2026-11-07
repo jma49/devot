@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { NoteFacts } from '../../../core/noteFacts'
+import { frontMatterHead, type NoteFacts } from '../../../core/noteFacts'
 import { propertyCount } from '../../../core/preview/frontMatterView'
 import { errorCode } from '../../../core/errors'
 import { titleWithKey } from '../commands/titles'
@@ -11,6 +11,7 @@ import { displayTitles } from '../headlines'
 import { currentLocale, format, t } from '../i18n'
 import type { FrontMatterChange } from '../preview/frontMatterApply'
 import { previewNote, type PreviewNoteFields } from '../preview/Preview'
+import { tallyNote } from '../noteTally'
 import { useText, type TextStore } from '../textStore'
 import { useNoteInfoCommand } from './command'
 import type { NoteInfoData } from './infoCard'
@@ -29,14 +30,20 @@ function useNoteFacts(core: Core, markdown: string, fields: PreviewNoteFields | 
     let current = true
     const note = fieldsKey ? previewNote(JSON.parse(fieldsKey) as PreviewNoteFields) : undefined
     const timer = setTimeout(
-      () =>
-        core.noteFacts(markdown, note, t('note.untitled')).then(
-          (next) => {
+      () => {
+        // The counts footer asks for the same tally, so the note crosses to the worker once (noteTally.ts).
+        const head = frontMatterHead(markdown)
+        Promise.all([
+          tallyNote(core, markdown),
+          head === null ? null : core.noteFrontMatter(head, note, t('note.untitled')),
+        ]).then(
+          ([tally, frontMatter]) => {
             counted.current = true
-            if (current) setFacts(next)
+            if (current) setFacts({ tasks: tally.tasks, words: tally.words, frontMatter })
           },
           (e: unknown) => console.warn('W_NOTE_FACTS_FAILED', errorCode(e)),
-        ),
+        )
+      },
       counted.current ? FACTS_WAIT_MS : 0,
     )
     return () => {

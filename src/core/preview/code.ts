@@ -1,7 +1,7 @@
 // Code blocks: a header with the block's language and an optional title, and syntax highlighting. The fence's info string comes from the note's Markdown at the
 // block's position: ```js, ```js:app.js and ```js title="app.js". A fence can also name its source and number its lines: ```ts line=10-20 commit=a1b2c3d url=https://....
 // The highlighter loads only for notes that need it, and then only the grammars their code blocks use.
-import type { Element, ElementContent, Root } from 'hast'
+import type { Element, ElementContent, Root, RootContent } from 'hast'
 import { textOf } from '../hastText'
 import languageIcons from '../../../design/icons/languages.json'
 import {
@@ -140,8 +140,21 @@ const FENCE = /^(`{3,}|~{3,})([^\n]*)/
 const el = (tagName: string, properties: Element['properties'], children: ElementContent[] = []) =>
   ({ type: 'element', tagName, properties, children }) as Element
 
-function icon(mark: string | undefined): Element {
+export const CODE_MARK_ID_PREFIX = 'devot-code-mark-'
+const GENERIC_MARK = 'generic'
+
+// A mark's path goes in once per render, as a symbol in its first block's mark, not once per block.
+function icon(mark: string | undefined, drawn: Set<string>): Element {
   const own = mark ? languageIcons.icons[mark as keyof typeof languageIcons.icons] : undefined
+  const id = CODE_MARK_ID_PREFIX + (own ? mark : GENERIC_MARK)
+  const children = drawn.has(id)
+    ? []
+    : [
+        el('symbol', { id, viewBox: '0 0 24 24' }, [
+          el('path', { d: own ? own.path : 'M8 6 2 12l6 6M16 6l6 6-6 6' }),
+        ]),
+      ]
+  drawn.add(id)
   return el(
     'svg',
     {
@@ -149,8 +162,34 @@ function icon(mark: string | undefined): Element {
       viewBox: '0 0 24 24',
       ariaHidden: 'true',
     },
-    [el('path', { d: own ? own.path : 'M8 6 2 12l6 6M16 6l6 6-6 6' })],
+    [...children, el('use', { href: `#${id}` })],
   )
+}
+
+/** `tree` with each code mark's path drawn into it, for a page other than the preview; `tree` is left as it was. */
+export function drawCodeMarks(tree: Root): Root {
+  const paths = new Map<string, ElementContent[]>()
+  const collectPaths = (node: Root | Element) => {
+    for (const child of node.children) {
+      if (child.type !== 'element') continue
+      const id = child.properties['id']
+      if (child.tagName !== 'symbol') collectPaths(child)
+      else if (typeof id === 'string' && id.startsWith(CODE_MARK_ID_PREFIX) && !paths.has(id)) {
+        paths.set(id, child.children)
+      }
+    }
+  }
+  collectPaths(tree)
+  const draw = <T extends RootContent>(node: T, inMark: boolean): T[] => {
+    if (node.type !== 'element') return [node]
+    if (inMark && node.tagName === 'symbol') return []
+    if (inMark && node.tagName === 'use') {
+      return structuredClone(paths.get(String(node.properties['href']).slice(1)) ?? []) as T[]
+    }
+    const mark = inMark || classOf(node).includes('code-lang-icon')
+    return [{ ...node, children: node.children.flatMap((child) => draw(child, mark)) }]
+  }
+  return { ...tree, children: tree.children.flatMap((node) => draw(node, false)) }
 }
 
 const GITHUB = 'https://github.com/'
@@ -213,6 +252,7 @@ export function createCodeRenderer(
       collect(tree, source, blocks)
       const needs = blocks.some(([, b]) => b.info.language)
       const highlight = needs ? await (highlighter ??= load()) : null
+      const drawn = new Set<string>()
       for (const [parent, { pre, code, info }] of blocks) {
         const lang = info.language ? codeLanguage(info.language) : null
         const raw = textOf(code)
@@ -280,7 +320,7 @@ export function createCodeRenderer(
           { className: ['code-block'], dataLanguage: info.language ?? undefined },
           [
             el('div', { className: ['code-header', ...(sourced ? ['code-header-source'] : [])] }, [
-              icon(mark),
+              icon(mark, drawn),
               ...label,
             ]),
             pre,

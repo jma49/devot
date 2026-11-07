@@ -1939,6 +1939,14 @@
       },
       "$description": "Glass interface: the space at the sides of an alert card."
     },
+    "diagram-placeholder": {
+      "$type": "dimension",
+      "$value": {
+        "value": 280,
+        "unit": "px"
+      },
+      "$description": "The height a diagram in the preview reserves before it is first drawn, so the note's length changes little as diagrams land."
+    },
     "diagram-node-edge": {
       "$type": "dimension",
       "$value": {

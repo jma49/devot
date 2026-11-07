@@ -6,7 +6,6 @@ import { listenExitCancelled } from './exitCancelled'
 import { invoke } from './ipc'
 import { resumeMirrorAfterCancelledQuit } from './mirror'
 import type { RelayLink } from './noteRelay'
-import type { WireRelay } from './noteRelayWire'
 import type { QuitGuard } from './saving'
 import { answerAsked, listenCloseAsked, saveEdits } from './saveGuards'
 import { welcomeContent } from './welcome/content'
@@ -60,7 +59,7 @@ export function useCoreStart(
   }: {
     primary: boolean
     lists: { wrote: () => void }
-    relay: { link: RelayLink; gate: { allows: (message: WireRelay) => boolean } }
+    relay: { link: RelayLink }
     refresh: (c: Core) => Promise<unknown>
     nextSheet: () => void
     onSaveProblems: Parameters<typeof startCore>[0]
@@ -77,9 +76,7 @@ export function useCoreStart(
       lean: !primary,
       onWrote: lists.wrote,
       onAuthored: authorshipChanged,
-      onRelay: (message) => {
-        if (relay.gate.allows(message)) relay.link.send(message)
-      },
+      onRelay: (message) => relay.link.send(message),
       onTakenIn: takeIn,
     })
       .then(async (c) => {

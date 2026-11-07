@@ -104,7 +104,7 @@ So the preview treats note content as untrusted.
 7. **Math, Mermaid, emoji:** math renders to MathML with temml (no fonts or inline styles; the web view lays it out) and passes a MathML allowlist.
    Inline `$` next to a space stays text, so prices are not math.
    Mermaid is an island.
-   It runs in a hidden frame (`mermaid.html`), created on the first diagram, because Mermaid and its libraries assign to prototypes, which fails in the main window where `freezePrototype` freezes `Object.prototype` (Tauri freezes the main frame only).
+   It runs in a hidden frame (`mermaid.html`), created on the first diagram and removed 30 s after none is shown ([Performance](performance.md)), because Mermaid and its libraries assign to prototypes, which fails in the main window where `freezePrototype` freezes `Object.prototype` (Tauri freezes the main frame only).
    The frame is sandboxed (`sandbox="allow-scripts"`), so its origin is opaque and it cannot reach the main window or its IPC even if a diagram ran script in it.
    An opaque origin makes every module script, dynamic `import()` and `crossorigin` stylesheet a CORS request from `null`, which the app's asset protocol refuses, so the frame loads one classic script: `mermaid-frame.ts` built as an IIFE with its dynamic imports inlined (`scripts/vite/mermaid-frame.ts`, a Vite plugin that serves it in dev and emits `mermaid-frame.js` into the build, so `pnpm dev`, `pnpm ui:build` and the UI tests all use it and nothing generated is tracked).
    Its one style is set through the CSSOM.
@@ -116,6 +116,9 @@ So the preview treats note content as untrusted.
    The CSP's `frame-src` allows `'self'` for this frame; notes can still only embed https.
 8. **Code blocks:** the fence's info string (` ```js `, ` ```js:app.js `, ` ```js title="app.js" `) is read from the note's Markdown at the block's position. A block with a language or a title gets a header with the language's name and mark (an SVG path from a fixed table, `design/icons/languages.json`) and its title as text; the page's copy button sits in that header. Highlighting is lowlight with a fixed set of highlight.js grammars, loaded only for notes that need one; its output is `span.hljs-*` and text, coloured by the syntax tokens.
    Blocks over 20,000 characters stay plain.
+   A render draws each mark once, as a `<symbol>` (id `devot-code-mark-<name>`) inside its first block's mark, and every block's mark shows it with `<use href>`, so the path does not travel to the page once per block.
+   A note's own ids carry the sanitizer's `user-content-` prefix, so none can stand in for a mark's symbol.
+   Each render, and so each preview piece, gallery card and exported page, carries the symbols it uses; `pageBody` draws the path into every mark again.
 9. **Task lists and front matter:** a task's checkbox carries where its mark is in the Markdown (`data-task-at`); a click in the preview ticks it through the editor, which checks the text is still that box.
    Exported pages disable every box.
    Front matter that is a map of keys shows as a compact properties block (lists as chips); other YAML shows as code.

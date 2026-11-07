@@ -38,6 +38,7 @@ export function pastedUrl(text: string): string | null {
 const NO_LINK = new Set([
   ...LITERAL_BLOCKS,
   'InlineCode',
+  'InlineMath',
   'Link',
   'Image',
   'Autolink',

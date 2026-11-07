@@ -229,6 +229,8 @@ export const messages = {
   'appearanceSettings.materialAmount': 'Material Transparency',
   'appearanceSettings.materialAmountHint':
     'How much shows through the sidebar, buttons and pop-ups.',
+  'appearanceSettings.gradient': 'Gradient',
+  'appearanceSettings.gradientHint': "From a solid color to the theme's full gradient.",
   'appearanceSettings.lightMode': 'Light Mode',
   'appearanceSettings.darkMode': 'Dark Mode',
   'appearanceSettings.modeActive': '\u2014 Active',

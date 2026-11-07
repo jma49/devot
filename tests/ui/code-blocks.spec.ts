@@ -42,6 +42,10 @@ test('a code block shows its language, title, mark, line numbers and source, wit
   const mark = header.locator('svg.code-lang-icon')
   expect(await mark.evaluate((el) => el.namespaceURI)).toBe('http://www.w3.org/2000/svg')
   expect((await mark.boundingBox())?.width).toBeGreaterThan(8)
+  // A later block of the language draws the first one's mark again, without a path of its own.
+  const again = preview(page).locator('.code-block').nth(1).locator('svg.code-lang-icon')
+  await expect(again.locator('path')).toHaveCount(0)
+  expect((await again.locator('use').boundingBox())?.width).toBeGreaterThan(8)
   await expect(block.locator('code .hljs-keyword').first()).toHaveText('const')
 
   const copy = header.getByRole('button', { name: 'Copy Code' })

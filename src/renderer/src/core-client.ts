@@ -52,6 +52,7 @@ export async function startCore(
   onFailure: (code: string) => void = () => {},
   windowed: {
     lean?: boolean
+    relayAll?: boolean
     onWrote?: () => void
     onAuthored?: () => void
     onRelay?: (message: WireRelay) => void
@@ -66,7 +67,10 @@ export async function startCore(
     start: (c) => {
       const noted = reportingNoteWrites(wire, onNoteWrites, windowed.onAuthored)
       const served = windowed.onWrote ? reportingWrites(noted, windowed.onWrote) : noted
-      return c.init(Comlink.proxy(served), newNodeId(), { lean: windowed.lean ?? false })
+      return c.init(Comlink.proxy(served), newNodeId(), {
+        lean: windowed.lean ?? false,
+        relayAll: windowed.relayAll ?? false,
+      })
     },
     onSaveProblems,
     ...(windowed.onRelay ? { onRelay: windowed.onRelay } : {}),

@@ -16,6 +16,7 @@ import { invoke } from '../ipc'
 import type { EditorTop, SelectionState } from '../lastState'
 import { linkCompletion, type LinkSources } from '../linkCompletion'
 import { previewsFor } from '../notePreview'
+import { tallyNote } from '../noteTally'
 import { previewLabels } from '../preview/Preview'
 import type { ShowAiMenu, StartAiEdit } from './aiMenu'
 import type { ShowAlertMenu } from './alertMenu'
@@ -60,7 +61,7 @@ import { tableToolbar } from './TableToolbar'
 import { tableTyping } from './tableTyping'
 import { editorTheme, popupSpace } from './theme'
 import { yjsHistory } from './undo'
-import { writeFocusTracking, writeMode, type WriteRenderer } from './write'
+import { tableDrawings, writeFocusTracking, writeMode, type WriteRenderer } from './write'
 
 // The note being left while the next one loads: on screen, but nothing typed may land in it.
 export const pausedSlot = new Compartment()
@@ -220,6 +221,8 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
     noteHighlighting(noteHighlightStyle),
     markdownLineStyles,
     writeFocusTracking,
+    // Outside the slot, so the note's tables are not drawn again each time Write mode comes back.
+    tableDrawings,
     writeSlot.of(writeFor(refs.writing.current, core)),
     noteMarkdown,
     EditorView.perLineTextDirection.of(true),
@@ -304,6 +307,7 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
       (counts) => refs.countsReport.current?.(counts),
       () => refs.countsReport.current !== undefined,
       (markdown) => core.noteCounts(markdown),
+      (markdown) => tallyNote(core, markdown),
     ),
     EditorView.updateListener.of((update) => {
       if (!update.selectionSet && !update.docChanged) return

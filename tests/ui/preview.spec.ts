@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { FRAME_IDLE_MS } from '../../src/renderer/src/preview/frameLifetime'
 import { expect, test, openApp } from './fixtures'
 
 async function newNote(page: Page, title: string, body = '') {
@@ -245,6 +246,38 @@ test('a diagram drawn again releases the styles of the one it replaces', async (
   await expect.poll(() => adoptedSheets(page)).toBe(before)
 })
 
+test('the diagram frame goes a while after the last note with a diagram is left', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await newNote(page, 'Second', SECOND_FLOWCHART)
+  await newNote(page, 'Plain', 'No diagram here.')
+  await newNote(page, 'Drawn', FLOWCHART)
+  await mode(page, 'Split').click()
+  const svgs = preview(page).locator('.island-mermaid svg')
+  await expect(svgs).toHaveCount(1, { timeout: 20_000 })
+  const frame = page.locator('iframe.mermaid-frame')
+  await expect(frame).toHaveCount(1)
+
+  const notes = page.getByRole('listbox', { name: 'Notes' })
+  await notes.getByRole('option', { name: /Plain/ }).click()
+  await expect(preview(page)).toContainText('No diagram here.')
+  await expect(svgs).toHaveCount(0)
+  await page.clock.runFor(FRAME_IDLE_MS - 1000)
+  await expect(frame).toHaveCount(1)
+  await page.clock.runFor(2000)
+  await expect(frame).toHaveCount(0)
+
+  await notes.getByRole('option', { name: /Drawn/ }).click()
+  await expect(svgs).toHaveCount(1, { timeout: 20_000 })
+  await expect(frame).toHaveCount(0)
+
+  await notes.getByRole('option', { name: /Second/ }).click()
+  await expect(svgs).toContainText('Review', { timeout: 20_000 })
+  await expect(frame).toHaveCount(1)
+  await expect(preview(page).locator('.island-error')).toHaveCount(0)
+})
+
 async function mermaidFrame(page: Page) {
   await expect.poll(() => page.frames().some((f) => /mermaid\.html/.test(f.url()))).toBe(true)
   return page.frames().find((f) => /mermaid\.html/.test(f.url()))!
@@ -376,20 +409,34 @@ test('a task far down a long note still ticks its own line after typing above it
   await expect(box).toBeChecked()
 })
 
-test('a diagram far below the view is drawn only once scrolled near', async ({ page }) => {
+test('a diagram is drawn only once it is within a screen of the view, above or below it', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 600 })
-  await newNote(page, 'Far', `${DIAGRAM}\n\n${sections(30)}\n\n${SECOND_FLOWCHART}\n`)
+  await newNote(
+    page,
+    'Far',
+    `${DIAGRAM}\n\n${sections(30)}\n\n${SECOND_FLOWCHART}\n\n${sections(30)}\n\n${SEQUENCE}\n`,
+  )
   await mode(page, 'Preview').click()
+  const diagrams = preview(page).locator('.island-mermaid')
   const svgs = preview(page).locator('.island-mermaid svg')
-  await expect(svgs).toHaveCount(1, { timeout: 20_000 })
+  await expect(diagrams.nth(0).locator('svg')).toHaveCount(1, { timeout: 20_000 })
   await page.waitForTimeout(500)
   await expect(svgs).toHaveCount(1)
+  // One not drawn yet holds a place, so the note's length changes little as diagrams land.
+  expect((await diagrams.nth(1).boundingBox())?.height).toBeGreaterThan(100)
 
   await preview(page).evaluate((e) => {
     e.scrollTop = e.scrollHeight
   })
-  await expect(svgs).toHaveCount(2, { timeout: 20_000 })
-  await expect(svgs.nth(1)).toContainText('Review')
+  await expect(diagrams.nth(2).locator('svg')).toContainText('Alice', { timeout: 20_000 })
+  // The one in the middle is far above the view now: it still waits.
+  await page.waitForTimeout(500)
+  await expect(diagrams.nth(1).locator('svg')).toHaveCount(0)
+
+  await diagrams.nth(1).scrollIntoViewIfNeeded()
+  await expect(diagrams.nth(1).locator('svg')).toContainText('Review', { timeout: 20_000 })
 })
 
 const noteBody = (page: Page) => page.getByRole('textbox', { name: 'Note body' })

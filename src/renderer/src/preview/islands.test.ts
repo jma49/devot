@@ -13,6 +13,10 @@ import {
 interface FakeElement {
   source: string
   top: number
+  height: number
+  /** The height it takes once a drawing is in it. */
+  drawn: number
+  style: { minHeight: string }
   isConnected: boolean
   /** Whether it still carries the attribute that makes it an island. */
   island: boolean
@@ -26,6 +30,9 @@ function islandElement(source: string): FakeElement {
   return {
     source,
     top: 0,
+    height: 0,
+    drawn: 200,
+    style: { minHeight: '' },
     isConnected: true,
     island: true,
     shown: [],
@@ -37,11 +44,13 @@ function islandElement(source: string): FakeElement {
       if (name === 'data-island-source') return this.source
       return null
     },
-    replaceChildren(...nodes) {
+    replaceChildren(this: FakeElement, ...nodes) {
       this.shown = nodes
+      this.height = this.drawn
     },
     getBoundingClientRect(this: FakeElement) {
-      return { top: this.top }
+      const height = Math.max(this.height, Number.parseFloat(this.style.minHeight) || 0)
+      return { top: this.top, bottom: this.top + height, height }
     },
   } as FakeElement
 }
@@ -274,16 +283,33 @@ describe('createIslandMounter', () => {
   })
 
   describe('with a scroller', () => {
-    // A view 100 px high at the top of the window: islands start above 200.
+    // A view 100 px high at the top of the window.
     function scroller(height = 100) {
-      const listeners = new Map<string, () => void>()
       return {
         clientHeight: height,
-        getBoundingClientRect: () => ({ bottom: height }),
-        addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
-        removeEventListener: (type: string) => listeners.delete(type),
-        scroll: () => listeners.get('scroll')?.(),
-        listeners,
+        scrollTop: 0,
+        getBoundingClientRect: () => ({ top: 0, bottom: height }),
+      }
+    }
+    // What the page's IntersectionObserver would report: `near` says which
+    // elements are now within its margin of the view.
+    let observers: {
+      callback: IntersectionObserverCallback
+      options: IntersectionObserverInit | undefined
+      targets: Set<unknown>
+    }[] = []
+    const near = (...elements: FakeElement[]) => report(elements, true)
+    const far = (...elements: FakeElement[]) => report(elements, false)
+    const report = (elements: FakeElement[], isIntersecting: boolean) => {
+      for (const observer of observers) {
+        const entries = elements
+          .filter((el) => observer.targets.has(el))
+          .map((target) => ({ target, isIntersecting }))
+        if (entries.length > 0)
+          observer.callback(
+            entries as unknown as IntersectionObserverEntry[],
+            {} as IntersectionObserver,
+          )
       }
     }
     let frames: (() => void)[] = []
@@ -294,13 +320,34 @@ describe('createIslandMounter', () => {
     }
     beforeEach(() => {
       frames = []
+      observers = []
       vi.stubGlobal('requestAnimationFrame', (f: () => void) => frames.push(f))
       vi.stubGlobal('cancelAnimationFrame', () => {})
       vi.stubGlobal(
         'ResizeObserver',
         class {
           observe() {}
+          unobserve() {}
           disconnect() {}
+        },
+      )
+      vi.stubGlobal(
+        'IntersectionObserver',
+        class {
+          private readonly entry
+          constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+            this.entry = { callback, options, targets: new Set<unknown>() }
+            observers.push(this.entry)
+          }
+          observe(el: unknown) {
+            this.entry.targets.add(el)
+          }
+          unobserve(el: unknown) {
+            this.entry.targets.delete(el)
+          }
+          disconnect() {
+            this.entry.targets.clear()
+          }
         },
       )
     })
@@ -311,46 +358,172 @@ describe('createIslandMounter', () => {
         scroller: () => view as unknown as HTMLElement,
       })
 
-    it('draws islands above the view and up to a screen below it, the rest when scrolled near', () => {
+    it('draws only the islands within a screen of the view, above or below it, the rest once scrolled near', () => {
       const { island, requests } = testIsland()
       const view = scroller()
       const mounter = mounterFor(island, view)
-      const above = Object.assign(islandElement('above'), { top: -500 })
-      const near = Object.assign(islandElement('near'), { top: 150 })
-      const far = Object.assign(islandElement('far'), { top: 900 })
-      mounter.mount(hostOf([above, near, far]), { appearance: 'light' })
-      expect(requests).toHaveLength(0)
-      nextFrame()
-      expect(requests.map((r) => r.source)).toEqual(['above', 'near'])
+      const farAbove = islandElement('far above')
+      const inView = islandElement('in view')
+      const farBelow = islandElement('far below')
+      mounter.mount(hostOf([farAbove, inView, farBelow]), { appearance: 'light' })
+      expect(observers).toHaveLength(1)
+      expect(observers[0]!.options).toMatchObject({
+        root: view,
+        rootMargin: '100% 0px',
+      })
+      far(farAbove, farBelow)
+      near(inView)
+      expect(requests.map((r) => r.source)).toEqual(['in view'])
 
-      far.top = 180
-      view.scroll()
-      nextFrame()
-      expect(requests.map((r) => r.source)).toEqual(['above', 'near', 'far'])
+      near(farBelow)
+      near(farAbove)
+      expect(requests.map((r) => r.source)).toEqual(['in view', 'far below', 'far above'])
       mounter.dispose()
-      expect(view.listeners.size).toBe(0)
+      expect(observers[0]!.targets.size).toBe(0)
+    })
+
+    it('draws an island already near the view again at once when its source changes', () => {
+      const { island, requests } = testIsland()
+      const mounter = mounterFor(island, scroller())
+      const el = islandElement('first')
+      const host = hostOf([el])
+      mounter.mount(host, { appearance: 'light' })
+      near(el)
+      el.source = 'second'
+      mounter.mount(host, { appearance: 'light' })
+      expect(requests.map((r) => r.source)).toEqual(['first', 'second'])
     })
 
     it('draws nothing while the view is hidden', () => {
       const { island, requests } = testIsland()
       const mounter = mounterFor(island, scroller(0))
-      mounter.mount(hostOf([islandElement('a')]), { appearance: 'light' })
-      nextFrame()
+      const el = islandElement('a')
+      mounter.mount(hostOf([el]), { appearance: 'light' })
+      near(el)
       expect(requests).toHaveLength(0)
     })
 
     it('draws a waiting island for its newest source only', () => {
       const { island, requests } = testIsland()
-      const view = scroller()
-      const mounter = mounterFor(island, view)
-      const el = Object.assign(islandElement('a'), { top: 900 })
+      const mounter = mounterFor(island, scroller())
+      const el = islandElement('a')
       const host = hostOf([el])
       mounter.mount(host, { appearance: 'light' })
       el.source = 'b'
       mounter.mount(host, { appearance: 'dark' })
-      el.top = 0
-      nextFrame()
+      near(el)
       expect(requests.map((r) => r.source)).toEqual(['b'])
+    })
+
+    it('puts the drawings that land together in place in one frame, and tells once', async () => {
+      const { island, requests } = testIsland()
+      const mounter = createIslandMounter(createIslandRegistry([island]), {
+        scroller: () => scroller() as unknown as HTMLElement,
+      })
+      const elements = ['a', 'b', 'c'].map((source) => islandElement(source))
+      const rendered = vi.fn<() => void>()
+      mounter.mount(hostOf(elements), { appearance: 'light' }, rendered)
+      near(...elements)
+      requests.forEach((r) => r.land())
+      await settle()
+      expect(elements.map((el) => el.shown)).toEqual([[], [], []])
+      expect(rendered).not.toHaveBeenCalled()
+
+      nextFrame()
+      expect(elements.map((el) => el.shown)).toEqual([
+        [{ source: 'a' }],
+        [{ source: 'b' }],
+        [{ source: 'c' }],
+      ])
+      expect(rendered).toHaveBeenCalledTimes(1)
+    })
+
+    it('drops a drawing that lands after its source changed, before its frame', async () => {
+      const { island, requests, live } = testIsland()
+      const mounter = mounterFor(island, scroller())
+      const el = islandElement('old')
+      const host = hostOf([el])
+      mounter.mount(host, { appearance: 'light' })
+      near(el)
+      requests[0]!.land()
+      await settle()
+      el.source = 'new'
+      mounter.mount(host, { appearance: 'light' })
+      nextFrame()
+      expect(el.shown).toEqual([])
+      expect(live()).toBe(0)
+      requests[1]!.land()
+      await settle()
+      nextFrame()
+      expect(el.shown).toEqual([{ source: 'new' }])
+      mounter.dispose()
+      expect(live()).toBe(0)
+    })
+
+    it('keeps what is in view still when a drawing above it lands', async () => {
+      const { island, requests } = testIsland()
+      const view = scroller()
+      view.scrollTop = 1000
+      const mounter = mounterFor(island, view)
+      const above = Object.assign(islandElement('above'), { top: -300, height: 100, drawn: 260 })
+      const below = Object.assign(islandElement('below'), { top: 50, height: 100, drawn: 400 })
+      mounter.mount(hostOf([above, below]), { appearance: 'light' })
+      near(above, below)
+      requests.forEach((r) => r.land())
+      await settle()
+      nextFrame()
+      // Only the one above the view moves what is shown; it grew by 160.
+      expect(view.scrollTop).toBe(1160)
+    })
+
+    it('moves the view once a frame through `shift`, by what the drawings above it grew, one across its top edge by its share', async () => {
+      const { island, requests } = testIsland()
+      const view = scroller()
+      const shift = vi.fn<(root: HTMLElement, by: number) => void>()
+      const mounter = createIslandMounter(createIslandRegistry([island]), {
+        scroller: () => view as unknown as HTMLElement,
+        shift,
+      })
+      const first = Object.assign(islandElement('first'), { top: -600, height: 100, drawn: 260 })
+      const second = Object.assign(islandElement('second'), { top: -400, height: 100, drawn: 200 })
+      // Half of it above the view's top edge.
+      const across = Object.assign(islandElement('across'), { top: -100, height: 200, drawn: 400 })
+      const below = Object.assign(islandElement('below'), { top: 150, height: 100, drawn: 400 })
+      mounter.mount(hostOf([first, second, across, below]), { appearance: 'light' })
+      near(first, second, across, below)
+      requests.forEach((r) => r.land())
+      await settle()
+      nextFrame()
+      expect(shift).toHaveBeenCalledTimes(1)
+      expect(shift).toHaveBeenCalledWith(view, 160 + 100 + 100)
+      expect(view.scrollTop).toBe(0)
+    })
+
+    it('reserves the height a source was last drawn at while it is drawn again', async () => {
+      const { island, requests } = testIsland()
+      const mounter = mounterFor(island, scroller())
+      const first = Object.assign(islandElement('remembered tall'), { drawn: 333 })
+      mounter.mount(hostOf([first]), { appearance: 'light' })
+      near(first)
+      requests[0]!.land()
+      await settle()
+      nextFrame()
+      expect(first.style.minHeight).toBe('')
+
+      // The patcher made a new element for the same diagram.
+      first.isConnected = false
+      const again = islandElement('remembered tall')
+      mounter.mount(hostOf([again]), { appearance: 'light' })
+      expect(again.style.minHeight).toBe('333px')
+      near(again)
+      requests[1]!.land()
+      await settle()
+      nextFrame()
+      expect(again.style.minHeight).toBe('')
+
+      const unknown = islandElement('never drawn')
+      mounter.mount(hostOf([again, unknown]), { appearance: 'light' })
+      expect(unknown.style.minHeight).toBe('')
     })
   })
 })

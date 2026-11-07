@@ -10,6 +10,11 @@ Part of the [design system](design-system.md).
   The slider shows its value beside it (0 is the design washes).
 - **Material Transparency** (the slider under Glass Transparency: `materialTransparency`, the same range and default) reaches the page as `--material-transparency` and adjusts the glass material's alpha by the same formula, leaving the sheet alone.
   It is stored, validated, throttled and applied to every window exactly like Glass Transparency; a settings file from before it reads as 0.
+- **Gradient** (a slider in its own card under the Light Mode and Dark Mode themes, so choosing a theme moves nothing above it, shown only while the Light or Dark Mode theme is a gradient theme: `gradientStrength`, a whole number from 0 to 100, default 0, one value for every gradient theme) reaches the page as `--gradient-strength`.
+  The generated `--backdrop` mixes each of the theme's stops towards its middle colour by it, so 0 is a solid colour and 100 the gradient as designed; a page that never sets it shows the design.
+  The glass material's tint is that backdrop, so the sidebar and every glass surface follow it with the sheet.
+  It is stored, validated, throttled and applied to every window like the two transparencies; a settings file from before it reads as 0, a solid colour.
+  The slider shows its value beside it, and the row shows or goes with the theme choice.
   The slider stores its value at most every 100 ms while it is dragged, and the last value when it stops (`settings/draggedNumber.ts`).
   The value is stored with the editor settings (`editor-settings.json`, same validation, same `devot://editor-settings-changed` event), so it follows a change in every window at once.
   Reduce Transparency and Increase Contrast replace the sheet and every glass surface with `color.surface.editor` (no sheen, no gradient, no blur), and the sidebar with `color.surface.sidebar-opaque`, whatever the sliders say.
@@ -29,7 +34,7 @@ Part of the [design system](design-system.md).
 - The note context menu also opens Revision History… (Option+Cmd+Y, also in the View menu).
 - **Note Info** (`src/renderer/src/noteInfo/`): the note summary ends the pill row under the title, after + Tag, in the main window and the Trash (not for a template).
   It reads, joined by " · ", the tasks done of all ("1/4") when the note has tasks, its properties ("5 properties") when it has front matter, its backlinks ("2 backlinks") when it has any, then its words, counted as the footer counts them; with none of the first three it reads "Updated 5 min ago · 212 words" (`summary.ts`; plural forms from the catalog, numbers in the locale's digits).
-  The counts come from the worker (`noteFacts` in `src/core/noteFacts.ts`), counted again 300 ms after typing stops.
+  The counts come from the worker, counted again 300 ms after typing stops: the words and tasks are the counts footer's tally (`tallyNote`, one count per pause for both), and only the front matter fence goes to the worker apart (`frontMatterHead` and `noteFrontMatter` in `src/core/noteFacts.ts`).
   The summary opens the Note Info card under it, as does View > Note Info (Option+Cmd+I, `view.noteInfo`, also in the palette), which toggles it; in a development build Option+Cmd+I may open the web inspector as well.
   The card has the Created and Updated rows (see Hand-set dates in `data-model.md`; plain text in the Trash), Properties (the front matter, with Apply as before) and Backlinks (a click opens the note; "No notes link here yet" when none do), both foldable and remembered per section (`devot.noteInfo.folded.*` in local storage), and a foot with a Tasks meter and the words.
   It takes the keyboard as it opens; Escape, a click outside or the summary again close it, and the keyboard goes back to the summary.

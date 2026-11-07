@@ -43,7 +43,12 @@ import { createIslandMounter } from './islands'
 import { islands } from './islandRegistry'
 import { CodeCopyButtons, codeBlocks } from './CodeCopy'
 import { latestOnly } from './latest'
-import { previewScrollPane, type PreviewScrollPane, type ScrollPane } from './scrollSync'
+import {
+  previewScrollPane,
+  shiftScroll,
+  type PreviewScrollPane,
+  type ScrollPane,
+} from './scrollSync'
 
 const NOTE_LINK = /^devot:\/\/note\/([0-9a-f-]{36})$/
 
@@ -190,7 +195,7 @@ export function Preview({
   const islandContext = useRef({ appearance, theme })
   const scroll = useRef<PreviewScrollPane | null>(null)
   const [mounter] = useState(() =>
-    createIslandMounter(islands, { scroller: (body) => body.parentElement }),
+    createIslandMounter(islands, { scroller: (body) => body.parentElement, shift: shiftScroll }),
   )
   const [codes, setCodes] = useState<HTMLElement[]>([])
 
@@ -313,6 +318,8 @@ export function Preview({
 
   // Leaving the preview frees what its diagrams hold (their stylesheets).
   useEffect(() => () => mounter.dispose(), [mounter])
+  // The worker may be gone with the window.
+  useEffect(() => () => void core.forgetShownPieces().catch(() => undefined), [core])
 
   useEffect(
     () => render.current?.({ markdown, loadedEmbeds, remoteImages, frontMatterInInfo }),

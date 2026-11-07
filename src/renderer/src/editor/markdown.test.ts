@@ -11,6 +11,11 @@ import {
 } from '@lezer/common'
 import { highlightTree, tags } from '@lezer/highlight'
 import { MarkdownParser } from '@lezer/markdown'
+import type { Nodes as MdastNode } from 'mdast'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 import { frontMatter } from '../../../core/import'
 import { light } from '../theme/tokens'
@@ -389,5 +394,65 @@ describe('fence languages', () => {
       near + 3,
     )
     expect(spans).not.toEqual([])
+  })
+})
+
+describe('inline math in the editor parser', () => {
+  const preview = unified().use(remarkParse).use(remarkGfm).use(remarkMath)
+
+  function previewMath(doc: string): string[] {
+    const found: string[] = []
+    const walk = (node: MdastNode) => {
+      if (node.type === 'inlineMath' && node.position)
+        found.push(doc.slice(node.position.start.offset, node.position.end.offset))
+      for (const child of 'children' in node ? node.children : []) walk(child)
+    }
+    walk(preview.parse(doc))
+    return found
+  }
+
+  function editorMath(doc: string): string[] {
+    const found: string[] = []
+    noteParser.parse(doc).iterate({
+      enter: (node) => {
+        if (node.name === 'InlineMath') found.push(doc.slice(node.from, node.to))
+      },
+    })
+    return found
+  }
+
+  it('finds the spans the preview reads as inline math', () => {
+    for (const doc of [
+      'Top $a_8^2 + b^2 = c^2$ end',
+      'Two $x$ and $y$.',
+      'Double $$x + 1$$ inline',
+      'Spaced $ x $ and $5 and $6',
+      'Not closed $x',
+      'Escaped \\$x$ and $y\\$ z',
+      'Mixed sizes $$x$ and $y$$',
+      'Code `$x$` and $`y`$',
+      'Emphasis $a*b*c$ and *b $x$*',
+      'Over lines $a\nb$ end',
+      '> Quote $q$\n\n- item $i$',
+      '| a | b |\n| - | - |\n| $c$ | d |',
+      '$$$x$$$ and a lone $',
+      'a$b$c, $x$$y$, x $$ y and $ $',
+      'After an escape \\$$x$ or two \\\\$$y$',
+    ])
+      expect({ doc, math: editorMath(doc) }).toEqual({ doc, math: previewMath(doc) })
+  })
+
+  it('marks the dollar signs and parses nothing inside', () => {
+    const doc = 'A $a_8^2 *b*$ z'
+    const names: string[] = []
+    noteParser.parse(doc).iterate({
+      from: doc.indexOf('$'),
+      to: doc.lastIndexOf('$') + 1,
+      enter: (node) => {
+        if (node.from >= doc.indexOf('$'))
+          names.push(`${node.name} ${doc.slice(node.from, node.to)}`)
+      },
+    })
+    expect(names).toEqual(['InlineMath $a_8^2 *b*$', 'InlineMathMark $', 'InlineMathMark $'])
   })
 })

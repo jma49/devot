@@ -59,13 +59,13 @@ import {
 } from '../../core'
 import { errorCode } from '../../core/errors'
 import { noteCounts } from '../../core/noteCounts'
-import { noteFacts } from '../../core/noteFacts'
+import { noteFrontMatter, noteTally } from '../../core/noteFacts'
 import { createLivePreviewRenderer } from '../../core/preview/live'
 import { renderCardPreview, type CardLabels } from '../../core/preview/card'
 import { createSyncEngine, type SyncEngine, type SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent, TransportName } from '../../core/sync/transport'
 import { preparerOffThread } from './importWorker'
-import { fromWireRelay, toWireRelay, type RelayOut, type WireRelay } from './noteRelayWire'
+import { fromWireRelay, relayOut, type RelayOut, type WireRelay } from './noteRelayWire'
 import type { SaveProblemsMessage } from './saving'
 import { starterTemplates } from './starterTemplates'
 import {
@@ -88,6 +88,7 @@ const logInfo = (code: string, ...ids: string[]) =>
   } satisfies WorkerLogMessage)
 
 let service: NoteService | undefined
+let relayed: ReturnType<typeof relayOut> | undefined
 let books: BookService | undefined
 let tags: TagService | undefined
 let savedSearches: SavedSearchService | undefined
@@ -156,8 +157,13 @@ const coreApi = {
   /**
    * Starts the core on `remote`, the page's storage: Yjs states are coded here, off the UI thread (wire.ts), and a wrapper tells the Markdown mirror of every write. Unsaved notes are sent to the page as a SaveProblemsMessage each time that list changes, and what the core relays to the other windows and takes in from them as a RelayOut.
    * A lean core (a note window's, or a main window other than `main`) leaves compaction and the notebooks' order to the first main window's.
+   * A note window's core (`relayAll`) relays every change; another relays a note's changes once another window has spoken of it (see relayGate).
    */
-  async init(remote: WireStorage, node: string, options: { lean?: boolean } = {}) {
+  async init(
+    remote: WireStorage,
+    node: string,
+    options: { lean?: boolean; relayAll?: boolean } = {},
+  ) {
     const clock = createClock(node)
     const ids = createIdGenerator()
     newId = ids
@@ -168,6 +174,8 @@ const coreApi = {
     mirrorStorage = storage
     syncParts = { storage, clock, newId: ids }
     welcome = (content) => seedWelcome({ storage, clock, content })
+    const relay = relayOut((out) => self.postMessage(out), toBase64, options.relayAll ?? false)
+    relayed = relay
     service = createNoteService({
       storage,
       clock,
@@ -176,10 +184,7 @@ const coreApi = {
       // failed (see SaveProblemsMessage).
       onSaveProblems: (saveProblems) =>
         self.postMessage({ saveProblems } satisfies SaveProblemsMessage),
-      relay: (message) =>
-        self.postMessage({
-          noteRelay: toWireRelay(message, toBase64),
-        } satisfies RelayOut),
+      relay: relay.send,
       onTakenIn: (takenIn) => self.postMessage({ takenIn } satisfies RelayOut),
       compact: !options.lean,
       log: logInfo,
@@ -332,7 +337,10 @@ const coreApi = {
   noteActivity: (ids: string[], now: number) => required().noteActivity(ids, now),
   mergeStored: () => required().mergeStored(),
   /** What another window's core relayed (see NoteService.receive). */
-  relayIn: (message: WireRelay) => required().receive(fromWireRelay(message, fromBase64)),
+  relayIn: (message: WireRelay) => {
+    relayed?.heard(message.noteId)
+    return required().receive(fromWireRelay(message, fromBase64))
+  },
   listWithTemplates: () => requiredTemplates().listWithNotes(),
   createTemplate: () => requiredTemplates().create(),
   /**
@@ -423,12 +431,16 @@ const coreApi = {
     }),
   renderPreview: (markdown: string, options: PreviewOptions) => renderPreview(markdown, options),
   noteCounts: (markdown: string) => noteCounts(markdown),
-  /** What the open note's Note Info counts: tasks, words and its front matter as rows. */
-  noteFacts: (markdown: string, note: PreviewNote | undefined, untitled: string) =>
-    noteFacts(markdown, note, untitled),
+  /** The open note's words, characters and tasks, which the page asks for once per text (noteTally.ts). */
+  noteTally: (markdown: string) => noteTally(markdown),
+  /** The open note's front matter as rows, from its `frontMatterHead`. */
+  noteFrontMatter: (head: string, note: PreviewNote | undefined, untitled: string) =>
+    noteFrontMatter(head, note, untitled),
   /** The open note's preview in pieces; `known` are the keys of the pieces the page shows. */
   renderPreviewPieces: (markdown: string, options: PreviewOptions, known: string[]) =>
     pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
+  /** The preview closed, so the pieces it showed are kept no longer than a note left. */
+  forgetShownPieces: () => pieces.forgetShown(),
   /**
    * The open note's live preview: its pieces with the note's linked notes in, and its task
    * progress and line count. Link targets are asked again when `scope` or the links change.

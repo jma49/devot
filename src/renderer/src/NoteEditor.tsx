@@ -45,6 +45,7 @@ import { shadowContainer } from './editor/shadowFrame'
 import { reconfigureSetup } from './editor/settings'
 import { recount, type EditorCounts } from './editor/counts'
 import { setToolbarFocus } from './editor/toolbarState'
+import { releaseParsedNote } from './editor/markdown'
 import { keepUndo, noteState } from './editor/undo'
 import { catchUp } from './editor/catchUp'
 import {
@@ -686,6 +687,7 @@ export function NoteEditor({
         applyStep,
         close: (leftWith) => {
           keepUndo(noteId, leftWith, doc)
+          releaseParsedNote()
           untrackEditor()
           text.unobserve(reportText)
           doc.off('update', forward)

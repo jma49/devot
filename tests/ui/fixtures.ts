@@ -695,3 +695,39 @@ export async function paintedBackground(element: Locator): Promise<string> {
     }),
   )
 }
+
+/** The stop colours of each gradient in an element's computed `background-image`, as `paintedColour` gives them. */
+export async function gradientStops(element: Locator, pseudo?: '::before'): Promise<string[][]> {
+  const raw = await element.evaluate((el, pseudoElement) => {
+    const image = getComputedStyle(el, pseudoElement).backgroundImage
+    const gradients: string[][] = []
+    const opening = 'linear-gradient('
+    for (let at = image.indexOf(opening); at !== -1; at = image.indexOf(opening, at + 1)) {
+      const args: string[] = []
+      let depth = 0
+      let current = ''
+      for (const ch of image.slice(at + opening.length)) {
+        if (ch === ')' && depth === 0) break
+        if (ch === '(') depth++
+        if (ch === ')') depth--
+        if (ch === ',' && depth === 0) {
+          args.push(current.trim())
+          current = ''
+        } else current += ch
+      }
+      args.push(current.trim())
+      gradients.push(args.filter((arg) => !/^(-?[\d.]+deg|to )/.test(arg)))
+    }
+    const probe = document.createElement('i')
+    document.documentElement.append(probe)
+    const resolved = gradients.map((stops) =>
+      stops.map((stop) => {
+        probe.style.color = stop.replace(/\s+-?[\d.]+%$/, '')
+        return getComputedStyle(probe).color
+      }),
+    )
+    probe.remove()
+    return resolved
+  }, pseudo)
+  return raw.map((stops) => stops.map(paintedColour))
+}
