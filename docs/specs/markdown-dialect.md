@@ -11,7 +11,8 @@ Import and export are in [import-and-export.md](import-and-export.md), the `devo
   A note that starts with `---` and has no closing fence starts with a thematic break.
 - Alerts: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`.
 - Math: `$…$` and `$$…$$`.
-  Inline math is a run of dollars closed by a run as long, read like a code span: nothing inside it is Markdown and a backslash escapes no dollar in it; the editor reads it as the preview's remark-math does (`InlineMath` in `src/renderer/src/editor/markdown.ts`), and a formula with a space at either end, once one is trimmed from both, is text (`$5 and $6`).
+  Inline math is a run of dollars closed by a run as long, read like a code span: nothing inside it is Markdown and a backslash escapes no dollar in it; the editor reads it as the preview's remark-math does (`InlineMath` in `src/renderer/src/editor/markdown.ts`), and a formula with a space at either end, once one is trimmed from both, is text (`$5 and $6`, `isInlineTex` in `src/core/preview/math.ts`, which Write mode shares).
+  Editor commands treat a formula as they treat a code span: the slash and `[[` popups stay closed in it, a pasted URL or an inline format wraps it whole, and nothing is inserted into its TeX.
   Math is MathML; the note's hanging punctuation is off inside it, since each MathML token is laid out as a line of its own and would hang its opening bracket into the glyph before it.
   Mermaid in fenced code blocks.
   Emoji shortcodes (`:tada:`).

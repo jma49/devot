@@ -10,6 +10,7 @@ import type { EditorState } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { noteIdOf } from '../../../../core/links'
 import { codeLanguage, parseCodeInfo } from '../../../../core/preview/code'
+import { isInlineTex } from '../../../../core/preview/math'
 import { ALERT_KINDS, type AlertKind } from '../blocks'
 import { writeBlocksOf, type WriteBlock } from './blockRanges'
 import { touches, type Selected } from './selection'
@@ -216,12 +217,12 @@ export function writeRanges(
       out.push({ kind: 'inline', from: a, to: b, source: text(a, b) })
   }
 
-  /** As in the preview (core/preview/math.ts), a formula with a space at either end, once one is trimmed from both, is text. */
+  // One space comes off both ends first, as the preview's parser does.
   function isFormula(node: SyntaxNode): boolean {
     const marks = node.getChildren('InlineMathMark')
     let tex = text(marks[0]?.to ?? node.from, marks[1]?.from ?? node.to)
     if (/^[ \n].*[ \n]$/s.test(tex) && tex.trim() !== '') tex = tex.slice(1, -1)
-    return tex !== '' && tex.trim() === tex
+    return isInlineTex(tex)
   }
 
   // Tags of the same element between them are counted.

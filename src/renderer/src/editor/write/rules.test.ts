@@ -1,7 +1,12 @@
 import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
+import type { Nodes as MdastNode } from 'mdast'
+import remarkMath from 'remark-math'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 import { expectWithinBudget } from '../../../../../tests/support/budget'
+import { isInlineTex } from '../../../../core/preview/math'
 import example from '../../welcome/markdown-example.md?raw'
 import { noteMarkdown } from '../markdown'
 import { writeBlocksOf } from './blockRanges'
@@ -267,6 +272,36 @@ describe('Write mode inline math', () => {
     for (const doc of ['$5 and $6', 'A $ $ b', '$x\ny$']) expect(shown(doc)).toBe(doc)
     expect(shown('`$x$`')).toBe('$x$')
     expect(shown('$ x $')).toBe('{$ x $}')
+  })
+
+  it('draws a formula exactly where the preview draws one', () => {
+    const preview = unified().use(remarkParse).use(remarkMath)
+    const previewDraws = (doc: string) => {
+      const found: string[] = []
+      const walk = (node: MdastNode) => {
+        if (node.type === 'inlineMath' && node.position && isInlineTex(node.value))
+          found.push(doc.slice(node.position.start.offset, node.position.end.offset))
+        for (const child of 'children' in node ? node.children : []) walk(child)
+      }
+      walk(preview.parse(doc))
+      return found
+    }
+    const writeDraws = (doc: string) =>
+      rangesOf(doc)
+        .ranges.filter((r) => r.kind === 'inline')
+        .map((r) => doc.slice(r.from, r.to))
+    for (const doc of [
+      '$5 and $6',
+      'A $ $ b',
+      '$ x $',
+      '$  x $',
+      '$ x  $',
+      '$x$ and $ y$',
+      'so $$ a $$ end',
+      '$  $',
+      'cost $5$ and $$\\sum$$',
+    ])
+      expect({ doc, drawn: writeDraws(doc) }).toEqual({ doc, drawn: previewDraws(doc) })
   })
 })
 
