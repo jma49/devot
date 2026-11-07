@@ -120,6 +120,7 @@ Part of the [architecture overview](../architecture.md).
   That is the text the index holds, which for a stale note is the copy in `search_stale`, also overwritten as its row goes.
   Other changes only mark a note's old text deleted in the index, so earlier text of a purged note stays there until FTS5 merges its segment.
   Pages freed before a version that set these keep their text until reused; frames in the write-ahead log keep it until the log restarts after a checkpoint (backups read the database, not the log).
+- Checkpoints: `wal_autocheckpoint = 4000` pages (SQLite's 1000 pages ran inside every second save of a big note) and `journal_size_limit = 64 MiB`; the database thread runs a PASSIVE checkpoint after 3 s without a job once something was written (a search that caught the index up counts, and the change watch's looks are not jobs here), again while a reader holds part of the WAL back or another connection is checkpointing, and at quit for at most 2 s.
 - Every write transaction begins `IMMEDIATE` (the Rust store sets it on its connection; the better-sqlite3 adapter uses `.immediate()`): it takes the write lock first, so it waits out the other writer for the busy timeout.
   A deferred one that read first (an attachment's note, the search index on its first use after launch) would fail at once with `E_STORAGE_BUSY` instead (`tests/core/busy-writes.test.ts` and the Rust store's tests hold the lock from another connection).
 

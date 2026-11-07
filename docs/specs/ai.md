@@ -25,7 +25,15 @@ Part of the [architecture overview](../architecture.md).
   Otherwise it runs `open -g -a <bundle> --args --devot-background` and waits up to 20 s (`E_MCP_START_FAILED`, `E_MCP_START_TIMEOUT`); see Background start.
   Bridges that start at once take turns on `<identifier>.mcp-start.lock` in the private folder, so only one runs `open`: a second would reach a Devot that is still starting as a reopen, which shows its window.
   A request that may have been made is never sent twice: a connection lost after sending answers `E_MCP_CONNECTION_LOST`, and only a replaced token or a rate limit is retried, once.
-- **Picking up changes:** Rust polls `PRAGMA data_version` on the app's own connection every second, for any other writer on the file (`src-tauri/src/watch.rs`); it changes only when another connection commits, so the app's own saves are ignored.
+- **Picking up changes:** Rust takes a `stat` of the `-wal` file once a second, and when its device, inode, size or modified time moved reads `PRAGMA data_version` on the app's own connection, for any other writer on the file (`src-tauri/src/watch.rs`).
+  A commit's frames reach the `-wal` file before the commit becomes visible, so after a move the version is read every second until it changes or five seconds (`VISIBLE_WITHIN`) have passed since the last move.
+  The first look after the five seconds reads the version once more, so a watch thread held up past them (App Nap, a busy machine) still sees a commit that became visible meanwhile.
+  A commit that becomes visible within five seconds of its last write to the `-wal` file is seen by the first look after it becomes visible, a second later unless the thread was held up; the gap is the commit's fsync, which takes milliseconds.
+  A commit whose fsync took longer is seen with the next write to the `-wal` file.
+  The watch never opens the database's files: SQLite's locks are POSIX locks, and closing any descriptor of a file drops them for the whole process.
+  The version changes only when another connection commits, so the app's own saves are ignored.
+  A read that fails is tried again the next second.
+  When no read had succeeded yet, the first one that does counts as a change, so a commit made meanwhile is not taken as the baseline unreported.
   A change emits `devot://db-changed`.
   The window first has the note service take in what was written (`mergeStored` in `src/core/notes/relay.ts`).
   It reads the held notes' list rows in one `getSummaries` call: every write moves a note's stored body version, so a note whose version has not moved since the core read or wrote it is left as it is, and only the others read their stored copy back.
