@@ -78,11 +78,20 @@ function tagsIn(text: string): number {
   return change
 }
 
-/** Pieces are at least `minLength` long (bar the last): each piece costs some setting up. */
-export function splitBlocks(markdown: string, minLength = 1): Block[] {
+/**
+ * Cuts `markdown` from `from`, a block start on line `line`. At each cut, `stop` may end the
+ * scan: it gets the cut's offset and line, and returns whether the rest is known.
+ */
+function scan(
+  markdown: string,
+  minLength: number,
+  from: number,
+  line: number,
+  stop: (offset: number, line: number) => boolean,
+): { blocks: Block[]; stopped: boolean } {
   const blocks: Block[] = []
-  let start = 0
-  let startLine = 1
+  let start = from
+  let startLine = line
   let fence: { char: string; size: number } | null = null
   let math = 0
   let frontmatter = false
@@ -90,8 +99,7 @@ export function splitBlocks(markdown: string, minLength = 1): Block[] {
   let depth = 0
   let afterBlank = false
 
-  let line = 1
-  for (let at = 0; at <= markdown.length; line += 1) {
+  for (let at = from; at <= markdown.length; line += 1) {
     const next = markdown.indexOf('\n', at)
     const end = next < 0 ? markdown.length : next
     const text = markdown.slice(at, markdown[end - 1] === '\r' ? end - 1 : end)
@@ -129,6 +137,7 @@ export function splitBlocks(markdown: string, minLength = 1): Block[] {
         !LIST_ITEM.test(text)
       ) {
         blocks.push({ text: markdown.slice(start, at), offset: start, line: startLine })
+        if (stop(at, line)) return { blocks, stopped: true }
         start = at
         startLine = line
       }
@@ -150,5 +159,99 @@ export function splitBlocks(markdown: string, minLength = 1): Block[] {
     at = next + 1
   }
   blocks.push({ text: markdown.slice(start), offset: start, line: startLine })
-  return blocks
+  return { blocks, stopped: false }
+}
+
+/** Pieces are at least `minLength` long (bar the last): each piece costs some setting up. */
+export function splitBlocks(markdown: string, minLength = 1): Block[] {
+  return scan(markdown, minLength, 0, 1, () => false).blocks
+}
+
+export interface NoteSplit {
+  blocks: Block[]
+  /** For each block, the index of the block with its text in the split before, or -1. */
+  was: number[]
+}
+
+/**
+ * `splitBlocks` for a note that changes a little at a time: each split cuts again only from the
+ * block before the first that changed, until a cut meets a block whose text runs unchanged to the
+ * end. Every cut starts a scan afresh, so the blocks after it are the ones the split before had.
+ */
+export function createBlockSplitter(minLength = 1): (markdown: string) => NoteSplit {
+  let last: { markdown: string; split: NoteSplit } | undefined
+
+  const splitAfresh = (markdown: string): NoteSplit => {
+    const blocks = splitBlocks(markdown, minLength)
+    return { blocks, was: blocks.map(() => -1) }
+  }
+
+  const splitAgain = (markdown: string, before: string, old: readonly Block[]): NoteSplit => {
+    let changed = 0
+    while (
+      changed < old.length - 1 &&
+      markdown.startsWith(old[changed]!.text, old[changed]!.offset)
+    )
+      changed += 1
+    const from = Math.max(0, changed - 1)
+    const delta = markdown.length - before.length
+    // The first of the old blocks whose text, moved by `delta`, runs unchanged to the end.
+    let same = old.length
+    while (
+      same > from + 1 &&
+      old[same - 1]!.offset + delta > old[from]!.offset &&
+      markdown.startsWith(old[same - 1]!.text, old[same - 1]!.offset + delta)
+    )
+      same -= 1
+    const resumes = new Map<number, number>()
+    for (let i = same; i < old.length; i += 1) resumes.set(old[i]!.offset + delta, i)
+    let resumed = -1
+    let lines = 0
+    const { blocks: middle } = scan(
+      markdown,
+      minLength,
+      old[from]!.offset,
+      old[from]!.line,
+      (offset, line) => {
+        const at = resumes.get(offset)
+        if (at === undefined) return false
+        resumed = at
+        lines = line - old[at]!.line
+        return true
+      },
+    )
+    const blocks: Block[] = []
+    const was: number[] = []
+    for (let i = 0; i < from; i += 1) {
+      const { offset, line, text } = old[i]!
+      blocks.push({ text: markdown.slice(offset, offset + text.length), offset, line })
+      was.push(i)
+    }
+    for (const block of middle) {
+      blocks.push(block)
+      const unchanged =
+        block.offset === old[from]!.offset && block.text.length === old[from]!.text.length
+      was.push(unchanged && from < changed ? from : -1)
+    }
+    if (resumed >= 0) {
+      for (let i = resumed; i < old.length; i += 1) {
+        const { text, offset, line } = old[i]!
+        const at = offset + delta
+        blocks.push({ text: markdown.slice(at, at + text.length), offset: at, line: line + lines })
+        was.push(i)
+      }
+    }
+    return { blocks, was }
+  }
+
+  return (markdown) => {
+    const split =
+      last?.markdown === markdown
+        ? { blocks: last.split.blocks, was: last.split.blocks.map((_, i) => i) }
+        : last
+          ? splitAgain(markdown, last.markdown, last.split.blocks)
+          : splitAfresh(markdown)
+    last = { markdown, split }
+    return split
+  }
 }

@@ -12,7 +12,7 @@ import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 import { BUILTIN_RENDERERS } from './builtins'
-import { splitBlocks } from './blocks'
+import { createBlockSplitter, type Block, type NoteSplit } from './blocks'
 import {
   definitionsIn,
   labelsIn,
@@ -356,7 +356,7 @@ function marksIn(node: RootContent | ElementContent): number {
 
 const HEADING = /^h[1-6]$/
 // Shorter pieces cost more to set up than they save when one is rendered again.
-const PIECE_LENGTH = 2000
+export const PIECE_LENGTH = 2000
 
 /**
  * Besides the pieces the note shows, the cache keeps pieces up to this many
@@ -374,6 +374,43 @@ export interface PieceRenderer {
   forgetShown(): void
 }
 
+// Past this many blocks changed, counting copies by text is cheaper than comparing.
+const FEW_CHANGED = 16
+
+/**
+ * How many blocks before each have its text. After an edit of a few blocks, the blocks kept from
+ * the split before (`was`) take their count from there, moved by the blocks that came or went.
+ */
+function copiesOf(
+  blocks: readonly Block[],
+  was: readonly number[],
+  before: { blocks: readonly Block[]; copies: readonly number[] } | undefined,
+): number[] {
+  const kept = new Set(was)
+  const gone = before?.blocks.filter((_, j) => !kept.has(j)).map((block) => block.text) ?? []
+  const added = blocks.filter((_, i) => was[i]! < 0).map((block) => block.text)
+  if (!before || gone.length + added.length > FEW_CHANGED) {
+    const seen = new Map<string, number>()
+    return blocks.map(({ text }) => {
+      const copy = seen.get(text) ?? 0
+      seen.set(text, copy + 1)
+      return copy
+    })
+  }
+  const among = (texts: readonly string[], text: string) =>
+    texts.reduce((count, other) => (other === text ? count + 1 : count), 0)
+  let changed = 0
+  while (changed < blocks.length && was[changed] === changed) changed += 1
+  return blocks.map(({ text }, i) => {
+    const j = was[i]!
+    if (j >= 0 && i < changed) return before.copies[j]!
+    if (j >= 0) return before.copies[j]! - among(gone, text) + among(added, text)
+    let copy = 0
+    for (let k = 0; k < i; k += 1) if (blocks[k]!.text === text) copy += 1
+    return copy
+  })
+}
+
 /**
  * `renderPreview` cut into pieces: only pieces whose text (or rendering
  * options) changed are rendered again. Heading ids depend on the headings
@@ -383,7 +420,14 @@ export function createPieceRenderer({
   registry = defaultRegistry,
   capacity = KEPT_CHARACTERS,
   pieceLength = PIECE_LENGTH,
-}: { registry?: PreviewRegistry; capacity?: number; pieceLength?: number } = {}): PieceRenderer {
+  split = createBlockSplitter(pieceLength),
+}: {
+  registry?: PreviewRegistry
+  capacity?: number
+  pieceLength?: number
+  /** Cuts the note into pieces; one that remembers the note before cuts an edited note again only around the edit. */
+  split?: (markdown: string) => NoteSplit
+} = {}): PieceRenderer {
   const cache = new Map<string, Rendered>()
   let cached = 0
   let ids = 0
@@ -394,6 +438,9 @@ export function createPieceRenderer({
   // Pieces with the same text get nodes of their own (their heading ids differ).
   const keyOf = (text: string, first: boolean, copy: number, optionsKey: string) =>
     `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
+  // The render before, whose keys the pieces it kept take again rather than building them from
+  // their whole text.
+  let last: { blocks: Block[]; copies: number[]; keys: string[]; options: string } | undefined
 
   // Drops the oldest pieces the note does not show right now, until the others fit. A piece it
   // shows is never dropped, or a note larger than the cache would render whole again on every
@@ -496,18 +543,22 @@ export function createPieceRenderer({
   ) => {
     const opened = closings
     const names = registry.renderers().includes(headingIds)
-    const blocks = splitBlocks(markdown, pieceLength)
+    const { blocks, was: wasAt } = split(markdown)
     // Only front matter shows the note's fields: other pieces do not render again when those change.
     const { note: fields, ...bodyOptions } = options
     const bodyKey = JSON.stringify(bodyOptions)
     const front = fields !== undefined && markdown.startsWith('---')
     const firstKey = front ? JSON.stringify(options) : bodyKey
-    const copies = new Map<string, number>()
+    const copies = copiesOf(blocks, wasAt, last)
+    const sameOptions = last?.options === `${firstKey}\u0000${bodyKey}`
     const keys = blocks.map((block, i) => {
-      const copy = copies.get(block.text) ?? 0
-      copies.set(block.text, copy + 1)
-      return keyOf(block.text, i === 0, copy, i === 0 ? firstKey : bodyKey)
+      const j = wasAt[i]!
+      if (sameOptions && j >= 0 && (i === 0) === (j === 0) && last!.copies[j] === copies[i]) {
+        return last!.keys[j]!
+      }
+      return keyOf(block.text, i === 0, copies[i]!, i === 0 ? firstKey : bodyKey)
     })
+    last = { blocks, copies, keys, options: `${firstKey}\u0000${bodyKey}` }
     const parserOf = (i: number) => (i === 0 ? processor : bodyProcessor)
 
     const found = keys.map((key) => {

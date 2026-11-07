@@ -1,5 +1,6 @@
 import { describe, it } from 'vitest'
 import { createPieceRenderer, type PreviewOptions } from '../../src/core'
+import { createLivePreviewRenderer } from '../../src/core/preview/live'
 import { sampleNote } from '../../scripts/bench/fixtures'
 import { expectWithinBudget } from '../support/budget'
 import { labels } from '../support/preview-html'
@@ -40,5 +41,35 @@ describe('the live preview of a 250 KB note with footnotes and reference definit
       known = pieces.map((piece) => piece.key)
     }
     expectWithinBudget(context, median(times), EDIT_BUDGET_MS)
+  })
+})
+
+// The pieces before and after an edit are known: cutting the note, keying its pieces and counting
+// its tasks and lines start again only around the edit (about 40 ms per edit at 2 MB when the
+// whole note was cut, keyed and counted again; about 14 ms now on the same machine).
+const BIG_EDIT_BUDGET_MS = 25
+
+describe('the live preview of a 2 MB note', () => {
+  it('renders an edit in the middle within its budget', { timeout: 120_000 }, async (context) => {
+    const render = createLivePreviewRenderer({
+      renderPieces: createPieceRenderer(),
+      linkTargets: async () => ({}),
+      onTargetsFailed: () => undefined,
+    })
+    const note = sampleNote(2_000_000)
+    let known = (await render(note, options, [], '')).pieces.map((piece) => piece.key)
+    const at = note.indexOf('goes on for a while', note.length / 2)
+    // Flat, as a note the page posts arrives.
+    const edits = Array.from({ length: EDITS }, (_, i) =>
+      JSON.parse(JSON.stringify(`${note.slice(0, at)}${'x'.repeat(i + 1)}${note.slice(at)}`)),
+    ) as string[]
+    const times: number[] = []
+    for (const edited of edits) {
+      const start = performance.now()
+      const { pieces } = await render(edited, options, known, '')
+      times.push(performance.now() - start)
+      known = pieces.map((piece) => piece.key)
+    }
+    expectWithinBudget(context, median(times), BIG_EDIT_BUDGET_MS)
   })
 })

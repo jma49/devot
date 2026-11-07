@@ -33,7 +33,7 @@ import { previewsFor } from '../notePreview'
 import { useEditorSetting } from '../editorSettings'
 import { loadImagesFrom, useLoadedImageHosts } from '../remoteImages'
 import { NoteHover } from './NoteHover'
-import { useText, type TextStore } from '../textStore'
+import type { TextStore } from '../textStore'
 import type { FindTarget } from '../find/target'
 import { format, t } from '../i18n'
 import { useAppearance } from '../icons/Icon'
@@ -44,13 +44,14 @@ import {
   buildToLine,
   FIRST_CHARACTERS,
   hasPending,
+  noteOffset,
   patchPieces,
   type ShownPiece,
 } from './dom'
 import { previewFindTarget } from './find'
 import { createIslandMounter } from './islands'
 import { islands } from './islandRegistry'
-import { CodeCopyButtons, codeBlocks } from './CodeCopy'
+import { CodeCopyButtons, pieceCodeBlocks } from './CodeCopy'
 import { latestOnly } from './latest'
 import {
   previewScrollPane,
@@ -107,16 +108,26 @@ export function previewNote(fields: PreviewNoteFields): PreviewNote {
 }
 
 interface RenderInput {
-  noteId: string | undefined
-  markdown: string
+  /** Read when the render starts, so renders that a newer one replaces never read the text. */
+  read: () => string
   loadedEmbeds: string[]
   remoteImages: RemoteImageWait | undefined
   frontMatterInInfo: boolean
 }
 
-interface Props {
+/** The text a preview shows, read only when a render starts (see textStore.ts). */
+type PreviewText = Pick<TextStore, 'get' | 'subscribe'>
+
+const fixedText = (markdown: string): PreviewText => ({
+  get: () => markdown,
+  subscribe: () => () => undefined,
+})
+
+type Props = PreviewProps &
+  ({ markdown: string; text?: never } | { text: PreviewText; markdown?: never })
+
+interface PreviewProps {
   core: Core
-  markdown: string
   /** The note shown, so its linked notes are asked for again when another one opens. */
   noteId?: string | undefined
   /** The main window's live preview: Note Info shows the front matter, so the body leaves it out. */
@@ -141,13 +152,14 @@ interface Props {
  * from (the renderer marks each inline image). The editor checks that the
  * text is still there before changing it.
  */
-function previewImageTarget(img: HTMLImageElement, markdown: string): ImageMenuTarget {
-  const from = Number(img.dataset['imageFrom'])
-  const to = Number(img.dataset['imageTo'])
-  const text =
-    Number.isInteger(from) && Number.isInteger(to) && img.dataset['imageFrom'] !== undefined
-      ? markdown.slice(from, to)
-      : ''
+function previewImageTarget(
+  img: HTMLImageElement,
+  markdown: string,
+  pieces: readonly ShownPiece[],
+): ImageMenuTarget {
+  const from = noteOffset(pieces, img, 'data-image-from') ?? Number.NaN
+  const to = noteOffset(pieces, img, 'data-image-to') ?? Number.NaN
+  const text = Number.isInteger(from) && Number.isInteger(to) ? markdown.slice(from, to) : ''
   const parsed = text ? parseImageMarkdown(text) : null
   return {
     fileId: attachmentId(img.getAttribute('src') ?? ''),
@@ -172,15 +184,16 @@ const MOUNT_EVERY_MS = 250
 
 /**
  * The open note's preview, following the editor's text by itself (see
- * textStore.ts): typing renders it, and nothing around it.
+ * textStore.ts): typing renders the note into it, and renders no component.
  */
-export function LivePreview({ text, ...props }: Omit<Props, 'markdown'> & { text: TextStore }) {
-  return <Preview {...props} markdown={useText(text)} />
+export function LivePreview(props: PreviewProps & { text: TextStore }) {
+  return <Preview {...props} />
 }
 
 export function Preview({
   core,
   markdown,
+  text: followed,
   noteId,
   frontMatterInInfo = false,
   onOpenNote,
@@ -192,6 +205,7 @@ export function Preview({
   onScroll,
   onToggleTask,
 }: Props) {
+  const text = useMemo(() => followed ?? fixedText(markdown ?? ''), [followed, markdown])
   const pane = useRef<HTMLElement>(null)
   const host = useRef<HTMLDivElement>(null)
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
@@ -240,7 +254,7 @@ export function Preview({
     const el = host.current
     if (!el) return
     mounter.mount(el, islandContext.current, () => scroll.current?.changed())
-    const blocks = codeBlocks(el)
+    const blocks = pieceCodeBlocks(pieces.current)
     setCodes((now) => (sameList(now, blocks) ? now : blocks))
   }, [mounter])
   // A big note is built in slices after its first pieces (see `buildPending`); what reads the
@@ -347,28 +361,32 @@ export function Preview({
 
   useEffect(() => {
     const run = latestOnly(
-      (input: RenderInput) =>
-        core
+      (input: RenderInput) => {
+        // Read with the text, so a text that arrives after a switch is not taken for the note before.
+        const source = input.read()
+        const noteId = noteNow.current
+        return core
           .renderLivePreview(
-            input.markdown,
+            source,
             {
               labels: previewLabels(),
               loadedEmbeds: input.loadedEmbeds,
               ...(input.remoteImages ? { remoteImages: input.remoteImages } : {}),
               ...(input.frontMatterInInfo ? { frontMatterInInfo: true } : {}),
             },
-            input.noteId === piecesOf.current ? pieces.current.map((piece) => piece.key) : [],
+            noteId === piecesOf.current ? pieces.current.map((piece) => piece.key) : [],
             // The chips' notes are asked for again when another note opens or one of them changes.
             `${noteNow.current ?? ''} ${linksChanged.current}`,
           )
-          .then((next) => ({ next, input })),
-      ({ next, input }) => {
+          .then((next) => ({ next, input, source, noteId }))
+      },
+      ({ next, input, source, noteId }) => {
         if (!host.current) return
-        if (input.noteId !== piecesOf.current) {
+        if (noteId !== piecesOf.current) {
           // Another note shares nothing worth patching over with the one shown.
           host.current.replaceChildren()
           pieces.current = []
-          piecesOf.current = input.noteId
+          piecesOf.current = noteId
         }
         try {
           pieces.current = patchPieces(host.current, pieces.current, next.pieces, { defer: true })
@@ -381,7 +399,7 @@ export function Preview({
           run(input)
           return
         }
-        shown.current = input.markdown
+        shown.current = source
         shownLinks.current = next.links
         afterBuild()
         scroll.current?.changed(next.lines)
@@ -417,28 +435,17 @@ export function Preview({
   // The worker may be gone with the window.
   useEffect(() => () => void core.forgetShownPieces().catch(() => undefined), [core])
 
+  const read = useCallback(() => text.get(), [text])
   // A note opened renders when its text arrives, which follows its id.
   useEffect(
-    () =>
-      render.current?.({
-        noteId: noteNow.current,
-        markdown,
-        loadedEmbeds,
-        remoteImages,
-        frontMatterInInfo,
-      }),
-    [markdown, loadedEmbeds, remoteImages, frontMatterInInfo],
+    () => render.current?.({ read, loadedEmbeds, remoteImages, frontMatterInInfo }),
+    [read, loadedEmbeds, remoteImages, frontMatterInInfo],
   )
-  const input = useRef<RenderInput>({
-    noteId,
-    markdown,
-    loadedEmbeds,
-    remoteImages,
-    frontMatterInInfo,
-  })
+  const input = useRef<RenderInput>({ read, loadedEmbeds, remoteImages, frontMatterInInfo })
   useEffect(() => {
-    input.current = { noteId, markdown, loadedEmbeds, remoteImages, frontMatterInInfo }
+    input.current = { read, loadedEmbeds, remoteImages, frontMatterInInfo }
   })
+  useEffect(() => text.subscribe(() => render.current?.(input.current)), [text])
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
   // Another window or process can change a note a chip shows.
   useEffect(() => {
@@ -457,7 +464,8 @@ export function Preview({
     if (box) {
       // The box shows what the note says: the change comes back as a render.
       event.preventDefault()
-      onToggleTask?.(Number(box.getAttribute('data-task-at')))
+      const at = noteOffset(pieces.current, box, 'data-task-at')
+      if (at !== undefined) onToggleTask?.(at)
       return
     }
     const remote = target.closest('[data-remote-image-load]')
@@ -545,7 +553,7 @@ export function Preview({
     const img = imageUnder(event)
     if (img) {
       if (!onImageMenu) return
-      const image = previewImageTarget(img, shown.current)
+      const image = previewImageTarget(img, shown.current, pieces.current)
       // An image the menu has nothing for keeps the web view's own menu.
       if (!imageMenuHasItems(image)) return
       event.preventDefault()

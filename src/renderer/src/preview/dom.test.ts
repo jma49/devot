@@ -8,6 +8,8 @@ import {
   buildFirstPieces,
   buildPending,
   buildToLine,
+  hasPending,
+  noteOffset,
   patchChildren,
   patchPieces,
   type NextPiece,
@@ -169,14 +171,61 @@ describe('patchPieces', () => {
       [{ key: 'notes', line: 3, offset: 30, parts: parts(3, 8), nodes: [list] }],
     )
     const read = () =>
-      Array.from(
-        host.querySelectorAll('p, input'),
-        (found) => found.getAttribute('data-source-line') ?? found.getAttribute('data-task-at'),
+      Array.from(host.querySelectorAll('p, input'), (found) =>
+        found.hasAttribute('data-source-line')
+          ? found.getAttribute('data-source-line')
+          : String(noteOffset(shown, found, 'data-task-at')),
       )
     expect(read()).toEqual(['3', '34', '9', '85'])
     shown = patchPieces(host, shown, [{ key: 'notes', line: 3, offset: 30, parts: parts(3, 10) }])
     expect(read()).toEqual(['3', '34', '11', '105'])
     expect(shown[0]!.parts).toEqual(parts(3, 10))
+  })
+
+  it('changes no attribute of the pieces after an edit that moves only their offsets', () => {
+    const host = document.createElement('div')
+    const taskPiece = (key: string, at: number, offset: number): NextPiece => ({
+      key,
+      line: at + 1,
+      offset,
+      nodes: [
+        {
+          type: 'element',
+          tagName: 'p',
+          properties: { dataSourceLine: 1 },
+          children: [
+            {
+              type: 'element',
+              tagName: 'input',
+              properties: { type: 'checkbox', dataTaskAt: 2 },
+              children: [],
+            },
+          ],
+        },
+      ],
+    })
+    const count = 5000
+    let shown = patchPieces(
+      host,
+      [],
+      Array.from({ length: count }, (_, i) => taskPiece(`p${i}`, i, i * 10)),
+    )
+    const observer = new MutationObserver(() => undefined)
+    observer.observe(host, { subtree: true, attributes: true })
+
+    shown = patchPieces(host, shown, [
+      taskPiece('p0 edited', 0, 0),
+      ...Array.from({ length: count - 1 }, (_, i) => ({
+        key: `p${i + 1}`,
+        line: i + 2,
+        offset: (i + 1) * 10 + 1,
+      })),
+    ])
+
+    expect(observer.takeRecords().length).toBeLessThanOrEqual(10)
+    observer.disconnect()
+    const last = host.querySelectorAll('input')[count - 1]!
+    expect(noteOffset(shown, last, 'data-task-at')).toBe((count - 1) * 10 + 3)
   })
 })
 
@@ -253,6 +302,49 @@ describe('patchPieces, deferring', { timeout: 30_000 }, () => {
     buildPending(host, shown, (next) => next.key === 'a')
     patchPieces(host, shown, [known('c', 1), known('a', 2), known('b', 3)], { defer: true })
     expect(Array.from(host.children, (child) => child.textContent)).toEqual(['C', 'A', 'B'])
+  })
+})
+
+/** Where each task box and image in `host` points in the note, read as the page reads them. */
+function offsetsIn(host: Element, shown: readonly ShownPiece[]) {
+  return Array.from(host.querySelectorAll('[data-task-at], img[data-image-from]'), (found) =>
+    found.hasAttribute('data-task-at')
+      ? noteOffset(shown, found, 'data-task-at')
+      : [noteOffset(shown, found, 'data-image-from'), noteOffset(shown, found, 'data-image-to')],
+  )
+}
+
+describe('noteOffset, over pieces built later', { timeout: 30_000 }, () => {
+  it('reads what an edit above moved before they were built as a whole build does', async () => {
+    const render = createPieceRenderer()
+    const note = richNote(60_000)
+    const host = document.createElement('div')
+    let shown = patchPieces(host, [], await render(note, options), { defer: true })
+    buildFirstPieces(host, shown)
+    expect(hasPending(shown)).toBe(true)
+    const edited = `Added above.\n\n${note}`
+    shown = patchPieces(
+      host,
+      shown,
+      await render(
+        edited,
+        options,
+        shown.map((one) => one.key),
+      ),
+      { defer: true },
+    )
+    buildPending(host, shown, () => true)
+
+    const whole = document.createElement('div')
+    const wholeShown = patchPieces(whole, [], await createPieceRenderer()(edited, options))
+    expect(host.innerHTML).toBe(whole.innerHTML)
+    const offsets = offsetsIn(host, shown)
+    expect(offsets.length).toBeGreaterThan(10)
+    expect(offsets).toEqual(offsetsIn(whole, wholeShown))
+    for (const found of offsets) {
+      if (Array.isArray(found)) expect(edited.slice(found[0], found[1])).toMatch(/^!\[/)
+      else expect(edited.slice(found! - 1, found! + 2)).toMatch(/^\[[ xX]\]$/)
+    }
   })
 })
 
