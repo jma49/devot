@@ -183,11 +183,7 @@ function InfoSheet(props: {
 
 type Sheet = 'info' | 'notebook' | 'status' | 'tags' | null
 
-const PICKER_OPS = {
-  notebook: 'move',
-  status: 'status',
-  tags: 'tags',
-} as const
+const PICKER_OPS = { notebook: 'move', status: 'status', tags: 'tags' } as const
 
 /** A note New Note just made, whose body takes the keyboard once its push has landed. */
 export interface NewNoteArrival {
@@ -255,7 +251,7 @@ export function PhoneNote(props: {
     (markdown: string) => counter?.noteCounts(markdown) ?? noteCounts(markdown),
     [counter],
   )
-  const stats = useNoteStats(text, countNote)
+  const stats = useNoteStats(noteId, text, countNote)
   const [sheet, setSheet] = useState<Sheet>(null)
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [suggestFailure, setSuggestFailure] = useState<string>()
@@ -323,10 +319,7 @@ export function PhoneNote(props: {
   )
 
   const openNote = (id: string) =>
-    setHistory((h) => ({
-      ids: [...h.ids.slice(0, h.at + 1), id],
-      at: h.at + 1,
-    }))
+    setHistory((h) => ({ ids: [...h.ids.slice(0, h.at + 1), id], at: h.at + 1 }))
   const links: LinkSources = {
     find: async (query) => {
       const core = store.core
@@ -584,9 +577,7 @@ export function PhoneNote(props: {
         className="phone-accessory"
         data-shown={typing || undefined}
         inert={!typing}
-        style={{
-          bottom: `calc(${keyboard.height}px + var(--size-phone-sheet-inset))`,
-        }}
+        style={{ bottom: `calc(${keyboard.height}px + var(--size-phone-sheet-inset))` }}
       >
         <div
           role="toolbar"
