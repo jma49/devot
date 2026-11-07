@@ -1,4 +1,6 @@
+use std::cell::Cell;
 use std::collections::{BTreeMap, VecDeque};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Mutex, MutexGuard};
 
 use serde::Serialize;
@@ -8,6 +10,7 @@ use super::message::{self, FromPage, Reply};
 
 /// Requests Swift waits on at once, the page's queue included; far above what one screen asks.
 const MAX_WAITING: usize = 1024;
+const INTERNAL: &str = "E_SCREENS_INTERNAL";
 
 /// What `screens_take` answers: whether the screens attached, and the requests that came before
 /// the page listened, oldest first.
@@ -108,6 +111,55 @@ impl<R: Copy> Hub<R> {
         } else {
             state.pending.push_back(checked.to_value());
             Called::Queued
+        }
+    }
+
+    /// Swift's call, answered through `send` at most once: refused, forwarded (`forward` says
+    /// whether the page was reached) or queued. A panic on the way abandons the request, and Swift
+    /// hears `E_SCREENS_INTERNAL` unless it was answered already.
+    pub fn serve(
+        &self,
+        request: u64,
+        bytes: impl FnOnce() -> Result<Vec<u8>, &'static str>,
+        reply: R,
+        send: impl Fn(R, u64, &[u8]),
+        forward: impl FnOnce(Value) -> bool,
+    ) {
+        let answered = Cell::new(false);
+        let answer = |reply: R, json: &[u8]| {
+            answered.set(true);
+            send(reply, request, json);
+        };
+        let caught = catch_unwind(AssertUnwindSafe(|| {
+            let bytes = match bytes() {
+                Ok(bytes) => bytes,
+                Err(code) => {
+                    log::warn!("W_SCREENS_REQUEST_REFUSED id={request} code={code}");
+                    return answer(reply, &encoded(&Reply::refused(request, code)));
+                }
+            };
+            match self.call(request, &bytes, reply) {
+                Called::Answer(reply, json) => answer(reply, &json),
+                Called::Forward(message) => {
+                    if !forward(message)
+                        && let Some((reply, json)) =
+                            self.abandon(request, "E_SCREENS_PAGE_UNREACHABLE")
+                    {
+                        answer(reply, &json);
+                    }
+                }
+                Called::Queued => {}
+            }
+        }));
+        if caught.is_ok() {
+            return;
+        }
+        log::error!("E_SCREENS_PANIC id={request}");
+        if !answered.get() {
+            let (reply, json) = self
+                .abandon(request, INTERNAL)
+                .unwrap_or_else(|| (reply, encoded(&Reply::refused(request, INTERNAL))));
+            send(reply, request, &json);
         }
     }
 
@@ -328,6 +380,98 @@ mod tests {
         );
         assert_eq!(hub.abandon(1, "E_SCREENS_PAGE_UNREACHABLE"), None);
         assert_eq!(hub.post(&ok(1)), Ok(Posted::Unmatched(1)));
+    }
+
+    fn served(
+        hub: &Hub<char>,
+        id: u64,
+        forward: impl FnOnce(Value) -> bool,
+    ) -> Vec<(char, u64, Vec<u8>)> {
+        let sent = std::cell::RefCell::new(Vec::new());
+        hub.serve(
+            id,
+            || Ok(ping(id)),
+            'a',
+            |reply, id, json: &[u8]| sent.borrow_mut().push((reply, id, json.to_vec())),
+            forward,
+        );
+        sent.into_inner()
+    }
+
+    #[test]
+    fn serves_a_call_by_forwarding_it_or_answering_its_refusal() {
+        let hub = installed();
+        hub.take();
+        let mut forwarded = Vec::new();
+        assert_eq!(
+            served(&hub, 1, |message| {
+                forwarded.push(message);
+                true
+            }),
+            Vec::new()
+        );
+        assert_eq!(forwarded, vec![ping_value(1)]);
+        assert_eq!(
+            served(&hub, 2, |_| false),
+            vec![('a', 2, refusal(2, "E_SCREENS_PAGE_UNREACHABLE"))]
+        );
+        assert_eq!(
+            served(&hub, 1, |_| true),
+            vec![('a', 1, refusal(1, "E_SCREENS_ID_IN_USE"))]
+        );
+        let sent = std::cell::RefCell::new(Vec::new());
+        hub.serve(
+            3,
+            || Err("E_SCREENS_MESSAGE_TOO_LARGE"),
+            'b',
+            |reply, id, json: &[u8]| sent.borrow_mut().push((reply, id, json.to_vec())),
+            |_| true,
+        );
+        assert_eq!(
+            sent.into_inner(),
+            vec![('b', 3, refusal(3, "E_SCREENS_MESSAGE_TOO_LARGE"))]
+        );
+    }
+
+    #[test]
+    fn a_panic_on_the_way_answers_the_call_once_and_frees_its_place() {
+        let hub = installed();
+        hub.take();
+        assert_eq!(
+            served(&hub, 7, |_| panic!("forward")),
+            vec![('a', 7, refusal(7, "E_SCREENS_INTERNAL"))]
+        );
+        assert_eq!(hub.post(&ok(7)), Ok(Posted::Unmatched(7)));
+        assert_eq!(served(&hub, 7, |_| true), Vec::new());
+
+        let sent = std::cell::RefCell::new(Vec::new());
+        hub.serve(
+            8,
+            || panic!("copy"),
+            'b',
+            |reply, id, json: &[u8]| sent.borrow_mut().push((reply, id, json.to_vec())),
+            |_| true,
+        );
+        assert_eq!(
+            sent.into_inner(),
+            vec![('b', 8, refusal(8, "E_SCREENS_INTERNAL"))]
+        );
+
+        let sent = std::cell::RefCell::new(Vec::new());
+        hub.serve(
+            9,
+            || Err("E_SCREENS_MESSAGE_INVALID"),
+            'c',
+            |reply, id, json: &[u8]| {
+                sent.borrow_mut().push((reply, id, json.to_vec()));
+                panic!("send");
+            },
+            |_| true,
+        );
+        assert_eq!(
+            sent.into_inner(),
+            vec![('c', 9, refusal(9, "E_SCREENS_MESSAGE_INVALID"))]
+        );
     }
 
     #[test]

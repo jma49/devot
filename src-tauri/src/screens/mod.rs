@@ -51,11 +51,8 @@ mod tests {
     #[test]
     fn logs_a_coded_line_of_printable_ascii_only() {
         assert_eq!(
-            log_line(1, b"W_SCREENS_INSTALL_REFUSED reason=no-window"),
-            Some((
-                log::Level::Warn,
-                "W_SCREENS_INSTALL_REFUSED reason=no-window"
-            ))
+            log_line(1, b"W_SCREENS_INSTALL_REFUSED reason=class"),
+            Some((log::Level::Warn, "W_SCREENS_INSTALL_REFUSED reason=class"))
         );
         assert_eq!(
             log_line(0, b"I_SCREENS_UP").map(|l| l.0),

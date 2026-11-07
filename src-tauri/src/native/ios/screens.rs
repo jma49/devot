@@ -4,8 +4,8 @@ use std::sync::OnceLock;
 
 use tauri::{Emitter, Manager};
 
-use crate::screens::hub::{Called, Hub, Posted, Taken};
-use crate::screens::message::{MAX_MESSAGE_BYTES, Reply};
+use crate::screens::hub::{Hub, Posted, Taken};
+use crate::screens::message::MAX_MESSAGE_BYTES;
 
 /// The screens' bridge (`src-tauri/apple/DevotScreens`, docs/specs/iphone-screens.md). Swift
 /// calls `ScreensCall` with a request number and UTF-8 JSON valid until the call returns, and hears
@@ -49,34 +49,21 @@ fn send(reply: ScreensReply, request: u64, json: &[u8]) {
     reply(request, json.as_ptr(), json.len());
 }
 
-fn refuse(reply: ScreensReply, request: u64, code: &str) {
-    log::warn!("W_SCREENS_REQUEST_REFUSED id={request} code={code}");
-    let json = serde_json::to_vec(&Reply::refused(request, code).to_value()).unwrap_or_default();
-    send(reply, request, &json);
-}
-
 extern "C" fn screens_call(request: u64, json: *const u8, len: usize, reply: ScreensReply) {
-    let _ = catch_unwind(AssertUnwindSafe(|| {
-        let bytes = match copy_message(json, len, MAX_MESSAGE_BYTES) {
-            Ok(bytes) => bytes,
-            Err(code) => return refuse(reply, request, code),
-        };
-        match HUB.call(request, &bytes, reply) {
-            Called::Answer(reply, json) => send(reply, request, &json),
-            Called::Forward(message) => forward(request, message),
-            Called::Queued => {}
-        }
-    }));
+    HUB.serve(
+        request,
+        || copy_message(json, len, MAX_MESSAGE_BYTES),
+        reply,
+        send,
+        forward,
+    );
 }
 
-fn forward(request: u64, message: serde_json::Value) {
-    let sent = APP.get().is_some_and(|app| {
+fn forward(message: serde_json::Value) -> bool {
+    APP.get().is_some_and(|app| {
         app.emit_to(crate::MAIN_WINDOW, SCREENS_EVENT, message)
             .is_ok()
-    });
-    if !sent && let Some((reply, json)) = HUB.abandon(request, "E_SCREENS_PAGE_UNREACHABLE") {
-        send(reply, request, &json);
-    }
+    })
 }
 
 extern "C" fn screens_log(level: u8, line: *const u8, len: usize) {

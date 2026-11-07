@@ -32,7 +32,8 @@ final class Screens {
         self.rust = rust
     }
 
-    /// Checks what Rust handed over and attaches the empty root, or answers nil.
+    /// Checks what Rust handed over and attaches the empty root, or answers nil. Tao's window may
+    /// not be up yet: containment needs none.
     static func attach(
         webView: AnyObject, root: AnyObject, rust: any RustSide, defaults: UserDefaults = .standard
     ) -> Screens? {
@@ -42,10 +43,6 @@ final class Screens {
         }
         guard webView is WKWebView, let root = root as? UIViewController else {
             rust.log(.warn, "W_SCREENS_INSTALL_REFUSED reason=class")
-            return nil
-        }
-        guard root.viewIfLoaded?.window != nil else {
-            rust.log(.warn, "W_SCREENS_INSTALL_REFUSED reason=no-window")
             return nil
         }
         let screens = Screens(rust: rust)

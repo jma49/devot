@@ -28,14 +28,18 @@ final class InstallTests: XCTestCase {
         defaults.removePersistentDomain(forName: "InstallTests")
     }
 
-    private func shownRoot() throws -> UIViewController {
+    private func show(_ root: UIViewController) throws {
         let scene = try XCTUnwrap(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
-        let root = UIViewController()
         window.rootViewController = root
         window.makeKeyAndVisible()
         self.window = window
+    }
+
+    private func shownRoot() throws -> UIViewController {
+        let root = UIViewController()
+        try show(root)
         return root
     }
 
@@ -69,12 +73,19 @@ final class InstallTests: XCTestCase {
         XCTAssertEqual(rust.lines, Array(repeating: "W_SCREENS_INSTALL_REFUSED reason=class", count: 2))
     }
 
-    func testRefusesARootWithoutAWindow() {
+    func testAttachesBeforeTheWindowIsUpAndFollowsItWhenItIs() throws {
         let rust = FakeRust()
         let root = UIViewController()
-        root.loadViewIfNeeded()
-        XCTAssertNil(Screens.attach(webView: WKWebView(), root: root, rust: rust, defaults: defaults))
-        XCTAssertEqual(rust.lines, ["W_SCREENS_INSTALL_REFUSED reason=no-window"])
+        let screens = try XCTUnwrap(
+            Screens.attach(webView: WKWebView(), root: root, rust: rust, defaults: defaults))
+        XCTAssertNil(root.view.window)
+        XCTAssertTrue(root.children.contains(screens.root))
+        XCTAssertTrue(screens.root.view.superview === root.view)
+        try show(root)
+        root.view.layoutIfNeeded()
+        XCTAssertEqual(screens.root.view.frame, root.view.bounds)
+        XCTAssertNotNil(screens.root.view.window)
+        XCTAssertEqual(rust.lines, [])
     }
 
     func testAnswersEachRequestByItsIDAndDropsAnUnmatchedReply() throws {

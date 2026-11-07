@@ -39,10 +39,12 @@ UIApplication (tao's app delegate, unchanged)
 
 1. `native::main_window_built` (`src-tauri/src/native/mod.rs`) installs the screens after it hides WebKit's bar above the keyboard.
 2. On the main thread, inside `with_webview`, Rust passes the web view and tao's view controller to the package's install function, which answers `true` or `false`.
-3. Swift checks both objects' classes and that a window exists, builds the containers, and moves the web view into `WebStage` with animations off.
+3. Swift checks both objects' classes, attaches the root and builds the containers.
+   Tao's window need not be up yet: containment needs none, and the root follows the window's bounds once it is.
+   Swift moves the web view into `WebStage`, with animations off, only from the root's `viewIsAppearing`, when it has a window, so the web view's window is never nil.
    In stage 0 it attaches only the empty root, and the web view stays where tao put it.
 4. On `false` the app keeps today's web shell unchanged.
-   Swift answers `false` when the kill switch is on, when an object is of another class or when the root has no window yet, and logs why with a code.
+   Swift answers `false` when the kill switch is on or when an object is of another class, and logs why with a code.
 5. At start the page calls `screens_take`, which answers `{ installed, pending }`: whether the screens attached, and the operations queued before the page listened.
 6. With `installed` the page mounts the editor host alone (no tab bar, lists, sheets or glass); otherwise it mounts the web shell.
    Both paths start the core and seed the welcome notes the same way.
@@ -68,6 +70,7 @@ In stage 0 the root is empty and transparent and passes every touch through, so 
 - `build.rs` lists the package's C symbols beside the store's, so Cargo's iOS library, which holds no Swift, still links.
 - A buffer passed either way is valid only until the call that received it returns, so each side copies it first.
 - Rust keeps at most 1024 requests waiting, and refuses more with `E_SCREENS_BUSY`.
+- A panic in Rust on a request's way abandons it, and Swift hears `E_SCREENS_INTERNAL` unless it was answered already, so no request waits for ever.
 - A request that comes before the page listens waits in Rust until the page calls `screens_take`; one that comes later goes out as the event at once.
 - A reload of the page fails the requests it was handed with `E_SCREENS_PAGE_RELOADED`, and the next page takes those still queued.
 - Without the screens installed, Rust refuses every request with `E_SCREENS_NOT_INSTALLED` and the page stops listening.
