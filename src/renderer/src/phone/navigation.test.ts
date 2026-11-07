@@ -67,6 +67,29 @@ describe('the navigation stacks', () => {
   })
 })
 
+describe('a new note shown', () => {
+  it('pushes the list that has it and its editor on the current tab in one step', () => {
+    let state = navigate(initialNavigation(), {
+      type: 'push',
+      screen: 'list',
+      view: { kind: 'tag', id: 't' },
+    })
+    state = navigate(state, { type: 'newNoteShown', listView: { kind: 'all' }, noteId: 'n1' })
+    expect(state.tab).toBe('library')
+    expect(screens(state)).toEqual(['root', 'list', 'list', 'note'])
+    expect(state.stacks.library[2]?.view).toEqual({ kind: 'all' })
+    expect(state.stacks.library[3]).toMatchObject({ noteId: 'n1', fresh: true })
+    expect(new Set(state.stacks.library.map((r) => r.id)).size).toBe(4)
+  })
+
+  it('pushes only its editor over a list that has it', () => {
+    let state = navigate(initialNavigation(), { type: 'selectTab', tab: 'notes' })
+    state = navigate(state, { type: 'newNoteShown', listView: null, noteId: 'n1' })
+    expect(state.tab).toBe('notes')
+    expect(screens(state)).toEqual(['root', 'note'])
+  })
+})
+
 describe('a smart tile', () => {
   it("opens the Notes tab at its root with the tile's filter", () => {
     let state = navigate(initialNavigation(), { type: 'selectTab', tab: 'notes' })

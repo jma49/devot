@@ -172,6 +172,11 @@ export interface NoteService {
   linkTargets(ids: readonly string[]): Promise<Record<string, NoteLinkTarget>>
   /** Pending edits are saved first so a link pasted a moment ago keeps its image. */
   purge(id: string): Promise<void>
+  /**
+   * Deletes a live note that has no title and no body for good, without the Trash. Storage
+   * refuses one with either (`E_NOTE_NOT_TRASHED`), its pending edits saved first.
+   */
+  discardEmpty(id: string): Promise<void>
   /** Resolves to how many notes were deleted. */
   emptyTrash(): Promise<number>
   history(id: string): Promise<HistoryEntry[]>

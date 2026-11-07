@@ -26,11 +26,11 @@ it('draws the recipe of the glass spec', () => {
 
 it('makes menus and the compose circle glass', () => {
   const list = readFileSync('src/renderer/src/phone/PhoneNoteList.tsx', 'utf8')
-  const capture = readFileSync('src/renderer/src/phone/PhoneCapture.tsx', 'utf8')
+  const app = readFileSync('src/renderer/src/phone/PhoneApp.tsx', 'utf8')
   expect(list).toContain('className="phone-glass phone-peek-status"')
   expect(list).toContain('className="phone-glass phone-peek-menu"')
   expect(list).toContain('className="phone-glass phone-peek-menu phone-filter-menu"')
-  expect(capture).toContain('phone-glass phone-capture')
+  expect(app).toContain('className="phone-glass phone-compose"')
 })
 
 it('puts no coloured tile behind a Settings or Library row icon', () => {

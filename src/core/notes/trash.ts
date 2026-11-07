@@ -10,7 +10,10 @@ import type { NoteService } from './types'
 export function trashMethods(
   ctx: NoteContext,
   k: Kernel,
-): Pick<NoteService, 'trash' | 'restore' | 'listTrash' | 'peekTrashed' | 'purge' | 'emptyTrash'> {
+): Pick<
+  NoteService,
+  'trash' | 'restore' | 'listTrash' | 'peekTrashed' | 'purge' | 'discardEmpty' | 'emptyTrash'
+> {
   const { storage, clock, now, live } = ctx
   const { takeVersion, settled } = k.versions
   const { relay } = k.relay
@@ -83,6 +86,16 @@ export function trashMethods(
       // Storage keeps the attachments other notes show: a link pasted a
       // moment ago, its save still waiting, counts too.
       await Promise.all([...live.values()].map(save))
+      await storage.purgeNote(id, now(), clock.tick())
+      const note = live.get(id)
+      if (note) drop(note)
+      relay({ kind: 'gone', noteId: id, purged: true })
+    },
+
+    async discardEmpty(id) {
+      // Saved first, so text typed a moment ago makes storage refuse.
+      await Promise.all([...live.values()].map(save))
+      if (!(await getStored(id))) throw new Error('E_NOTE_NOT_FOUND')
       await storage.purgeNote(id, now(), clock.tick())
       const note = live.get(id)
       if (note) drop(note)

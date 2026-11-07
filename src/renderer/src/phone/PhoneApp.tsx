@@ -7,7 +7,17 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
+import { errorCode } from '../../../core/errors'
+import { TEMPLATES_BOOK_ID } from '../../../core/templatesBook'
+import { editorSettings } from '../editorSettings'
+import {
+  startEarlyKeys,
+  takeEarlyKeys,
+  type EarlyKey,
+  type EarlyKeysTicket,
+} from '../editor/earlyKeys'
 import { t } from '../i18n'
+import { Icon } from '../icons/Icon'
 import { motionMs } from '../motionTiming'
 import { motionReduced } from '../motionPreference'
 import {
@@ -17,9 +27,21 @@ import {
   PHONE_TABS,
   releasePops,
   releaseSpeed,
+  type PhoneNavigationAction,
   type PhoneRoute,
   type PhoneTab,
 } from './navigation'
+import {
+  discardNewNote,
+  listUnderNewNote,
+  makeNewNote,
+  newNoteBook,
+  newNoteOffered,
+  newNotesLeft,
+  untouched,
+  type MadeNote,
+  type ShownList,
+} from './newNote'
 import { startPhoneRoot } from './spring'
 import { watchDragEnd, type DragEnd } from './dragEnd'
 import type { PhoneView } from './library'
@@ -32,9 +54,8 @@ import { currentWindowLabel } from '../focus'
 import { useSyncEngine } from '../sync'
 import { licenceRow, welcomeDue } from './settingsRows'
 import { openPurchase } from '../purchaseSheet'
-import { PhoneCapture } from './PhoneCapture'
 import { PhoneGate } from './PhoneProSheet'
-import { dropIntent, requireEditing, watchWrite } from './requireEditing'
+import { dropIntent, refusedWrite, requireEditing, watchWrite } from './requireEditing'
 import { applyGlassPrefs } from './glassPrefs'
 import { PhoneNote } from './PhoneNote'
 import { PhoneNoteList } from './PhoneNoteList'
@@ -221,9 +242,30 @@ function viewTitle(view: PhoneView | undefined, data: PhoneData): string {
 
 const ARRIVAL_MS = 1200
 
+interface Made extends MadeNote {
+  touched: boolean
+  handedOver: boolean
+}
+
+const without = (ids: ReadonlySet<string>, id: string): ReadonlySet<string> => {
+  const next = new Set(ids)
+  next.delete(id)
+  return next
+}
+
 export function PhoneApp() {
   const [state, dispatch] = useReducer(navigate, undefined, initialNavigation)
-  const store = usePhoneData()
+  const phoneData = usePhoneData()
+  const [discarding, setDiscarding] = useState<ReadonlySet<string>>(() => new Set())
+  // A discarded note leaves every screen the moment it is left, before its purge returns.
+  const store =
+    discarding.size === 0
+      ? phoneData
+      : {
+          ...phoneData,
+          notes: phoneData.notes.filter((n) => !discarding.has(n.id)),
+          templates: phoneData.templates.filter((n) => !discarding.has(n.id)),
+        }
   const [label] = useState(currentWindowLabel)
   useSyncEngine(store.core, label)
   const [drag, setDrag] = useState(0)
@@ -236,6 +278,13 @@ export function PhoneApp() {
   const undoable = useUndoToast(store)
   const now = useLicenceClock(licence)
   const root = useRef<HTMLDivElement>(null)
+  const keyboardProxy = useRef<HTMLTextAreaElement>(null)
+  const made = useRef(new Map<string, Made>())
+  const earlyKeys = useRef<EarlyKeysTicket | null>(null)
+  const latest = useRef(state)
+  useLayoutEffect(() => {
+    latest.current = state
+  })
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
   useEffect(() => startLicence(), [])
   useEffect(() => {
@@ -254,17 +303,94 @@ export function PhoneApp() {
   const depth = stack.length - 1
   const top = stack[depth]!
   const rootX = depth === 0 ? '0vw' : layerPlacement(0, depth, drag, width).x
-  const listed = top.screen === 'list' || (state.tab === 'notes' && top.screen === 'root')
-  const topView =
-    top.screen === 'list' ? top.view : state.tab === 'notes' ? state.notes.view : undefined
-  const captureHere =
-    !searching &&
-    drag === 0 &&
-    (listed || (state.tab === 'library' && top.screen === 'root')) &&
-    topView?.kind !== 'trash' &&
-    topView?.kind !== 'templates'
-  const listsNewNote = listed && (topView?.kind === 'all' || topView?.kind === 'book')
-  const pop = () => dispatch({ type: 'pop' })
+  const shownList: ShownList | null =
+    top.screen === 'list'
+      ? { view: top.view ?? { kind: 'all' }, status: 'all' }
+      : state.tab === 'notes' && top.screen === 'root'
+        ? state.notes
+        : null
+  const offered = !searching && drag === 0 ? newNoteOffered(state.tab, top, shownList) : null
+
+  const releaseKeyboard = () => {
+    earlyKeys.current?.fail()
+    earlyKeys.current = null
+    if (document.activeElement === keyboardProxy.current) keyboardProxy.current?.blur()
+  }
+
+  const leaveNewNote = (id: string) => {
+    const note = made.current.get(id)
+    made.current.delete(id)
+    if (!note) return
+    if (!note.handedOver) releaseKeyboard()
+    const core = phoneData.core
+    const listed = [...phoneData.notes, ...phoneData.templates].find((n) => n.id === id)
+    if (!core || note.touched || !untouched(note, listed)) {
+      setArrivedId(id)
+      return
+    }
+    setDiscarding((ids) => new Set(ids).add(id))
+    void discardNewNote(core, id).then(async (gone) => {
+      if (gone) await phoneData.refresh()
+      setDiscarding((ids) => without(ids, id))
+      if (!gone) setArrivedId(id)
+    })
+  }
+
+  // Every navigation that can leave a screen comes through here, so a new note left untouched goes with it.
+  const go = (action: PhoneNavigationAction) => {
+    const next = navigate(latest.current, action)
+    for (const id of newNotesLeft(latest.current, next)) leaveNewNote(id)
+    latest.current = next
+    dispatch(action)
+  }
+
+  const newNote = (kind: 'note' | 'template', list: ShownList | null) => {
+    const bookId =
+      kind === 'template' ? null : newNoteBook(list, editorSettings().defaultNotebook, store.books)
+    requireEditing({ op: 'newNote', id: bookId }, () => {
+      const core = store.core
+      if (!core) return
+      // WebKit raises the keyboard only for a focus inside the tap: a hidden field holds it until the body can.
+      releaseKeyboard()
+      const ticket = startEarlyKeys()
+      earlyKeys.current = ticket
+      keyboardProxy.current?.focus({ preventScroll: true })
+      void makeNewNote(core, kind, bookId)
+        .then(async (id) => {
+          made.current.set(id, {
+            bookId: kind === 'template' ? TEMPLATES_BOOK_ID : bookId,
+            touched: false,
+            handedOver: false,
+          })
+          await phoneData.refresh()
+          go({ type: 'newNoteShown', listView: listUnderNewNote(list, kind, bookId), noteId: id })
+        })
+        .catch((error: unknown) => {
+          if (earlyKeys.current === ticket) releaseKeyboard()
+          if (!refusedWrite('newNote', error))
+            console.warn('W_PHONE_NEW_NOTE_FAILED', errorCode(error))
+        })
+    })
+  }
+
+  const handOver = (id: string): readonly EarlyKey[] | null => {
+    const note = made.current.get(id)
+    if (!note || note.handedOver) return null
+    note.handedOver = true
+    earlyKeys.current?.claim(id)
+    earlyKeys.current = null
+    const proxy = keyboardProxy.current
+    const left = proxy?.value ?? ''
+    if (proxy) proxy.value = ''
+    return [...takeEarlyKeys(id), ...[...left].map((key) => ({ key, shift: false }))]
+  }
+
+  const touch = (id: string) => {
+    const note = made.current.get(id)
+    if (note) note.touched = true
+  }
+
+  const pop = () => go({ type: 'pop' })
   const openSearch = (query?: string) => {
     setSearchQuery(query)
     setSearching(true)
@@ -273,16 +399,28 @@ export function PhoneApp() {
   const render = (tab: PhoneTab, route: PhoneRoute) => {
     const index = state.stacks[tab].findIndex((r) => r.id === route.id)
     const onBack = index > 0 ? pop : undefined
-    if (route.screen === 'note' && route.noteId)
-      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} onTrash={undoable.trash} />
+    if (route.screen === 'note' && route.noteId) {
+      const noteId = route.noteId
+      return (
+        <PhoneNote
+          store={store}
+          noteId={noteId}
+          onBack={pop}
+          onTrash={undoable.trash}
+          {...(route.fresh
+            ? { arrival: { takeTyped: () => handOver(noteId), onTouched: () => touch(noteId) } }
+            : {})}
+        />
+      )
+    }
     if (route.screen === 'pane' && route.pane)
       return <PhoneSettingsPane pane={route.pane} focusKey={route.focusKey === true} onBack={pop} />
     if (tab === 'library' && route.screen === 'root')
       return (
         <PhoneLibrary
           data={store}
-          onShowNotes={(view, status) => dispatch({ type: 'showNotes', view, status })}
-          onOpenList={(view) => dispatch({ type: 'push', screen: 'list', view })}
+          onShowNotes={(view, status) => go({ type: 'showNotes', view, status })}
+          onOpenList={(view) => go({ type: 'push', screen: 'list', view })}
           onSearch={() => openSearch()}
           onSavedSearch={openSearch}
           onNewNotebook={() =>
@@ -302,13 +440,11 @@ export function PhoneApp() {
       return (
         <PhoneActivity
           data={store}
-          onOpenNote={(noteId) => dispatch({ type: 'push', screen: 'note', noteId })}
+          onOpenNote={(noteId) => go({ type: 'push', screen: 'note', noteId })}
         />
       )
     if (tab === 'settings')
-      return (
-        <PhoneSettings onOpenPane={(pane) => dispatch({ type: 'push', screen: 'pane', pane })} />
-      )
+      return <PhoneSettings onOpenPane={(pane) => go({ type: 'push', screen: 'pane', pane })} />
     const view =
       route.screen === 'root' ? state.notes.view : (route.view ?? { kind: 'all' as const })
     return (
@@ -319,7 +455,7 @@ export function PhoneApp() {
         title={viewTitle(view, store)}
         arrivedId={arrivedId}
         {...(onBack ? { onBack } : {})}
-        onOpenNote={(noteId) => dispatch({ type: 'push', screen: 'note', noteId })}
+        onOpenNote={(noteId) => go({ type: 'push', screen: 'note', noteId })}
         onSearch={() => openSearch()}
         onTrash={undoable.trash}
         onComplete={undoable.complete}
@@ -368,26 +504,37 @@ export function PhoneApp() {
             // A hidden tab keeps its focus, so a field that saves when it is left would never save.
             if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
           }
-          dispatch({ type: 'selectTab', tab })
+          go({ type: 'selectTab', tab })
         }}
       />
-      <PhoneCapture
-        store={store}
-        available={captureHere}
-        bookId={topView?.kind === 'book' ? topView.id : null}
-        onSaved={(id) => {
-          if (!listsNewNote) dispatch({ type: 'showNotes', view: { kind: 'all' }, status: 'all' })
-          setArrivedId(id)
-          haptic('soft')
+      <button
+        type="button"
+        className="phone-glass phone-compose"
+        data-hidden={offered === null || undefined}
+        inert={offered === null}
+        aria-hidden={offered === null || undefined}
+        aria-label={t(offered === 'template' ? 'templates.new' : 'noteList.newNote')}
+        onClick={() => {
+          if (offered) newNote(offered, shownList)
         }}
+      >
+        <Icon name="note.new" size="phone-compose" />
+      </button>
+      <textarea
+        ref={keyboardProxy}
+        className="phone-keyboard-proxy"
+        data-keyboard-proxy=""
+        aria-hidden="true"
+        tabIndex={-1}
+        inputMode="text"
       />
       <PhoneToast toast={undoable.toast} />
       <PhoneGate
         licence={licence}
         onOpenLicence={(focusKey) => {
           setSearching(false)
-          dispatch({ type: 'selectTab', tab: 'settings' })
-          dispatch({ type: 'push', screen: 'pane', pane: 'licence', focusKey })
+          go({ type: 'selectTab', tab: 'settings' })
+          go({ type: 'push', screen: 'pane', pane: 'licence', focusKey })
         }}
       />
       <PhoneSearch
@@ -397,7 +544,7 @@ export function PhoneApp() {
         onClose={() => setSearching(false)}
         onOpenNote={(noteId) => {
           setSearching(false)
-          dispatch({ type: 'push', screen: 'note', noteId })
+          go({ type: 'push', screen: 'note', noteId })
         }}
       />
       {depth > 0 && !searching && (

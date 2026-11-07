@@ -121,7 +121,7 @@ const store = (): PhoneStore =>
     trash: [],
     lastBackup: null,
     loadedAt: 0,
-    refresh: () => {},
+    refresh: async () => {},
     onTakenIn: () => () => {},
   }) as unknown as PhoneStore
 

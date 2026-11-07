@@ -19,13 +19,13 @@ async function openNotes(page: Page): Promise<void> {
   await expect(recent(page).first()).toBeVisible()
 }
 
-/** Seeds the list with notes that the sections sort out, through the UI. */
+/** Seeds the list with notes that the sections sort out, through the UI: New Note, a title, Back. */
 async function capture(page: Page, title: string): Promise<void> {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
-  const sheet = page.getByRole('dialog', { name: 'New Note' })
-  await sheet.getByLabel('Title').fill(title)
-  await sheet.getByRole('button', { name: 'Save note' }).click()
-  await expect(sheet).toHaveCount(0)
+  const note = page.getByRole('region', { name: 'Untitled' })
+  await note.getByRole('textbox', { name: 'Title' }).fill(title)
+  await page.getByRole('region', { name: title }).getByRole('button', { name: 'Back' }).click()
+  await expect(page.getByRole('region', { name: title })).toHaveCount(0)
   await expect(rows(page).filter({ hasText: title })).toHaveCount(1)
 }
 
@@ -453,7 +453,9 @@ test.describe('the undo toast', () => {
   })
 })
 
-test('capture saves a note to the top of Recent, opening it first', async ({ page }) => {
+test('a new note is at the top of Recent when Back returns to the list, opening it first', async ({
+  page,
+}) => {
   await openNotes(page)
   await section(page, 'recent')
     .getByRole('button', { name: /Recent/ })
@@ -463,35 +465,54 @@ test('capture saves a note to the top of Recent, opening it first', async ({ pag
   await expect(recent(page).first()).toContainText('Relay retention')
 })
 
-test('a note captured from the Library lands in Recent of All Notes', async ({ page }) => {
+test('a new note from the Library has status none, and Back finds it in All Notes on the Library tab', async ({
+  page,
+}) => {
   await openNotes(page)
   await tabs(page).getByRole('button', { name: 'Library' }).click()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
-  const sheet = page.getByRole('dialog', { name: 'New Note' })
-  await sheet.getByLabel('Title').fill('From the Library')
-  await sheet.getByRole('button', { name: 'Save note' }).click()
+  const note = page.getByRole('region', { name: 'Untitled' })
+  await expect(note.locator('.cm-content')).toBeFocused()
+  await expect(note.locator('.phone-chip-strong')).toContainText('No Status')
+  await note.getByRole('textbox', { name: 'Title' }).fill('From the Library')
+  await page
+    .getByRole('region', { name: 'From the Library' })
+    .getByRole('button', { name: 'Back' })
+    .click()
   await expect(recent(page).first()).toContainText('From the Library')
-  await expect(tabs(page).getByRole('button', { name: 'Notes' })).toHaveAttribute(
+  await expect(tabs(page).getByRole('button', { name: 'Library' })).toHaveAttribute(
     'aria-current',
     'page',
   )
 })
 
+test('Back from a new note with nothing in it leaves no note behind', async ({ page }) => {
+  await openNotes(page)
+  const before = await rows(page).count()
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  const note = page.getByRole('region', { name: 'Untitled' })
+  await expect(note.locator('.cm-content')).toBeFocused()
+  await note.getByRole('button', { name: 'Back' }).click()
+  await expect(note).toHaveCount(0)
+  await expect(rows(page)).toHaveCount(before)
+  await expect(page.getByRole('status')).toHaveCount(0)
+})
+
 test.describe('with motion', () => {
   test.use({ reducedMotion: 'no-preference' })
 
-  test('a saved note flies in and flashes, and the rows below shift', async ({ page }) => {
+  test("a new note's row is in place when Back returns, and only fades out of the wash", async ({
+    page,
+  }) => {
     await openNotes(page)
-    await capture(page, 'Flying in')
-    const row = recent(page).filter({ hasText: 'Flying in' })
+    await capture(page, 'In place')
+    const row = recent(page).filter({ hasText: 'In place' })
     await expect(row).toHaveAttribute('data-arrived')
-    const names = await row.evaluate((el) => getComputedStyle(el).animationName)
-    expect(names).toContain('phone-arrive')
-    expect(names).toContain('phone-flash')
+    expect(await row.evaluate((el) => getComputedStyle(el).animationName)).toBe('phone-flash')
     const below = await recent(page)
       .nth(1)
       .evaluate((el) => getComputedStyle(el).animationName)
-    expect(below).toBe('phone-shift')
+    expect(below).toBe('none')
     await expect(row).not.toHaveAttribute('data-arrived')
   })
 })

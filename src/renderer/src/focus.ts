@@ -88,9 +88,10 @@ export function dropSelectionLeftBehind(
   }
 }
 
+/** Nothing has the keyboard, or only the hidden field that holds it for a new note (`data-keyboard-proxy`). */
 export function keyboardIsFree(): boolean {
   const active = document.activeElement
-  return active === null || active === document.body
+  return active === null || active === document.body || active.hasAttribute('data-keyboard-proxy')
 }
 
 /**

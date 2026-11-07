@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createAiGenerator } from '../../../core/aiProvider'
 import { createSuggester } from '../../../core/aiSuggest'
 import type { NoteSummary } from '../../../core/storage'
@@ -16,7 +16,10 @@ import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { IconName } from '../icons/symbols'
 import type { LinkSources } from '../linkCompletion'
 import { linkedNoteCreate, linkedNoteDiscard } from '../linkedNotes'
+import type { EarlyKey } from '../editor/earlyKeys'
 import type { EditorHandle } from '../editor/handle'
+import { motionReduced } from '../motionPreference'
+import { motionMs } from '../motionTiming'
 import { NoteEditor } from '../NoteEditor'
 import { listDevices, useSyncSnapshot } from '../sync'
 import type { FindTarget } from '../find/target'
@@ -181,13 +184,54 @@ type Sheet = 'info' | 'notebook' | 'status' | 'tags' | null
 
 const PICKER_OPS = { notebook: 'move', status: 'status', tags: 'tags' } as const
 
+/** A note New Note just made, whose body takes the keyboard once its push has landed. */
+export interface NewNoteArrival {
+  /** What was typed since the tap, or null once the keyboard has been handed over. */
+  takeTyped: () => readonly EarlyKey[] | null
+  /** Anything the user put in the note, so leaving it keeps it. */
+  onTouched: () => void
+}
+
+// A push that ends without a transitionend (the layer was already in place) still lands.
+const LANDING_MARGIN_MS = 100
+
+/** Whether the screen's layer has finished sliding in: at once for a screen that did not arrive. */
+function useLanded(screen: RefObject<HTMLElement | null>, arriving: boolean): boolean {
+  const [landed, setLanded] = useState(!arriving)
+  useEffect(() => {
+    if (landed) return
+    const layer = screen.current?.closest<HTMLElement>('.phone-layer')
+    const land = () => setLanded(true)
+    const onEnd = (event: Event) => {
+      if (event.target === layer) land()
+    }
+    layer?.addEventListener('transitionend', onEnd)
+    const duration = motionReduced()
+      ? motionMs('motion.duration.phone-crossfade')
+      : motionMs('motion.duration.phone-push')
+    const timer = setTimeout(land, duration + LANDING_MARGIN_MS)
+    return () => {
+      layer?.removeEventListener('transitionend', onEnd)
+      clearTimeout(timer)
+    }
+  }, [landed, screen])
+  return landed
+}
+
 export function PhoneNote(props: {
   store: PhoneStore
   noteId: string
   onBack: () => void
   onTrash: (note: NoteSummary) => void
+  arrival?: NewNoteArrival
 }) {
-  const { store } = props
+  const { store, arrival } = props
+  const screen = useRef<HTMLElement>(null)
+  const landed = useLanded(screen, arrival !== undefined)
+  const [loadedId, setLoadedId] = useState<string | null>(null)
+  const touched = (id: string) => {
+    if (id === props.noteId) arrival?.onTouched()
+  }
   const [history, setHistory] = useState({ ids: [props.noteId], at: 0 })
   const noteId = history.ids[history.at]!
   const note =
@@ -209,11 +253,15 @@ export function PhoneNote(props: {
   const editor = useRef<EditorHandle | null>(null)
   const showAlertMenu = useAlertMenu()
   const keyboard = useKeyboard()
-  const typing = mode === 'edit' && keyboard.open && !finding
+  // The keyboard rises during a new note's push: the screen makes room for it once the push lands.
+  const typing = mode === 'edit' && keyboard.open && !finding && landed
   // An editor being left reports an empty body as it goes: only its own note's body takes that.
-  const showText = (id: string, next: string) =>
+  const showText = (id: string, next: string) => {
+    if (next !== '') touched(id)
     setBody((shown) => (shown.id === id ? { id, text: next } : shown))
+  }
   const noteLoaded = (id: string, loaded: string) => {
+    setLoadedId(id)
     setBody({ id, text: loaded })
     // An empty note has nothing to read, so it opens ready to write.
     setModes((m) => (m[id] ? m : { ...m, [id]: loaded === '' ? 'edit' : 'preview' }))
@@ -234,6 +282,15 @@ export function PhoneNote(props: {
       entitlements: licenceEntitlements,
     })
   }, [store.core])
+
+  useEffect(() => {
+    if (!landed || loadedId !== props.noteId || noteId !== props.noteId) return
+    const shown = editor.current
+    const typed = shown ? arrival?.takeTyped() : null
+    if (!typed || !shown) return
+    shown.focusStart()
+    if (typed.length) shown.type(typed)
+  }, [arrival, landed, loadedId, noteId, props.noteId])
 
   const { onTakenIn } = store
   useEffect(
@@ -271,7 +328,7 @@ export function PhoneNote(props: {
 
   if (!note || !store.core)
     return (
-      <section aria-label={t('phone.note')} className="phone-screen">
+      <section ref={screen} aria-label={t('phone.note')} className="phone-screen">
         <header className="phone-topbar">
           <button
             type="button"
@@ -298,7 +355,7 @@ export function PhoneNote(props: {
     requireEditing({ op: PICKER_OPS[picker], id: note.id }, () => setSheet(picker))
 
   return (
-    <section aria-label={note.title || t('note.untitled')} className="phone-screen">
+    <section ref={screen} aria-label={note.title || t('note.untitled')} className="phone-screen">
       <div className="phone-scroll phone-note-scroll">
         <div className="phone-note-heading-field" data-title={title}>
           <textarea
@@ -309,7 +366,10 @@ export function PhoneNote(props: {
             aria-label={t('phone.note.title')}
             placeholder={t('note.untitled')}
             value={title}
-            onChange={(event) => setTitleDraft(event.target.value.replace(/[\r\n]+/g, ' '))}
+            onChange={(event) => {
+              touched(note.id)
+              setTitleDraft(event.target.value.replace(/[\r\n]+/g, ' '))
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.preventDefault()
             }}
@@ -565,6 +625,7 @@ export function PhoneNote(props: {
           onTrash={() => {
             setSheet(null)
             requireEditing({ op: 'trash', id: note.id }, () => {
+              touched(note.id)
               props.onTrash(note)
               props.onBack()
             })
@@ -582,6 +643,7 @@ export function PhoneNote(props: {
           onClose={() => setSheet(null)}
           onPick={(bookId) => {
             setSheet(null)
+            touched(note.id)
             watchWrite('move', core.setBook(note.id, bookId))
           }}
         />
@@ -592,6 +654,7 @@ export function PhoneNote(props: {
           onClose={() => setSheet(null)}
           onPick={(status) => {
             setSheet(null)
+            touched(note.id)
             watchWrite('status', core.setStatus(note.id, status))
           }}
         />
@@ -602,7 +665,8 @@ export function PhoneNote(props: {
           tags={store.tags}
           counts={tagCounts(store.notes)}
           onClose={() => setSheet(null)}
-          onCreate={(name, color) =>
+          onCreate={(name, color) => {
+            touched(note.id)
             watchWrite(
               'tags',
               core
@@ -613,15 +677,16 @@ export function PhoneNote(props: {
                 })
                 .then(store.refresh),
             )
-          }
-          onToggle={(tag, on) =>
+          }}
+          onToggle={(tag, on) => {
+            touched(note.id)
             watchWrite(
               'tags',
               (on ? core.addTag(note.id, tag.name) : core.removeTag(note.id, tag.id)).then(
                 store.refresh,
               ),
             )
-          }
+          }}
         />
       )}
     </section>

@@ -1067,11 +1067,6 @@
       "$value": { "value": 22, "unit": "px" },
       "$description": "A card in the note info sheet, concentric with the sheet: 34 - 12. Design 26."
     },
-    "phone-capture-field": {
-      "$type": "dimension",
-      "$value": { "value": 20, "unit": "px" },
-      "$description": "A field in the capture sheet, concentric with the sheet: 34 - 14. Design 24 and 22."
-    },
     "phone-lens-bar": {
       "$type": "dimension",
       "$value": { "value": 27, "unit": "px" },
@@ -1456,11 +1451,6 @@
       "$type": "dimension",
       "$value": { "value": 12, "unit": "px" },
       "$description": "From the note info sheet's edge to its cards."
-    },
-    "phone-capture-pad": {
-      "$type": "dimension",
-      "$value": { "value": 14, "unit": "px" },
-      "$description": "From the capture sheet's edge to its fields."
     },
     "phone-sheet-inset": {
       "$type": "dimension",
@@ -2735,21 +2725,6 @@
       "$value": { "value": 10, "unit": "px" },
       "$description": "Between the tab bar and the compose circle."
     },
-    "phone-capture-height": {
-      "$type": "dimension",
-      "$value": { "value": 440, "unit": "px" },
-      "$description": "The capture sheet at the default text size."
-    },
-    "phone-capture-control": {
-      "$type": "dimension",
-      "$value": { "value": 40, "unit": "px" },
-      "$description": "Cancel and Save as drawn; their targets reach 44."
-    },
-    "phone-arrive-rise": {
-      "$type": "dimension",
-      "$value": { "value": 320, "unit": "px" },
-      "$description": "How far below its row a saved note starts."
-    },
     "icon-phone-tab": {
       "$type": "dimension",
       "$value": { "value": 25, "unit": "px" },
@@ -2981,11 +2956,6 @@
         },
         "$description": "The dim behind a modal dialog fading out as it closes."
       },
-      "phone-capture": {
-        "$value": { "value": 560, "unit": "ms" },
-        "$description": "The compose circle growing into the capture sheet, on the gentle spring.",
-        "$type": "duration"
-      },
       "phone-search": {
         "$value": { "value": 220, "unit": "ms" },
         "$description": "The search overlay fading in or out.",
@@ -3100,10 +3070,6 @@
         "$value": 0.6,
         "$description": "The compose circle where it is not offered."
       },
-      "phone-arrive": {
-        "$value": 0.92,
-        "$description": "A saved note as it starts flying into its row."
-      },
       "phone-peek-bar": {
         "$value": 0.4,
         "$description": "The size the peek status bar grows from."
@@ -3158,10 +3124,6 @@
       "phone-peek-menu": {
         "$value": { "value": 50, "unit": "ms" },
         "$description": "The peek's menu follows the card by this much."
-      },
-      "phone-capture-body": {
-        "$value": { "value": 120, "unit": "ms" },
-        "$description": "The capture sheet's contents fade in this long after it starts to grow."
       },
       "phone-peek": {
         "$value": { "value": 420, "unit": "ms" },
@@ -3387,10 +3349,6 @@
     "headline-icon": {
       "$value": 0.8,
       "$description": "The icon before the note list header's view name, on the name's colour."
-    },
-    "phone-dim-capture": {
-      "$value": 0.16,
-      "$description": "How far the capture sheet dims what is behind it."
     }
   }
 }

@@ -1598,7 +1598,6 @@ public enum Tokens {
     public static let phoneCard: CGFloat = 22
     public static let phoneSheet: CGFloat = 34
     public static let phoneSheetCard: CGFloat = 22
-    public static let phoneCaptureField: CGFloat = 20
     public static let phoneLensBar: CGFloat = 27
     public static let phoneLensSegmented: CGFloat = 18
     public static let phoneChip: CGFloat = 15
@@ -1667,7 +1666,6 @@ public enum Tokens {
     public static let phoneGrabberWidth: CGFloat = 36
     public static let phoneGrabberHeight: CGFloat = 5
     public static let phoneSheetPad: CGFloat = 12
-    public static let phoneCapturePad: CGFloat = 14
     public static let phoneSheetInset: CGFloat = 8
     public static let phoneScreenEdge: CGFloat = 16
     public static let phoneTabInset: CGFloat = 16
@@ -1864,9 +1862,6 @@ public enum Tokens {
     public static let glassSliderKnobWidth: CGFloat = 32
     public static let phoneCompose: CGFloat = 62
     public static let phoneComposeGap: CGFloat = 10
-    public static let phoneCaptureHeight: CGFloat = 440
-    public static let phoneCaptureControl: CGFloat = 40
-    public static let phoneArriveRise: CGFloat = 320
     public static let iconPhoneTab: CGFloat = 25
     public static let iconPhoneCompose: CGFloat = 24
     public static let phoneSwipeActionHeight: CGFloat = 34
@@ -1911,7 +1906,6 @@ public enum Tokens {
     public static let insert: TimeInterval = 0.3
     public static let grow: TimeInterval = 0.3
     public static let backdropExit: TimeInterval = 0.4
-    public static let phoneCapture: TimeInterval = 0.56
     public static let phoneSearch: TimeInterval = 0.22
     public static let phoneSearchField: TimeInterval = 0.16
     public static let phoneChevron: TimeInterval = 0.32
@@ -1944,7 +1938,6 @@ public enum Tokens {
     public static let knobPress: CGFloat = 1.25
     public static let segmentLift: CGFloat = 1.06
     public static let phoneComposeHidden: CGFloat = 0.6
-    public static let phoneArrive: CGFloat = 0.92
     public static let phonePeekBar: CGFloat = 0.4
     public static let phonePeekMenu: CGFloat = 0.35
     public static let phoneToast: CGFloat = 0.9
@@ -1964,7 +1957,6 @@ public enum Tokens {
   public enum Delay {
     public static let phonePeekBar: TimeInterval = 0.09
     public static let phonePeekMenu: TimeInterval = 0.05
-    public static let phoneCaptureBody: TimeInterval = 0.12
     public static let phonePeek: TimeInterval = 0.42
     public static let tooltip: TimeInterval = 0.4
     public static let idleHide: TimeInterval = 3
@@ -2024,6 +2016,5 @@ public enum Tokens {
     public static let alertEdge: CGFloat = 0.2
     public static let filterIcon: CGFloat = 0.3
     public static let headlineIcon: CGFloat = 0.8
-    public static let phoneDimCapture: CGFloat = 0.16
   }
 }
