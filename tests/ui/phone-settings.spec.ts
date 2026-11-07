@@ -105,11 +105,9 @@ test('a search with no match says so, and a Mac-only pane is not found', async (
   await expect(root(page).getByRole('searchbox')).toHaveCount(0)
 })
 
-test('Appearance offers no Classic interface, only the glass transparency', async ({ page }) => {
+test('Appearance offers the glass transparency', async ({ page }) => {
   const pane = await openPane(page, 'Appearance')
   await expect(pane.getByRole('slider', { name: 'Glass Transparency' })).toBeVisible()
-  await expect(pane.getByRole('radio', { name: 'Classic' })).toHaveCount(0)
-  await expect(pane.getByRole('radiogroup', { name: 'Interface' })).toHaveCount(0)
   expect(await glassOpaque(page)).toBe(false)
 })
 

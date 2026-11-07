@@ -12,9 +12,8 @@ describe('the note list header layout', () => {
     expect(title.body.get('justify-content')).toBe('flex-start')
     expect(title.body.get('min-width')).toBe('0')
     expect(title.body.get('padding-inline')).toBe('var(--space-5) var(--space-3)')
+    expect(title.body.get('align-items')).toBe('flex-start')
     expect(rule('.list-header .headline')!.body.get('text-overflow')).toBe('ellipsis')
-    const glass = rule(":root[data-sidebar-material='on'] .list .list-header .toolbar-title")!
-    expect(glass.body.get('align-items')).toBe('flex-start')
   })
 
   it('makes New Note a round tool of the list action size', () => {
@@ -24,6 +23,13 @@ describe('the note list header layout', () => {
     expect(create.body.get('border-radius')).toBe('var(--radius-capsule)')
     expect(rule('.list-filter-search')!.body.get('gap')).toBe('var(--space-3)')
     expect(sizes['size.list-action']).toBe(sizes['size.toolbar-control'])
+  })
+
+  it('keeps New Note on its track fill when pressed from the keyboard', () => {
+    const pressed = rules.findIndex((r) => r.selector.startsWith('.tool:active'))
+    const create = rules.findIndex((r) => r.selector === '.list-filter .tool.list-create')
+    expect(rules[create]?.body.get('background')).toBe('var(--color-fill-track)')
+    expect(create).toBeGreaterThan(pressed)
   })
 
   it('shrinks the search field, not New Note, in a narrow list', () => {

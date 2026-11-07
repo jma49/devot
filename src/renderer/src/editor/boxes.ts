@@ -2,9 +2,6 @@
 // outer edge is the padding every line has, where prose starts, and the
 // writing inside sits further in. A quote's bar uses that same edge.
 
-/** An editor theme selector that holds only under the Glass interface. */
-export const glass = (selector: string) => `&[data-sidebar-material='on'] ${selector}`
-
 /** Space between a box and the lines above and below it. */
 export const BOX_MARGIN = 'var(--space-2)'
 /** The line's padding, which is also where a box's outer edge sits. */

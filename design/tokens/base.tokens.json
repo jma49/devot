@@ -1114,7 +1114,7 @@
     "settings-card": {
       "$type": "dimension",
       "$value": { "value": 12, "unit": "px" },
-      "$description": "A Settings card, a theme swatch and an Interface style thumbnail."
+      "$description": "A Settings card and a theme swatch."
     },
     "settings-tile": {
       "$type": "dimension",
@@ -1766,7 +1766,7 @@
     "settings-thumb-width": {
       "$type": "dimension",
       "$value": { "value": 76, "unit": "px" },
-      "$description": "A Color scheme, Interface style or Icon style thumbnail in Settings > Appearance."
+      "$description": "A Color scheme or Icon style thumbnail in Settings > Appearance."
     },
     "settings-thumb-height": {
       "$type": "dimension",

@@ -43,7 +43,7 @@ export function ModeControl({ mode, onChange }: { mode: Mode; onChange: (mode: M
             aria-pressed={mode === m.mode}
             onClick={() => onChange(m.mode)}
           >
-            <ToolIcon name={m.icon} size="md" />
+            <ToolIcon name={m.icon} />
           </button>
         ))}
       </div>

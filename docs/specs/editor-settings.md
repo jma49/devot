@@ -11,7 +11,7 @@ Part of the [architecture overview](../architecture.md).
   General holds the default notebook for new notes.
   Settings search (`settings/search.ts`) finds panes and single settings by every word typed, and a result opens its pane; the iPhone searches only the panes it lists and the rows it shows, including the rows only it has.
   The AI pane saves a typed endpoint or model when the field is left, when the pane closes and when the app goes to the background, never per keystroke; an iPhone tab switch leaves the field first.
-  The same store also holds Settings > Appearance's sidebar material (see Native look).
+  The same store also holds Settings > Appearance's Glass Transparency (see Native look).
   The roomy defaults (line height 1.5, tab size 2, `*` bullets, links for pasted URLs, spell checking on, no active-line highlight) apply only to settings the user never set: Rust writes only the values the user set, so a default that changes later still reaches everything else.
 - **Default notebook:** an ID (or none) in the same store, applied by the main window when a note is made while the view shows no notebook (`notebookForNewNote`: the notebook shown, else the default when it still exists, else none).
   The Settings window cannot reach the core, so the main window keeps the notebook names (never note content) in local storage (`notebookChoices.ts`), which the Settings window reads and follows through `storage` events.
@@ -19,6 +19,7 @@ Part of the [architecture overview](../architecture.md).
   A change is written to a temporary file, flushed to disk and renamed over the old one.
   `editor_settings_get` is granted to every window that draws with the settings (main, note windows, quick capture and Settings), and `editor_settings_set` (a partial change) to the main and Settings windows only; Rust checks every value (booleans, whole-number ranges, fixed lists for the font, weight, indent unit and marker, a short notebook ID or null) and refuses a change with an unknown key or a bad value as a whole.
   Reading the file is lenient: a missing, out-of-range or damaged value takes its default and the rest are kept; the file holds only the values the user set, merged with each change.
+  A key this version does not know (one an older Devot wrote, such as `sidebarMaterial`) is left out on reading, so the next change writes the file without it; the TypeScript reader ignores it too, and a change that names it is refused like any unknown key.
   A file that cannot be read (anything but a missing one, such as a permission or I/O error) is never written over, since a change would drop the values it holds: the defaults show, a change is refused with `E_EDITOR_SETTINGS_READ_FAILED`, and the file is read again on the next read or change.
   A damaged file (not a JSON object) is copied to `editor-settings.json.damaged` before the next change replaces it.
   Every settings file kept on this device (keyboard shortcuts, the mirror, AI, the HTTP API and sync) follows the same rule through one store (`src-tauri/src/settings_file.rs`), each with its own codes: a change is refused with its `E_*_READ_FAILED` while its file cannot be read.

@@ -75,10 +75,11 @@ const CAPSULES: Capsule[] = [
 ]
 
 const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
-const glass = (selector: string) => `:root[data-sidebar-material='on'] ${selector}`
 const declared = (selector: string, property: string) =>
   rules
-    .findLast((r) => r.selector === selector && r.body.has(property))
+    .findLast(
+      (r) => r.selector.split(/,\s*(?![^()]*\))/).includes(selector) && r.body.has(property),
+    )
     ?.body.get(property)
     ?.replace(/\(\s+/g, '(')
     .replace(/\s+\)/g, ')')
@@ -145,49 +146,41 @@ describe('capsule tokens', () => {
     }
   })
 
-  it('places capsule contents with these tokens in the Glass interface', () => {
+  it('places capsule contents with these tokens', () => {
     const expected: [selector: string, property: string, value: string][] = [
-      [glass('.note-meta .chip'), 'gap', 'var(--size-note-pill-gap)'],
+      ['.note-meta .chip', 'gap', 'var(--size-note-pill-gap)'],
+      ['.note-meta .chip:has(> .tag-dot)', 'padding-inline-start', 'var(--size-note-pill-end-dot)'],
+      ['.note-meta .chip-remove', 'width', 'var(--size-note-pill-remove)'],
+      ['.note-meta .chip-remove', 'inset-inline-end', 'var(--size-note-pill-end-remove)'],
+      ['.note-meta .chip-remove', 'inset-block', 'var(--size-note-pill-end-remove)'],
+      ['.note-meta .chip-remove', 'height', 'var(--size-note-pill-remove)'],
       [
-        glass('.note-meta .chip:has(> .tag-dot)'),
-        'padding-inline-start',
-        'var(--size-note-pill-end-dot)',
-      ],
-      [glass('.note-meta .chip-remove'), 'width', 'var(--size-note-pill-remove)'],
-      [glass('.note-meta .chip-remove'), 'inset-inline-end', 'var(--size-note-pill-end-remove)'],
-      [glass('.note-meta .chip-remove'), 'inset-block', 'var(--size-note-pill-end-remove)'],
-      [glass('.note-meta .chip-remove'), 'height', 'var(--size-note-pill-remove)'],
-      [
-        glass('.note-meta .popup'),
+        '.note-meta .popup',
         'padding-inline',
         'var(--size-note-pill-pad) var(--size-note-pill-end-xs)',
       ],
       [
-        glass('.footer-toggle'),
+        '.footer-toggle',
         'padding-inline',
         'calc(var(--size-sidebar-row-padding) - var(--size-capsule-edge)) var(--size-sidebar-footer-end-sm)',
       ],
+      ['.palette-field', 'padding', '0 var(--space-6) 0 var(--size-glass-palette-field-end-md)'],
+      ['.note-meta .popup', 'gap', 'var(--size-note-pill-gap)'],
       [
-        glass('.palette-field'),
-        'padding',
-        '0 var(--space-6) 0 var(--size-glass-palette-field-end-md)',
-      ],
-      [glass('.note-meta .popup'), 'gap', 'var(--size-note-pill-gap)'],
-      [
-        glass(".note-meta .popup[class*='status-']"),
+        ".note-meta .popup[class*='status-']",
         'padding-inline-start',
         'var(--size-note-pill-end-xs)',
       ],
-      [glass('.note-meta .book-popup'), 'padding-inline-start', 'var(--size-note-pill-end-sm)'],
-      [glass('.footer-toggle'), 'column-gap', 'var(--size-sidebar-footer-gap)'],
-      [glass('.sort-chip'), 'gap', 'var(--size-list-filter-control-gap)'],
+      ['.note-meta .book-popup', 'padding-inline-start', 'var(--size-note-pill-end-sm)'],
+      ['.footer-toggle', 'column-gap', 'var(--size-sidebar-footer-gap)'],
+      ['.sort-chip', 'gap', 'var(--size-list-filter-control-gap)'],
       [
-        glass('.list-filter .search-icon'),
+        '.list-filter .search-icon',
         'padding-inline',
         'calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer)) var(--size-toolbar-control-gap)',
       ],
-      [glass('.settings-search'), 'padding-inline-start', 'var(--size-toolbar-control-end-sm)'],
-      [glass('.settings-search'), 'gap', 'var(--size-toolbar-control-gap)'],
+      ['.settings-search', 'padding', '0 var(--space-4) 0 var(--size-toolbar-control-end-sm)'],
+      ['.settings-search', 'gap', 'var(--size-toolbar-control-gap)'],
       ['.row .chip', 'gap', 'var(--size-row-chip-gap)'],
       ['.row .chip:has(> .tag-dot)', 'padding-inline-start', 'var(--size-row-chip-end-dot)'],
     ]
@@ -206,15 +199,15 @@ describe('capsule tokens', () => {
         ),
     )
     expect(resizes.map((r) => r.selector)).toEqual([])
-    expect(declared(glass('.note-meta .chip'), 'padding')).toBe('0 var(--size-note-pill-pad)')
+    expect(declared('.note-meta .chip', 'padding')).toBe('0 var(--size-note-pill-pad)')
     expect(
       rules.some(
         (r) => r.selector.includes('.chip:has(> .chip-remove)') && r.body.has('padding-inline-end'),
       ),
     ).toBe(false)
 
-    const label = glass('.note-meta .chip-label')
-    const shown = glass('.note-meta .chip:is(:hover, :focus-within) > .chip-label')
+    const label = '.note-meta .chip-label'
+    const shown = '.note-meta .chip:is(:hover, :focus-within) > .chip-label'
     expect(declared(shown, '--chip-label-cover')).toBe('var(--size-note-pill-remove-cover)')
     const fade =
       'linear-gradient(to left, transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)), var(--color-ink-text) var(--chip-label-cover))'
@@ -222,20 +215,15 @@ describe('capsule tokens', () => {
       fade,
       fade,
     ])
-    expect(declared(glass('.note-meta .chip-label:dir(rtl)'), 'mask-image')).toContain('to right')
+    expect(declared('.note-meta .chip-label:dir(rtl)', 'mask-image')).toContain('to right')
   })
 
   it("reveals the x as a hover fade, and the label's fade at once under Reduce Motion", () => {
     const hover = 'var(--motion-duration-hover) var(--motion-easing-out)'
-    expect(declared(glass('.note-meta .chip-remove'), 'transition')).toBe(`opacity ${hover}`)
-    expect(declared(glass('.note-meta .chip-label'), 'transition')).toBe(
-      `--chip-label-cover ${hover}`,
+    expect(declared('.note-meta .chip-remove', 'transition')).toBe(`opacity ${hover}`)
+    expect(declared('.note-meta .chip-label', 'transition')).toBe(`--chip-label-cover ${hover}`)
+    expect(declared(":root[data-motion='reduced'] .note-meta .chip-label", 'transition')).toBe(
+      'none',
     )
-    expect(
-      declared(
-        `:root[data-motion='reduced'][data-sidebar-material='on'] .note-meta .chip-label`,
-        'transition',
-      ),
-    ).toBe('none')
   })
 })

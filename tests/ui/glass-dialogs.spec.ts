@@ -26,18 +26,18 @@ async function settled(dialog: Locator) {
   await dialog.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
 }
 
-async function start(page: Page, glass: boolean) {
-  await page.addInitScript((sidebarMaterial) => {
+async function start(page: Page) {
+  await page.addInitScript(() => {
     const w = window
-    w.devotInitialEditorSettings = { revision: 0, settings: { sidebarMaterial } }
+    w.devotInitialEditorSettings = { revision: 0, settings: {} }
     w.devotIpcMocks = { editor_settings_get: () => new Promise(() => {}) }
-  }, glass)
+  })
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
 }
 
-async function openImport(page: Page, glass: boolean) {
-  await start(page, glass)
+async function openImport(page: Page) {
+  await start(page)
   await page.evaluate((scan) => {
     const w = window
     w.dispatchEvent(
@@ -51,8 +51,8 @@ async function openImport(page: Page, glass: boolean) {
   await settled(importSheet(page))
 }
 
-async function openConfirm(page: Page, glass: boolean) {
-  await start(page, glass)
+async function openConfirm(page: Page) {
+  await start(page)
   const name = page.getByRole('textbox', { name: 'Notebook name' })
   await page.getByRole('button', { name: 'New Notebook' }).click()
   await name.fill('Work')
@@ -72,7 +72,7 @@ async function openConfirm(page: Page, glass: boolean) {
 async function openPlainConfirm(page: Page) {
   await page.addInitScript(() => {
     const w = window
-    w.devotInitialEditorSettings = { revision: 0, settings: { sidebarMaterial: true } }
+    w.devotInitialEditorSettings = { revision: 0, settings: {} }
     w.devotIpcMocks = { editor_settings_get: () => new Promise(() => {}) }
   })
   await page.goto('/settings.html')
@@ -88,8 +88,8 @@ async function openPlainConfirm(page: Page) {
   return dialog
 }
 
-async function openLinkDialog(page: Page, glass: boolean) {
-  await start(page, glass)
+async function openLinkDialog(page: Page) {
+  await start(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   const body = page.getByRole('textbox', { name: 'Note body' })
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
@@ -118,13 +118,13 @@ async function expectGlassSurface(dialog: Locator) {
 }
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test.describe(`${colorScheme} Glass dialogs`, () => {
+  test.describe(`${colorScheme} dialogs`, () => {
     test.use({ colorScheme, viewport: { width: 1000, height: 720 } })
 
     test('the import sheet is glass with an inset group that scrolls, and capsule buttons', async ({
       page,
     }) => {
-      await openImport(page, true)
+      await openImport(page)
       const sheet = importSheet(page)
       await expectGlassSurface(sheet)
       await expect(sheet).toHaveCSS('padding', '12px')
@@ -194,7 +194,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     })
 
     test('a destructive confirm is a centred card with stacked capsules', async ({ page }) => {
-      const dialog = await openConfirm(page, true)
+      const dialog = await openConfirm(page)
       await expectGlassSurface(dialog)
       const card = await box(dialog)
       expect(card.width).toBe(300)
@@ -231,7 +231,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     })
 
     test('the link dialog is glass with capsule buttons', async ({ page }) => {
-      const dialog = await openLinkDialog(page, true)
+      const dialog = await openLinkDialog(page)
       await expectGlassSurface(dialog)
       const cancel = cancelButton(dialog)
       expect((await box(cancel)).height).toBe(28)
@@ -246,7 +246,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
 test.describe('the keyboard in a destructive confirm', () => {
   async function openEmptyTrash(page: Page) {
-    await start(page, true)
+    await start(page)
     await page.getByRole('button', { name: 'New Note', exact: true }).click()
     await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
     await pickNoteMore(page, 'Move to Trash')
@@ -283,7 +283,7 @@ test.describe('the keyboard in a destructive confirm', () => {
   })
 
   test('a notebook still gives the keyboard to the action', async ({ page }) => {
-    const dialog = await openConfirm(page, true)
+    const dialog = await openConfirm(page)
     await expect(dialog.getByRole('button', { name: 'Delete Notebook' })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
@@ -294,76 +294,18 @@ test.describe('the dim behind a dialog', () => {
   test.describe('dark', () => {
     test.use({ colorScheme: 'dark' })
 
-    test('dims less in Glass than in Classic', async ({ page }) => {
-      await openImport(page, true)
+    test('dims lightly', async ({ page }) => {
+      await openImport(page)
       expect(await backdropColor(importSheet(page))).toMatch(/0\.2\)$/)
-    })
-
-    test('stays as it was in Classic', async ({ page }) => {
-      await openImport(page, false)
-      expect(await backdropColor(importSheet(page))).toMatch(/0\.3\)$/)
     })
   })
 
   test.describe('light', () => {
     test.use({ colorScheme: 'light' })
 
-    test('keeps its strength in Glass', async ({ page }) => {
-      await openImport(page, true)
+    test('keeps its strength', async ({ page }) => {
+      await openImport(page)
       expect(await backdropColor(importSheet(page))).toMatch(/0\.3\)$/)
     })
-  })
-})
-
-test.describe('Classic dialogs stay as they were', () => {
-  test.use({ colorScheme: 'light', viewport: { width: 1000, height: 720 } })
-
-  test('the import sheet', async ({ page }) => {
-    await openImport(page, false)
-    const sheet = importSheet(page)
-    await expect(sheet).toHaveCSS('border-radius', '8px')
-    await expect(sheet).toHaveCSS('padding', '18px')
-    expect(await css(sheet, 'backdrop-filter')).toBe('none')
-    await expect(sheet).toHaveCSS('display', 'block')
-
-    const tree = importTree(page)
-    await expect(tree).toHaveCSS('border-radius', '0px')
-    await expect(tree).toHaveCSS('border-top-width', '1px')
-    const rows = treeRows(page)
-    await expect(rows.nth(1)).toHaveCSS('min-height', '28px')
-    await expect(rows.nth(1)).toHaveCSS('border-bottom-width', '1px')
-    await expect(rows.nth(1).locator('.import-badge')).toHaveCSS('border-radius', '5px')
-
-    const cancel = cancelButton(sheet)
-    await expect(cancel).toHaveCSS('border-radius', '5px')
-    expect((await box(cancel)).height).toBe(22)
-
-    await expect(sheet.locator('.import-tree-summary')).toBeHidden()
-    await expect(sheet.locator('.import-folder-icon').first()).toBeHidden()
-    await expect(sheet.locator('.import-mapping-icon')).toBeHidden()
-  })
-
-  test('a confirm dialog', async ({ page }) => {
-    const dialog = await openConfirm(page, false)
-    await expect(dialog).toHaveCSS('border-radius', '8px')
-    await expect(dialog).toHaveCSS('padding', '18px')
-    expect(await css(dialog, 'backdrop-filter')).toBe('none')
-    await expect(cancelButton(dialog)).toHaveCSS('border-radius', '5px')
-    await expect(dialog.locator('.confirm-icon')).toBeHidden()
-    await expect(dialog.locator('.confirm-actions')).toHaveCSS('flex-direction', 'row')
-    await expect(dialog).toHaveCSS('text-align', 'start')
-    expect((await box(cancelButton(dialog))).height).toBe(22)
-    const first = await box(dialog.locator('.confirm-actions .button').first())
-    expect(first.width).toBeLessThan(120)
-    const destructive = dialog.getByRole('button', { name: 'Delete Notebook' })
-    await expect(destructive).not.toHaveCSS('color', 'rgb(255, 255, 255)')
-  })
-
-  test('the link dialog', async ({ page }) => {
-    const dialog = await openLinkDialog(page, false)
-    await expect(dialog).toHaveCSS('border-radius', '12px')
-    await expect(dialog).toHaveCSS('padding', '0px')
-    expect(await css(dialog, 'backdrop-filter')).toBe('none')
-    await expect(cancelButton(dialog)).toHaveCSS('border-radius', '7px')
   })
 })

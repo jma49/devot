@@ -11,7 +11,7 @@ Reference images sit beside this file. For each gap:
 
 The design itself is the Liquid Glass canvas and `design/README.md` (section Look, "Glass interface").
 
-Every prompt assumes the rules in `CLAUDE.md`: a branch and a pull request (never `main`), tests first, theme tokens only (no colour literals; run `pnpm tokens` after editing tokens), English UI text from the i18n catalog, no CJK characters in tracked files, motion from `motion.*` tokens, and `pnpm check` green before the pull request. Every change applies to the Glass interface (`:root[data-sidebar-material='on']`). Classic must look exactly as it does now.
+Every prompt assumes the rules in `CLAUDE.md`: a branch and a pull request (never `main`), tests first, theme tokens only (no colour literals; run `pnpm tokens` after editing tokens), English UI text from the i18n catalog, no CJK characters in tracked files, motion from `motion.*` tokens, and `pnpm check` green before the pull request.
 
 ---
 
@@ -36,11 +36,10 @@ Do this:
   each pane fades on its own.
 - The fade comes and goes with motion.duration.quick and motion.easing.quick; under Reduce Motion
   (`:root[data-motion='reduced']`) it switches without a transition.
-- Classic keeps the hard edge.
 
 Tests first: a unit test for the function that decides `data-scrolled` from scrollTop (0, 1, a few
 pixels), and a Playwright UI test (tests/ui) that scrolls a long note in Preview and in Editor and
-checks the attribute and the computed mask-image on `.panes`, and that Classic has no mask.
+checks the attribute and the computed mask-image on `.panes`.
 Pull request title: "fix: fade note content under the header as it scrolls in the Glass interface".
 ```
 
@@ -69,8 +68,6 @@ Do this in src/renderer/src/NoteRow.tsx (and its CSS in app.css):
   shown as the title.
 - Screen readers: the row's accessible name must not change wording beyond the title now coming
   first.
-- Check Classic: it gets the same markup, so take before and after screenshots of the list in
-  Classic and keep its look (same spacing; the headline was bold there already).
 
 Tests first: update src/renderer/src/NoteRow.test.tsx. It currently expects
 `<span class="row-headline">` inside the excerpt; it should now expect a `.row-title` with the
@@ -93,8 +90,8 @@ g3-before.png). Target: g3-after.png. The table is one rounded box (corners radi
 a hairline edge. Inside it, only separators between rows and between columns, the head row on
 color.table.head, header cells start-aligned, and a little more padding.
 
-Do this in src/renderer/src/preview/content.css, scoped to `:root[data-sidebar-material='on'] .preview`
-so exported and printed pages (which never carry that attribute) keep today's table:
+Do this in src/renderer/src/preview/content.css, scoped to the app's preview (`.preview[data-devot-part='preview']`)
+so exported and printed pages keep today's table:
 - `border-collapse: separate; border-spacing: 0; border-radius: var(--radius-list-row); overflow: hidden;`
   and the outer edge as `box-shadow: 0 0 0 1px var(--color-line-hairline)` (no border, so the radius
   clips cleanly).
@@ -109,7 +106,7 @@ so exported and printed pages (which never carry that attribute) keep today's ta
 
 Tests first: a CSS policy-style test (like tests/policy/selection-fills.test.ts) that the Glass rules
 for `.preview table` set a radius token and no cell `border` shorthand, and a UI test that the
-computed border-radius of a preview table is 12px in Glass and 0px in Classic, and that an exported
+computed border-radius of a preview table is 12px, and that an exported
 page's table is unchanged.
 Pull request title: "fix: round preview tables in the Glass interface".
 ```
@@ -146,7 +143,7 @@ follows the Glass interface"). Port it onto current main rather than writing it 
 
 Tests: the patch's tests (sidebarGlass GLASS_SIDEBARS, sidebar_glass has_glass_sidebar,
 capabilities), plus a UI test reading the computed width of the switch (44px) and the slider thumb
-(32px) in Glass, and the Classic values unchanged. Run `pnpm rust:check`.
+(32px). Run `pnpm rust:check`.
 Pull request title: "feat: Settings follows the Glass interface: capsule controls, larger cards".
 ```
 

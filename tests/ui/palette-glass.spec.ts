@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, openApp, test } from './fixtures'
+import { expect, openApp, test } from './fixtures'
 
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
 const paletteField = (page: Page) => palette(page).locator('.palette-field')
@@ -106,31 +106,5 @@ test.describe('Glass', () => {
     await page.keyboard.press('Escape')
     await expect(footer(page).locator('.palette-hint')).toHaveCount(3)
     await expect(footer(page).locator('.palette-hint').nth(2)).toHaveText(/esc\s*Close$/)
-  })
-})
-
-test.describe('Classic', () => {
-  test('keeps its panel, square field and rows, and its one footer hint', async ({ page }) => {
-    await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-    await openPalette(page)
-    await expect(palette(page)).toHaveCSS('border-radius', '8px')
-    await expect(palette(page)).toHaveCSS('padding', '8px')
-    await expect(palette(page)).toHaveCSS('backdrop-filter', 'none')
-    await expect(paletteField(page)).toHaveCSS('border-radius', '7px')
-    await expect(paletteField(page)).toHaveCSS('height', '36px')
-    await expect(paletteField(page)).toHaveCSS('outline-style', 'solid')
-    await expect(selected(page)).toHaveCSS('border-radius', '5px')
-    await expect(selected(page)).toHaveCSS('height', '28px')
-    await expect(palette(page).locator('.palette-key').first()).toHaveCSS('border-top-width', '0px')
-    await expect(palette(page).locator('.palette-group')).toHaveCount(0)
-    await expect(footer(page).locator('kbd')).toHaveCount(1)
-    await expect(footer(page)).toHaveText(/Open Source$/)
-    await expect(footer(page)).not.toContainText('Close')
-
-    await page.keyboard.press('Tab')
-    await expect(input(page)).toHaveAttribute(
-      'placeholder',
-      'Search commands, notebooks, tags, etc...',
-    )
   })
 })

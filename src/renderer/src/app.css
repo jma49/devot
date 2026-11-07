@@ -212,8 +212,30 @@ body {
 }
 
 body {
+  /* Two materials only: one sheet the note list and the editor share, and glass controls floating over
+   it. The sidebar floats inset from the window and is drawn in CSS with the controls' own fill, so it
+   shows the theme's surface through the same wash as every other glass control. A cutout in the
+   surrounding sheet leaves it uncovered. */
   color: var(--color-text-primary);
   cursor: default;
+  --radius-settings-card: var(--radius-glass-card);
+  --glass-sheet: color(
+    from var(--color-surface-sheet) srgb r g b /
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
+  );
+  --glass-sidebar: color(
+    from var(--color-fill-glass-control) srgb r g b /
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
+  );
+  --glass-backdrop: blur(var(--space-9)) saturate(1.8);
+  --glass-rim:
+    inset 0 1px 0 var(--color-line-glass-highlight), 0 0 0 0.5px var(--color-line-glass-edge);
+  --color-surface-popover: var(--color-surface-glass-popover);
+  --color-surface-float-bar: var(--color-surface-glass-float-bar);
+  --radius-popover: var(--radius-glass-popover);
+  --radius-floating-bar: var(--radius-glass-floating-bar);
+  --radius-dialog: var(--radius-glass-dialog);
+  --color-fill-backdrop: var(--color-fill-glass-backdrop);
 }
 
 ::-webkit-scrollbar {
@@ -343,7 +365,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--color-line-hairline);
+  border-bottom: 0;
 }
 
 .toolbar-title {
@@ -416,8 +438,15 @@ button {
 }
 
 .sidebar :is(.source, .book-row) {
+  /* A fixed first column, so an icon's width cannot move its label. */
   transition-duration: var(--motion-duration-quick);
   transition-timing-function: var(--motion-easing-quick);
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: calc(var(--size-sidebar-icon-slot) - var(--space-3)) minmax(0, 1fr);
+  grid-auto-columns: auto;
+  column-gap: var(--space-3);
+  justify-items: start;
 }
 
 :is(.search-field, .find-field, .link-dialog-field, .tag-input, .settings-number):focus-within {
@@ -464,11 +493,32 @@ button {
 }
 
 .toolbar .tool {
-  border-radius: var(--radius-card);
+  width: var(--size-toolbar-control);
+  height: var(--size-toolbar-control);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-glass-control);
+  box-shadow:
+    var(--glass-rim),
+    0 1px var(--space-4) var(--color-shadow-glass);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    box-shadow var(--motion-duration-hover) var(--motion-easing-out),
+    color var(--motion-duration-hover) var(--motion-easing-out),
+    opacity var(--motion-duration-hover) var(--motion-easing-out),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
+    outline-offset var(--motion-duration-quick) var(--motion-easing-quick),
+    scale var(--press-duration, var(--motion-duration-settle))
+      var(--press-easing, var(--motion-easing-spring));
 }
 
 .toolbar .tool:hover:not(:disabled, [aria-disabled='true']) {
-  background: var(--color-fill-tool-hover);
+  background: var(--color-fill-glass-control);
+  box-shadow:
+    var(--glass-rim),
+    inset 0 0 0 100vmax var(--color-fill-tool-hover),
+    0 var(--space-1) var(--space-6) var(--color-shadow-glass);
 }
 
 .tool:active:not(:disabled, [aria-disabled='true']),
@@ -489,6 +539,7 @@ button {
 
 /* Each region's wash has its token's alpha a, adjusted by --window-transparency (-100 to 100): 0 keeps a, -100 is opaque, 100 lets twice as much through (1 - (1 - a)(1 + level / 100), clamped). */
 .sidebar {
+  /* Above the list, so the sidebar's soft shadow fades out over it instead of stopping at its edge. */
   position: relative;
   width: var(--sidebar-width, var(--size-sidebar-width));
   /* A narrow window shrinks the note list to its minimum first, the editor keeps its two panes, and only then does the sidebar give way. */
@@ -503,33 +554,45 @@ button {
     from var(--color-surface-sidebar) srgb r g b /
       clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
   );
-  background-image: var(--backdrop, none);
-  background-attachment: fixed;
-  border-right: 1px solid var(--color-line-hairline);
   font-size: var(--font-size-row);
+  z-index: 1;
+  margin: var(--size-sidebar-inset);
+  padding-inline: var(--size-sidebar-row-inset);
+  padding-block-end: var(--size-sidebar-row-inset);
+  border-right: 0;
+  border-radius: var(--radius-sidebar);
+  background-color: transparent;
+  background-image:
+    linear-gradient(var(--glass-sidebar), var(--glass-sidebar)), var(--backdrop, none),
+    linear-gradient(var(--glass-sheet), var(--glass-sheet));
+  background-attachment: scroll, fixed, scroll;
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow:
+    var(--glass-rim),
+    0 var(--space-2) var(--space-8) var(--color-shadow-glass);
 }
 
 /* With the material off the window draws no effect, so every region, and the root behind the panes, paints an opaque surface. */
-:root[data-sidebar-material='off'] {
-  background: var(--color-surface-window);
-}
-
-:root[data-sidebar-material='off'] .sidebar {
-  background-color: var(--color-surface-sidebar-opaque);
-}
-
-:root[data-sidebar-material='off'] .list {
-  background-color: var(--color-surface-list);
-}
-
-:root[data-sidebar-material='off'] .content {
-  background: var(--color-surface-editor);
-}
 
 .sidebar-scroll {
+  /* The scroll bar is a fixed width, so scrolling always reserves it: pulled out into the sidebar's inset, it leaves the list's rows on the same inset as the pinned rows, with or without overflow. */
   flex: 1 1 0;
   min-height: 0;
-  overflow-y: auto;
+  --scroll-edge-size: 0px;
+  --scroll-edge-bottom-size: 0px;
+  margin-inline-end: calc(-1 * var(--size-scrollbar));
+  overflow-y: scroll;
+  scroll-padding-block: var(--size-sidebar-scroll-edge);
+  mask-image: linear-gradient(
+    transparent,
+    var(--color-ink-text) var(--scroll-edge-size),
+    var(--color-ink-text) calc(100% - var(--scroll-edge-bottom-size)),
+    transparent
+  );
+  transition:
+    --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick),
+    --scroll-edge-bottom-size var(--motion-duration-quick) var(--motion-easing-quick);
 }
 
 .sources {
@@ -579,29 +642,6 @@ button {
   color: var(--color-text-secondary);
 }
 
-/* Same accent wash as a selected note row while the pane has the keyboard; the keyboard bar is drawn
-   inside the row so nothing shifts. A pane without the keyboard draws its selection neutral. */
-.source.filter[aria-pressed='true'],
-.source[aria-current='true'],
-.books [aria-selected='true'] > .book-row,
-.row[aria-selected='true'] {
-  background: color-mix(
-    in srgb,
-    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
-    transparent
-  );
-}
-
-:where(.sidebar:not(:focus-within))
-  :is(
-    .source.filter[aria-pressed='true'],
-    .source[aria-current='true'],
-    .books [aria-selected='true'] > .book-row
-  ),
-:where(.rows:not(:focus-within)) .row[aria-selected='true'] {
-  background: var(--color-fill-row-selected-inactive);
-}
-
 /* Under the pointer: the wash one step under the selected fill. Selected and drop-target rows keep theirs. */
 .source:not([aria-pressed='true'], [aria-current='true'], .drop-fill):hover,
 .books li:not([aria-selected='true']) > .book-row:not(.drop-fill):hover,
@@ -611,26 +651,11 @@ button {
   transition-timing-function: var(--motion-easing-out);
 }
 
-.rows:focus-within .row[data-open] {
-  box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
-}
-
 /* A row with the keyboard draws a ring of its own: the open note's bar stays the open note's, so a
    focused row that is not the open one is still visible (the list may filter the open note out). */
 .row:focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
-}
-
-.sidebar:focus-within
-  :is(
-    .source.filter[aria-pressed='true'],
-    .source[aria-current='true'],
-    .books [aria-selected='true'] > .book-row
-  ):not(.menu-target),
-.sidebar .source:focus-visible:not(.menu-target),
-.books li:focus-visible > .book-row:not(.menu-target) {
-  box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
 }
 
 .sidebar :is(.tool, .footer-toggle):focus-visible {
@@ -934,9 +959,9 @@ button {
 
 .books li {
   /* --book-depth (0 for the top level) is set per item through the CSSOM. */
-  --book-indent: calc(var(--space-3) + var(--book-depth, 0) * var(--space-8));
   position: relative;
   outline: none;
+  --book-indent: calc(var(--size-sidebar-row-padding) + var(--book-depth, 0) * var(--space-7));
 }
 
 .book-row {
@@ -1155,14 +1180,17 @@ button {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  height: var(--size-sidebar-row);
   padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-button);
   background: transparent;
-  color: var(--color-text-tertiary);
   font: inherit;
   font-size: var(--font-size-footnote);
+  column-gap: var(--size-sidebar-footer-gap);
+  height: var(--size-sidebar-footer);
+  padding-inline: calc(var(--size-sidebar-row-padding) - var(--size-capsule-edge))
+    var(--size-sidebar-footer-end-sm);
+  border: var(--size-capsule-edge) solid var(--color-line-glass-edge);
+  border-radius: var(--radius-capsule);
+  color: var(--color-text-primary);
 }
 
 .footer-toggle:hover {
@@ -1170,18 +1198,17 @@ button {
 }
 
 .footer-toggle .icon {
-  background-color: var(--color-text-tertiary);
+  background-color: var(--color-text-secondary);
 }
 
 .footer-toggle .icon-svg {
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }
 
 .footer-dot {
   flex: none;
   width: var(--space-4);
   height: var(--space-4);
-  margin-inline-end: var(--space-4);
   border-radius: var(--radius-capsule);
   background: var(--color-status-done-mark);
 }
@@ -1482,11 +1509,12 @@ button {
   );
   background-image: var(--backdrop, none);
   background-attachment: fixed;
-  border-right: 1px solid var(--color-line-hairline);
+  border-right: 0;
 }
 
 .list .toolbar {
   padding: 0 var(--space-6) 0 var(--space-8);
+  padding-inline-end: var(--size-list-keyline-outer);
 }
 
 /* Everything sits on the toolbar's centre line, which the traffic lights share. */
@@ -1503,27 +1531,30 @@ button {
 }
 
 .list .list-header .toolbar-title {
+  /* The note list's header: the view's name over its count, with no icon. */
   display: flex;
   flex: 1;
-  flex-direction: row;
-  align-items: baseline;
   justify-content: flex-start;
-  gap: calc(var(--font-size-list-title) * 0.3);
   min-width: 0;
   padding-inline: var(--space-5) var(--space-3);
   overflow: hidden;
   font-size: var(--font-size-list-title);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.3;
   color: var(--color-text-primary);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
 }
 
 .list-header .headline {
+  /* In a column, the name would otherwise take its full width instead of an ellipsis. */
   min-width: 0;
   overflow: hidden;
   font: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .headline-icon {
@@ -1556,6 +1587,8 @@ button {
   gap: var(--space-4);
   padding: 0 var(--space-6) var(--space-4);
   border-bottom: 1px solid var(--color-line-hairline);
+  padding-inline: var(--size-list-keyline-outer);
+  border-bottom-color: transparent;
 }
 
 .list-filter .search-field {
@@ -1583,13 +1616,12 @@ button {
   border-radius: var(--radius-capsule);
 }
 
-:root[data-sidebar-material='on'] .list-filter .list-create {
+/* As specific as the pressed .tool fill, and later, so a key press keeps the track. */
+.list-filter .tool.list-create {
   background: var(--color-fill-track);
 }
 
-:root[data-sidebar-material='on']
-  .list-filter
-  .list-create:hover:not(:disabled, [aria-disabled='true']) {
+.list-filter .list-create:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--color-fill-tool-hover);
   color: var(--color-text-primary);
 }
@@ -1597,11 +1629,11 @@ button {
 /* At rest a funnel sits in a slot at the start; once a query is typed the funnel goes and the clear button takes the end slot, so the text moves to the start. */
 .list-filter .search-field {
   gap: 0;
-  height: var(--size-filter-field-height);
   margin-block: var(--space-1);
   padding: 0;
-  background: var(--color-fill-field);
-  box-shadow: inset 0 0 0 1px var(--color-line-field);
+  height: var(--size-toolbar-control);
+  background: var(--color-fill-track);
+  box-shadow: inset 0 0 0 1px transparent;
 }
 
 .list-filter .search-field:focus-within {
@@ -1622,8 +1654,16 @@ button {
 }
 
 .list-filter .search-icon {
-  opacity: var(--opacity-filter-icon);
   transition: opacity var(--motion-duration-icon) var(--motion-easing-standard);
+  opacity: 1;
+  color: var(--color-text-secondary);
+  width: auto;
+  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
+    var(--size-toolbar-control-gap);
+}
+
+.list-filter :is(.search-help-button, .search-clear) {
+  width: var(--size-toolbar-control);
 }
 
 .list-filter .search-field:focus-within > .search-icon {
@@ -1646,16 +1686,22 @@ button {
 .sort-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--size-list-filter-control-gap);
   height: var(--size-list-filter-control);
   padding: 0 var(--space-4);
   border: var(--size-capsule-edge) solid var(--color-line-hairline);
   border-radius: var(--radius-capsule);
   background: transparent;
-  color: var(--color-text-secondary);
   font: inherit;
-  font-size: var(--font-size-caption);
   white-space: nowrap;
+  padding-inline: calc(
+      var(--size-list-keyline-inner) - var(--size-list-keyline-outer) - var(--size-capsule-edge)
+    )
+    var(--size-list-filter-control-end-xs);
+  border-color: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+  font-weight: var(--font-weight-medium);
 }
 
 .sort-chip:hover {
@@ -1663,6 +1709,7 @@ button {
 }
 
 .rows {
+  /* The scroll bar is always reserved and pulled out of the keyline, so rows keep their right edge with or without overflow. */
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -1673,7 +1720,10 @@ button {
   scroll-padding-bottom: var(--trial-bar-inset, 0px);
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: var(--space-1);
+  padding-inline: var(--size-list-keyline-outer)
+    calc(var(--size-list-keyline-outer) - var(--size-scrollbar));
+  overflow-y: scroll;
 }
 
 .rows:focus {
@@ -1690,74 +1740,57 @@ button {
 }
 
 .row {
-  display: flex;
+  /* A row: the title with its time at the end of the line, then the rest of its details, then two
+   lines of its text. The time leaves its line, which goes when nothing else is on it. */
   flex-direction: column;
-  padding: var(--space-1) var(--size-list-row-inset) var(--space-5);
-  border-bottom: 1px solid var(--color-line-separator);
-  border-radius: 0;
   outline: none;
+  --row-title-line: calc(var(--font-size-body) * 1.3);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--space-2);
+  padding: var(--space-5) calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
+    var(--size-list-row-padding-bottom);
+  border-bottom: 0;
+  border-radius: var(--radius-list-row);
 }
 
 .row-title {
   display: -webkit-box;
-  margin: var(--space-4) 0;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   overflow-wrap: anywhere;
-  font-size: var(--font-size-row);
   font-weight: var(--font-weight-semibold);
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: var(--row-title-line);
+  padding-inline-end: calc(var(--space-10) * 2);
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 .row-title[data-untitled] {
   color: var(--color-text-tertiary);
 }
 
-:root[data-sidebar-material='off'] .row[data-no-title] {
-  display: grid;
-  grid-template-columns: fit-content(100%) minmax(0, 1fr);
-  column-gap: var(--space-2);
-}
-
-:root[data-sidebar-material='off'] .row[data-no-title] .row-meta {
-  grid-row: 1;
-  grid-column: 1 / -1;
-  margin-top: var(--space-4);
-}
-
-:root[data-sidebar-material='off'] .row[data-no-title] .row-title {
-  grid-row: 2;
-  grid-column: 1;
-  margin: 0;
-  padding: calc(var(--space-2) - 1px) 0 1px;
-  font-size: var(--font-size-footnote);
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-  font-weight: var(--font-weight-regular);
-}
-
-:root[data-sidebar-material='off'] .row[data-no-title] .row-title:not([data-untitled]) {
-  color: var(--color-text-secondary);
-}
-
-:root[data-sidebar-material='off'] .row[data-no-title] .row-excerpt {
-  grid-row: 2;
-  grid-column: 2;
-  min-width: 0;
-}
-
 .row > .row-meta:first-child {
-  margin-top: var(--space-4);
+  margin-top: 0;
+  min-height: var(--row-title-line);
 }
 
 .row-excerpt {
-  padding: calc(var(--space-2) - 1px) 0 1px;
   overflow: hidden;
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
   text-overflow: ellipsis;
-  white-space: nowrap;
+  padding: 0;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .row mark {
@@ -1771,9 +1804,9 @@ button {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  font-size: var(--font-size-footnote);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-size: var(--font-size-caption);
 }
 
 /* One line: an item that does not fit wraps to a second line that is cut off, so it goes whole.
@@ -1794,7 +1827,12 @@ button {
 }
 
 .row-time {
-  color: var(--color-text-secondary);
+  position: absolute;
+  top: var(--space-5);
+  inset-inline-end: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--row-title-line);
 }
 
 .activity-strip {
@@ -2000,16 +2038,18 @@ button {
 .layout-control .segment {
   width: calc(var(--space-8) + var(--space-4));
   height: calc(var(--space-8) - var(--space-1));
+  border-radius: var(--radius-capsule);
 }
 
 .board-columns {
+  /* The board on the note list's keylines (design/layout.md, Board): columns and cards on the outer line, every text on the inner one. No tile behind a column. */
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-6) var(--space-6);
   overflow-x: auto;
   overflow-y: hidden;
+  gap: var(--space-5);
+  padding: var(--space-1) var(--size-list-keyline-outer) 0;
 }
 
 .board-column {
@@ -2018,27 +2058,28 @@ button {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-radius: var(--radius-card);
-  background: var(--color-fill-track);
-}
-
-.board-column {
-  transition: box-shadow var(--motion-duration-quick) var(--motion-easing-quick);
+  border-radius: var(--radius-list-row);
+  background: transparent;
+  transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
 }
 
 .board-column[data-drop] {
-  box-shadow: inset 0 0 0 var(--size-focus-ring) var(--color-accent-fill);
+  /* Where a drag would drop: the column's own width, flush with its cards. */
+  background: var(--color-fill-track);
+  box-shadow: none;
 }
 
 .board-column-header {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  font-size: var(--font-size-footnote);
   font-weight: var(--font-weight-semibold);
-  color: var(--status-color);
+  box-sizing: border-box;
+  height: var(--space-10);
+  gap: var(--space-4);
+  padding: 0 calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
 }
 
 .board-column-header .icon {
@@ -2053,7 +2094,8 @@ button {
   margin-inline-start: auto;
   font-weight: var(--font-weight-regular);
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
 }
 
 /* The cards fade out over the last `space.8` instead of being cut; the padding lets the last card scroll clear of the fade. */
@@ -2078,6 +2120,7 @@ button {
     var(--color-ink-text) calc(100% - var(--space-8)),
     transparent
   );
+  padding-inline: 0;
 }
 
 .board-empty {
@@ -2097,29 +2140,27 @@ button {
 }
 
 .card {
+  /* Filled only (one stroke rule), with the note row's padding and radius. */
   position: relative;
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-field);
   background: var(--color-fill-card);
-  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
   outline: none;
+  gap: var(--space-2);
+  padding: var(--space-5) calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
+    var(--size-list-row-padding-bottom);
+  border-radius: var(--radius-list-row);
+  box-shadow: none;
 }
 
 .card[aria-selected='true'] {
+  /* The list's selection: the accent wash, no bar; the keyboard's ring as a row's. */
   background: color-mix(
     in srgb,
-    var(--color-accent-fill) calc(var(--opacity-card-selected) * 100%),
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
     var(--color-fill-card)
   );
-}
-
-.board:focus-within .card[data-open],
-.card:focus-visible {
-  box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
 }
 
 .card-title {
@@ -2129,8 +2170,9 @@ button {
   -webkit-line-clamp: 3;
   line-clamp: 3;
   overflow-wrap: anywhere;
-  font-size: var(--font-size-row);
   font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body);
+  line-height: calc(var(--font-size-body) * 1.3);
 }
 
 .card-headline {
@@ -2154,9 +2196,10 @@ button {
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
-  font-size: var(--font-size-footnote);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-size: var(--font-size-caption);
+  line-height: var(--size-card-meta-line);
 }
 
 .card .card-time,
@@ -2316,7 +2359,7 @@ button {
   );
 }
 
-/* Specific enough to win over the reader's preview padding and scrolling under Glass. */
+/* Specific enough to win over the reader's preview padding and scrolling. */
 .gallery .gallery-thumb > .preview.gallery-page {
   width: var(--size-gallery-page-width);
   min-height: auto;
@@ -2422,6 +2465,7 @@ div.card-placeholder {
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-tertiary);
   list-style: none;
+  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
 }
 
 /* The editor keeps room for two split panes (and its toolbar): the list gives way first, then the sidebar below size.sidebar-collapse-width. A narrow window whose sidebar was asked for squeezes the editor instead. */
@@ -2457,6 +2501,12 @@ div.card-placeholder {
   transition:
     background-color var(--motion-duration-hover) var(--motion-easing-out),
     box-shadow var(--motion-duration-hover) var(--motion-easing-out);
+  margin-inline: var(--size-editor-keyline);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: calc(var(--note-space-title-below) * 1px);
+  font-size: calc(var(--note-heading-glass-title-size) * 1px);
+  line-height: calc(var(--note-heading-glass-title-line) * 1px);
+  letter-spacing: calc(var(--note-heading-glass-title-tracking) * 1px);
 }
 
 /* The field is drawn by a spread shadow around the text column, so the text and the box do not move. */
@@ -2474,21 +2524,22 @@ div.card-placeholder {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
   margin: 0 var(--space-9) var(--space-4);
   font-size: var(--font-size-body);
+  margin-inline: var(--size-editor-keyline);
+  gap: var(--space-3);
 }
 
 /* The notebook pop-up's icon, not its hover fill, lines up with the title. */
 .note-meta-fields > .picker:first-child {
-  margin-inline-start: calc(-1 * var(--space-2));
+  margin-inline-start: 0;
 }
 
 /* The pop-ups pad their chevrons, so the tags take a little more room to
    stand as far from the Status chevron as Status does from the notebook's. */
 .note-meta .tag-editor {
   gap: var(--space-3);
-  margin-inline-start: var(--space-2);
+  margin-inline-start: 0;
 }
 
 /* The selection summary's line has a divider between Status and the tags:
@@ -2499,25 +2550,74 @@ div.card-placeholder {
 
 .note-meta .chip {
   position: relative;
-  height: var(--size-segment-height);
-  padding: 0 var(--size-icon-sm);
-  border: 1px solid var(--color-line-hairline);
   box-sizing: border-box;
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
+  gap: var(--size-note-pill-gap);
+  height: var(--size-note-pill);
+  padding: 0 var(--size-note-pill-pad);
+  border: 0;
 }
 
-/* The remove button fills the chip's end padding, so the label stays
-   centred and clear of it whether or not the button shows. */
+.note-meta .chip:has(> .tag-dot) {
+  padding-inline-start: var(--size-note-pill-end-dot);
+}
+
 .note-meta .chip-remove {
   position: absolute;
-  inset-block: 0;
-  inset-inline-end: 0;
+  inset-block: var(--size-note-pill-end-remove);
+  inset-inline-end: var(--size-note-pill-end-remove);
   align-items: center;
   justify-content: center;
-  width: var(--size-icon-sm);
   opacity: 0;
+  width: var(--size-note-pill-remove);
+  height: var(--size-note-pill-remove);
+  border-radius: var(--radius-capsule);
+  transition: opacity var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+@property --chip-label-cover {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* The x shows over the label's end rather than taking room of its own, so the pill keeps one width; the label fades out under it. */
+.note-meta .chip-label {
+  --chip-label-cover: 0px;
+  -webkit-mask-image: linear-gradient(
+    to left,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+  mask-image: linear-gradient(
+    to left,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+  transition: --chip-label-cover var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.note-meta .chip-label:dir(rtl) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+}
+
+.note-meta .chip:is(:hover, :focus-within) > .chip-label {
+  --chip-label-cover: var(--size-note-pill-remove-cover);
+}
+
+:root[data-motion='reduced'] .note-meta .chip-label {
+  transition: none;
 }
 
 .note-meta .chip:is(:hover, :focus-within) .chip-remove {
@@ -2597,7 +2697,7 @@ div.card-placeholder {
 }
 
 .selection-summary .selection-meta {
-  margin: 0;
+  margin-block: 0;
 }
 
 .meta-divider {
@@ -2659,7 +2759,6 @@ div.card-placeholder {
 /* At rest the empty field is a chip-shaped control: a dashed edge and a leading plus. */
 .tag-input:placeholder-shown:not(:focus) {
   width: calc(var(--space-10) * 2 + var(--space-7));
-  padding-inline: calc(var(--space-3) + var(--size-icon-sm)) var(--space-3);
   border: 1px dashed var(--color-line-control);
   border-radius: var(--radius-capsule);
   box-sizing: border-box;
@@ -2711,7 +2810,7 @@ div.card-placeholder {
 }
 
 .status-empty-mark {
-  display: none;
+  display: inline-flex;
 }
 
 .popup:hover {
@@ -2798,6 +2897,7 @@ div.card-placeholder {
   padding: 0 var(--space-6) 0 var(--space-7);
   border-bottom: 0;
   overflow: hidden;
+  padding-inline: var(--size-editor-keyline);
 }
 
 .editor-toolbar > * {
@@ -2806,31 +2906,11 @@ div.card-placeholder {
 
 .editor-toolbar .segmented {
   gap: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--color-line-hairline);
-  background: transparent;
 }
 
-/* Every segment has a 1 px edge at its start and top (transparent but for
-   the dividers), so its 17 px symbol lies on whole pixels and at the same
-   place in all three. */
 .editor-toolbar .segment {
   width: var(--size-view-segment-width);
   box-sizing: border-box;
-  height: var(--size-view-segment-height);
-  border-top: 1px solid transparent;
-  border-left: 1px solid transparent;
-  border-radius: 0;
-}
-
-.editor-toolbar .segment + .segment {
-  border-left-color: var(--color-line-hairline);
-}
-
-.editor-toolbar .segment[aria-pressed='true'] {
-  background: var(--color-fill-row-selected);
-  box-shadow: none;
 }
 
 .write-mode[aria-pressed='true'] {
@@ -2838,9 +2918,10 @@ div.card-placeholder {
 }
 
 .trail-buttons {
+  /* Back and Forward share one capsule, as in Settings. */
   display: flex;
-  gap: var(--space-1);
   margin-right: auto;
+  gap: var(--space-3);
 }
 
 [data-devot-part='sidebar-titlebar'] {
@@ -2856,6 +2937,7 @@ div.card-placeholder {
 /* The room for the window controls opens while the sidebar is hidden and they sit over the list. */
 .list .list-header {
   padding: 0 var(--space-1);
+  padding-inline-end: var(--size-list-keyline-outer);
 }
 
 .window-inset {
@@ -2871,7 +2953,6 @@ div.card-placeholder {
 .sidebar-toggle.tool {
   flex-shrink: 0;
   box-sizing: border-box;
-  width: var(--size-sidebar-toggle-width);
   padding: var(--space-3) var(--space-4);
 }
 
@@ -2913,7 +2994,7 @@ div.card-placeholder {
 /* Clear the window controls, which now sit over the editor toolbar. No
    transition: its items slide with the panes (paneMotion.ts). */
 .window[data-focus] .editor-toolbar {
-  padding-left: var(--size-window-controls-inset);
+  padding-inline-start: var(--size-window-controls-inset);
 }
 
 .window[data-focus] .content > :not(.toolbar) {
@@ -2965,9 +3046,6 @@ div.card-placeholder {
 
 .segmented {
   touch-action: pan-y;
-}
-
-:root[data-sidebar-material='on'] .segmented {
   --segment-lift: var(--motion-scale-segment-lift);
   overflow: visible;
 }
@@ -3107,12 +3185,6 @@ div.card-placeholder {
 
 .panes-split .editor {
   --editor-reading-width: none;
-  --editor-padding: 0 var(--space-4) var(--trial-bar-inset, 0px)
-    calc(var(--space-9) - var(--space-3));
-}
-
-.panes-split .preview {
-  padding-left: var(--space-6);
 }
 
 /* The box inside the shadow root scrolls and takes this padding (NoteEditor.tsx); the host clips nothing, so a popup over the first lines can reach up over the title. */
@@ -3120,8 +3192,9 @@ div.card-placeholder {
   min-height: 0;
   /* A line pads its text by space-3, the column a box sits on (editor/boxes.ts).
      Leave the title's space-9 minus that, so the column lines up with the title. */
-  --editor-padding: 0 calc(var(--space-9) - var(--space-3)) var(--trial-bar-inset, 0px)
-    calc(var(--space-9) - var(--space-3));
+  --editor-overflow-y: scroll;
+  --editor-padding: 0 calc(var(--size-editor-keyline) - var(--space-3) - var(--size-scrollbar))
+    var(--trial-bar-inset, 0px) calc(var(--size-editor-keyline) - var(--space-3));
 }
 
 .editor[hidden] {
@@ -3130,8 +3203,12 @@ div.card-placeholder {
 
 .preview {
   min-height: 0;
-  overflow: auto;
-  padding: var(--space-4) var(--space-9) calc(var(--space-9) + var(--trial-bar-inset, 0px));
+  /* The scroll bar is always reserved and pulled out of the keyline, so blocks keep their right edge with or without overflow. */
+  overflow: auto scroll;
+  /* The pills keep their space-4 margin for the editor; the preview adds the rest. */
+  padding: calc(var(--note-space-pills-below) * 1px - var(--space-4))
+    calc(var(--size-editor-keyline) - var(--size-scrollbar))
+    calc(var(--space-9) + var(--trial-bar-inset, 0px)) var(--size-editor-keyline);
   scroll-padding-bottom: var(--trial-bar-inset, 0px);
   /* The app's font, or the note font once it is not the default (editorSettings.ts).
      Size and line height are set in preview/content.css. */
@@ -4037,10 +4114,6 @@ button.note-info-row:focus-visible {
   flex: 1;
 }
 
-.trash-title {
-  margin-bottom: var(--space-6);
-}
-
 .button {
   height: var(--size-segment-height);
   padding: 0 var(--space-5);
@@ -4192,17 +4265,18 @@ button.note-info-row:focus-visible {
   align-items: center;
   gap: var(--space-3);
   margin: 0;
-  padding: var(--space-6) var(--space-7);
-  border-bottom: 1px solid var(--color-line-hairline);
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
+  padding: calc(var(--size-glass-dialog-inset) + var(--space-5))
+    calc(var(--size-glass-dialog-inset) + var(--space-5)) var(--space-2);
+  border-bottom: 0;
 }
 
 .link-dialog-fields {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  padding: var(--space-7);
+  padding: var(--size-glass-dialog-inset);
 }
 
 .link-dialog-field {
@@ -4211,12 +4285,12 @@ button.note-info-row:focus-visible {
   height: var(--size-field-height);
   padding: 0 var(--space-4);
   border: 0;
-  border-radius: var(--radius-field);
   outline: none;
   box-shadow: inset 0 0 0 1px var(--color-line-control);
-  background: var(--color-surface-float-bar);
   color: var(--color-text-primary);
   font: inherit;
+  border-radius: var(--radius-glass-group);
+  background: var(--color-fill-settings-card);
 }
 
 .link-dialog-field::placeholder {
@@ -4231,28 +4305,30 @@ button.note-info-row:focus-visible {
 
 .link-dialog-actions {
   display: flex;
-  gap: var(--space-5);
-  padding: var(--space-6) var(--space-7);
-  border-top: 1px solid var(--color-line-hairline);
-  background: var(--color-fill-track);
+  gap: var(--space-4);
+  justify-content: flex-end;
+  padding: 0 var(--size-glass-dialog-inset) var(--size-glass-dialog-inset);
+  border-top: 0;
+  background: transparent;
 }
 
 .link-dialog-button {
-  flex: 1;
-  height: var(--size-field-height);
   border: 0;
-  border-radius: var(--radius-field);
   background: var(--color-fill-segment-on);
-  box-shadow: inset 0 0 0 1px var(--color-line-control);
   color: var(--color-text-primary);
   font: inherit;
-  font-weight: var(--font-weight-semibold);
+  flex: none;
+  height: var(--size-glass-dialog-button);
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-capsule);
+  box-shadow: var(--glass-rim);
+  font-weight: var(--font-weight-regular);
 }
 
 .link-dialog-insert {
   background: var(--color-accent-fill);
-  box-shadow: none;
   color: var(--color-accent-on-fill);
+  box-shadow: none;
 }
 
 .link-dialog-insert[aria-disabled='true'] {
@@ -4327,6 +4403,13 @@ button.note-info-row:focus-visible {
   background: var(--color-fill-track);
   color: var(--color-text-primary);
   font: inherit;
+}
+
+.quick-tag-field {
+  height: var(--size-glass-popover-row);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-glass-menu-row);
 }
 
 .pick-list {
@@ -4847,8 +4930,12 @@ button.note-info-row:focus-visible {
 }
 
 .import-mapping {
-  color: var(--color-text-tertiary);
   font-size: var(--font-size-caption);
+  display: flex;
+  order: 1;
+  gap: var(--space-4);
+  margin-block: 0 var(--space-6);
+  color: var(--color-text-secondary);
 }
 
 .import-tree,
@@ -4859,19 +4946,25 @@ button.note-info-row:focus-visible {
 }
 
 .import-tree {
-  max-height: calc(var(--size-dialog-row) * 8);
   overflow: auto;
   margin: 0 0 var(--space-7);
-  border-top: 1px solid var(--color-line-hairline);
+  max-height: calc(var(--size-glass-dialog-row) * 7);
+  margin-block-end: var(--space-6);
+  border-top: 0;
+  border-radius: var(--radius-glass-group);
+  background: var(--color-fill-settings-card);
+  box-shadow: inset 0 0 0 0.5px var(--color-line-separator);
 }
 
 .import-folder-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--size-dialog-row);
-  padding-inline-start: calc(var(--space-6) * var(--import-depth, 0));
-  border-bottom: 1px solid var(--color-line-hairline);
+  box-sizing: border-box;
+  min-height: var(--size-glass-dialog-row);
+  padding-inline: calc(var(--space-5) + var(--space-7) * var(--import-depth, 0)) var(--space-6);
+  border-top: 0.5px solid var(--color-line-separator);
+  border-bottom: 0;
 }
 
 .import-folder-name {
@@ -4882,11 +4975,20 @@ button.note-info-row:focus-visible {
 }
 
 .import-badge {
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-control);
-  background: var(--color-fill-track);
-  color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: var(--size-glass-badge);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-capsule);
+  background: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 .import-folder-counts {
@@ -4895,12 +4997,6 @@ button.note-info-row:focus-visible {
   font-size: var(--font-size-caption);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-.import-folder-icon,
-.import-mapping-icon,
-.import-tree-summary {
-  display: none;
 }
 
 .import-counts {
@@ -5046,11 +5142,13 @@ button.note-info-row:focus-visible {
   -webkit-user-select: none;
   user-select: none;
   cursor: default;
+  position: relative;
 }
 
 /* The page draws the toolbar itself: the window has no title bar, so this row
    drags it, and the traffic lights sit over the sidebar beside it. */
 .settings-toolbar {
+  /* As far from the window's right edge as from its top, so the last control shares the window corner's centre. */
   position: relative;
   display: flex;
   flex: none;
@@ -5060,6 +5158,7 @@ button.note-info-row:focus-visible {
   height: var(--size-toolbar-height);
   padding: 0 var(--space-9);
   background: var(--color-surface-editor);
+  padding-inline-end: calc((var(--size-toolbar-height) - var(--size-toolbar-control)) / 2);
 }
 
 /* The rule under the toolbar appears only once the pane scrolls. */
@@ -5067,10 +5166,12 @@ button.note-info-row:focus-visible {
   content: '';
   position: absolute;
   inset: auto 0 0 0;
-  height: 1px;
-  background: var(--color-line-hairline);
   opacity: 0;
   transition: opacity var(--motion-duration-quick) var(--motion-easing-quick);
+  height: var(--space-6);
+  background: linear-gradient(var(--color-fill-hover), transparent);
+  translate: 0 100%;
+  pointer-events: none;
 }
 
 .settings-toolbar[data-scrolled]::after {
@@ -5082,16 +5183,21 @@ button.note-info-row:focus-visible {
   display: flex;
   flex: none;
   align-items: center;
-  height: var(--size-settings-control);
   overflow: hidden;
-  border-radius: calc(var(--size-settings-control) / 2);
-  background: var(--color-fill-control);
+  border-radius: var(--radius-capsule);
+  height: var(--size-toolbar-control);
+  background: var(--color-fill-glass-control);
+  box-shadow:
+    var(--glass-rim),
+    0 1px var(--space-4) var(--color-shadow-glass);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 .settings-history-button {
   display: grid;
   place-items: center;
-  width: calc(var(--size-settings-control) + var(--space-3));
+  width: var(--size-toolbar-control);
   height: 100%;
   padding: 0;
   border: 0;
@@ -5122,16 +5228,18 @@ button.note-info-row:focus-visible {
 
 .settings-title {
   margin: 0;
-  font-size: var(--font-size-title3);
   font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body);
 }
 
 .settings-main {
+  /* Settings shares the library's sheet and its rounded cutout for the floating sidebar. */
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  background: transparent;
 }
 
 /* The sidebar lets the window's material through, as the main window's does;
@@ -5143,35 +5251,45 @@ button.note-info-row:focus-visible {
   gap: var(--space-1);
   box-sizing: border-box;
   width: var(--size-settings-nav-width);
-  padding: calc(var(--size-toolbar-height) + var(--space-2)) var(--space-5) var(--space-6);
   overflow-y: auto;
-  border-right: 1px solid var(--color-line-hairline);
   background: color(
     from var(--color-surface-sidebar) srgb r g b /
       clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
   );
-  background-image: var(--backdrop, none);
-  background-attachment: fixed;
-}
-
-:root[data-sidebar-material='off'] .settings-nav {
-  background: var(--color-surface-sidebar-opaque);
-  background-image: var(--backdrop, none);
+  position: relative;
+  z-index: 1;
+  margin: var(--size-sidebar-inset);
+  padding: calc(var(--size-toolbar-height) - var(--size-sidebar-inset))
+    var(--size-sidebar-row-inset) var(--size-sidebar-row-inset);
+  border: 0;
+  border-radius: var(--radius-sidebar);
+  background-color: transparent;
+  background-image:
+    linear-gradient(var(--glass-sidebar), var(--glass-sidebar)), var(--backdrop, none),
+    linear-gradient(var(--glass-sheet), var(--glass-sheet));
+  background-attachment: scroll, fixed, scroll;
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow:
+    var(--glass-rim),
+    0 var(--space-2) var(--space-8) var(--color-shadow-glass);
 }
 
 /* A capsule as wide as a row's highlight, its glyph on the tiles' centre line. */
 .settings-search {
+  /* Search lives on glass already, so it gets a fill and rim without a second blur. */
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--size-toolbar-control-gap);
   box-sizing: border-box;
-  height: var(--size-settings-control);
   margin: 0 0 var(--space-5);
-  padding: 0 var(--space-4) 0 var(--space-5);
-  border-radius: calc(var(--size-settings-control) / 2);
-  background: var(--color-fill-control);
+  padding: 0 var(--space-4) 0 var(--size-toolbar-control-end-sm);
+  border-radius: var(--radius-capsule);
   color: var(--color-text-secondary);
+  height: var(--size-toolbar-control);
+  background: var(--color-fill-glass-control);
+  box-shadow: var(--glass-rim);
 }
 
 .settings-search:focus-within {
@@ -5206,9 +5324,8 @@ button.note-info-row:focus-visible {
   box-sizing: border-box;
   width: 100%;
   height: var(--size-settings-nav-row);
-  padding: 0 var(--space-3);
+  padding: 0 calc((var(--size-settings-nav-row) - var(--size-settings-tile)) / 2);
   border: 0;
-  border-radius: var(--radius-settings-row);
   background: none;
   color: var(--color-text-primary);
   font-size: var(--font-size-body);
@@ -5216,6 +5333,7 @@ button.note-info-row:focus-visible {
   line-height: var(--size-settings-tile);
   text-align: left;
   transition: background-color var(--motion-duration-quick) var(--motion-easing-quick);
+  border-radius: var(--radius-sidebar-row);
 }
 
 @keyframes section-in {
@@ -5529,7 +5647,7 @@ button.note-info-row:focus-visible {
   transition: none;
 }
 
-/* A small window over a wallpaper; Glass lets the wallpaper through it. */
+/* A small window over a wallpaper, which shows through it. */
 .window-thumb {
   display: flex;
   box-sizing: border-box;
@@ -5551,13 +5669,9 @@ button.note-info-row:focus-visible {
   gap: var(--space-1);
   padding: var(--space-2);
   border-radius: var(--radius-button);
-  background: var(--color-surface-editor);
+  background: var(--color-surface-editor-wash);
   background-image: var(--backdrop);
   box-shadow: 0 0 0 0.5px var(--color-line-hairline);
-}
-
-.window-thumb[data-glass] .window-thumb-window {
-  background-color: var(--color-surface-editor-wash);
 }
 
 .window-thumb-lights {
@@ -5915,14 +6029,17 @@ button.note-info-row:focus-visible {
 }
 
 .slider::-webkit-slider-thumb {
-  width: var(--size-switch-height);
   height: var(--size-switch-height);
   margin-top: calc((var(--space-2) - var(--size-switch-height)) / 2);
-  border-radius: 50%;
-  background: var(--color-switch-handle);
-  box-shadow: 0 1px 2px var(--color-shadow-popover-key);
   appearance: none;
   -webkit-appearance: none;
+  width: var(--size-glass-slider-knob-width);
+  border-radius: var(--radius-capsule);
+  background: var(--color-switch-handle);
+  box-shadow:
+    inset 0 1px 0 var(--color-line-glass-highlight),
+    0 0 0 0.5px var(--color-line-hairline),
+    0 var(--space-1) var(--space-4) var(--color-shadow-glass);
 }
 
 .slider:focus-visible {
@@ -5937,7 +6054,6 @@ button.note-info-row:focus-visible {
   position: relative;
   flex: none;
   box-sizing: border-box;
-  width: var(--size-switch-width);
   height: var(--size-switch-height);
   margin: 0;
   border-radius: var(--size-switch-height);
@@ -5948,23 +6064,26 @@ button.note-info-row:focus-visible {
   transition:
     background-color var(--motion-duration-toggle) var(--motion-easing-out),
     box-shadow var(--motion-duration-toggle) var(--motion-easing-out);
+  width: var(--size-glass-switch-width);
 }
 
 .setting-toggle input[role='switch']::after {
-  --knob: calc(var(--size-switch-height) - 2 * var(--size-switch-inset));
   --knob-extra: calc(var(--knob) * (var(--knob-press-scale) - 1));
   content: '';
   position: absolute;
   top: var(--size-switch-inset);
   left: var(--size-switch-inset);
-  width: var(--knob);
   height: calc(var(--size-switch-height) - 2 * var(--size-switch-inset));
-  border-radius: var(--radius-capsule);
   background: var(--color-switch-handle);
-  box-shadow: 0 1px 2px var(--color-shadow-popover-key);
   transition:
     translate var(--motion-duration-toggle) var(--motion-easing-move),
     width var(--motion-duration-settle) var(--motion-easing-spring);
+  width: var(--size-glass-switch-knob-width);
+  border-radius: var(--radius-capsule);
+  box-shadow:
+    inset 0 1px 0 var(--color-line-glass-highlight),
+    0 1px var(--space-2) var(--color-shadow-glass);
+  --knob: var(--size-glass-switch-knob-width);
 }
 
 .setting-toggle input[role='switch']:active:not(:disabled)::after {
@@ -5977,11 +6096,19 @@ button.note-info-row:focus-visible {
 }
 
 .setting-toggle input[role='switch']:checked::after {
-  translate: calc(var(--size-switch-width) - var(--size-switch-height)) 0;
+  translate: calc(
+      var(--size-glass-switch-width) - var(--size-glass-switch-knob-width) - 2 *
+        var(--size-switch-inset)
+    )
+    0;
 }
 
 .setting-toggle input[role='switch']:checked:active:not(:disabled)::after {
-  translate: calc(var(--size-switch-width) - var(--size-switch-height) - var(--knob-extra)) 0;
+  translate: calc(
+      var(--size-glass-switch-width) - var(--size-glass-switch-knob-width) - 2 *
+        var(--size-switch-inset) - var(--knob-extra)
+    )
+    0;
 }
 
 .setting-toggle input[role='switch']:focus-visible {
@@ -6238,15 +6365,15 @@ button.note-info-row:focus-visible {
 }
 
 .more-menu-item {
-  height: var(--size-settings-nav-row);
-  padding: 0 var(--space-4);
   border: 0;
-  border-radius: var(--radius-settings-tile);
   background: none;
   color: var(--color-text-primary);
   font-size: var(--font-size-body);
   text-align: left;
   white-space: nowrap;
+  height: var(--size-glass-popover-row);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-glass-menu-row);
 }
 
 .more-menu-item:focus {
@@ -6254,8 +6381,12 @@ button.note-info-row:focus-visible {
 }
 
 .more-menu-item:is(:hover, :focus-visible):not([aria-disabled='true']) {
-  background: var(--color-accent-fill);
-  color: var(--color-accent-on-fill);
+  background: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
+  color: var(--color-text-primary);
 }
 
 .more-menu-item[aria-disabled='true'] {
@@ -6327,14 +6458,14 @@ button.note-info-row:focus-visible {
   width: var(--size-palette-width);
   max-width: calc(100vw - var(--space-10) * 2);
   margin: calc(var(--size-toolbar-height) * 2) auto auto;
-  padding: var(--space-4);
   border: 0;
-  border-radius: var(--radius-card);
-  background: var(--color-surface-editor);
   color: var(--color-text-primary);
   box-shadow:
     0 0 0 0.5px var(--color-line-hairline),
     var(--popover-shadow);
+  padding: var(--size-glass-palette-inset);
+  border-radius: var(--radius-glass-dialog);
+  background: var(--color-surface-glass-popover);
 }
 
 .palette::backdrop {
@@ -6345,17 +6476,25 @@ button.note-info-row:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  height: calc(var(--size-field-height) + var(--space-4));
   box-sizing: border-box;
   margin: 0 0 var(--space-3);
-  padding: 0 var(--space-5);
-  border-radius: var(--radius-field);
-  background: var(--color-fill-track);
+  height: var(--size-glass-palette-field);
+  padding: 0 var(--space-6) 0 var(--size-glass-palette-field-end-md);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-glass-control);
 }
 
 .palette-field:focus-within {
-  outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--color-focus-ring),
+    0 0 0 var(--space-2)
+      color-mix(
+        in srgb,
+        var(--color-focus-ring) calc(var(--opacity-list-selected) * 100%),
+        transparent
+      );
 }
 
 .palette-lead {
@@ -6400,24 +6539,24 @@ button.note-info-row:focus-visible {
 }
 
 .palette-results {
-  max-height: calc(var(--size-dialog-row) * 12);
   overflow: auto;
+  max-height: calc(var(--size-glass-palette-row) * 9);
 }
 
 .palette-group {
-  padding: var(--space-4) var(--space-4) var(--space-2);
   color: var(--color-text-tertiary);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
+  padding: var(--space-3) var(--space-6) var(--space-2);
 }
 
 .palette-row {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  height: var(--size-dialog-row);
-  padding: 0 var(--space-4) 0 calc(var(--space-4) + var(--palette-depth, 0) * var(--space-7));
-  border-radius: var(--radius-control);
+  height: var(--size-glass-palette-row);
+  padding: 0 var(--space-6) 0 calc(var(--space-6) + var(--palette-depth, 0) * var(--space-7));
+  border-radius: var(--radius-capsule);
 }
 
 .palette-row .icon {
@@ -6494,8 +6633,7 @@ button.note-info-row:focus-visible {
 
 .palette-row[aria-selected='true'] .palette-detail,
 .palette-row[aria-selected='true'] .palette-description,
-.palette-row[aria-selected='true'] .palette-done,
-.palette-row[aria-selected='true'] .palette-key {
+.palette-row[aria-selected='true'] .palette-done {
   color: var(--color-accent-on-fill);
 }
 
@@ -6510,11 +6648,11 @@ button.note-info-row:focus-visible {
   gap: var(--space-7);
   min-height: var(--size-segment-height);
   margin: var(--space-3) 0 0;
-  padding: var(--space-3) var(--space-4) 0;
   border-top: 1px solid var(--color-line-hairline);
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
   align-items: center;
+  padding: var(--space-3) var(--space-6) var(--space-2);
 }
 
 .palette-keys kbd {
@@ -6661,12 +6799,12 @@ button.popup:focus-visible {
 }
 
 .picker-popover[data-side='above'] {
-  top: auto;
-  bottom: calc(100% + var(--space-2));
   transform-origin: bottom left;
   animation:
     popover-in var(--motion-duration-popover) var(--motion-easing-move),
     menu-unfold-up var(--motion-duration-toggle) var(--motion-easing-move);
+  top: auto;
+  bottom: calc(100% + var(--picker-gap));
 }
 
 .picker-popover[data-side='above'][data-closing][data-closing-motion='scale'] {
@@ -6691,24 +6829,31 @@ button.popup:focus-visible {
 .picker-search {
   box-sizing: border-box;
   width: 100%;
-  height: var(--size-segment-height);
   margin-bottom: var(--space-2);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-line-hairline);
-  border-radius: var(--radius-control);
   outline: none;
   background: var(--color-fill-track);
   color: var(--color-text-primary);
   font: inherit;
+  height: var(--size-glass-popover-row);
+  padding: 0 var(--space-5) 0 calc(var(--space-5) + var(--size-icon-sm) + var(--space-3));
+  border: 0;
+  border-radius: var(--radius-glass-menu-row);
 }
 
 /* Only Glass shows the magnifier and needs the box around the field. */
 .picker-search-field {
-  display: contents;
+  position: relative;
+  display: block;
+  flex: none;
 }
 
 .picker-search-icon {
-  display: none;
+  position: absolute;
+  top: calc((var(--size-glass-popover-row) - var(--size-icon-sm)) / 2);
+  left: var(--space-5);
+  display: flex;
+  color: var(--color-text-secondary);
+  pointer-events: none;
 }
 
 .picker-search::-webkit-search-cancel-button {
@@ -6720,6 +6865,9 @@ button.popup:focus-visible {
   padding: 0;
   list-style: none;
   outline: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .picker-option,
@@ -6765,7 +6913,14 @@ button.popup:focus-visible {
 
 /* Names start where the typed text does: the list moves left by its padding, its edge, an option's padding and the dot's slot and gap, less the field's padding. */
 .tag-suggestions {
-  left: calc(-1 * (var(--space-4) + 1px + var(--space-4) + var(--space-3)));
+  /* Names still start where the typed text does, with this panel's padding and rows. */
+  left: calc(
+    -1 *
+      (
+        var(--size-glass-popover-inset) + var(--space-5) + var(--space-4) + var(--space-3) -
+          var(--space-2)
+      )
+  );
 }
 
 .picker-name {
@@ -6859,12 +7014,13 @@ button.popup:focus-visible {
 }
 
 .tool-tip-key {
-  padding: 0 var(--space-2);
-  border: 1px solid var(--color-line-hairline);
-  border-radius: var(--radius-control);
-  background: var(--color-fill-track);
   color: var(--color-text-secondary);
   font: inherit;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--color-fill-settings-card);
+  box-shadow: inset 0 0 0 0.5px var(--color-line-hairline);
 }
 
 /* At 3:1 on its background; a selected or drop-target row keeps its own icon colour (those rules are more specific). */
@@ -7248,6 +7404,7 @@ button.popup:focus-visible {
   overflow: auto;
   padding: var(--space-4) var(--space-9);
   background: var(--color-surface-editor);
+  padding-inline: var(--size-editor-keyline);
 }
 
 .history-overlay-text {
@@ -7337,46 +7494,16 @@ button.popup:focus-visible {
   animation: none;
 }
 
-/* Glass interface (Settings > Appearance > Interface style: Glass). Two materials only: one sheet the
-   note list and the editor share, and glass controls floating over it. The sidebar floats inset from
-   the window and is drawn in CSS with the controls' own fill, so it shows the theme's surface through
-   the same wash as every other glass control. A cutout in the surrounding sheet leaves it uncovered. */
-:root[data-sidebar-material='on'] body {
-  --radius-settings-card: var(--radius-glass-card);
-  --glass-sheet: color(
-    from var(--color-surface-sheet) srgb r g b /
-      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
-  );
-  /* The sidebar takes the glass controls' own fill, so the two read as one material. */
-  --glass-sidebar: color(
-    from var(--color-fill-glass-control) srgb r g b /
-      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
-  );
-  --glass-backdrop: blur(var(--space-9)) saturate(1.8);
-  --glass-rim:
-    inset 0 1px 0 var(--color-line-glass-highlight), 0 0 0 0.5px var(--color-line-glass-edge);
-  --color-surface-popover: var(--color-surface-glass-popover);
-  --color-surface-float-bar: var(--color-surface-glass-float-bar);
-  --radius-popover: var(--radius-glass-popover);
-  --radius-floating-bar: var(--radius-glass-floating-bar);
-  --radius-dialog: var(--radius-glass-dialog);
-  --color-fill-backdrop: var(--color-fill-glass-backdrop);
-}
-
-:root[data-sidebar-material='on'] :is(.list, .content) {
+:is(.list, .content) {
   background: transparent;
 }
 
-:root[data-sidebar-material='on'] .settings {
-  position: relative;
-}
-
-:root[data-sidebar-material='on'] :is(.window, .settings) {
+:is(.window, .settings) {
   isolation: isolate;
 }
 
 /* One continuous sheet avoids compositing seams between the sidebar's corners and the panes. */
-:root[data-sidebar-material='on'] :is(.window, .settings)::before {
+:is(.window, .settings)::before {
   content: '';
   position: absolute;
   z-index: -1;
@@ -7387,11 +7514,7 @@ button.popup:focus-visible {
   pointer-events: none;
 }
 
-:root[data-sidebar-material='on'] .list {
-  border-right: 0;
-}
-
-:root[data-sidebar-material='on'] .list::after {
+.list::after {
   content: '';
   position: absolute;
   top: var(--size-toolbar-height);
@@ -7402,56 +7525,20 @@ button.popup:focus-visible {
   pointer-events: none;
 }
 
-/* Above the list, so the sidebar's soft shadow fades out over it instead of stopping at its edge. */
-:root[data-sidebar-material='on'] .sidebar {
-  z-index: 1;
-  margin: var(--size-sidebar-inset);
-  padding-inline: var(--size-sidebar-row-inset);
-  padding-block-end: var(--size-sidebar-row-inset);
-  border-right: 0;
-  border-radius: var(--radius-sidebar);
-  background-color: transparent;
-  background-image:
-    linear-gradient(var(--glass-sidebar), var(--glass-sidebar)), var(--backdrop, none),
-    linear-gradient(var(--glass-sheet), var(--glass-sheet));
-  background-attachment: scroll, fixed, scroll;
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  backdrop-filter: var(--glass-backdrop);
-  box-shadow:
-    var(--glass-rim),
-    0 var(--space-2) var(--space-8) var(--color-shadow-glass);
-}
-
-:root[data-sidebar-material='on']
-  .sidebar
-  :is(.source, .book-row, .section-header, .sidebar-workspace-title) {
+.sidebar :is(.source, .book-row, .section-header, .sidebar-workspace-title) {
   border-radius: var(--radius-sidebar-row);
 }
 
-:root[data-sidebar-material='on'] .sidebar :is(.source, .section-header) {
+.sidebar :is(.source, .section-header) {
   padding-inline-start: var(--size-sidebar-row-padding);
 }
 
-/* A fixed first column, so an icon's width cannot move its label. */
-:root[data-sidebar-material='on'] .sidebar :is(.source, .book-row) {
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-columns: calc(var(--size-sidebar-icon-slot) - var(--space-3)) minmax(0, 1fr);
-  grid-auto-columns: auto;
-  column-gap: var(--space-3);
-  justify-items: start;
-}
-
-:root[data-sidebar-material='on']
-  .sidebar
-  :is(.source, .book-row)
-  > :is(.source-label, .book-name-field) {
+.sidebar :is(.source, .book-row) > :is(.source-label, .book-name-field) {
   justify-self: stretch;
 }
 
 /* The sidebar's selection is neutral, focused or not; the note list keeps the accent. */
-:root[data-sidebar-material='on']
-  .sidebar
+.sidebar
   :is(
     .source.filter[aria-pressed='true'],
     .source[aria-current='true'],
@@ -7461,22 +7548,19 @@ button.popup:focus-visible {
 }
 
 /* Accent marks the selected row only. Status marks, a notebook's own colour and a drop target keep theirs. */
-:root[data-sidebar-material='on']
-  .sidebar
+.sidebar
   :is(.source:not([class*='status-']), .sidebar-workspace-title, .book-row):not(.drop-fill)
   .icon:not(.book-icon-colored, .disclosure *, .book-ai *) {
   background-color: var(--color-text-secondary);
 }
 
-:root[data-sidebar-material='on']
-  .sidebar
+.sidebar
   :is(.source:not([class*='status-']), .sidebar-workspace-title, .book-row):not(.drop-fill)
   .icon-svg:not(.book-icon-colored, .disclosure *, .book-ai *) {
   color: var(--color-text-secondary);
 }
 
-:root[data-sidebar-material='on']
-  .sidebar
+.sidebar
   :is(
     .source:not([class*='status-'])[aria-pressed='true'],
     .source[aria-current='true'],
@@ -7486,8 +7570,7 @@ button.popup:focus-visible {
   background-color: var(--color-accent-text);
 }
 
-:root[data-sidebar-material='on']
-  .sidebar
+.sidebar
   :is(
     .source:not([class*='status-'])[aria-pressed='true'],
     .source[aria-current='true'],
@@ -7497,15 +7580,11 @@ button.popup:focus-visible {
   color: var(--color-accent-text);
 }
 
-:root[data-sidebar-material='on'] .sidebar :not(.drop-fill) > .source-count {
+.sidebar :not(.drop-fill) > .source-count {
   color: var(--color-text-tertiary);
 }
 
-:root[data-sidebar-material='on'] .books li {
-  --book-indent: calc(var(--size-sidebar-row-padding) + var(--book-depth, 0) * var(--space-7));
-}
-
-:root[data-sidebar-material='on'] .book-row > .disclosure {
+.book-row > .disclosure {
   position: absolute;
   inset-inline-start: calc(var(--book-indent) - var(--size-sidebar-row-padding));
   width: var(--size-sidebar-row-padding);
@@ -7513,7 +7592,7 @@ button.popup:focus-visible {
 }
 
 /* Each child row draws its parent's guide down its own height, so it can break where a chevron sits. */
-:root[data-sidebar-material='on'] .books ul[role='group'] > li[role='treeitem']::after {
+.books ul[role='group'] > li[role='treeitem']::after {
   content: '';
   position: absolute;
   inset-block: 0;
@@ -7524,7 +7603,7 @@ button.popup:focus-visible {
 }
 
 /* A nested group sits beside its parent's row and carries the parent's depth, so it keeps the grandparent's guide running through it. */
-:root[data-sidebar-material='on'] .books ul[role='group'] ul[role='group']::before {
+.books ul[role='group'] ul[role='group']::before {
   content: '';
   position: absolute;
   inset-block: 0;
@@ -7535,10 +7614,7 @@ button.popup:focus-visible {
 }
 
 /* The guide stops `space.1` short of the chevron's box, above and below, centred on the row. */
-:root[data-sidebar-material='on']
-  .books
-  ul[role='group']
-  > li[role='treeitem'][aria-expanded]::after {
+.books ul[role='group'] > li[role='treeitem'][aria-expanded]::after {
   --guide-gap: calc(var(--size-icon-sm) / 2 + var(--space-1));
   background: linear-gradient(
     var(--color-line-separator) calc(50% - var(--guide-gap)),
@@ -7553,37 +7629,19 @@ button.popup:focus-visible {
   initial-value: 0px;
 }
 
-/* The scroll bar is a fixed width, so scrolling always reserves it: pulled out into the sidebar's inset, it leaves the list's rows on the same inset as the pinned rows, with or without overflow. */
-:root[data-sidebar-material='on'] .sidebar-scroll {
-  --scroll-edge-size: 0px;
-  --scroll-edge-bottom-size: 0px;
-  margin-inline-end: calc(-1 * var(--size-scrollbar));
-  overflow-y: scroll;
-  scroll-padding-block: var(--size-sidebar-scroll-edge);
-  mask-image: linear-gradient(
-    transparent,
-    var(--color-ink-text) var(--scroll-edge-size),
-    var(--color-ink-text) calc(100% - var(--scroll-edge-bottom-size)),
-    transparent
-  );
-  transition:
-    --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick),
-    --scroll-edge-bottom-size var(--motion-duration-quick) var(--motion-easing-quick);
-}
-
-:root[data-sidebar-material='on'] .sidebar-scroll[data-scrolled] {
+.sidebar-scroll[data-scrolled] {
   --scroll-edge-size: var(--size-sidebar-scroll-edge);
 }
 
-:root[data-sidebar-material='on'] .sidebar-scroll[data-more-below] {
+.sidebar-scroll[data-more-below] {
   --scroll-edge-bottom-size: var(--size-sidebar-scroll-edge);
 }
 
-:root[data-sidebar-material='on'] .sidebar > .sources:has(+ .sidebar-scroll) {
+.sidebar > .sources:has(+ .sidebar-scroll) {
   position: relative;
 }
 
-:root[data-sidebar-material='on'] .sidebar > .sources:has(+ .sidebar-scroll)::after {
+.sidebar > .sources:has(+ .sidebar-scroll)::after {
   content: '';
   position: absolute;
   top: 100%;
@@ -7595,105 +7653,32 @@ button.popup:focus-visible {
   pointer-events: none;
 }
 
-:root[data-sidebar-material='on'] .sidebar > .sources:has(+ .sidebar-scroll[data-scrolled])::after {
+.sidebar > .sources:has(+ .sidebar-scroll[data-scrolled])::after {
   opacity: 1;
 }
 
-:root[data-motion='reduced'][data-sidebar-material='on'] .sidebar-scroll,
-:root[data-motion='reduced'][data-sidebar-material='on']
-  .sidebar
-  > .sources:has(+ .sidebar-scroll)::after {
+:root[data-motion='reduced'] .sidebar-scroll,
+:root[data-motion='reduced'] .sidebar > .sources:has(+ .sidebar-scroll)::after {
   transition: none;
 }
 
 /* One caption style for the sidebar and the note list. */
-:root[data-sidebar-material='on'] :is(.section-header, .list-section) {
+:is(.section-header, .list-section) {
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-tertiary);
 }
 
-:root[data-sidebar-material='on'] .footer-toggle {
-  column-gap: var(--size-sidebar-footer-gap);
-  height: var(--size-sidebar-footer);
-  padding-inline: calc(var(--size-sidebar-row-padding) - var(--size-capsule-edge))
-    var(--size-sidebar-footer-end-sm);
-  border: var(--size-capsule-edge) solid var(--color-line-glass-edge);
-  border-radius: var(--radius-capsule);
-  color: var(--color-text-primary);
-}
-
-:root[data-sidebar-material='on'] .footer-dot {
-  margin-inline-end: 0;
-}
-
-:root[data-sidebar-material='on'] .footer-toggle:not(:hover, :active) {
+.footer-toggle:not(:hover, :active) {
   background: var(--color-fill-glass-control);
 }
 
-:root[data-sidebar-material='on'] .footer-toggle .icon {
-  background-color: var(--color-text-secondary);
-}
-
-:root[data-sidebar-material='on'] .footer-toggle .icon-svg {
-  color: var(--color-text-secondary);
-}
-
-:root[data-sidebar-material='on'] .toolbar {
-  border-bottom: 0;
-}
-
-:root[data-sidebar-material='on'] .editor-toolbar {
-  padding-inline: var(--size-editor-keyline);
-}
-
-:root[data-sidebar-material='on'] .window[data-focus] .editor-toolbar {
-  padding-inline-start: var(--size-window-controls-inset);
-}
-/* As far from the window's right edge as from its top, so the last control shares the window corner's centre. */
-:root[data-sidebar-material='on'] .settings-toolbar {
-  padding-inline-end: calc((var(--size-toolbar-height) - var(--size-toolbar-control)) / 2);
-}
-
-:root[data-sidebar-material='on'] .toolbar .tool {
-  width: var(--size-toolbar-control);
-  height: var(--size-toolbar-control);
-  border-radius: var(--radius-capsule);
+.toolbar .tool:active:not(:disabled, [aria-disabled='true']) {
   background: var(--color-fill-glass-control);
-  box-shadow:
-    var(--glass-rim),
-    0 1px var(--space-4) var(--color-shadow-glass);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  backdrop-filter: var(--glass-backdrop);
-  transition:
-    background-color var(--motion-duration-hover) var(--motion-easing-out),
-    box-shadow var(--motion-duration-hover) var(--motion-easing-out),
-    color var(--motion-duration-hover) var(--motion-easing-out),
-    opacity var(--motion-duration-hover) var(--motion-easing-out),
-    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
-    outline-offset var(--motion-duration-quick) var(--motion-easing-quick),
-    scale var(--press-duration, var(--motion-duration-settle))
-      var(--press-easing, var(--motion-easing-spring));
-}
-
-:root[data-sidebar-material='on'] .toolbar .tool:hover:not(:disabled, [aria-disabled='true']) {
-  background: var(--color-fill-glass-control);
-  box-shadow:
-    var(--glass-rim),
-    inset 0 0 0 100vmax var(--color-fill-tool-hover),
-    0 var(--space-1) var(--space-6) var(--color-shadow-glass);
-}
-
-:root[data-sidebar-material='on'] .toolbar .tool:active:not(:disabled, [aria-disabled='true']) {
   scale: var(--press-scale);
 }
 
-/* Back and Forward share one capsule, as in Settings. */
-:root[data-sidebar-material='on'] .trail-buttons {
-  gap: var(--space-3);
-}
-
-:root[data-sidebar-material='on'] .trail-buttons .tool:nth-child(2) {
+.trail-buttons .tool:nth-child(2) {
   justify-content: flex-start;
   box-sizing: border-box;
   width: calc(var(--size-toolbar-control) + var(--space-2));
@@ -7702,7 +7687,7 @@ button.popup:focus-visible {
   border-end-end-radius: 0;
 }
 
-:root[data-sidebar-material='on'] .trail-buttons .tool:nth-child(3) {
+.trail-buttons .tool:nth-child(3) {
   justify-content: flex-end;
   box-sizing: border-box;
   width: calc(var(--size-toolbar-control) + var(--space-2));
@@ -7712,7 +7697,7 @@ button.popup:focus-visible {
   border-end-start-radius: 0;
 }
 
-:root[data-sidebar-material='on'] .toolbar .segmented {
+.toolbar .segmented {
   height: var(--size-toolbar-control);
   box-sizing: border-box;
   padding: var(--space-1);
@@ -7726,84 +7711,32 @@ button.popup:focus-visible {
   backdrop-filter: var(--glass-backdrop);
 }
 
-:root[data-sidebar-material='on'] .toolbar .segment {
+.toolbar .segment {
   height: 100%;
   border: 0;
   border-radius: var(--radius-capsule);
 }
 
-:root[data-sidebar-material='on'] .list-filter .search-field {
-  height: var(--size-toolbar-control);
-  background: var(--color-fill-track);
-  box-shadow: inset 0 0 0 1px transparent;
-}
-
-:root[data-sidebar-material='on'] .list-filter .search-field:focus-within {
-  box-shadow: inset 0 0 0 1px var(--color-focus-ring);
-}
-
-:root[data-sidebar-material='on'] .list-filter .search-icon {
-  opacity: 1;
-  color: var(--color-text-secondary);
-}
-
 /* The syntax list's button shows only while the field is in use. */
-:root[data-sidebar-material='on']
-  .search-field:not(:focus-within, :hover)
-  > .search-help-button:not([aria-expanded='true']) {
+.search-field:not(:focus-within, :hover) > .search-help-button:not([aria-expanded='true']) {
   opacity: 0;
 }
 
-:root[data-sidebar-material='on'] .list-filter {
-  padding-inline: var(--size-list-keyline-outer);
-  border-bottom-color: transparent;
-}
-
-:root[data-sidebar-material='on'] .list .toolbar {
-  padding-inline-end: var(--size-list-keyline-outer);
-}
-
-:root[data-sidebar-material='on'] .window:not([data-sidebar-hidden]) .list .toolbar {
+.window:not([data-sidebar-hidden]) .list .toolbar {
   padding-inline-start: var(--size-list-keyline-outer);
 }
 
-:root[data-sidebar-material='on'] .list-filter .search-icon {
-  width: auto;
-  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
-    var(--size-toolbar-control-gap);
-}
-
-:root[data-sidebar-material='on'] .list-filter :is(.search-help-button, .search-clear) {
-  width: var(--size-toolbar-control);
-}
-
-:root[data-sidebar-material='on'] .sort-chip {
-  gap: var(--size-list-filter-control-gap);
-  padding-inline: calc(
-      var(--size-list-keyline-inner) - var(--size-list-keyline-outer) - var(--size-capsule-edge)
-    )
-    var(--size-list-filter-control-end-xs);
-  border-color: transparent;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-footnote);
-  font-weight: var(--font-weight-medium);
-}
-
-:root[data-sidebar-material='on'] .layout-control {
+.layout-control {
   border-radius: var(--radius-capsule);
 }
 
-:root[data-sidebar-material='on'] .layout-control .segment {
-  border-radius: var(--radius-capsule);
-}
-
-:root[data-sidebar-material='on'] .layout-control .segment[aria-pressed='true'] {
+.layout-control .segment[aria-pressed='true'] {
   box-shadow:
     0 0 0 0.5px var(--color-line-hairline),
     0 1px var(--space-2) var(--color-shadow-glass);
 }
 
-:root[data-sidebar-material='on'] .toolbar .segment[aria-pressed='true'] {
+.toolbar .segment[aria-pressed='true'] {
   background: var(--color-fill-glass-control);
   box-shadow:
     var(--glass-rim),
@@ -7811,25 +7744,11 @@ button.popup:focus-visible {
   color: var(--color-accent-text);
 }
 
-/* The note list's header: the view's name over its count, with no icon. */
-:root[data-sidebar-material='on'] .list .list-header .toolbar-title {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0;
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.2;
-}
-
-:root[data-sidebar-material='on'] .list-header .headline-icon {
+.list-header .headline-icon {
   display: none;
 }
 
-/* In a column, the name would otherwise take its full width instead of an ellipsis. */
-:root[data-sidebar-material='on'] .list-header .headline {
-  max-width: 100%;
-}
-
-:root[data-sidebar-material='on'] .list-header .list-count {
+.list-header .list-count {
   display: block;
   max-width: 100%;
   overflow: hidden;
@@ -7840,115 +7759,43 @@ button.popup:focus-visible {
   white-space: nowrap;
 }
 
-/* The scroll bar is always reserved and pulled out of the keyline, so rows keep their right edge with or without overflow. */
-:root[data-sidebar-material='on'] .rows {
-  gap: var(--space-1);
-  padding-inline: var(--size-list-keyline-outer)
-    calc(var(--size-list-keyline-outer) - var(--size-scrollbar));
-  overflow-y: scroll;
-}
-
-:root[data-sidebar-material='on'] .rows .row[data-open],
-:root[data-sidebar-material='on']
-  .sidebar:focus-within
-  :is(.source, .books .book-row):not(.menu-target) {
-  box-shadow: none;
-}
-
-:root[data-sidebar-material='on']
-  :is(.sidebar .source:focus-visible, .books li:focus-visible > .book-row):not(.menu-target) {
+:is(.sidebar .source:focus-visible, .books li:focus-visible > .book-row):not(.menu-target) {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
-:root[data-sidebar-material='on'] .list-section {
-  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
-}
-
-:root[data-sidebar-material='on'] .list-section > :is(.icon, .icon-svg) {
+.list-section > :is(.icon, .icon-svg) {
   display: none;
 }
 
-:root[data-sidebar-material='on'] .list-section:not(:first-child) {
+.list-section:not(:first-child) {
   padding-top: calc(var(--space-4) + var(--size-list-section-gap));
 }
 
-/* A row: the title with its time at the end of the line, then the rest of its details, then two
-   lines of its text. The time leaves its line, which goes when nothing else is on it. */
-:root[data-sidebar-material='on'] .row {
-  --row-title-line: calc(var(--font-size-body) * 1.3);
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  row-gap: var(--space-2);
-  padding: var(--space-5) calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
-    var(--size-list-row-padding-bottom);
-  border-bottom: 0;
-  border-radius: var(--radius-list-row);
-}
-
-:root[data-sidebar-material='on'] .row-title {
-  margin: 0;
-  font-size: var(--font-size-body);
-  line-height: var(--row-title-line);
-  padding-inline-end: calc(var(--space-10) * 2);
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-}
-
-:root[data-sidebar-material='on'] .row-meta {
-  font-size: var(--font-size-caption);
-}
-
-:root[data-sidebar-material='on'] .row-time {
-  position: absolute;
-  top: var(--space-5);
-  inset-inline-end: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-caption);
-  line-height: var(--row-title-line);
-}
-
 /* A strut at the title's size puts the smaller time on the title's baseline. */
-:root[data-sidebar-material='on'] .row-time::before {
+.row-time::before {
   content: '\200b';
   font-size: var(--font-size-body);
 }
 
-:root[data-sidebar-material='on'] .row-meta:not([data-time-only]) {
+.row-meta:not([data-time-only]) {
   min-height: calc(var(--font-size-caption) * 1.3);
 }
 
-:root[data-sidebar-material='on'] .row > .row-meta:first-child {
-  margin-top: 0;
-  min-height: var(--row-title-line);
-}
-
 /* Out of the grid, so a meta line holding only the time adds no track or gap. */
-:root[data-sidebar-material='on'] .row-title + .row-meta[data-time-only] {
+.row-title + .row-meta[data-time-only] {
   position: absolute;
   top: 0;
   inset-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
   height: 0;
 }
 
-:root[data-sidebar-material='on'] .row-title + .row-meta[data-time-only] .row-time {
+.row-title + .row-meta[data-time-only] .row-time {
   inset-inline-end: 0;
 }
 
-:root[data-sidebar-material='on'] .row-excerpt {
-  padding: 0;
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-:root[data-sidebar-material='on'] .row[aria-selected='true'],
-:root[data-sidebar-material='on'] :where(.rows:not(:focus-within)) .row[aria-selected='true'] {
+/* A note row keeps the accent wash when the list loses the keyboard. */
+.row[aria-selected='true'] {
   background: color-mix(
     in srgb,
     var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
@@ -7956,86 +7803,18 @@ button.popup:focus-visible {
   );
 }
 
-:root[data-sidebar-material='on'] :is(.search-field, .sort-chip, .popup) {
+:is(.search-field, .sort-chip, .popup) {
   border-radius: var(--radius-capsule);
 }
 
-/* The board on the note list's keylines (design/layout.md, Board): columns and cards on the outer line, every text on the inner one. No tile behind a column. */
-:root[data-sidebar-material='on'] .board-columns {
-  gap: var(--space-5);
-  padding: var(--space-1) var(--size-list-keyline-outer) 0;
-}
-
-:root[data-sidebar-material='on'] .board-column {
-  border-radius: var(--radius-list-row);
-  background: transparent;
-  transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
-}
-
-/* Where a drag would drop: the column's own width, flush with its cards. */
-:root[data-sidebar-material='on'] .board-column[data-drop] {
-  background: var(--color-fill-track);
-  box-shadow: none;
-}
-
-:root[data-sidebar-material='on'] .board-column-header {
-  box-sizing: border-box;
-  height: var(--space-10);
-  gap: var(--space-4);
-  padding: 0 calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
-  font-size: var(--font-size-body);
-  color: var(--color-text-primary);
-}
-
-:root[data-sidebar-material='on'] .board-count {
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-caption);
-}
-
-:root[data-sidebar-material='on'] .board-cards {
-  padding-inline: 0;
-}
-
-/* Filled only (one stroke rule), with the note row's padding and radius. */
-:root[data-sidebar-material='on'] .card {
-  gap: var(--space-2);
-  padding: var(--space-5) calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
-    var(--size-list-row-padding-bottom);
-  border-radius: var(--radius-list-row);
-  box-shadow: none;
-}
-
-:root[data-sidebar-material='on'] .card:not([aria-selected='true']):hover {
+.card:not([aria-selected='true']):hover {
   background: var(--color-fill-tool-hover);
   transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
 }
 
-/* The list's selection: the accent wash, no bar; the keyboard's ring as a row's. */
-:root[data-sidebar-material='on'] .card[aria-selected='true'] {
-  background: color-mix(
-    in srgb,
-    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
-    var(--color-fill-card)
-  );
-}
-
-:root[data-sidebar-material='on'] :is(.board:focus-within .card[data-open], .card:focus-visible) {
-  box-shadow: none;
-}
-
-:root[data-sidebar-material='on'] .card:focus-visible {
+.card:focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
-}
-
-:root[data-sidebar-material='on'] .card-title {
-  font-size: var(--font-size-body);
-  line-height: calc(var(--font-size-body) * 1.3);
-}
-
-:root[data-sidebar-material='on'] .card-meta {
-  font-size: var(--font-size-caption);
-  line-height: var(--size-card-meta-line);
 }
 
 /* The drag image (listDrag.ts): a copy of the card, lifted, on an opaque ground. After the card's own rules, which it overrides. */
@@ -8045,57 +7824,13 @@ button.popup:focus-visible {
   box-shadow: var(--popover-shadow);
 }
 
-:root[data-sidebar-material='on'] .title {
-  margin-inline: var(--size-editor-keyline);
-  font-weight: var(--font-weight-bold);
-}
-
-:root[data-sidebar-material='on'] .note-meta {
-  margin-inline: var(--size-editor-keyline);
-}
-
-:root[data-sidebar-material='on'] .window[data-focus] .content > :is(.title, .note-meta) {
+.window[data-focus] .content > :is(.title, .note-meta) {
   padding-inline: var(--size-editor-keyline);
 }
 
-:root[data-sidebar-material='on'] .editor {
-  --editor-overflow-y: scroll;
-  --editor-padding: 0 calc(var(--size-editor-keyline) - var(--space-3) - var(--size-scrollbar))
-    var(--trial-bar-inset, 0px) calc(var(--size-editor-keyline) - var(--space-3));
-}
-
-/* The scroll bar is always reserved and pulled out of the keyline, so blocks keep their right edge with or without overflow. */
-:root[data-sidebar-material='on'] .preview {
-  padding-inline: var(--size-editor-keyline)
-    calc(var(--size-editor-keyline) - var(--size-scrollbar));
-  overflow-y: scroll;
-}
-
-:root[data-sidebar-material='on'] .history-overlay {
-  padding-inline: var(--size-editor-keyline);
-}
-
-:root[data-sidebar-material='on'] .title {
-  margin-bottom: calc(var(--note-space-title-below) * 1px);
-  font-size: calc(var(--note-heading-glass-title-size) * 1px);
-  line-height: calc(var(--note-heading-glass-title-line) * 1px);
-  letter-spacing: calc(var(--note-heading-glass-title-tracking) * 1px);
-}
-
-/* The pills keep their space-4 margin for the editor; the preview adds the rest. */
-:root[data-sidebar-material='on'] .preview {
-  padding-top: calc(var(--note-space-pills-below) * 1px - var(--space-4));
-}
-
-:root[data-sidebar-material='on'] .note-meta-fields > .picker:first-child {
-  margin-inline-start: 0;
-}
-
-:root[data-sidebar-material='on'] .note-meta {
-  gap: var(--space-3);
-}
-
-:root[data-sidebar-material='on'] .note-meta .popup {
+/* The open popup keeps the card fill rather than the generic open fill. */
+.note-meta .popup,
+.note-meta .popup[aria-expanded='true'] {
   gap: var(--size-note-pill-gap);
   height: var(--size-note-pill);
   padding-inline: var(--size-note-pill-pad) var(--size-note-pill-end-xs);
@@ -8103,142 +7838,74 @@ button.popup:focus-visible {
   background: var(--color-fill-card);
 }
 
-:root[data-sidebar-material='on'] .note-meta .popup[class*='status-'] {
+.note-meta .popup[class*='status-'] {
   padding-inline-start: var(--size-note-pill-end-xs);
 }
 
-:root[data-sidebar-material='on'] .note-meta .book-popup {
+.note-meta .book-popup {
   padding-inline-start: var(--size-note-pill-end-sm);
 }
 
-:root[data-sidebar-material='on'] .note-meta .popup:hover {
+.note-meta .popup:hover {
   background: var(--color-fill-tool-hover);
 }
 
-:root[data-sidebar-material='on'] .note-meta .popup:active {
+.note-meta .popup:active {
   background: var(--color-fill-row-selected);
 }
 
-:root[data-sidebar-material='on'] .find-bar {
+.find-bar {
   padding: var(--size-glass-find-bar-inset);
   border-radius: var(--radius-glass-find-bar);
 }
 
-:root[data-sidebar-material='on']
-  :is(.find-field, .find-toggle, .find-bar .tool-small, .find-bar .button) {
+:is(.find-field, .find-toggle, .find-bar .tool-small, .find-bar .button) {
   border-radius: var(--radius-capsule);
 }
 
-:root[data-sidebar-material='on'] .status-empty-mark {
-  display: inline-flex;
-}
-
-:root[data-sidebar-material='on'] .note-meta .tag-editor {
-  gap: var(--space-3);
-  margin-inline-start: 0;
-}
-
-:root[data-sidebar-material='on'] .note-meta .chip {
-  gap: var(--size-note-pill-gap);
-  height: var(--size-note-pill);
-  padding: 0 var(--size-note-pill-pad);
+.frontmatter-chip.tag-chip {
   border: 0;
 }
 
-:root[data-sidebar-material='on'] .note-meta .chip:has(> .tag-dot) {
-  padding-inline-start: var(--size-note-pill-end-dot);
-}
-
-:root[data-sidebar-material='on'] .frontmatter-chip.tag-chip {
+/* After the tag and selection rules, which would otherwise stroke the meta line's chips. */
+.note-meta .chip:is(.tag-chip, [data-selected]) {
   border: 0;
 }
 
-:root[data-sidebar-material='on'] .note-meta .chip:not(.tag-chip) {
+.note-meta .chip:not(.tag-chip) {
   background: var(--color-fill-card);
 }
 
-:root[data-sidebar-material='on'] .note-meta .chip:not(.tag-chip):is(:hover, :active) {
+.note-meta .chip:not(.tag-chip):is(:hover, :active) {
   background: var(--color-fill-tool-hover);
 }
 
-:root[data-sidebar-material='on'] .note-meta .chip-remove {
-  inset-block: var(--size-note-pill-end-remove);
-  inset-inline-end: var(--size-note-pill-end-remove);
-  width: var(--size-note-pill-remove);
-  height: var(--size-note-pill-remove);
-  border-radius: var(--radius-capsule);
-  transition: opacity var(--motion-duration-hover) var(--motion-easing-out);
-}
-
-@property --chip-label-cover {
-  syntax: '<length>';
-  inherits: false;
-  initial-value: 0px;
-}
-
-/* The x shows over the label's end rather than taking room of its own, so the pill keeps one width; the label fades out under it. */
-:root[data-sidebar-material='on'] .note-meta .chip-label {
-  --chip-label-cover: 0px;
-  -webkit-mask-image: linear-gradient(
-    to left,
-    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
-    var(--color-ink-text) var(--chip-label-cover)
-  );
-  mask-image: linear-gradient(
-    to left,
-    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
-    var(--color-ink-text) var(--chip-label-cover)
-  );
-  transition: --chip-label-cover var(--motion-duration-hover) var(--motion-easing-out);
-}
-
-:root[data-sidebar-material='on'] .note-meta .chip-label:dir(rtl) {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
-    var(--color-ink-text) var(--chip-label-cover)
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
-    var(--color-ink-text) var(--chip-label-cover)
-  );
-}
-
-:root[data-sidebar-material='on'] .note-meta .chip:is(:hover, :focus-within) > .chip-label {
-  --chip-label-cover: var(--size-note-pill-remove-cover);
-}
-
-:root[data-motion='reduced'][data-sidebar-material='on'] .note-meta .chip-label {
-  transition: none;
-}
-
-:root[data-sidebar-material='on'] .note-meta .tag-field {
+.note-meta .tag-field {
   display: inline-grid;
 }
 
-:root[data-sidebar-material='on'] .note-meta .tag-field > :is(.tag-input, .tag-field-short) {
+.note-meta .tag-field > :is(.tag-input, .tag-field-short) {
   grid-area: 1 / 1;
 }
 
-:root[data-sidebar-material='on'] .note-meta .tag-field-plus {
+.note-meta .tag-field-plus {
   display: none;
 }
 
-:root[data-sidebar-material='on'] .note-meta .tag-input {
+.note-meta .tag-input {
   height: var(--size-note-pill);
   padding-inline: var(--space-4);
   border-radius: var(--radius-capsule);
 }
 
-:root[data-sidebar-material='on'] .note-meta .tag-input:focus {
+.note-meta .tag-input:focus {
   background: transparent;
   box-shadow: none;
   outline: var(--size-focus-ring) dashed var(--color-focus-ring);
 }
 
 /* The label sizes the field at rest, so the whole of "+ Tag" and its padding is the hit area. */
-:root[data-sidebar-material='on'] .note-meta .tag-input:placeholder-shown:not(:focus) {
+.note-meta .tag-input:placeholder-shown:not(:focus) {
   width: 0;
   min-width: 100%;
   padding-inline: 0;
@@ -8246,18 +7913,15 @@ button.popup:focus-visible {
   background: transparent;
 }
 
-:root[data-sidebar-material='on'] .note-meta .tag-input:placeholder-shown:not(:focus):hover {
+.note-meta .tag-input:placeholder-shown:not(:focus):hover {
   background: var(--color-fill-hover);
 }
 
-:root[data-sidebar-material='on'] .note-meta .tag-input:placeholder-shown:not(:focus)::placeholder {
+.note-meta .tag-input:placeholder-shown:not(:focus)::placeholder {
   color: transparent;
 }
 
-:root[data-sidebar-material='on']
-  .note-meta
-  .tag-input:placeholder-shown:not(:focus)
-  ~ .tag-field-short {
+.note-meta .tag-input:placeholder-shown:not(:focus) ~ .tag-field-short {
   display: inline-flex;
   align-items: center;
   padding-inline: var(--space-4);
@@ -8268,14 +7932,14 @@ button.popup:focus-visible {
 
 /* Screen only: printing keeps the full-width rule. */
 @media screen {
-  :root[data-sidebar-material='on'] .preview .footnotes {
+  .preview:is([data-devot-part='preview'], .gallery-page) .footnotes {
     position: relative;
     border-top: 0;
     /* 12 at the default preview size (15 / 13.5 scale), and it still follows the size setting. */
     font-size: calc(var(--font-size-footnote) * var(--preview-scale, 1) * 0.9);
   }
 
-  :root[data-sidebar-material='on'] .preview .footnotes::before {
+  .preview:is([data-devot-part='preview'], .gallery-page) .footnotes::before {
     content: '';
     position: absolute;
     top: 0;
@@ -8286,50 +7950,11 @@ button.popup:focus-visible {
   }
 }
 
-:root[data-sidebar-material='on'] .preview :is(h1, h2) {
+.preview:is([data-devot-part='preview'], .gallery-page) :is(h1, h2) {
   border-bottom: 0;
 }
 
-:root[data-sidebar-material='on'] .palette {
-  padding: var(--size-glass-palette-inset);
-  border-radius: var(--radius-glass-dialog);
-  background: var(--color-surface-glass-popover);
-}
-
-:root[data-sidebar-material='on'] .palette-field {
-  height: var(--size-glass-palette-field);
-  padding: 0 var(--space-6) 0 var(--size-glass-palette-field-end-md);
-  border-radius: var(--radius-capsule);
-  background: var(--color-fill-glass-control);
-}
-
-:root[data-sidebar-material='on'] .palette-field:focus-within {
-  outline: none;
-  box-shadow:
-    inset 0 0 0 1px var(--color-focus-ring),
-    0 0 0 var(--space-2)
-      color-mix(
-        in srgb,
-        var(--color-focus-ring) calc(var(--opacity-list-selected) * 100%),
-        transparent
-      );
-}
-
-:root[data-sidebar-material='on'] .palette-results {
-  max-height: calc(var(--size-glass-palette-row) * 9);
-}
-
-:root[data-sidebar-material='on'] .palette-group {
-  padding: var(--space-3) var(--space-6) var(--space-2);
-}
-
-:root[data-sidebar-material='on'] .palette-row {
-  height: var(--size-glass-palette-row);
-  padding: 0 var(--space-6) 0 calc(var(--space-6) + var(--palette-depth, 0) * var(--space-7));
-  border-radius: var(--radius-capsule);
-}
-
-:root[data-sidebar-material='on'] :is(.palette-key, .palette-keys kbd) {
+:is(.palette-key, .palette-keys kbd) {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -8344,7 +7969,7 @@ button.popup:focus-visible {
   color: var(--color-text-secondary);
 }
 
-:root[data-sidebar-material='on'] .palette-row[aria-selected='true'] .palette-key {
+.palette-row[aria-selected='true'] .palette-key {
   border-color: transparent;
   background: color-mix(
     in srgb,
@@ -8354,11 +7979,7 @@ button.popup:focus-visible {
   color: var(--color-accent-on-fill);
 }
 
-:root[data-sidebar-material='on'] .palette-keys {
-  padding: var(--space-3) var(--space-6) var(--space-2);
-}
-
-:root[data-sidebar-material='on'] .palette-hint {
+.palette-hint {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -8367,19 +7988,18 @@ button.popup:focus-visible {
 /* Floating surfaces: popovers, tooltips, pickers, the palette, dialogs and sheets lie over a blur of
    what is under them, with the glass rim. The editor's own popups (in its shadow root) read
    --glass-backdrop and the surface tokens above. */
-:root[data-sidebar-material='on']
-  :is(
-    .tool-tip,
-    .palette,
-    .tag-suggestions,
-    .picker-popover,
-    .more-menu-list,
-    .search-help,
-    .confirm,
-    .link-dialog,
-    .sheet,
-    .plugin-panel
-  ) {
+:is(
+  .tool-tip,
+  .palette,
+  .tag-suggestions,
+  .picker-popover,
+  .more-menu-list,
+  .search-help,
+  .confirm,
+  .link-dialog,
+  .sheet,
+  .plugin-panel
+) {
   -webkit-backdrop-filter: var(--glass-backdrop);
   backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--glass-rim), var(--popover-shadow);
@@ -8387,140 +8007,60 @@ button.popup:focus-visible {
 
 /* Sheets and dialogs: glass, with groups and buttons at the inset so they share the corners' centre;
    their text sits a further step in. */
-:root[data-sidebar-material='on'] :is(.sheet, .confirm, .link-dialog) {
+:is(.sheet, .confirm, .link-dialog) {
   border-radius: var(--radius-glass-dialog);
   background: var(--color-surface-popover);
 }
 
-:root[data-sidebar-material='on'] :is(.sheet, .confirm) {
+:is(.sheet, .confirm) {
   padding: var(--size-glass-dialog-inset);
 }
 
-:root[data-sidebar-material='on']
-  :is(.sheet, .confirm, .sheet > form)
-  > :not(form, .import-tree, .confirm-actions) {
+:is(.sheet, .confirm, .sheet > form) > :not(form, .import-tree, .confirm-actions) {
   margin-inline: var(--space-5);
 }
 
-:root[data-sidebar-material='on'] :is(.sheet-title, .confirm-message) {
+:is(.sheet, .confirm) :is(.sheet-title, .confirm-message) {
   margin-block-start: var(--space-5);
 }
 
-:root[data-sidebar-material='on'] .sheet > :is(.pick-filter, .import-progress) {
+.sheet > :is(.pick-filter, .import-progress) {
   width: calc(100% - 2 * var(--space-5));
 }
 
-:root[data-sidebar-material='on'] :is(.sheet, .confirm) .button {
+:is(.sheet, .confirm) .button {
   height: var(--size-glass-dialog-button);
   padding: 0 var(--space-7);
   border-radius: var(--radius-capsule);
   box-shadow: var(--glass-rim);
 }
 
-:root[data-sidebar-material='on'] .link-dialog-title {
-  padding: calc(var(--size-glass-dialog-inset) + var(--space-5))
-    calc(var(--size-glass-dialog-inset) + var(--space-5)) var(--space-2);
-  border-bottom: 0;
-}
-
-:root[data-sidebar-material='on'] .link-dialog-fields {
-  padding: var(--size-glass-dialog-inset);
-}
-
-:root[data-sidebar-material='on'] .link-dialog-field {
-  border-radius: var(--radius-glass-group);
-  background: var(--color-fill-settings-card);
-}
-
-:root[data-sidebar-material='on'] .link-dialog-actions {
-  justify-content: flex-end;
-  gap: var(--space-4);
-  padding: 0 var(--size-glass-dialog-inset) var(--size-glass-dialog-inset);
-  border-top: 0;
-  background: transparent;
-}
-
-:root[data-sidebar-material='on'] .link-dialog-button {
-  flex: none;
-  height: var(--size-glass-dialog-button);
-  padding: 0 var(--space-7);
-  border-radius: var(--radius-capsule);
-  box-shadow: var(--glass-rim);
-  font-weight: var(--font-weight-regular);
-}
-
-:root[data-sidebar-material='on'] .link-dialog-insert {
-  box-shadow: none;
-}
-
-/* The tree sits above the note on how folders map, so the order differs from the source's, which
-   Classic keeps. */
-:root[data-sidebar-material='on'] dialog[open].sheet.import {
+/* The tree sits above the note on how folders map, so the order differs from the source's. */
+dialog[open].sheet.import {
   display: flex;
   flex-direction: column;
 }
 
-:root[data-sidebar-material='on'] .import-mapping {
-  display: flex;
-  order: 1;
-  gap: var(--space-4);
-  margin-block: 0 var(--space-6);
-  color: var(--color-text-secondary);
-}
-
-:root[data-sidebar-material='on'] .sheet.import > .confirm-actions {
+.sheet.import > .confirm-actions {
   order: 2;
 }
 
-:root[data-sidebar-material='on'] .import-mapping-icon {
+.import-mapping-icon {
   display: inline-flex;
   flex: none;
 }
 
-:root[data-sidebar-material='on'] .import-tree {
-  max-height: calc(var(--size-glass-dialog-row) * 7);
-  margin-block-end: var(--space-6);
-  border-top: 0;
-  border-radius: var(--radius-glass-group);
-  background: var(--color-fill-settings-card);
-  box-shadow: inset 0 0 0 0.5px var(--color-line-separator);
-}
-
-:root[data-sidebar-material='on'] .import-folder-row {
-  box-sizing: border-box;
-  min-height: var(--size-glass-dialog-row);
-  padding-inline: calc(var(--space-5) + var(--space-7) * var(--import-depth, 0)) var(--space-6);
-  border-top: 0.5px solid var(--color-line-separator);
-  border-bottom: 0;
-}
-
-:root[data-sidebar-material='on'] .import-tree > .import-folder:first-child > .import-folder-row {
+.import-tree > .import-folder:first-child > .import-folder-row {
   border-top: 0;
 }
 
-:root[data-sidebar-material='on'] .import-folder-icon {
+.import-folder-icon {
   display: inline-flex;
   flex: none;
   color: var(--color-text-secondary);
 }
 
-:root[data-sidebar-material='on'] .import-badge {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  height: var(--size-glass-badge);
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-capsule);
-  background: color-mix(
-    in srgb,
-    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
-    transparent
-  );
-  color: var(--color-accent-text);
-  font-weight: var(--font-weight-semibold);
-}
-
-:root[data-sidebar-material='on'] .import-tree-summary {
+.import-tree-summary {
   display: inline;
   order: -1;
   margin-inline-end: auto;
@@ -8531,129 +8071,13 @@ button.popup:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-/* Settings shares the library's sheet and its rounded cutout for the floating sidebar. */
-:root[data-sidebar-material='on'] .settings-main {
+:is(.settings-pane, .settings-toolbar) {
   background: transparent;
-}
-
-:root[data-sidebar-material='on'] .settings-nav {
-  position: relative;
-  z-index: 1;
-  margin: var(--size-sidebar-inset);
-  padding: calc(var(--size-toolbar-height) - var(--size-sidebar-inset))
-    var(--size-sidebar-row-inset) var(--size-sidebar-row-inset);
-  border: 0;
-  border-radius: var(--radius-sidebar);
-  background-color: transparent;
-  background-image:
-    linear-gradient(var(--glass-sidebar), var(--glass-sidebar)), var(--backdrop, none),
-    linear-gradient(var(--glass-sheet), var(--glass-sheet));
-  background-attachment: scroll, fixed, scroll;
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  backdrop-filter: var(--glass-backdrop);
-  box-shadow:
-    var(--glass-rim),
-    0 var(--space-2) var(--space-8) var(--color-shadow-glass);
-}
-
-:root[data-sidebar-material='on'] :is(.settings-pane, .settings-toolbar) {
-  background: transparent;
-}
-
-:root[data-sidebar-material='on'] .settings-toolbar::after {
-  height: var(--space-6);
-  background: linear-gradient(var(--color-fill-hover), transparent);
-  translate: 0 100%;
-  pointer-events: none;
-}
-
-:root[data-sidebar-material='on'] .settings-title {
-  font-size: var(--font-size-body);
-}
-
-:root[data-sidebar-material='on'] .settings-history {
-  height: var(--size-toolbar-control);
-  border-radius: var(--radius-capsule);
-  background: var(--color-fill-glass-control);
-  box-shadow:
-    var(--glass-rim),
-    0 1px var(--space-4) var(--color-shadow-glass);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  backdrop-filter: var(--glass-backdrop);
-}
-
-:root[data-sidebar-material='on'] .settings-history-button {
-  width: var(--size-toolbar-control);
-}
-
-/* Search lives on glass already, so it gets a fill and rim without a second blur. */
-:root[data-sidebar-material='on'] .settings-search {
-  gap: var(--size-toolbar-control-gap);
-  height: var(--size-toolbar-control);
-  padding-inline-start: var(--size-toolbar-control-end-sm);
-  border-radius: var(--radius-capsule);
-  background: var(--color-fill-glass-control);
-  box-shadow: var(--glass-rim);
-}
-
-:root[data-sidebar-material='on'] .settings-nav-row {
-  padding-inline: calc((var(--size-settings-nav-row) - var(--size-settings-tile)) / 2);
-  border-radius: var(--radius-sidebar-row);
-}
-
-:root[data-sidebar-material='on'] .slider::-webkit-slider-thumb {
-  width: var(--size-glass-slider-knob-width);
-  border-radius: var(--radius-capsule);
-  background: var(--color-switch-handle);
-  box-shadow:
-    inset 0 1px 0 var(--color-line-glass-highlight),
-    0 0 0 0.5px var(--color-line-hairline),
-    0 var(--space-1) var(--space-4) var(--color-shadow-glass);
-}
-
-:root[data-sidebar-material='on'] .setting-toggle input[role='switch'] {
-  width: var(--size-glass-switch-width);
-}
-
-:root[data-sidebar-material='on'] .setting-toggle input[role='switch']::after {
-  width: var(--size-glass-switch-knob-width);
-  border-radius: var(--radius-capsule);
-  box-shadow:
-    inset 0 1px 0 var(--color-line-glass-highlight),
-    0 1px var(--space-2) var(--color-shadow-glass);
-}
-
-:root[data-sidebar-material='on'] .setting-toggle input[role='switch']:checked::after {
-  translate: calc(
-      var(--size-glass-switch-width) - var(--size-glass-switch-knob-width) - 2 *
-        var(--size-switch-inset)
-    )
-    0;
-}
-
-:root[data-sidebar-material='on'] .setting-toggle input[role='switch']::after {
-  --knob: var(--size-glass-switch-knob-width);
-}
-
-:root[data-sidebar-material='on']
-  .setting-toggle
-  input[role='switch']:active:not(:disabled)::after {
-  width: calc(var(--knob) + var(--knob-extra));
-}
-
-:root[data-sidebar-material='on']
-  .setting-toggle
-  input[role='switch']:checked:active:not(:disabled)::after {
-  translate: calc(
-      var(--size-glass-switch-width) - var(--size-glass-switch-knob-width) - 2 *
-        var(--size-switch-inset) - var(--knob-extra)
-    )
-    0;
 }
 
 /* A confirm that loses something for good: a centred card. The action is drawn above Cancel by
    reversing the row, so the keyboard keeps the document order. */
-:root[data-sidebar-material='on'] .confirm-destructive {
+.confirm-destructive {
   box-sizing: border-box;
   width: var(--size-glass-alert-width);
   padding: calc(var(--space-7) + var(--space-3)) var(--size-glass-alert-inset)
@@ -8661,7 +8085,7 @@ button.popup:focus-visible {
   text-align: center;
 }
 
-:root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-icon {
+.confirm.confirm-destructive > .confirm-icon {
   display: grid;
   place-items: center;
   width: var(--size-glass-alert-icon);
@@ -8672,52 +8096,53 @@ button.popup:focus-visible {
   color: var(--color-text-destructive);
 }
 
-:root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-message {
+.confirm.confirm-destructive > .confirm-message {
   margin: 0 var(--space-3) var(--space-3);
   font-weight: var(--font-weight-bold);
 }
 
-:root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-detail {
+.confirm.confirm-destructive > .confirm-detail {
   margin: 0 var(--space-5) var(--space-7);
   font-size: var(--font-size-footnote);
 }
 
-:root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-actions {
+.confirm.confirm-destructive > .confirm-actions {
   flex-direction: column-reverse;
   gap: var(--space-4);
 }
 
-:root[data-sidebar-material='on'] .confirm-destructive .confirm-actions .button {
+.confirm-destructive .confirm-actions .button {
   flex: none;
   width: 100%;
   height: var(--size-glass-alert-button);
   padding: 0 var(--space-7);
 }
 
-:root[data-sidebar-material='on'] .confirm-destructive .confirm-actions .button-destructive {
+.confirm-destructive .confirm-actions .button-destructive {
   background: var(--color-fill-destructive);
   box-shadow: none;
   color: var(--color-text-on-destructive);
 }
 
-:root[data-sidebar-material='on'] .confirm-destructive .confirm-actions .button-destructive:hover {
+/* Above the phone's settings-card buttons, which clear the fill. */
+.confirm.confirm-destructive .confirm-actions .button.button-destructive:hover {
   background: color-mix(in srgb, var(--color-fill-destructive), var(--color-text-primary) 6%);
 }
 
-:root[data-sidebar-material='on'] .confirm-destructive .confirm-actions .button-destructive:active {
+.confirm.confirm-destructive .confirm-actions .button.button-destructive:active {
   background: color-mix(in srgb, var(--color-fill-destructive), var(--color-text-primary) 12%);
 }
 
 /* Pickers and menus drawn by the page. A picker's list scrolls inside it, so the panel itself can
    show its notch outside its edge. */
-:root[data-sidebar-material='on'] :is(.picker-popover, .tag-suggestions, .more-menu-list) {
+:is(.picker-popover, .tag-suggestions, .more-menu-list) {
   padding: var(--size-glass-popover-inset);
   border: 0;
   border-radius: var(--radius-glass-popover);
   background: var(--color-surface-popover);
 }
 
-:root[data-sidebar-material='on'] .picker-popover {
+.picker-popover {
   --picker-gap: var(--space-6);
   top: calc(100% + var(--picker-gap));
   display: flex;
@@ -8725,19 +8150,8 @@ button.popup:focus-visible {
   overflow: visible;
 }
 
-:root[data-sidebar-material='on'] .picker-popover[data-side='above'] {
-  top: auto;
-  bottom: calc(100% + var(--picker-gap));
-}
-
-:root[data-sidebar-material='on'] .picker-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
 /* A turned square, clipped to the half outside the panel so the two translucent fills never overlap. */
-:root[data-sidebar-material='on'] .picker-popover::before {
+.picker-popover::before {
   content: '';
   position: absolute;
   top: calc(var(--size-glass-popover-notch) / -2);
@@ -8753,7 +8167,7 @@ button.popup:focus-visible {
   pointer-events: none;
 }
 
-:root[data-sidebar-material='on'] .picker-popover[data-side='above']::before {
+.picker-popover[data-side='above']::before {
   top: auto;
   bottom: calc(var(--size-glass-popover-notch) / -2);
   border: 0;
@@ -8763,7 +8177,7 @@ button.popup:focus-visible {
 }
 
 /* The Note Info card and its date picker: glass popovers at the popover inset, with menu-row corners. */
-:root[data-sidebar-material='on'] :is(.note-info-card, .date-picker) {
+:is(.note-info-card, .date-picker) {
   padding: var(--size-glass-popover-inset);
   border: 0;
   border-radius: var(--radius-glass-popover);
@@ -8773,128 +8187,63 @@ button.popup:focus-visible {
   box-shadow: var(--glass-rim), var(--popover-shadow);
 }
 
-:root[data-sidebar-material='on'] :is(.note-info-row, .note-info-caption) {
+:is(.note-info-row, .note-info-caption) {
   border-radius: var(--radius-glass-menu-row);
 }
 
-:root[data-sidebar-material='on'] .note-info-foot {
+.note-info-foot {
   border-top: 0;
 }
 
-:root[data-sidebar-material='on'] .note-summary {
+.note-summary {
   height: var(--size-note-pill);
   padding-inline: var(--size-note-pill-pad);
   border-radius: var(--radius-capsule);
 }
 
-:root[data-sidebar-material='on'] .date-picker-time {
+.date-picker-time {
   border-radius: var(--radius-glass-menu-row);
 }
 
 /* Placed at the pointer, so it has no button to point at. */
-:root[data-sidebar-material='on'] .tag-menu::before {
+.tag-menu::before {
   content: none;
 }
 
-:root[data-sidebar-material='on'] .picker-search-field {
-  position: relative;
-  display: block;
-  flex: none;
-}
-
-:root[data-sidebar-material='on'] .picker-search-icon {
-  position: absolute;
-  top: calc((var(--size-glass-popover-row) - var(--size-icon-sm)) / 2);
-  left: var(--space-5);
-  display: flex;
-  color: var(--color-text-secondary);
-  pointer-events: none;
-}
-
-:root[data-sidebar-material='on'] .quick-tag-field {
-  height: var(--size-glass-popover-row);
-  padding: 0 var(--space-5);
-  border: 0;
-  border-radius: var(--radius-glass-menu-row);
-}
-
-:root[data-sidebar-material='on'] .picker-search {
-  height: var(--size-glass-popover-row);
-  padding: 0 var(--space-5) 0 calc(var(--space-5) + var(--size-icon-sm) + var(--space-3));
-  border: 0;
-  border-radius: var(--radius-glass-menu-row);
-}
-
-:root[data-sidebar-material='on'] :is(.picker-option, .tag-suggestion) {
+:is(.picker-option, .tag-suggestion) {
   height: var(--size-glass-popover-row);
   padding: 0 var(--space-5);
   border-radius: var(--radius-glass-menu-row);
 }
 
-:root[data-sidebar-material='on']
-  :is(.picker-option, .tag-suggestion):is(:hover, [aria-selected='true']) {
+:is(.picker-option, .tag-suggestion):is(:hover, [aria-selected='true']) {
   background: color-mix(
     in srgb,
     var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
     transparent
   );
-}
-
-/* Names still start where the typed text does, with this panel's padding and rows. */
-:root[data-sidebar-material='on'] .tag-suggestions {
-  left: calc(
-    -1 *
-      (
-        var(--size-glass-popover-inset) + var(--space-5) + var(--space-4) + var(--space-3) -
-          var(--space-2)
-      )
-  );
-}
-
-:root[data-sidebar-material='on'] .more-menu-item {
-  height: var(--size-glass-popover-row);
-  padding: 0 var(--space-5);
-  border-radius: var(--radius-glass-menu-row);
-}
-
-:root[data-sidebar-material='on']
-  .more-menu-item:is(:hover, :focus-visible):not([aria-disabled='true']) {
-  background: color-mix(
-    in srgb,
-    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
-    transparent
-  );
-  color: var(--color-text-primary);
 }
 
 /* A note's hover card is a tooltip too, and keeps its own shape. */
-:root[data-sidebar-material='on'] .tool-tip:not(.note-card-pop) {
+.tool-tip:not(.note-card-pop) {
   flex-direction: row;
   gap: var(--space-4);
   border-radius: var(--radius-glass-tooltip);
   color: var(--color-text-primary);
 }
 
-:root[data-sidebar-material='on'] .tool-tip:not(.note-card-pop):has(> .tool-tip-key) {
+.tool-tip:not(.note-card-pop):has(> .tool-tip-key) {
   padding-inline-end: var(--space-3);
 }
 
-:root[data-sidebar-material='on'] .tool-tip:not(.note-card-pop)::before {
+.tool-tip:not(.note-card-pop)::before {
   display: none;
-}
-
-:root[data-sidebar-material='on'] .tool-tip-key {
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-button);
-  background: var(--color-fill-settings-card);
-  box-shadow: inset 0 0 0 0.5px var(--color-line-hairline);
 }
 
 /* Accessibility preferences override every translucent surface, including shadow-root popups
    which inherit these variables. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :root[data-sidebar-material='on'] body {
+  body {
     --glass-sheet: var(--color-surface-editor);
     --glass-backdrop: none;
     --color-fill-glass-control: var(--color-surface-editor);
@@ -8903,7 +8252,7 @@ button.popup:focus-visible {
     --color-line-glass-edge: var(--color-line-control);
   }
 
-  :root[data-sidebar-material='on'] :is(.sidebar, .settings-nav) {
+  :is(.sidebar, .settings-nav) {
     background: var(--color-surface-sidebar-opaque);
   }
 }
@@ -8914,36 +8263,37 @@ button.popup:focus-visible {
   initial-value: 0px;
 }
 
-:root[data-sidebar-material='on'] .content > .panes:not(.panes-split),
-:root[data-sidebar-material='on'] .panes-split > :is(.editor, .preview) {
+.content > .panes:not(.panes-split),
+.panes-split > :is(.editor, .preview),
+.panes-split[data-loading] > :is(.editor, .preview) {
   --scroll-edge-size: 0px;
   mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-size));
   transition: --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick);
 }
 
 /* No deeper than the pane has scrolled (app/useScrollEdges.ts), so the first line keeps its colour until it reaches the edge. */
-:root[data-sidebar-material='on'] .content[data-scrolled] > .panes:not(.panes-split) {
+.content[data-scrolled] > .panes:not(.panes-split) {
   --scroll-edge-size: min(
     var(--size-scroll-edge),
     var(--pane-scrolled-by, var(--size-scroll-edge))
   );
 }
 
-:root[data-sidebar-material='on'] .panes-split[data-editor-scrolled] > .editor {
+.panes-split[data-editor-scrolled] > .editor {
   --scroll-edge-size: min(
     var(--size-scroll-edge),
     var(--editor-scrolled-by, var(--size-scroll-edge))
   );
 }
 
-:root[data-sidebar-material='on'] .panes-split[data-preview-scrolled] > .preview {
+.panes-split[data-preview-scrolled] > .preview {
   --scroll-edge-size: min(
     var(--size-scroll-edge),
     var(--preview-scrolled-by, var(--size-scroll-edge))
   );
 }
 
-:root[data-motion='reduced'][data-sidebar-material='on'] .content > .panes,
-:root[data-motion='reduced'][data-sidebar-material='on'] .panes-split > :is(.editor, .preview) {
+:root[data-motion='reduced'] .content > .panes,
+:root[data-motion='reduced'] .panes-split > :is(.editor, .preview) {
   transition: none;
 }

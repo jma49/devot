@@ -1,4 +1,75 @@
-import { changeEditorSettingsElsewhere, expect, openSettings, test } from './fixtures'
+import type { Page } from '@playwright/test'
+import {
+  changeEditorSettingsElsewhere,
+  expect,
+  openSettings,
+  paintedBackground,
+  test,
+} from './fixtures'
+
+const appearancePane = (page: Page) => page.getByRole('region', { name: 'Appearance' }).first()
+const transparencySlider = (page: Page) =>
+  appearancePane(page).getByRole('slider', { name: 'Glass Transparency' })
+
+const calls = (page: Page, cmd: string) =>
+  page.evaluate(
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
+    cmd,
+  )
+
+test('the transparency adjusts the sheet: opaque at one end, the design in the middle, twice as clear at the other', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const w = window
+    w.devotEditorRevision = 2
+    w.devotEditorSettings = { windowTransparency: -100 }
+  })
+  await page.goto('/')
+  const list = page.getByRole('region', { name: 'Notes' })
+  const editor = page.getByRole('main')
+  await expect.poll(() => paintedBackground(list)).toBe('rgb(255, 255, 255)')
+  await expect.poll(() => paintedBackground(editor)).toBe('rgb(255, 255, 255)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 100 })
+  await expect.poll(() => paintedBackground(list)).toBe('rgba(255, 255, 255, 0.5)')
+  await expect.poll(() => paintedBackground(editor)).toBe('rgba(255, 255, 255, 0.5)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 0 })
+  await expect.poll(() => paintedBackground(list)).toBe('rgba(255, 255, 255, 0.75)')
+  await expect.poll(() => paintedBackground(editor)).toBe('rgba(255, 255, 255, 0.75)')
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+
+test('the Settings window adjusts how see-through Glass is with a slider', async ({ page }) => {
+  await openSettings(page, 'Appearance')
+  await expect(transparencySlider(page)).toHaveValue('0')
+  await expect(transparencySlider(page)).toHaveAccessibleDescription(/shows through/)
+  await expect(appearancePane(page).locator('output')).toHaveText('0')
+
+  await transparencySlider(page).fill('40')
+  await expect(appearancePane(page).locator('output')).toHaveText('+40')
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { windowTransparency: 40 } }])
+  await transparencySlider(page).focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { windowTransparency: 40 } }, { patch: { windowTransparency: 35 } }])
+})
+
+test('an appearance change that cannot be stored is reported and dropped', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window
+    w.devotIpcMocks = { editor_settings_set: { error: 'E_EDITOR_SETTINGS_WRITE_FAILED' } }
+  })
+  await openSettings(page, 'Appearance')
+  const schemes = page.getByRole('radiogroup', { name: 'Color scheme' })
+  await schemes.getByText('Dark', { exact: true }).click()
+  await expect(appearancePane(page).getByRole('alert')).toHaveText(
+    'The appearance settings could not be saved.',
+  )
+  await expect(schemes.getByRole('radio', { name: 'Auto', exact: true })).toBeChecked()
+})
 
 test('switches the entire palette and selected picture with animations enabled', async ({
   page,
@@ -25,9 +96,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`${colorScheme} Settings glass`, () => {
     test.use({ colorScheme, viewport: { width: 900, height: 680 } })
 
-    test('floats navigation above a shared sheet and restores Classic without losing the pane', async ({
-      page,
-    }, testInfo) => {
+    test('floats navigation above a shared sheet', async ({ page }, testInfo) => {
       await openSettings(page, 'Appearance')
       const nav = page.locator('.settings-nav')
       const pane = page.locator('.settings-pane')
@@ -40,15 +109,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(frame?.height).toBe(664)
       await expect(page.locator('.settings-card').first()).toHaveCSS('border-radius', '18px')
       await page.screenshot({ path: testInfo.outputPath(`settings-${colorScheme}.png`) })
-
-      await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-      await expect(nav).toHaveCSS('margin-top', '0px')
-      await expect(nav).toHaveCSS('border-radius', '0px')
-      await expect(pane).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-      await expect(page.getByRole('tab', { name: 'Appearance', exact: true })).toHaveAttribute(
-        'aria-selected',
-        'true',
-      )
     })
 
     test('uses opaque surfaces when the system requests more contrast', async ({ page }) => {
@@ -87,11 +147,7 @@ for (const appearance of ['light', 'dark'] as const) {
               r instanceof CSSStyleRule && r.selectorText.replaceAll('"', "'") === selector,
           )!.style.cssText
         const proxy = document.createElement('span')
-        proxy.style.cssText =
-          rule('.slider::-webkit-slider-thumb') +
-          (document.documentElement.dataset['sidebarMaterial'] === 'on'
-            ? rule(":root[data-sidebar-material='on'] .slider::-webkit-slider-thumb")
-            : '')
+        proxy.style.cssText = rule('.slider::-webkit-slider-thumb')
         proxy.style.display = 'inline-block'
         el.parentElement!.append(proxy)
         const style = getComputedStyle(proxy)
@@ -119,33 +175,23 @@ for (const appearance of ['light', 'dark'] as const) {
         ),
       ).toBe('32px')
     }
-    await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-    expect(await thumb()).toEqual({ width: '22px', height: '22px', alpha: 255 })
-    await expect(page.locator('.choice-frame').first()).toHaveCSS('border-radius', '12px')
-    await expect(toggle).toHaveCSS('width', '38px')
-    await expect(page.locator('.settings-card').first()).toHaveCSS('border-radius', '12px')
   })
 }
 
-for (const sidebarMaterial of [true, false]) {
-  test(`a switch's knob stays inside its track in ${sidebarMaterial ? 'Glass' : 'Classic'}`, async ({
-    page,
-  }) => {
-    await openSettings(page, 'Appearance')
-    await changeEditorSettingsElsewhere(page, { sidebarMaterial })
-    const toggle = page.getByRole('switch').first()
-    await expect(toggle).toBeVisible()
-    const { track, knob, inset } = await toggle.evaluate((el) => {
-      const after = getComputedStyle(el, '::after')
-      return {
-        track: el.getBoundingClientRect().height,
-        knob: Number.parseFloat(after.height),
-        inset: Number.parseFloat(after.top),
-      }
-    })
-    expect(knob + 2 * inset).toBeLessThanOrEqual(track)
+test("a switch's knob stays inside its track", async ({ page }) => {
+  await openSettings(page, 'Appearance')
+  const toggle = page.getByRole('switch').first()
+  await expect(toggle).toBeVisible()
+  const { track, knob, inset } = await toggle.evaluate((el) => {
+    const after = getComputedStyle(el, '::after')
+    return {
+      track: el.getBoundingClientRect().height,
+      knob: Number.parseFloat(after.height),
+      inset: Number.parseFloat(after.top),
+    }
   })
-}
+  expect(knob + 2 * inset).toBeLessThanOrEqual(track)
+})
 
 test('a footnote sits close under its card, with its icon on the first line', async ({ page }) => {
   await openSettings(page, 'Appearance')

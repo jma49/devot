@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, openApp, pickNoteMore, test } from './fixtures'
+import { expect, openApp, pickNoteMore, test } from './fixtures'
 
 test.use({ viewport: { width: 1280, height: 820 } })
 
@@ -85,12 +85,4 @@ test('the footnote rule stays full width in print', async ({ page }) => {
   await page.emulateMedia({ media: 'print' })
   await expect(footnotes).toHaveCSS('border-top-width', '1px')
   await page.emulateMedia({ media: 'screen' })
-})
-
-test('Classic keeps its captions and footnote rule', async ({ page }) => {
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  await note(page, 'Notes', 'Text with a note.[^1]\n\n[^1]: The note.')
-  await showPreview(page)
-  await expect(page.locator('.preview .footnotes')).toHaveCSS('border-top-width', '1px')
-  await expect(page.locator('.sidebar .section-header').first()).toHaveCSS('font-size', '12px')
 })

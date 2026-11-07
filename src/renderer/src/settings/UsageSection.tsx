@@ -1,6 +1,4 @@
 import './usage.css'
-import { useEditorSetting } from '../editorSettings'
-import { UsageClassicSection } from './UsageClassicSection'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { USAGE_EVENTS, usageCounts, type StoredUsageEvent } from '../../../core/usage'
 import type { UsageEventName } from '../../../core/usage'
@@ -490,6 +488,5 @@ function GlassUsageSection() {
 }
 
 export function UsageSection() {
-  const glass = useEditorSetting('sidebarMaterial')
-  return glass ? <GlassUsageSection /> : <UsageClassicSection />
+  return <GlassUsageSection />
 }

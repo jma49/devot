@@ -1,6 +1,6 @@
 # Glass layout
 
-The spec for how the Glass interface sits on the screen. Everything here applies under `:root[data-sidebar-material='on']`; Classic is untouched, and exports and print keep their look unless a section says otherwise. A new element snaps to these rules; a new rule goes here with its tokens and tests.
+The spec for how the Glass interface sits on the screen. Exports and print keep their own look unless a section says otherwise. A new element snaps to these rules; a new rule goes here with its tokens and tests.
 
 The aim is a calm screen. Space says what a rule, an outline or a colour would repeat, so reach for space first.
 
@@ -76,8 +76,6 @@ Its keyline is `size.phone-grouped-pad-x` (16) from a card's edge: section heade
 - **Excerpt:** 12, line height 1.45, two lines, secondary.
 
 ## Board
-
-The width, the empty line, the fade, the meta line and the drag hold in Classic too; Classic keeps its column tiles, card edge and selection.
 
 - **Columns:** on the note list's keylines: the board sits 12 from the pane's sides (`size.list-keyline-outer`), columns `size.board-column-width` (180) wide and 10 apart (`space.5`).
   A column has no tile behind it.

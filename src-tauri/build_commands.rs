@@ -21,7 +21,6 @@ const SHELL: &[&str] = &[
     "format_menu_set",
     "log_write",
     "clipboard_write_html",
-    "sidebar_material_sync",
     "sidebar_menu_set",
     "command_menu_set",
     "deep_link_take",

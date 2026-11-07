@@ -10,7 +10,6 @@ import { startCore } from './core-client'
 import { forwardConsole, forwardUncaught, type LogEntry } from './log'
 import { editorSettings, startEditorSettings, subscribeEditorSettings } from './editorSettings'
 import { startShortcutSettings } from './commands/shortcutSettings'
-import { startSidebarMaterial } from './sidebarMaterial'
 import { startSidebarSurround } from './sidebarSurround'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
@@ -39,7 +38,6 @@ setIPhoneWording(isPhoneLayout(navigator.userAgent))
 watchCompositions(window)
 startEditorSettings()
 startShortcutSettings()
-startSidebarMaterial()
 startAppearance()
 startMotion()
 applyMotionScale(document.documentElement)

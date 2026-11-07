@@ -283,7 +283,7 @@ describe('columnWindow', () => {
 describe('the fitted board width', () => {
   it('is the columns at their width with the board’s gaps and keylines, Dropped shown or hidden', () => {
     const px = (name: keyof typeof sizes) => parseFloat(sizes[name])
-    // `.board-columns` under Glass in app.css: space-5 between columns, the outer keyline at each side.
+    // `.board-columns` in app.css: space-5 between columns, the outer keyline at each side.
     for (const dropped of [true, false]) {
       const columns = boardStatuses(dropped).length
       const needed =

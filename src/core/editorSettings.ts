@@ -1,4 +1,4 @@
-// Editor settings: how the note editor looks and behaves on this device, plus the window's sidebar material (Settings > Appearance). A local preference, never note
+// Editor settings: how the note editor looks and behaves on this device, plus the window's Glass Transparency (Settings > Appearance). A local preference, never note
 // data: Rust keeps them in their own file (src-tauri/src/editor_settings.rs, which checks the same lists and ranges as this module) and they never sync.
 
 import { DAILY_TITLE_FORMATS, type DailyTitleFormat } from './dailyNotes'
@@ -19,7 +19,6 @@ export type LineWrappingMode = 'off' | 'all' | 'prose' | 'unwrapAtCursor'
 export type AppearanceChoice = 'system' | 'light' | 'dark'
 export type ThemeChoice = 'default' | 'ivory' | GradientTheme
 export type IconStyleChoice = 'sfSymbols' | 'lucide'
-export type InterfaceStyle = 'classic' | 'glass'
 export type GradientTheme = 'dawn' | 'tide' | 'sage' | 'ember'
 
 export type ListDatesStyle = 'relative' | 'absolute'
@@ -48,9 +47,7 @@ export interface EditorSettings {
   listMarker: ListMarker
   spellCheck: boolean
   highlightActiveLine: boolean
-  /** Glass (the window shows the material; the key keeps its old name) or Classic (opaque); see `interfaceStyle`. */
-  sidebarMaterial: boolean
-  /** How see-through Glass is, from the regions' design washes: 0 is the design, -100 opaque, 100 twice as see-through. */
+  /** How see-through the window is, from the regions' design washes: 0 is the design, -100 opaque, 100 twice as see-through. */
   windowTransparency: number
   pasteUrl: PasteUrlStyle
   syncScroll: boolean
@@ -132,7 +129,6 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   listMarker: '*',
   spellCheck: true,
   highlightActiveLine: false,
-  sidebarMaterial: true,
   windowTransparency: 0,
   pasteUrl: 'link',
   syncScroll: true,
@@ -237,19 +233,12 @@ export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'syste
 export const GRADIENT_THEMES: readonly GradientTheme[] = ['dawn', 'tide', 'sage', 'ember']
 export const THEMES: readonly ThemeChoice[] = ['default', 'ivory', ...GRADIENT_THEMES]
 export const ICON_STYLES: readonly IconStyleChoice[] = ['sfSymbols', 'lucide']
-export const INTERFACE_STYLES: readonly InterfaceStyle[] = ['classic', 'glass']
 /** The gradient themes keep the default palette, accent included. */
 export const themeFollowsSystemAccent = (theme: ThemeChoice): boolean => theme !== 'ivory'
 export const themeInEffect = (
   settings: Pick<EditorSettings, 'lightTheme' | 'darkTheme'>,
   appearance: 'light' | 'dark',
 ): ThemeChoice => (appearance === 'dark' ? settings.darkTheme : settings.lightTheme)
-export const interfaceStyle = (
-  settings: Pick<EditorSettings, 'sidebarMaterial'>,
-): InterfaceStyle => (settings.sidebarMaterial ? 'glass' : 'classic')
-export const interfaceStylePatch = (style: InterfaceStyle): Partial<EditorSettings> => ({
-  sidebarMaterial: style === 'glass',
-})
 export const FONT_SIZE_MIN = 10
 export const FONT_SIZE_MAX = 32
 const LINE_HEIGHT_MIN = 1
@@ -305,7 +294,6 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   listMarker: oneOf(LIST_MARKERS),
   spellCheck: isFlag,
   highlightActiveLine: isFlag,
-  sidebarMaterial: isFlag,
   windowTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),
   pasteUrl: oneOf(PASTE_URL_STYLES),
   syncScroll: isFlag,

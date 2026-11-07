@@ -74,10 +74,10 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
 
   it('insets the sidebar rows by the same amount the row radius assumes', () => {
     const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
-    const sidebar = rules.find((r) => r.selector === ":root[data-sidebar-material='on'] .sidebar")
+    const sidebar = rules.find((r) => r.selector === '.sidebar')
     expect(sidebar?.body.get('padding-inline')).toBe('var(--size-sidebar-row-inset)')
     expect(sidebar?.body.get('padding-block-end')).toBe('var(--size-sidebar-row-inset)')
-    const nav = rules.find((r) => r.selector === ":root[data-sidebar-material='on'] .settings-nav")
+    const nav = rules.find((r) => r.selector === '.settings-nav')
     expect(nav?.body.get('padding')).toMatch(/var\(--size-sidebar-row-inset\)$/)
   })
 
@@ -89,17 +89,13 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
 
   it('keeps the sidebar footer a capsule', () => {
     const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
-    const footer = rules.find(
-      (r) => r.selector === ":root[data-sidebar-material='on'] .footer-toggle",
-    )
+    const footer = rules.find((r) => r.selector === '.footer-toggle')
     expect(footer?.body.get('border-radius')).toBe('var(--radius-capsule)')
   })
 
   it('sets settings toolbar controls as far from the right edge as from the top', () => {
     const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
-    const bars = rules.find(
-      (r) => r.selector === ":root[data-sidebar-material='on'] .settings-toolbar",
-    )
+    const bars = rules.find((r) => r.selector === '.settings-toolbar')
     expect(bars?.body.get('padding-inline-end')).toBe(
       'calc((var(--size-toolbar-height) - var(--size-toolbar-control)) / 2)',
     )

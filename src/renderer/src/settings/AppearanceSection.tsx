@@ -4,18 +4,14 @@ import {
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
   ICON_STYLES,
-  INTERFACE_STYLES,
   THEMES,
   WINDOW_TRANSPARENCY_MAX,
   WINDOW_TRANSPARENCY_STEP,
-  interfaceStyle,
-  interfaceStylePatch,
   themeFollowsSystemAccent,
   themeInEffect,
   type AnimationsChoice,
   type AppearanceChoice,
   type IconStyleChoice,
-  type InterfaceStyle,
   type ThemeChoice,
 } from '../../../core/editorSettings'
 import { useEditorSettings } from '../editorSettings'
@@ -75,11 +71,6 @@ const SCHEME_LABELS: Readonly<Record<AppearanceChoice, MessageKey>> = {
   system: 'appearanceSettings.system',
   light: 'appearanceSettings.light',
   dark: 'appearanceSettings.dark',
-}
-
-const STYLE_LABELS: Readonly<Record<InterfaceStyle, MessageKey>> = {
-  classic: 'appearanceSettings.interfaceClassic',
-  glass: 'appearanceSettings.interfaceGlass',
 }
 
 const THEME_LABELS: Readonly<Record<ThemeChoice, MessageKey>> = {
@@ -147,23 +138,14 @@ function Choice({
 
 /**
  * A small window over a wallpaper, in one appearance and theme (`data-appearance-preview` and
- * `data-theme-preview`, read by the generated tokens). Glass lets the wallpaper through the window.
+ * `data-theme-preview`, read by the generated tokens), with the wallpaper showing through it.
  */
-function WindowThumb({
-  appearance,
-  theme,
-  glass,
-}: {
-  appearance: Appearance
-  theme: ThemeChoice
-  glass: boolean
-}) {
+function WindowThumb({ appearance, theme }: { appearance: Appearance; theme: ThemeChoice }) {
   return (
     <span
       className="window-thumb"
       data-appearance-preview={appearance}
       data-theme-preview={themePreview(theme)}
-      data-glass={glass || undefined}
     >
       <span className="window-thumb-window">
         <span className="window-thumb-lights">
@@ -182,20 +164,14 @@ function WindowThumb({
 }
 
 /** Light and dark along one diagonal; the name stays under the thumbnail, clear of the split. */
-function AutoThumb({
-  themes,
-  glass,
-}: {
-  themes: Readonly<Record<Appearance, ThemeChoice>>
-  glass: boolean
-}) {
+function AutoThumb({ themes }: { themes: Readonly<Record<Appearance, ThemeChoice>> }) {
   return (
     <span className="choice-thumb auto-thumb" aria-hidden="true">
       <span className="auto-thumb-light">
-        <WindowThumb appearance="light" theme={themes.light} glass={glass} />
+        <WindowThumb appearance="light" theme={themes.light} />
       </span>
       <span className="auto-thumb-dark">
-        <WindowThumb appearance="dark" theme={themes.dark} glass={glass} />
+        <WindowThumb appearance="dark" theme={themes.dark} />
       </span>
     </span>
   )
@@ -318,9 +294,8 @@ function ThemePicker({
 }
 
 /**
- * Settings > Appearance: the color scheme (Auto, Light or Dark) and the interface style (Classic,
- * an opaque window, or Glass, with how see-through it is); a theme for each appearance, the one in
- * effect marked Active (Ivory has its own accent, so the system accent option is hidden while it is in
+ * Settings > Appearance: the color scheme (Auto, Light or Dark) and how see-through the window is;
+ * a theme for each appearance, the one in effect marked Active (Ivory has its own accent, so the system accent option is hidden while it is in
  * effect); whether things move; the icon style; and the editor's and preview's type. Every change
  * applies at once, and changes made elsewhere show here as they happen.
  */
@@ -358,9 +333,7 @@ export function AppearanceSection() {
     store: (size) => change({ fontSize: size }),
   })
   const phoneGlass = useGlassPrefs()
-  const style = interfaceStyle(settings)
   const themes = { light: settings.lightTheme, dark: settings.darkTheme }
-  const glass = style === 'glass'
   const modeTitle = (appearance: Appearance) =>
     appearance === shown ? t('appearanceSettings.modeActive') : undefined
 
@@ -489,10 +462,7 @@ export function AppearanceSection() {
           {failureText('appearanceSettings.failed', error)}
         </p>
       ) : null}
-      <SettingsSection
-        title="appearanceSettings.groupAppearance"
-        footnote={t('appearanceSettings.interfaceStyleNote')}
-      >
+      <SettingsSection title="appearanceSettings.groupAppearance">
         <div className="choice-groups">
           <div className="choice-group" role="radiogroup" aria-labelledby={id('scheme')}>
             <span id={id('scheme')} className="choice-group-label">
@@ -509,78 +479,50 @@ export function AppearanceSection() {
                   className="thumb-choice"
                 >
                   {choice === 'system' ? (
-                    <AutoThumb themes={themes} glass={glass} />
+                    <AutoThumb themes={themes} />
                   ) : (
                     <span className="choice-thumb" aria-hidden="true">
-                      <WindowThumb appearance={choice} theme={themes[choice]} glass={glass} />
+                      <WindowThumb appearance={choice} theme={themes[choice]} />
                     </span>
                   )}
                 </Choice>
               ))}
             </div>
           </div>
-          <span className="choice-divider" aria-hidden="true" />
-          <div className="choice-group" role="radiogroup" aria-labelledby={id('style')}>
-            <span id={id('style')} className="choice-group-label">
-              {t('appearanceSettings.interfaceStyle')}
-            </span>
-            <div className="choice-items">
-              {INTERFACE_STYLES.map((choice) => (
-                <Choice
-                  key={choice}
-                  group={id('style-choice')}
-                  checked={style === choice}
-                  onChange={() => change(interfaceStylePatch(choice))}
-                  label={t(STYLE_LABELS[choice])}
-                  className="thumb-choice"
-                >
-                  <span className="choice-thumb" aria-hidden="true">
-                    <WindowThumb
-                      appearance={shown}
-                      theme={themes[shown]}
-                      glass={choice === 'glass'}
-                    />
-                  </span>
-                </Choice>
-              ))}
-            </div>
-          </div>
         </div>
-        {glass ? (
-          <Setting
-            label="appearanceSettings.glassAmount"
-            description={t('appearanceSettings.glassAmountHint')}
-            htmlFor={id('glass')}
-            descriptionId={id('glass-hint')}
-          >
-            <span className="setting-range">
-              <input
-                id={id('glass')}
-                type="range"
-                className="slider"
-                min={-WINDOW_TRANSPARENCY_MAX}
-                max={WINDOW_TRANSPARENCY_MAX}
-                step={WINDOW_TRANSPARENCY_STEP}
-                value={glassAmount.value}
-                style={
-                  {
-                    '--value': glassAmount.value,
-                    '--min': -WINDOW_TRANSPARENCY_MAX,
-                    '--max': WINDOW_TRANSPARENCY_MAX,
-                  } as CSSProperties
-                }
-                aria-describedby={id('glass-hint')}
-                onChange={(e) => glassAmount.drag(Number(e.currentTarget.value))}
-                onPointerUp={glassAmount.release}
-                onKeyUp={glassAmount.release}
-                onBlur={glassAmount.release}
-              />
-              <output className="setting-range-value" htmlFor={id('glass')}>
-                {signed.format(glassAmount.value)}
-              </output>
-            </span>
-          </Setting>
-        ) : null}
+        <Setting
+          label="appearanceSettings.glassAmount"
+          description={t('appearanceSettings.glassAmountHint')}
+          htmlFor={id('glass')}
+          descriptionId={id('glass-hint')}
+        >
+          <span className="setting-range">
+            <input
+              id={id('glass')}
+              type="range"
+              className="slider"
+              min={-WINDOW_TRANSPARENCY_MAX}
+              max={WINDOW_TRANSPARENCY_MAX}
+              step={WINDOW_TRANSPARENCY_STEP}
+              value={glassAmount.value}
+              style={
+                {
+                  '--value': glassAmount.value,
+                  '--min': -WINDOW_TRANSPARENCY_MAX,
+                  '--max': WINDOW_TRANSPARENCY_MAX,
+                } as CSSProperties
+              }
+              aria-describedby={id('glass-hint')}
+              onChange={(e) => glassAmount.drag(Number(e.currentTarget.value))}
+              onPointerUp={glassAmount.release}
+              onKeyUp={glassAmount.release}
+              onBlur={glassAmount.release}
+            />
+            <output className="setting-range-value" htmlFor={id('glass')}>
+              {signed.format(glassAmount.value)}
+            </output>
+          </span>
+        </Setting>
         {themeFollowsSystemAccent(themeInEffect(settings, shown)) ? (
           <SettingToggle
             label="appearanceSettings.systemAccent"

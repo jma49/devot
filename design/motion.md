@@ -42,7 +42,7 @@ A diagram redrawn for a new pane width (a gantt chart) has no motion: it follows
 
 ## Glass
 
-A web view cannot bend light, so Devot does not imitate refraction in motion. It keeps what can be kept: a pop-up grows out of the control it belongs to, a pressed control answers in its first frame, and a thumb travels between segments rather than appearing. New Glass motion uses the same tokens and rules as Classic: the two styles differ in surfaces, not timing.
+A web view cannot bend light, so Devot does not imitate refraction in motion. It keeps what can be kept: a pop-up grows out of the control it belongs to, a pressed control answers in its first frame, and a thumb travels between segments rather than appearing.
 
 ## Rules
 
@@ -74,7 +74,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 ## Interactions
 
 - **Buttons, tools, pop-up buttons, segments, a field's clear button:** shrink to `motion.scale.press` while pressed, and spring back on release. Editor floating bar buttons and rows do not: their pressed state is a fill.
-- **Segmented controls:** the pressed look takes its new place at once, and a copy of it slides there on top (`segmentSlide.ts`) on a settling spring. Pressing the pressed segment picks the copy up: it can be dragged to another segment, in both interfaces, and the choice applies on release. In Glass it also lifts to `motion.scale.segment-lift`; a Classic toolbar's frame would clip that, so Classic does not lift. A control that remounts on the change gives the place it came from; another view never slides it. A pressed segment does not shrink. A thumb moving between segments of different widths animates its width (a known exception to compositor only).
+- **Segmented controls:** the pressed look takes its new place at once, and a copy of it slides there on top (`segmentSlide.ts`) on a settling spring. Pressing the pressed segment picks the copy up: it can be dragged to another segment, and the choice applies on release, lifting to `motion.scale.segment-lift` while it is held. A control that remounts on the change gives the place it came from; another view never slides it. A pressed segment does not shrink. A thumb moving between segments of different widths animates its width (a known exception to compositor only).
 - **Switch:** the knob widens by `motion.scale.knob-press` while pressed, away from the side it rests on, and stays a capsule. It animates width (small; a known exception to compositor only).
 - **Task checkbox in the preview:** shrinks while pressed; the item's colour fades over `motion.duration.toggle`. The strike-through appears at once. A note that opens never plays this.
 - **Status dot:** its colour fades over `motion.duration.toggle`.
@@ -100,7 +100,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
   Cards that change place in the order (a new sort, a note added or gone) slide as rows do (`rowMotion.ts`); resizing the pane reflows them at once (rule 1), the sheets' height following their width.
   A thumbnail is drawn when its page arrives, with no fade, and scrolling has no motion of its own.
 - **Board cards:** one that changes column flies there on a copy above the columns, as a column would clip it, when both ends can be seen (otherwise it is simply there); the others slide as rows do (`rowMotion.ts`).
-  In Glass hover washes a card over `motion.duration.hover` on `motion.easing.out`; the selection wash and the focus ring are states, shown at once (rule 2).
+  Hover washes a card over `motion.duration.hover` on `motion.easing.out`; the selection wash and the focus ring are states, shown at once (rule 2).
   Resetting the board's width (a double-click or Enter on the edge) takes the fitted width at once, as a drag of the edge does (rule 1).
 - **Task ring on a card** (a board card's meta line, a gallery caption): rule 2. The ring and its count show at once when the counts arrive, and a new count redraws the ring at once, without the fill animation of the list's progress bar.
 - **Settings:** a section fades in and rises `space.4` over `motion.duration.toggle`, without the rise under reduced motion; its row's fill eases over `motion.duration.quick`.
@@ -114,7 +114,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Dragging:** a drop line fades in and a column's or row's highlight eases over `motion.duration.quick`.
   The other rows stay where they are: moving them would change what is under the pointer, and the zones that tell before, into and after apart.
   On a board the dragged cards dim to `opacity.card-dragged` at once and stay in their places: a state of the drag (rule 2).
-  In Glass the column under the pointer takes its `color.fill.track` wash over `motion.duration.hover` on `motion.easing.out`, and loses it the same way; the cards' own column takes none, since a drop there changes nothing.
+  The column under the pointer takes its `color.fill.track` wash over `motion.duration.hover` on `motion.easing.out`, and loses it the same way; the cards' own column takes none, since a drop there changes nothing.
   The wash stays steady while the pointer crosses the column's cards, header and gaps: only leaving the column's box ends it (`leftColumn` in `board.ts`).
   The drag image is the system's, following the pointer (rule 1): a copy of the card with its count badge, with no lift, scale or tilt of its own.
 - **Saved searches in the sidebar:** the section folds as Status and Tags do, and its rows arrive, go and move with the sidebar's row motion. Dragging one shows the drop line before or after a row (the halves of the row, no inside). Running one fills the search field and the results replace the list as a typed search's do; Save Search and Edit Saved Search are modal dialogs with the dialog motion. On the phone the rows are grouped rows in a folding section, and tapping one opens Search with its query, without the keyboard.

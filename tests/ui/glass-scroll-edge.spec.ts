@@ -1,8 +1,6 @@
 import { changeEditorSettingsElsewhere, expect, openApp, test } from './fixtures'
 
-test('fades scrolled editor and preview independently, and restores the Classic edge', async ({
-  page,
-}) => {
+test('fades scrolled editor and preview independently', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
@@ -45,8 +43,4 @@ test('fades scrolled editor and preview independently, and restores the Classic 
   })
   await expect(panes).toHaveAttribute('data-preview-scrolled')
   await expect(preview).toHaveCSS('--scroll-edge-size', '28px')
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  await expect(panes).toHaveCSS('mask-image', 'none')
-  await expect(preview).toHaveCSS('mask-image', 'none')
-  await expect(page.locator('.editor')).toHaveCSS('mask-image', 'none')
 })

@@ -227,13 +227,9 @@ export function Icon(props: {
   return <StyledIcon style={useEditorSetting('iconStyle')} {...props} />
 }
 
-/** A toolbar button's icon: the Glass interface draws it smaller and lighter, at one size for buttons and segments. */
-export function ToolIcon({ name, size = 'lg' }: { name: IconName; size?: IconSize }) {
-  return useEditorSetting('sidebarMaterial') ? (
-    <Icon name={name} size="toolbar" weight="light" />
-  ) : (
-    <Icon name={name} size={size} />
-  )
+/** A toolbar button's icon: smaller and lighter, at one size for buttons and segments. */
+export function ToolIcon({ name }: { name: IconName }) {
+  return <Icon name={name} size="toolbar" weight="light" />
 }
 
 export type IconSize = keyof typeof BOXES

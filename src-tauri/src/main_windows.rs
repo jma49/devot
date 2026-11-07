@@ -229,8 +229,8 @@ fn cascaded(from: Frame, screens: &[Frame]) -> Option<Frame> {
     next.on_any(screens).then_some(next)
 }
 
-/// A main window as its config describes it, under `label`, opened as things are now: the editor
-/// settings' theme and the sidebar material. The first one (`main`) is built here at launch too.
+/// A main window as its config describes it, under `label`, opened in the editor settings' theme.
+/// The first one (`main`) is built here at launch too.
 /// Built here rather than from the config alone, to route pop-ups.
 pub(crate) fn build(
     app: &AppHandle,
@@ -249,9 +249,6 @@ pub(crate) fn build(
     let stored = app
         .try_state::<std::sync::Arc<crate::editor_settings::EditorSettingsStore>>()
         .and_then(|store| store.get().ok());
-    config.window_effects = app
-        .try_state::<crate::sidebar_material::SidebarMaterial>()
-        .and_then(|material| material.effects());
     config.theme = stored
         .as_ref()
         .and_then(|stored| stored.settings.appearance.window_theme());
@@ -516,5 +513,23 @@ mod tests {
         };
         assert_eq!(cascaded(low, &[screen]), None);
         assert_eq!(cascaded(low, &[]), None);
+    }
+
+    #[test]
+    fn the_main_window_is_configured_with_the_under_window_material() {
+        use tauri::utils::config::Config;
+        use tauri::window::{Effect, EffectState};
+        let config: Config =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("config parses");
+        let effects = config
+            .app
+            .windows
+            .into_iter()
+            .find(|w| w.label == MAIN_WINDOW)
+            .and_then(|w| w.window_effects)
+            .expect("the main window has an effect");
+        assert_eq!(effects.effects, vec![Effect::UnderWindowBackground]);
+        // Active also while the window is inactive, so it never turns grey.
+        assert_eq!(effects.state, Some(EffectState::Active));
     }
 }

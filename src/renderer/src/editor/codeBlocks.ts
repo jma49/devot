@@ -25,7 +25,7 @@ import { iconElement } from '../icons/Icon'
 import { blockUnit, codeStyle, nextLine } from './codeIndent'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
 import { barsMayShow } from './barRules'
-import { BOX_INSET, BOX_MARGIN, BOX_PAD, glass } from './boxes'
+import { BOX_INSET, BOX_MARGIN, BOX_PAD } from './boxes'
 import { buttonIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
 import { toolbarStateExtension } from './toolbarState'
@@ -532,29 +532,17 @@ const theme = EditorView.theme({
     zIndex: '-1',
     pointerEvents: 'none',
     background: 'var(--color-code-block-bg)',
-    borderInline: '1px solid var(--color-code-block-border)',
   },
   // Every line keeps the editor's rhythm, so line numbers stay evenly spaced: the box reaches past
   // its outer lines instead of padding them. Above the lines under it: the copy button reaches down over them.
   '.cm-line.cm-codeblock-first': { zIndex: '1' },
   '.cm-line.cm-codeblock-first::before': {
     top: `calc(-1 * ${BOX_MARGIN})`,
-    borderTop: '1px solid var(--color-code-block-border)',
-    borderTopLeftRadius: 'var(--radius-button)',
-    borderTopRightRadius: 'var(--radius-button)',
-  },
-  '.cm-line.cm-codeblock-last::before': {
-    bottom: `calc(-1 * ${BOX_MARGIN})`,
-    borderBottom: '1px solid var(--color-code-block-border)',
-    borderBottomLeftRadius: 'var(--radius-button)',
-    borderBottomRightRadius: 'var(--radius-button)',
-  },
-  [glass('.cm-line.cm-codeblock::before')]: { border: '0' },
-  [glass('.cm-line.cm-codeblock-first::before')]: {
     borderTopLeftRadius: 'var(--radius-list-row)',
     borderTopRightRadius: 'var(--radius-list-row)',
   },
-  [glass('.cm-line.cm-codeblock-last::before')]: {
+  '.cm-line.cm-codeblock-last::before': {
+    bottom: `calc(-1 * ${BOX_MARGIN})`,
     borderBottomLeftRadius: 'var(--radius-list-row)',
     borderBottomRightRadius: 'var(--radius-list-row)',
   },

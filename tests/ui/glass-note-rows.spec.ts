@@ -74,10 +74,3 @@ test('a row without meta leaves no hole, and rows sit 2 pt apart', async ({ page
   const lower = await rect(page.locator('.row').nth(1))
   expect(Math.round(lower.top - upper.bottom)).toBe(2)
 })
-
-test('Classic keeps its rows', async ({ page }) => {
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  await note(page, 'Plain', 'Only words here.')
-  await expect(page.locator('.row').first()).toHaveCSS('display', 'flex')
-  await expect(page.locator('.row').first()).toHaveCSS('border-bottom-width', '1px')
-})

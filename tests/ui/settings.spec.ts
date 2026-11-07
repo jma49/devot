@@ -24,8 +24,6 @@ const EVENTS = [
 ]
 
 const section = (page: Page) => page.getByRole('region', { name: 'Usage Data' })
-const byType = (page: Page) => section(page).getByRole('table', { name: 'Events by type' })
-const list = (page: Page) => section(page).getByRole('list', { name: 'Stored events' })
 
 async function open(page: Page, events: unknown[] | { error: string }) {
   await page.addInitScript((stored) => {
@@ -43,72 +41,10 @@ async function open(page: Page, events: unknown[] | { error: string }) {
     }
   }, events)
   await openSettings(page, 'Usage')
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
 }
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate((c) => window.devotIpcCalls.filter((call) => call.cmd === c), cmd)
-
-test('the settings window has a Usage Data section', async ({ page }) => {
-  await open(page, [])
-  await expect(section(page).getByRole('heading', { name: 'Usage Data' })).toBeVisible()
-  await expect(section(page)).toContainText('never includes note content, titles or names')
-  await expect(section(page)).toContainText('No usage events are stored.')
-  await expect(section(page).getByRole('button', { name: 'Clear Usage Data\u2026' })).toBeDisabled()
-  await expect(section(page).getByRole('button', { name: 'Show Events' })).toBeDisabled()
-})
-
-test('shows the stored events by type, and each one on request', async ({ page }) => {
-  await open(page, EVENTS)
-  await expect(section(page)).toContainText('4 events are stored on this Mac.')
-  await expect(page.locator('.usage-dashboard')).toHaveCount(0)
-  await expect(byType(page).getByRole('row')).toHaveText([
-    'EventCount',
-    'Search run2',
-    'Note created1',
-    'sync.finished1',
-  ])
-
-  await expect(list(page)).toBeHidden()
-  const show = section(page).getByRole('button', { name: 'Show Events' })
-  await expect(show).toHaveAttribute('aria-expanded', 'false')
-  await show.click()
-  const rows = list(page).getByRole('listitem')
-  await expect(rows).toHaveCount(4)
-  await expect(rows.nth(0)).toContainText('Search run')
-  await expect(rows.nth(0)).toContainText('scope: view, clauses: 1, results: 0')
-  await expect(rows.nth(1)).toContainText('Note created')
-  await expect(rows.nth(1)).toContainText('from: new_note')
-  await expect(rows.nth(3)).toContainText('sync.finished')
-  await expect(rows.nth(3).locator('time')).toHaveAttribute('datetime', new Date(AT).toISOString())
-
-  const hide = section(page).getByRole('button', { name: 'Hide Events' })
-  await expect(hide).toHaveAttribute('aria-expanded', 'true')
-  await hide.click()
-  await expect(list(page)).toBeHidden()
-})
-
-test('clears the stored events after asking', async ({ page }) => {
-  await open(page, EVENTS)
-  await section(page).getByRole('button', { name: 'Show Events' }).click()
-  await expect(list(page).getByRole('listitem')).toHaveCount(4)
-  const clear = section(page).getByRole('button', { name: 'Clear Usage Data\u2026' })
-  const confirm = page.getByRole('dialog', { name: 'Clear all usage data?' })
-
-  await clear.click()
-  await expect(confirm).toContainText('This cannot be undone.')
-  await confirm.getByRole('button', { name: 'Cancel' }).click()
-  await expect(confirm).toBeHidden()
-  await expect(list(page).getByRole('listitem')).toHaveCount(4)
-  expect(await calls(page, 'usage_clear')).toHaveLength(0)
-
-  await clear.click()
-  await confirm.getByRole('button', { name: 'Clear', exact: true }).click()
-  await expect(section(page)).toContainText('No usage events are stored.')
-  await expect(byType(page)).toBeHidden()
-  await expect(list(page)).toBeHidden()
-  expect(await calls(page, 'usage_clear')).toHaveLength(1)
-})
 
 test('a failed clear stays reported after the window reloads', async ({ page }) => {
   await open(page, EVENTS)
@@ -396,6 +332,8 @@ test('Connect shows what it will write and where, and writes only once confirmed
   await codex.getByRole('button', { name: 'Connect Codex' }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Connect Codex?' })
+  // Spaced like a confirm dialog outside Settings, not like the pane's captions.
+  await expect(dialog.getByText('Connect Codex?', { exact: true })).toHaveCSS('margin-top', '10px')
   await expect(dialog).toContainText('/Users/me/.codex/config.toml.devot-backup')
   await expect(dialog.locator('code')).toHaveText(CODEX_PREVIEW)
   await expect(dialog).toContainText('If Codex is running it may rewrite this file at any time')

@@ -99,7 +99,6 @@
 		784C5AC3D1F9993F5997FBCB /* pairing.rs */ = {isa = PBXFileReference; path = pairing.rs; sourceTree = "<group>"; };
 		7969DF6DDDA4ACE3F5858B9D /* recovery.rs */ = {isa = PBXFileReference; path = recovery.rs; sourceTree = "<group>"; };
 		7E0ABDD7EEFE58ECE9C9096D /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
-		8018202C297E0F87AFA00DD3 /* sidebar_material.rs */ = {isa = PBXFileReference; path = sidebar_material.rs; sourceTree = "<group>"; };
 		86C0A5EEB7F57A978B69D46B /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		877A461D206632A849E6CC80 /* strings.rs */ = {isa = PBXFileReference; path = strings.rs; sourceTree = "<group>"; };
 		8CCB3D7E286D0E08DB652D2A /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
@@ -331,7 +330,6 @@
 				19EB988D6899209724308950 /* page_setup.rs */,
 				B4F2D9C21CAB0F8ED0676AF2 /* pending.rs */,
 				67F91CD54CD993B4238D0AEC /* settings.rs */,
-				8018202C297E0F87AFA00DD3 /* sidebar_material.rs */,
 				6ACF8D0DC7F41EDA70A42FDC /* single_instance.rs */,
 				C99FBAD81A03630F646B0749 /* startup.rs */,
 				877A461D206632A849E6CC80 /* strings.rs */,
