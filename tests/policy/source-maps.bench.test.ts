@@ -18,6 +18,8 @@ import {
   releaseName,
   removeSourceMaps,
   sourceMapLeaks,
+  spikeLeaks,
+  SPIKES_MARKER,
   TEST_STORAGE_MARKER,
   testStorageLeaks,
   uploadSettings,
@@ -25,7 +27,8 @@ import {
 import { tempDir } from '../support/temp-dirs'
 
 // Release builds upload source maps and debug symbols to Sentry when configured; the app bundle never
-// carries a source map nor the UI tests' in-memory storage. Scripts run against a fake sentry-cli.
+// carries a source map nor the UI tests' in-memory storage, and a release one no spike probe.
+// Scripts run against a fake sentry-cli.
 
 const root = join(import.meta.dirname, '../..')
 // Configs written outside the repo have no node_modules to resolve a bare 'vite' from.
@@ -275,6 +278,7 @@ describe('release UI build', () => {
       expect(calls(log)).toEqual([])
       expect(allFiles(out).length).toBeGreaterThan(3)
       expect(sourceMapLeaks(out)).toEqual([])
+      expect(spikeLeaks(out)).toEqual([])
     },
     BUILD,
   )
@@ -430,6 +434,27 @@ describe("the UI tests' storage check", () => {
   it('looks for the keys the in-memory storage keeps notes under', () => {
     const memory = readFileSync(join(root, 'src/renderer/src/storage/memory.ts'), 'utf8')
     expect(memory).toContain(`'${TEST_STORAGE_MARKER}notes'`)
+  })
+
+  it('finds the spike probes in any built file, by the name spikes.ts gives them', () => {
+    const dir = join(work, 'spike-leaks')
+    tree(dir, {
+      'index.html': '<script src="assets/a.js"></script>',
+      'assets/a.js': 'const a = 1',
+      'assets/spikes-x.js': `Object.assign(window, { ${SPIKES_MARKER}: {} })`,
+    })
+    expect(spikeLeaks(dir)).toEqual(['assets/spikes-x.js'])
+    const spikes = readFileSync(join(root, 'src/renderer/src/phone/screens/spikes.ts'), 'utf8')
+    expect(spikes).toContain(`export const SPIKES_GLOBAL = '${SPIKES_MARKER}'`)
+  })
+
+  it('carries the spike probes only when Tauri builds a debug app', async () => {
+    const app = (await import('../../vite.config.ts')).default
+    expect(process.env['TAURI_ENV_DEBUG']).toBeUndefined()
+    expect(app.define).toMatchObject({ DEVOT_SPIKES: 'false' })
+    expect(readFileSync(join(root, 'vite.config.ts'), 'utf8')).toContain(
+      "DEVOT_SPIKES: JSON.stringify(process.env['TAURI_ENV_DEBUG'] === 'true')",
+    )
   })
 
   it("is on only in the UI tests' Vite config", async () => {

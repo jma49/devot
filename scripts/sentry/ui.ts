@@ -5,7 +5,7 @@
 // builds none. The build fails if
 // dist/ holds a source map or a comment pointing to one, or (before uploading) the UI tests'
 // in-memory storage (vite.ui-test.config.ts), so the app never keeps notes where backups and
-// an outside writer cannot see them.
+// an outside writer cannot see them, or, unless Tauri builds a debug app, the spike probes.
 //
 // Options: --out-dir <dir> (default dist/), --env-dir <dir> (where .env files
 // are read, default the repository root), --config <file> (the Vite config,
@@ -22,6 +22,7 @@ import {
   removeSourceMaps,
   sentryCli,
   sourceMapLeaks,
+  spikeLeaks,
   STAGE_AND_UPLOAD,
   stageDir,
   testStorageLeaks,
@@ -76,6 +77,7 @@ if (stage && settings) fail(STAGE_AND_UPLOAD)
 
 let uploaded = true
 let testStorage: string[] = []
+let spikes: string[] = []
 try {
   await build({
     configFile,
@@ -83,7 +85,9 @@ try {
   })
   // A bundle with the UI tests' storage never ships, so it uploads nothing.
   testStorage = testStorageLeaks(outDir)
-  if (testStorage.length === 0) {
+  // Only a debug app's page carries the spike probes (DEVOT_SPIKES in vite.config.ts).
+  if (env['TAURI_ENV_DEBUG'] !== 'true') spikes = spikeLeaks(outDir)
+  if (testStorage.length === 0 && spikes.length === 0) {
     if (settings) uploaded = upload(settings)
     else if (stage) uploaded = stageMaps(stage)
     else
@@ -98,6 +102,7 @@ try {
 if (testStorage.length > 0) {
   fail(`E_TEST_STORAGE_IN_RELEASE: the UI tests' storage is in ${testStorage.join(' ')}`)
 }
+if (spikes.length > 0) fail(`E_SPIKES_IN_RELEASE: the spike probes are in ${spikes.join(' ')}`)
 if (!uploaded) fail('E_SOURCEMAP_UPLOAD_FAILED: sentry-cli failed; the maps are deleted')
 if (stage) console.log(`I_SOURCEMAPS_STAGED: in ${stage}, and deleted from the build`)
 const leaks = sourceMapLeaks(outDir)

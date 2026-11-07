@@ -65,6 +65,7 @@ In stage 0 the root is empty and transparent and passes every touch through, so 
 
 - Swift never talks to the page directly: there is no `WKScriptMessageHandler`.
   Every way into the page is a declared command in the `SCREENS` area of `src-tauri/build_commands.rs`, granted in `src-tauri/capabilities/phone.json` and validated in Rust.
+  The debug-only spike harness is the one exception (Spikes).
 - The package exports two C functions, `devot_screens_install(webView, root, call, log)` and `devot_screens_deliver(json, len)`.
   Rust hands Swift its own `call` and `log` functions at install, so Rust exports no symbol and Swift needs no header.
 - `build.rs` lists the package's C symbols beside the store's, so Cargo's iOS library, which holds no Swift, still links.
@@ -264,16 +265,55 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 
 These are measured on a device in stage 0, before the stages that depend on them start; each result is written here.
 
+### The harness
+
+- A debug build carries a spike harness, `Sources/DevotScreens/Debug/` in the package and `src/renderer/src/phone/screens/spikes.ts` in the page; a release build carries neither.
+- The launch argument `-DevotSpike S1|S2|S3|S4|barTint` starts one spike once the screens are installed and the page answers a ping; without it the harness does nothing.
+- The harness drives the page's probes through `WKWebView.callAsyncJavaScript` on `window.__devotSpikes`, the one exception to Swift never talking to the page directly, and it exists in debug builds only.
+- Each run writes `Documents/spikes/<spike>.json` in the app's container, shaped `{ spike, device, os, build, startedAt, results, pass, notes }`.
+- `device` is the model identifier, never the phone's name, and `pass` is `null` when the result is read off a screenshot.
+- A run that cannot finish writes `pass: false` with its error code as the only note, such as `E_SPIKE_PAGE_TIMEOUT` when the page never answers within 60 s.
+- Each run logs `I_SPIKE_START spike=<spike>` and `I_SPIKE_DONE spike=<spike> pass=<pass>` through `os_log`, subsystem `io.github.jma49.devot`, category `spikes`.
+- To run one, install a debug build on a connected iPhone and run `scripts/ios/run-spike.sh <spike> [device]`.
+- The script builds, signs and installs nothing and needs no secret: it launches the app with `xcrun devicectl`, waits for a report newer than its launch, copies it back with `xcrun devicectl device copy from` and prints it.
+- CI builds the package in Debug and Release and fails with `E_SPIKES_IN_RELEASE` when a Release symbol names a spike (`scripts/ci/devot-screens-release-check.sh`).
+- The page's probes load only when `DEVOT_SPIKES` is true, which Vite sets for a Tauri debug build, and `scripts/sentry/ui.ts` fails a release build whose bundle holds `__devotSpikes`.
+
+### Each spike
+
 - **S1, reparenting.** The web view moves to a native screen and back 200 times during a sync, `visibilityState` stays `visible`, the core worker answers a ping every 100 ms, and Tauri never resizes the moved view.
+  The harness moves the web view between the root and a pushed screen with `addSubview` alone and checks its size after each move and again 50 ms later.
+  The page counts `visibilitychange` to hidden, viewport resizes, unanswered or late pings, and the sync states it saw, and it touches sync while the moves run.
+  Pass: no size change, no hidden page, no missed ping and no resize.
+  A run in which sync never reached `syncing` says so in its notes, so turn sync on and write on another device while it runs.
+  Run: `scripts/ios/run-spike.sh S1`.
   Result: not measured yet.
 - **S2, the keyboard after a native tap.** On iOS 26 and 27, a hidden native text field made first responder in `viewDidAppear` hands focus to the page; a public path is preferred.
   Otherwise the numbers choose between a guarded private focus path with a fallback, and a caret with no keyboard until the first tap.
+  The harness tries three paths on a pushed screen: the field holds the keyboard and the page focuses its editor, the same followed by making the web view first responder, and the page focusing its editor with no keyboard up.
+  Each try records whether the keyboard came up and stayed up, which view is first responder, and whether the page's editor has focus and shows a caret.
+  Pass: either hand-off keeps the keyboard up with the web view first responder and the caret in the editor.
+  The guarded private focus path is not built; it is built and measured only if no public path passes.
+  Run: `scripts/ios/run-spike.sh S2`.
   Result: not measured yet.
 - **S3, the bridge.** 1000 no-operation round trips stay within p50 4 ms and p95 10 ms, and 60 excerpt calls while a list scrolls at 120 Hz drop no frames.
+  The round trips go Swift to Rust to the page and back, the way every real request goes, and are timed in Swift.
+  The 60 excerpt calls of 20 notes each go 50 ms apart while the page scrolls a 3000-row list, and the page counts frames longer than 1.5 times the screen's frame budget.
+  Until the page handles excerpts it refuses them with `E_SCREENS_OP_UNSUPPORTED`, so the calls time the bridge and not the core, and the report says so.
+  Pass: no failed round trip, p50 at most 4 ms, p95 at most 10 ms, and no frame over budget.
+  Instruments' Hitches on the device is the authority on dropped frames, and it is read by hand during the run.
+  Run: `scripts/ios/run-spike.sh S3`.
   Result: not measured yet.
 - **S4, the page as its own scroller.** CodeMirror with an auto-height editor and a visible scroller lets the web view's own scroll view scroll the note; layout, selection handles, the bar's scroll-edge effect and interactive keyboard dismissal hold on iOS 26.
   If it holds, the page scrolls itself; otherwise CodeMirror's own scroller stays.
+  The harness shows a long made-up note in a navigation controller with a toolbar, sets the web view's scroll view as the bar's content scroll view with interactive keyboard dismissal, and scrolls it to the middle and to the end.
+  Pass: the scroll view scrolls, its content height matches the page's height within 2 points, the page's scroll position matches the offset at the middle, and the page has drawn lines at both stops.
+  The screen stays up, and selection handles and the scroll-edge effect are read off a screenshot taken by hand.
+  Run: `scripts/ios/run-spike.sh S4`.
   Result: not measured yet.
 - **Bar tint.** A background colour on the navigation bar, toolbar and tab bar appearances draws behind iOS 26's floating bars, as Glass Transparency below 0 needs.
   If the floating tab bar ignores it, the tint reaches the navigation bars and the toolbar only.
+  The harness shows a tab bar around a navigation controller with large titles, a toolbar and a long list, with `phoneActionTrash` at half opacity on all three appearances.
+  The screen stays up, and which bars draw the tint is read off a screenshot taken by hand, so the report's `pass` is `null`.
+  Run: `scripts/ios/run-spike.sh barTint`.
   Result: not measured yet.
