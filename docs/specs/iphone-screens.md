@@ -292,9 +292,9 @@ Glass is the system's, on the navigation layer only; content is never glass.
 
 Every pane is a SwiftUI form in a hosting controller pushed on the Settings tab's own navigation controller, so push, pop and the edge swipe are UIKit's.
 The root's rows are buttons that push through `SettingsRouter`, never SwiftUI navigation links, since no SwiftUI navigation container holds them.
-Appearance and Sync are still the page's panes: their rows push a `WebPaneScreen`, which asks the page for the pane with `settings.showPane` each time it shows and takes the web view under the native bar once the page answers, so the push never shows what the page drew before.
+Appearance is still the page's pane: its row pushes a `WebPaneScreen`, which asks the page for the pane with `settings.showPane` each time it shows and takes the web view under the native bar once the page answers, so the push never shows what the page drew before.
 The web view keeps its size there; its safe area takes in the bar, so the page's top inset clears it.
-The page keeps a pane it still shows when asked again, so a tab switch loses nothing typed in it and leaves a pairing running; once the `WebPaneScreen` leaves the stack, Swift sends `tabs.popToRoot { tab: "settings" }` and the page lets the pane go, as its own Back did.
+The page keeps a pane it still shows when asked again, so a tab switch loses nothing typed in it; once the `WebPaneScreen` leaves the stack, Swift sends `tabs.popToRoot { tab: "settings" }` and the page lets the pane go, as its own Back did.
 Rows have a label, at most one short description and one trailing edge (a value with a chevron, a switch, or nothing), with no info buttons.
 A choice of three or fewer sits inline as checkmark rows, and a longer one pushes a checkmark page.
 Every choice applies in the next frame with no transition, before it is saved.
@@ -328,15 +328,27 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 - App Font is not on the phone.
 - The panes read their snapshots (editor settings, crash reports, licence, AI, sync) through Rust-direct operations each time the root shows, and Default Notebook's choices from the page with `settings.notebooks`, so a pushed page never waits for a first read.
 - A change applies to the snapshot first and then goes to Rust; Rust's newer snapshot replaces it, an older one never does, and a refused write puts the old value back, raises the `appearanceSettings.failed` alert and logs `W_PHONE_SETTINGS_SAVE_FAILED key=… code=…`.
-- Pair a Device pushes Sync with the `pairing` anchor: the page opens the pane afresh and scrolls to its pairing card (or, before this device is in a vault, its setup rows) once drawn, unless the owner touches the pane first; the anchor goes with the push only, so coming back to the tab leaves the pane where it was.
+- Sync is native, with the page's phone layout group for group: on or off with the relay and its hint, the status and its iCloud actions, the state notes, iCloud storage or the relay's usage, Move to iCloud, the recovery key until it is saved, setup or Devices (with a You badge on this device), pairing and leaving.
+  `SyncLayout` derives the groups from the snapshot and the pane's own state, and `tests/fixtures/sync-pane.json` holds the groups for a set of snapshots, which the page's phone layout and `SyncLayoutTests` both match.
+  Its actions are the `direct.sync.*` operations, and a failure says the page's sentence and why (`syncWhy.ts`), and logs `W_SYNC_SETTINGS_FAILED op=… code=…`.
+  Confirmations are system alerts; the QR code is drawn from Rust's modules with four quiet modules round it.
+  The recovery key's Copy puts it on this device's pasteboard only, gone after 90 seconds, since the page's secret clipboard command works on the Mac alone.
+- Pair a Device pushes Sync with the `pairing` anchor, and the pane lands on its pairing group (or, before this device is in a vault, its setup rows) without a scroll animation once its snapshot is drawn; coming back to the tab leaves it where it was.
+- A pairing on show keeps running across a tab switch and ends, cancelled in Rust, when the Sync page leaves the stack.
+  It checks every 2 seconds on a relay and every 10 on iCloud, and at once on `sync.pairing`; a relay out of reach keeps it waiting, and any other failure ends it.
 - `SettingsRouter.open` sets the stack to the root and the page in one `setViewControllers`, so Back lands on the root; it animates only while the app is in front.
 - Enter License Key in the page's Pro sheet sends the `settings.open { pane: "licence", focusKey }` notice, and Swift opens License over the root with its key field focused once the push lands.
 
-| Message                               | From  | Meaning                                                                                                             |
-| ------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
-| `settings.showPane { pane, anchor? }` | Swift | the page shows `appearance` or `sync` in the web view, without its own bar; `anchor` is only `pairing`, with `sync` |
-| `settings.notebooks`                  | Swift | the page answers the notebooks, each with `id`, `name` and `depth`, in order                                        |
-| `settings.open { pane, focusKey }`    | page  | the page asks Swift to open License, its key field focused or not                                                   |
+| Message                            | From  | Meaning                                                                      |
+| ---------------------------------- | ----- | ---------------------------------------------------------------------------- |
+| `settings.showPane { pane }`       | Swift | the page shows `appearance` in the web view, without its own bar             |
+| `settings.notebooks`               | Swift | the page answers the notebooks, each with `id`, `name` and `depth`, in order |
+| `settings.open { pane, focusKey }` | page  | the page asks Swift to open License, its key field focused or not            |
+| `sync.changed`                     | Rust  | after `devot://sync-changed`: Swift reads `direct.sync.get` again            |
+| `sync.pairing`                     | Rust  | after `devot://sync-pairing`: the Sync pane checks a pairing on show at once |
+
+- Rust sends `sync.changed` and `sync.pairing` itself, from the sync service's emitter, and only while the native screens are installed; the page sending either is refused with `E_SCREENS_NOTICE_UNKNOWN`.
+- Swift keeps one `direct.sync.get` in flight, and a change heard during it reads once more after it; it reads `direct.sync.icloudStatus` again when the vault, transport, on or off, status code or iCloud join state changes.
 
 - Settings search runs `settings/search.ts`'s matching in Swift over `Generated/SettingsIndex.swift`, which `pnpm i18n:apple` writes from the same entries; `tests/fixtures/settings-search.json` holds what the page finds for a set of queries, and both suites check it.
 - A purchase on the License page goes through StoreKit only, never a link outside it (ADR 0014).

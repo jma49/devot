@@ -83,7 +83,8 @@ With the native screens installed Settings is the system's (`docs/specs/iphone-s
 The root is the same groups in an inset grouped list on `color.phone.background`, its cards on `color.phone.card`, labels 16/23 and descriptions, values and footers 14/19, both scaled with Dynamic Type.
 The app row has a bird symbol on an `color.accent.fill` tile in the dove's place, as SF Symbols has no dove.
 Search results come in one section per pane, at most twelve, and No matching settings is the system's empty view.
-General, Editing, Preview, AI and License are native pages; Appearance and Sync are the page's panes under the native bar, until they are built natively.
+General, Editing, Preview, Sync, AI and License are native pages; Appearance is the page's pane under the native bar, until it is built natively.
+Native Sync keeps the page's phone layout below, its buttons as full-width action rows, the "You" badge on `color.phone.lens`, and the QR code on `color.qr-ground` with `color.qr-module`.
 Each Editing choice (Line Wrapping, Cursor Scroll Margin, List Marker, Indent, Tab Width, Paste URL, Font Weight, Line Height) is a value row that opens its own page of checkmark rows with the setting's hint as its footer, in place of the page's selects and steppers.
 Cursor Scroll Margin offers 0, 20, 40, 60, 80, 100, 150 and 200; a stored value outside those shows in its place among them.
 The rows have no information buttons: a label and at most one short description.

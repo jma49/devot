@@ -192,7 +192,10 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A setting changes before it is saved; a refused save puts the old value back at once and raises the system's alert (rule 2).
   An action row's value changes in place (rule 2), as on the web shell's Restore Purchases and Request a Refund rows.
   The Trial, Mac licence key and purchase sheets are one content-sized system sheet with its grabber, rising and following a drag with the system's motion (rule 3); when their content grows the sheet's height follows in one system animation, and content taller than the sheet scrolls inside it.
-  A pane the page still draws (Appearance, Sync) shows the screen's background during the push until the page has the pane, then the pane at once (rule 2); Pair a Device lands on Sync's pairing without a scroll animation.
+  A pane the page still draws (Appearance) shows the screen's background during the push until the page has the pane, then the pane at once (rule 2).
+  Sync's rows change at once as its snapshot changes, with no motion of their own (rule 2), and Pair a Device lands on its pairing group without a scroll animation.
+  Showing a pairing swaps the row for its QR code, code, progress and countdown at once (rule 2); the countdown ticks each second with monospaced digits, and the progress line changes in place.
+  Leave, Remove, Move to iCloud, Upload Again and Move to This Account ask first in the system's alert, with Leave and Remove in the destructive style; Leave iCloud's Vault swaps its row for the recovery key field at once instead, as on the page.
   Removing a licence asks first in the system's alert, with Remove in the destructive style.
   Under Reduce Motion the system crossfades its pushes and sheets.
 - **Note mode toggle:** rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. Edit and Preview crossfade over `motion.duration.ring`, the new one rising 8 pt with `gentle`. Under Reduce Motion both only fade, over `motion.duration.phone-crossfade`.
