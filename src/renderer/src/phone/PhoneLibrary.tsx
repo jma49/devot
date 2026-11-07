@@ -6,6 +6,7 @@ import { noteDate } from '../format'
 import { currentLocale, format, t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { libraryOf, type PhoneStatusFilter, type PhoneView } from './library'
+import type { CapsuleNewNote } from './newNote'
 import { SectionHead } from './PhoneNoteList'
 import type { PhoneData } from './usePhoneData'
 
@@ -90,6 +91,7 @@ export function PhoneLibrary(props: {
   onNewNotebook: () => void
   onSearch: () => void
   onSavedSearch: (query: string) => void
+  newNote?: CapsuleNewNote
 }) {
   const { data } = props
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
@@ -260,6 +262,16 @@ export function PhoneLibrary(props: {
           >
             <Icon name="search" size="lg" />
           </button>
+          {props.newNote && (
+            <button
+              type="button"
+              className="phone-capsule-button"
+              aria-label={props.newNote.label}
+              onClick={props.newNote.onPress}
+            >
+              <Icon name="note.new" size="lg" />
+            </button>
+          )}
         </div>
       </header>
     </section>

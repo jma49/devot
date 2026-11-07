@@ -9,6 +9,7 @@ import type { IconName } from '../icons/symbols'
 import { watchDragEnd, type DragEnd } from './dragEnd'
 import { haptic } from './haptics'
 import type { PhoneStatusFilter, PhoneView } from './library'
+import type { CapsuleNewNote } from './newNote'
 import {
   filterCounts,
   inView,
@@ -528,6 +529,7 @@ export function PhoneNoteList(props: {
   onSearch: () => void
   onTrash: (note: NoteSummary) => void
   onComplete: (note: NoteSummary) => void
+  newNote?: CapsuleNewNote
 }) {
   const { data } = props
   const [status, setStatus] = useState(props.status)
@@ -700,6 +702,16 @@ export function PhoneNoteList(props: {
           >
             <Icon name="search" size="lg" />
           </button>
+          {props.newNote && (
+            <button
+              type="button"
+              className="phone-capsule-button"
+              aria-label={props.newNote.label}
+              onClick={props.newNote.onPress}
+            >
+              <Icon name="note.new" size="lg" />
+            </button>
+          )}
         </div>
       </header>
       {filtering && (

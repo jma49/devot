@@ -12,6 +12,12 @@ export interface ShownList {
 
 export type NewNoteKind = 'note' | 'template'
 
+/** New Note as a button in a list's top-bar capsule. */
+export interface CapsuleNewNote {
+  readonly label: string
+  readonly onPress: () => void
+}
+
 /** What New Note makes from the screen on top, or null where it is not offered. */
 export function newNoteOffered(
   tab: PhoneTab,

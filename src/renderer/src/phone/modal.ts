@@ -10,6 +10,7 @@ const canBeInert = (node: object): node is ModalNode => 'inert' in node
 
 const layers: ModalNode[] = []
 const madeInert = new Set<ModalNode>()
+const watchers = new Set<() => void>()
 
 // Only the top layer and its ancestors stay live; a sheet under it is a sibling, so it is inert too.
 function sync(): void {
@@ -32,12 +33,22 @@ function sync(): void {
 export function holdModal(layer: ModalNode): () => void {
   layers.push(layer)
   sync()
+  if (layers.length === 1) for (const watcher of watchers) watcher()
   return () => {
     const at = layers.lastIndexOf(layer)
     if (at === -1) return
     layers.splice(at, 1)
     sync()
+    if (layers.length === 0) for (const watcher of watchers) watcher()
   }
+}
+
+export const modalOpen = (): boolean => layers.length > 0
+
+/** Calls `watcher` when the first layer is held and when the last is released. */
+export function watchModals(watcher: () => void): () => void {
+  watchers.add(watcher)
+  return () => void watchers.delete(watcher)
 }
 
 export const isTopModal = (layer: ModalNode): boolean => layers.at(-1) === layer

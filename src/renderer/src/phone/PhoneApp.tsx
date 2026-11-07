@@ -4,6 +4,7 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
   type PointerEvent,
   type ReactNode,
 } from 'react'
@@ -50,7 +51,10 @@ import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
 import { haptic } from './haptics'
 import { startLicence, useLicence } from '../licence'
-import { startScreensBridge } from './screens/bridge'
+import { startScreensBridge, type ScreensBridge } from './screens/bridge'
+import { SCREENS_HANDLERS } from './screens/ops'
+import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
+import { modalOpen, watchModals } from './modal'
 import { currentWindowLabel } from '../focus'
 import { useSyncEngine } from '../sync'
 import { licenceRow, welcomeDue } from './settingsRows'
@@ -254,6 +258,21 @@ const without = (ids: ReadonlySet<string>, id: string): ReadonlySet<string> => {
   return next
 }
 
+/** The notes a screen lists: the Notes root (a smart tile's view and status) or a pushed list. */
+const listOf = (tab: PhoneTab, route: PhoneRoute, notes: ShownList): ShownList | null =>
+  route.screen === 'list'
+    ? { view: route.view ?? { kind: 'all' }, status: 'all' }
+    : tab === 'notes' && route.screen === 'root'
+      ? notes
+      : null
+
+/** Where focus and a pending intent go when the page leaves a tab. */
+const leaveTab = () => {
+  dropIntent()
+  // A hidden tab keeps its focus, so a field that saves when it is left would never save.
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+}
+
 const takeProxyText = (proxy: HTMLTextAreaElement): EarlyKey[] => {
   const text = proxy.value
   proxy.value = ''
@@ -292,12 +311,34 @@ export function PhoneApp() {
   const composing = useRef(false)
   const committedLater = useRef<(() => void) | null>(null)
   const latest = useRef(state)
+  const nativeTabs = useRef<NativeTabs | null>(null)
+  const bridge = useRef<ScreensBridge | null>(null)
+  // Null until the bridge says whether the native tab bar is there; the page draws its own without it.
+  const [native, setNative] = useState<boolean | null>(null)
+  const covered = useSyncExternalStore(watchModals, modalOpen)
   useLayoutEffect(() => {
     latest.current = state
   })
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
   useEffect(() => startLicence(), [])
-  useEffect(() => startScreensBridge().stop, [])
+  useEffect(() => {
+    const started = startScreensBridge({
+      ...SCREENS_HANDLERS,
+      ...tabHandlers({
+        show: (tab) => nativeTabs.current?.show(tab),
+        popToRoot: (tab) => nativeTabs.current?.popToRoot(tab),
+      }),
+    })
+    bridge.current = started
+    let live = true
+    void started.installed.then((installed) => {
+      if (live) setNative(installed)
+    })
+    return () => {
+      live = false
+      started.stop()
+    }
+  }, [])
   useEffect(() => {
     if (welcomed.current || !welcomeDue(licence, Date.now())) return
     welcomed.current = true
@@ -314,13 +355,10 @@ export function PhoneApp() {
   const depth = stack.length - 1
   const top = stack[depth]!
   const rootX = depth === 0 ? '0vw' : layerPlacement(0, depth, drag, width).x
-  const shownList: ShownList | null =
-    top.screen === 'list'
-      ? { view: top.view ?? { kind: 'all' }, status: 'all' }
-      : state.tab === 'notes' && top.screen === 'root'
-        ? state.notes
-        : null
+  const shownList = listOf(state.tab, top, state.notes)
   const offered = !searching && drag === 0 ? newNoteOffered(state.tab, top, shownList) : null
+  const attention = licenceRow(licence, now).needsAttention
+  const { barHidden } = tabsState(state, searching || covered, attention)
 
   const releaseKeyboard = () => {
     earlyKeys.current?.fail()
@@ -433,6 +471,37 @@ export function PhoneApp() {
     if (note) note.touched = true
   }
 
+  useLayoutEffect(() => {
+    nativeTabs.current = {
+      show: (tab) => {
+        if (tab === latest.current.tab) return
+        leaveTab()
+        go({ type: 'selectTab', tab })
+      },
+      popToRoot: (tab) => {
+        if (tab === latest.current.tab) go({ type: 'selectTab', tab })
+      },
+    }
+  })
+  useEffect(() => {
+    if (native)
+      bridge.current?.notify({ notice: 'tabs.state', tab: state.tab, barHidden, attention })
+  }, [native, state.tab, barHidden, attention])
+
+  /** New Note in a list's capsule, where the native tab bar has taken the circle's corner. */
+  const capsuleNewNote = (tab: PhoneTab, route: PhoneRoute) => {
+    if (!native) return {}
+    const list = listOf(tab, route, state.notes)
+    const kind = newNoteOffered(tab, route, list)
+    if (!kind) return {}
+    return {
+      newNote: {
+        label: t(kind === 'template' ? 'templates.new' : 'noteList.newNote'),
+        onPress: () => newNote(kind, list),
+      },
+    }
+  }
+
   const pop = () => go({ type: 'pop' })
   const openSearch = (query?: string) => {
     setSearchQuery(query)
@@ -467,6 +536,7 @@ export function PhoneApp() {
       return (
         <PhoneLibrary
           data={store}
+          {...capsuleNewNote(tab, route)}
           onShowNotes={(view, status) => go({ type: 'showNotes', view, status })}
           onOpenList={(view) => go({ type: 'push', screen: 'list', view })}
           onSearch={() => openSearch()}
@@ -498,6 +568,7 @@ export function PhoneApp() {
     return (
       <PhoneNoteList
         data={store}
+        {...capsuleNewNote(tab, route)}
         view={view}
         status={route.screen === 'root' ? state.notes.status : 'all'}
         title={viewTitle(view, store)}
@@ -539,35 +610,37 @@ export function PhoneApp() {
           render={(route) => render(tab, route)}
         />
       ))}
-      <PhoneTabBar
-        tab={state.tab}
-        x={rootX}
-        covered={depth > 0 || searching}
-        dragging={dragging}
-        needsAttention={licenceRow(licence, now).needsAttention}
-        onSelect={(tab) => {
-          if (tab !== state.tab) {
-            dropIntent()
-            haptic('selection')
-            // A hidden tab keeps its focus, so a field that saves when it is left would never save.
-            if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-          }
-          go({ type: 'selectTab', tab })
-        }}
-      />
-      <button
-        type="button"
-        className="phone-glass phone-compose"
-        data-hidden={offered === null || undefined}
-        inert={offered === null}
-        aria-hidden={offered === null || undefined}
-        aria-label={t(offered === 'template' ? 'templates.new' : 'noteList.newNote')}
-        onClick={() => {
-          if (offered) newNote(offered, shownList)
-        }}
-      >
-        <Icon name="note.new" size="phone-compose" />
-      </button>
+      {native === false && (
+        <>
+          <PhoneTabBar
+            tab={state.tab}
+            x={rootX}
+            covered={depth > 0 || searching}
+            dragging={dragging}
+            needsAttention={attention}
+            onSelect={(tab) => {
+              if (tab !== state.tab) {
+                leaveTab()
+                haptic('selection')
+              }
+              go({ type: 'selectTab', tab })
+            }}
+          />
+          <button
+            type="button"
+            className="phone-glass phone-compose"
+            data-hidden={offered === null || undefined}
+            inert={offered === null}
+            aria-hidden={offered === null || undefined}
+            aria-label={t(offered === 'template' ? 'templates.new' : 'noteList.newNote')}
+            onClick={() => {
+              if (offered) newNote(offered, shownList)
+            }}
+          >
+            <Icon name="note.new" size="phone-compose" />
+          </button>
+        </>
+      )}
       <textarea
         ref={keyboardProxy}
         className="phone-keyboard-proxy"
