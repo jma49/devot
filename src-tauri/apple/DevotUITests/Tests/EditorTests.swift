@@ -110,6 +110,18 @@ final class EditorTests: XCTestCase {
         [node] + node.children.flatMap(flattened)
     }
 
+    /// The elements from `node` down to the first one `match` accepts.
+    private func path(
+        in node: XCUIElementSnapshot, to match: (XCUIElementSnapshot) -> Bool
+    ) -> [XCUIElementSnapshot] {
+        if match(node) { return [node] }
+        for child in node.children {
+            let rest = path(in: child, to: match)
+            if !rest.isEmpty { return [node] + rest }
+        }
+        return []
+    }
+
     func testTheExampleDrawsEveryDiagramAndFormula() throws {
         openExample()
 
@@ -118,26 +130,30 @@ final class EditorTests: XCTestCase {
         let math = page.staticTexts[sentence]
         let reached = scrollUntil { math.exists && math.isHittable }
         // WebKit hands each drawn <math> to accessibility as one element without a label (VoiceOver
-        // reads it through the math API), so a formula is a bare leaf where the TeX would be text.
-        let nodes = flattened(try page.snapshot())
-        let text = nodes.first { $0.elementType == .staticText && $0.label == sentence }?.frame ?? .null
-        let next = nodes.first { $0.elementType == .staticText && $0.label == "Diagrams" }?.frame ?? .null
-        let formulas = nodes.filter {
-            $0.elementType == .other && $0.label.isEmpty && $0.children.isEmpty && !$0.frame.isEmpty
-                && $0.frame.minY >= text.minY && $0.frame.maxY <= next.minY
+        // reads it through the math API), so a formula is a bare leaf where TeX would be text.
+        func isFormula(_ node: XCUIElementSnapshot) -> Bool {
+            node.elementType == .other && node.label.isEmpty && node.children.isEmpty && !node.frame.isEmpty
         }
-        let inline = formulas.filter {
-            $0.frame.minX >= text.maxX - 1 && abs($0.frame.midY - text.midY) < text.height
-        }
-        let display = formulas.filter { $0.frame.minY >= text.maxY && $0.frame.width > text.width }
+        let tree = try page.snapshot()
+        let found = path(in: tree) { $0.elementType == .staticText && $0.label == sentence }
+        let paragraph = found.count >= 3 ? found[found.count - 2] : nil
+        let body = found.count >= 3 ? found[found.count - 3].children : []
+        let inline = paragraph?.children.filter(isFormula) ?? []
+        // The note's blocks between the sentence's paragraph and the Diagrams heading.
+        let after = body.firstIndex { $0 as AnyObject === paragraph as AnyObject }
+            .map { $0 + 1 } ?? body.endIndex
+        let display = Array(body[after...].prefix { $0.label != "Diagrams" })
+        let nodes = flattened(tree)
         func shown(_ text: String) -> Int {
             nodes.filter { $0.label.contains(text) }.count
         }
         let tex = shown("\\int") + shown("mc^2") + shown("$E")
-        if !reached || inline.count != 1 || display.count != 1 || tex > 0 { keepTree(from: sentence) }
+        let drawn = inline.count == 1 && display.count == 1 && display.allSatisfy(isFormula)
+        if !reached || !drawn || tex > 0 { keepTree(from: sentence) }
         XCTAssertTrue(reached, "the Math section is on screen")
         XCTAssertEqual(inline.count, 1, "the inline formula is drawn in its sentence")
-        XCTAssertEqual(display.count, 1, "the display formula is drawn on its own line")
+        XCTAssertEqual(display.count, 1, "one block between the sentence and the Diagrams heading")
+        XCTAssertTrue(display.allSatisfy(isFormula), "the display formula is drawn on its own line")
         XCTAssertEqual(shown("\\int"), 0, "no display formula left as TeX")
         XCTAssertEqual(shown("mc^2"), 0, "no inline formula left as TeX")
         XCTAssertEqual(shown("$E"), 0, "no inline formula left between dollar signs")
