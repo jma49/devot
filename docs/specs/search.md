@@ -3,7 +3,7 @@
 Part of the [architecture overview](../architecture.md).
 
 Search covers live notes (never the Trash) through the FTS5 trigram index (`src/core/search.ts`, `notes_search`).
-A search first re-indexes the notes saved since they were indexed, so it finds what they hold now (see [Data model](data-model.md), FTS5).
+A search for a word of three characters or more first re-indexes the notes saved since they were indexed, so it finds what they hold now (see [Data model](data-model.md), FTS5).
 
 - **Syntax:** words and `"quoted phrases"` must all appear in the title or body (case-insensitive substrings).
   Qualifiers narrow the search: `title:` and `body:` (text in that part only), `book:` or `in:` (the notebook and its sub-notebooks, like selecting it in the sidebar), `tag:`, `#name` (the tag when one has that name, found when the query is resolved, otherwise the text `#name`, so `#include` still finds code; `#"two words"` for a name with spaces, and a quoted `"#name"` is always text), `status:` or `is:` (an ID such as `on_hold` or a name such as `"On Hold"`, in any case, with spaces, hyphens or underscores), `bookId:` and `tagId:` (the same by ID, a UUID; `bookId:` also includes sub-notebooks) and `pinned:` (`true`, `yes` or `1`; `false`, `no` or `0`; any case).

@@ -10,6 +10,7 @@ import { tempDir } from '../support/temp-dirs'
 const NOTE_BYTES = 1_000_000
 const SAVES = 6
 const BUDGET_MS = 30
+const SEARCH_BUDGET_MS = 150
 
 let storage: SqliteAdapter
 let version = 0
@@ -43,6 +44,12 @@ function record(title: string, bodyMd: string): NoteRecord {
   }
 }
 
+const query = (value: string) => ({
+  text: [{ field: 'any' as const, value, negate: false }],
+  sets: [],
+  pinned: null,
+})
+
 async function save(title: string, bodyMd: string) {
   const started = performance.now()
   await storage.putNote(record(title, bodyMd))
@@ -53,10 +60,7 @@ async function save(title: string, bodyMd: string) {
 beforeAll(async () => {
   storage = openSqliteAdapter(join(tempDir('devot-bench-'), 'devot.sqlite'))
   await save('Big', body(0))
-  await storage.searchNotes(
-    { text: [{ field: 'any', value: 'relay', negate: false }], sets: [], pinned: null },
-    1,
-  )
+  await storage.searchNotes(query('relay'), 1)
 })
 
 afterAll(() => storage.close())
@@ -67,9 +71,21 @@ it('saves a 1 MB note without re-indexing it', async (context) => {
   for (const [i, text] of bodies.entries()) times.push(await save(i % 2 ? `Big ${i}` : 'Big', text))
   times.sort((a, b) => a - b)
   expectWithinBudget(context, times[Math.floor(SAVES / 2)]!, BUDGET_MS)
-  const found = await storage.searchNotes(
-    { text: [{ field: 'any', value: `Edit ${SAVES}`, negate: false }], sets: [], pinned: null },
-    1,
-  )
+  const found = await storage.searchNotes(query(`Edit ${SAVES}`), 1)
   expect(found.map((n) => n.id)).toEqual(['big'])
+})
+
+// The first search after such a save pays for the re-index the save skipped.
+it('re-indexes a 1 MB note in the first search after its save', async (context) => {
+  const times: number[] = []
+  for (let i = 0; i < SAVES; i += 1) {
+    const edit = SAVES + 1 + i
+    await save('Big', body(edit))
+    const started = performance.now()
+    const found = await storage.searchNotes(query(`Edit ${edit}`), 1)
+    times.push(performance.now() - started)
+    expect(found.map((n) => n.id)).toEqual(['big'])
+  }
+  times.sort((a, b) => a - b)
+  expectWithinBudget(context, times[Math.floor(SAVES / 2)]!, SEARCH_BUDGET_MS)
 })

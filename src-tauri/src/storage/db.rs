@@ -52,6 +52,7 @@ fn serve(store: &mut Store, inbox: &mpsc::Receiver<Job>, quiet: Duration) {
     };
     // A run before this one may have left notes stale.
     catch_up.wrote(Instant::now());
+    let mut seen = store.data_version().ok();
     loop {
         let job = match catch_up.due {
             Some(due) => match inbox.recv_timeout(due.saturating_duration_since(Instant::now())) {
@@ -73,7 +74,11 @@ fn serve(store: &mut Store, inbox: &mpsc::Receiver<Job>, quiet: Duration) {
         if catch_unwind(AssertUnwindSafe(|| job(store))).is_err() {
             log::error!("E_DB_JOB_PANIC");
         }
-        if store.conn.total_changes() != changes {
+        // Another process's commits move only data_version, which the outside-change watch reads
+        // through a job every second.
+        let outside = store.data_version().ok();
+        if store.conn.total_changes() != changes || outside != seen {
+            seen = outside;
             catch_up.wrote(Instant::now());
         }
     }
@@ -408,6 +413,37 @@ mod tests {
             assert!(
                 waited.elapsed() < Duration::from_secs(10),
                 "the index never caught up"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn the_database_thread_catches_up_after_a_write_from_another_process() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let db = Db::spawn_quiet_after(&path, Duration::from_millis(50)).unwrap();
+        let stale = |db: &Db| {
+            block_on(db.call(|store| {
+                Ok(store
+                    .conn
+                    .query_row("SELECT count(*) FROM search_stale", [], |row| {
+                        row.get::<_, i64>(0)
+                    })?)
+            }))
+            .unwrap()
+        };
+        std::thread::sleep(Duration::from_millis(200));
+        Store::open(&path)
+            .unwrap()
+            .put_note(&note("a"), &[])
+            .unwrap();
+        let waited = Instant::now();
+        while stale(&db) > 0 {
+            assert!(
+                waited.elapsed() < Duration::from_secs(5),
+                "an outside write never armed the catch-up"
             );
             std::thread::sleep(Duration::from_millis(20));
         }

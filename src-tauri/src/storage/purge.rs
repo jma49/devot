@@ -84,6 +84,7 @@ impl Store {
         tx.execute(SEARCH_SECURE_DELETE_SQL, [0])?;
         tx.execute("DELETE FROM note_tags WHERE note_id = ?1", [id])?;
         if here {
+            // HAND_OVER_FILES_SQL finds the heirs through the index.
             catch_up(&tx, None)?;
             tx.execute(
                 HAND_OVER_FILES_SQL,

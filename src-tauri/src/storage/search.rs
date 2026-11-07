@@ -553,7 +553,10 @@ impl Store {
     }
 
     pub fn search_notes(&self, query: &NoteQuery, limit: u32) -> Result<Vec<NoteSummary>> {
-        self.catch_up_search_index(None)?;
+        // Only a term of three characters or more reads the index (see `search_sql`).
+        if query.text.iter().any(|t| indexable(&t.value)) {
+            self.catch_up_search_index(None)?;
+        }
         let (sql, values) = search_sql(query, limit);
         let mut statement = self.conn.prepare(&sql)?;
         let rows = statement.query_map(rusqlite::params_from_iter(values.iter()), summary)?;

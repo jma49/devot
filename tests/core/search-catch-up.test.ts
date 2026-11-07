@@ -76,6 +76,21 @@ describe('the search index', () => {
     s.db.exec(`INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)`)
   })
 
+  it('is caught up only by a search that reads it', async () => {
+    const s = sqlite()
+    await s.putNote(note('plan', 'Launch plan', 'The relay goes first.'))
+    const short = { ...words('re'), pinned: false }
+    expect((await s.searchNotes(short, 10)).map((n) => n.id)).toEqual(['plan'])
+    expect(stale(s)).toBe(1)
+
+    const without = {
+      ...words('orbit'),
+      text: [{ field: 'any' as const, value: 'orbit', negate: true }],
+    }
+    expect((await s.searchNotes(without, 10)).map((n) => n.id)).toEqual(['plan'])
+    expect(stale(s)).toBe(0)
+  })
+
   it('loses the text it held for a purged note, from the file too, after later edits', async () => {
     const path = join(tempDir('devot-search-catch-up-'), 'devot.sqlite')
     const s = sqlite(path)

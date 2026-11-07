@@ -965,7 +965,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
 
   /** Runs a search (see searchStatement). */
   const search = (query: NoteQuery, limit: number) => {
-    catchUpSearchIndex()
+    if (query.text.some((t) => indexable(t.value))) catchUpSearchIndex()
     const { sql, params } = searchStatement(query, limit)
     return db.prepare<[Record<string, string | number>], SummaryRow>(sql).all(params)
   }

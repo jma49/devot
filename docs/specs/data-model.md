@@ -92,9 +92,14 @@ Part of the [architecture overview](../architecture.md).
 - FTS5 uses the `trigram` tokenizer, so Chinese substring search works.
   Triggers keep the index in step with `notes`; a write puts a note's text in again only when its title or its Markdown changed (schema v15), so a notebook, status, pin or Trash change costs no indexing.
   A save no longer indexes anything itself (schema v29): the triggers only mark the note stale in `search_stale`, keeping the text the index holds for it, since FTS5 takes a row of external content out of the index only given the text it was indexed with.
-  The store re-indexes stale notes later (`CATCH_UP_SQL`, the same statements in both stores): the database thread does it once writes have been quiet for 5 s (60 s at the latest while writes never pause), 50 ms of notes at a time between other jobs, and a search and a purge first catch up every stale note, so they read what the notes hold now.
+  The store re-indexes stale notes later (`CATCH_UP_SQL`, the same statements in both stores): the database thread does it once writes have been quiet for 5 s (60 s at the latest while writes never pause), 50 ms of notes at a time between other jobs, and a search that reads the index (a word of three characters or more) and a purge first catch up every stale note, so they read what the notes hold now.
   A burst of saves of one note costs one re-index; saving a 1 MB note went from about 72 ms to 12 ms on better-sqlite3 (`tests/core/search-catch-up.bench.test.ts`).
+  A write from another process (`data_version` moving) starts the same 5 s wait, since the outside-change watch reads it through the thread every second.
+  That first catch-up has no budget: after a burst of saves (a sync, say) it re-indexes every stale note in one write transaction, which another writer can wait on up to the busy timeout.
+  The 60 s limit can fall while someone is still typing, so a long note's re-index then lands between two saves about once a minute.
+  On a 5 MB note (synthetic text) a save writes about 10 MB of write-ahead log and a catch-up 6 to 26 MB, as FTS5 merges segments; a save wrote 11 to 38 MB before, so one settled edit writes about as much as before and a burst of saves far less.
   The stale set is in the database, so a quit leaves it for the next launch, whose database thread catches up 5 s after its last write.
+  A build from before schema v29 still running against an upgraded file (an old window or helper left open) keeps saving under the new triggers but never catches up, so its searches miss edits until a newer process catches up.
   A contentless index (`contentless_delete=1`) would need no copy of the old text, but its deletes only leave tombstones, so a purged note's trigrams would stay in the file's pages until the whole index is rewritten.
   Rebuild Search Index stays one `'rebuild'` statement and empties `search_stale` in the same transaction.
 - Markdown export (see Export and print) writes notes and notebooks as Markdown files that import back as they were.

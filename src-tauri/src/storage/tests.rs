@@ -3995,6 +3995,27 @@ fn a_save_leaves_the_search_index_alone_until_it_catches_up() {
 }
 
 #[test]
+fn only_a_search_that_reads_the_index_catches_it_up() {
+    let (_dir, mut store) = temp_store();
+    let mut plan = note("plan", "Launch plan", 1);
+    plan.body_md = "The relay goes first.".into();
+    store.put_note(&plan, &[]).unwrap();
+    let mut pinned = words(&["re"]);
+    pinned.pinned = Some(false);
+    assert_eq!(store.search_notes(&pinned, 10).unwrap().len(), 1);
+    assert_eq!(
+        search_stale(&store),
+        1,
+        "a filter or text under three characters scans"
+    );
+
+    let mut without = words(&["orbit"]);
+    without.text[0].negate = true;
+    assert_eq!(store.search_notes(&without, 10).unwrap().len(), 1);
+    assert_eq!(search_stale(&store), 0, "a negated word reads the index");
+}
+
+#[test]
 fn catching_up_on_a_budget_indexes_at_least_one_note_and_says_whether_more_are_left() {
     let (_dir, mut store) = temp_store();
     for id in ["a", "b", "c"] {
