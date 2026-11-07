@@ -203,7 +203,11 @@ const highlights = (): HighlightRegistry | undefined =>
 
 const NOTHING: FindResult = { matches: [], invalid: false, capped: false }
 
-export function previewFindTarget(root: HTMLElement): FindTarget {
+/** `complete` builds what the preview has not built yet, so find reads the whole note. */
+export function previewFindTarget(
+  root: HTMLElement,
+  { complete }: { complete?: () => void } = {},
+): FindTarget {
   const reader = previewTextReader(root)
   let options: FindOptions | null = null
   let text: string | null = null
@@ -288,6 +292,7 @@ export function previewFindTarget(root: HTMLElement): FindTarget {
     canReplace: false,
     // The preview has no cursor: a step starts from the first (or last) match.
     search(next, step) {
+      complete?.()
       if (options) reader.touched(observer.takeRecords())
       else {
         // Unwatched since the bar last closed: read everything again.

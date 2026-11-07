@@ -27,6 +27,12 @@ Part of the [architecture overview](../architecture.md).
   Each note in that list counts its lines and offsets from its own start, and the piece gives where each note starts (`parts`), so text added above a note moves it on the page without the list being sent again.
   Headings in notes are named after every other heading, as the whole note's render names them, and their ids are part of the list's key.
   `tests/core/preview-pieces.bench.test.ts` holds an edit in the middle of a 250 KB note with footnotes and reference definitions under 30 ms in the core (about 340 ms when such a note rendered whole); `tests/core/preview-pieces.test.ts` checks that the pieces together render as the whole note does.
+- A render builds on the page at once the pieces it changed up to `FIRST_CHARACTERS` (20,000 characters of source) past the last piece already built, and leaves the rest waiting (`patchPieces` with `defer`, `buildPending` in `src/renderer/src/preview/dom.ts`); the preview builds them in order in tasks of about 8 ms after it.
+  Pieces still waiting are always the last ones, so what is built reads as the note does.
+  What needs more of the note builds it first: a scroll-sync or outline jump to a line builds up to that line and a screen past it, a restored scroll position builds until the preview is tall enough, and find, select all, copy and a link to a heading build all of it.
+  Diagrams and copy buttons are added for what is built at once and when the build ends.
+  Opening a 2 MB note thus builds about 1% of it in the task that shows it (in happy-dom, about 30 ms instead of 3.4 s); `tests/renderer/preview-open.bench.test.ts` holds what that task builds from growing with the note.
+  Another note opened in the preview replaces what the last one showed instead of being patched over it, and the worker is asked for all its pieces.
 - The iPhone draws at its display's refresh rate: `CADisableMinimumFrameDurationOnPhone` in `src-tauri/gen/apple/devot_iOS/Info.plist` and `project.yml` (held by `tests/policy/iphone-info-plist.test.ts`) lifts the 60 Hz cap a ProMotion iPhone otherwise puts on Core Animation and the display link.
   The keyboard, system sheets and the web view's compositor transitions then run at 120 Hz; the page's `requestAnimationFrame` stays near 60 Hz, so motion drawn by script each frame does not gain from it.
   Judge the phone's smoothness on a release build on a device.

@@ -349,8 +349,12 @@ export function shiftScroll(element: HTMLElement, by: number): void {
  * source lines. Block offsets are measured once and kept until the content
  * changes size, its line count changes or it is rendered anew, so scrolling
  * and typing within a line read no layout but the scroll offset and height.
+ * `reach` builds what the preview has not built yet up to a line it is asked for.
  */
-export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
+export function previewScrollPane(
+  element: HTMLElement,
+  { reach }: { reach?: (line: number) => void } = {},
+): PreviewScrollPane {
   let lines = 1
   let anchors: Anchor[] | undefined
   let measuredHeight = -1
@@ -402,7 +406,10 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
   return {
     element,
     topLine: () => lineAt(measure(), element.scrollTop),
-    offsetOf: (line) => topOf(measure(), line),
+    offsetOf: (line) => {
+      reach?.(line)
+      return topOf(measure(), line)
+    },
     onLayout: (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
