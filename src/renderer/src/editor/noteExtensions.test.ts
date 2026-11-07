@@ -10,6 +10,7 @@ import { linkOpener } from './lineCommands'
 import { newFromSelection } from './noteKeys'
 import {
   noteExtensions,
+  scrollToTop,
   type EditorLock,
   type EditorPlace,
   type NoteEditorRefs,
@@ -124,5 +125,41 @@ describe('noteExtensions', () => {
     expect(place.selection).toEqual({ anchor: 9, head: 9 })
     expect(placeChanged).toHaveBeenCalledOnce()
     expect(caretLine).toHaveBeenCalledWith(3)
+  })
+})
+
+describe('scrollToTop', () => {
+  interface Measure {
+    read: (view: EditorView) => number | undefined
+    write?: (top: number | undefined, view: EditorView) => void
+  }
+  const restoring = () => {
+    const requests: Measure[] = []
+    const view = {
+      documentTop: 0,
+      state: EditorState.create({ doc: 'x'.repeat(100) }),
+      lineBlockAt: () => ({ top: 500 }),
+      requestMeasure: (request: Measure) => requests.push(request),
+    } as unknown as EditorView
+    const scroller = document.createElement('div')
+    const measure = () => {
+      for (const request of requests.splice(0)) request.write?.(request.read(view), view)
+    }
+    return { view, scroller, measure }
+  }
+
+  it('puts the line kept at the top back when CodeMirror measures', () => {
+    const { view, scroller, measure } = restoring()
+    scrollToTop(view, scroller, { pos: 40, offset: 12 })
+    measure()
+    expect(scroller.scrollTop).toBe(512)
+  })
+
+  it('keeps a scroll made before CodeMirror measures', () => {
+    const { view, scroller, measure } = restoring()
+    scrollToTop(view, scroller, { pos: 40, offset: 12 })
+    scroller.scrollTop = 6
+    measure()
+    expect(scroller.scrollTop).toBe(6)
   })
 })
