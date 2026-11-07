@@ -104,8 +104,10 @@ Part of the [design system](design-system.md).
   The choice is kept per view (the list's view key: filter and notebook) in the window's last state; nothing else is stored.
   Every column shows, empty ones too, and takes drops; Settings > General > Dropped Column on Boards (`boardDropped`, an editor setting, on by default) turned off leaves the column and its notes off boards.
   An empty column says "No Notes" (`board.columnEmpty`).
-  A card shows the title (an untitled note's first line, up to three lines), then a meta line (`CardMeta.tsx`, shared with the gallery's caption) with the time and a dot per tag (the tag names are in the card's accessible name, as hidden text); clicking one opens it, and the cards of a column keep the view's order (pinned first).
-  A card shows no task progress, since the note summary does not carry it.
+  A card shows the title (an untitled note's first line, up to three lines), then a meta line (`CardMeta.tsx`, shared with the gallery's caption) with the time, the task progress and a dot per tag (the tag names are in the card's accessible name, as hidden text); clicking one opens it, and the cards of a column keep the view's order (pinned first).
+  The task progress is a small ring filled by the share of tasks done, then the count (`board.cardTasks`, "2/5"); once every task is done the ring is whole in the done mark, and a note without tasks shows neither.
+  The ring is named for assistive technology by `noteList.progressLabel` ("2 of 5 tasks done"), and the count beside it is hidden from it.
+  The counts are read from the core for the cards that render (`taskCounts`, see Task progress in the data model), as headlines are.
   A card in the Dropped column shows its title in secondary text unless it is selected.
   There is no manual order, so a drop within a column changes nothing.
   Each column is a listbox; the selection is the list's (`listSelection.ts`, the cards column by column as its order), so Cmd-click, Shift-click, Shift+Up and Down, Cmd+A and Escape work as in the list, and the note keys, the context menu and Return act as there.
@@ -134,7 +136,7 @@ Part of the [design system](design-system.md).
   Pages are cached in the window by note ID and `bodyVersion` (the last 500) and read only for the cards that render.
   The gallery shares the board's pane width (`BOARD_PANE`), its fitted default and its editor minimum.
   Cards are `size.gallery-card-min-width` to `size.gallery-card-max-width` wide (`galleryColumns`), and the page sheet is 3:4, so a card's height follows its width (`galleryCardHeight`); the page is laid out at `size.gallery-page-width` and scaled to the sheet (`galleryScale`).
-  The caption under the sheet is the board card's meta line led by the pin and the status mark; the title is not repeated.
+  The caption under the sheet is the board card's meta line led by the pin and the status mark, with the same task ring and count; the title is not repeated.
   A card is named by its content, as a board card is: the title as hidden text, then the caption (the sheet is hidden from assistive technology).
   The phone has no gallery.
 - **Restoring the last state** (`src/renderer/src/lastState.ts`): a window opens where it was left.

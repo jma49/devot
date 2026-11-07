@@ -1,6 +1,13 @@
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createClock, createIdGenerator, createNoteService } from '../../src/core'
+import {
+  createBookService,
+  createClock,
+  createIdGenerator,
+  createNoteService,
+  createTagService,
+  createTemplateService,
+} from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -107,6 +114,66 @@ describe('row details', () => {
     await notes.flush()
     await notes.trash(id)
     expect((await notes.rowDetails([id]))[id]).toEqual({ excerpt: 'one two', progress: '1/2' })
+  })
+})
+
+describe('task counts', () => {
+  it('counts the done and open tasks of each note, zero for none, and leaves out notes that do not exist', async () => {
+    const { notes } = setup()
+    const a = await notes.create('Plan')
+    const b = await notes.create('Plain')
+    await notes.setBody(a, '- [x] one\n  - [X] nested\n- [ ] two\n```\n- [ ] in a fence\n```\n')
+    await notes.setBody(b, 'no tasks here')
+    expect(await notes.taskCounts([a, b, '0192a6f0-0000-7000-8000-00000000000a'])).toEqual({
+      [a]: { done: 2, total: 3 },
+      [b]: { done: 0, total: 0 },
+    })
+  })
+
+  it('follows typing not saved yet, then reads the saved body after a restart', async () => {
+    const { notes, storage } = setup()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, '- [ ] one')
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 0, total: 1 })
+    await notes.setBody(id, '- [x] one\n- [ ] two')
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 1, total: 2 })
+    await notes.flush()
+    const fresh = createNoteService({
+      storage,
+      clock: createClock('mac2'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+    })
+    const batched = vi.spyOn(storage, 'getBodies')
+    expect((await fresh.taskCounts([id]))[id]).toEqual({ done: 1, total: 2 })
+    expect(batched).toHaveBeenCalledTimes(1)
+  })
+
+  it('follows an append from an agent and a restored version', async () => {
+    const { notes } = setup()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, '- [x] one\n')
+    await notes.flush({ versions: true })
+    await notes.appendToNote(id, '- [ ] two', { position: 'append' })
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 1, total: 2 })
+    await notes.flush({ versions: true })
+    const versions = (await notes.history(id)).filter((e) => e.kind === 'body')
+    await notes.restoreRevision(id, versions.at(-1)!.id)
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 1, total: 1 })
+  })
+
+  it('follows a template applied to a note', async () => {
+    const { notes, storage } = setup()
+    const clock = createClock('mac1')
+    const newId = createIdGenerator()
+    const books = createBookService({ storage, clock, newId })
+    const tags = createTagService({ storage, clock, newId })
+    const templates = createTemplateService({ storage, notes, books, tags, clock, newId })
+    const template = await templates.create('Checklist')
+    await notes.setBody(template, '- [ ] Pack\n- [x] Book\n')
+    const id = await notes.create('Trip')
+    await templates.applyTo(template, id, { now: 0 })
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 1, total: 2 })
   })
 })
 

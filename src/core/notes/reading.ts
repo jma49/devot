@@ -1,5 +1,5 @@
 import * as Y from 'yjs'
-import { headline, listExcerpt, taskProgress } from '../extract'
+import { headline, listExcerpt, taskProgress, type TaskProgress } from '../extract'
 import { cardExcerpt } from '../preview/cardExcerpt'
 import { BODY } from './body'
 import type { NoteContext } from './context'
@@ -19,6 +19,7 @@ export function readingMethods(
   | 'headlines'
   | 'excerpts'
   | 'rowDetails'
+  | 'taskCounts'
   | 'cardExcerpts'
 > {
   const { live, holds } = ctx
@@ -73,6 +74,12 @@ export function readingMethods(
           progress: total > 0 ? `${done}/${total}` : '',
         }
       }
+      return found
+    },
+
+    async taskCounts(ids) {
+      const found: Record<string, TaskProgress> = {}
+      for (const note of await bodies(ids)) found[note.id] = taskProgress(note.bodyMd)
       return found
     },
 

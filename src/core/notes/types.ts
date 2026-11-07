@@ -12,6 +12,7 @@ import type {
   TrashedNote,
 } from '../storage'
 import type { NoteLinkTarget } from '../preview/registry'
+import type { TaskProgress } from '../tasks'
 import type { AppendOptions } from '../append'
 import type { NoteRelayMessage, TakenIn } from '../noteRelay'
 
@@ -102,6 +103,8 @@ export interface NoteService {
   excerpts(ids: readonly string[]): Promise<Record<string, string>>
   /** What a list row shows under its title: the excerpt and "done/total" of its tasks ('' with none), from one read. Missing notes are left out. */
   rowDetails(ids: readonly string[]): Promise<Record<string, RowDetail>>
+  /** Each note's task items, done and in all (see `taskProgress`), pending edits included; a board card and a gallery caption show them. Missing notes are left out. */
+  taskCounts(ids: readonly string[]): Promise<Record<string, TaskProgress>>
   /** The Markdown each gallery card shows (see `cardExcerpt`), pending edits included. Missing notes are left out. */
   cardExcerpts(ids: readonly string[]): Promise<Record<string, string>>
   /** Never pinned; a deleted notebook counts as none. `suffix` is kept by cutting the title to fit. Images become the copy's own (see extract); tags are the caller's (see duplicateNote). */

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { NoteSummary, TagRecord } from '../../core'
+import type { NoteSummary, TagRecord, TaskProgress } from '../../core'
 import { GalleryCard } from './NoteGallery'
 
 const now = Date.UTC(2026, 9, 10, 12)
@@ -29,7 +29,11 @@ const events = {
   contextMenu: noop,
 }
 
-function option(over: Partial<NoteSummary> = {}, headline?: string): HTMLElement {
+function option(
+  over: Partial<NoteSummary> = {},
+  headline?: string,
+  tasks?: TaskProgress,
+): HTMLElement {
   document.body.innerHTML = renderToStaticMarkup(
     <ul>
       <GalleryCard
@@ -43,6 +47,7 @@ function option(over: Partial<NoteSummary> = {}, headline?: string): HTMLElement
         tags={tags}
         changedBy={undefined}
         headline={headline}
+        tasks={tasks}
         preview={undefined}
         draggable
         dragging={false}
@@ -75,6 +80,12 @@ describe('a gallery card for assistive technology', () => {
 
   it('reads the title first, then the pin, the status, the time and the tags, once each', () => {
     expect(spoken(option())).toBe('Garden plan Pinned Active 7 min ago Tags: home')
+  })
+
+  it('reads the task progress after the time', () => {
+    expect(spoken(option({}, undefined, { done: 3, total: 8 }))).toBe(
+      'Garden plan Pinned Active 7 min ago 3 of 8 tasks done Tags: home',
+    )
   })
 
   it('reads the headline for a note without a title', () => {

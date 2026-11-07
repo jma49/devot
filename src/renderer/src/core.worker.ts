@@ -250,6 +250,7 @@ const coreApi = {
   headlines: (ids: string[]) => required().headlines(ids),
   excerpts: (ids: string[]) => required().excerpts(ids),
   rowDetails: (ids: string[]) => required().rowDetails(ids),
+  taskCounts: (ids: string[]) => required().taskCounts(ids),
   /** Gallery cards' thumbnails: the start of each body as a sanitized tree, by note ID. */
   cardPreviews: async (ids: string[], labels: CardLabels) => {
     const found: Record<string, RootContent[]> = {}

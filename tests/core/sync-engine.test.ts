@@ -238,6 +238,18 @@ describe('sync between two devices', () => {
     expect(a.engine.pushesRemembered()).toBe(0)
   })
 
+  it('counts the tasks of a body another device wrote, which the record does not carry', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Chores')
+    await a.notes.setBody(id, '- [ ] dishes\n- [ ] bins\n')
+    await settle(a, b)
+    expect((await b.notes.taskCounts([id]))[id]).toEqual({ done: 0, total: 2 })
+    await a.notes.setBody(id, '- [x] dishes\n- [ ] bins\n- [ ] floor\n')
+    await settle(a, b)
+    expect((await b.notes.taskCounts([id]))[id]).toEqual({ done: 1, total: 3 })
+    await sameNote(a, b, id)
+  })
+
   it('merges edits both devices made offline, each once, and keeps the local text as a merge', async () => {
     const { a, b } = await pair()
     const id = await a.notes.create('Plan')

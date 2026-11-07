@@ -38,7 +38,7 @@ export function ListPane({
   view,
   listProps,
   opening: { switching, openingId },
-  loaders: { loadHeadlines, loadDetails, loadCardPreviews, loadStrips },
+  loaders: { loadHeadlines, loadDetails, loadTaskCounts, loadCardPreviews, loadStrips },
   board: { moveCards, stepCards, undoMove, redoMove },
   trashList: { trashKey, trashRowMenu, emptyTrashButton },
   openTrashed,
@@ -165,6 +165,7 @@ export function ListPane({
       selection={shownSelection}
       onSelection={changeListSelection}
       headlines={loadHeadlines}
+      taskCounts={loadTaskCounts}
       previews={loadCardPreviews}
       draggable={editing}
     />
@@ -284,6 +285,7 @@ export function ListPane({
       selection={shownSelection}
       onSelection={changeListSelection}
       headlines={loadHeadlines}
+      taskCounts={loadTaskCounts}
       onMove={editing ? moveCards : undefined}
       onStep={editing ? stepCards : undefined}
       onUndo={undoMove}

@@ -1885,6 +1885,14 @@
       },
       "$description": "The line of a card's meta row (a board card, a gallery card's caption): as tall as a small icon."
     },
+    "card-task-ring": {
+      "$type": "dimension",
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "The task ring in a card's meta row: a 1.5 px ring of radius 4.5 drawn on a 12 px box, centred on the meta line."
+    },
     "gallery-card-min-width": {
       "$type": "dimension",
       "$value": {
@@ -3280,6 +3288,10 @@
     "card-selected": {
       "$value": 0.1,
       "$description": "A selected board card's background: the accent fill at this strength over the card fill. Lighter than a row's, as the card already sits on a column's track and its text must keep 4.5:1."
+    },
+    "card-task-track": {
+      "$value": 0.3,
+      "$description": "The track of a card's task ring: the meta line's text colour at this strength, under the done part."
     },
     "tag": {
       "fill": {

@@ -13,7 +13,7 @@ import {
   type ReactNode,
   type Ref,
 } from 'react'
-import type { NoteSummary, TagRecord } from '../../core'
+import type { NoteSummary, TagRecord, TaskProgress } from '../../core'
 import type { ListDatesStyle } from '../../core/editorSettings'
 import type { WriterRef } from './authorshipLabels'
 import { CardMeta } from './CardMeta'
@@ -85,6 +85,7 @@ interface Props {
   selection: ListSelection | undefined
   onSelection: (next: ListSelection | undefined) => void
   headlines?: HeadlineLoader | undefined
+  taskCounts?: HeadlineLoader<TaskProgress> | undefined
   previews?: CardPreviewLoader | undefined
   /** Whether cards drag (to the sidebar's notebooks, tags, statuses and Trash). */
   draggable: boolean
@@ -159,6 +160,7 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
   }, [notes.length, columns, rowStep, grid, selected, tabStop, focusedCard, revealed, indexOf])
   const rendered = useMemo(() => shown.map((i) => notes[i]!), [shown, notes])
   const headlines = useHeadlines(props.headlines, rendered)
+  const taskCounts = useHeadlines(props.taskCounts, rendered, true)
   const previews = useCardPreviews(props.previews, rendered)
   const locale = currentLocale()
   const now = useNow()
@@ -530,6 +532,7 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
                       tags={props.tags}
                       changedBy={props.changedBy?.get(note.id)}
                       headline={headlines.get(note.id)}
+                      tasks={taskCounts.get(note.id)}
                       preview={previews.get(note.id)}
                       draggable={props.draggable}
                       dragging={dragged?.has(note.id) ?? false}
@@ -569,6 +572,7 @@ interface CardProps {
   tags: ReadonlyMap<string, TagRecord>
   changedBy: WriterRef | undefined
   headline: string | undefined
+  tasks: TaskProgress | undefined
   preview: CardPreview | undefined
   draggable: boolean
   dragging: boolean
@@ -630,6 +634,7 @@ export const GalleryCard = memo(function GalleryCard(props: CardProps) {
           locale={props.locale}
           dates={props.dates}
           changedBy={props.changedBy}
+          tasks={props.tasks}
           marks
         />
       </span>

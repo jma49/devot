@@ -190,3 +190,14 @@ test('cards are 220 to 300 wide, each sheet 3:4, and the pane opens at the board
     expect(box.ratio).toBeCloseTo(4 / 3, 2)
   }
 })
+
+test('a caption shows the task progress of a note with tasks, and none without', async ({
+  page,
+}) => {
+  await layout(page, 'Gallery').click()
+  const alpha = card(page, 'Alpha').locator('.gallery-card-caption .card-tasks')
+  await expect(alpha).toHaveText('1/2')
+  await expect(card(page, 'Alpha')).toHaveAccessibleName(/Alpha.*1 of 2 tasks done/)
+  await expect(card(page, 'Charlie')).toBeVisible()
+  await expect(card(page, 'Charlie').locator('.card-tasks')).toHaveCount(0)
+})

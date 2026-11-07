@@ -2,12 +2,12 @@ import type { Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, reloadApp, test } from './fixtures'
 import { seedNotes } from './renders'
 
-const SEEDED: { title: string; status: string; pinned?: boolean }[] = [
+const SEEDED: { title: string; status: string; pinned?: boolean; body?: string }[] = [
   { title: 'Alpha', status: 'none' },
   { title: 'Bravo', status: 'none' },
-  { title: 'Charlie', status: 'active' },
+  { title: 'Charlie', status: 'active', body: '- [x] plan\n- [ ] build\n  - [ ] test\n' },
   { title: 'Delta', status: 'active', pinned: true },
-  { title: 'Echo', status: 'completed' },
+  { title: 'Echo', status: 'completed', body: '- [x] filed\n- [X] paid\n' },
   { title: 'Foxtrot', status: 'dropped' },
 ]
 
@@ -19,7 +19,7 @@ async function seed(page: Page) {
       id: `0192a6f0-0000-7000-8000-${String(i + 1).padStart(12, '0')}`,
       title: n.title,
       titleHlc: '',
-      bodyMd: '',
+      bodyMd: n.body ?? '',
       ydoc: [0, 0],
       bookId: null,
       bookHlc: '',
@@ -280,6 +280,22 @@ test('a card names its tags to assistive tech', async ({ page }) => {
   await layout(page, 'Board').click()
   await expect(card(page, 'Alpha').locator('.tag-dot')).toHaveCount(1)
   await expect(card(page, 'Alpha')).toHaveAccessibleName(/Alpha.*Tags: errands/)
+})
+
+test('a card shows its task progress as a ring and a count, and none without tasks', async ({
+  page,
+}) => {
+  await layout(page, 'Board').click()
+  const charlie = card(page, 'Charlie').locator('.card-tasks')
+  await expect(charlie).toHaveText('1/3')
+  await expect(charlie).toHaveAttribute('role', 'img')
+  await expect(charlie.locator('.card-tasks-arc')).toHaveCount(1)
+  await expect(charlie).not.toHaveClass(/card-tasks-done/)
+  await expect(card(page, 'Charlie')).toHaveAccessibleName(/Charlie.*1 of 3 tasks done/)
+  await expect(card(page, 'Echo').locator('.card-tasks')).toHaveText('2/2')
+  await expect(card(page, 'Echo').locator('.card-tasks')).toHaveClass(/card-tasks-done/)
+  await expect(card(page, 'Alpha')).toBeVisible()
+  await expect(card(page, 'Alpha').locator('.card-tasks')).toHaveCount(0)
 })
 
 test('a board with no notes says so, with the tip to make one', async ({ page }) => {
