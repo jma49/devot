@@ -1,0 +1,11 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 12,
+    "op": "tabs.show",
+    "args": {
+      "tab": "notes"
+    }
+  }
+}

@@ -66,10 +66,11 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
     'cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings',
   )
   const gate = job('rust')
-  expect(gate).toContain('needs: [changes, rust-check, ios-check, ios-app, deny]')
+  expect(gate).toContain('needs: [changes, rust-check, ios-check, ios-app, iphone-ui, deny]')
   expect(gate).toContain('IOS: ${{ needs.ios-check.result }}')
   expect(gate).toContain('IOS_APP: ${{ needs.ios-app.result }}')
-  expect(gate).toContain('for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$DENY"')
+  expect(gate).toContain('IPHONE_UI: ${{ needs.iphone-ui.result }}')
+  expect(gate).toContain('for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$IPHONE_UI" "$DENY"')
 })
 
 it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust gate waits for both', () => {
@@ -96,6 +97,67 @@ it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust
   expect(script).toContain('xcodegen generate')
   expect(script).toContain('xcodebuild test')
   expect(script).toContain('-scheme DevotStoreTests')
+})
+
+it('launches the real iPhone app with its built UI in a simulator, switches the tabs and audits them', () => {
+  // The only job that runs the shipping app: the screens' XCTests run in an empty host app.
+  const ui = job('iphone-ui')
+  expect(ui).toContain('runs-on: macos-26')
+  expect(ui).toContain('timeout-minutes: 40')
+  expect(ui).toMatch(
+    /^ {4}if: needs\.changes\.outputs\.iphone_ui != 'false' && needs\.changes\.outputs\.docs_only != 'true'$/m,
+  )
+  const steps = commands(ui)
+  expect(steps).toEqual(
+    expect.arrayContaining([
+      'brew install xcodegen',
+      'rustup toolchain install',
+      'sh scripts/ci/iphone-ui-tests.sh',
+    ]),
+  )
+  // Tauri's beforeBuildCommand, the release UI build, is kept: the app shows the real page.
+  expect(steps).toContain('pnpm tauri ios build --debug --target aarch64-sim')
+  expect(read('src-tauri/tauri.conf.json')).toContain('"beforeBuildCommand": "pnpm ui:release"')
+  expect(ui).not.toContain('dist/index.html')
+  expect(job('changes')).toContain('iphone_ui: ${{ steps.diff.outputs.iphone_ui }}')
+  expect(job('changes')).toContain(
+    "printf 'web=true\\nrust=true\\ndocs_only=false\\niphone_ui=true\\n'",
+  )
+  const script = read('scripts/ci/iphone-ui-tests.sh')
+  expect(script).toContain('src-tauri/apple/DevotUITests')
+  expect(script).toContain('xcodegen generate')
+  expect(script).toContain('xcrun simctl install')
+  expect(script).toContain('xcodebuild test')
+  expect(script).toContain('-scheme DevotUITests')
+  const tests = read('src-tauri/apple/DevotUITests/Tests/TabsTests.swift')
+  expect(tests).toContain('performAccessibilityAudit')
+  for (const tab of ['Notes', 'Library', 'Activity', 'Settings']) {
+    expect(tests).toContain(`L10n.phoneTab${tab}()`)
+  }
+})
+
+it('changed-code.sh runs the iPhone UI test for the native screens, the phone page and the app project', () => {
+  for (const path of [
+    'src-tauri/apple/DevotScreens/Sources/DevotScreens/Screens.swift',
+    'src-tauri/apple/DevotUITests/Tests/TabsTests.swift',
+    'src-tauri/gen/apple/project.yml',
+    'src-tauri/src/native/ios/screens.rs',
+    'src-tauri/src/screens/message.rs',
+    'src/renderer/src/phone/PhoneApp.tsx',
+    'tests/fixtures/screens/valid/request-tabs-show.json',
+    'scripts/ci/iphone-ui-tests.sh',
+  ]) {
+    expect({ path, iphoneUi: iphoneUi([path]) }).toEqual({ path, iphoneUi: true })
+  }
+  for (const path of [
+    'src-tauri/src/lib.rs',
+    'src-tauri/src/native/macos/window.rs',
+    'src/renderer/src/App.tsx',
+    'docs/specs/iphone-screens.md',
+  ]) {
+    expect({ path, iphoneUi: iphoneUi([path]) }).toEqual({ path, iphoneUi: false })
+  }
+  expect(iphoneUi([])).toBe(true)
 })
 
 it("runs the signing scripts' tests, which need Apple's tools, on a Mac for every pull request with web or script changes", () => {
@@ -452,8 +514,15 @@ function changedCode(files: string[]): string {
   })
     .trim()
     .split('\n')
-    .filter((line) => !line.startsWith('docs_only='))
+    .filter((line) => !/^(docs_only|iphone_ui)=/.test(line))
     .join(' ')
+}
+
+function iphoneUi(files: string[]): boolean {
+  return execFileSync('sh', ['scripts/ci/changed-code.sh'], {
+    input: files.join('\n') + '\n',
+    encoding: 'utf8',
+  }).includes('iphone_ui=true')
 }
 
 function docsOnly(files: string[]): boolean {

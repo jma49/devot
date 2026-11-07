@@ -1,0 +1,45 @@
+# The iPhone UI test (scripts/ci/iphone-ui-tests.sh): it launches the installed Devot app by its
+# bundle ID. Xcode wants a UI test bundle to name an app of its own project; the placeholder is
+# that app and never runs. Generated with XcodeGen in CI, never committed.
+name: DevotUITests
+options:
+  bundleIdPrefix: io.github.jma49.devot
+  deploymentTarget:
+    iOS: '26.0'
+packages:
+  DevotScreens:
+    path: ../DevotScreens
+targets:
+  DevotUIPlaceholder:
+    type: application
+    platform: iOS
+    sources: [Placeholder]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CODE_SIGN_IDENTITY: '-'
+        CODE_SIGN_STYLE: Manual
+  DevotUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: DevotUIPlaceholder
+      # For the catalog's tab names.
+      - package: DevotScreens
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: '-'
+        CODE_SIGN_STYLE: Manual
+        SWIFT_VERSION: '6.0'
+schemes:
+  DevotUITests:
+    build:
+      targets:
+        DevotUIPlaceholder: all
+        DevotUITests: [test]
+    test:
+      targets: [DevotUITests]

@@ -37,6 +37,7 @@ let tauri: ReturnType<typeof mockTauri>
 let stop = () => {}
 afterEach(() => {
   stop()
+  stop = () => {}
   tauri.clear()
   vi.restoreAllMocks()
 })
@@ -148,6 +149,26 @@ describe('the native screens bridge', () => {
     bridge.stop()
     await expect(bridge.installed).resolves.toBe(false)
     expect(tauri.invoked).not.toContain('screens_take')
+  })
+
+  const notice = { notice: 'tabs.state', tab: 'notes', barHidden: true, attention: false } as const
+
+  it('sends a notice once the screens are known to be installed', async () => {
+    const { bridge, posted } = start()
+    bridge.notify(notice)
+    expect(posted).toStrictEqual([])
+    await bridge.installed
+    bridge.notify(notice)
+    await settle()
+    expect(posted).toStrictEqual([{ v: 1, ...notice }])
+  })
+
+  it('drops every notice without the screens', async () => {
+    const { bridge, posted } = start([], undefined, false)
+    await bridge.installed
+    bridge.notify(notice)
+    await settle()
+    expect(posted).toStrictEqual([])
   })
 
   it('runs only ping until an operation gets its handler', () => {

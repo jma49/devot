@@ -50,6 +50,7 @@ jobs:
       web: ${{ steps.diff.outputs.web }}
       rust: ${{ steps.diff.outputs.rust }}
       docs_only: ${{ steps.diff.outputs.docs_only }}
+      iphone_ui: ${{ steps.diff.outputs.iphone_ui }}
       ui: ${{ steps.diff.outputs.ui }}
       ui_matrix: ${{ steps.diff.outputs.ui_matrix }}
     steps:
@@ -71,7 +72,7 @@ jobs:
             git diff --no-renames --name-only HEAD^1 HEAD | sh scripts/ci/changed-code.sh >> "$GITHUB_OUTPUT"
             git diff --no-renames --name-only HEAD^1 HEAD | node scripts/ci/ui-plan.ts >> "$GITHUB_OUTPUT"
           else
-            printf 'web=true\nrust=true\ndocs_only=false\n' >> "$GITHUB_OUTPUT"
+            printf 'web=true\nrust=true\ndocs_only=false\niphone_ui=true\n' >> "$GITHUB_OUTPUT"
             node scripts/ci/ui-plan.ts --full </dev/null >> "$GITHUB_OUTPUT"
           fi
 
@@ -410,6 +411,35 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: pnpm tauri ios build --debug --target aarch64-sim --config '{"build":{"beforeBuildCommand":""}}'
 
+  # The shipping iPhone app, with the release UI build, launched in a simulator: an XCUITest
+  # (src-tauri/apple/DevotUITests) switches every tab of the native tab bar and runs the system's
+  # accessibility audit on it. It runs for the native screens, the phone page and the app project
+  # (scripts/ci/changed-code.sh).
+  iphone-ui:
+    name: iPhone UI test
+    needs: changes
+    if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.docs_only != 'true'
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: brew install xcodegen
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: rustup toolchain install
+        working-directory: src-tauri
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # Tauri's beforeBuildCommand builds the release UI, which the app embeds.
+      - run: pnpm tauri ios build --debug --target aarch64-sim
+      - run: sh scripts/ci/iphone-ui-tests.sh
+
   # Cargo-deny reads the manifest and lockfile, not the built app. It runs in
   # parallel with the compile-heavy job and does not pull the UI or apt stack.
   deny:
@@ -425,9 +455,10 @@ jobs:
           manifest-path: src-tauri/Cargo.toml
 
   # Required check for Rust. It runs even when a Rust job was skipped and
-  # fails when the change detection, compilation, tests or deny check failed.
+  # fails when the change detection, compilation, tests, the iPhone UI test or
+  # the deny check failed.
   rust:
-    needs: [changes, rust-check, ios-check, ios-app, deny]
+    needs: [changes, rust-check, ios-check, ios-app, iphone-ui, deny]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -437,14 +468,15 @@ jobs:
           RUST: ${{ needs.rust-check.result }}
           IOS: ${{ needs.ios-check.result }}
           IOS_APP: ${{ needs.ios-app.result }}
+          IPHONE_UI: ${{ needs.iphone-ui.result }}
           DENY: ${{ needs.deny.result }}
         run: |
-          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP deny=$DENY"
+          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP iphone-ui=$IPHONE_UI deny=$DENY"
           {
             printf '### Rust merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone app and StoreKit tests' "$IOS_APP" 'Cargo deny' "$DENY"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone app and StoreKit tests' "$IOS_APP" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$DENY"; do
+          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$IPHONE_UI" "$DENY"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac

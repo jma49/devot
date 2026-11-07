@@ -1,7 +1,7 @@
 #!/bin/sh
 # CI helper: reads the names of the files a pull request changes, one per
-# line, on stdin and prints which build jobs it needs, as `web=true|false`
-# and `rust=true|false`. Used by .github/workflows/ci.yml; when the web jobs
+# line, on stdin and prints which build jobs it needs, as `web=true|false`,
+# `rust=true|false` and `iphone_ui=true|false`. Used by .github/workflows/ci.yml; when the web jobs
 # are not needed, the `policy` job runs instead: the format check, lint, the
 # type check and all of Vitest, which also reads Rust sources, migrations and
 # capabilities and runs the tests of the sync relay and the licence Worker.
@@ -28,8 +28,14 @@
 #   are also read by the Rust tests, so they need both.
 # - Everything else needs both: the Rust job builds the UI that the binary
 #   embeds, and a change to the tooling or CI itself could break either.
-# A list with no files needs both, so a doubt runs everything.
+# - The iPhone UI test (`iphone-ui`), which builds and launches the whole app,
+#   runs for the Swift packages and the app project (src-tauri/apple/,
+#   src-tauri/gen/apple/), the phone's native code (src-tauri/src/native/ios/),
+#   the screens bridge on every side (any screens/ folder), the phone page
+#   (src/renderer/src/phone/) and its own script.
+# A list with no files needs everything, so a doubt runs everything.
 web=false
+iphone_ui=false
 rust=false
 docs_only=true
 seen=false
@@ -77,12 +83,20 @@ while IFS= read -r file; do
       docs_only=false
       ;;
   esac
+  case "$file" in
+    src-tauri/apple/* | src-tauri/gen/apple/* | src-tauri/src/native/ios/* | */screens/* | \
+      src/renderer/src/phone/* | scripts/ci/iphone-ui-tests.sh)
+      iphone_ui=true
+      ;;
+  esac
 done
 if [ "$seen" = false ]; then
   web=true
   rust=true
   docs_only=false
+  iphone_ui=true
 fi
 echo "web=$web"
 echo "rust=$rust"
 echo "docs_only=$docs_only"
+echo "iphone_ui=$iphone_ui"

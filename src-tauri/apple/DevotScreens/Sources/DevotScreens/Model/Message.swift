@@ -52,11 +52,14 @@ public enum Op: String, CaseIterable, Sendable {
     case excerpts
     case search
     case noteCreate = "note.create"
+    case tabsShow = "tabs.show"
+    case tabsPopToRoot = "tabs.popToRoot"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {
     case notesChanged = "notes.changed"
     case editorTitle = "editor.title"
+    case tabsState = "tabs.state"
 }
 
 public enum Outcome: Equatable, Sendable {

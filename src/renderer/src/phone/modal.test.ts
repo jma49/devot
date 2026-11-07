@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { holdModal, isTopModal, type ModalNode } from './modal'
+import { holdModal, isTopModal, modalOpen, watchModals, type ModalNode } from './modal'
 
 interface Node extends ModalNode {
   children: Node[]
@@ -78,5 +78,20 @@ describe('holdModal', () => {
     expect(screen.inert).toBe(true)
     other()
     expect(screen.inert).toBe(false)
+  })
+
+  it('tells a watcher when the first layer comes and the last one goes', () => {
+    const app = node()
+    const seen: boolean[] = []
+    const unwatch = watchModals(() => seen.push(modalOpen()))
+    const releaseSheet = holdModal(add(app, node()))
+    const releasePicker = holdModal(add(app, node()))
+    releasePicker()
+    releaseSheet()
+    releaseSheet()
+    unwatch()
+    holdModal(add(app, node()))()
+    expect(seen).toStrictEqual([true, false])
+    expect(modalOpen()).toBe(false)
   })
 })
