@@ -3,14 +3,14 @@ import { errorCode } from '../errors'
 import { clipTitle } from '../noteLimits'
 import type { NoteRecord, OpenedRecord } from '../storage'
 import { BODY } from './body'
-import type { Live } from './context'
+import type { HeldRecord, Live } from './context'
 
 /** Attempts when storage keeps refusing because another process wrote first; then the write fails like any other (see failed). */
 const WRITE_TRIES = 5
 
 const isStale = (error: unknown) => errorCode(error) === 'E_NOTE_BODY_STALE'
 
-export const asWritten = (record: NoteRecord): NoteRecord => ({
+export const asWritten = <T extends HeldRecord>(record: T): T => ({
   ...record,
   bodyVersion: record.bodyVersion + 1,
 })
@@ -38,17 +38,23 @@ export const stampsOf = (record: OpenedRecord) => META_HLCS.map((key) => record[
 
 export type MetaField = 'book' | 'status' | 'pinned'
 
-export const hlcOf = (record: NoteRecord, field: MetaField) =>
+/** The record without its body, as a note in memory keeps it. */
+export const heldOf = (record: OpenedRecord & Partial<NoteRecord>): HeldRecord => {
+  const { ydoc: _, bodyMd: __, agentWrites: ___, ...held } = record
+  return held
+}
+
+export const hlcOf = (record: HeldRecord, field: MetaField) =>
   field === 'book' ? record.bookHlc : field === 'status' ? record.statusHlc : record.pinnedHlc
 
-export const withField = (record: NoteRecord, from: NoteRecord, field: MetaField): NoteRecord => {
+export const withField = (record: HeldRecord, from: HeldRecord, field: MetaField): HeldRecord => {
   if (field === 'book') return { ...record, bookId: from.bookId, bookHlc: from.bookHlc }
   if (field === 'status') return { ...record, status: from.status, statusHlc: from.statusHlc }
   return { ...record, pinned: from.pinned, pinnedHlc: from.pinnedHlc }
 }
 
 /** Storage's merge: per field the newer HLC wins. A title past the limit is cut. */
-export const withNewer = (to: NoteRecord, from: NoteRecord): NoteRecord => ({
+export const withNewer = (to: HeldRecord, from: HeldRecord): HeldRecord => ({
   ...to,
   ...(from.titleHlc > to.titleHlc ? { title: clipTitle(from.title), titleHlc: from.titleHlc } : {}),
   ...(from.bookHlc > to.bookHlc ? { bookId: from.bookId, bookHlc: from.bookHlc } : {}),

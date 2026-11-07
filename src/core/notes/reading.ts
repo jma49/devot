@@ -47,10 +47,13 @@ export function readingMethods(
 
     async read(id) {
       const note = live.get(id)
-      const record = note?.record ?? (await getStored(id))
+      if (note) {
+        const { title, bookId } = note.record
+        return { id, title, bodyMd: note.doc.getText(BODY).toString(), bookId }
+      }
+      const record = await getStored(id)
       if (!record) throw new Error('E_NOTE_NOT_FOUND')
-      const bodyMd = note ? note.doc.getText(BODY).toString() : record.bodyMd
-      return { id, title: record.title, bodyMd, bookId: record.bookId }
+      return { id, title: record.title, bodyMd: record.bodyMd, bookId: record.bookId }
     },
 
     async headlines(ids) {

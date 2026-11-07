@@ -2,11 +2,11 @@ import * as Y from 'yjs'
 import { receiveStored } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { REVISION_PAUSE_MS } from '../revisions'
-import { MAX_BODY_IDS, type NoteBody, type NoteRecord, type NoteSummary } from '../storage'
+import { MAX_BODY_IDS, type NoteBody, type NoteSummary, type OpenedRecord } from '../storage'
 import { BODY } from './body'
 import type { Live, NoteContext } from './context'
 import type { Kernel } from './kernel'
-import { dirty, stampsOf } from './records'
+import { dirty, heldOf, stampsOf } from './records'
 
 /** Notes beyond this go once nothing of them can be lost (see trim); held and busy notes stay besides. */
 export const NOTES_IN_MEMORY = 8
@@ -21,13 +21,15 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
   const { stopTimers, takeVersion } = k.versions
   const { settle } = k.problems
   const { relay, relayChanges } = k.relay
-  const liveNote = (record: NoteRecord, doc: Y.Doc, fresh: boolean): Live => {
-    relayChanges(record.id, doc)
+  const liveNote = (stored: OpenedRecord, doc: Y.Doc, fresh: boolean): Live => {
+    relayChanges(stored.id, doc)
+    const record = heldOf(stored)
     const note: Live = {
       record,
       saved: record,
       doc,
       state: undefined,
+      stateBytes: stored.ydoc.byteLength,
       timer: undefined,
       edits: 0,
       savedEdits: 0,
@@ -123,12 +125,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
           // A title stored past the limit (by an older build) is cut here, so
           // the note's writes are taken. The stored one stays until a rename:
           // a write with the same HLC never replaces it.
-          const record: NoteRecord = {
-            ...opened,
-            title: clipTitle(opened.title),
-            bodyMd: doc.getText(BODY).toString(),
-          }
-          const note = liveNote(record, doc, false)
+          const note = liveNote({ ...opened, title: clipTitle(opened.title) }, doc, false)
           note.state = tight(opened.ydoc)
           note.users = pending.users
           live.set(id, note)

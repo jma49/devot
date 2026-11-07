@@ -5,7 +5,7 @@ import type { NoteRecord } from '../storage'
 import { BODY } from './body'
 import type { Live, NoteContext } from './context'
 import type { Kernel } from './kernel'
-import { asWritten, dirty, untilWritten } from './records'
+import { asWritten, dirty, heldOf, untilWritten } from './records'
 import type { NoteService } from './types'
 
 /** Each save encodes a note's whole Yjs state, so a note whose state is past the first size waits longer after a pause, up to SAVE_DELAY_STRETCH times as long at the second. */
@@ -119,11 +119,14 @@ export function createSaving(
       note.state = state
       note.record = {
         ...note.record,
-        bodyMd: note.doc.getText(BODY).toString(),
-        ydoc: state,
         updatedAt: datesSet ? note.record.updatedAt : Math.max(now(), note.record.createdAt),
       }
-      return derived.changed ? { ...note.record, agentWrites: derived.changed } : note.record
+      return {
+        ...note.record,
+        bodyMd: note.doc.getText(BODY).toString(),
+        ydoc: state,
+        ...(derived.changed ? { agentWrites: derived.changed } : {}),
+      }
     })
     if (!record) return
     // A note's first write here writes its rows again; none where none were known tells no one.
@@ -136,7 +139,8 @@ export function createSaving(
       updatedAt: record.updatedAt,
       ...(authored ? { authored: true } : {}),
     })
-    const written = asWritten(record)
+    note.stateBytes = record.ydoc.byteLength
+    const written = asWritten(heldOf(record))
     note.record = { ...note.record, bodyVersion: written.bodyVersion }
     const before = note.saved
     note.saved = written
@@ -163,7 +167,7 @@ export function createSaving(
 
   const schedule = (note: Live) => {
     clearTimeout(note.timer)
-    const delay = saveDelay(saveDelayMs, note.saved.ydoc.byteLength)
+    const delay = saveDelay(saveDelayMs, note.stateBytes)
     note.timer = setTimeout(() => {
       note.timer = undefined
       save(note).catch(() => {})

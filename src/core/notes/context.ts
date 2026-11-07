@@ -6,12 +6,17 @@ import type { NoteServiceOptions } from './types'
 
 export type Timer = ReturnType<typeof setTimeout>
 
+/** A record of a note in memory: its body is read from the note's document, so the record leaves it out. */
+export type HeldRecord = Omit<NoteRecord, 'bodyMd' | 'ydoc' | 'agentWrites'>
+
 export interface Live {
-  record: NoteRecord
-  saved: NoteRecord
+  record: HeldRecord
+  saved: HeldRecord
   doc: Y.Doc
   /** `doc` encoded, as read or last saved, until anything changes it: an open sends it as it is. */
   state: Uint8Array | undefined
+  /** The byte length of the note's Yjs state as last read or written (see saveDelay). */
+  stateBytes: number
   timer: Timer | undefined
   edits: number
   savedEdits: number
