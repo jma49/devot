@@ -3,12 +3,20 @@
 // the current match is the selection. Replacements are ordinary transactions,
 // so they reach the Yjs document like typing, each as its own undo step.
 import { isolateHistory } from '@codemirror/commands'
-import { Prec, StateEffect, StateField, type Extension } from '@codemirror/state'
+import {
+  Prec,
+  StateEffect,
+  StateField,
+  type ChangeSet,
+  type Extension,
+  type Text,
+} from '@codemirror/state'
 import { Decoration, EditorView, keymap, type DecorationSet } from '@codemirror/view'
 import {
   expandReplacement,
   findMatches,
   replacementChanges,
+  updateMatches,
   type FindMatch,
   type FindOptions,
   type FindResult,
@@ -31,6 +39,39 @@ const EMPTY: FindResult = { matches: [], invalid: false, capped: false }
 const matchMark = Decoration.mark({ class: 'cm-find-match' })
 const currentMark = Decoration.mark({ class: 'cm-find-current' })
 
+const marksOf = (matches: readonly FindMatch[]) =>
+  matches.filter((m) => m.to > m.from).map((m) => matchMark.range(m.from, m.to))
+
+function search(options: FindOptions | null, doc: Text): FindValue {
+  const result = options ? findMatches(doc.toString(), options) : EMPTY
+  return { options, result, marks: Decoration.set(marksOf(result.matches)) }
+}
+
+/** Typing with the bar open finds again only around the change, so a keystroke never costs the whole note. */
+function retype(value: FindValue, options: FindOptions, changes: ChangeSet, doc: Text): FindValue {
+  let span: { from: number; toA: number; toB: number } | undefined
+  changes.iterChangedRanges((fromA, toA, _fromB, toB) => {
+    span = span ? { ...span, toA, toB } : { from: fromA, toA, toB }
+  })
+  const text = {
+    length: doc.length,
+    slice: (from: number, to: number) => doc.sliceString(from, to),
+  }
+  const update = span && updateMatches(value.result, options, span, text)
+  if (!update || update.result.capped) return search(options, doc)
+  const { result, before, fresh } = update
+  const kept = (i: number) => result.matches[i]
+  const start = before > 0 ? kept(before - 1)!.to : 0
+  const end = kept(before + fresh)?.from ?? doc.length
+  const marks = value.marks.map(changes).update({
+    filter: (from, to) => from < start || to > end,
+    filterFrom: start,
+    filterTo: end,
+    add: marksOf(result.matches.slice(before, before + fresh)),
+  })
+  return { options, result, marks }
+}
+
 const findField = StateField.define<FindValue>({
   create: () => ({ options: null, result: EMPTY, marks: Decoration.none }),
   update(value, tr) {
@@ -42,12 +83,9 @@ const findField = StateField.define<FindValue>({
         set = true
       }
     }
-    if (!set && !(tr.docChanged && options)) return value
-    const result = options ? findMatches(tr.newDoc.toString(), options) : EMPTY
-    const marks = Decoration.set(
-      result.matches.filter((m) => m.to > m.from).map((m) => matchMark.range(m.from, m.to)),
-    )
-    return { options, result, marks }
+    if (set) return search(options, tr.newDoc)
+    if (!tr.docChanged || !options) return value
+    return retype(value, options, tr.changes, tr.newDoc)
   },
   provide: (field) => EditorView.decorations.from(field, (value) => value.marks),
 })
