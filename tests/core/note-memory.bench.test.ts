@@ -75,9 +75,12 @@ const used = async () => {
   return heapUsed + arrayBuffers
 }
 
-async function docOf(notes: NoteService, id: string): Promise<Y.Doc> {
+// Read straight from storage, so the baseline does not move with what a note service keeps.
+async function docOf(storage: SqliteAdapter, id: string): Promise<Y.Doc> {
+  const opened = await storage.openNote(id)
+  if (!opened) throw new Error('E_NOTE_NOT_FOUND')
   const doc = new Y.Doc()
-  Y.applyUpdate(doc, (await notes.open(id)).state)
+  Y.applyUpdate(doc, opened.ydoc)
   return doc
 }
 
@@ -103,9 +106,11 @@ describe('big notes in memory', () => {
       const warmUp = await writer.create('Warm-up')
       await writer.flush()
 
+      const storage = openSqliteAdapter(path)
+      open.push(storage)
       let before = await used()
       const docs: Y.Doc[] = []
-      for (const id of ids) docs.push(await docOf(writer, id))
+      for (const id of ids) docs.push(await docOf(storage, id))
       const docsOnly = (await used()) - before
       expect(docs).toHaveLength(SIZES_MB.length)
       docs.length = 0

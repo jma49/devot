@@ -133,8 +133,14 @@ describe('the encoded state a note keeps', () => {
   })
 
   it('is the saved state when the note left is saved after the switch', async () => {
-    const { notes, ids } = await setup('One\n', 'Two\n')
+    const { notes, ids, storage } = await setup('One\n', 'Two\n')
     const [one, two] = ids as [string, string]
+    const put = storage.putNote.bind(storage)
+    let saved: Uint8Array | undefined
+    storage.putNote = (record) => {
+      if (record.id === one) saved = record.ydoc
+      return put(record)
+    }
     await notes.hold(one)
     await notes.applyUpdate(one, typed((await notes.open(one)).state, 'Edit '))
     await notes.hold(two)
@@ -142,8 +148,8 @@ describe('the encoded state a note keeps', () => {
     await notes.unhold(one)
     await notes.flush()
     const back = await notes.open(one)
+    expect(back.state).toBe(saved)
     expect(textOf(back.state)).toBe('Edit One\n')
-    expect((await notes.open(one)).state).toBe(back.state)
   })
 
   it('is not kept by a note saved that no editor holds or left last', async () => {
