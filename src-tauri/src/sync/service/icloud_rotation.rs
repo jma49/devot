@@ -14,10 +14,27 @@ use super::{Created, NO_VAULT, OTHER_VAULT, SyncService, VAULT_ROTATED};
 impl SyncService {
     /// Change Vault Key on iCloud. Not gated by the licence: taking access away never is. A device
     /// still on the Apple ID with the iCloud Keychain reads the new handover item, so it must be
-    /// off the Apple ID first; Settings says so. The new recovery key comes back to show.
+    /// off the Apple ID first; Settings says so. The new recovery key comes back to show. A
+    /// rotation that lost to another one comes back without it once this device follows the
+    /// winner, so Settings never offers to rotate the winner's vault again as a retry.
     pub(crate) fn rotate_icloud(&self) -> Result<Created, &'static str> {
         let _membership = self.membership.lock().map_err(|_| "E_SYNC_INTERNAL")?;
         let vault = self.held_vault()?;
+        let id = vault.id().to_string();
+        match self.rotate_held_icloud(vault) {
+            Err(VAULT_ROTATED) if self.held_vault()?.id().to_string() != id => Ok(Created {
+                snapshot: self.changed(),
+                recovery_key: None,
+            }),
+            Err(VAULT_ROTATED) => {
+                self.changed();
+                Err(VAULT_ROTATED)
+            }
+            rotated => rotated,
+        }
+    }
+
+    fn rotate_held_icloud(&self, vault: Vault) -> Result<Created, &'static str> {
         let id = vault.id().to_string();
         let settings = self.settings.get();
         let account = settings

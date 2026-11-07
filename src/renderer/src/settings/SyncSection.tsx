@@ -114,6 +114,13 @@ function statusDetails(snapshot: SyncSnapshot, locale: string): string[] {
 /** iCloud states shown in the setup rows or a note rather than the status row. */
 const OUTSIDE_STATUS = new Set(['ask', 'fallback', 'joined'])
 
+// On iCloud the other devices follow on their own, and a rotation that lost the race comes back
+// without a recovery key: this device followed the one that won.
+function rotatedMessage(onICloud: boolean, madeHere: boolean): MessageKey {
+  if (!onICloud) return 'syncSettings.rotated'
+  return madeHere ? 'syncSettings.rotatedIcloud' : 'syncSettings.rotatedIcloudFollowed'
+}
+
 /**
  * Settings > Sync: iCloud or a relay first (a build without the container offers only the relay).
  * For a vault on iCloud: its state and what to do about it, storage and devices. For a relay: the
@@ -416,7 +423,7 @@ export function SyncSection() {
       setRecoveryKey(key)
       setKeyFocus(true)
     }
-    announce(t('syncSettings.rotated'))
+    announce(t(rotatedMessage(onICloud, key !== null)))
   }
   const pathRow = (hint: MessageKey) => (
     <Setting label="syncSettings.setup" description={t(hint)}>

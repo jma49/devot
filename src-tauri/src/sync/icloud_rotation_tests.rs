@@ -23,6 +23,16 @@ fn settings(device: &Device) -> SyncSettings {
     SettingsStore::new(&device._dir.path().join(FILE)).get()
 }
 
+/// The last snapshot `device` sent its windows.
+fn last_told(device: &Device) -> Option<serde_json::Value> {
+    let events = device.events.lock().unwrap();
+    events
+        .iter()
+        .rev()
+        .find(|(name, _)| name == super::service::CHANGED_EVENT)
+        .map(|(_, payload)| payload.clone())
+}
+
 fn id(device: &Device) -> String {
     held(device).unwrap().id().to_string()
 }
@@ -208,12 +218,20 @@ fn of_two_rotations_at_once_one_wins_and_the_other_device_follows_it() {
     let won = id(&phone);
     rotated_to(&kit, &keychain, &phone, &old, &won);
 
+    mac.events.lock().unwrap().clear();
+    let followed = mac.service.rotate_icloud().unwrap();
     assert_eq!(
-        mac.service.rotate_icloud().err(),
-        Some(ROTATED),
-        "the other rotation won"
+        id(&mac),
+        won,
+        "the other rotation won and this device follows it"
     );
-    assert_eq!(id(&mac), won, "and this device follows it");
+    assert_eq!(
+        followed.recovery_key, None,
+        "the winner shows the recovery key"
+    );
+    assert!(followed.snapshot.vault && !followed.snapshot.rotated);
+    assert_eq!(followed.snapshot.transport, "icloud");
+    assert!(last_told(&mac).is_some(), "the windows hear of it");
     assert!(
         !kit.zone_exists(&vault_zone(&lost)),
         "what the loser made goes"
@@ -228,6 +246,32 @@ fn of_two_rotations_at_once_one_wins_and_the_other_device_follows_it() {
     assert!(mac.service.recovery_key().unwrap().is_none());
     mac.service.connect(true).unwrap();
     assert_eq!(current::read(kit.as_ref()), Ok(Some(won)));
+}
+
+#[test]
+fn a_rotation_that_lost_to_one_whose_key_has_not_reached_this_device_shows_the_join_rows() {
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let (mac, _phone) = vault_on_two_devices(&kit, &keychain);
+    let old_key = held(&mac).unwrap().recovery_key();
+    let ipad = device(&kit);
+    ipad.service.use_icloud(Some(&old_key), 0).unwrap();
+    ipad.service.connect(true).unwrap();
+    let old = id(&ipad);
+    ipad.service.quit_icloud_rotation_at("current");
+    assert_eq!(ipad.service.rotate_icloud().err(), Some(QUIT));
+    mac.service.rotate_icloud().unwrap();
+
+    ipad.events.lock().unwrap().clear();
+    assert_eq!(ipad.service.rotate_icloud().err(), Some(ROTATED));
+    assert_eq!(id(&ipad), old, "it takes nothing on its own");
+    let told = last_told(&ipad).expect("the windows hear of it");
+    assert_eq!(told["rotated"], true);
+    assert_eq!(
+        ipad.service.rotate_icloud().err(),
+        Some(ROTATED),
+        "no second rotation"
+    );
 }
 
 #[test]

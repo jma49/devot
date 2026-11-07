@@ -20,6 +20,7 @@ interface Answers {
   devices: Record<string, unknown>[]
   useFails?: string | undefined
   leaveFails?: string | undefined
+  rotatedKey?: string | null | undefined
 }
 
 const DEVICES = [
@@ -58,7 +59,10 @@ vi.mock('../ipc', () => ({
           throw new Error('E_SYNC_RELAY_SECRET')
         return { snapshot: answers.snapshot, recoveryKey: 'ABCDE-FGHIJ-KLMNO' }
       case 'sync_icloud_rotate':
-        return { snapshot: answers.snapshot, recoveryKey: 'PQRST-UVWXY-Z0123' }
+        return {
+          snapshot: answers.snapshot,
+          recoveryKey: answers.rotatedKey === undefined ? 'PQRST-UVWXY-Z0123' : answers.rotatedKey,
+        }
       case 'sync_vault_leave':
         if (answers.leaveFails) throw new Error(answers.leaveFails)
         return {
@@ -125,6 +129,7 @@ afterEach(() => {
   answers.devices = DEVICES
   answers.useFails = undefined
   answers.leaveFails = undefined
+  answers.rotatedKey = undefined
   vi.restoreAllMocks()
 })
 
@@ -758,6 +763,23 @@ describe('Change Vault Key', () => {
     expect(calls.some((c) => c.cmd === 'sync_vault_rotate')).toBe(false)
     expect(el.textContent).toContain('PQRST-UVWXY-Z0123')
     expect(button(el, 'Change Vault Key…')).toBeDefined()
+    await act(() => new Promise((resolve) => setTimeout(resolve, 60)))
+    const said = el.querySelector('[role="status"]')?.textContent
+    expect(said).toMatch(/devices on this Apple ID follow on their own/)
+    expect(said).not.toMatch(/join your other devices again/)
+  })
+
+  it('says so when another device\u2019s change of the iCloud vault\u2019s key won and this one follows it', async () => {
+    answers.rotatedKey = null
+    const el = await show(snapshot({}), ICLOUD, false)
+    await act(async () => button(el, 'Change Vault Key…')?.click())
+    await act(async () => button(el, 'Change Key')?.click())
+    await settle()
+    await act(() => new Promise((resolve) => setTimeout(resolve, 60)))
+    expect(el.querySelector('[role="alert"]')).toBeNull()
+    expect(el.querySelector('[role="status"]')?.textContent).toMatch(
+      /Another device changed the vault key first/,
+    )
   })
 
   it('asks an iCloud device whose key was changed elsewhere to join the successor, and shows no code', async () => {

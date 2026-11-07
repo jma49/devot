@@ -137,6 +137,8 @@ Each step is kept before the next, and none needs a secret, so a rotation that s
 3. **Save the successor record** for the old vault.
 4. **Move `current`** to the new vault against the `current` that names the old one.
    - Another rotation moved it first: this device deletes its new key and what it made (its zone, epoch and successor record, never while `current` names them) and follows the winner like any other device.
+     Once this device has followed, Change Vault Key answers without a recovery key, and Settings says the other device changed the key first.
+     If the new key has not reached it, Change Vault Key answers `E_SYNC_VAULT_ROTATED` and Settings shows the join rows, so a retry never rotates the winner's vault again.
    - With no `current`, the vault was left meanwhile: the rotation is dropped.
 5. **Write the handover item** with the new vault; a failure is logged, and each connect rewrites an item that names another vault while `current` names this one (ADR 0015).
 6. **Switch.** The device-only vault item takes the new key, then the settings sync the new vault through iCloud, forget `rotating`, and the `-next` item goes. A switch that stops between the two is finished at the next connect, which finds the held vault recorded as the successor of the vault the settings name.

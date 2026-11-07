@@ -281,6 +281,10 @@ export const messages = {
     'The vault key was changed on another device, and the new key has not reached this one through iCloud Keychain yet. To sync again, enter a pairing code from a device that has the new key, or the new recovery key. Your notes stay here.',
   'syncSettings.rotated':
     'The vault key was changed. Save the new recovery key, then join your other devices again.',
+  'syncSettings.rotatedIcloud':
+    'The vault key was changed. Save the new recovery key; your devices on this Apple ID follow on their own.',
+  'syncSettings.rotatedIcloudFollowed':
+    'Another device changed the vault key first. This device now uses its new key; the new recovery key is shown on that device.',
   'syncSettings.rotatedAway':
     'The vault key was changed on another device. To sync again, enter a pairing code from a device that has the new key, or the new recovery key. Your notes stay here.',
   'syncSettings.why.rotated':

@@ -25,7 +25,7 @@ type Events = Arc<Mutex<Vec<(String, Json)>>>;
 pub(super) struct Device {
     pub(super) service: SyncService,
     pub(super) secrets: service::Secrets,
-    events: Events,
+    pub(super) events: Events,
     pub(super) _dir: tempfile::TempDir,
 }
 
