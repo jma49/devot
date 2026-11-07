@@ -37,6 +37,7 @@ final class EditorScreen: WebHolderScreen {
     private var shownForTyping = false
     private var appearedForTyping = false
     private var focusAsked = false
+    private var keyboardShown: NSObjectProtocol?
 
     private(set) lazy var modeItem = UIBarButtonItem(
         image: UIImage(systemName: NoteMode.edit.toggleSymbol),
@@ -120,6 +121,8 @@ final class EditorScreen: WebHolderScreen {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         if keyField.isFirstResponder { keyField.resignFirstResponder() }
+        if let keyboardShown { NotificationCenter.default.removeObserver(keyboardShown) }
+        keyboardShown = nil
     }
 
     override func didMove(toParent parent: UIViewController?) {
@@ -177,6 +180,29 @@ final class EditorScreen: WebHolderScreen {
         focusAsked = true
         host.webView.becomeFirstResponder()
         actions.focus(self)
+        keepPageAtTop()
+    }
+
+    /// WebKit reveals a body focused from code by the whole editable element, taller than the room
+    /// above the keyboard, and scrolls the page off its top; a new note's caret is at its top.
+    private func keepPageAtTop() {
+        keyboardShown = NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.pageToTop()
+                if let token = self.keyboardShown { NotificationCenter.default.removeObserver(token) }
+                self.keyboardShown = nil
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + EditorCover.timeout) { [weak self] in self?.pageToTop() }
+    }
+
+    private func pageToTop() {
+        guard host.holder === self else { return }
+        let scroll = host.webView.scrollView
+        if scroll.contentOffset != .zero { scroll.setContentOffset(.zero, animated: false) }
     }
 
     /// The page took no caret (a locked note opens in Preview): the keyboard goes down again.

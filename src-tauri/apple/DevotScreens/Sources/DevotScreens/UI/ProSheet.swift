@@ -63,11 +63,10 @@ struct ProSheet: View {
         let content = ProSheetContent(kind)
         VStack(spacing: SheetMetrics.gap) {
             SheetLens(symbol: "bird")
-            Text(content.title).font(.title3.bold()).multilineTextAlignment(.center)
+            Text(content.title).sheetTitle().multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($titleFocused)
-            Text(content.body).font(.callout).multilineTextAlignment(.center)
-                .foregroundStyle(Color(Tokens.Color.phoneTextSecondary))
+            Text(content.body).sheetMessage().multilineTextAlignment(.center)
             if let message {
                 Text(message).settingsDetail().multilineTextAlignment(.center)
             }
