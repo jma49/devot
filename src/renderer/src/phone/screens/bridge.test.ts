@@ -9,7 +9,7 @@ import { SCREENS_HANDLERS, type ScreensHandlers } from './ops'
 vi.hoisted(() => vi.stubGlobal('DEVOT_UI_TEST', false))
 
 interface Fixture {
-  readonly from: 'swift' | 'page'
+  readonly from: 'swift' | 'page' | 'rust'
   readonly code?: string
   readonly envelope?: boolean
   readonly message: unknown

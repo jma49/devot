@@ -209,14 +209,17 @@ it("Swift names the same operations and notices as Rust and the page, and Rust's
     read('src/renderer/src/phone/screens/message.ts'),
   )
   expect(quoted(page?.[1] ?? '')).toEqual(ops)
-  expect(swiftCases('NoticeKind')).toEqual(rustList('src-tauri/src/screens/message.rs', 'NOTICES'))
+  expect(swiftCases('NoticeKind')).toEqual([
+    ...rustList('src-tauri/src/screens/message.rs', 'NOTICES'),
+    ...rustList('src-tauri/src/screens/message.rs', 'RUST_NOTICES'),
+  ])
   const direct = rustList('src-tauri/src/screens/direct.rs', 'OPS')
   expect(direct.length).toBeGreaterThan(0)
   expect(swiftCases('DirectOp')).toEqual(direct)
 })
 
-it('the package tests read the Settings search fixture the page tests read', () => {
-  expect(read(`${PACKAGE}/TestHost/project.yml`)).toContain(
-    'path: ../../../../tests/fixtures/settings-search.json',
-  )
+it('the package tests read the Settings fixtures the page tests read', () => {
+  const project = read(`${PACKAGE}/TestHost/project.yml`)
+  expect(project).toContain('path: ../../../../tests/fixtures/settings-search.json')
+  expect(project).toContain('path: ../../../../tests/fixtures/sync-pane.json')
 })

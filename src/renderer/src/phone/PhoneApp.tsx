@@ -334,7 +334,7 @@ export function PhoneApp() {
         popToRoot: (tab) => nativeTabs.current?.popToRoot(tab),
       }),
       ...settingsHandlers({
-        showPane: (pane, anchor) => nativeSettings.current?.showPane(pane, anchor),
+        showPane: (pane) => nativeSettings.current?.showPane(pane),
         notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
     })
@@ -493,19 +493,18 @@ export function PhoneApp() {
       },
     }
     nativeSettings.current = {
-      showPane: (pane, anchor) => {
+      showPane: (pane) => {
         const settings = latest.current.stacks.settings
         const above = settings[settings.length - 1]
         // Swift asks each time the pane shows: one still drawn keeps what the owner was doing in it.
-        const shown =
-          settings.length === 2 && above?.screen === 'pane' && above.pane === pane && !anchor
+        const shown = settings.length === 2 && above?.screen === 'pane' && above.pane === pane
         if (latest.current.tab !== 'settings') {
           leaveTab()
           go({ type: 'selectTab', tab: 'settings' })
         }
         if (shown) return
         go({ type: 'selectTab', tab: 'settings' })
-        go({ type: 'push', screen: 'pane', pane, ...(anchor ? { anchor } : {}) })
+        go({ type: 'push', screen: 'pane', pane })
       },
       notebooks: () => choicesFromTree(buildBookTree(store.books)),
     }
@@ -562,7 +561,6 @@ export function PhoneApp() {
         <PhoneSettingsPane
           pane={route.pane}
           focusKey={route.focusKey === true}
-          anchor={route.anchor}
           nativeBar={native === true}
           onBack={pop}
         />
