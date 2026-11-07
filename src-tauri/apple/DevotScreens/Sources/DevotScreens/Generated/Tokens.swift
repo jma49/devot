@@ -148,8 +148,8 @@ public enum Tokens {
     case surfacePopover = "color.surface.popover"
     case surfaceFloatBar = "color.surface.float-bar"
     case surfaceSheet = "color.surface.sheet"
-    case surfaceGlassPopover = "color.surface.glass-popover"
-    case surfaceGlassFloatBar = "color.surface.glass-float-bar"
+    case surfaceGlass = "color.surface.glass"
+    case surfaceGlassSheen = "color.surface.glass-sheen"
     case inkText = "color.ink.text"
     case inkLine = "color.ink.line"
     case textOnDestructive = "color.text.on-destructive"
@@ -167,7 +167,6 @@ public enum Tokens {
     case lineMatch = "color.line.match"
     case lineControl = "color.line.control"
     case lineShadow = "color.line.shadow"
-    case lineFloatBar = "color.line.float-bar"
     case lineField = "color.line.field"
     case lineGlassEdge = "color.line.glass-edge"
     case lineGlassHighlight = "color.line.glass-highlight"
@@ -180,7 +179,6 @@ public enum Tokens {
     case fillMatch = "color.fill.match"
     case fillMatchCurrent = "color.fill.match-current"
     case fillButton = "color.fill.button"
-    case fillCompletionSelected = "color.fill.completion-selected"
     case fillCard = "color.fill.card"
     case fillSettingsCard = "color.fill.settings-card"
     case fillControl = "color.fill.control"
@@ -191,7 +189,6 @@ public enum Tokens {
     case fillBackdrop = "color.fill.backdrop"
     case fillGlassBackdrop = "color.fill.glass-backdrop"
     case fillField = "color.fill.field"
-    case fillGlassControl = "color.fill.glass-control"
     case accentFill = "color.accent.fill"
     case accentText = "color.accent.text"
     case accentHover = "color.accent.hover"
@@ -394,8 +391,8 @@ public enum Tokens {
       case .surfacePopover: return RGBA(0xffffff, 1)
       case .surfaceFloatBar: return RGBA(0xffffff, 1)
       case .surfaceSheet: return RGBA(0xffffff, 0.75)
-      case .surfaceGlassPopover: return RGBA(0xffffff, 0.78)
-      case .surfaceGlassFloatBar: return RGBA(0xffffff, 0.86)
+      case .surfaceGlass: return RGBA(0xffffff, 0.8)
+      case .surfaceGlassSheen: return RGBA(0xffffff, 0.16)
       case .inkText: return RGBA(0x000000, 1)
       case .inkLine: return RGBA(0x171717, 1)
       case .textOnDestructive: return RGBA(0xffffff, 1)
@@ -413,7 +410,6 @@ public enum Tokens {
       case .lineMatch: return RGBA(0xf59f0a, 1)
       case .lineControl: return RGBA(0x1c1b19, 0.2)
       case .lineShadow: return RGBA(0x000000, 0.14)
-      case .lineFloatBar: return RGBA(0x171717, 0.1)
       case .lineField: return RGBA(0x171717, 0.1)
       case .lineGlassEdge: return RGBA(0xffffff, 0.8)
       case .lineGlassHighlight: return RGBA(0xffffff, 0.95)
@@ -426,7 +422,6 @@ public enum Tokens {
       case .fillMatch: return RGBA(0xf59f0a, 0.25)
       case .fillMatchCurrent: return RGBA(0xf59f0a, 0.5)
       case .fillButton: return RGBA(0xebeae7, 1)
-      case .fillCompletionSelected: return RGBA(0xebe7fe, 1)
       case .fillCard: return RGBA(0x1c1b19, 0.065)
       case .fillSettingsCard: return RGBA(0x1c1b19, 0.04)
       case .fillControl: return RGBA(0x1c1b19, 0.07)
@@ -437,7 +432,6 @@ public enum Tokens {
       case .fillBackdrop: return RGBA(0x000000, 0.3)
       case .fillGlassBackdrop: return RGBA(0x000000, 0.3)
       case .fillField: return RGBA(0xffffff, 1)
-      case .fillGlassControl: return RGBA(0xffffff, 0.72)
       case .accentFill: return RGBA(0x3472d6, 1)
       case .accentText: return RGBA(0x2856a2, 1)
       case .accentHover: return RGBA(0x2463eb, 1)
@@ -627,8 +621,8 @@ public enum Tokens {
       case .surfacePopover: return RGBA(0x171717, 1)
       case .surfaceFloatBar: return RGBA(0x2a2927, 1)
       case .surfaceSheet: return RGBA(0x121212, 0.7)
-      case .surfaceGlassPopover: return RGBA(0x2a2a2e, 0.78)
-      case .surfaceGlassFloatBar: return RGBA(0x2c2c30, 0.86)
+      case .surfaceGlass: return RGBA(0x1e1e21, 0.8)
+      case .surfaceGlassSheen: return RGBA(0xffffff, 0.03)
       case .inkText: return RGBA(0xfafafa, 1)
       case .inkLine: return RGBA(0xf5f5f5, 1)
       case .textOnDestructive: return RGBA(0xffffff, 1)
@@ -646,7 +640,6 @@ public enum Tokens {
       case .lineMatch: return RGBA(0xf59f0a, 1)
       case .lineControl: return RGBA(0xebe8e2, 0.18)
       case .lineShadow: return RGBA(0x000000, 0.45)
-      case .lineFloatBar: return RGBA(0xf5f5f5, 0.1)
       case .lineField: return RGBA(0xf5f5f5, 0.1)
       case .lineGlassEdge: return RGBA(0xffffff, 0.14)
       case .lineGlassHighlight: return RGBA(0xffffff, 0.16)
@@ -659,7 +652,6 @@ public enum Tokens {
       case .fillMatch: return RGBA(0xf59f0a, 0.25)
       case .fillMatchCurrent: return RGBA(0xf59f0a, 0.45)
       case .fillButton: return RGBA(0x34332f, 1)
-      case .fillCompletionSelected: return RGBA(0x3a3550, 1)
       case .fillCard: return RGBA(0xebe8e2, 0.08)
       case .fillSettingsCard: return RGBA(0xebe8e2, 0.05)
       case .fillControl: return RGBA(0xebe8e2, 0.1)
@@ -670,7 +662,6 @@ public enum Tokens {
       case .fillBackdrop: return RGBA(0x000000, 0.3)
       case .fillGlassBackdrop: return RGBA(0x000000, 0.2)
       case .fillField: return RGBA(0x171717, 1)
-      case .fillGlassControl: return RGBA(0x3c3c42, 0.62)
       case .accentFill: return RGBA(0x4576b2, 1)
       case .accentText: return RGBA(0x7ea6d8, 1)
       case .accentHover: return RGBA(0x2463eb, 1)
@@ -860,8 +851,8 @@ public enum Tokens {
       case .surfacePopover: return RGBA(0xffffff, 1)
       case .surfaceFloatBar: return RGBA(0xffffff, 1)
       case .surfaceSheet: return RGBA(0xfdfcf8, 0.75)
-      case .surfaceGlassPopover: return RGBA(0xfffefb, 0.8)
-      case .surfaceGlassFloatBar: return RGBA(0xfffefb, 0.88)
+      case .surfaceGlass: return RGBA(0xfffefb, 0.8)
+      case .surfaceGlassSheen: return RGBA(0xffffff, 0.16)
       case .inkText: return RGBA(0x141413, 1)
       case .inkLine: return RGBA(0x1f1e1d, 1)
       case .textOnDestructive: return RGBA(0xffffff, 1)
@@ -879,7 +870,6 @@ public enum Tokens {
       case .lineMatch: return RGBA(0xf59f0a, 1)
       case .lineControl: return RGBA(0x1f1e1d, 0.3)
       case .lineShadow: return RGBA(0x1f1e1d, 0.14)
-      case .lineFloatBar: return RGBA(0x1f1e1d, 0.1)
       case .lineField: return RGBA(0x1f1e1d, 0.1)
       case .lineGlassEdge: return RGBA(0xffffff, 0.8)
       case .lineGlassHighlight: return RGBA(0xffffff, 0.95)
@@ -892,7 +882,6 @@ public enum Tokens {
       case .fillMatch: return RGBA(0xf59f0a, 0.25)
       case .fillMatchCurrent: return RGBA(0xf59f0a, 0.5)
       case .fillButton: return RGBA(0xebe9e0, 1)
-      case .fillCompletionSelected: return RGBA(0xebe7fe, 1)
       case .fillCard: return RGBA(0x1f1e1d, 0.065)
       case .fillSettingsCard: return RGBA(0x1f1e1d, 0.04)
       case .fillControl: return RGBA(0x1f1e1d, 0.07)
@@ -903,7 +892,6 @@ public enum Tokens {
       case .fillBackdrop: return RGBA(0x1f1e1d, 0.3)
       case .fillGlassBackdrop: return RGBA(0x1f1e1d, 0.3)
       case .fillField: return RGBA(0xffffff, 1)
-      case .fillGlassControl: return RGBA(0xffffff, 0.72)
       case .accentFill: return RGBA(0x3472d6, 1)
       case .accentText: return RGBA(0x2856a2, 1)
       case .accentHover: return RGBA(0x2463eb, 1)
@@ -1093,8 +1081,8 @@ public enum Tokens {
       case .surfacePopover: return RGBA(0x353533, 1)
       case .surfaceFloatBar: return RGBA(0x353533, 1)
       case .surfaceSheet: return RGBA(0x2b2b29, 0.7)
-      case .surfaceGlassPopover: return RGBA(0x31312f, 0.8)
-      case .surfaceGlassFloatBar: return RGBA(0x33332f, 0.88)
+      case .surfaceGlass: return RGBA(0x31312f, 0.8)
+      case .surfaceGlassSheen: return RGBA(0xffffff, 0.03)
       case .inkText: return RGBA(0xfaf9f5, 1)
       case .inkLine: return RGBA(0xfaf9f5, 1)
       case .textOnDestructive: return RGBA(0xffffff, 1)
@@ -1112,7 +1100,6 @@ public enum Tokens {
       case .lineMatch: return RGBA(0xf59f0a, 1)
       case .lineControl: return RGBA(0xfaf9f5, 0.3)
       case .lineShadow: return RGBA(0x1f1e1d, 0.45)
-      case .lineFloatBar: return RGBA(0xfaf9f5, 0.1)
       case .lineField: return RGBA(0xfaf9f5, 0.1)
       case .lineGlassEdge: return RGBA(0xffffff, 0.14)
       case .lineGlassHighlight: return RGBA(0xffffff, 0.16)
@@ -1125,7 +1112,6 @@ public enum Tokens {
       case .fillMatch: return RGBA(0xf59f0a, 0.25)
       case .fillMatchCurrent: return RGBA(0xf59f0a, 0.45)
       case .fillButton: return RGBA(0x3d3d3a, 1)
-      case .fillCompletionSelected: return RGBA(0x3a3550, 1)
       case .fillCard: return RGBA(0xfaf9f5, 0.08)
       case .fillSettingsCard: return RGBA(0xfaf9f5, 0.05)
       case .fillControl: return RGBA(0xfaf9f5, 0.1)
@@ -1136,7 +1122,6 @@ public enum Tokens {
       case .fillBackdrop: return RGBA(0x1f1e1d, 0.5)
       case .fillGlassBackdrop: return RGBA(0x1f1e1d, 0.35)
       case .fillField: return RGBA(0x1f1e1d, 1)
-      case .fillGlassControl: return RGBA(0x45443f, 0.62)
       case .accentFill: return RGBA(0x5884ba, 1)
       case .accentText: return RGBA(0xa2bfe3, 1)
       case .accentHover: return RGBA(0x2463eb, 1)
@@ -1365,8 +1350,8 @@ public enum Tokens {
     public static var surfacePopover: UIColor { Theme.current.color(.surfacePopover) }
     public static var surfaceFloatBar: UIColor { Theme.current.color(.surfaceFloatBar) }
     public static var surfaceSheet: UIColor { Theme.current.color(.surfaceSheet) }
-    public static var surfaceGlassPopover: UIColor { Theme.current.color(.surfaceGlassPopover) }
-    public static var surfaceGlassFloatBar: UIColor { Theme.current.color(.surfaceGlassFloatBar) }
+    public static var surfaceGlass: UIColor { Theme.current.color(.surfaceGlass) }
+    public static var surfaceGlassSheen: UIColor { Theme.current.color(.surfaceGlassSheen) }
     public static var inkText: UIColor { Theme.current.color(.inkText) }
     public static var inkLine: UIColor { Theme.current.color(.inkLine) }
     public static var textOnDestructive: UIColor { Theme.current.color(.textOnDestructive) }
@@ -1384,7 +1369,6 @@ public enum Tokens {
     public static var lineMatch: UIColor { Theme.current.color(.lineMatch) }
     public static var lineControl: UIColor { Theme.current.color(.lineControl) }
     public static var lineShadow: UIColor { Theme.current.color(.lineShadow) }
-    public static var lineFloatBar: UIColor { Theme.current.color(.lineFloatBar) }
     public static var lineField: UIColor { Theme.current.color(.lineField) }
     public static var lineGlassEdge: UIColor { Theme.current.color(.lineGlassEdge) }
     public static var lineGlassHighlight: UIColor { Theme.current.color(.lineGlassHighlight) }
@@ -1397,7 +1381,6 @@ public enum Tokens {
     public static var fillMatch: UIColor { Theme.current.color(.fillMatch) }
     public static var fillMatchCurrent: UIColor { Theme.current.color(.fillMatchCurrent) }
     public static var fillButton: UIColor { Theme.current.color(.fillButton) }
-    public static var fillCompletionSelected: UIColor { Theme.current.color(.fillCompletionSelected) }
     public static var fillCard: UIColor { Theme.current.color(.fillCard) }
     public static var fillSettingsCard: UIColor { Theme.current.color(.fillSettingsCard) }
     public static var fillControl: UIColor { Theme.current.color(.fillControl) }
@@ -1408,7 +1391,6 @@ public enum Tokens {
     public static var fillBackdrop: UIColor { Theme.current.color(.fillBackdrop) }
     public static var fillGlassBackdrop: UIColor { Theme.current.color(.fillGlassBackdrop) }
     public static var fillField: UIColor { Theme.current.color(.fillField) }
-    public static var fillGlassControl: UIColor { Theme.current.color(.fillGlassControl) }
     public static var accentFill: UIColor { Theme.current.color(.accentFill) }
     public static var accentText: UIColor { Theme.current.color(.accentText) }
     public static var accentHover: UIColor { Theme.current.color(.accentHover) }
@@ -1847,6 +1829,7 @@ public enum Tokens {
     public static let glassPopoverRow: CGFloat = 32
     public static let glassPopoverNotch: CGFloat = 14
     public static let glassPopoverInset: CGFloat = 6
+    public static let glassSheen: CGFloat = 44
     public static let listSectionGap: CGFloat = 14
     public static let footnoteRule: CGFloat = 48
     public static let listRowPaddingBottom: CGFloat = 11

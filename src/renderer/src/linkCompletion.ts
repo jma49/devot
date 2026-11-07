@@ -174,10 +174,10 @@ const infoTheme = EditorView.theme({
   '.cm-tooltip.cm-completionInfo': {
     border: '0',
     borderRadius: 'var(--radius-popover)',
-    backgroundColor: 'var(--color-surface-popover)',
+    background: 'var(--glass-material-bg)',
     backdropFilter: 'var(--glass-backdrop, none)',
     WebkitBackdropFilter: 'var(--glass-backdrop, none)',
-    boxShadow: '0 0 0 1px var(--color-line-hairline), var(--popover-shadow)',
+    boxShadow: 'var(--glass-rim), var(--popover-shadow)',
     padding: '0',
   },
 })

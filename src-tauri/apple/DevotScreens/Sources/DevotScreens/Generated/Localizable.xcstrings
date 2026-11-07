@@ -1563,6 +1563,28 @@
         }
       }
     },
+    "appearanceSettings.materialAmount" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Material Transparency"
+          }
+        }
+      }
+    },
+    "appearanceSettings.materialAmountHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How much shows through the sidebar, buttons and pop-ups."
+          }
+        }
+      }
+    },
     "appearanceSettings.modeActive" : {
       "extractionState" : "manual",
       "localizations" : {

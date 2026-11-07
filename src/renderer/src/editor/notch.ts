@@ -1,14 +1,13 @@
 // The notch of a floating bar: a small clipped box behind the bar holding two
-// zero-size border triangles, the edge colour and the fill colour shifted one
-// pixel, so the edge shows as a one pixel outline along the slanted sides.
-// The box sits at the bar's edge, outside its rectangle; a fill strip over the
-// bar's outline (a box-shadow ring, `floating.tsx`) at the notch base closes
-// the seam where the two meet, the same on both sides of the bar.
+// clipped layers, the glass edge as a band along the slanted sides and the
+// material as a triangle shifted EDGE pixels in, so the edge shows as a thin
+// outline. The box sits at the bar's edge, outside its rectangle, and paints
+// over the bar's rim (a box-shadow, `floating.tsx`) where the two meet.
 import { sizes } from '../theme/tokens'
 
 export const NOTCH_WIDTH = Number.parseFloat(sizes['size.float-notch-width'])
 export const NOTCH_HEIGHT = Number.parseFloat(sizes['size.float-notch-height'])
-export const EDGE = 1
+export const EDGE = 0.5
 
 export const BAR_RADIUS = Number.parseFloat(sizes['radius.floating-bar'])
 export const GLASS_BAR_RADIUS = Number.parseFloat(sizes['radius.glass-floating-bar'])
@@ -26,10 +25,10 @@ export const notchLeft = (tip: string, width: number) => `calc(${tip} - ${width 
 const tip = `var(--float-notch-x, ${NOTCH_X}px)`
 const half = NOTCH_WIDTH / 2
 // Where the fill triangle's sides cross the edge triangle's base: the edge is clipped to the
-// outline between the two, so a translucent (Glass) fill never shows the edge colour through it.
-const inset = `${half / NOTCH_HEIGHT}px`
-const edge = 'var(--color-line-float-bar)'
-const fill = 'var(--color-surface-float-bar)'
+// outline between the two, so the translucent material never shows the edge colour through it.
+const inset = `${(half / NOTCH_HEIGHT) * EDGE}px`
+const edge = 'var(--color-line-glass-edge)'
+const tint = 'var(--glass-tint)'
 
 export const notchStyles = {
   '.cm-float-notch': {
@@ -48,46 +47,31 @@ export const notchStyles = {
     content: '""',
     position: 'absolute',
     left: '0',
-    width: '0',
-    height: '0',
-    borderLeft: `${half}px solid transparent`,
-    borderRight: `${half}px solid transparent`,
+    width: '100%',
+    height: '100%',
   },
-  // Pointing down (the bar is above its anchor): the edge triangle, then the fill one pixel up.
+  // Pointing down (the bar is above its anchor): the edge band, then the material EDGE up.
   '.cm-tooltip-above > .cm-float-notch::before': {
     top: '0',
-    borderTop: `${NOTCH_HEIGHT}px solid ${edge}`,
+    background: edge,
     clipPath: `polygon(0 0, ${inset} 0, 50% calc(100% - ${EDGE}px), calc(100% - ${inset}) 0, 100% 0, 50% 100%)`,
   },
   '.cm-tooltip-above > .cm-float-notch::after': {
     top: `-${EDGE}px`,
-    borderTop: `${NOTCH_HEIGHT}px solid ${fill}`,
+    background: tint,
+    clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
   },
+  // Pointing up, the notch meets the bar's top edge, where the sheen is at its strongest.
   '.cm-tooltip-below > .cm-float-notch::before': {
     bottom: '0',
-    borderBottom: `${NOTCH_HEIGHT}px solid ${edge}`,
+    background: edge,
     clipPath: `polygon(0 100%, ${inset} 100%, 50% ${EDGE}px, calc(100% - ${inset}) 100%, 100% 100%, 50% 0)`,
   },
   '.cm-tooltip-below > .cm-float-notch::after': {
     bottom: `-${EDGE}px`,
-    borderBottom: `${NOTCH_HEIGHT}px solid ${fill}`,
+    background: `var(--glass-sheen-top), ${tint}`,
+    clipPath: 'polygon(0 100%, 100% 100%, 50% 0)',
   },
-  // The seam: a strip of the fill over the bar's outline at the notch base, a
-  // pixel short of the slanted edges at each end. It is two pixels tall, one
-  // outside the bar and one inside, so it covers the outline whichever pixel
-  // row a fractional bar position puts it on.
-  '.cm-tooltip.cm-float-bar::after': {
-    content: '""',
-    position: 'absolute',
-    zIndex: '1',
-    left: notchLeft(tip, NOTCH_WIDTH - 2 * EDGE),
-    width: `${NOTCH_WIDTH - 2 * EDGE}px`,
-    height: `${2 * EDGE}px`,
-    backgroundColor: fill,
-    pointerEvents: 'none',
-  },
-  '.cm-tooltip-above.cm-float-bar::after': { bottom: `-${EDGE}px` },
-  '.cm-tooltip-below.cm-float-bar::after': { top: `-${EDGE}px` },
 } satisfies Record<string, Record<string, string>>
 
 export function notchElement(): HTMLElement {

@@ -36,27 +36,33 @@ describe('notch geometry', () => {
     expect(notchOffset(299, 0, 300, NOTCH_X)).toBe(300 - NOTCH_X)
   })
 
-  it('draws two zero-size border triangles, the fill one pixel in from the edge one', () => {
+  it('draws the glass edge as a band and the material as a triangle half a pixel in', () => {
+    expect(EDGE).toBe(0.5)
     const edge = rule('.cm-tooltip-above > .cm-float-notch::before')
     const fill = rule('.cm-tooltip-above > .cm-float-notch::after')
-    expect(edge.borderTop).toBe('6px solid var(--color-line-float-bar)')
-    expect(fill.borderTop).toBe('6px solid var(--color-surface-float-bar)')
-    expect(fill.top).toBe(`-${EDGE}px`)
+    expect(edge.background).toBe('var(--color-line-glass-edge)')
+    expect(fill.background).toBe('var(--glass-tint)')
+    expect(fill.clipPath).toBe('polygon(0 0, 100% 0, 50% 100%)')
+    expect(fill.top).toBe('-0.5px')
     const both = rule('.cm-float-notch::before, .cm-float-notch::after')
-    expect([both.width, both.height]).toEqual(['0', '0'])
-    expect(both.borderLeft).toBe('6px solid transparent')
-    expect(both.borderRight).toBe('6px solid transparent')
+    expect([both.width, both.height]).toEqual(['100%', '100%'])
     expect(rule('.cm-float-notch').overflow).toBe('hidden')
     expect(rule('.cm-float-notch').zIndex).toBe('-1')
   })
 
-  it('clips the edge triangle to its outline, so a translucent fill never shows it through', () => {
-    // The fill triangle, one pixel in, crosses the edge triangle's base half a notch width per height in.
+  it('carries the sheen only on a notch that meets the top edge', () => {
+    const fill = rule('.cm-tooltip-below > .cm-float-notch::after')
+    expect(fill.background).toBe('var(--glass-sheen-top), var(--glass-tint)')
+    expect(fill.bottom).toBe('-0.5px')
+  })
+
+  it('clips the edge to its outline, so the translucent material never shows it through', () => {
+    // The fill, half a pixel in, crosses the edge triangle's base half a notch width per height in.
     expect(rule('.cm-tooltip-above > .cm-float-notch::before').clipPath).toBe(
-      'polygon(0 0, 1px 0, 50% calc(100% - 1px), calc(100% - 1px) 0, 100% 0, 50% 100%)',
+      'polygon(0 0, 0.5px 0, 50% calc(100% - 0.5px), calc(100% - 0.5px) 0, 100% 0, 50% 100%)',
     )
     expect(rule('.cm-tooltip-below > .cm-float-notch::before').clipPath).toBe(
-      'polygon(0 100%, 1px 100%, 50% 1px, calc(100% - 1px) 100%, 100% 100%, 50% 0)',
+      'polygon(0 100%, 0.5px 100%, 50% 0.5px, calc(100% - 0.5px) 100%, 100% 100%, 50% 0)',
     )
   })
 
@@ -64,13 +70,7 @@ describe('notch geometry', () => {
     expect(JSON.stringify(notchStyles)).not.toContain('rotate')
   })
 
-  it('closes the seam with a fill strip over the outline at the notch base', () => {
-    const strip = rule('.cm-tooltip.cm-float-bar::after')
-    expect(strip.height).toBe('2px')
-    expect(strip.width).toBe('10px')
-    expect(strip.backgroundColor).toBe('var(--color-surface-float-bar)')
-    expect(Number(strip.zIndex)).toBeGreaterThan(0)
-    expect(rule('.cm-tooltip-above.cm-float-bar::after').bottom).toBe('-1px')
-    expect(rule('.cm-tooltip-below.cm-float-bar::after').top).toBe('-1px')
+  it('needs no seam strip: the notch, behind the bar, paints over its rim', () => {
+    expect(Object.keys(notchStyles).some((k) => k.includes('.cm-float-bar::after'))).toBe(false)
   })
 })

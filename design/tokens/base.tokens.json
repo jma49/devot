@@ -2626,6 +2626,14 @@
       },
       "$description": "Glass interface: the padding inside a popover; radius.glass-popover minus this is radius.glass-menu-row."
     },
+    "glass-sheen": {
+      "$type": "dimension",
+      "$value": {
+        "value": 44,
+        "unit": "px"
+      },
+      "$description": "Glass interface: how far down from its top edge the glass material's sheen fades out."
+    },
     "list-section-gap": {
       "$type": "dimension",
       "$value": { "value": 14, "unit": "px" },

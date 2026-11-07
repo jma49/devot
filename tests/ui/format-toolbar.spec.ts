@@ -187,8 +187,8 @@ test('the toolbar shows for a selection: one outlined box of named SF Symbol but
       mask: icon.getPropertyValue('mask-size') || icon.getPropertyValue('-webkit-mask-size'),
     }
   })
-  // The outline is a 1 px ring in the box shadow (no spread blur), under the notch's strip.
-  expect(look.shadow).toMatch(/0px 0px 0px 1px/)
+  // The outline is the glass rim's half-pixel ring in the box shadow (no spread blur), under the notch.
+  expect(look.shadow).toMatch(/0px 0px 0px 0\.5px/)
   expect(look.filter).toBe('none')
   expect(look.notch).toEqual([12, 6])
   // Whole pixels, and the mask fills the box exactly, so the glyph is scaled

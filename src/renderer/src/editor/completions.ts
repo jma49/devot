@@ -53,10 +53,10 @@ const theme = EditorView.theme({
   '.cm-tooltip.cm-tooltip-autocomplete': {
     border: '0',
     borderRadius: 'var(--radius-popover)',
-    backgroundColor: 'var(--color-surface-popover)',
+    background: 'var(--glass-material-bg)',
     backdropFilter: 'var(--glass-backdrop, none)',
     WebkitBackdropFilter: 'var(--glass-backdrop, none)',
-    boxShadow: '0 0 0 1px var(--color-line-hairline), var(--popover-shadow)',
+    boxShadow: 'var(--glass-rim), var(--popover-shadow)',
     color: 'var(--color-text-primary)',
     overflow: 'hidden',
     animation: fadeIn,
@@ -79,7 +79,7 @@ const theme = EditorView.theme({
     color: 'var(--color-text-primary)',
   },
   '.cm-tooltip-autocomplete ul li[aria-selected]': {
-    backgroundColor: 'var(--color-fill-completion-selected)',
+    backgroundColor: 'var(--menu-highlight)',
     color: 'var(--color-text-primary)',
   },
   '.cm-tooltip.cm-tooltip-autocomplete > ul > completion-section': {

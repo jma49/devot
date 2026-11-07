@@ -160,23 +160,19 @@ export function FloatSeparator(): ReactNode {
 }
 
 /**
- * One bar element holds the surface and a box shadow (on the bar only, no
- * filter): a 1 px ring for the outline, then one soft layer; its notch is a
- * separate element behind it (`notch.ts`). A tooltip bubble has its own
- * notch: a turned square on its edge, pointing at its button.
+ * One bar element holds the glass material and a box shadow (on the bar only,
+ * no filter): the glass rim, then one soft layer; its notch is a separate
+ * element behind it (`notch.ts`). A tooltip bubble has its own notch: a turned
+ * square on its edge, pointing at its button.
  */
-const hairline = '0.5px solid var(--color-line-hairline)'
+const glassEdge = '0.5px solid var(--color-line-glass-edge)'
 const notchSize = 'var(--space-4)'
 const notchOut = 'calc(var(--space-4) / -2)'
 const barShadow = [
-  '0 0 0 1px var(--color-line-float-bar)',
+  'var(--glass-rim)',
   '0 var(--shadow-float-bar-y) var(--shadow-float-bar-blur) var(--color-shadow-float-bar)',
 ].join(', ')
-const popoverShadow = [
-  '0 0 0 1px var(--color-line-hairline)',
-  '0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key)',
-  '0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient)',
-].join(', ')
+const popoverShadow = 'var(--glass-rim), var(--popover-shadow)'
 
 export function barContent(dom: HTMLElement): HTMLElement {
   const content = document.createElement('div')
@@ -197,7 +193,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     paddingInline: 'var(--size-float-toolbar-end)',
     border: '0',
     borderRadius: 'var(--radius-floating-bar)',
-    backgroundColor: 'var(--color-surface-float-bar)',
+    background: 'var(--glass-material-bg)',
     backdropFilter: 'var(--glass-backdrop, none)',
     WebkitBackdropFilter: 'var(--glass-backdrop, none)',
     boxShadow: barShadow,
@@ -275,7 +271,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     gap: 'var(--space-2)',
     padding: 'var(--space-3) var(--space-5)',
     borderRadius: 'var(--radius-glass-tooltip)',
-    backgroundColor: 'var(--color-surface-popover)',
+    background: 'var(--glass-material-bg)',
     backdropFilter: 'var(--glass-backdrop, none)',
     WebkitBackdropFilter: 'var(--glass-backdrop, none)',
     boxShadow: popoverShadow,
@@ -300,18 +296,20 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     left: `calc(var(--tip-notch, 50%) - ${notchSize} / 2)`,
     width: notchSize,
     height: notchSize,
-    backgroundColor: 'inherit',
     transform: 'rotate(45deg)',
   },
+  // Below its button the notch meets the bubble's top edge, where the sheen is at its strongest.
   '.cm-float-tip[data-side="below"]::before': {
     top: notchOut,
-    borderLeft: hairline,
-    borderTop: hairline,
+    borderLeft: glassEdge,
+    borderTop: glassEdge,
+    background: 'var(--glass-sheen-top), var(--glass-tint)',
   },
   '.cm-float-tip[data-side="above"]::before': {
     bottom: notchOut,
-    borderRight: hairline,
-    borderBottom: hairline,
+    borderRight: glassEdge,
+    borderBottom: glassEdge,
+    background: 'var(--glass-tint)',
   },
   // The app's tooltip keycap (app.css, .tool-tip).
   '.cm-float-kbd': {

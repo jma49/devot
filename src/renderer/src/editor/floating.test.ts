@@ -25,12 +25,12 @@ describe('floating bar motion and states', () => {
     expect(transition).not.toContain('background')
   })
 
-  it('is one element: surface, a 1 px outline and one soft box shadow layer, no filter and no animation', () => {
+  it('is one element: the glass material, the glass rim and one soft box shadow layer, no filter and no animation', () => {
     const bar = rule('.cm-tooltip.cm-float-bar')
     expect(bar.outline).toBeUndefined()
-    expect(bar.boxShadow).toMatch(/^0 0 0 1px var\(--color-line-float-bar\), /)
+    expect(bar.boxShadow).toMatch(/^var\(--glass-rim\), /)
     expect(bar.border).toBe('0')
-    expect(bar.backgroundColor).toBe('var(--color-surface-float-bar)')
+    expect(bar.background).toBe('var(--glass-material-bg)')
     expect(bar.boxShadow!.split('), ')).toHaveLength(2)
     expect(bar.boxShadow).toContain('var(--color-shadow-float-bar)')
     expect(bar.boxShadow).not.toContain('popover')

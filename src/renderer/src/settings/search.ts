@@ -25,6 +25,7 @@ const ENTRIES: readonly SettingsEntry[] = [
   { pane: 'general', label: 'generalSettings.crashReports' },
   { pane: 'appearance', label: 'appearanceSettings.colorScheme' },
   { pane: 'appearance', label: 'appearanceSettings.glassAmount', only: 'mac' },
+  { pane: 'appearance', label: 'appearanceSettings.materialAmount', only: 'mac' },
   { pane: 'appearance', label: 'phone.appearance.transparency', only: 'phone' },
   { pane: 'appearance', label: 'appearanceSettings.systemAccent', only: 'mac' },
   { pane: 'appearance', label: 'appearanceSettings.lightMode' },

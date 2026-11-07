@@ -328,6 +328,10 @@ export function AppearanceSection() {
     stored: settings.windowTransparency,
     store: (windowTransparency) => change({ windowTransparency }),
   })
+  const materialAmount = useDraggedNumber({
+    stored: settings.materialTransparency,
+    store: (materialTransparency) => change({ materialTransparency }),
+  })
   const textSize = useDraggedNumber({
     stored: settings.fontSize,
     store: (size) => change({ fontSize: size }),
@@ -490,39 +494,20 @@ export function AppearanceSection() {
             </div>
           </div>
         </div>
-        <Setting
+        <TransparencySetting
           label="appearanceSettings.glassAmount"
-          description={t('appearanceSettings.glassAmountHint')}
-          htmlFor={id('glass')}
-          descriptionId={id('glass-hint')}
-        >
-          <span className="setting-range">
-            <input
-              id={id('glass')}
-              type="range"
-              className="slider"
-              min={-WINDOW_TRANSPARENCY_MAX}
-              max={WINDOW_TRANSPARENCY_MAX}
-              step={WINDOW_TRANSPARENCY_STEP}
-              value={glassAmount.value}
-              style={
-                {
-                  '--value': glassAmount.value,
-                  '--min': -WINDOW_TRANSPARENCY_MAX,
-                  '--max': WINDOW_TRANSPARENCY_MAX,
-                } as CSSProperties
-              }
-              aria-describedby={id('glass-hint')}
-              onChange={(e) => glassAmount.drag(Number(e.currentTarget.value))}
-              onPointerUp={glassAmount.release}
-              onKeyUp={glassAmount.release}
-              onBlur={glassAmount.release}
-            />
-            <output className="setting-range-value" htmlFor={id('glass')}>
-              {signed.format(glassAmount.value)}
-            </output>
-          </span>
-        </Setting>
+          hint="appearanceSettings.glassAmountHint"
+          id={id('glass')}
+          amount={glassAmount}
+          formatValue={signed.format}
+        />
+        <TransparencySetting
+          label="appearanceSettings.materialAmount"
+          hint="appearanceSettings.materialAmountHint"
+          id={id('material')}
+          amount={materialAmount}
+          formatValue={signed.format}
+        />
         {themeFollowsSystemAccent(themeInEffect(settings, shown)) ? (
           <SettingToggle
             label="appearanceSettings.systemAccent"
@@ -639,5 +624,50 @@ export function AppearanceSection() {
         </Setting>
       </SettingsSection>
     </section>
+  )
+}
+
+function TransparencySetting({
+  label,
+  hint,
+  id,
+  amount,
+  formatValue,
+}: {
+  label: MessageKey
+  hint: MessageKey
+  id: string
+  amount: ReturnType<typeof useDraggedNumber>
+  formatValue: (value: number) => string
+}) {
+  return (
+    <Setting label={label} description={t(hint)} htmlFor={id} descriptionId={`${id}-hint`}>
+      <span className="setting-range">
+        <input
+          id={id}
+          type="range"
+          className="slider"
+          min={-WINDOW_TRANSPARENCY_MAX}
+          max={WINDOW_TRANSPARENCY_MAX}
+          step={WINDOW_TRANSPARENCY_STEP}
+          value={amount.value}
+          style={
+            {
+              '--value': amount.value,
+              '--min': -WINDOW_TRANSPARENCY_MAX,
+              '--max': WINDOW_TRANSPARENCY_MAX,
+            } as CSSProperties
+          }
+          aria-describedby={`${id}-hint`}
+          onChange={(e) => amount.drag(Number(e.currentTarget.value))}
+          onPointerUp={amount.release}
+          onKeyUp={amount.release}
+          onBlur={amount.release}
+        />
+        <output className="setting-range-value" htmlFor={id}>
+          {formatValue(amount.value)}
+        </output>
+      </span>
+    </Setting>
   )
 }

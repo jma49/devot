@@ -51,6 +51,7 @@ describe('editor settings', () => {
       spellCheck: true,
       highlightActiveLine: false,
       windowTransparency: 0,
+      materialTransparency: 0,
       pasteUrl: 'link',
       syncScroll: true,
       inlineImages: true,
@@ -222,6 +223,10 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ spellCheck: false }).windowTransparency).toBe(0)
     expect(parseEditorSettings({ windowTransparency: -40 }).windowTransparency).toBe(-40)
     expect(parseEditorSettings({ windowTransparency: 101 }).windowTransparency).toBe(0)
+    // Settings from before the material slider read it as the design.
+    expect(parseEditorSettings({ windowTransparency: -40 }).materialTransparency).toBe(0)
+    expect(parseEditorSettings({ materialTransparency: 60 }).materialTransparency).toBe(60)
+    expect(parseEditorSettings({ materialTransparency: -101 }).materialTransparency).toBe(0)
     expect(parseEditorSettings({ autoDownloadUpdates: false }).autoDownloadUpdates).toBe(false)
     expect(parseEditorSettings({ showCounts: false }).showCounts).toBe(false)
     expect(parseEditorSettings({ showCounts: 0 }).showCounts).toBe(true)
@@ -257,6 +262,8 @@ describe('editor settings', () => {
     })
     for (const windowTransparency of [-100, 0, 35, 100])
       expect(checkEditorSettingsPatch({ windowTransparency })).toEqual({ windowTransparency })
+    for (const materialTransparency of [-100, 0, 35, 100])
+      expect(checkEditorSettingsPatch({ materialTransparency })).toEqual({ materialTransparency })
     expect(checkEditorSettingsPatch({ inlineImages: false })).toEqual({ inlineImages: false })
     for (const listDates of LIST_DATES_STYLES)
       expect(checkEditorSettingsPatch({ listDates })).toEqual({ listDates })
@@ -313,6 +320,10 @@ describe('editor settings', () => {
       { windowTransparency: 105 },
       { windowTransparency: 52.5 },
       { windowTransparency: '50' },
+      { materialTransparency: -105 },
+      { materialTransparency: 105 },
+      { materialTransparency: 52.5 },
+      { materialTransparency: '50' },
       { syncScroll: 'on' },
       { syncScroll: 1 },
       { inlineImages: 'on' },

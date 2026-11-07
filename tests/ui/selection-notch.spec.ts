@@ -111,17 +111,21 @@ for (const scheme of ['light', 'dark'] as const) {
           // A glass bar is translucent, so its fill is the colour it paints just inside the edge, not its CSS colour.
           const insideY = Math.round(placement === 'below' ? box.y + 4 : box.y + box.height - 5)
           const [r = 0, g = 0, b = 0] = shot.at(Math.round(cx), insideY)
-          // The pixel rows the bar's 1 px outline ring touches, just outside its edge.
+          // The pixel rows the bar's glass rim touches, just outside its edge.
           const ringTop = placement === 'below' ? box.y - 1 : box.y + box.height
           const ringRows: number[] = []
           for (let y = Math.floor(ringTop); y < Math.ceil(ringTop + 1); y++) ringRows.push(y)
           const x0 = Math.round(notch.x)
           const x1 = Math.round(notch.x + notch.width)
           const besideX = cx < box.x + box.width / 2 ? x1 + 4 : x0 - 4
-          const outline = Math.max(...ringRows.map((y) => distance(shot.at(besideX, y), [r, g, b])))
-          expect(outline, 'the outline is drawn beside the notch').toBeGreaterThan(8)
-          // The seam strip covers the outline under the notch base.
-          // A dark glass outline is within a few levels of the fill, so only a light bar shows a missing strip.
+          // A light bar's glass edge is white on white, so only a dark bar shows its outline.
+          if (scheme === 'dark') {
+            const outline = Math.max(
+              ...ringRows.map((y) => distance(shot.at(besideX, y), [r, g, b])),
+            )
+            expect(outline, 'the outline is drawn beside the notch').toBeGreaterThan(8)
+          }
+          // The notch, behind the bar, paints over the rim under its base.
           for (const y of ringRows)
             for (let x = x0 + 3; x < x1 - 3; x++)
               expect(
@@ -132,7 +136,7 @@ for (const scheme of ['light', 'dark'] as const) {
           // Halfway up the notch the slanted sides are outlined: a pixel differs from the fill within a pixel of each side.
           const midY = Math.round(notch.y + notch.height / 2)
           const reach = notch.width / 4 + 0.5
-          for (const side of [-1, 1]) {
+          for (const side of scheme === 'dark' ? [-1, 1] : []) {
             let sides = 0
             for (let dx = -1; dx <= 1; dx++)
               sides = Math.max(
