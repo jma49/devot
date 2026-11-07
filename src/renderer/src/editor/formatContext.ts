@@ -31,12 +31,13 @@ export const LITERAL_BLOCKS: readonly string[] = [
 ]
 
 /**
- * Syntax in which a typed trigger (a slash, `[[`) is text: code, HTML,
- * comments and front matter, and the address and title of a link.
+ * Syntax in which a typed trigger (a slash, `[[`) is text: code, formulas,
+ * HTML, comments and front matter, and the address and title of a link.
  */
 export const LITERAL_TEXT: ReadonlySet<string> = new Set([
   ...LITERAL_BLOCKS,
   'InlineCode',
+  'InlineMath',
   'URL',
   'Autolink',
   'LinkTitle',

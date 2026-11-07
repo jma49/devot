@@ -29,6 +29,7 @@ pub const TAB_WIDTH_MIN: u64 = 1;
 pub const TAB_WIDTH_MAX: u64 = 8;
 pub const CURSOR_SCROLL_MARGIN_MAX: u64 = 200;
 pub const WINDOW_TRANSPARENCY_MAX: i64 = 100;
+pub const GRADIENT_STRENGTH_MAX: u64 = 100;
 const NOTEBOOK_ID_MAX: usize = 64;
 
 const INVALID: &str = "E_EDITOR_SETTINGS_INVALID";
@@ -192,6 +193,9 @@ pub struct EditorSettings {
     /// The same adjustment of the glass material over the sheet
     /// (Settings > Appearance > Material Transparency).
     pub material_transparency: i64,
+    /// How much of a gradient theme's gradient shows, one value for every gradient theme
+    /// (Settings > Appearance > Gradient): 0 is the gradient's middle colour alone, 100 the design.
+    pub gradient_strength: u64,
     pub paste_url: PasteUrl,
     pub sync_scroll: bool,
     pub inline_images: bool,
@@ -273,6 +277,7 @@ impl Default for EditorSettings {
             highlight_active_line: false,
             window_transparency: 0,
             material_transparency: 0,
+            gradient_strength: 0,
             paste_url: PasteUrl::Link,
             sync_scroll: true,
             inline_images: true,
@@ -415,6 +420,7 @@ impl EditorSettings {
                 self.material_transparency =
                     signed_whole(value, -WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX)?
             }
+            "gradientStrength" => self.gradient_strength = whole(value, 0, GRADIENT_STRENGTH_MAX)?,
             "pasteUrl" => self.paste_url = choice(value)?,
             "syncScroll" => self.sync_scroll = flag(value)?,
             "inlineImages" => self.inline_images = flag(value)?,
@@ -807,6 +813,10 @@ mod tests {
         assert_eq!(d.list_marker, ListMarker::Star);
         assert_eq!(d.window_transparency, 0);
         assert_eq!(d.material_transparency, 0);
+        assert_eq!(
+            d.gradient_strength, 0,
+            "a gradient theme starts as a solid colour"
+        );
         assert_eq!(d.paste_url, PasteUrl::Link);
         assert!(d.toolbar && d.scroll_past_end && d.show_counts);
         assert_eq!(d.cursor_scroll_margin, 0);
@@ -844,6 +854,7 @@ mod tests {
         let map = value.as_object_mut().unwrap();
         assert_eq!(map.remove("loadRemoteImages"), Some(Value::Bool(true)));
         assert_eq!(map.remove("materialTransparency"), Some(json!(0)));
+        assert_eq!(map.remove("gradientStrength"), Some(json!(0)));
         let keys: Vec<String> = map
             .keys()
             .filter(|k| k.starts_with("page"))
@@ -1283,6 +1294,10 @@ mod tests {
             json!({ "materialTransparency": -101 }),
             json!({ "materialTransparency": 50.5 }),
             json!({ "materialTransparency": "50" }),
+            json!({ "gradientStrength": 101 }),
+            json!({ "gradientStrength": -1 }),
+            json!({ "gradientStrength": 50.5 }),
+            json!({ "gradientStrength": "50" }),
             json!({ "syncScroll": "off" }),
             json!({ "syncScroll": 0 }),
             json!({ "inlineImages": "on" }),
@@ -1596,6 +1611,33 @@ mod tests {
         assert_eq!(
             EditorSettings::from_stored(&json!({ "materialTransparency": 60 }))
                 .material_transparency,
+            60
+        );
+    }
+
+    #[test]
+    fn takes_a_gradient_strength_from_solid_to_the_design() {
+        for level in [0, 35, 100] {
+            let next = EditorSettings::default()
+                .with(&patch(json!({ "gradientStrength": level })))
+                .unwrap();
+            assert_eq!(next.gradient_strength, level);
+        }
+    }
+
+    #[test]
+    fn reads_a_file_from_before_the_gradient_setting_as_a_solid_colour() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(FILE), br#"{ "lightTheme": "dawn" }"#).unwrap();
+        let read = store(&dir).get().unwrap().settings;
+        assert_eq!(read.light_theme, Theme::Dawn);
+        assert_eq!(read.gradient_strength, 0);
+        assert_eq!(
+            EditorSettings::from_stored(&json!({ "gradientStrength": 101 })).gradient_strength,
+            0
+        );
+        assert_eq!(
+            EditorSettings::from_stored(&json!({ "gradientStrength": 60 })).gradient_strength,
             60
         );
     }

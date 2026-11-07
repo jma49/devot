@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
 import {
   changeEditorSettingsElsewhere,
   expect,
+  gradientStops,
   openSettings,
   paintedBackground,
   test,
@@ -12,7 +14,22 @@ const transparencySlider = (page: Page) =>
   appearancePane(page).getByRole('slider', { name: 'Glass Transparency' })
 const materialSlider = (page: Page) =>
   appearancePane(page).getByRole('slider', { name: 'Material Transparency' })
+const gradientSlider = (page: Page) =>
+  appearancePane(page).getByRole('slider', { name: 'Gradient' })
 const sliderValue = (page: Page, index: number) => appearancePane(page).locator('output').nth(index)
+
+const backdrops = JSON.parse(
+  readFileSync(new URL('../../design/tokens/backdrops.tokens.json', import.meta.url), 'utf8'),
+) as Record<
+  'backdrop',
+  Record<string, Record<string, { $value: { color: { components: number[]; alpha: number } }[] }>>
+>
+/** The gradient as designed, stop by stop, as the page paints it. */
+const designStops = (theme: string, appearance: 'light' | 'dark') =>
+  backdrops.backdrop[theme]![appearance]!.$value.map(({ color }) => {
+    const [r, g, b] = color.components.map((c) => Math.round(c * 255))
+    return `rgba(${r}, ${g}, ${b}, ${color.alpha})`
+  })
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
@@ -93,6 +110,67 @@ test('the Settings window adjusts the glass material with its own slider', async
   await expect
     .poll(() => calls(page, 'editor_settings_set'))
     .toEqual([{ patch: { materialTransparency: -40 } }])
+})
+
+test('the Gradient slider shows only while a gradient theme is chosen for either appearance', async ({
+  page,
+}) => {
+  await openSettings(page, 'Appearance')
+  await expect(materialSlider(page)).toBeVisible()
+  await expect(gradientSlider(page)).toHaveCount(0)
+  await changeEditorSettingsElsewhere(page, { lightTheme: 'dawn' })
+  await expect(gradientSlider(page)).toHaveValue('0')
+  await expect(gradientSlider(page)).toHaveAccessibleDescription(/solid color/)
+  await expect(sliderValue(page, 2)).toHaveText('0')
+  await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory', darkTheme: 'ember' })
+  await expect(gradientSlider(page)).toBeVisible()
+  await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory', darkTheme: 'default' })
+  await expect(gradientSlider(page)).toHaveCount(0)
+
+  await page
+    .getByRole('radiogroup', { name: 'Light Mode Theme' })
+    .getByRole('radio', { name: 'Tide' })
+    .check({ force: true })
+  await gradientSlider(page).fill('40')
+  await expect(sliderValue(page, 2)).toHaveText('40')
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { lightTheme: 'tide' } }, { patch: { gradientStrength: 40 } }])
+})
+
+test('the gradient strength turns the backdrop and the glass tint from a solid colour into the designed gradient', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const w = window
+    w.devotEditorRevision = 2
+    w.devotEditorSettings = { appearance: 'light', lightTheme: 'dawn' }
+  })
+  await page.goto('/')
+  const sheet = page.locator('.window')
+  const sidebar = page.locator('.sidebar')
+  const design = designStops('dawn', 'light')
+  const backdrop = async () => (await gradientStops(sheet, '::before'))[0]
+  const tint = async () => (await gradientStops(sidebar)).find((stops) => stops.length === 3)
+
+  await expect.poll(backdrop).toEqual([design[1], design[1], design[1]])
+  await expect.poll(tint).toEqual([design[1], design[1], design[1]])
+  await changeEditorSettingsElsewhere(page, {
+    appearance: 'light',
+    lightTheme: 'dawn',
+    gradientStrength: 100,
+  })
+  await expect.poll(backdrop).toEqual(design)
+  await expect.poll(tint).toEqual(design)
+  await changeEditorSettingsElsewhere(page, {
+    appearance: 'light',
+    lightTheme: 'dawn',
+    gradientStrength: 50,
+  })
+  const half = (await backdrop())!
+  expect(half[1]).toBe(design[1])
+  expect(half[0]).not.toBe(design[0])
+  expect(half[0]).not.toBe(design[1])
 })
 
 test('an appearance change that cannot be stored is reported and dropped', async ({ page }) => {

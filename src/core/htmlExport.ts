@@ -9,6 +9,8 @@
 // - Islands (Mermaid diagrams) take the SVG the UI drew, cleaned again here (no scripts, foreign objects, event handlers, links out, or `<` in its CSS, which could end
 //   the style element); without one, the diagram's source shows as a code block.
 // - A link within the note (`#x`) points at the prefixed id the preview gives its target (`#user-content-x`), so it jumps on the page too.
+// - A code block's mark is drawn in full in each block: the preview draws each mark once, as a symbol the others `<use>`, which an app the page is pasted into may
+//   not follow.
 // - Video embeds and embeds that load on a click become links. Colour swatches get their colour as an inline style. `data-*` attributes are left out.
 // - Simple HTML (Copy as Simple HTML) also leaves out every class and style, heading ids, front matter, swatches, code block headers and highlighting, and diagram
 //   drawings; alerts become block quotes with a bold title. A sized image gets no `width` either (Half has no pixel width to give).
@@ -19,6 +21,7 @@ import { fromHtml } from 'hast-util-from-html'
 import { toHtml } from 'hast-util-to-html'
 import { FILE_URL } from './export'
 import { fragmentId } from './preview/headingIds'
+import { drawCodeMarks } from './preview/code'
 
 export interface PageImage {
   placeholder: string
@@ -199,7 +202,10 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
     return [{ ...node, properties, children }]
   }
 
-  const root: Root = { type: 'root', children: tree.children.flatMap((node) => convert(node)) }
+  const root: Root = {
+    type: 'root',
+    children: drawCodeMarks(tree).children.flatMap((node) => convert(node)),
+  }
   return {
     html: toHtml(root),
     images: [...placeholders].map(([fileId, token]) => ({ placeholder: token, fileId })),

@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, gradientStops, test } from './fixtures'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -128,6 +129,37 @@ test('the transparency slider scales the glass tint and survives a reload', asyn
   const stored = await page.evaluate(() => localStorage.getItem('devot.phone.glassTransparency'))
   expect(stored).toBe('-100')
   await expect.poll(alpha).toBe(1)
+})
+
+test('the Gradient slider shows only for a gradient theme and takes its backdrop from solid to the design', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  const pane = await openPane(page, 'Appearance')
+  const slider = pane.getByRole('slider', { name: 'Gradient' })
+  const lightThemes = pane.getByRole('radiogroup', { name: 'Light Mode Theme' })
+  const tokens = JSON.parse(
+    readFileSync(new URL('../../design/tokens/backdrops.tokens.json', import.meta.url), 'utf8'),
+  ) as {
+    backdrop: { tide: { light: { $value: { color: { components: number[]; alpha: number } }[] } } }
+  }
+  const design = tokens.backdrop.tide.light.$value.map(({ color }) => {
+    const [r, g, b] = color.components.map((c) => Math.round(c * 255))
+    return `rgba(${r}, ${g}, ${b}, ${color.alpha})`
+  })
+  const backdrop = async () =>
+    (await gradientStops(page.locator('section.phone-screen').first()))[1]
+
+  await expect(slider).toHaveCount(0)
+  await lightThemes.getByRole('radio', { name: 'Tide' }).check({ force: true })
+  await expect(slider).toHaveValue('0')
+  const box = (await slider.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  await expect.poll(backdrop).toEqual([design[1], design[1], design[1]])
+  await slider.fill('100')
+  await expect.poll(backdrop).toEqual(design)
+  await lightThemes.getByRole('radio', { name: 'Default' }).check({ force: true })
+  await expect(slider).toHaveCount(0)
 })
 
 test('controls have the design sizes and reach their targets', async ({ page }) => {

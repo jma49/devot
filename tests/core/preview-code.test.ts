@@ -1,7 +1,13 @@
 import type { Element, Root, RootContent } from 'hast'
 import { toHtml } from 'hast-util-to-html'
 import { describe, expect, it } from 'vitest'
-import { parseCodeInfo, renderPreview, type PreviewLabels } from '../../src/core'
+import languageIcons from '../../design/icons/languages.json'
+import {
+  createPieceRenderer,
+  parseCodeInfo,
+  renderPreview,
+  type PreviewLabels,
+} from '../../src/core'
 
 const labels: PreviewLabels = {
   alerts: {
@@ -38,6 +44,19 @@ const byClass = (tree: Root | Element, name: string) =>
   elements(tree).filter((e) => classes(e).includes(name))
 const text = (node: Root | RootContent): string =>
   node.type === 'text' ? node.value : 'children' in node ? node.children.map(text).join('') : ''
+
+const GENERIC_MARK = 'M8 6 2 12l6 6M16 6l6 6-6 6'
+
+/** The marks drawn by a `<use>` whose symbol is in the same tree. */
+function drawnMarks(tree: Root): Element[] {
+  const all = elements(tree)
+  const ids = new Set(all.filter((e) => e.tagName === 'symbol').map((e) => e.properties['id']))
+  return all.filter(
+    (e) => e.tagName === 'use' && ids.has(String(e.properties['href']).replace(/^#/, '')),
+  )
+}
+
+const markPath = (svg: Element) => elements(svg).find((e) => e.tagName === 'path')
 
 describe('parseCodeInfo', () => {
   it.each([
@@ -99,6 +118,28 @@ describe('code blocks', () => {
         .filter((e) => e.tagName === 'code')
         .map(text),
     ).toEqual(['x = 1', 'plain'])
+  })
+
+  it('draws each mark once and points every block at its language', async () => {
+    const md = ['js', 'js', 'ts', 'ts', 'brainfork', 'brainfork']
+      .map((lang, i) => '```' + lang + '\n' + i + '\n```')
+      .join('\n\n')
+    const tree = await render(md)
+    const html = toHtml(tree)
+    const { javascript, typescript } = languageIcons.icons
+    for (const path of [javascript.path, typescript.path, GENERIC_MARK]) {
+      expect(html.split(`d="${path}"`)).toHaveLength(2)
+    }
+    expect(drawnMarks(tree)).toHaveLength(6)
+  })
+
+  it('draws the marks again in every piece, so a piece shows them on its own', async () => {
+    const md = ['js', 'js', 'js'].map((lang, i) => '```' + lang + '\n' + i + '\n```').join('\n\n')
+    const pieces = await createPieceRenderer({ pieceLength: 1 })(md, { labels, loadedEmbeds: [] })
+    expect(pieces).toHaveLength(3)
+    for (const { nodes } of pieces) {
+      expect(drawnMarks({ type: 'root', children: nodes ?? [] })).toHaveLength(1)
+    }
   })
 
   it('takes the language of a raw HTML block from its class', async () => {
@@ -177,8 +218,7 @@ describe('code block source header', () => {
     expect(text(byClass(header!, 'code-lang')[0]!)).toBe('TypeScript')
     const svg = elements(header!).find((e) => e.tagName === 'svg')!
     expect(classes(svg)).toEqual(['code-lang-icon'])
-    const github = (await import('../../design/icons/languages.json')).default.icons.github
-    expect(elements(svg)[1]!.properties['d']).toBe(github.path)
+    expect(markPath(svg)!.properties['d']).toBe(languageIcons.icons.github.path)
   })
 
   it('uses filename for the link text, names one line, and a branch', async () => {
@@ -194,9 +234,7 @@ describe('code block source header', () => {
     expect(text(byClass(header!, 'code-lines-label')[0]!)).toBe('Line 7')
     expect(text(byClass(header!, 'code-ref')[0]!)).toBe('in main')
     const svg = elements(header!).find((e) => e.tagName === 'svg')!
-    expect(elements(svg)[1]!.properties['d']).not.toBe(
-      (await import('../../design/icons/languages.json')).default.icons.github.path,
-    )
+    expect(markPath(svg)!.properties['d']).not.toBe(languageIcons.icons.github.path)
   })
 
   it('adds no header link for a url that is not https', async () => {

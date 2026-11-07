@@ -76,11 +76,13 @@ describe('where the [[ popup opens', () => {
     expect(await source()).toBeNull()
   })
 
-  it('does not open in indented code, inline code or front matter', async () => {
+  it('does not open in indented code, inline code, a formula or front matter', async () => {
     const indented = 'Text\n\n    x = t[[]]\n'
     expect(await setup(indented, indented.indexOf('[[') + 2).source()).toBeNull()
     const inline = 'Use `t[[]]` here'
     expect(await setup(inline, inline.indexOf('[[') + 2).source()).toBeNull()
+    const math = 'So $a[[1]]$ here'
+    expect(await setup(math, math.indexOf('[[') + 2).source()).toBeNull()
     const front = '---\ntags: [[]]\n---\nBody'
     expect(await setup(front, front.indexOf('[[') + 2).source()).toBeNull()
     // After the front matter it opens again.

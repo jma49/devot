@@ -2,6 +2,7 @@ import type { Root, RootContent } from 'hast'
 import { describe, expect, it } from 'vitest'
 import {
   createPieceRenderer,
+  drawCodeMarks,
   renderPreview,
   PIECE_LINE_PROPERTY,
   PIECE_OFFSET_PROPERTIES,
@@ -45,10 +46,13 @@ function assemble(pieces: PreviewPiece[], kept: Map<string, RootContent[]>): Roo
   return { type: 'root', children }
 }
 
-// Line breaks between top-level blocks are markup (the page ignores them).
+// Line breaks between top-level blocks are markup (the page ignores them). Each piece draws the
+// code marks it uses, where the whole note draws each once: compared as the page shows them.
 const blocksOnly = (tree: Root): Root => ({
   type: 'root',
-  children: tree.children.filter((n) => !(n.type === 'text' && n.value.trim() === '')),
+  children: drawCodeMarks(tree).children.filter(
+    (n) => !(n.type === 'text' && n.value.trim() === ''),
+  ),
 })
 
 const small = () => createPieceRenderer({ pieceLength: 1 })

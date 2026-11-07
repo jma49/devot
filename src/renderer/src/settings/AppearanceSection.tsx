@@ -3,10 +3,12 @@ import {
   ANIMATIONS,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
+  GRADIENT_STRENGTH_MAX,
   ICON_STYLES,
   THEMES,
   WINDOW_TRANSPARENCY_MAX,
   WINDOW_TRANSPARENCY_STEP,
+  gradientThemeChosen,
   themeFollowsSystemAccent,
   themeInEffect,
   type AnimationsChoice,
@@ -295,9 +297,10 @@ function ThemePicker({
 
 /**
  * Settings > Appearance: the color scheme (Auto, Light or Dark) and how see-through the window is;
- * a theme for each appearance, the one in effect marked Active (Ivory has its own accent, so the system accent option is hidden while it is in
- * effect); whether things move; the icon style; and the editor's and preview's type. Every change
- * applies at once, and changes made elsewhere show here as they happen.
+ * a theme for each appearance, the one in effect marked Active (Ivory has its own accent, so the
+ * system accent option is hidden while it is in effect), and the gradient's strength while either
+ * is a gradient theme; whether things move; the icon style; and the editor's and preview's type.
+ * Every change applies at once, and changes made elsewhere show here as they happen.
  */
 export function AppearanceSection() {
   const settings = useEditorSettings()
@@ -324,6 +327,7 @@ export function AppearanceSection() {
     () => new Intl.NumberFormat(locale, { signDisplay: 'exceptZero' }),
     [locale],
   )
+  const plain = useMemo(() => new Intl.NumberFormat(locale), [locale])
   const glassAmount = useDraggedNumber({
     stored: settings.windowTransparency,
     store: (windowTransparency) => change({ windowTransparency }),
@@ -332,12 +336,17 @@ export function AppearanceSection() {
     stored: settings.materialTransparency,
     store: (materialTransparency) => change({ materialTransparency }),
   })
+  const gradientAmount = useDraggedNumber({
+    stored: settings.gradientStrength,
+    store: (gradientStrength) => change({ gradientStrength }),
+  })
   const textSize = useDraggedNumber({
     stored: settings.fontSize,
     store: (size) => change({ fontSize: size }),
   })
   const phoneGlass = useGlassPrefs()
   const themes = { light: settings.lightTheme, dark: settings.darkTheme }
+  const gradientShown = gradientThemeChosen(settings)
   const modeTitle = (appearance: Appearance) =>
     appearance === shown ? t('appearanceSettings.modeActive') : undefined
 
@@ -389,6 +398,23 @@ export function AppearanceSection() {
             onChoose={(darkTheme) => change({ darkTheme })}
           />
         </SettingsSection>
+        {gradientShown ? (
+          <PhoneGroup title={t('appearanceSettings.gradient')}>
+            <PhoneSlider
+              label={t('appearanceSettings.gradient')}
+              labelHidden
+              min={0}
+              max={GRADIENT_STRENGTH_MAX}
+              step={WINDOW_TRANSPARENCY_STEP}
+              value={gradientAmount.value}
+              minLabel={t('phone.appearance.solid')}
+              maxLabel={t('phone.appearance.gradientFull')}
+              valueText={plain.format(gradientAmount.value)}
+              onChange={gradientAmount.drag}
+              onRelease={gradientAmount.release}
+            />
+          </PhoneGroup>
+        ) : null}
         <PhoneGroup title={t('phone.appearance.textSize')}>
           <PhoneSlider
             label={t('phone.appearance.textSize')}
@@ -494,18 +520,22 @@ export function AppearanceSection() {
             </div>
           </div>
         </div>
-        <TransparencySetting
+        <RangeSetting
           label="appearanceSettings.glassAmount"
           hint="appearanceSettings.glassAmountHint"
           id={id('glass')}
           amount={glassAmount}
+          min={-WINDOW_TRANSPARENCY_MAX}
+          max={WINDOW_TRANSPARENCY_MAX}
           formatValue={signed.format}
         />
-        <TransparencySetting
+        <RangeSetting
           label="appearanceSettings.materialAmount"
           hint="appearanceSettings.materialAmountHint"
           id={id('material')}
           amount={materialAmount}
+          min={-WINDOW_TRANSPARENCY_MAX}
+          max={WINDOW_TRANSPARENCY_MAX}
           formatValue={signed.format}
         />
         {themeFollowsSystemAccent(themeInEffect(settings, shown)) ? (
@@ -531,6 +561,19 @@ export function AppearanceSection() {
           onChoose={(darkTheme) => change({ darkTheme })}
         />
       </SettingsSection>
+      {gradientShown ? (
+        <SettingsSection title="appearanceSettings.gradient" titleHidden>
+          <RangeSetting
+            label="appearanceSettings.gradient"
+            hint="appearanceSettings.gradientHint"
+            id={id('gradient')}
+            amount={gradientAmount}
+            min={0}
+            max={GRADIENT_STRENGTH_MAX}
+            formatValue={plain.format}
+          />
+        </SettingsSection>
+      ) : null}
       <SettingsSection title="appearanceSettings.groupMotion">
         <Setting
           label="appearanceSettings.animations"
@@ -627,17 +670,21 @@ export function AppearanceSection() {
   )
 }
 
-function TransparencySetting({
+function RangeSetting({
   label,
   hint,
   id,
   amount,
+  min,
+  max,
   formatValue,
 }: {
   label: MessageKey
   hint: MessageKey
   id: string
   amount: ReturnType<typeof useDraggedNumber>
+  min: number
+  max: number
   formatValue: (value: number) => string
 }) {
   return (
@@ -647,17 +694,11 @@ function TransparencySetting({
           id={id}
           type="range"
           className="slider"
-          min={-WINDOW_TRANSPARENCY_MAX}
-          max={WINDOW_TRANSPARENCY_MAX}
+          min={min}
+          max={max}
           step={WINDOW_TRANSPARENCY_STEP}
           value={amount.value}
-          style={
-            {
-              '--value': amount.value,
-              '--min': -WINDOW_TRANSPARENCY_MAX,
-              '--max': WINDOW_TRANSPARENCY_MAX,
-            } as CSSProperties
-          }
+          style={{ '--value': amount.value, '--min': min, '--max': max } as CSSProperties}
           aria-describedby={`${id}-hint`}
           onChange={(e) => amount.drag(Number(e.currentTarget.value))}
           onPointerUp={amount.release}

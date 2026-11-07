@@ -1,7 +1,12 @@
 import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
+import type { Nodes as MdastNode } from 'mdast'
+import remarkMath from 'remark-math'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 import { expectWithinBudget } from '../../../../../tests/support/budget'
+import { isInlineTex } from '../../../../core/preview/math'
 import example from '../../welcome/markdown-example.md?raw'
 import { noteMarkdown } from '../markdown'
 import { writeBlocksOf } from './blockRanges'
@@ -245,6 +250,58 @@ describe('Write mode emoji and inline HTML', () => {
 
   it('leave other HTML, a tag never closed and a shortcode in code as source', () => {
     expect(shown('<span>a</span> <kbd>b and `:tada:`')).toBe('<span>a</span> <kbd>b and :tada:')
+  })
+})
+
+describe('Write mode inline math', () => {
+  it('draws a formula in place of its source, nothing inside it read as Markdown', () => {
+    expect(shown('Top $a_8^2 + b^2 = c^2$ end, $$x*y*z$$')).toBe(
+      'Top {$a_8^2 + b^2 = c^2$} end, {$$x*y*z$$}',
+    )
+  })
+
+  it("shows a formula's source while the caret is in it or at its edge", () => {
+    const doc = '$x$ and $y$'
+    expect(shown(doc, caret(0))).toBe('$x$ and {$y$}')
+    expect(shown(doc, caret(3))).toBe('$x$ and {$y$}')
+    expect(shown(doc, caret(4))).toBe('{$x$} and {$y$}')
+    expect(shown(doc, caret(doc.length - 1))).toBe('{$x$} and $y$')
+  })
+
+  it('leaves dollars the preview shows as text, and a formula over lines, as source', () => {
+    for (const doc of ['$5 and $6', 'A $ $ b', '$x\ny$']) expect(shown(doc)).toBe(doc)
+    expect(shown('`$x$`')).toBe('$x$')
+    expect(shown('$ x $')).toBe('{$ x $}')
+  })
+
+  it('draws a formula exactly where the preview draws one', () => {
+    const preview = unified().use(remarkParse).use(remarkMath)
+    const previewDraws = (doc: string) => {
+      const found: string[] = []
+      const walk = (node: MdastNode) => {
+        if (node.type === 'inlineMath' && node.position && isInlineTex(node.value))
+          found.push(doc.slice(node.position.start.offset, node.position.end.offset))
+        for (const child of 'children' in node ? node.children : []) walk(child)
+      }
+      walk(preview.parse(doc))
+      return found
+    }
+    const writeDraws = (doc: string) =>
+      rangesOf(doc)
+        .ranges.filter((r) => r.kind === 'inline')
+        .map((r) => doc.slice(r.from, r.to))
+    for (const doc of [
+      '$5 and $6',
+      'A $ $ b',
+      '$ x $',
+      '$  x $',
+      '$ x  $',
+      '$x$ and $ y$',
+      'so $$ a $$ end',
+      '$  $',
+      'cost $5$ and $$\\sum$$',
+    ])
+      expect({ doc, drawn: writeDraws(doc) }).toEqual({ doc, drawn: previewDraws(doc) })
   })
 })
 
