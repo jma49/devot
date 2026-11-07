@@ -34,6 +34,22 @@ describe('keptSymbols', () => {
     expect(read.has('s10')).toBe(true)
   })
 
+  it('keeps what another window of the build saved meanwhile', () => {
+    const store = memoryStorage()
+    const main = keptSymbols(() => store as Storage, 'build')
+    const note = keptSymbols(() => store as Storage, 'build')
+    main.keep('a', image(1))
+    main.keep('b', image(2))
+    vi.runAllTimers()
+    note.keep('c', image(3))
+    vi.runAllTimers()
+    expect([...keptSymbols(() => store as Storage, 'build').images.keys()]).toEqual(['a', 'b', 'c'])
+    store.items.set(KEY, JSON.stringify({ stamp: 'old build', images: [['z', image(9).url, 16]] }))
+    note.keep('d', image(4))
+    vi.runAllTimers()
+    expect([...keptSymbols(() => store as Storage, 'build').images.keys()]).toEqual(['c', 'd'])
+  })
+
   it('reads nothing from what it cannot read, and draws again what it cannot save', () => {
     const store = memoryStorage({ [KEY]: '{not json' })
     expect(keptSymbols(() => store as Storage, 'build').images.size).toBe(0)

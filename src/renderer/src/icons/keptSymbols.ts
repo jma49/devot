@@ -44,9 +44,16 @@ export function keptSymbols(store: () => Storage | undefined, stamp: string): Ke
   let timer: ReturnType<typeof setTimeout> | undefined
   const save = () => {
     timer = undefined
-    const kept = [...images].slice(-MOST).map(([key, { url, side }]) => [key, url, side])
     try {
-      store()?.setItem(KEY, JSON.stringify({ stamp, images: kept }))
+      const shared = store()
+      // Every window of the build saves under one key: keep what the others saved meanwhile.
+      const merged = readSaved(shared, stamp)
+      for (const [key, image] of images) {
+        merged.delete(key)
+        merged.set(key, image)
+      }
+      const kept = [...merged].slice(-MOST).map(([key, { url, side }]) => [key, url, side])
+      shared?.setItem(KEY, JSON.stringify({ stamp, images: kept }))
     } catch {
       // Full or refused: the next launch draws these again.
     }
