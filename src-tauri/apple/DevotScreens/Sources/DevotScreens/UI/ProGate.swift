@@ -66,6 +66,8 @@ final class ProGate {
     var now: () -> Date = Date.init
     /// Shows the surface; the screens tell the gate when it went (`dismissed`).
     var present: (LockSurface) -> Void = { _ in }
+    /// Closes the surface that is up; the screens then call `dismissed`.
+    var dismiss: () -> Void = {}
     /// Reads the snapshot again, then calls back.
     var refresh: (@escaping () -> Void) -> Void = { $0() }
     /// The write itself, once the gate lets it.
@@ -91,6 +93,7 @@ final class ProGate {
         guard locked(), let licence = licence() else { return perform(intent) }
         guard !showing else { return }
         held = Held(intent: intent, at: now())
+        unlockedBySheet = false
         show(LockSurface(licence))
     }
 
@@ -99,14 +102,26 @@ final class ProGate {
         refresh { [weak self] in
             guard let self, !showing else { return }
             held = nil
+            unlockedBySheet = false
             let surface = code == ProGate.unreadable ? .pro(.unreadable) : licence().map(LockSurface.init)
             show(surface ?? .pro(.key))
         }
     }
 
     /// The sheet's own action unlocked writing: the intent runs once the sheet has gone.
+    /// A purchase that ends after its sheet was swiped away unlocks nothing for a later sheet.
     func unlocked() {
+        guard showing else { return }
         unlockedBySheet = true
+    }
+
+    /// After a fresh read on Rust's word that the licence changed (Ask to Buy approved, an
+    /// entitlement retry, a key added elsewhere): a surface over a licence that now allows writing
+    /// closes, and the intent continues as after the sheet's own unlock.
+    func licenceChanged() {
+        guard showing, !locked() else { return }
+        unlockedBySheet = true
+        dismiss()
     }
 
     /// The intent goes, whatever happens to the sheet: the app left the foreground.

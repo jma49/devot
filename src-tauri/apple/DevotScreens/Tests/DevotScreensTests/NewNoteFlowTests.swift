@@ -228,6 +228,41 @@ final class NewNoteFlowTests: XCTestCase {
         XCTAssertEqual(try discards, [["noteId": .string(made)]])
     }
 
+    private func answerLicenceRead(_ licence: [String: Any]) throws {
+        let read = try XCTUnwrap(
+            try sent().last { id, message in
+                if case .direct(_, .licenceGet, _) = message { !answered.contains(id) } else { false }
+            })
+        let value = try JSONDecoder().decode(JSONValue.self, from: try JSONSerialization.data(withJSONObject: licence))
+        answered.insert(read.0)
+        screens.replied(read.0, try Message.reply(id: read.0, outcome: .ok(value)).json())
+    }
+
+    func testALicenceChangeThatUnlocksUnderTheSheetClosesItAndMakesTheNoteOnce() throws {
+        try adopt(keyBuildEnded)
+        deliver(#"{"v":1,"notice":"note.new"}"#)
+        settle(1)
+        XCTAssertTrue(screens.root.tabs.presentedViewController is ContentSheetController)
+        deliver(#"{"v":1,"notice":"licence.changed"}"#)
+        try answerLicenceRead(["gated": true, "state": "valid", "id": "lic_1"])
+        settle(1.5)
+        XCTAssertNil(screens.root.tabs.presentedViewController, "the sheet closes on its own")
+        try answerLicenceRead(["gated": true, "state": "valid", "id": "lic_1"])
+        XCTAssertEqual(try requests().filter { $0.op == .noteCreate }.count, 1)
+        XCTAssertTrue(navigation.topViewController is EditorScreen)
+    }
+
+    func testALicenceChangeThatStillLocksKeepsTheSheet() throws {
+        try adopt(keyBuildEnded)
+        deliver(#"{"v":1,"notice":"note.new"}"#)
+        settle(1)
+        deliver(#"{"v":1,"notice":"licence.changed"}"#)
+        try answerLicenceRead(keyBuildEnded)
+        settle(1)
+        XCTAssertTrue(screens.root.tabs.presentedViewController is ContentSheetController)
+        XCTAssertEqual(screens.gate.holding, .newNote(bookId: nil))
+    }
+
     func testRustsLicenceChangeReadsTheSnapshotAgain() throws {
         deliver(#"{"v":1,"notice":"licence.changed"}"#)
         XCTAssertTrue(

@@ -202,7 +202,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Its contents never animate: a check in progress or a message replaces its line at once (rule 2).
   A tap while it is up raises no second sheet.
   Under the native screens the tap pushes nothing: the sheet rises in the same turn with the system's sheet motion, the haptic made ready while a locked list shows, and the grabber closes it too; nothing behind it takes a touch while it is up.
-  There, when the sheet's own action unlocked writing, New Note pushes once the sheet has gone, never under a falling sheet.
+  There, when the sheet's own action unlocked writing, or a licence change unlocked it while the sheet was up and the sheet closed on its own with the system's motion, New Note pushes once the sheet has gone, never under a falling sheet.
   There a write Rust refuses although the snapshot let it through pops its screen under its cover, with nothing ever shown in it, and then the sheet rises.
   Under Reduce Motion it crossfades, as any sheet does.
 - **Mac licence key sheet** (App Store builds, Settings > Get a Mac License Key): rule 3, as the detail sheet. Getting the key, the key, a failure and Copied appear in place with no motion (rule 2). Copy Key, Share and Try Again press as glass controls; Share opens the system share sheet, which rises from the bottom with its own motion.

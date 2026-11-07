@@ -126,6 +126,49 @@ final class ProGateTests: XCTestCase {
         XCTAssertEqual(shown, [.pro(.key), .pro(.key)])
     }
 
+    func testALicenceChangeThatUnlocksClosesTheSurfaceAndTheIntentRunsOnceThroughTheGate() {
+        licence = k1
+        let gate = gate()
+        var closes = 0
+        gate.dismiss = { closes += 1 }
+        gate.require(intent)
+        licence = pro
+        gate.licenceChanged()
+        XCTAssertEqual(closes, 1)
+        XCTAssertEqual(performed, [], "nothing runs under a sheet that is still up")
+        gate.dismissed()
+        XCTAssertEqual(performed, [intent])
+        XCTAssertEqual(refreshes, 1)
+        gate.licenceChanged()
+        XCTAssertEqual(closes, 1, "no surface is up any more")
+    }
+
+    func testALicenceChangeThatStillLocksKeepsTheSurface() {
+        licence = k1
+        let gate = gate()
+        var closes = 0
+        gate.dismiss = { closes += 1 }
+        gate.require(intent)
+        gate.licenceChanged()
+        XCTAssertEqual(closes, 0)
+        XCTAssertEqual(gate.holding, intent)
+        gate.dismissed()
+        XCTAssertEqual(performed, [], "Not Now drops it")
+    }
+
+    func testAnUnlockAfterTheSurfaceWentLeavesNothingForALaterOne() {
+        licence = k1
+        let gate = gate()
+        gate.require(intent)
+        gate.dismissed()
+        gate.unlocked()
+        gate.require(intent)
+        gate.dismissed()
+        XCTAssertEqual(refreshes, 0)
+        XCTAssertEqual(shown, [.pro(.key), .pro(.key)], "a declined surface does not come back on its own")
+        XCTAssertEqual(performed, [])
+    }
+
     func testTheIntentIsDroppedWithoutAnUnlock() {
         licence = k1
         let gate = gate()

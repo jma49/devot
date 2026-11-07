@@ -297,7 +297,8 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
 - Locked, the gate shows one surface, as `lockSurface` in `requireEditing.ts` chooses it, and holds the write's intent (what was picked, never text): the purchase sheet headed for the state in an App Store build that needs a purchase, otherwise the short Pro sheet (checking, key, attention, seat or unreadable).
   `tests/fixtures/licence-gate.json` holds both sides to the same table.
 - A tap while the surface is up shows no second one.
-- The intent runs only when the sheet's own action (a purchase, Restore Purchases or Try Again) unlocked writing, in the sheet's dismissal completion, through the gate again after a fresh read; it is dropped when the sheet goes without one, when the app leaves the foreground, and after 10 minutes.
+- The intent runs only when the sheet's own action (a purchase, Restore Purchases or Try Again) unlocked writing while it was up, in the sheet's dismissal completion, through the gate again after a fresh read; it is dropped when the sheet goes without one, when the app leaves the foreground, and after 10 minutes.
+- When a `licence.changed` read finds that writing is now allowed while the surface is up (Ask to Buy approved, an App Store retry that succeeded, a key added elsewhere), the surface closes on its own and the intent runs as after the sheet's own unlock.
 - Enter License Key and Open License Settings close the sheet, drop the intent and open License over the Settings root.
 - The debug launch argument `-DevotLicenceFixture A1|A2|A3|K1|K2|X1` (`Debug/LicenceFixture.swift`) fixes the snapshot for the UI tests; Rust, which does not gate a debug build, still takes every write.
 

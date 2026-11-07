@@ -36,6 +36,7 @@ final class Screens: SettingsBridge {
     /// New Note's notes, until their screen has gone: whether a change came after the one that made them.
     private var fresh: [String: FreshNote] = [:]
     private var background: NSObjectProtocol?
+    private weak var lockSheet: ContentSheetController?
 
     private struct FreshNote {
         let rev: Double
@@ -72,6 +73,7 @@ final class Screens: SettingsBridge {
             root.tabs.screen(tab)?.hideEditor = { [weak self] done in self?.hideEditor(done) }
         }
         gate.present = { [weak self] in self?.presentLock($0) }
+        gate.dismiss = { [weak self] in Self.close(self?.lockSheet) }
         gate.refresh = { [weak licences] done in
             guard let licences else { return done() }
             licences.read(done: done)
@@ -235,7 +237,7 @@ final class Screens: SettingsBridge {
             gate.require(.newNote(bookId: fields["bookId"]?.string))
             return true
         case .licenceChanged:
-            root.tabs.settings.store.licences.read()
+            root.tabs.settings.store.licences.read { [weak self] in self?.gate.licenceChanged() }
             return true
         case .notesChanged:
             guard let rev = fields["rev"]?.number, let ids = fields["ids"]?.array else { return invalid(kind) }
@@ -333,12 +335,10 @@ final class Screens: SettingsBridge {
 
     /// One sheet per locked tap, with the warning played in the same turn as it rises.
     private func presentLock(_ surface: LockSurface) {
-        let settings = root.tabs.settings
-        let store = settings.store
-        let close = { [weak self] in
-            guard let self else { return }
-            root.tabs.dismiss(animated: true)
-        }
+        let store = root.tabs.settings.store
+        // Only this sheet: a purchase that ends after a swipe-down must not close a later sheet.
+        weak var shown: ContentSheetController?
+        let close = { Self.close(shown) }
         let openLicence = { [weak self] (focusKey: Bool) in
             close()
             self?.root.tabs.settings.router.open(.licence(focusKey ? .focusKey : .plain))
@@ -358,11 +358,18 @@ final class Screens: SettingsBridge {
                     actions: ProSheetActions(
                         openLicence: openLicence, unlocked: { [weak self] in self?.gate.unlocked() }, close: close)))
         }
+        shown = sheet
+        lockSheet = sheet
         sheet.onDismiss = { [weak self] in self?.gate.dismissed() }
         sheet.view.accessibilityViewIsModal = true
         let presenter = root.tabs.presentedViewController ?? root.tabs
         lockFeedback.notificationOccurred(.warning)
         presenter.present(sheet, animated: true)
+    }
+
+    private static func close(_ sheet: ContentSheetController?) {
+        guard let sheet, sheet.presentingViewController != nil, !sheet.isBeingDismissed else { return }
+        sheet.dismiss(animated: true)
     }
 
     private var editorActions: EditorActions {
