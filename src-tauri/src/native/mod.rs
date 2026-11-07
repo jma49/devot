@@ -55,7 +55,8 @@ fn is_main_window(ns_window: *const std::ffi::c_void) -> bool {
 
 /// A main window exists now: on the Mac its web view gets the 120 Hz unlock, WebRTC and resource
 /// hints off, and its keys the Format menu's priority; on the iPhone its fields lose the bar above
-/// the keyboard. Every main window, `main` included, comes through here.
+/// the keyboard and the native screens attach. Every main window, `main` included, comes through
+/// here.
 pub fn main_window_built(window: &tauri::WebviewWindow) {
     #[cfg(target_os = "macos")]
     {
@@ -71,7 +72,10 @@ pub fn main_window_built(window: &tauri::WebviewWindow) {
         }
     }
     #[cfg(target_os = "ios")]
-    ios::hide_input_accessory_bar(window);
+    {
+        ios::hide_input_accessory_bar(window);
+        ios::install_screens(window);
+    }
     #[cfg(not(any(target_os = "macos", target_os = "ios")))]
     let _ = window;
 }

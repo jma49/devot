@@ -1,7 +1,8 @@
-//! iOS's native code: UIKit calls through objc2, one keychain call and the StoreKit bridge; and
-//! CloudKit (`cloudkit`), which macOS compiles from here too, so that it is written once. Every
-//! call runs inside `guarded`, which catches an Objective-C exception as well as a Rust panic, and
-//! every object the system may withhold is checked for nil; a failure gives the caller's fallback.
+//! iOS's native code: UIKit calls through objc2, one keychain call, the StoreKit bridge and the
+//! native screens' bridge; and CloudKit (`cloudkit`), which macOS compiles from here too, so that
+//! it is written once. Every call runs inside `guarded`, which catches an Objective-C exception as
+//! well as a Rust panic, and every object the system may withhold is checked for nil; a failure
+//! gives the caller's fallback.
 //! The exception is building zone and record IDs, from names the transport has already checked.
 
 #[cfg(target_os = "ios")]
@@ -12,6 +13,8 @@ mod icloud;
 mod input_accessory;
 #[cfg(target_os = "ios")]
 mod keychain;
+#[cfg(target_os = "ios")]
+mod screens;
 #[cfg(target_os = "ios")]
 mod store;
 #[cfg(target_os = "ios")]
@@ -35,6 +38,8 @@ pub(crate) use icloud::receive_icloud_notices;
 pub use input_accessory::hide_input_accessory_bar;
 #[cfg(target_os = "ios")]
 pub use keychain::add_device_only_password;
+#[cfg(target_os = "ios")]
+pub use screens::{install_screens, screens_page_started, screens_post, screens_take};
 #[cfg(target_os = "ios")]
 pub use store::{
     store_entitlements, store_finish, store_listen, store_products, store_purchase, store_refund,

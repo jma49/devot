@@ -1,0 +1,48 @@
+# The Swift package's tests (scripts/ci/devot-screens-tests.sh): UIKit needs an app with a window
+# scene, which a package's own test target lacks. Generated with XcodeGen in CI, never committed.
+name: DevotScreensTests
+options:
+  bundleIdPrefix: io.github.jma49.devot
+  deploymentTarget:
+    iOS: '26.0'
+packages:
+  DevotScreens:
+    path: ..
+targets:
+  DevotScreensHost:
+    type: application
+    platform: iOS
+    sources: [Host]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.screenstests
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CODE_SIGN_IDENTITY: '-'
+        CODE_SIGN_STYLE: Manual
+  DevotScreensTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ../Tests/DevotScreensTests
+      # The fixtures Vitest and cargo test read too, copied as one folder named screens.
+      - path: ../../../../tests/fixtures/screens
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - target: DevotScreensHost
+      - package: DevotScreens
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: '-'
+        CODE_SIGN_STYLE: Manual
+        SWIFT_VERSION: '6.0'
+schemes:
+  DevotScreensTests:
+    build:
+      targets:
+        DevotScreensHost: all
+        DevotScreensTests: [test]
+    test:
+      targets: [DevotScreensTests]

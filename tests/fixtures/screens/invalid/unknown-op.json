@@ -1,0 +1,11 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_OP_UNKNOWN",
+  "envelope": true,
+  "message": {
+    "v": 1,
+    "id": 1,
+    "op": "note.explode",
+    "args": {}
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 3,
+    "op": "search",
+    "args": {
+      "query": "tag:work -draft \"budget plan\"",
+      "scope": "titles"
+    }
+  }
+}

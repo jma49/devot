@@ -31,6 +31,7 @@ UIApplication (tao's app delegate, unchanged)
   `Generated/` holds the Swift tokens and strings, generated from the design tokens and the message catalog.
 - **Rust.** A `screens` module in `src-tauri/src/native/ios/` holds the C ABI, its `unsafe` blocks with SAFETY comments, the callbacks behind `catch_unwind` and the map of waiting requests, shaped like `store.rs`.
   A platform-free `screens` module in `src-tauri/src/` holds message validation, the phone router and the Rust-direct reads; it compiles for iOS and for tests on the Mac.
+  Stage 0 brings its message validation and the waiting requests (`message.rs`, `hub.rs`); the router and the reads join with the stages that use them.
 - **Page.** A `screens` folder in `src/renderer/src/phone/` holds the bridge, the table from operation names to core calls, the change notices and the editor host.
   It runs only when Rust reports that the native screens are installed.
 
@@ -38,28 +39,41 @@ UIApplication (tao's app delegate, unchanged)
 
 1. `native::main_window_built` (`src-tauri/src/native/mod.rs`) installs the screens after it hides WebKit's bar above the keyboard.
 2. On the main thread, inside `with_webview`, Rust passes the web view and tao's view controller to the package's install function, which answers `true` or `false`.
-3. Swift checks both objects' classes and that a window exists, builds the containers, and moves the web view into `WebStage` with animations off.
+3. Swift checks both objects' classes, attaches the root and builds the containers.
+   Tao's window need not be up yet: containment needs none, and the root follows the window's bounds once it is.
+   Swift moves the web view into `WebStage`, with animations off, only from the root's `viewIsAppearing`, when it has a window, so the web view's window is never nil.
+   In stage 0 it attaches only the empty root, and the web view stays where tao put it.
 4. On `false` the app keeps today's web shell unchanged.
+   Swift answers `false` when the kill switch is on or when an object is of another class, and logs why with a code.
 5. At start the page calls `screens_take`, which answers `{ installed, pending }`: whether the screens attached, and the operations queued before the page listened.
 6. With `installed` the page mounts the editor host alone (no tab bar, lists, sheets or glass); otherwise it mounts the web shell.
    Both paths start the core and seed the welcome notes the same way.
 
+The kill switch is the `DevotScreensOff` key of the app's own `UserDefaults`, which the launch argument `-DevotScreensOff YES` sets for one run; the privacy manifest gives reason `CA92.1` for reading it.
 The kill switch stays until stage 4 has shipped one release with no fallback in crash reports.
 In stage 0 the root is empty and transparent and passes every touch through, so the app behaves exactly as before.
 
 ## Bridge
 
-| From → to    | Channel                                                                                                      | Use                                                                  |
-| ------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| Swift → Rust | the C call `devot_screens_call(request, json, len, reply)`; Rust validates, then answers through `reply`     | Rust-direct reads and writes, and core operations that Rust forwards |
-| Rust → Swift | the C call `devot_screens_deliver(json, len)`; Swift copies on the calling thread and hops to the main queue | core replies, change notices, licence and sync snapshots, routes     |
-| Rust → page  | the Tauri event `devot://screens` to window `main`                                                           | a core operation for the page to run                                 |
-| page → Rust  | the command `screens_post { message }`                                                                       | an operation's reply, change notices, editor events                  |
-| page start   | the command `screens_take`                                                                                   | the mode, and operations queued before the page listened             |
+| From → to    | Channel                                                                                                                 | Use                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Swift → Rust | `call(request, json, len, reply)`, a Rust function handed over at install; Rust validates, then answers through `reply` | Rust-direct reads and writes, and core operations that Rust forwards |
+| Rust → Swift | the C call `devot_screens_deliver(json, len)`; Swift copies on the calling thread and hops to the main queue            | change notices, licence and sync snapshots, routes                   |
+| Rust → page  | the Tauri event `devot://screens` to window `main`                                                                      | a core operation for the page to run                                 |
+| page → Rust  | the command `screens_post { message }`                                                                                  | an operation's reply, change notices, editor events                  |
+| page start   | the command `screens_take`                                                                                              | the mode, and operations queued before the page listened             |
 
 - Swift never talks to the page directly: there is no `WKScriptMessageHandler`.
   Every way into the page is a declared command in the `SCREENS` area of `src-tauri/build_commands.rs`, granted in `src-tauri/capabilities/phone.json` and validated in Rust.
+- The package exports two C functions, `devot_screens_install(webView, root, call, log)` and `devot_screens_deliver(json, len)`.
+  Rust hands Swift its own `call` and `log` functions at install, so Rust exports no symbol and Swift needs no header.
 - `build.rs` lists the package's C symbols beside the store's, so Cargo's iOS library, which holds no Swift, still links.
+- A buffer passed either way is valid only until the call that received it returns, so each side copies it first.
+- Rust keeps at most 1024 requests waiting, and refuses more with `E_SCREENS_BUSY`.
+- A panic in Rust on a request's way abandons it, and Swift hears `E_SCREENS_INTERNAL` unless it was answered already, so no request waits for ever.
+- A request that comes before the page listens waits in Rust until the page calls `screens_take`; one that comes later goes out as the event at once.
+- A reload of the page fails the requests it was handed with `E_SCREENS_PAGE_RELOADED`, and the next page takes those still queued.
+- Without the screens installed, Rust refuses every request with `E_SCREENS_NOT_INSTALLED` and the page stops listening.
 - A no-operation round trip stays within p50 4 ms and p95 10 ms on an iPhone 15 or later.
 - A tap never waits on the bridge to move: a push starts at once and the data arrives during it.
 
@@ -83,9 +97,13 @@ In stage 0 the root is empty and transparent and passes every touch through, so 
   - a message is at most 4 MiB, the store bridge's limit.
 - A code is for logs and for choosing what to show, never shown to the user.
 - Logs carry the operation, the `id` and codes only (`W_SCREENS_OP_FAILED op=note.create code=…`).
-  Swift logs through `devot_screens_log(level, code, len)`, so its lines land in Rust's log files and pass the same scrubbing.
+  Swift logs through the `log(level, line, len)` function Rust hands it, so its lines land in Rust's log files and pass the same scrubbing.
+  Rust takes only a line that starts with a code (`I_`, `W_` or `E_`), in printable ASCII and at most 200 bytes.
+- A reply's `code` is an error or warning code (`E_` or `W_`, then capitals, digits and underscores, at most 64 characters); the page sends `E_SCREENS_OP_FAILED` for an error that carries none.
 - Valid and invalid messages live as fixtures in a `screens` folder of `tests/fixtures/`, and the Vitest, `cargo test` and XCTest suites all read them, so the three implementations cannot drift apart.
-- An operation joins the enums with the pull request that first uses it.
+- Stage 0 declares `ping`, `excerpts`, `search` and `note.create`, and the notices `notes.changed` and `editor.title`, so the three validators are tested against more than one shape.
+  The page runs only `ping` and answers the others `E_SCREENS_OP_UNSUPPORTED`; each gets its handler with the pull request that first sends it.
+  Any other operation joins the enums with the pull request that first uses it.
 
 ## Operations
 

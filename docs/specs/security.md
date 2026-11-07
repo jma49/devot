@@ -5,6 +5,8 @@ Part of the [architecture overview](../architecture.md).
 - **Commands are least-privilege.**
   `src-tauri/build.rs` declares every app command (listed by area in `src-tauri/build_commands.rs`), so none is reachable until a capability file (`src-tauri/capabilities/`) grants it to a window.
   Every command validates its arguments in Rust and returns error codes, never content.
+  The iPhone's native screens reach the page only through the `SCREENS` area (`screens_post`, `screens_take`), granted to the phone's window alone (`src-tauri/capabilities/phone.json`).
+  Swift has no `WKScriptMessageHandler`, so no message from native code reaches the page, or comes back from it, without Rust's validation (docs/specs/iphone-screens.md, Message envelope).
 - **CSP** in `src-tauri/tauri.conf.json`: `script-src 'self' tauri://localhost` (the sandboxed diagram frame has an opaque origin, which WebKit matches to no `tauri:` URL as `'self'`, so the app's origin is named), no `'unsafe-inline'`, no `eval`; connections only to the app and Tauri's IPC; images also from https; iframes from https, the app itself (the diagram frame) and `devot-plugin:` (plugins' sandboxed frames, see Extensions).
   `freezePrototype` is on.
   A test checks the policy.

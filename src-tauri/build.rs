@@ -46,11 +46,14 @@ const STORE_BRIDGE: &[&str] = &[
     "devot_store_listen",
 ];
 
-/// Xcode links the static library with that package. Cargo also links an iOS cdylib, which
-/// nothing ships and which has no Swift, so there the bridge is left to be found at load.
-fn store_bridge() {
+/// The native screens' C functions (`native/ios/screens.rs`), from the other package in `apple/`.
+const SCREENS_BRIDGE: &[&str] = &["devot_screens_install", "devot_screens_deliver"];
+
+/// Xcode links the static library with those packages. Cargo also links an iOS cdylib, which
+/// nothing ships and which has no Swift, so there the bridges are left to be found at load.
+fn swift_bridges() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
-        for symbol in STORE_BRIDGE {
+        for symbol in STORE_BRIDGE.iter().chain(SCREENS_BRIDGE) {
             println!("cargo:rustc-cdylib-link-arg=-Wl,-U,_{symbol}");
         }
     }
@@ -70,7 +73,7 @@ fn main() {
     sentry_dsn();
     release_marker();
     distribution_marker();
-    store_bridge();
+    swift_bridges();
     // Declaring the app's commands makes each one need an explicit
     // permission in a capability file, so no window gets a command by default.
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(

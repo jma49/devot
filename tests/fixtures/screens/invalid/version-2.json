@@ -1,0 +1,11 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_VERSION_UNSUPPORTED",
+  "envelope": true,
+  "message": {
+    "v": 2,
+    "id": 1,
+    "op": "ping",
+    "args": {}
+  }
+}

@@ -65,6 +65,8 @@ mod note_window;
 pub mod page_setup;
 mod pending;
 mod plugins;
+#[cfg(any(target_os = "ios", test))]
+mod screens;
 mod settings;
 mod settings_file;
 mod share;
@@ -348,6 +350,10 @@ pub fn run() {
             plugins::plugin_remove,
             plugins::plugin_import_pick,
             plugins::plugin_export_save,
+            #[cfg(target_os = "ios")]
+            screens::screens_post,
+            #[cfg(target_os = "ios")]
+            screens::screens_take,
         ])
         .register_asynchronous_uri_scheme_protocol("devot", |ctx, request, responder| {
             commands::files::serve(ctx.app_handle(), request, responder)
@@ -368,6 +374,8 @@ pub fn run() {
             deep_link::on_page_load(webview, payload);
             cli_append::on_page_load(webview, payload);
             import::on_page_load(webview, payload);
+            #[cfg(target_os = "ios")]
+            screens::on_page_load(webview, payload);
         })
         .on_window_event(|window, event| {
             exit::on_window_event(window, event);

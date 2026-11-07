@@ -592,9 +592,11 @@ describe('Tauri command permissions', () => {
 })
 
 /**
- * StoreKit's purchases (docs/adr/0014): only an App Store build on an iPhone sells anything; and
- * the iPhone's share sheet, which offers the Mac License Key.
+ * StoreKit's purchases (docs/adr/0014): only an App Store build on an iPhone sells anything; the
+ * iPhone's share sheet, which offers the Mac License Key; and the native screens' bridge
+ * (docs/specs/iphone-screens.md), which only the iPhone has.
  */
+const SCREENS = ['allow-screens-post', 'allow-screens-take']
 const PHONE_ONLY = [
   'allow-store-products',
   'allow-store-purchase',
@@ -602,6 +604,7 @@ const PHONE_ONLY = [
   'allow-store-mac-key',
   'allow-phone-share',
   'allow-store-refund',
+  ...SCREENS,
 ]
 
 describe('the iPhone capability', () => {
@@ -614,7 +617,15 @@ describe('the iPhone capability', () => {
     ])
   })
 
-  it('grants only what the Settings window already has, the App Store purchases and the share sheet', () => {
+  it("lets only the iPhone's page answer the native screens, in their own area", () => {
+    expect(permissionIds(phone[0]!)).toEqual(expect.arrayContaining(SCREENS))
+    expect(capabilities().filter((c) => SCREENS.some((p) => permissionIds(c).includes(p)))).toEqual(
+      [],
+    )
+    expect(commandAreas().get('SCREENS')).toEqual(['screens_post', 'screens_take'])
+  })
+
+  it('grants only what the Settings window already has, the App Store purchases, the share sheet and the screens', () => {
     const allowed = new Set([...permissionIds(settings), ...PHONE_ONLY])
     expect(permissionIds(phone[0]!).filter((p) => !allowed.has(p))).toEqual([])
     expect(permissionIds(settings).filter((p) => PHONE_ONLY.includes(p))).toEqual([])

@@ -1,0 +1,10 @@
+{
+  "from": "page",
+  "code": "E_SCREENS_MESSAGE_INVALID",
+  "envelope": true,
+  "message": {
+    "v": 1,
+    "id": 41,
+    "ok": false
+  }
+}

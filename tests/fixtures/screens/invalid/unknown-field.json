@@ -1,0 +1,12 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_MESSAGE_INVALID",
+  "envelope": true,
+  "message": {
+    "v": 1,
+    "id": 1,
+    "op": "ping",
+    "args": {},
+    "trace": true
+  }
+}
