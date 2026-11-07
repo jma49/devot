@@ -45,9 +45,18 @@ final class EditorTests: XCTestCase {
         return found()
     }
 
+    /// The app starts on Library; the Notes tab lists every note. A row is one button whose label
+    /// holds its status, title, date and excerpt, since a web view's button exposes no children.
     private func openExample() {
-        let row = page.staticTexts[L10n.welcomeExampleTitle()].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        let notes = tabBar.buttons[L10n.phoneTabNotes()]
+        XCTAssertTrue(notes.waitForExistence(timeout: 10))
+        notes.tap()
+        let title = L10n.welcomeExampleTitle()
+        let row = page.buttons.matching(
+            NSPredicate(
+                format: "label CONTAINS %@ AND label != %@", title, L10n.phoneRowActions(title: title))
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 30), "the welcome example is listed")
         row.tap()
         XCTAssertTrue(noteBar.waitForExistence(timeout: 10))
         XCTAssertTrue(app.otherElements["editor.cover"].waitForNonExistence(timeout: 5), "the cover fades")
