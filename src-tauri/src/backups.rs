@@ -370,43 +370,43 @@ fn info_of(target: &Path, id: String, now: i64, seq: u64, kind: Kind) -> BackupI
     }
 }
 
-struct HeldOpen {
-    id: (u64, u64),
-    file: std::fs::File,
+// Closing any descriptor of a file here would drop every POSIX lock this process holds on it, the
+// app's own SQLite locks included, so the live database's files are read by `cat` instead (#761).
+struct ReadInAnotherProcess(std::process::Child);
+
+impl ReadInAnotherProcess {
+    fn open(path: &Path) -> std::io::Result<Self> {
+        let child = std::process::Command::new("/bin/cat")
+            .arg("--")
+            .arg(path)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()?;
+        Ok(Self(child))
+    }
 }
 
-/// Closing any descriptor of a file lets go of every POSIX lock this process holds on it, those of
-/// the app's SQLite connections included, and they stay open as long as the app runs (a restore
-/// copies pages into the open connection). So a file of the live database, once opened here, is
-/// never closed; a later copy finds it again by its device and inode, so repeated restores open
-/// nothing more (#761).
-static HELD_OPEN: std::sync::Mutex<Vec<HeldOpen>> = std::sync::Mutex::new(Vec::new());
-
-fn file_id(meta: &std::fs::Metadata) -> (u64, u64) {
-    use std::os::unix::fs::MetadataExt;
-    (meta.dev(), meta.ino())
-}
-
-fn read_held_open<T>(
-    path: &Path,
-    read: impl FnOnce(&std::fs::File) -> std::io::Result<T>,
-) -> std::io::Result<T> {
-    use std::io::{Seek, SeekFrom};
-    let mut held = crate::locks::lock(&HELD_OPEN);
-    let id = file_id(&std::fs::metadata(path)?);
-    let index = match held.iter().position(|open| open.id == id) {
-        Some(index) => index,
-        None => {
-            let file = std::fs::File::open(path)?;
-            // Kept even when it cannot be read back: dropping it would close it.
-            let id = file.metadata().map_or(id, |meta| file_id(&meta));
-            held.push(HeldOpen { id, file });
-            held.len() - 1
+impl std::io::Read for ReadInAnotherProcess {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let stdout = self
+            .0
+            .stdout
+            .as_mut()
+            .ok_or(std::io::ErrorKind::BrokenPipe)?;
+        let read = stdout.read(buf)?;
+        if read == 0 && !buf.is_empty() && !self.0.wait()?.success() {
+            return Err(std::io::Error::other("E_BACKUP_SNAPSHOT_FAILED"));
         }
-    };
-    let mut file = &held[index].file;
-    file.seek(SeekFrom::Start(0))?;
-    read(file)
+        Ok(read)
+    }
+}
+
+impl Drop for ReadInAnotherProcess {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
 }
 
 /// The database's bytes as they are, with its `-wal` and `-shm`, for a database whose snapshot
@@ -419,10 +419,10 @@ fn take_raw(db_path: &Path, dir: &Path, now: i64) -> Result<BackupInfo, &'static
     let seq = next_seq(dir);
     let id = file_name(now, seq, Kind::RawSafety);
     let copy = |from: &Path, to: &str| {
-        read_held_open(from, |mut source| {
-            into.write_from(to, &mut source, Place::New)
-        })
-        .map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")
+        let mut source =
+            ReadInAnotherProcess::open(from).map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")?;
+        into.write_from(to, &mut source, Place::New)
+            .map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")
     };
     for suffix in ["-wal", "-shm"] {
         let from = PathBuf::from(format!("{}{suffix}", db_path.display()));
@@ -1100,15 +1100,21 @@ mod tests {
             && String::from_utf8_lossy(&probe.stderr).contains("database is locked")
     }
 
-    fn held_open_for(path: &Path) -> usize {
-        let id = file_id(&std::fs::metadata(path).unwrap());
-        crate::locks::lock(&HELD_OPEN)
-            .iter()
-            .filter(|held| held.id == id)
-            .count()
+    #[test]
+    fn a_raw_copy_that_cannot_read_the_database_places_nothing() {
+        let (dir, backups, _db) = app_data();
+        std::fs::create_dir_all(&backups.dir).unwrap();
+        let unreadable = dir.path().join("folder.sqlite");
+        std::fs::create_dir(&unreadable).unwrap();
+        for db_path in [unreadable, dir.path().join("missing.sqlite")] {
+            assert_eq!(
+                take_raw(&db_path, &backups.dir, NOW).unwrap_err(),
+                "E_BACKUP_SNAPSHOT_FAILED"
+            );
+        }
+        assert_eq!(std::fs::read_dir(&backups.dir).unwrap().count(), 0);
     }
 
-    /// A restore takes the raw copy while the app's connection is open (#761).
     #[test]
     fn a_raw_copy_keeps_the_app_s_locks_on_the_database() {
         let (dir, backups, _db) = app_data();
@@ -1138,9 +1144,6 @@ mod tests {
                     "{name:?}"
                 );
             }
-        }
-        for file in &files {
-            assert_eq!(held_open_for(file), 1, "{file:?}");
         }
         app.execute_batch("ROLLBACK").unwrap();
     }
