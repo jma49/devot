@@ -181,6 +181,19 @@ describe('inline formats on partial selections', () => {
     expect(inline('«x `y`» z', 'code')).toBe('`«x y»` z')
   })
 
+  it('formats a formula whole, as it does a code span, and never inserts into its TeX', () => {
+    const asCode = (marked: string, format: InlineFormat) =>
+      inline(marked.replaceAll('$', '`'), format).replaceAll('`', '$')
+    for (const marked of ['x $a«b»c$ y', '«x $a»b$ y', 'x $a«b$ y»'])
+      for (const format of ['bold', 'italic', 'strikethrough', 'highlight'] as const)
+        expect({ marked, format, result: inline(marked, format) }).toEqual({
+          marked,
+          format,
+          result: asCode(marked, format),
+        })
+    expect(inline('«x $a*b$»', 'bold')).toBe('**«x $a*b$»**')
+  })
+
   it('formats a mixed multi-line selection fully', () => {
     expect(inline('«**one**\ntwo»', 'bold')).toBe('**«one**\n**two»**')
   })
@@ -297,6 +310,10 @@ describe('links', () => {
     expect(link('see «[docs](https://x.y)» here')).toBe('see «docs» here')
     expect(link('[do«c»s](u)')).toBe('do«c»s')
     expect(link('[do|cs](u)')).toBe('do|cs')
+  })
+
+  it('links a formula whole, as it does a code span', () => {
+    expect(link('x $a«b»c$ y')).toBe(link('x `a«b»c` y').replaceAll('`', '$'))
   })
 })
 

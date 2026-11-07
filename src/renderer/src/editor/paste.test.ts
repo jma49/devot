@@ -105,6 +105,7 @@ describe('pasting a URL over selected text', () => {
     )
     expect(paste('- «item»', 'https://example.com')).toBe('- [item](https://example.com)|')
     expect(paste('`«code»`', 'https://example.com')).toBe('[`code`](https://example.com)|')
+    expect(paste('$a«b»c$', 'https://example.com')).toBe('[$abc$](https://example.com)|')
   })
 
   it('replaces what a link cannot wrap', () => {
@@ -168,6 +169,7 @@ describe('pasting a lone URL', () => {
   it('pastes it as copied where Markdown is not read or a link would nest', () => {
     for (const marked of [
       '`code |`',
+      '$a |b$',
       '```\n|\n```',
       '---\nurl: |\n---\n',
       '[text](|)',
