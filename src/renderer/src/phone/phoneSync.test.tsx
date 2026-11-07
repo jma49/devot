@@ -20,6 +20,7 @@ const engine = {
   stopSync: vi.fn<() => Promise<void>>(async () => {}),
   syncTouch: vi.fn<() => Promise<void>>(async () => {}),
   syncFocused: vi.fn<() => Promise<void>>(async () => {}),
+  syncFlush: vi.fn<() => Promise<void>>(async () => {}),
   syncReceived: vi.fn<() => Promise<void>>(async () => {}),
 }
 
@@ -105,6 +106,19 @@ it('syncs when the app comes back to the foreground', async () => {
   visibility.mockReturnValue('visible')
   document.dispatchEvent(new Event('visibilitychange'))
   expect(engine.syncFocused).toHaveBeenCalledTimes(1)
+  visibility.mockRestore()
+})
+
+it('pushes what waits to be pushed when the app goes to the background', async () => {
+  shown()
+  syncIs(true)
+  await vi.waitFor(() => expect(engine.startSync).toHaveBeenCalledTimes(1))
+  const visibility = vi.spyOn(document, 'visibilityState', 'get')
+  visibility.mockReturnValue('hidden')
+  document.dispatchEvent(new Event('visibilitychange'))
+  await vi.waitFor(() => expect(engine.syncFlush).toHaveBeenCalledTimes(1))
+  window.dispatchEvent(new Event('pagehide'))
+  await vi.waitFor(() => expect(engine.syncFlush).toHaveBeenCalledTimes(2))
   visibility.mockRestore()
 })
 

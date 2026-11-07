@@ -765,6 +765,14 @@
         },
         "$description": "The open note's title, above its notebook, status and tags."
       },
+      "phone-note-title": {
+        "$type": "dimension",
+        "$value": {
+          "value": 26,
+          "unit": "px"
+        },
+        "$description": "The open note's title on the iPhone at the default text size, which the editor's cover draws too."
+      },
       "row": {
         "$type": "dimension",
         "$value": {

@@ -86,6 +86,10 @@ public enum Op: String, CaseIterable, Sendable {
     case tabsPopToRoot = "tabs.popToRoot"
     case settingsShowPane = "settings.showPane"
     case settingsNotebooks = "settings.notebooks"
+    case editorShow = "editor.show"
+    case editorHide = "editor.hide"
+    case editorSetMode = "editor.setMode"
+    case editorInfo = "editor.info"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {
@@ -93,6 +97,11 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case editorTitle = "editor.title"
     case tabsState = "tabs.state"
     case settingsOpen = "settings.open"
+    case navOpenNote = "nav.openNote"
+    case navBack = "nav.back"
+    case editorReady = "editor.ready"
+    case editorMode = "editor.mode"
+    case editorScroll = "editor.scroll"
 }
 
 public enum Outcome: Equatable, Sendable {

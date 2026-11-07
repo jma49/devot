@@ -178,6 +178,49 @@ describe('a note shown again', () => {
     expect(state.doc.toString()).toBe('abcX')
   })
 
+  it('goes on redoing a note left with its typing undone', () => {
+    const doc = replica('abc')
+    const undone = run(edit(start('abc'), doc, 3, 3, 'X', 1000), undo)
+    doc.getText(BODY).delete(3, 1)
+    keepUndo('note-redo', undone, doc)
+    let state = show('note-redo', doc)
+    expect(undoDepth(state)).toBe(0)
+    state = run(state, redo)
+    expect(state.doc.toString()).toBe('abcX')
+  })
+
+  it('maps its history through changes made after the state it was left with is put by', async () => {
+    const doc = leave('note-later', type(start('abc'), 3, 'X', 1000))
+    // As the editor does once it is left.
+    doc.destroy()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    let state = show('note-later', changedElsewhere(doc, [0, 0, 'Outside ']))
+    expect(state.doc.toString()).toBe('Outside abcX')
+    state = run(state, undo)
+    expect(state.doc.toString()).toBe('Outside abc')
+  })
+
+  it('maps its history through a deletion made elsewhere meanwhile', () => {
+    const doc = leave('note-cut', type(start('abc'), 3, 'X', 1000))
+    let state = show('note-cut', changedElsewhere(doc, [0, 1, '']))
+    expect(state.doc.toString()).toBe('bcX')
+    state = run(state, undo)
+    expect(state.doc.toString()).toBe('bc')
+  })
+
+  it('has no history when the core refused a deletion and another left the same length', () => {
+    const core = replica('abcd')
+    const page = new Y.Doc()
+    Y.applyUpdate(page, Y.encodeStateAsUpdate(core))
+    keepUndo('note-refused', edit(start('abcd'), page, 0, 1, '', 1000), page)
+    core.getText(BODY).delete(3, 1)
+    let state = show('note-refused', changedElsewhere(core))
+    expect(state.doc.toString()).toBe('abc')
+    const depth = undoDepth(state)
+    state = run(state, undo)
+    expect({ depth, text: state.doc.toString() }).toEqual({ depth: 0, text: 'abc' })
+  })
+
   it('has no history when it was never left', () => {
     const state = show('note-new', replica('abc'))
     expect(state.doc.toString()).toBe('abc')

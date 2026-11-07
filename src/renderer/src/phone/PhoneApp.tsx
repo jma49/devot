@@ -57,6 +57,9 @@ import { startScreensBridge, type ScreensBridge } from './screens/bridge'
 import { SCREENS_HANDLERS } from './screens/ops'
 import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
+import { editorHandlers, type NativeEditor } from './screens/editor'
+import { EditorHost } from './screens/EditorHost'
+import { createPreparedNotes } from './screens/prepared'
 import { modalOpen, watchModals } from './modal'
 import { useSpikes } from './screens/useSpikes'
 import { currentWindowLabel } from '../focus'
@@ -317,6 +320,8 @@ export function PhoneApp() {
   const latest = useRef(state)
   const nativeTabs = useRef<NativeTabs | null>(null)
   const nativeSettings = useRef<NativeSettings | null>(null)
+  const nativeEditor = useRef<NativeEditor | null>(null)
+  const [prepared] = useState(createPreparedNotes)
   const bridge = useRef<ScreensBridge | null>(null)
   // Null until the bridge says whether the native tab bar is there; the page draws its own without it.
   const [native, setNative] = useState<boolean | null>(null)
@@ -337,6 +342,7 @@ export function PhoneApp() {
         showPane: (pane, anchor) => nativeSettings.current?.showPane(pane, anchor),
         notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
+      ...editorHandlers(() => nativeEditor.current),
     })
     bridge.current = started
     let live = true
@@ -346,8 +352,9 @@ export function PhoneApp() {
     return () => {
       live = false
       started.stop()
+      prepared.clear()
     }
-  }, [])
+  }, [prepared])
   useSpikes(store.core)
   useEffect(() => {
     if (welcomed.current || !welcomeDue(licence, Date.now())) return
@@ -530,6 +537,18 @@ export function PhoneApp() {
   }
 
   const pop = () => go({ type: 'pop' })
+  // Under the native screens Swift pushes the note's own screen; the web stack never draws it.
+  const openNote = (noteId: string) => {
+    if (!native) {
+      go({ type: 'push', screen: 'note', noteId })
+      return
+    }
+    const note = [...store.notes, ...store.templates].find((n) => n.id === noteId)
+    bridge.current?.notify({ notice: 'nav.openNote', noteId, title: note?.title ?? '' })
+  }
+  const prepareNote = (noteId: string) => {
+    if (native && store.core) prepared.prepare(store.core, noteId)
+  }
   const openSearch = (query?: string) => {
     setSearchQuery(query)
     setSearching(true)
@@ -589,13 +608,7 @@ export function PhoneApp() {
           }
         />
       )
-    if (tab === 'activity')
-      return (
-        <PhoneActivity
-          data={store}
-          onOpenNote={(noteId) => go({ type: 'push', screen: 'note', noteId })}
-        />
-      )
+    if (tab === 'activity') return <PhoneActivity data={store} onOpenNote={openNote} />
     if (tab === 'settings')
       return <PhoneSettings onOpenPane={(pane) => go({ type: 'push', screen: 'pane', pane })} />
     const view =
@@ -609,7 +622,8 @@ export function PhoneApp() {
         title={viewTitle(view, store)}
         arrivedId={arrivedId}
         {...(onBack ? { onBack } : {})}
-        onOpenNote={(noteId) => go({ type: 'push', screen: 'note', noteId })}
+        onOpenNote={openNote}
+        {...(native ? { onPrepareNote: prepareNote } : {})}
         onSearch={() => openSearch()}
         onTrash={undoable.trash}
         onComplete={undoable.complete}
@@ -690,6 +704,16 @@ export function PhoneApp() {
           composing.current = false
         }}
       />
+      {native && (
+        <EditorHost
+          store={store}
+          notify={(notice) => bridge.current?.notify(notice)}
+          editor={nativeEditor}
+          prepared={prepared}
+          openNote={openNote}
+          onTrash={undoable.trash}
+        />
+      )}
       <PhoneToast toast={undoable.toast} />
       <PhoneGate
         licence={licence}
@@ -710,7 +734,7 @@ export function PhoneApp() {
         onClose={() => setSearching(false)}
         onOpenNote={(noteId) => {
           setSearching(false)
-          go({ type: 'push', screen: 'note', noteId })
+          openNote(noteId)
         }}
       />
       {depth > 0 && !searching && (

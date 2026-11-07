@@ -1510,6 +1510,7 @@ public enum Tokens {
     public static let sizeHeadline: CGFloat = 17
     public static let sizeTitle: CGFloat = 22
     public static let sizeNoteTitle: CGFloat = 24
+    public static let sizePhoneNoteTitle: CGFloat = 26
     public static let sizeRow: CGFloat = 14
     public static let sizeListTitle: CGFloat = 16.8
     public static let weightRegular: CGFloat = 400

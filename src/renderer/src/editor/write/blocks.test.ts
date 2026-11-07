@@ -15,8 +15,9 @@ import {
   type Random,
 } from '../../../../../tests/support/random-notes'
 import { noteMarkdown } from '../markdown'
-import { writeBlocks } from './blocks'
+import { drawnBlocks, writeBlocks } from './blocks'
 import { setWriteFocus, writeFocus, writeFocusTracking } from './focus'
+import { writeMode } from './index'
 import { writeTables } from './tableGrid'
 
 const NOTE = '---\ntitle: Plan\ntags: [a, b]\n# not a key\n---\nBody **text**'
@@ -148,13 +149,9 @@ describe('the blocks after a step', () => {
   /** Every decoration the blocks give the editor, in order. */
   function drawn(state: EditorState): Range<Decoration>[] {
     const out: Range<Decoration>[] = []
-    for (const facet of [EditorView.decorations, EditorView.outerDecorations]) {
-      for (const source of state.facet(facet)) {
-        if (typeof source === 'function') continue
-        for (let i = (source as DecorationSet).iter(); i.value; i.next())
-          out.push(i.value.range(i.from, i.to))
-      }
-    }
+    const { decorations, outer } = drawnBlocks(state)
+    for (const source of [...decorations, outer])
+      for (let i = source.iter(); i.value; i.next()) out.push(i.value.range(i.from, i.to))
     return out
   }
 
@@ -215,5 +212,47 @@ describe('the blocks after a step', () => {
         expect({ ...where, same }).toEqual({ ...where, same: same.map(() => true) })
       }
     }
+  })
+})
+
+describe('the decorations Write mode keeps in its state', () => {
+  // CodeMirror compares every decoration from state on every update, but only
+  // these change the lines' heights and must come from state.
+  const takesLines = (state: EditorState, from: number, to: number, value: Decoration) =>
+    value.spec.block === true || (value.point && to > state.doc.lineAt(from).to)
+
+  it('are only those that take or join lines', () => {
+    const doc = [
+      '---',
+      'title: Plan',
+      '---',
+      'Text with **bold**.',
+      '',
+      '| a | b | c |',
+      '| - | :-: | - |',
+      '| 1 |',
+      '| 2 | | 3 |',
+      '',
+      '$$',
+      'x^2',
+      '$$',
+      '',
+      '![chart](https://example.com/chart.png)',
+      '',
+      'End',
+    ].join('\n')
+    const state = stateOf(doc, doc.indexOf('bold'), [writeMode()])
+    const kept: string[] = []
+    const others: string[] = []
+    for (const facet of [EditorView.decorations, EditorView.outerDecorations]) {
+      for (const source of state.facet(facet)) {
+        if (typeof source === 'function') continue
+        ;(source as DecorationSet).between(0, state.doc.length, (from, to, value) => {
+          ;(takesLines(state, from, to, value) ? kept : others).push(`${from}-${to}`)
+        })
+      }
+    }
+    expect(kept.length).toBeGreaterThanOrEqual(4)
+    expect(others).toEqual([])
   })
 })

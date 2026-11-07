@@ -8,8 +8,9 @@
 // attached to the finger, momentum included. Any other scroll (keys, the
 // scroll bar, find) moves the other pane once per frame. A pane's scroll that
 // Devot made itself is never taken for the user's, so nothing echoes back.
-// The preview measures its blocks once per layout, so scrolling a long note
-// stays cheap.
+// The preview measures only the blocks around the place asked for and keeps
+// them until its layout changes, so scrolling and typing in a long note stay
+// cheap.
 
 export interface Anchor {
   line: number
@@ -25,12 +26,16 @@ export interface Anchor {
  */
 export function normalizeAnchors(raw: readonly Anchor[], end: Anchor): Anchor[] {
   const out: Anchor[] = [{ line: 1, top: 0 }]
-  for (const anchor of [...raw, end]) {
-    const last = out[out.length - 1]!
-    if (out.length === 1 && anchor.line === 1 && anchor.top >= 0) out[0] = anchor
-    else if (anchor.line > last.line && anchor.top > last.top) out.push(anchor)
-  }
+  for (const anchor of raw) keep(out, anchor)
+  keep(out, end)
   return out
+}
+
+/** Adds `anchor` to anchors normalized so far, as `normalizeAnchors` would. */
+function keep(out: Anchor[], anchor: Anchor): void {
+  const last = out[out.length - 1]!
+  if (out.length === 1 && last.line === 1 && anchor.line === 1 && anchor.top >= 0) out[0] = anchor
+  else if (anchor.line > last.line && anchor.top > last.top) out.push(anchor)
 }
 
 function around(anchors: readonly Anchor[], key: keyof Anchor, value: number) {
@@ -327,8 +332,26 @@ export function syncScrolling(
 }
 
 export interface PreviewScrollPane extends ScrollPane {
-  changed(lines?: number): void
+  /** The preview now shows `pieces`, of a note `lines` lines long. */
+  rendered(lines: number, pieces: readonly PreviewPiece[]): void
+  /** Something in the preview changed size without a render (a diagram drawn). */
+  changed(): void
+  /** Pieces that were waiting got their blocks, after the others (see `PreviewPiece.pending`). */
+  built(): void
   dispose(): void
+}
+
+/**
+ * One piece of the preview as its scroll pane reads it: the line it starts
+ * on, and among `marked`, in document order, its blocks that carry a line.
+ * A piece that stays the same object kept its blocks (its lines may move),
+ * unless it was `pending`: not built yet, it has no blocks until it is, and
+ * the pieces waiting are always the last ones.
+ */
+export interface PreviewPiece {
+  readonly line: number
+  readonly marked: readonly Element[]
+  readonly pending?: unknown
 }
 
 const shifts = new WeakMap<Element, (by: number) => void>()
@@ -344,54 +367,234 @@ export function shiftScroll(element: HTMLElement, by: number): void {
   else element.scrollTop += by
 }
 
+const passes = (anchor: Anchor, before: readonly Anchor[]) =>
+  before.every((other) => anchor.line > other.line && anchor.top > other.top)
+
+const lineOf = (el: Element) => {
+  const line = Number(el.getAttribute('data-source-line'))
+  return Number.isInteger(line) && line >= 1 ? line : undefined
+}
+
+interface Shape {
+  of: readonly Element[]
+  blocks: Element[]
+  /** Each block's offset below the first. */
+  below: number[]
+}
+
 /**
- * The preview as a scroll pane: `element` scrolls and its blocks carry their
- * source lines. Block offsets are measured once and kept until the content
- * changes size, its line count changes or it is rendered anew, so scrolling
- * and typing within a line read no layout but the scroll offset and height.
+ * The preview as a scroll pane: `element` scrolls and its pieces' blocks
+ * carry their source lines. It measures only the blocks around the place
+ * asked for, finding them by a search over the pieces: a big note costs a
+ * few dozen box reads after a render rather than one for every block. What
+ * it measured inside a piece holds until the content is laid out anew (an
+ * image or a diagram, a new width, a height that changed without a render);
+ * where a piece sits holds until anything changes. `reach` builds what the
+ * preview has not built yet up to a line it is asked for.
  */
-export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
+export function previewScrollPane(
+  element: HTMLElement,
+  {
+    reach,
+    frame = (run) => requestAnimationFrame(run),
+    cancel = (handle) => cancelAnimationFrame(handle),
+  }: { reach?: (line: number) => void } & Pick<SyncOptions, 'frame' | 'cancel'> = {},
+): PreviewScrollPane {
   let lines = 1
-  let anchors: Anchor[] | undefined
-  let measuredHeight = -1
+  let pieces: readonly PreviewPiece[] = []
+  /** The pieces a search may land on: those whose lines go up in document order (not the footnotes, mostly). */
+  let ordered: number[] = []
+  let filled: number | undefined
+  let height = -1
+  let told = false
+  let epoch = 0
+  let shapes = new WeakMap<PreviewPiece, Shape>()
+  const heads = new WeakMap<PreviewPiece, { epoch: number; top: number | undefined }>()
+  const placed = new WeakMap<PreviewPiece, { epoch: number; anchors: Anchor[] }>()
+  let paneTop = { epoch: -1, top: 0 }
   const listeners = new Set<() => void>()
   const moves = new Set<() => void>()
 
-  const measure = (): Anchor[] => {
-    const height = element.scrollHeight
-    if (anchors && height === measuredHeight) return anchors
-    const origin = element.getBoundingClientRect().top - element.scrollTop + element.clientTop
-    const raw: Anchor[] = []
-    for (const block of element.querySelectorAll<HTMLElement>('[data-source-line]')) {
-      const line = Number(block.dataset['sourceLine'])
-      if (!Number.isInteger(line) || line < 1) continue
-      raw.push({ line, top: block.getBoundingClientRect().top - origin })
+  const relaidOut = () => {
+    shapes = new WeakMap()
+    epoch += 1
+    told = true
+  }
+  const fresh = () => {
+    const now = element.scrollHeight
+    if (now !== height) {
+      // Grown or shrunk with nothing said: anything inside may have moved.
+      if (!told) shapes = new WeakMap()
+      epoch += 1
+      height = now
     }
-    measuredHeight = height
-    anchors = normalizeAnchors(raw, { line: lines + 1, top: height })
+    told = false
+  }
+  const origin = () => {
+    if (paneTop.epoch !== epoch)
+      paneTop = { epoch, top: element.getBoundingClientRect().top + element.clientTop }
+    return paneTop.top - element.scrollTop
+  }
+
+  const headTop = (piece: PreviewPiece) => {
+    const known = heads.get(piece)
+    if (known?.epoch === epoch) return known.top
+    const first =
+      shapes.get(piece)?.blocks[0] ?? piece.marked.find((el) => lineOf(el) !== undefined)
+    const top = first ? first.getBoundingClientRect().top - origin() : undefined
+    heads.set(piece, { epoch, top })
+    return top
+  }
+
+  const anchorsOf = (piece: PreviewPiece): Anchor[] => {
+    const known = placed.get(piece)
+    if (known?.epoch === epoch) return known.anchors
+    let shape = shapes.get(piece)
+    if (shape?.of !== piece.marked) shape = undefined
+    // A kept piece that changed inside with nothing said (a new font along with a render) shows it at its last block.
+    if (shape && shape.blocks.length > 1) {
+      const last = shape.blocks[shape.blocks.length - 1]!.getBoundingClientRect().top - origin()
+      if (last - (headTop(piece) ?? 0) !== shape.below[shape.below.length - 1]) shape = undefined
+    }
+    if (!shape) {
+      const blocks = piece.marked.filter((el) => lineOf(el) !== undefined)
+      const tops = blocks.map((el) => el.getBoundingClientRect().top - origin())
+      shape = { of: piece.marked, blocks, below: tops.map((top) => top - tops[0]!) }
+      shapes.set(piece, shape)
+      heads.set(piece, { epoch, top: tops[0] })
+    }
+    const top = headTop(piece) ?? 0
+    const anchors: Anchor[] = []
+    for (const [at, el] of shape.blocks.entries()) {
+      const line = lineOf(el)
+      if (line !== undefined) anchors.push({ line, top: top + shape.below[at]! })
+    }
+    placed.set(piece, { epoch, anchors })
     return anchors
   }
 
-  const relayout = () => {
-    anchors = undefined
+  /** The last piece a search may land on that starts at or before `value`, or -1. */
+  const search = (key: keyof Anchor, value: number) => {
+    let lo = 0
+    let hi = ordered.length - 1
+    let found = -1
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1
+      let at = mid
+      let start: number | undefined
+      for (; at <= hi; at += 1) {
+        const piece = pieces[ordered[at]!]!
+        start = key === 'line' ? piece.line : headTop(piece)
+        if (start !== undefined) break
+      }
+      if (start === undefined || start > value) hi = mid - 1
+      else {
+        found = at
+        lo = at + 1
+      }
+    }
+    return found < 0 ? -1 : ordered[found]!
+  }
+
+  const filledBefore = (at: number) => {
+    let back = at - 1
+    while (back >= 0 && anchorsOf(pieces[back]!).length === 0) back -= 1
+    return back
+  }
+
+  /**
+   * The last anchor before piece `at`, as normalizing every anchor would
+   * leave it. A piece's first block is kept when it lies past every block of
+   * the piece before it, in line and offset; otherwise (a piece of no height)
+   * the pieces before it are looked at too. That is exact while each piece
+   * reaches, somewhere, past every block before it.
+   */
+  const lastBefore = (at: number): Anchor[] => {
+    filled ??= pieces.findIndex((piece) => piece.marked.some((el) => lineOf(el) !== undefined))
+    const runs: Anchor[][] = []
+    let out: Anchor[] = [{ line: 1, top: 0 }]
+    for (let back = filledBefore(at); back >= 0;) {
+      const anchors = anchorsOf(pieces[back]!)
+      if (back === filled) {
+        runs.push(anchors)
+        break
+      }
+      const prior = filledBefore(back)
+      const first = anchors[0]!
+      if (prior < 0 || passes(first, anchorsOf(pieces[prior]!))) {
+        out = [first]
+        runs.push(anchors.slice(1))
+        break
+      }
+      runs.push(anchors)
+      back = prior
+    }
+    for (const run of runs.reverse()) for (const anchor of run) keep(out, anchor)
+    return [out[out.length - 1]!]
+  }
+
+  /** The normalized anchors from the last one at or before `value` to the first after it. */
+  // The last anchors found are a run of the normalized ones: any place within them is found there.
+  let found = { epoch: -1, anchors: [] as Anchor[] }
+  const nearby = (key: keyof Anchor, value: number): Anchor[] => {
+    fresh()
+    if (found.epoch === epoch) {
+      const { anchors } = found
+      if (anchors[0]![key] <= value && value < anchors[anchors.length - 1]![key]) return anchors
+    }
+    const out = measureAround(key, value)
+    found = { epoch, anchors: out }
+    return out
+  }
+  const measureAround = (key: keyof Anchor, value: number): Anchor[] => {
+    let at = Math.max(search(key, value), 0)
+    let out = lastBefore(at)
+    // The piece found by its first block can keep only blocks past the place: start earlier.
+    while (at > 0 && out[0]![key] > value) out = lastBefore((at -= 1))
+    let next = at
+    for (; next < pieces.length && pieces[next]!.pending === undefined; next += 1) {
+      for (const anchor of anchorsOf(pieces[next]!)) {
+        keep(out, anchor)
+        if (out.length > 1 && out[out.length - 1]![key] > value) return out
+      }
+    }
+    // What is not built yet starts at the bottom of what is.
+    keep(out, { line: pieces[next]?.line ?? lines + 1, top: height })
+    return out
+  }
+  const lineFor = (top: number) => lineAt(nearby('top', top), top)
+  const topFor = (line: number) => topOf(nearby('line', line), line)
+
+  const notify = () => {
     for (const listener of listeners) listener()
   }
-  // The line read, as of the last scroll (the anchors are measured once, so
-  // this reads no layout after the first scroll).
+  // Images, diagrams and pieces built later land a few at a time: the panes line up again once a frame.
+  let queued: number | undefined
+  const notifySoon = () => {
+    queued ??= frame(() => {
+      queued = undefined
+      notify()
+    })
+  }
+  const resized = () => {
+    relaidOut()
+    notifySoon()
+  }
+  // The line read, as of the last scroll.
   let read: number | undefined
   const scrolled = () => {
-    read = element.scrollTop > 0 ? lineAt(measure(), element.scrollTop) : undefined
+    read = element.scrollTop > 0 ? lineFor(element.scrollTop) : undefined
   }
   element.addEventListener('scroll', scrolled, { passive: true })
   // A narrower or wider pane wraps its text anew, and keeps the line read at
   // its top (WebKit has no scroll anchoring to do it).
   const resize = new ResizeObserver(() => {
-    anchors = undefined
-    if (read !== undefined) element.scrollTop = topOf(measure(), read)
-    relayout()
+    relaidOut()
+    if (read !== undefined) element.scrollTop = topFor(read)
+    notify()
   })
   resize.observe(element)
-  element.addEventListener('load', relayout, true)
+  element.addEventListener('load', resized, true)
   const shift = (by: number) => {
     const before = element.scrollTop
     element.scrollTop = before + by
@@ -401,8 +604,11 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
 
   return {
     element,
-    topLine: () => lineAt(measure(), element.scrollTop),
-    offsetOf: (line) => topOf(measure(), line),
+    topLine: () => lineFor(element.scrollTop),
+    offsetOf: (line) => {
+      reach?.(line)
+      return topFor(line)
+    },
     onLayout: (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -411,20 +617,33 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
       moves.add(listener)
       return () => moves.delete(listener)
     },
-    changed: (count) => {
-      // Typing in a line moves no block unless the height changes, which `measure` notices:
-      // measuring every block of a big note again on each key would cost more than the edit.
-      if (count !== undefined && count === lines) {
-        for (const listener of listeners) listener()
-        return
+    rendered: (count, next) => {
+      lines = count
+      pieces = next
+      ordered = []
+      for (const [at, piece] of next.entries()) {
+        const last = ordered[ordered.length - 1]
+        if (last === undefined || piece.line > next[last]!.line) ordered.push(at)
       }
-      if (count !== undefined) lines = count
-      relayout()
+      filled = undefined
+      epoch += 1
+      told = true
+      notify()
+    },
+    changed: resized,
+    // Pieces built after the others move none of them, so what was measured of those holds.
+    built: () => {
+      filled = undefined
+      epoch += 1
+      told = true
+      notifySoon()
     },
     dispose: () => {
       resize.disconnect()
       element.removeEventListener('scroll', scrolled)
-      element.removeEventListener('load', relayout, true)
+      element.removeEventListener('load', resized, true)
+      if (queued !== undefined) cancel(queued)
+      queued = undefined
       listeners.clear()
       moves.clear()
       if (shifts.get(element) === shift) shifts.delete(element)

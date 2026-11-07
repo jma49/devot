@@ -22,6 +22,8 @@ final class SettingsScreens {
     private let host: WebViewHost
     /// The tab shows, whatever page is on top.
     var onTabAppear: () -> Void = {}
+    /// Lets a note the page shows go and calls back once it has, so a web pane never shows the note.
+    var hideEditor: (@escaping () -> Void) -> Void = { $0() }
 
     var bridge: (any SettingsBridge)? {
         get { store.bridge }
@@ -78,11 +80,13 @@ final class SettingsScreens {
             show: { [weak self] pane, anchor, shown in
                 var args: [String: JSONValue] = ["pane": .string(pane)]
                 if let anchor { args["anchor"] = .string(anchor.rawValue) }
-                self?.store.bridge?.request(.settingsShowPane, args) { outcome in
-                    if case .failed(let code) = outcome {
-                        self?.store.log("W_PHONE_SETTINGS_PANE_FAILED pane=\(pane) code=\(code)")
+                self?.hideEditor { [weak self] in
+                    self?.store.bridge?.request(.settingsShowPane, args) { outcome in
+                        if case .failed(let code) = outcome {
+                            self?.store.log("W_PHONE_SETTINGS_PANE_FAILED pane=\(pane) code=\(code)")
+                        }
+                        shown()
                     }
-                    shown()
                 }
             },
             left: { [weak self] in

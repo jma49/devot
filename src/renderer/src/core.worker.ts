@@ -503,6 +503,7 @@ const coreApi = {
   syncReceived: (event: SyncEvent) => sync.current?.received(event),
   syncTouch: () => sync.current?.touch(),
   syncFocused: () => sync.current?.focused(),
+  syncFlush: () => sync.current?.flush(),
   syncAfterRestore: (choice: 'merge' | 'keep') => sync.current?.afterRestore(choice),
 }
 

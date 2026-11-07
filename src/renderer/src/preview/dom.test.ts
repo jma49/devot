@@ -1,7 +1,18 @@
 // @vitest-environment happy-dom
 import type { ElementContent, Element as HastElement } from 'hast'
 import { describe, expect, it } from 'vitest'
-import { patchChildren, patchPieces, type NextPiece, type ShownPiece } from './dom'
+import { createPieceRenderer, type PreviewOptions } from '../../../core'
+import { sampleNote } from '../../../../scripts/bench/fixtures'
+import { labels } from '../../../../tests/support/preview-html'
+import {
+  buildFirstPieces,
+  buildPending,
+  buildToLine,
+  patchChildren,
+  patchPieces,
+  type NextPiece,
+  type ShownPiece,
+} from './dom'
 
 const el = (
   tagName: string,
@@ -166,5 +177,97 @@ describe('patchPieces', () => {
     shown = patchPieces(host, shown, [{ key: 'notes', line: 3, offset: 30, parts: parts(3, 10) }])
     expect(read()).toEqual(['3', '34', '11', '105'])
     expect(shown[0]!.parts).toEqual(parts(3, 10))
+  })
+})
+
+const options: PreviewOptions = { labels, loadedEmbeds: [] }
+
+/** The benchmark sample with footnotes (a piece in parts), tasks and images (offsets). */
+const richNote = (bytes: number, tag = '') =>
+  sampleNote(bytes, tag).replace(/Paragraph (\d+)(\S*) goes on/g, 'Paragraph $1$2[^n$1] goes on') +
+  '\n\n' +
+  Array.from({ length: 40 }, (_, i) => `[^n${i + 1}]: Footnote ${i + 1}.`).join('\n\n')
+
+/** `next` as patching every piece over another note's preview builds it: the reference. */
+function patchedOver(next: readonly NextPiece[], over: readonly NextPiece[]): Element {
+  const host = document.createElement('div')
+  patchPieces(host, patchPieces(host, [], over), next)
+  return host
+}
+
+// The first render loads the Markdown stack, which takes seconds on a busy machine.
+describe('patchPieces, deferring', { timeout: 30_000 }, () => {
+  it('builds a piece anew with the attributes patching gives it', async () => {
+    const next = await createPieceRenderer()(richNote(40_000), options)
+    const other = await createPieceRenderer()(richNote(40_000, 'x'), options)
+    const host = document.createElement('div')
+    patchPieces(host, [], next)
+    expect(host.querySelector('[data-task-at]')).not.toBeNull()
+    expect(host.querySelector('[data-image-from]')).not.toBeNull()
+    expect(host.innerHTML).toBe(patchedOver(next, other).innerHTML)
+  })
+
+  it('leaves the pieces past those on screen to be built later', async () => {
+    const next = await createPieceRenderer()(richNote(40_000), options)
+    const host = document.createElement('div')
+    const shown = patchPieces(host, [], next, { defer: true })
+    expect(host.childNodes).toHaveLength(0)
+    expect(shown.every((one) => one.nodes.length === 0)).toBe(true)
+    expect(buildPending(host, shown, () => true)).toBe(next.length)
+    expect(host.innerHTML).toBe(patchedOver(next, []).innerHTML)
+  })
+
+  it('takes an edit before and after the built pieces as a whole build would', async () => {
+    const render = createPieceRenderer()
+    const note = richNote(60_000)
+    const host = document.createElement('div')
+    let shown = patchPieces(host, [], await render(note, options), { defer: true })
+    let built = 0
+    buildPending(host, shown, () => (built += 1) <= 4)
+    const early = note.indexOf('goes on for a while')
+    const late = note.indexOf('goes on for a while', note.length / 2)
+    const edited = `${note.slice(0, early)}more ${note.slice(early, late)}\n\nNew paragraph.\n\n${note.slice(late)}`
+    const next = await render(
+      edited,
+      options,
+      shown.map((one) => one.key),
+    )
+    shown = patchPieces(host, shown, next, { defer: true })
+    buildPending(host, shown, () => true)
+    expect(shown.every((one) => one.pending === undefined)).toBe(true)
+    expect(host.innerHTML).toBe(
+      patchedOver(await createPieceRenderer()(edited, options), []).innerHTML,
+    )
+  })
+
+  it('builds the waiting pieces before a kept piece moves', () => {
+    const host = document.createElement('div')
+    const shown = patchPieces(
+      host,
+      [],
+      [piece('a', 'A', 1), piece('b', 'B', 2), piece('c', 'C', 3)],
+      {
+        defer: true,
+      },
+    )
+    buildPending(host, shown, (next) => next.key === 'a')
+    patchPieces(host, shown, [known('c', 1), known('a', 2), known('b', 3)], { defer: true })
+    expect(Array.from(host.children, (child) => child.textContent)).toEqual(['C', 'A', 'B'])
+  })
+})
+
+describe('buildToLine', { timeout: 30_000 }, () => {
+  it('builds nothing for a line already built, and up to a line past them', async () => {
+    const host = document.createElement('div')
+    const shown = patchPieces(host, [], await createPieceRenderer()(richNote(200_000), options), {
+      defer: true,
+    })
+    buildFirstPieces(host, shown)
+    const waiting = shown.findIndex((one) => one.pending !== undefined)
+    expect(buildToLine(host, shown, 1)).toBe(0)
+    const far = shown.at(-1)!.line
+    expect(buildToLine(host, shown, far)).toBeGreaterThan(0)
+    expect(shown.findIndex((one) => one.pending !== undefined)).toBe(-1)
+    expect(waiting).toBeGreaterThan(0)
   })
 })

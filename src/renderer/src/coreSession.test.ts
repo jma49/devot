@@ -30,6 +30,7 @@ function fakeCore(saved: boolean) {
       saved ? Promise.resolve() : Promise.reject(new Error('E_SAVE')),
     ),
     mirrorStop: vi.fn<() => Promise<void>>(async () => {}),
+    syncFlush: vi.fn<() => Promise<void>>(async () => {}),
   }
 }
 
@@ -96,6 +97,7 @@ describe('useQuitAndClose', () => {
     expect(tauri.invoked).toEqual(['app_exit_cancel'])
     expect(props.setQuitHeld).toHaveBeenCalledWith(true)
     expect(core.mirrorStop).not.toHaveBeenCalled()
+    expect(core.syncFlush).not.toHaveBeenCalled()
   })
 
   it('lets the quit go on once the save succeeds', async () => {
@@ -108,6 +110,7 @@ describe('useQuitAndClose', () => {
     expect(tauri.invoked).toEqual(['app_exit_ready'])
     expect(props.markShownSeen).toHaveBeenCalledWith({ reload: false })
     expect(core.mirrorStop).toHaveBeenCalled()
+    expect(core.syncFlush).toHaveBeenCalled()
     expect(props.setQuitHeld).not.toHaveBeenCalled()
   })
 
