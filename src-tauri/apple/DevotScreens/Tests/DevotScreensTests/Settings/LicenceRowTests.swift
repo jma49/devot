@@ -36,6 +36,30 @@ final class LicenceRowTests: XCTestCase {
         XCTAssertFalse(try ends(-1).trialRunning(now))
     }
 
+    func testTheRowChangesWhenTheTrialDropsADayAndWhenItEnds() throws {
+        let day = Licence.dayMs / 1000
+        let start = now
+        let trial = { (endsAt: Date?) in
+            try self.read([
+                "gated": .bool(true), "state": .string("none"),
+                "trial": .object([
+                    "state": .string("running"), "endsAt": endsAt.map { .number($0.milliseconds) } ?? .null,
+                ]),
+            ])
+        }
+        let ends = start.addingTimeInterval(10 * day)
+        XCTAssertEqual(try trial(ends).rowChangesAt(start), start.addingTimeInterval(day))
+        XCTAssertEqual(try trial(ends).rowChangesAt(start.addingTimeInterval(day / 2)), start.addingTimeInterval(day))
+        XCTAssertEqual(try trial(ends).rowChangesAt(start.addingTimeInterval(day)), start.addingTimeInterval(2 * day))
+        XCTAssertEqual(try trial(ends).rowChangesAt(ends.addingTimeInterval(-day / 2)), ends)
+        let at = try XCTUnwrap(try trial(ends).rowChangesAt(start.addingTimeInterval(day / 2)))
+        XCTAssertEqual(try trial(ends).row(at.addingTimeInterval(-0.001)).label, L10n.phoneSettingsLicenceTrialDays(days: "10"))
+        XCTAssertEqual(try trial(ends).row(at).label, L10n.phoneSettingsLicenceTrialDays(days: "9"))
+        XCTAssertNil(try trial(nil).rowChangesAt(start))
+        XCTAssertNil(try trial(start.addingTimeInterval(day)).rowChangesAt(start.addingTimeInterval(2 * day)))
+        XCTAssertNil(try read(["gated": .bool(true), "state": .string("valid")]).rowChangesAt(start))
+    }
+
     func testAnEndedTrialLocksEditingAndMarksTheRow() throws {
         let ended = try read(["gated": .bool(true), "state": .string("none")])
         XCTAssertEqual(ended.trial?.state, "ended")

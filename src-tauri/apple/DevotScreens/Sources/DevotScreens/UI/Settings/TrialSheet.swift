@@ -10,11 +10,9 @@ struct TrialSheet: View {
         let date = endsAt.formatted(date: .abbreviated, time: .omitted)
         VStack(spacing: SheetMetrics.gap) {
             SheetLens(symbol: "info.circle")
-            Text(L10n.phoneSettingsTrial()).font(.system(size: 20, weight: .bold)).accessibilityAddTraits(.isHeader)
+            Text(L10n.phoneSettingsTrial()).sheetTitle().accessibilityAddTraits(.isHeader)
             Text(store ? L10n.phoneSettingsTrialEndsStore(date: date) : L10n.phoneSettingsTrialEnds(date: date))
-                .font(.system(size: 16))
-                .lineSpacing(8)
-                .foregroundStyle(Color(Tokens.Color.phoneTextSecondary))
+                .sheetBody()
                 .multilineTextAlignment(.center)
             SheetButton(title: L10n.phoneHintDone(), action: done)
                 .accessibilityIdentifier("trial-done")

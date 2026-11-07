@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 @testable import DevotScreens
@@ -97,6 +98,34 @@ final class SettingsStoreTests: XCTestCase {
             "direct.store.products",
             .ok(.array([.object(["product": .string("pro"), "displayPrice": .string("31,99 \u{20AC}")])])))
         XCTAssertEqual(store.products, [StoreProduct(product: "pro", displayPrice: "31,99 \u{20AC}")])
+    }
+
+    func testComingBackToTheForegroundReadsTheClockAndTheLicenceAgain() {
+        let center = NotificationCenter()
+        let bridge = FakeBridge()
+        let store = SettingsStore(center: center)
+        store.bridge = bridge
+        store.now = Date(timeIntervalSince1970: 0)
+        center.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertGreaterThan(store.now, Date(timeIntervalSince1970: 0))
+        XCTAssertEqual(bridge.ops, ["direct.licence.get"])
+    }
+
+    func testTheClockMovesOnWhenTheTrialDropsADay() throws {
+        let (store, _) = store()
+        let soon = Date().addingTimeInterval(0.2)
+        let days = 3.0
+        let endsAt = soon.addingTimeInterval((days - 1) * Licence.dayMs / 1000)
+        store.adoptLicence(.object([
+            "gated": .bool(true), "state": .string("none"),
+            "trial": .object(["state": .string("running"), "endsAt": .number(endsAt.milliseconds)]),
+        ]))
+        let before = store.now
+        let moved = expectation(description: "the clock moved at the day boundary")
+        withObservationTracking { _ = store.now } onChange: { moved.fulfill() }
+        wait(for: [moved], timeout: 2)
+        XCTAssertGreaterThan(store.now, before)
+        XCTAssertEqual(try XCTUnwrap(store.licence).row(Date()).label, L10n.phoneSettingsLicenceTrialDays(days: "2"))
     }
 
     func testWithoutABridgeAnActionFailsWithACode() {

@@ -119,6 +119,13 @@ struct Licence: Equatable {
         return (L10n.phoneSettingsLicenceAttention(), true)
     }
 
+    /// When `row` next reads differently: the trial dropping a day, or ending (`licenceRowChangesAt`).
+    func rowChangesAt(_ now: Date) -> Date? {
+        guard let endsAt = trial?.endsAt, trialRunning(now) else { return nil }
+        let days = ((endsAt - now.milliseconds) / Licence.dayMs).rounded(.up)
+        return Date(timeIntervalSince1970: (endsAt - (days - 1) * Licence.dayMs) / 1000)
+    }
+
     static let dayMs = 86_400_000.0
 }
 

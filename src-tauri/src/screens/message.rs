@@ -77,10 +77,19 @@ pub enum WebPane {
     Sync,
 }
 
+/// A place a web pane opens scrolled to: Sync's pairing, for Pair a device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PaneAnchor {
+    Pairing,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShowPane {
     pub pane: WebPane,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<PaneAnchor>,
 }
 
 /// What Swift may ask the page for: an operation joins with the pull request that first sends it.
@@ -412,10 +421,11 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             }
             create.title.as_deref().map_or(Ok(()), title)
         }
-        Op::TabsShow(_)
-        | Op::TabsPopToRoot(_)
-        | Op::SettingsShowPane(_)
-        | Op::SettingsNotebooks(_) => Ok(()),
+        Op::SettingsShowPane(ShowPane { pane, anchor }) => match (pane, anchor) {
+            (_, None) | (WebPane::Sync, Some(PaneAnchor::Pairing)) => Ok(()),
+            _ => Err("E_SCREENS_ARGS_INVALID"),
+        },
+        Op::TabsShow(_) | Op::TabsPopToRoot(_) | Op::SettingsNotebooks(_) => Ok(()),
     }
 }
 

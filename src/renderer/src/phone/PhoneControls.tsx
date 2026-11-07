@@ -1,12 +1,25 @@
 import { useId, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { haptic } from './haptics'
 import { figureParts } from './figures'
+import type { PaneAnchor } from './screens/settings'
 
-/** A pane's card, with an optional group title and at most a one-line footnote. */
-export function PhoneGroup(props: { title?: string; footnote?: string; children: ReactNode }) {
+/**
+ * A pane's card, with an optional group title and at most a one-line footnote; `anchor` names it
+ * for a pane opened scrolled to it (`paneAnchor.ts`).
+ */
+export function PhoneGroup(props: {
+  title?: string
+  footnote?: string
+  anchor?: PaneAnchor
+  children: ReactNode
+}) {
   const id = useId()
   return (
-    <section className="settings-block" aria-labelledby={props.title ? id : undefined}>
+    <section
+      className="settings-block"
+      aria-labelledby={props.title ? id : undefined}
+      data-anchor={props.anchor}
+    >
       {props.title ? (
         <h3 id={id} className="settings-block-title">
           {props.title}

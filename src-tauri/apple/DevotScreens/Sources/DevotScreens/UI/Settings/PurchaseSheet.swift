@@ -127,10 +127,10 @@ struct PurchaseSheet: View {
                 .disabled(busy != nil)
             }
             HStack(spacing: SheetMetrics.gap) {
-                Button(L10n.phonePurchaseRestore(), action: restore).disabled(busy != nil)
+                Button(action: restore) { SheetLink(title: L10n.phonePurchaseRestore()) }.disabled(busy != nil)
                 if offer.takesKeys {
                     Divider().frame(height: SheetMetrics.gap)
-                    Button(L10n.phonePurchaseEnterKey(), action: enterKey)
+                    Button(action: enterKey) { SheetLink(title: L10n.phonePurchaseEnterKey()) }
                 }
             }
             .settingsDetail()
@@ -174,5 +174,16 @@ struct PurchaseSheet: View {
                 message = .restoreFailed(failure.code)
             }
         }
+    }
+}
+
+/// An account link under the purchase actions: its text, on a target of at least 44 points.
+private struct SheetLink: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .frame(minWidth: Tokens.Size.phoneTarget, minHeight: Tokens.Size.phoneTarget)
+            .contentShape(Rectangle())
     }
 }

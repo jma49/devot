@@ -2198,6 +2198,10 @@ button.phone-compose[data-hidden] {
   padding-top: calc(var(--phone-safe-top) + var(--size-phone-group-gap));
 }
 
+.phone-settings-pane[data-native-bar] [data-anchor] {
+  scroll-margin-top: calc(var(--phone-safe-top) + var(--size-phone-group-gap));
+}
+
 /* Settings root */
 
 .phone-settings-group {

@@ -191,7 +191,8 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A switch is the system's toggle (rule 4); a value row pushes its own page of choices, and a choice moves the checkmark at once with the `selection` haptic (rule 4); nothing else in Settings has a haptic.
   A setting changes before it is saved; a refused save puts the old value back at once and raises the system's alert (rule 2).
   An action row's value changes in place (rule 2), as on the web shell's Restore Purchases and Request a Refund rows.
-  The Trial, Mac licence key and purchase sheets are one content-sized system sheet with its grabber, rising and following a drag with the system's motion (rule 3); when their content grows the sheet's height follows in one system animation.
+  The Trial, Mac licence key and purchase sheets are one content-sized system sheet with its grabber, rising and following a drag with the system's motion (rule 3); when their content grows the sheet's height follows in one system animation, and content taller than the sheet scrolls inside it.
+  A pane the page still draws (Appearance, Sync) shows the screen's background during the push until the page has the pane, then the pane at once (rule 2); Pair a Device lands on Sync's pairing without a scroll animation.
   Removing a licence asks first in the system's alert, with Remove in the destructive style.
   Under Reduce Motion the system crossfades its pushes and sheets.
 - **Note mode toggle:** rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. Edit and Preview crossfade over `motion.duration.ring`, the new one rising 8 pt with `gentle`. Under Reduce Motion both only fade, over `motion.duration.phone-crossfade`.

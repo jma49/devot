@@ -13,12 +13,16 @@ final class ContentSheetController: UIViewController {
     }
 
     private let hosting: UIHostingController<AnyView>
+    /// Holds the content at its own height, so content taller than the sheet (the largest text
+    /// sizes) scrolls instead of losing its last actions under the edge.
+    let scrollView = UIScrollView()
 
     init(_ content: some View) {
         hosting = UIHostingController(rootView: AnyView(content))
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .pageSheet
         hosting.sizingOptions = .preferredContentSize
+        hosting.safeAreaRegions = []
         if let sheet = sheetPresentationController {
             sheet.detents = [.custom(identifier: Self.detent) { [weak self] context in
                 let maximum = context.maximumDetentValue
@@ -35,12 +39,21 @@ final class ContentSheetController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        scrollView.frame = view.bounds
+        scrollView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        scrollView.alwaysBounceVertical = false
+        view.addSubview(scrollView)
         hosting.view.backgroundColor = .clear
         addChild(hosting)
-        hosting.view.frame = view.bounds
-        hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(hosting.view)
+        scrollView.addSubview(hosting.view)
         hosting.didMove(toParent: self)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let size = CGSize(width: scrollView.bounds.width, height: contentHeight)
+        hosting.view.frame = CGRect(origin: .zero, size: size)
+        scrollView.contentSize = size
     }
 
     /// The content's height at the sheet's width.
@@ -51,6 +64,7 @@ final class ContentSheetController: UIViewController {
 
     override func preferredContentSizeDidChange(forChildContentContainer container: any UIContentContainer) {
         super.preferredContentSizeDidChange(forChildContentContainer: container)
+        view.setNeedsLayout()
         guard let sheet = sheetPresentationController else { return }
         sheet.animateChanges { sheet.invalidateDetents() }
     }

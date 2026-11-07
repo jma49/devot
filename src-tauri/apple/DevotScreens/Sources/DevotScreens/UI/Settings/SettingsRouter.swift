@@ -8,13 +8,18 @@ enum LicenceEntry: Equatable {
     case prefill(String)
 }
 
+/// A place a pane opens scrolled to.
+enum PaneAnchor: String, Equatable {
+    case pairing
+}
+
 /// A page under the Settings root.
 enum SettingsPage: Equatable {
     case general
     case appearance
     case editing
     case preview
-    case sync
+    case sync(anchor: PaneAnchor?)
     case ai
     case licence(LicenceEntry)
 
@@ -24,7 +29,7 @@ enum SettingsPage: Equatable {
         case "appearance": self = .appearance
         case "editing": self = .editing
         case "preview": self = .preview
-        case "sync": self = .sync
+        case "sync": self = .sync(anchor: nil)
         case "ai": self = .ai
         case "licence": self = .licence(.plain)
         default: return nil

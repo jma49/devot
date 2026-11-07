@@ -292,8 +292,9 @@ Glass is the system's, on the navigation layer only; content is never glass.
 
 Every pane is a SwiftUI form in a hosting controller pushed on the Settings tab's own navigation controller, so push, pop and the edge swipe are UIKit's.
 The root's rows are buttons that push through `SettingsRouter`, never SwiftUI navigation links, since no SwiftUI navigation container holds them.
-Appearance and Sync are still the page's panes: their rows push a `WebPaneScreen`, which takes the web view under the native bar and asks the page for the pane with `settings.showPane`.
+Appearance and Sync are still the page's panes: their rows push a `WebPaneScreen`, which asks the page for the pane with `settings.showPane` each time it shows and takes the web view under the native bar once the page answers, so the push never shows what the page drew before.
 The web view keeps its size there; its safe area takes in the bar, so the page's top inset clears it.
+The page keeps a pane it still shows when asked again, so a tab switch loses nothing typed in it and leaves a pairing running; once the `WebPaneScreen` leaves the stack, Swift sends `tabs.popToRoot { tab: "settings" }` and the page lets the pane go, as its own Back did.
 Rows have a label, at most one short description and one trailing edge (a value with a chevron, a switch, or nothing), with no info buttons.
 A choice of three or fewer sits inline as checkmark rows, and a longer one pushes a checkmark page.
 Every choice applies in the next frame with no transition, before it is saved.
@@ -327,15 +328,15 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 - App Font is not on the phone.
 - The panes read their snapshots (editor settings, crash reports, licence, AI, sync) through Rust-direct operations each time the root shows, and Default Notebook's choices from the page with `settings.notebooks`, so a pushed page never waits for a first read.
 - A change applies to the snapshot first and then goes to Rust; Rust's newer snapshot replaces it, an older one never does, and a refused write puts the old value back, raises the `appearanceSettings.failed` alert and logs `W_PHONE_SETTINGS_SAVE_FAILED key=… code=…`.
-- Pair a Device opens Sync; the page's Sync pane has no pairing anchor to scroll to yet.
+- Pair a Device pushes Sync with the `pairing` anchor: the page opens the pane afresh and scrolls to its pairing card (or, before this device is in a vault, its setup rows) once drawn, unless the owner touches the pane first; the anchor goes with the push only, so coming back to the tab leaves the pane where it was.
 - `SettingsRouter.open` sets the stack to the root and the page in one `setViewControllers`, so Back lands on the root; it animates only while the app is in front.
 - Enter License Key in the page's Pro sheet sends the `settings.open { pane: "licence", focusKey }` notice, and Swift opens License over the root with its key field focused once the push lands.
 
-| Message                            | From  | Meaning                                                                      |
-| ---------------------------------- | ----- | ---------------------------------------------------------------------------- |
-| `settings.showPane { pane }`       | Swift | the page shows `appearance` or `sync` in the web view, without its own bar   |
-| `settings.notebooks`               | Swift | the page answers the notebooks, each with `id`, `name` and `depth`, in order |
-| `settings.open { pane, focusKey }` | page  | the page asks Swift to open License, its key field focused or not            |
+| Message                               | From  | Meaning                                                                                                             |
+| ------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
+| `settings.showPane { pane, anchor? }` | Swift | the page shows `appearance` or `sync` in the web view, without its own bar; `anchor` is only `pairing`, with `sync` |
+| `settings.notebooks`                  | Swift | the page answers the notebooks, each with `id`, `name` and `depth`, in order                                        |
+| `settings.open { pane, focusKey }`    | page  | the page asks Swift to open License, its key field focused or not                                                   |
 
 - Settings search runs `settings/search.ts`'s matching in Swift over `Generated/SettingsIndex.swift`, which `pnpm i18n:apple` writes from the same entries; `tests/fixtures/settings-search.json` holds what the page finds for a set of queries, and both suites check it.
 - A purchase on the License page goes through StoreKit only, never a link outside it (ADR 0014).

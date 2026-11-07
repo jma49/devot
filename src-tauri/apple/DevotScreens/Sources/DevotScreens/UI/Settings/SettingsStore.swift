@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// What Settings asks of Rust and of the page; `Screens` answers, tests stand in for it.
 @MainActor
@@ -90,8 +91,35 @@ final class SettingsStore {
     private(set) var notebooks: [NotebookChoice] = []
     private(set) var products: [StoreProduct] = []
     var failure: String?
-    var now = Date()
+    /// The time the licence rows are shown for: read again on coming back to the foreground and
+    /// when the License row's value next changes, as the page's `licenceClock.ts` does.
+    var now = Date() {
+        didSet { armClock() }
+    }
+    @ObservationIgnored private var clock: Timer?
+    @ObservationIgnored private var foreground: NSObjectProtocol?
     let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+
+    init(center: NotificationCenter = .default) {
+        foreground = center.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.now = Date()
+                self?.readLicence()
+            }
+        }
+    }
+
+    private func armClock() {
+        clock?.invalidate()
+        clock = nil
+        guard let at = licence?.rowChangesAt(now) else { return }
+        clock = Timer.scheduledTimer(withTimeInterval: max(0, at.timeIntervalSinceNow), repeats: false) {
+            [weak self] _ in
+            MainActor.assumeIsolated { self?.now = Date() }
+        }
+    }
 
     func load() {
         now = Date()

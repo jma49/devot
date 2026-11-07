@@ -13,7 +13,7 @@ struct MacKeySheet: View {
     var body: some View {
         VStack(spacing: SheetMetrics.gap) {
             SheetLens(symbol: "key.horizontal")
-            Text(L10n.phoneMacKeyTitle()).font(.system(size: 20, weight: .bold)).accessibilityAddTraits(.isHeader)
+            Text(L10n.phoneMacKeyTitle()).sheetTitle().accessibilityAddTraits(.isHeader)
             Text(L10n.phoneMacKeyBody()).settingsDetail().multilineTextAlignment(.center)
             if let key {
                 Text(key).font(.system(.footnote, design: .monospaced)).textSelection(.enabled)
@@ -49,5 +49,19 @@ struct MacKeySheet: View {
                 failure = error.code
             }
         }
+    }
+}
+
+/// What Share hands the system sheet, as the page's `phone_share` does: the catalog message with
+/// the key, and the link that adds it in Devot on a Mac.
+enum MacKeyShare {
+    /// `encodeURIComponent`'s set, as the page's `licenceLink` builds the link.
+    private static let linkSafe = CharacterSet.alphanumerics.intersection(.urlQueryAllowed)
+        .union(CharacterSet(charactersIn: "-_.!~*'()"))
+
+    static func items(key: String) -> [Any] {
+        let encoded = key.addingPercentEncoding(withAllowedCharacters: linkSafe) ?? key
+        let link = URL(string: "devot://licence?key=\(encoded)")
+        return [L10n.phoneMacKeyShareText(key: key)] + (link.map { [$0] } ?? [])
     }
 }

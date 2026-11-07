@@ -55,7 +55,7 @@ final class SettingsRouterTests: XCTestCase {
 
     func testEveryPaneNameOpensItsPageAndAnUnknownOneNothing() {
         XCTAssertEqual(SettingsPage(pane: "licence"), .licence(.plain))
-        XCTAssertEqual(SettingsPage(pane: "sync"), .sync)
+        XCTAssertEqual(SettingsPage(pane: "sync"), .sync(anchor: nil))
         XCTAssertNil(SettingsPage(pane: "keyboard"))
     }
 }

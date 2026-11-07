@@ -121,7 +121,13 @@ final class WebStageTests: XCTestCase {
         XCTAssertEqual(webView.resized, 0)
     }
 
-    func testTheNativeSettingsRestsTheWebViewAndAWebPaneTakesItUnderTheBarAndAsksForItsPane() throws {
+    private func requests(_ rust: FakeRust, _ op: Op) throws -> [(UInt64, [String: JSONValue])] {
+        try rust.calls.compactMap { call in
+            if case .request(let id, let sent, let args) = try Message(json: call.1), sent == op { (id, args) } else { nil }
+        }
+    }
+
+    func testTheNativeSettingsRestsTheWebViewAndAWebPaneTakesItUnderTheBarOnceThePageShowsThePane() throws {
         let webView = RecordingWebView()
         let rust = FakeRust()
         let tao = UIViewController()
@@ -140,19 +146,60 @@ final class WebStageTests: XCTestCase {
         tabs.settings.navigation.pushViewController(tabs.settings.controller(.appearance), animated: false)
         tabs.view.layoutIfNeeded()
         let pane = try XCTUnwrap(tabs.settings.navigation.topViewController as? WebPaneScreen)
+        let asked = try XCTUnwrap(try requests(rust, .settingsShowPane).last)
+        XCTAssertEqual(asked.1, ["pane": .string("appearance")])
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
+
+        screens.replied(asked.0, try Message.reply(id: asked.0, outcome: .ok(.object([:]))).json())
         XCTAssertTrue(webView.superview === pane.view)
         XCTAssertEqual(webView.bounds.size, window.bounds.size)
         XCTAssertGreaterThan(webView.safeAreaInsets.top, window.safeAreaInsets.top)
-        let asked = try rust.calls.map { try Message(json: $0.1) }.contains {
-            if case .request(_, .settingsShowPane, let args) = $0 { args == ["pane": .string("appearance")] } else { false }
-        }
-        XCTAssertTrue(asked)
+        XCTAssertTrue(try requests(rust, .tabsPopToRoot).isEmpty)
 
         tabs.settings.navigation.popViewController(animated: false)
         tabs.view.layoutIfNeeded()
         XCTAssertTrue(webView.superview === screens.root.host.stage)
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(webView.resized, 0)
+        XCTAssertEqual(try requests(rust, .tabsPopToRoot).map(\.1), [["tab": .string("settings")]])
+    }
+
+    func testPairADeviceOpensSyncAtItsPairingOnceAndAnAnswerAfterLeavingMovesNothing() throws {
+        let webView = RecordingWebView()
+        let rust = FakeRust()
+        let tao = UIViewController()
+        tao.view.addSubview(webView)
+        let screens = try XCTUnwrap(
+            Screens.attach(webView: webView, root: tao, rust: rust, defaults: try freshDefaults()))
+        _ = try shownWindow(tao)
+        let tabs = screens.root.tabs
+        tabs.select(.settings)
+        tabs.view.layoutIfNeeded()
+        let router = tabs.settings.router
+        let make = router.make
+        var made: [SettingsPage] = []
+        let navigation = tabs.settings.navigation
+        router.make = { made.append($0); return UIViewController() }
+        router.navigation = nil
+        tabs.settings.root.onPair()
+        XCTAssertEqual(made, [.sync(anchor: .pairing)])
+        router.make = make
+        router.navigation = navigation
+        navigation.setViewControllers([tabs.settings.root, make(.sync(anchor: .pairing))], animated: false)
+        tabs.view.layoutIfNeeded()
+        let pane = try XCTUnwrap(tabs.settings.navigation.topViewController as? WebPaneScreen)
+        let shows = { try self.requests(rust, .settingsShowPane) }
+        XCTAssertEqual(try shows().last?.1, ["pane": .string("sync"), "anchor": .string("pairing")])
+
+        tabs.select(.library)
+        tabs.view.layoutIfNeeded()
+        let late = try XCTUnwrap(try shows().last)
+        screens.replied(late.0, try Message.reply(id: late.0, outcome: .ok(.object([:]))).json())
+        XCTAssertFalse(webView.superview === pane.view)
+
+        tabs.select(.settings)
+        tabs.view.layoutIfNeeded()
+        XCTAssertEqual(try shows().last?.1, ["pane": .string("sync")])
     }
 
     /// The bar's inset may reach a screen through its superview, which a negative additional inset

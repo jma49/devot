@@ -93,7 +93,10 @@ async function start() {
   await act(async () => {})
 }
 
-async function swift(op: 'tabs.show' | 'settings.showPane' | 'settings.notebooks', args = {}) {
+async function swift(
+  op: 'tabs.show' | 'tabs.popToRoot' | 'settings.showPane' | 'settings.notebooks',
+  args = {},
+) {
   let result: unknown
   await act(async () => {
     result = await bridge.handlers[op]!(args)
@@ -118,6 +121,42 @@ describe('the page under the native Settings', () => {
     await swift('settings.showPane', { pane: 'appearance' })
     await swift('settings.showPane', { pane: 'sync' })
     await vi.waitFor(() => expect(screens()).toEqual(['Settings', 'Sync']))
+  })
+
+  it('keeps the pane it shows when Swift asks again, so a tab switch loses nothing in it', async () => {
+    await start()
+    await swift('tabs.show', { tab: 'settings' })
+    await swift('settings.showPane', { pane: 'sync' })
+    await vi.waitFor(() => expect(screens()).toEqual(['Settings', 'Sync']))
+    const pane = shownStack().querySelector('section[aria-label="Sync"]')
+    await swift('tabs.show', { tab: 'library' })
+    await swift('settings.showPane', { pane: 'sync' })
+    expect(screens()).toEqual(['Settings', 'Sync'])
+    expect(shownStack().querySelector('section[aria-label="Sync"]')).toBe(pane)
+  })
+
+  it('lets the pane go when Swift pops back to the Settings root', async () => {
+    await start()
+    await swift('tabs.show', { tab: 'settings' })
+    await swift('settings.showPane', { pane: 'sync' })
+    await vi.waitFor(() => expect(screens()).toEqual(['Settings', 'Sync']))
+    await swift('tabs.popToRoot', { tab: 'settings' })
+    await vi.waitFor(() => expect(screens()).toEqual(['Settings']))
+  })
+
+  it('opens Sync afresh, at its pairing, for Pair a device', async () => {
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView')
+    await start()
+    await swift('tabs.show', { tab: 'settings' })
+    await swift('settings.showPane', { pane: 'sync' })
+    await vi.waitFor(() => expect(screens()).toEqual(['Settings', 'Sync']))
+    const plain = shownStack().querySelector('section[aria-label="Sync"]')
+    await swift('settings.showPane', { pane: 'sync', anchor: 'pairing' })
+    await vi.waitFor(() => expect(screens()).toEqual(['Settings', 'Sync']))
+    expect(shownStack().querySelector('section[aria-label="Sync"]')).not.toBe(plain)
+    const atPairing = () =>
+      scrolled.mock.contexts.some((at) => (at as Element).matches('[data-anchor="pairing"]'))
+    await vi.waitFor(() => expect(atPairing()).toBe(true))
   })
 
   it('lists the notebooks in Library order for Default Notebook', async () => {
@@ -167,7 +206,16 @@ describe('the Settings operations', () => {
     await expect(handlers['settings.showPane']!({ pane: 'licence' })).rejects.toThrow(
       'E_SCREENS_ARGS_INVALID',
     )
+    await expect(
+      handlers['settings.showPane']!({ pane: 'sync', anchor: 'pairing' }),
+    ).resolves.toStrictEqual({})
+    for (const args of [
+      { pane: 'appearance', anchor: 'pairing' },
+      { pane: 'sync', anchor: 'devices' },
+      { pane: 'sync', anchor: 'toString' },
+    ])
+      await expect(handlers['settings.showPane']!(args)).rejects.toThrow('E_SCREENS_ARGS_INVALID')
     await expect(handlers['settings.notebooks']!({})).resolves.toStrictEqual({ notebooks: [] })
-    expect(shown).toStrictEqual(['sync'])
+    expect(shown).toStrictEqual(['sync', 'sync'])
   })
 })

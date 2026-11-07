@@ -29,4 +29,24 @@ final class ContentSheetTests: XCTestCase {
         XCTAssertGreaterThan(tall.contentHeight, short.contentHeight)
         XCTAssertGreaterThan(short.contentHeight, 0)
     }
+
+    func testContentTallerThanTheSheetScrollsSoEveryActionStaysReachable() {
+        let sheet = ContentSheetController(VStack { ForEach(0..<60) { Text(verbatim: "\($0)") } })
+        sheet.loadViewIfNeeded()
+        sheet.view.frame = CGRect(x: 0, y: 0, width: 390, height: 400)
+        sheet.view.layoutIfNeeded()
+        let scroll = sheet.scrollView
+        XCTAssertEqual(scroll.frame.size, sheet.view.bounds.size)
+        XCTAssertEqual(scroll.contentSize.height, sheet.contentHeight, accuracy: 0.5)
+        XCTAssertGreaterThan(scroll.contentSize.height, scroll.bounds.height)
+    }
+
+    func testContentThatFitsDoesNotScroll() {
+        let sheet = ContentSheetController(Text(verbatim: "x"))
+        sheet.loadViewIfNeeded()
+        sheet.view.frame = CGRect(x: 0, y: 0, width: 390, height: 400)
+        sheet.view.layoutIfNeeded()
+        XCTAssertLessThanOrEqual(sheet.scrollView.contentSize.height, sheet.scrollView.bounds.height)
+        XCTAssertFalse(sheet.scrollView.alwaysBounceVertical)
+    }
 }

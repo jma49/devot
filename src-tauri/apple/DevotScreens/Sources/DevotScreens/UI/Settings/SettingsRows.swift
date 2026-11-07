@@ -2,29 +2,41 @@ import SwiftUI
 import UIKit
 
 /// The grouped list's type (design/layout.md, Phone grouped lists): labels 16/23, descriptions,
-/// values and footers 14/19, scaled with Dynamic Type from the body style.
+/// values and footers 14/19, scaled with Dynamic Type from the body style; the sheets' titles 20
+/// bold from the title 3 style and bodies 16/24.
 private struct SettingsType: ViewModifier {
     @ScaledMetric(relativeTo: .body) private var size: CGFloat = 16
     @ScaledMetric(relativeTo: .body) private var line: CGFloat = 23
+    private let weight: Font.Weight
     private let secondary: Bool
 
-    init(size: CGFloat, line: CGFloat, secondary: Bool) {
-        _size = ScaledMetric(wrappedValue: size, relativeTo: .body)
-        _line = ScaledMetric(wrappedValue: line, relativeTo: .body)
+    init(size: CGFloat, line: CGFloat, weight: Font.Weight = .regular, relativeTo style: Font.TextStyle = .body,
+        secondary: Bool) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: style)
+        _line = ScaledMetric(wrappedValue: line, relativeTo: style)
+        self.weight = weight
         self.secondary = secondary
     }
 
     func body(content: Content) -> some View {
         content
-            .font(.system(size: size))
-            .lineSpacing(max(0, line - UIFont.systemFont(ofSize: size).lineHeight))
+            .font(.system(size: size, weight: weight))
+            .lineSpacing(max(0, line - UIFont.systemFont(ofSize: size, weight: weight.uiKit).lineHeight))
             .foregroundStyle(Color(secondary ? Tokens.Color.phoneTextSecondary : Tokens.Color.phoneText))
     }
+}
+
+extension Font.Weight {
+    fileprivate var uiKit: UIFont.Weight { self == .bold ? .bold : .regular }
 }
 
 extension View {
     func settingsLabel() -> some View { modifier(SettingsType(size: 16, line: 23, secondary: false)) }
     func settingsDetail() -> some View { modifier(SettingsType(size: 14, line: 19, secondary: true)) }
+    func sheetTitle() -> some View {
+        modifier(SettingsType(size: 20, line: 25, weight: .bold, relativeTo: .title3, secondary: false))
+    }
+    func sheetBody() -> some View { modifier(SettingsType(size: 16, line: 24, secondary: true)) }
 
     /// A row on the grouped card, at least the row's height.
     func settingsRow(described: Bool = false) -> some View {
