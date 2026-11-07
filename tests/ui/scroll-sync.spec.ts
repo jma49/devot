@@ -315,7 +315,8 @@ test('a diagram drawn after the rendering does not leave the preview behind', as
   const diagram = ['```mermaid', 'graph TD', '  A --> B', '  B --> C', '  C --> D', '```'].join(
     '\n',
   )
-  await page.keyboard.insertText(diagram + '\n\n' + longNote())
+  // A few sections above the place read: near enough to the view to be drawn.
+  await page.keyboard.insertText(longNote().replace('## Section 55', `${diagram}\n\n## Section 55`))
   // Without the browser's scroll anchoring, which would hide a missed relayout.
   await page.addStyleTag({ content: '.preview { overflow-anchor: none; }' })
   await scrollEditorTo(page, '## Section 60')

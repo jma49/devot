@@ -849,6 +849,11 @@
   overflow-x: auto;
 }
 
+/* Only the preview pane: a Write mode block reserves its own box. */
+.preview[data-devot-part='preview'] .island:empty {
+  min-height: var(--size-diagram-placeholder);
+}
+
 .island svg {
   display: block;
   max-width: 100%;

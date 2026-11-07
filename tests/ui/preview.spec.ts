@@ -376,20 +376,34 @@ test('a task far down a long note still ticks its own line after typing above it
   await expect(box).toBeChecked()
 })
 
-test('a diagram far below the view is drawn only once scrolled near', async ({ page }) => {
+test('a diagram is drawn only once it is within a screen of the view, above or below it', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 600 })
-  await newNote(page, 'Far', `${DIAGRAM}\n\n${sections(30)}\n\n${SECOND_FLOWCHART}\n`)
+  await newNote(
+    page,
+    'Far',
+    `${DIAGRAM}\n\n${sections(30)}\n\n${SECOND_FLOWCHART}\n\n${sections(30)}\n\n${SEQUENCE}\n`,
+  )
   await mode(page, 'Preview').click()
+  const diagrams = preview(page).locator('.island-mermaid')
   const svgs = preview(page).locator('.island-mermaid svg')
-  await expect(svgs).toHaveCount(1, { timeout: 20_000 })
+  await expect(diagrams.nth(0).locator('svg')).toHaveCount(1, { timeout: 20_000 })
   await page.waitForTimeout(500)
   await expect(svgs).toHaveCount(1)
+  // One not drawn yet holds a place, so the note's length changes little as diagrams land.
+  expect((await diagrams.nth(1).boundingBox())?.height).toBeGreaterThan(100)
 
   await preview(page).evaluate((e) => {
     e.scrollTop = e.scrollHeight
   })
-  await expect(svgs).toHaveCount(2, { timeout: 20_000 })
-  await expect(svgs.nth(1)).toContainText('Review')
+  await expect(diagrams.nth(2).locator('svg')).toContainText('Alice', { timeout: 20_000 })
+  // The one in the middle is far above the view now: it still waits.
+  await page.waitForTimeout(500)
+  await expect(diagrams.nth(1).locator('svg')).toHaveCount(0)
+
+  await diagrams.nth(1).scrollIntoViewIfNeeded()
+  await expect(diagrams.nth(1).locator('svg')).toContainText('Review', { timeout: 20_000 })
 })
 
 const noteBody = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
