@@ -1,9 +1,10 @@
-// The notch of a floating bar: a small clipped box behind the bar holding two
-// clipped layers, the glass edge as a band along the slanted sides and the
-// material as a triangle shifted EDGE pixels in, so the edge shows as a thin
-// outline. The box sits at the bar's edge, outside its rectangle. The bar's
-// rim edge and shade go around it (`outsideNotch`), and on the top edge the
-// rim's highlight stops either side of it (`highlightBesideNotch`). It is never
+// The notch of a floating bar: a small box behind the bar holding two clipped
+// layers, the glass edge as a band along the slanted sides and the material as
+// a triangle shifted EDGE pixels in, so the edge shows as a thin outline. The
+// box sits at the bar's edge, outside its rectangle; the material reaches
+// under the bar, so no pixel grid leaves a seam along the base. The bar's rim
+// edge and shade go around it (`outsideNotch`), and on the top edge the rim's
+// highlight stops either side of it (`highlightBesideNotch`). It is never
 // turned: a transform would misalign the window-aligned gradient in its fill.
 import { sizes } from '../theme/tokens'
 
@@ -51,6 +52,10 @@ export const NOTCH_FILL_CLIP = {
   up: `polygon(${inset} calc(100% - ${EDGE}px), calc(100% - ${inset}) calc(100% - ${EDGE}px), 50% 0)`,
 }
 
+// How far the hole for the notch reaches into the bar: a hole whose base lay on the bar's edge
+// would leave a sliver of shade under the notch's base wherever the edge falls between device pixels.
+const HOLE_OVERLAP = 1
+
 /**
  * The clip of the layer behind a bar that casts its rim edge and shade: all
  * within `reach` of the bar but the notch with its tip `at`, whose translucent
@@ -60,11 +65,14 @@ export function outsideNotch(at: string, reach: string): { down: string; up: str
   const near = `calc(-1 * ${reach})`
   const far = `calc(100% + ${reach})`
   const around = `${near} ${near}, ${far} ${near}, ${far} ${far}, ${near} ${far}, ${near} ${near}`
-  const left = `calc(${at} - ${half}px)`
-  const right = `calc(${at} + ${half}px)`
+  const reachIn = half + (half / NOTCH_HEIGHT) * HOLE_OVERLAP
+  const left = `calc(${at} - ${reachIn}px)`
+  const right = `calc(${at} + ${reachIn}px)`
+  const bottom = `calc(100% - ${HOLE_OVERLAP}px)`
+  const top = `${HOLE_OVERLAP}px`
   return {
-    down: `polygon(evenodd, ${around}, ${left} 100%, ${at} calc(100% + ${NOTCH_HEIGHT}px), ${right} 100%, ${left} 100%)`,
-    up: `polygon(evenodd, ${around}, ${left} 0, ${at} -${NOTCH_HEIGHT}px, ${right} 0, ${left} 0)`,
+    down: `polygon(evenodd, ${around}, ${left} ${bottom}, ${at} calc(100% + ${NOTCH_HEIGHT}px), ${right} ${bottom}, ${left} ${bottom})`,
+    up: `polygon(evenodd, ${around}, ${left} ${top}, ${at} -${NOTCH_HEIGHT}px, ${right} ${top}, ${left} ${top})`,
   }
 }
 
@@ -86,7 +94,6 @@ export const notchStyles = {
     position: 'absolute',
     zIndex: '-1',
     boxSizing: 'border-box',
-    overflow: 'hidden',
     width: `${NOTCH_WIDTH}px`,
     height: `${NOTCH_HEIGHT}px`,
     left: notchLeft(tip, NOTCH_WIDTH),

@@ -48,8 +48,11 @@ describe('notch geometry', () => {
     expect(fill.top).toBe('-0.5px')
     const both = rule('.cm-float-notch::before, .cm-float-notch::after')
     expect([both.width, both.height]).toEqual(['100%', '100%'])
-    expect(rule('.cm-float-notch').overflow).toBe('hidden')
     expect(rule('.cm-float-notch').zIndex).toBe('-1')
+  })
+
+  it('lets the fill reach under the bar, so no pixel grid leaves a seam along the base', () => {
+    expect(rule('.cm-float-notch').overflow).toBeUndefined()
   })
 
   it('carries the sheen at full strength on a notch that meets the top edge', () => {
@@ -69,11 +72,12 @@ describe('notch geometry', () => {
     const clip = outsideNotch('var(--x)', '9px')
     const around =
       'calc(-1 * 9px) calc(-1 * 9px), calc(100% + 9px) calc(-1 * 9px), calc(100% + 9px) calc(100% + 9px), calc(-1 * 9px) calc(100% + 9px), calc(-1 * 9px) calc(-1 * 9px)'
+    // The hole carries the notch's sides a pixel into the bar, where outer shadows never paint.
     expect(clip.down).toBe(
-      `polygon(evenodd, ${around}, calc(var(--x) - 6px) 100%, var(--x) calc(100% + 6px), calc(var(--x) + 6px) 100%, calc(var(--x) - 6px) 100%)`,
+      `polygon(evenodd, ${around}, calc(var(--x) - 7px) calc(100% - 1px), var(--x) calc(100% + 6px), calc(var(--x) + 7px) calc(100% - 1px), calc(var(--x) - 7px) calc(100% - 1px))`,
     )
     expect(clip.up).toBe(
-      `polygon(evenodd, ${around}, calc(var(--x) - 6px) 0, var(--x) -6px, calc(var(--x) + 6px) 0, calc(var(--x) - 6px) 0)`,
+      `polygon(evenodd, ${around}, calc(var(--x) - 7px) 1px, var(--x) -6px, calc(var(--x) + 7px) 1px, calc(var(--x) - 7px) 1px)`,
     )
   })
 
