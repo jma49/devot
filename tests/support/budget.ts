@@ -5,9 +5,11 @@ import { expect, type TestContext } from 'vitest'
 // probe the Node setup file installs (`machine-load.ts`); without one every budget is enforced. This
 // module imports nothing from Node, so UI tests may use it too.
 //
-// Budgets are written for a developer's Mac. A shared GitHub-hosted runner is several times slower and
-// noisy, so there they scale by `HOSTED_RUNNER_SCALE`: the first run there had the slowest check at 4.0
-// times its budget (typical 1.3 to 2.7), and 5 still fails a regression of several times.
+// Budgets are written for a developer's Mac. A shared GitHub-hosted runner is slower and noisy, so
+// there they scale by `HOSTED_RUNNER_SCALE`. Over three runs of #777, with the builds kept apart and
+// checks of work that writes to disk timed in CPU, the slowest check ran at 3.3 times its budget and
+// all others under 2; 5 leaves room above that and still fails a regression of a few times. Each CI
+// run lists the measurements nearest their limits (budget-report.ts).
 
 export const HOSTED_RUNNER_SCALE = 5
 

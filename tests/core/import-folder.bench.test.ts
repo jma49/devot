@@ -15,7 +15,7 @@ import {
   type ImportSource,
 } from '../../src/core'
 import { expectWithinBudget } from '../support/budget'
-import { expectLinearGrowth, fourfoldGrowthAsync } from '../support/growth'
+import { cpuMs, expectLinearGrowth, fourfoldGrowth, fourfoldGrowthAsync } from '../support/growth'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -173,21 +173,14 @@ describe('preparing one large Markdown file', { timeout: TIMEOUT_MS }, () => {
   })
 
   // Measured about 1.6 s for 600 KB on a Linux runner, nearly all of it the one Markdown parse.
-  it('prepares a 600 KB file in under 3 s, in time linear in its length', (context) => {
-    const time = (paragraphs: number) => {
+  it('prepares a 600 KB file in under 3 s, in time linear in its length', async (context) => {
+    const prepare = (paragraphs: number) => {
       const markdown = file(paragraphs)
-      const start = performance.now()
-      prepareImportFile(markdown, 'Big.md', () => crypto.randomUUID())
-      return performance.now() - start
+      return () => prepareImportFile(markdown, 'Big.md', () => crypto.randomUUID())
     }
     expect(file(2000).length).toBeGreaterThan(600_000)
-    let small = Number.POSITIVE_INFINITY
-    let large = Number.POSITIVE_INFINITY
-    for (let round = 0; round < 2; round += 1) {
-      small = Math.min(small, time(500))
-      large = Math.min(large, time(2000))
-    }
-    expectWithinBudget(context, large, 3000)
-    expectLinearGrowth(context, large / small)
+    const growth = fourfoldGrowth(prepare, 500, 3)
+    expectWithinBudget(context, await cpuMs(async () => prepare(2000)()), 3000)
+    expectLinearGrowth(context, growth)
   })
 })
