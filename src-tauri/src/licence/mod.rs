@@ -57,6 +57,7 @@ use crate::task;
 
 pub(crate) const CHANGED_EVENT: &str = "devot://licence-changed";
 pub(crate) const REQUIRED: &str = "E_LICENCE_REQUIRED";
+pub(crate) const INTERNAL: &str = "E_LICENCE_INTERNAL";
 /// The gate's refusal when the keychain would not give the licence, the trial or the seat, which
 /// adding a licence does not fix; the item is read again at the next tick.
 pub(crate) const UNREADABLE: &str = "E_LICENCE_UNREADABLE";
@@ -1298,10 +1299,7 @@ pub(crate) fn watch_trial(licence: &Arc<Licence>) {
 
 #[tauri::command]
 pub async fn licence_get(licence: Tauri<'_, Arc<Licence>>) -> Result<Snapshot, String> {
-    task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| {
-        Ok(licence.snapshot())
-    })
-    .await
+    Ok(licence_get_inner(&licence).await?)
 }
 
 #[tauri::command]
@@ -1309,21 +1307,42 @@ pub async fn licence_set(
     licence: Tauri<'_, Arc<Licence>>,
     key: String,
 ) -> Result<Snapshot, String> {
-    task::blocking_with(&licence, "E_LICENCE_INTERNAL", move |licence| {
-        licence.set(&key)
-    })
-    .await
+    Ok(licence_set_inner(&licence, key).await?)
 }
 
 #[tauri::command]
 pub async fn licence_remove(licence: Tauri<'_, Arc<Licence>>) -> Result<Snapshot, String> {
-    task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| licence.remove()).await
+    Ok(licence_remove_inner(&licence).await?)
 }
 
 /// Settings > Licence's Retry: asks the Worker for this device's seat now.
 #[tauri::command]
 pub async fn licence_refresh(licence: Tauri<'_, Arc<Licence>>) -> Result<Snapshot, String> {
-    task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| {
+    Ok(licence_refresh_inner(&licence).await?)
+}
+
+/// The bodies of the commands, which the iPhone's native Settings call too (`screens::direct`).
+/// Each change reaches the windows through the licence's own `Emit`, whichever side made it.
+pub(crate) async fn licence_get_inner(licence: &Arc<Licence>) -> Result<Snapshot, &'static str> {
+    task::coded_with(licence, INTERNAL, |licence| Ok(licence.snapshot())).await
+}
+
+pub(crate) async fn licence_set_inner(
+    licence: &Arc<Licence>,
+    key: String,
+) -> Result<Snapshot, &'static str> {
+    let key = zeroize::Zeroizing::new(key);
+    task::coded_with(licence, INTERNAL, move |licence| licence.set(&key)).await
+}
+
+pub(crate) async fn licence_remove_inner(licence: &Arc<Licence>) -> Result<Snapshot, &'static str> {
+    task::coded_with(licence, INTERNAL, Licence::remove).await
+}
+
+pub(crate) async fn licence_refresh_inner(
+    licence: &Arc<Licence>,
+) -> Result<Snapshot, &'static str> {
+    task::coded_with(licence, INTERNAL, |licence| {
         licence.refresh_activation()?;
         Ok(licence.snapshot())
     })

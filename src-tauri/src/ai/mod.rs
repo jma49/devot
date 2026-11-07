@@ -19,6 +19,8 @@ use keychain::KeyStore;
 use provider::{GenerateRequest, Generated, ProviderId, check_request, provider, status_error};
 use settings::{AiSettings, SettingsStore};
 
+const FAILED: &str = "E_AI_FAILED";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum KeyState {
@@ -174,12 +176,12 @@ pub async fn ai_generate(
     ai: State<'_, Arc<Ai>>,
     request: GenerateRequest,
 ) -> Result<Generated, String> {
-    task::blocking_with(&ai, "E_AI_FAILED", move |ai| ai.generate(&request)).await
+    task::blocking_with(&ai, FAILED, move |ai| ai.generate(&request)).await
 }
 
 #[tauri::command]
 pub async fn ai_settings_get(ai: State<'_, Arc<Ai>>) -> Result<Snapshot, String> {
-    task::blocking_with(&ai, "E_AI_FAILED", |ai| Ok(ai.snapshot())).await
+    Ok(ai_settings_get_inner(&ai).await?)
 }
 
 #[tauri::command]
@@ -187,7 +189,7 @@ pub async fn ai_settings_set(
     ai: State<'_, Arc<Ai>>,
     settings: AiSettings,
 ) -> Result<Snapshot, String> {
-    task::blocking_with(&ai, "E_AI_FAILED", move |ai| ai.set_settings(settings)).await
+    Ok(ai_settings_set_inner(&ai, settings).await?)
 }
 
 #[tauri::command]
@@ -196,7 +198,7 @@ pub async fn ai_key_set(
     provider: ProviderId,
     key: String,
 ) -> Result<Snapshot, String> {
-    task::blocking_with(&ai, "E_AI_FAILED", move |ai| ai.set_key(provider, &key)).await
+    Ok(ai_key_set_inner(&ai, provider, key).await?)
 }
 
 #[tauri::command]
@@ -204,7 +206,36 @@ pub async fn ai_key_clear(
     ai: State<'_, Arc<Ai>>,
     provider: ProviderId,
 ) -> Result<Snapshot, String> {
-    task::blocking_with(&ai, "E_AI_FAILED", move |ai| ai.clear_key(provider)).await
+    Ok(ai_key_clear_inner(&ai, provider).await?)
+}
+
+/// The bodies of the settings commands, which the iPhone's native Settings call too
+/// (`screens::direct`).
+pub(crate) async fn ai_settings_get_inner(ai: &Arc<Ai>) -> Result<Snapshot, &'static str> {
+    task::coded_with(ai, FAILED, |ai| Ok(ai.snapshot())).await
+}
+
+pub(crate) async fn ai_settings_set_inner(
+    ai: &Arc<Ai>,
+    settings: AiSettings,
+) -> Result<Snapshot, &'static str> {
+    task::coded_with(ai, FAILED, move |ai| ai.set_settings(settings)).await
+}
+
+pub(crate) async fn ai_key_set_inner(
+    ai: &Arc<Ai>,
+    provider: ProviderId,
+    key: String,
+) -> Result<Snapshot, &'static str> {
+    let key = zeroize::Zeroizing::new(key);
+    task::coded_with(ai, FAILED, move |ai| ai.set_key(provider, &key)).await
+}
+
+pub(crate) async fn ai_key_clear_inner(
+    ai: &Arc<Ai>,
+    provider: ProviderId,
+) -> Result<Snapshot, &'static str> {
+    task::coded_with(ai, FAILED, move |ai| ai.clear_key(provider)).await
 }
 
 #[cfg(test)]

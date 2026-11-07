@@ -55,7 +55,7 @@ pub struct CrashReports {
     pub on: bool,
 }
 
-fn crash_reports_now() -> CrashReports {
+pub(crate) fn crash_reports_now() -> CrashReports {
     CrashReports {
         available: dsn().is_some(),
         on: dsn().is_some() && CHOSEN.load(Ordering::SeqCst),
@@ -69,11 +69,16 @@ pub fn crash_reports_get() -> CrashReports {
 
 #[tauri::command]
 pub fn crash_reports_set(on: bool) -> Result<CrashReports, String> {
+    Ok(crash_reports_set_inner(on)?)
+}
+
+/// The command's body, which the iPhone's native Settings call too (`screens::direct`).
+pub(crate) fn crash_reports_set_inner(on: bool) -> Result<CrashReports, &'static str> {
     if dsn().is_none() {
-        return Err("E_CRASH_REPORTS_UNAVAILABLE".into());
+        return Err("E_CRASH_REPORTS_UNAVAILABLE");
     }
     let dir = DATA_DIR.get().ok_or("E_CRASH_REPORTS_NOT_READY")?;
-    save_choice(dir, on).map_err(|_| "E_CRASH_REPORTS_SAVE".to_owned())?;
+    save_choice(dir, on).map_err(|_| "E_CRASH_REPORTS_SAVE")?;
     CHOSEN.store(on, Ordering::SeqCst);
     Ok(crash_reports_now())
 }

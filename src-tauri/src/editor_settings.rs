@@ -19,6 +19,7 @@ use crate::settings_file::{Codes, SettingsFile};
 
 pub const FILE: &str = "editor-settings.json";
 pub const CHANGED_EVENT: &str = "devot://editor-settings-changed";
+const TASK_FAILED: &str = "E_EDITOR_SETTINGS_TASK";
 
 pub const FONT_SIZE_MIN: u64 = 10;
 pub const FONT_SIZE_MAX: u64 = 32;
@@ -690,8 +691,7 @@ pub async fn editor_settings_get(
     app: AppHandle,
     store: State<'_, Arc<EditorSettingsStore>>,
 ) -> Result<Snapshot, String> {
-    let snapshot =
-        crate::task::blocking_with(&store, "E_EDITOR_SETTINGS_TASK", |store| store.get()).await?;
+    let snapshot = editor_settings_get_inner(&store).await?;
     // An iOS window is built without a theme and its scene connects after setup: the page's first
     // read is when its window surely exists.
     #[cfg(target_os = "ios")]
@@ -751,11 +751,26 @@ pub async fn editor_settings_set(
         #[cfg(desktop)]
         crate::menu::sync_scroll_set_by_page(&app);
     }
-    let next = crate::task::blocking_with(&store, "E_EDITOR_SETTINGS_TASK", move |store| {
-        store.update(&patch)
-    })
-    .await?;
-    announce(&app, &next);
+    Ok(editor_settings_set_inner(&store, patch, |next| announce(&app, next)).await?)
+}
+
+/// The bodies of the commands, which the iPhone's native Settings call too
+/// (`screens::direct`).
+pub(crate) async fn editor_settings_get_inner(
+    store: &Arc<EditorSettingsStore>,
+) -> Result<Snapshot, &'static str> {
+    crate::task::coded_with(store, TASK_FAILED, |store| store.get()).await
+}
+
+/// `announce` tells every window before the caller hears the change.
+pub(crate) async fn editor_settings_set_inner(
+    store: &Arc<EditorSettingsStore>,
+    patch: Map<String, Value>,
+    announce: impl FnOnce(&Snapshot),
+) -> Result<Snapshot, &'static str> {
+    let next =
+        crate::task::coded_with(store, TASK_FAILED, move |store| store.update(&patch)).await?;
+    announce(&next);
     Ok(next)
 }
 
