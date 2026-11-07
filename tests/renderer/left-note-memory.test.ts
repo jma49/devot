@@ -1,4 +1,5 @@
-import { ensureSyntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree, LanguageDescription } from '@codemirror/language'
+import { languages } from '@codemirror/language-data'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
@@ -31,12 +32,24 @@ const days = [...Array(40).keys()].map((i) => `| Day ${i} | Done ${i} |`)
 const TABLE_NOTE = ['# Weeks', '', '| Day | Done |', '| --- | --- |', ...days, ''].join('\n')
 const HTML_NOTE =
   '# Keys\n\nPress <kbd>Cmd</kbd> and <mark>this</mark>.\n\n<details>\n\nMore.\n\n</details>\n'
+const XML_NOTE = '# Feed\n\n```xml\n<feed><entry id="1">One</entry></feed>\n```\n'
 const ANOTHER = '# Another note\n\nPlain text.'
 
 describe('a note the editor left', () => {
   it('is let go by the parser, with its text and what is kept by it', async () => {
     const refs = (() => {
       const state = shown(HTML_NOTE)
+      return [new WeakRef(state.doc)]
+    })()
+    shown(ANOTHER)
+    releaseParsedNote()
+    expect(await collected(refs)).toBe(true)
+  })
+
+  it('is let go by the parser of an XML block in it', async () => {
+    await LanguageDescription.matchLanguageName(languages, 'xml')!.load()
+    const refs = (() => {
+      const state = shown(XML_NOTE)
       return [new WeakRef(state.doc)]
     })()
     shown(ANOTHER)

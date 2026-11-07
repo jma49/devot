@@ -313,6 +313,8 @@ export function Preview({
 
   // Leaving the preview frees what its diagrams hold (their stylesheets).
   useEffect(() => () => mounter.dispose(), [mounter])
+  // The worker may be gone with the window.
+  useEffect(() => () => void core.forgetShownPieces().catch(() => undefined), [core])
 
   useEffect(
     () => render.current?.({ markdown, loadedEmbeds, remoteImages, frontMatterInInfo }),

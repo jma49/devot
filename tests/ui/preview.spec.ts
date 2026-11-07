@@ -250,6 +250,7 @@ test('the diagram frame goes a while after the last note with a diagram is left'
   page,
 }) => {
   await page.clock.install()
+  await newNote(page, 'Second', SECOND_FLOWCHART)
   await newNote(page, 'Plain', 'No diagram here.')
   await newNote(page, 'Drawn', FLOWCHART)
   await mode(page, 'Split').click()
@@ -260,7 +261,8 @@ test('the diagram frame goes a while after the last note with a diagram is left'
 
   const notes = page.getByRole('listbox', { name: 'Notes' })
   await notes.getByRole('option', { name: /Plain/ }).click()
-  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Plain')
+  await expect(preview(page)).toContainText('No diagram here.')
+  await expect(svgs).toHaveCount(0)
   await page.clock.runFor(FRAME_IDLE_MS - 1000)
   await expect(frame).toHaveCount(1)
   await page.clock.runFor(2000)
@@ -268,6 +270,11 @@ test('the diagram frame goes a while after the last note with a diagram is left'
 
   await notes.getByRole('option', { name: /Drawn/ }).click()
   await expect(svgs).toHaveCount(1, { timeout: 20_000 })
+  await expect(frame).toHaveCount(0)
+
+  await notes.getByRole('option', { name: /Second/ }).click()
+  await expect(svgs).toContainText('Review', { timeout: 20_000 })
+  await expect(frame).toHaveCount(1)
   await expect(preview(page).locator('.island-error')).toHaveCount(0)
 })
 

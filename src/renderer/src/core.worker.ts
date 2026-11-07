@@ -429,6 +429,8 @@ const coreApi = {
   /** The open note's preview in pieces; `known` are the keys of the pieces the page shows. */
   renderPreviewPieces: (markdown: string, options: PreviewOptions, known: string[]) =>
     pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
+  /** The preview closed, so the pieces it showed are kept no longer than a note left. */
+  forgetShownPieces: () => pieces.forgetShown(),
   /**
    * The open note's live preview: its pieces with the note's linked notes in, and its task
    * progress and line count. Link targets are asked again when `scope` or the links change.

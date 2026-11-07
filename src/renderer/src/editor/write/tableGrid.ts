@@ -291,8 +291,10 @@ type Drawing = Record<keyof BlockLayers, Placed[]>
 // A table no selection range meets draws the same wherever it is, so the
 // drawing is kept by its shape and text, relative to its start: a keystroke or
 // a caret move elsewhere draws no table again. The drawings go with the note's
-// editor states, so a note left lets go of its tables. Cleared when they grow past this.
-const tableDrawings = StateField.define<Map<string, Drawing>>({
+// editor states, so a note left lets go of its tables; the note's base
+// extensions hold the field too, so it outlives a switch to Edit mode.
+// Cleared when they grow past this.
+export const tableDrawings = StateField.define<Map<string, Drawing>>({
   create: () => new Map(),
   update: (drawings) => drawings,
 })

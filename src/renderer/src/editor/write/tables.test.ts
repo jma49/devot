@@ -1,13 +1,27 @@
 import { history, undo } from '@codemirror/commands'
 import { ensureSyntaxTree } from '@codemirror/language'
-import { EditorSelection, EditorState, type Range, type TransactionSpec } from '@codemirror/state'
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+  type Range,
+  type TransactionSpec,
+} from '@codemirror/state'
 import { EditorView, type Decoration, type DecorationSet } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { noteMarkdown } from '../markdown'
 import { parseTable, printTable } from '../table'
 import { writeBlocks, type BlockLayers } from './blocks'
 import { writeFocusTracking } from './focus'
-import { SheetAdoption, bandsClip, layerY, shownWidth, tableRule, writeTables } from './tableGrid'
+import {
+  SheetAdoption,
+  bandsClip,
+  layerY,
+  shownWidth,
+  tableDrawings,
+  tableRule,
+  writeTables,
+} from './tableGrid'
 import {
   atomicSpans,
   caretInCell,
@@ -548,6 +562,25 @@ describe('a grid drawn again', () => {
     const entered = drawing(inside, at + words.length)
     expect(entered).not.toEqual(drawn)
     expect(drawing(stateOf(inside.doc.toString(), tea), at + words.length)).toEqual(entered)
+  })
+
+  it('is kept while Write mode is off, so the note edited meanwhile draws no table again', () => {
+    const slot = new Compartment()
+    const doc = `Intro\n\n${TABLE}\n\nOutro`
+    const writing = EditorState.create({
+      doc,
+      extensions: [noteMarkdown, writeFocusTracking, tableDrawings, slot.of(writeTables)],
+    })
+    ensureSyntaxTree(writing, doc.length, 1e9)
+    const cells = (state: EditorState) =>
+      tableRule.pieces(state, [], 0, state.doc.length).flatMap((piece) => piece.layers.decorations)
+    const drawn = cells(writing).map((r) => r.value)
+    const editing = writing.update({ effects: slot.reconfigure([]) }).state
+    const edited = editing.update({ changes: { from: 0, insert: 'More ' } }).state
+    const back = edited.update({ effects: slot.reconfigure(writeTables) }).state
+    ensureSyntaxTree(back, back.doc.length, 1e9)
+    expect(cells(back).map((r) => r.value)).toEqual(drawn)
+    expect(cells(back).every((r, i) => r.value === drawn[i])).toBe(true)
   })
 
   it('draws two tables of the same text alike', () => {
