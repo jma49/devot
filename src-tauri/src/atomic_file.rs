@@ -269,19 +269,25 @@ impl Folder {
 
     pub fn write(&self, name: impl AsRef<OsStr>, bytes: &[u8], place: Place) -> io::Result<()> {
         self.write_with(name.as_ref(), &mut &*bytes, place, true)
+            .map(drop)
     }
 
     /// For the Markdown mirror's many files, which the notes database can always give again: a full
     /// flush each would cost far more than it keeps. A crash may leave such a file short, which the
     /// mirror's next reconcile finds; never at a name it was not meant for, or written through a
     /// link.
+    ///
+    /// Returns the placed file's stamp, or none when what is at the name now is not the file
+    /// written (something replaced or changed it at once).
     pub fn write_unflushed(
         &self,
         name: impl AsRef<OsStr>,
         bytes: &[u8],
         place: Place,
-    ) -> io::Result<()> {
-        self.write_with(name.as_ref(), &mut &*bytes, place, false)
+    ) -> io::Result<Option<Stamp>> {
+        let written = self.write_with(name.as_ref(), &mut &*bytes, place, false)?;
+        let placed = self.entry(name).ok().map(|entry| entry.stamp);
+        Ok(placed.filter(|placed| placed.same_contents(&written)))
     }
 
     pub fn write_from(
@@ -290,7 +296,7 @@ impl Folder {
         from: &mut dyn Read,
         place: Place,
     ) -> io::Result<()> {
-        self.write_with(name.as_ref(), from, place, true)
+        self.write_with(name.as_ref(), from, place, true).map(drop)
     }
 
     fn write_with(
@@ -299,11 +305,13 @@ impl Folder {
         from: &mut dyn Read,
         place: Place,
         flush: bool,
-    ) -> io::Result<()> {
+    ) -> io::Result<Stamp> {
         let name = plain(name)?;
         let mut temp = TempFile::in_folder(self.clone())?;
         io::copy(from, &mut temp.file)?;
-        temp.finish(self, name, place, flush)
+        let written = stamp_of(&temp.file)?;
+        temp.finish(self, name, place, flush)?;
+        Ok(written)
     }
 
     /// The old name goes in the same step, or nothing changes. A link at `from` is moved as it is,
@@ -346,6 +354,33 @@ pub struct Entry {
     pub len: u64,
     id: (u64, u64),
     modified: i64,
+    stamp: Stamp,
+}
+
+/// What a file's status says of its contents: any write to it, or a rename over it, gives another
+/// one, also when its size and modification time are kept, since the change time moves too.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stamp {
+    id: (u64, u64),
+    len: u64,
+    modified: (i64, i64),
+    changed: (i64, i64),
+}
+
+impl Stamp {
+    /// A volume that keeps whole seconds only (FAT, exFAT, many network shares) can give two
+    /// writes in one second the same stamp, so such a stamp says nothing.
+    pub fn is_precise(&self) -> bool {
+        self.changed.1 != 0
+    }
+
+    fn same_contents(&self, other: &Stamp) -> bool {
+        self.id == other.id && self.len == other.len && self.modified == other.modified
+    }
+}
+
+pub fn stamp_of(file: &File) -> io::Result<Stamp> {
+    Ok(Entry::of(&rustix::fs::fstat(file)?).stamp)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -364,12 +399,24 @@ impl Entry {
             FileType::Directory => Kind::Folder,
             _ => Kind::Other,
         };
+        let len = u64::try_from(stat.st_size).unwrap_or(0);
+        let id = (stat.st_dev as u64, stat.st_ino as u64);
         Self {
             kind,
-            len: u64::try_from(stat.st_size).unwrap_or(0),
-            id: (stat.st_dev as u64, stat.st_ino as u64),
+            len,
+            id,
             modified: stat.st_mtime as i64,
+            stamp: Stamp {
+                id,
+                len,
+                modified: (stat.st_mtime as i64, stat.st_mtime_nsec as i64),
+                changed: (stat.st_ctime as i64, stat.st_ctime_nsec as i64),
+            },
         }
+    }
+
+    pub fn stamp(&self) -> Stamp {
+        self.stamp
     }
 
     /// Whether it was last changed at least `age` before `now`; one dated after `now` is not.
@@ -915,13 +962,17 @@ mod tests {
         fs::write(&theirs, b"theirs").unwrap();
         let folder = Folder::open(dir.path()).unwrap();
         let path = dir.path().join("Plan.md");
-        folder
+        let first = folder
             .write_unflushed("Plan.md", b"one", Place::New)
             .unwrap();
-        folder
+        let second = folder
             .write_unflushed("Plan.md", b"two", Place::Replace)
             .unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"two");
+        // The stamp is the placed file's, after its rename.
+        let placed = folder.entry("Plan.md").unwrap().stamp();
+        assert_eq!(second, Some(placed));
+        assert_ne!(first, second);
         let link = dir.path().join("Link.md");
         std::os::unix::fs::symlink(&theirs, &link).unwrap();
         let dangling = dir.path().join("Dangling.md");

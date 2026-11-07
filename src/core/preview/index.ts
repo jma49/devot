@@ -51,7 +51,7 @@ import {
 } from './registry'
 
 export * from './registry'
-export { videoEmbedUrl } from './builtins'
+export { videoEmbedUrl } from './videoEmbeds'
 export {
   codeLanguage,
   createCodeRenderer,

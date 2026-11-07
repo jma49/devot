@@ -38,7 +38,7 @@ import { ToolTips } from './ToolTips'
 import { useUpdates } from './UpdateNotice'
 import { useLastState } from './useLastState'
 import { useSearch, useSearchRuns } from './useSearch'
-import { warmUp } from './warmUp'
+import { useWarmUp } from './warmUp'
 import { useFocusRequest, useRequestedFocus } from './app/focusRequest'
 import { useListLoaders } from './app/listLoaders'
 import { LibraryDialogs } from './app/LibraryDialogs'
@@ -194,7 +194,17 @@ export function App() {
 
   useSearchRuns(searchState, { scope: view.searchScope, inView: view.inView })
   const searchIndex = useSearchIndex(core, refresh)
-  useExternalMerge({ core, selected, inTrash, opens, editorRef, setTitle, refresh, agentWrites })
+  useExternalMerge({
+    core,
+    selected,
+    inTrash,
+    opens,
+    editorRef,
+    setTitle,
+    refresh,
+    patch: lists.patch,
+    agentWrites,
+  })
 
   useQuickCapture(core, refresh)
   useHttpApi(core)
@@ -232,12 +242,7 @@ export function App() {
 
   // Nothing is saved until the last state is restored, so a loading window never overwrites it.
   const [restored, setRestored] = useState(false)
-  const warmed = useRef(false)
-  useEffect(() => {
-    if (!core || !restored || warmed.current) return
-    warmed.current = true
-    warmUp(core)
-  }, [core, restored])
+  useWarmUp(core, restored, () => editorRef.current?.text() ?? '', view.listedIds)
   const mirror = useMarkdownMirror(core, restored && primary)
   const lastStateParts = useLastState({
     store: lastStateStore,

@@ -1,4 +1,3 @@
-import { renderToStaticMarkup } from 'react-dom/server'
 import { invoke } from '../ipc'
 import { localStore } from '../localStore'
 import { version } from '../../../../package.json'
@@ -349,15 +348,51 @@ export function SymbolIcon({
   )
 }
 
+interface LucideData {
+  name: string
+  aliases?: unknown[]
+  node: [tag: string, attributes: Record<string, string>][]
+}
+
+const attributeText = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/**
+ * The markup React's server renderer gives `<Glyph size={size} className={className} />`, without
+ * that renderer in the startup bundle (issue 742).
+ */
+export function lucideMarkup(Glyph: LucideIcon, size: number, className: string): string {
+  // A Lucide icon is a forwardRef whose render only hands its data to Lucide's own Icon element.
+  const { icon } = (
+    Glyph as unknown as { render: (props: object, ref: null) => { props: { icon: LucideData } } }
+  ).render({}, null).props
+  const children = icon.node
+    .map(([tag, attributes]) => {
+      const text = Object.entries(attributes)
+        .filter(([key]) => key !== 'key')
+        .map(([key, value]) => ` ${key}="${attributeText(String(value))}"`)
+        .join('')
+      return `<${tag}${text}></${tag}>`
+    })
+    .join('')
+  const names = [icon.name, ...(icon.aliases ?? [])].filter(
+    (name): name is string => typeof name === 'string' && name.trim() !== '',
+  )
+  const classes = [
+    ...new Set(['lucide', ...names.map((name) => `lucide-${name}`), ...className.split(' ')]),
+  ]
+    .filter(Boolean)
+    .join(' ')
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${classes}" aria-hidden="true">${children}</svg>`
+}
+
 export function iconElement(name: IconName, box: number): HTMLElement {
   const span = document.createElement('span')
   if (editorSettings().iconStyle === 'lucide') {
     const Glyph = LUCIDE_ICONS[name]
     const fill = LUCIDE_FILLS[name]
     span.className = 'icon-host'
-    span.innerHTML = renderToStaticMarkup(
-      <Glyph size={box} className={`icon-svg${fill ? ` icon-fill-${fill}` : ''}`} />,
-    )
+    span.innerHTML = lucideMarkup(Glyph, box, `icon-svg${fill ? ` icon-fill-${fill}` : ''}`)
     return span
   }
   const symbol = symbolFor(name)

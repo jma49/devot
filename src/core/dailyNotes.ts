@@ -5,14 +5,10 @@
 import type { BookService } from './books'
 import type { NoteService } from './notes'
 import type { NoteSummary } from './storage'
+import type { DailyTitleFormat } from './dailyTitleFormats'
 import { formatDate, type TemplateClock, type TemplateService } from './templates'
 
-export type DailyTitleFormat = 'iso' | 'dayMonthYear' | 'weekdayDayMonthYear'
-export const DAILY_TITLE_FORMATS: readonly DailyTitleFormat[] = [
-  'iso',
-  'dayMonthYear',
-  'weekdayDayMonthYear',
-]
+export { DAILY_TITLE_FORMATS, type DailyTitleFormat } from './dailyTitleFormats'
 
 const PATTERNS: Readonly<Record<DailyTitleFormat, string>> = {
   iso: 'YYYY-MM-DD',

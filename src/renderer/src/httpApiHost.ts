@@ -5,7 +5,12 @@
 // write the window takes it in as a change from outside (externalChanges.ts):
 // the open editor merges it without an undo step and the lists reload.
 import { errorCode } from '../../core/errors'
-import { HTTP_API_WRITES, readHttpApiRequest, type HttpApiCall } from '../../core/httpApi'
+import {
+  HTTP_API_WRITES,
+  notesOnlyWritten,
+  readHttpApiRequest,
+  type HttpApiCall,
+} from '../../core/httpApi'
 
 export const HTTP_API_EVENT = 'devot://http-api'
 /** The answer to a call, as a page event in the UI tests' build, which has no Rust to take it. */
@@ -14,7 +19,8 @@ export const HTTP_API_DONE_TEST = 'devot:http-api-done'
 export interface HttpApiHost {
   run: (call: HttpApiCall) => Promise<unknown>
   reply: (id: number, result: unknown, error: string | null) => Promise<unknown>
-  wrote: () => void
+  /** `notes` names the notes the write changed when it changed nothing else. */
+  wrote: (notes: readonly string[] | undefined) => void
 }
 
 /** Takes each event payload; one that is not a request is ignored. Resolves once the queue is empty. */
@@ -31,7 +37,9 @@ export function httpApiHost({ run, reply, wrote }: HttpApiHost) {
       } catch (e) {
         error = errorCode(e, 'E_HTTP_API_FAILED')
       }
-      if (error === null && HTTP_API_WRITES.includes(request.call.op)) wrote()
+      if (error === null && HTTP_API_WRITES.includes(request.call.op)) {
+        wrote(notesOnlyWritten(request.call))
+      }
       try {
         await reply(request.id, result, error)
       } catch (e) {

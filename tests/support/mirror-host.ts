@@ -51,12 +51,33 @@ function moveFile(from: string, to: string, place: Place) {
   }
 }
 
-/** Rust's `atomic_file::write_unflushed`: a random hidden temp file created new (never through a link), then put in place. */
-function writeThroughTemp(dir: string, path: string, data: string | Buffer, place: Place) {
+/** Rust's `atomic_file::Stamp`: anything that changes a file changes its change time. */
+const stampOf = (path: string): string | null => {
+  const at = lstatSync(path, { bigint: true, throwIfNoEntry: false })
+  return at?.isFile() ? `${at.dev}:${at.ino}:${at.size}:${at.mtimeNs}:${at.ctimeNs}` : null
+}
+
+/**
+ * Rust's `atomic_file::write_unflushed`: a random hidden temp file created new (never through a link), then put in
+ * place. Gives the placed file's stamp unless it changed after it was written.
+ */
+function writeThroughTemp(
+  dir: string,
+  path: string,
+  data: string | Buffer,
+  place: Place,
+): string | null {
   const partial = join(dir, `.devot-${randomUUID().replaceAll('-', '')}.tmp`)
   writeFileSync(partial, data, { flag: 'wx' })
+  const written = lstatSync(partial, { bigint: true })
   try {
     moveFile(partial, path, place)
+    const placed = lstatSync(path, { bigint: true })
+    const same =
+      placed.ino === written.ino &&
+      placed.size === written.size &&
+      placed.mtimeNs === written.mtimeNs
+    return same ? stampOf(path) : null
   } finally {
     try {
       unlinkSync(partial)
@@ -128,6 +149,8 @@ export interface FolderHostLog {
 
 export interface FolderHost extends MirrorHost {
   log: FolderHostLog
+  /** Since `clear`: texts and files hashed, manifests written. */
+  counts: { hashed: number; saved: number }
   clear(): void
   manifest(): MirrorManifest
   setFolder(root: string | null): void
@@ -147,6 +170,13 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
   let dirty = false
   let paused: string | null = null
   const log: FolderHostLog = { written: [], moved: [], removed: [], kept: [] }
+  const counts = { hashed: 0, saved: 0 }
+  /** Rust's `Seen`: what each file Devot wrote or read held, while its stamp stays. */
+  const seen = new Map<string, { stamp: string; sha256: string }>()
+  const hash = (data: string | Buffer) => {
+    counts.hashed += 1
+    return sha(data)
+  }
 
   const abs = (rel: string) => join(folder!, rel)
   const lstat = (path: string): Stats | null => {
@@ -170,7 +200,12 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
     if (at.isSymbolicLink()) return 'other'
     if (at.isDirectory()) return 'dir'
     if (!at.isFile()) return 'other'
-    return sha(readFileSync(abs(rel)))
+    const stamp = stampOf(abs(rel))
+    const known = seen.get(rel)
+    if (stamp !== null && known?.stamp === stamp) return known.sha256
+    const sha256 = hash(readFileSync(abs(rel)))
+    if (stamp !== null) seen.set(rel, { stamp, sha256 })
+    return sha256
   }
 
   const sameFile = (a: string, b: string) => {
@@ -179,10 +214,12 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
     return !!x && !!y && x.ino === y.ino && x.dev === y.dev
   }
 
-  /** Writes `data` at `rel`: a new file only where nothing is yet, or over Devot's own. */
-  const writeFile = (rel: string, data: string | Buffer, place: Place) => {
+  /** Writes `data` (of `sha256`) at `rel`: a new file only where nothing is yet, or over Devot's own. */
+  const writeFile = (rel: string, data: string | Buffer, place: Place, sha256?: string) => {
     const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : ''
-    writeThroughTemp(join(folder!, dir), abs(rel), data, place)
+    const stamp = writeThroughTemp(join(folder!, dir), abs(rel), data, place)
+    if (stamp !== null && sha256 !== undefined) seen.set(rel, { stamp, sha256 })
+    else seen.delete(rel)
   }
 
   /** What is in the way of a write or move to `rel`. */
@@ -248,6 +285,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         if (taken(error)) continue
         throw error
       }
+      seen.delete(rel)
       log.kept.push(kept)
       return kept
     }
@@ -255,7 +293,10 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
   }
 
   const manifestText = () => JSON.stringify({ version: 1, ...manifest })
-  const save = () => writeFile(MANIFEST, manifestText(), 'replace')
+  const save = () => {
+    counts.saved += 1
+    writeFile(MANIFEST, manifestText(), 'replace')
+  }
 
   /** Rust's `probe_writable`. */
   const probe = (dir: string) => {
@@ -304,6 +345,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         if (now !== null && now !== 'dir' && now !== 'other') {
           if (now !== op.sha256) return { code: 'E_MIRROR_CHANGED', path: op.path, state: now }
           unlinkSync(abs(op.path))
+          seen.delete(op.path)
           log.removed.push(op.path)
           prune(op.path)
         }
@@ -315,11 +357,14 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         if (
           !notePath(op.path) ||
           (op.from !== null && !notePath(op.from)) ||
-          !/^[0-9a-f]{64}$/.test(op.sha256) ||
-          (op.text !== undefined && sha(op.text) !== op.sha256)
+          (op.sha256 !== undefined && !/^[0-9a-f]{64}$/.test(op.sha256)) ||
+          (op.text === undefined && op.sha256 === undefined)
         ) {
           return { code: 'E_MIRROR_OP_INVALID' }
         }
+        // Rust's own hash of a text it is sent.
+        const sha256 = op.text === undefined ? op.sha256! : hash(op.text)
+        if (op.sha256 !== undefined && op.sha256 !== sha256) return { code: 'E_MIRROR_OP_INVALID' }
         const entry = m.notes[op.id]
         let from: string | null = null
         let fromState: DiskState = null
@@ -327,8 +372,12 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
           if (!entry || entry.path !== op.from) return { code: 'E_MIRROR_STALE' }
           fromState = state(op.from)
           if (fromState !== null) {
-            if (fromState !== entry.sha256 && fromState !== op.sha256) {
-              return { code: 'E_MIRROR_CHANGED', path: op.from, state: fromState }
+            if (fromState !== entry.sha256 && fromState !== sha256) {
+              return {
+                code: 'E_MIRROR_CHANGED',
+                path: op.from,
+                state: fromState,
+              }
             }
             from = op.from
           }
@@ -339,19 +388,19 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         const record = (size: number): MirrorResult => {
           m.notes[op.id] = {
             path: op.path,
-            sha256: op.sha256,
+            sha256,
             size,
             source: op.source,
             files: op.files,
           }
-          return { size }
+          return { size, sha256 }
         }
         if (from !== null && from === op.path) {
-          if (fromState === op.sha256) return record(lstat(abs(op.path))!.size)
+          if (fromState === sha256) return record(lstat(abs(op.path))!.size)
           if (op.text === undefined) {
             return { code: 'E_MIRROR_CHANGED', path: op.path, state: fromState }
           }
-          writeFile(op.path, op.text, 'replace')
+          writeFile(op.path, op.text, 'replace', sha256)
           log.written.push(op.path)
           return record(Buffer.byteLength(op.text))
         }
@@ -363,13 +412,13 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         let adopt = false
         let finishMove = false
         if (target !== null && !renamed) {
-          if (target === op.sha256) adopt = true
+          if (target === sha256) adopt = true
           // A move cut short before the manifest was saved: what Devot last wrote went here.
           else if (from === null && entry?.sha256 === target) finishMove = true
           else return { code: 'E_MIRROR_EXISTS', path: op.path, state: target }
         }
         // Without the text only a file that holds it already can go there; checked before anything changes.
-        const holdsIt = adopt || (from !== null && fromState === op.sha256)
+        const holdsIt = adopt || (from !== null && fromState === sha256)
         if (op.text === undefined && !holdsIt) {
           return { code: 'E_MIRROR_CHANGED', path: op.from ?? op.path, state: fromState }
         }
@@ -378,6 +427,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         if (adopt) {
           if (from !== null) {
             unlinkSync(abs(from))
+            seen.delete(from)
             log.removed.push(from)
             prune(from)
           }
@@ -386,7 +436,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         if (from === null) {
           if (op.text === undefined) return { code: 'E_MIRROR_CHANGED', path: op.path, state: null }
           try {
-            writeFile(op.path, op.text, finishMove ? 'replace' : 'new')
+            writeFile(op.path, op.text, finishMove ? 'replace' : 'new', sha256)
           } catch (error) {
             return inTheWayAt(op.path, error)
           }
@@ -398,9 +448,11 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         } catch (error) {
           return inTheWayAt(op.path, error)
         }
+        seen.delete(from)
+        seen.delete(op.path)
         log.moved.push([from, op.path])
         prune(from)
-        if (fromState === op.sha256) return record(lstat(abs(op.path))!.size)
+        if (fromState === sha256) return record(lstat(abs(op.path))!.size)
         // Listed where it went, with what it holds, should its new text fail.
         m.notes[op.id] = {
           ...entry!,
@@ -416,7 +468,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         hook?.()
         // Moved: Devot's own file is there now, and its new text goes over it.
         try {
-          writeFile(op.path, op.text, 'replace')
+          writeFile(op.path, op.text, 'replace', sha256)
         } catch (error) {
           throw Object.assign(error as object, { moved: true })
         }
@@ -438,25 +490,25 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
           | undefined
         if (!row) return { code: 'E_FILE_NOT_FOUND' }
         const data = Buffer.from(row.data)
-        const hash = sha(data)
+        const copied = hash(data)
         const blockedAt = inTheWay(op.path)
         if (blockedAt) return blockedAt
         const target = state(op.path)
-        if (target !== null && target !== hash) {
+        if (target !== null && target !== copied) {
           return { code: 'E_MIRROR_EXISTS', path: op.path, state: target }
         }
         if (target === null) {
           const blocked = makeFolders(op.path)
           if (blocked) return blocked
           try {
-            writeFile(op.path, data, 'new')
+            writeFile(op.path, data, 'new', copied)
           } catch (error) {
             return inTheWayAt(op.path, error)
           }
           log.written.push(op.path)
         }
-        m.files[op.id] = { path: op.path, sha256: hash, size: data.length }
-        return { size: data.length, sha256: hash }
+        m.files[op.id] = { path: op.path, sha256: copied, size: data.length }
+        return { size: data.length, sha256: copied }
       }
       case 'book':
         if (op.path === null) delete m.books[op.id]
@@ -468,15 +520,19 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
 
   const host: FolderHost = {
     log,
+    counts,
     clear() {
       log.written.length = 0
       log.moved.length = 0
       log.removed.length = 0
       log.kept.length = 0
+      counts.hashed = 0
+      counts.saved = 0
     },
     manifest: () => clone(manifest ?? { notes: {}, files: {}, books: {} }),
     setFolder(next) {
       folder = next
+      seen.clear()
       manifest = null
       paused = null
       generation += 1

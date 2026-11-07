@@ -1,7 +1,8 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior};
 use std::ffi::c_int;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use super::notes::summary;
 use super::readable;
@@ -23,7 +24,7 @@ impl TextField {
         }
     }
 
-    fn fts(self, value: &str) -> String {
+    pub(super) fn fts(self, value: &str) -> String {
         let column = match self {
             Self::Any => "",
             Self::Title => "title : ",
@@ -455,11 +456,49 @@ pub(super) fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>)
     (sql, values)
 }
 
+// Re-indexes one stale note (`@rowid`): takes out the text the index holds for it, puts in what
+// the note holds now. A note that is not stale is indexed as it is and left alone: inserting its
+// row again would count it twice. The same statements as the TypeScript adapter's
+// (tests/support/sqlite-adapter.ts, CATCH_UP_SQL; a test compares them).
+pub(super) const CATCH_UP_SQL: [&str; 3] = [
+    "INSERT INTO notes_fts (notes_fts, rowid, title, body_md)
+       SELECT 'delete', rowid, title, body_md FROM search_stale WHERE rowid = @rowid AND title IS NOT NULL",
+    "INSERT INTO notes_fts (rowid, title, body_md)
+       SELECT rowid, title, body_md FROM notes WHERE rowid = @rowid
+          AND EXISTS (SELECT 1 FROM search_stale WHERE rowid = @rowid)",
+    "DELETE FROM search_stale WHERE rowid = @rowid",
+];
+
+const NEXT_STALE_SQL: &str = "SELECT rowid FROM search_stale ORDER BY rowid LIMIT 1";
+
+pub(super) fn catch_up_note(conn: &Connection, rowid: i64) -> rusqlite::Result<()> {
+    for sql in CATCH_UP_SQL {
+        conn.prepare_cached(sql)?
+            .execute(rusqlite::named_params! { "@rowid": rowid })?;
+    }
+    Ok(())
+}
+
+// Re-indexes stale notes until none is left, or once `budget` is spent (one note at least):
+// whether any is left.
+pub(super) fn catch_up(conn: &Connection, budget: Option<Duration>) -> rusqlite::Result<bool> {
+    let started = Instant::now();
+    let mut next = conn.prepare_cached(NEXT_STALE_SQL)?;
+    while let Some(rowid) = next.query_row([], |row| row.get(0)).optional()? {
+        catch_up_note(conn, rowid)?;
+        if budget.is_some_and(|budget| started.elapsed() >= budget) {
+            return next.exists([]);
+        }
+    }
+    Ok(false)
+}
+
 const REBUILD_STOP_STEPS: c_int = 100;
 
 fn rebuild_checked(conn: &Connection) -> rusqlite::Result<u32> {
     conn.execute_batch(
         "INSERT INTO notes_fts (notes_fts) VALUES ('rebuild');
+         DELETE FROM search_stale;
          INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1);",
     )?;
     conn.query_row(
@@ -502,7 +541,24 @@ impl Store {
         Ok(notes)
     }
 
+    /// Re-indexes the notes whose title or Markdown changed since they were indexed (see
+    /// `catch_up`). Takes the write lock only when one did, so a search with nothing to catch up
+    /// never waits on another writer.
+    pub fn catch_up_search_index(&self, budget: Option<Duration>) -> Result<bool> {
+        if !self.conn.prepare_cached(NEXT_STALE_SQL)?.exists([])? {
+            return Ok(false);
+        }
+        let tx = Transaction::new_unchecked(&self.conn, TransactionBehavior::Immediate)?;
+        let more = catch_up(&tx, budget)?;
+        tx.commit()?;
+        Ok(more)
+    }
+
     pub fn search_notes(&self, query: &NoteQuery, limit: u32) -> Result<Vec<NoteSummary>> {
+        // Only a term of three characters or more reads the index (see `search_sql`).
+        if query.text.iter().any(|t| indexable(&t.value)) {
+            self.catch_up_search_index(None)?;
+        }
         let (sql, values) = search_sql(query, limit);
         let mut statement = self.conn.prepare(&sql)?;
         let rows = statement.query_map(rusqlite::params_from_iter(values.iter()), summary)?;

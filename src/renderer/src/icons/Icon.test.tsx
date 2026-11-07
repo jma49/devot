@@ -9,8 +9,8 @@ vi.mock('../editorSettings', () => ({
 vi.mock('../ipc', () => ({ invoke: vi.fn<() => Promise<string>>() }))
 
 import { invoke } from '../ipc'
-import { Icon, iconElement } from './Icon'
-import { lucideStroke } from './lucide'
+import { Icon, iconElement, lucideMarkup } from './Icon'
+import { LUCIDE_FILLS, LUCIDE_ICONS, lucideStroke } from './lucide'
 
 describe('Icon', () => {
   beforeEach(() => {
@@ -136,5 +136,20 @@ describe('iconElement', () => {
         'book.closed',
       ].map((name) => ({ name, pointSize: 18, weight: 'regular' })),
     )
+  })
+})
+
+describe('lucideMarkup', () => {
+  it('draws every Lucide icon as the server renderer does', () => {
+    const drawn = Object.entries(LUCIDE_ICONS).map(([name, Glyph]) => {
+      const fill = LUCIDE_FILLS[name as keyof typeof LUCIDE_FILLS]
+      const className = `icon-svg${fill ? ` icon-fill-${fill}` : ''}`
+      return {
+        name,
+        markup: lucideMarkup(Glyph, 16, className),
+        server: renderToStaticMarkup(<Glyph size={16} className={className} />),
+      }
+    })
+    expect(drawn.filter(({ markup, server }) => markup !== server)).toEqual([])
   })
 })

@@ -23,7 +23,7 @@ fn put(id: &str, path: &str, from: Option<&str>, text: &str) -> Op {
         id: id.into(),
         path: path.into(),
         from: from.map(String::from),
-        sha256: sha256_hex(text.as_bytes()),
+        sha256: Some(sha256_hex(text.as_bytes())),
         text: Some(text.into()),
         source: "s1".into(),
         files: vec![],
@@ -169,7 +169,13 @@ fn writes_a_new_note_and_records_it() {
         &mut manifest,
         &put(NOTE, "Work/Deep/Plan.md", None, "# Plan\n"),
     );
-    assert_eq!(result, OpResult::sized(7));
+    assert_eq!(
+        result,
+        OpResult {
+            sha256: Some(Some(sha256_hex(b"# Plan\n"))),
+            ..OpResult::sized(7)
+        }
+    );
     assert_eq!(read(root, "Work/Deep/Plan.md"), "# Plan\n");
     let entry = &manifest.notes[NOTE];
     assert_eq!(entry.path, "Work/Deep/Plan.md");
@@ -263,7 +269,7 @@ fn rewrites_moves_and_removes_only_what_still_holds_what_it_wrote() {
         id: NOTE.into(),
         path: "Plan.md".into(),
         from: Some("Home/Plan.md".into()),
-        sha256: sha256_hex(b"three"),
+        sha256: Some(sha256_hex(b"three")),
         text: None,
         source: "s2".into(),
         files: vec![],
@@ -368,7 +374,7 @@ fn keeps_nothing_that_turns_out_unchanged_and_moves_nothing_it_cannot_finish() {
         id: NOTE.into(),
         path: "Moved.md".into(),
         from: Some("Plan.md".into()),
-        sha256: sha256_hex(b"new"),
+        sha256: Some(sha256_hex(b"new")),
         text: None,
         source: "s".into(),
         files: vec![],
@@ -455,7 +461,7 @@ fn a_note_may_link_to_any_uuid() {
         id: NOTE.into(),
         path: "Plan.md".into(),
         from: None,
-        sha256: sha256_hex(b"x"),
+        sha256: Some(sha256_hex(b"x")),
         text: Some("x".into()),
         source: "s".into(),
         files: vec!["123e4567-e89b-42d3-a456-426614174000".into()],
@@ -551,7 +557,7 @@ fn checks_the_plan_against_the_manifest_and_the_text_against_its_hash() {
         id: NOTE.into(),
         path: "Plan.md".into(),
         from: None,
-        sha256: sha256_hex(b"something else"),
+        sha256: Some(sha256_hex(b"something else")),
         text: Some("x".into()),
         source: "s".into(),
         files: vec![],
@@ -844,7 +850,7 @@ fn never_follows_or_replaces_a_link_that_appears_after_the_checks() {
         // holds (the plan learns what is there), nor does a file kept aside.
         outside.plant(root, "New.md", dangling);
         assert_eq!(
-            write_new(mirror, &at(mirror, "New.md"), b"mine"),
+            write_new(mirror, &at(mirror, "New.md"), b"mine", &sha256_hex(b"mine")),
             Err(Stop::at("E_MIRROR_EXISTS", "New.md", Some(OTHER.into())))
         );
         write_text(root, "Plan.md", "devot");
@@ -867,7 +873,10 @@ fn never_follows_or_replaces_a_link_that_appears_after_the_checks() {
         // Devot's own file, swapped for a link just before it is rewritten:
         // the link is replaced, never written through.
         outside.plant(root, "Own.md", dangling);
-        assert_eq!(rewrite(mirror, &at(mirror, "Own.md"), b"own"), Ok(()));
+        assert_eq!(
+            rewrite(mirror, &at(mirror, "Own.md"), b"own", &sha256_hex(b"own")),
+            Ok(())
+        );
         assert!(fs::symlink_metadata(root.join("Own.md")).unwrap().is_file());
         assert_eq!(read(root, "Own.md"), "own");
         assert_eq!(
@@ -931,7 +940,7 @@ fn a_folder_swapped_for_a_link_after_the_checks_is_never_followed() {
         id: NOTE.into(),
         path: path.into(),
         from: Some(from.into()),
-        sha256: sha256_hex(b"one"),
+        sha256: Some(sha256_hex(b"one")),
         text: None,
         source: "s2".into(),
         files: vec![],
@@ -1023,7 +1032,7 @@ fn a_new_file_or_a_move_never_replaces_a_file_that_appears_after_the_checks() {
     write_text(root, "New.md", "theirs");
     let theirs = Some(sha256_hex(b"theirs"));
     assert_eq!(
-        write_new(mirror, &at(mirror, "New.md"), b"mine"),
+        write_new(mirror, &at(mirror, "New.md"), b"mine", &sha256_hex(b"mine")),
         Err(Stop::at("E_MIRROR_EXISTS", "New.md", theirs.clone()))
     );
     write_text(root, "Plan.md", "devot");
@@ -1237,4 +1246,96 @@ fn a_move_cut_short_before_the_manifest_was_saved_is_finished_in_place() {
     );
     assert_eq!(other.code, Some("E_MIRROR_EXISTS"));
     assert_eq!(read(root, "Home/Other.md"), "theirs");
+}
+
+fn unhashed(path: &str, from: Option<&str>, text: Option<&str>) -> Op {
+    Op::Note {
+        id: NOTE.into(),
+        path: path.into(),
+        from: from.map(String::from),
+        sha256: None,
+        text: text.map(String::from),
+        source: "s1".into(),
+        files: vec![],
+    }
+}
+
+#[test]
+fn hashes_a_text_sent_without_its_hash_and_returns_that_hash() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut manifest = Manifest::default();
+    let result = apply(
+        dir.path(),
+        &mut manifest,
+        &unhashed("Plan.md", None, Some("one")),
+    );
+    assert_eq!(
+        result,
+        OpResult {
+            size: Some(3),
+            sha256: Some(Some(sha256_hex(b"one"))),
+            ..OpResult::default()
+        }
+    );
+    assert_eq!(manifest.notes[NOTE].sha256, sha256_hex(b"one"));
+    assert_eq!(
+        apply(
+            dir.path(),
+            &mut manifest,
+            &unhashed("Plan.md", Some("Plan.md"), None)
+        )
+        .code,
+        Some("E_MIRROR_OP_INVALID")
+    );
+    assert_eq!(read(dir.path(), "Plan.md"), "one");
+}
+
+#[test]
+fn rewrites_a_file_it_wrote_without_reading_it_and_still_sees_an_outside_edit() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = open(dir.path()).remembering(Seen::default());
+    let mut manifest = Manifest::default();
+    let write = |manifest: &mut Manifest, from: Option<&str>, text: &str| {
+        apply_in(&root, manifest, &unhashed("Plan.md", from, Some(text)))
+    };
+    assert_eq!(write(&mut manifest, None, "one").code, None);
+    let hashed = hashed_files();
+    assert_eq!(write(&mut manifest, Some("Plan.md"), "two").code, None);
+    assert_eq!(write(&mut manifest, Some("Plan.md"), "six").code, None);
+    assert_eq!(hashed_files(), hashed);
+    assert_eq!(read(dir.path(), "Plan.md"), "six");
+    let path = dir.path().join("Plan.md");
+    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    fs::write(&path, "xis").unwrap();
+    fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_modified(modified)
+        .unwrap();
+    assert_eq!(fs::metadata(&path).unwrap().modified().unwrap(), modified);
+    let result = write(&mut manifest, Some("Plan.md"), "ten");
+    assert_eq!(result.code, Some("E_MIRROR_CHANGED"));
+    assert_eq!(result.state, Some(Some(sha256_hex(b"xis"))));
+    assert_eq!(read(dir.path(), "Plan.md"), "xis");
+}
+
+#[test]
+fn writes_the_manifest_in_the_same_bytes_as_before() {
+    let mut manifest = Manifest {
+        library: Some("lib".into()),
+        ..Manifest::default()
+    };
+    apply(
+        tempfile::tempdir().unwrap().path(),
+        &mut manifest,
+        &put(NOTE, "Plan.md", None, "one"),
+    );
+    manifest.books.insert(BOOK.into(), "Work".into());
+    let owned = serde_json::to_vec(&ManifestFile {
+        version: MANIFEST_VERSION,
+        manifest: manifest.clone(),
+    })
+    .unwrap();
+    assert_eq!(manifest_bytes(&manifest), owned);
 }

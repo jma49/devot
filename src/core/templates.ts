@@ -20,7 +20,7 @@ import { buildBookTree, flattenBookTree, TEMPLATES_BOOK_ID, type BookService } f
 import { errorCode } from './errors'
 import { newFileCopies, replaceFileLinks } from './files'
 import type { Clock } from './hlc'
-import { noteTitle, readFrontMatter, withoutFrontMatterKeys } from './import'
+import { noteTitle, readFrontMatter, withoutFrontMatterKeys } from './frontMatter'
 import type { NoteService } from './notes'
 import { isStarterTemplate, type StarterTemplate } from './starterTemplates'
 import type { BookRecord, NoteStatus, NoteSummary, StorageAdapter } from './storage'

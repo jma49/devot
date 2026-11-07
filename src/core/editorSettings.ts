@@ -3,7 +3,7 @@
 // keeps them in their own file (src-tauri/src/editor_settings.rs, which checks the same lists and
 // ranges as this module) and they never sync.
 
-import { DAILY_TITLE_FORMATS, type DailyTitleFormat } from './dailyNotes'
+import { DAILY_TITLE_FORMATS, type DailyTitleFormat } from './dailyTitleFormats'
 
 export type FontFamilyId =
   | 'system'
