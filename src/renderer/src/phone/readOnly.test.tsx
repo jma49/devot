@@ -214,6 +214,26 @@ describe('a note while editing is locked', () => {
     expect(mode()).toBe('preview')
   })
 
+  it('ends Find on a locked note when Preview is chosen', async () => {
+    loadedText = 'Read me'
+    await open(ENDED)
+    await tap(named('Find in Note'))
+    expect(mode()).toBe('edit')
+    await tap(named('Preview'))
+    expect(mode()).toBe('preview')
+    expect(named('Close find')).toBeNull()
+  })
+
+  it('ends Find on a note when Preview is chosen once writing is allowed', async () => {
+    loadedText = 'Read me'
+    await open(RUNNING)
+    await tap(named('Find in Note'))
+    expect(mode()).toBe('edit')
+    await tap(named('Preview'))
+    expect(mode()).toBe('preview')
+    expect(named('Close find')).toBeNull()
+  })
+
   it('keeps the editor read-only with no caret', async () => {
     await open(ENDED)
     expect(shownEditors.at(-1)).toEqual({ readOnly: true, noKeyboard: true })

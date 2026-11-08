@@ -282,7 +282,11 @@ export function PhoneNote(props: {
     store.notes.find((n) => n.id === noteId) ?? store.templates.find((n) => n.id === noteId)
   const [modes, setModes] = useState<Readonly<Record<string, 'edit' | 'preview'>>>({})
   const editing = useEditing()
-  const setMode = (next: 'edit' | 'preview') => setModes((m) => ({ ...m, [noteId]: next }))
+  // Find shows the editor whatever the note's mode, so choosing Preview ends it.
+  const setMode = (next: 'edit' | 'preview') => {
+    if (next === 'preview') setFinding(false)
+    setModes((m) => ({ ...m, [noteId]: next }))
+  }
   const [toggles, setToggles] = useState(0)
   const [moving, setMoving] = useState(false)
   const editLayer = useRef<HTMLDivElement>(null)
