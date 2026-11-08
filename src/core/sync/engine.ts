@@ -35,7 +35,7 @@ import type {
   TagRecord,
 } from '../storage'
 import { retargetSavedSearches } from '../savedSearches'
-import { isTagColor, isTagColorValue, sameName } from '../tags'
+import { inTagTurn, isTagColor, isTagColorValue, sameName } from '../tags'
 import {
   bodyPrint,
   decodeRecord,
@@ -967,17 +967,19 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
    */
   async function followRename(before: TagState, after: TagState) {
     if (after.deletedAt !== null || sameName(before.name, after.name)) return
-    const tags = await storage.listTags()
-    for (const search of await storage.listSavedSearches()) {
-      let rewritten: SavedSearchRecord[]
-      try {
-        rewritten = retargetSavedSearches([search], tags, before, after.name, clock, now())
-      } catch (error) {
-        console.warn('W_SYNC_SEARCH_NOT_RETARGETED', search.id, errorCode(error))
-        continue
+    await inTagTurn(storage, async () => {
+      const tags = await storage.listTags()
+      for (const search of await storage.listSavedSearches()) {
+        let rewritten: SavedSearchRecord[]
+        try {
+          rewritten = retargetSavedSearches([search], tags, before, after.name, clock, now())
+        } catch (error) {
+          console.warn('W_SYNC_SEARCH_NOT_RETARGETED', search.id, errorCode(error))
+          continue
+        }
+        for (const record of rewritten) await storage.putSavedSearch(record)
       }
-      for (const record of rewritten) await storage.putSavedSearch(record)
-    }
+    })
   }
 
   /** A body version taken in the last REVISION_EVERY_MS: changes that only came from other devices are kept no more often than typing here is (#216). */
