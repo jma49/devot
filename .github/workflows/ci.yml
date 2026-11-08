@@ -522,6 +522,8 @@ jobs:
           name: iphone-ui-build
           path: ${{ runner.temp }}
       - run: mkdir -p test-results && zstd -dc "$RUNNER_TEMP/iphone-ui-build.tar.zst" | tar -C test-results -xf -
+      - name: Let the simulator settle
+        run: sh scripts/ci/iphone-ui-tests.sh settle
       - run: sh scripts/ci/iphone-ui-tests.sh test
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

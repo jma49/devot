@@ -179,8 +179,15 @@ it('hands the app and the test runner to the shards as one small, short-lived ar
     expect.arrayContaining([
       'mkdir -p test-results',
       'zstd -dc "$RUNNER_TEMP/iphone-ui-build.tar.zst" | tar -C test-results -xf -',
+      'sh scripts/ci/iphone-ui-tests.sh settle',
       'sh scripts/ci/iphone-ui-tests.sh test',
     ]),
+  )
+  // A cold-booted simulator is still busy when the download is done; tests started then miss
+  // their waits, so the shard waits for the app's first start and the machine's load first.
+  const shardCommands = commands(ui)
+  expect(shardCommands.indexOf('sh scripts/ci/iphone-ui-tests.sh settle')).toBeLessThan(
+    shardCommands.indexOf('sh scripts/ci/iphone-ui-tests.sh test'),
   )
   const script = read('scripts/ci/iphone-ui-tests.sh')
   expect(script).toContain('bundle=${DEVOT_UI_BUILD:-$root/test-results/iphone-ui-build}')
