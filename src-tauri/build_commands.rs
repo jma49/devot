@@ -35,6 +35,7 @@ const NOTES: &[&str] = &[
     "notes_bodies",
     "notes_summaries",
     "note_put",
+    "note_put_meta",
     "notes_search",
     "note_backlinks",
     "notes_trash_list",

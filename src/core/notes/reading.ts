@@ -23,13 +23,15 @@ export function readingMethods(
   | 'cardExcerpts'
 > {
   const { live, holds } = ctx
-  const { bodies, getStored, trim, using } = k.memory
+  const { bodies, getStored, letGo, trim, using } = k.memory
   return {
     open: (id, known) =>
       using(id, (note) => ({
         id,
         title: note.record.title,
-        state: (known ? undefined : note.state) ?? Y.encodeStateAsUpdate(note.doc, known),
+        state: known
+          ? Y.encodeStateAsUpdate(note.doc, known)
+          : (note.state ??= Y.encodeStateAsUpdate(note.doc)),
       })),
 
     title: (id) => using(id, (note) => note.record.title),
@@ -41,16 +43,19 @@ export function readingMethods(
     unhold(id) {
       const left = (holds.get(id) ?? 0) - 1
       if (left > 0) holds.set(id, left)
-      else holds.delete(id)
+      else if (holds.delete(id)) letGo(id)
       trim()
     },
 
     async read(id) {
       const note = live.get(id)
-      const record = note?.record ?? (await getStored(id))
+      if (note) {
+        const { title, bookId } = note.record
+        return { id, title, bodyMd: note.doc.getText(BODY).toString(), bookId }
+      }
+      const record = await getStored(id)
       if (!record) throw new Error('E_NOTE_NOT_FOUND')
-      const bodyMd = note ? note.doc.getText(BODY).toString() : record.bodyMd
-      return { id, title: record.title, bodyMd, bookId: record.bookId }
+      return { id, title: record.title, bodyMd: record.bodyMd, bookId: record.bookId }
     },
 
     async headlines(ids) {

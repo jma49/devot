@@ -103,67 +103,57 @@ function syncAttributes(el: Element, node: HastElement): void {
 const isIsland = (node: HastElement) => node.properties['dataDevotIsland'] !== undefined
 
 const LINE_ATTRIBUTE = 'data-source-line'
-const OFFSET_ATTRIBUTES = ['data-task-at', 'data-image-from', 'data-image-to']
-/** Which shift each marked attribute takes: 0 the piece's lines, 1 its characters. */
-const MARK_SHIFT = new Map<string, 0 | 1>([
-  [LINE_ATTRIBUTE, 0],
-  ...OFFSET_ATTRIBUTES.map((name) => [name, 1] as const),
-])
-const NO_SHIFT = [0, 0] as const
+const OFFSET_ATTRIBUTES = ['data-task-at', 'data-image-from', 'data-image-to'] as const
+const MARK_ATTRIBUTES = new Set<string>([LINE_ATTRIBUTE, ...OFFSET_ATTRIBUTES])
 
-/** A piece's marked elements as it is built in document order, and how far each counts from its start. */
+/** A piece's marked elements as it is built, in document order, and the lines each counts from. */
 interface Marking {
   marked: Element[]
-  shift: (index: number) => readonly [number, number]
+  lines: (index: number) => number
 }
 
-function markingFor(piece: {
-  line: number
-  offset: number
-  parts?: readonly PiecePart[] | undefined
-}): Marking {
+function markingFor(piece: { line: number; parts?: readonly PiecePart[] | undefined }): Marking {
   const marked: Element[] = []
   const { parts } = piece
   if (!parts) {
-    const whole = [piece.line - 1, piece.offset] as const
-    return { marked, shift: () => whole }
+    const whole = piece.line - 1
+    return { marked, lines: () => whole }
   }
   let at = 0
   let end = parts[0]?.marks ?? 0
   return {
     marked,
-    shift: (index) => {
+    lines: (index) => {
       while (at < parts.length && index >= end) {
         at += 1
         end += parts[at]?.marks ?? 0
       }
       const part = parts[at]
-      return part ? [part.line - 1, part.offset] : NO_SHIFT
+      return part ? part.line - 1 : 0
     },
   }
 }
 
-/** `syncAttributes` for an element just made, with its line and offsets already shifted. */
+/** `syncAttributes` for an element just made, with its line already shifted (offsets count from their piece). */
 function setAttributes(el: Element, node: HastElement, marking: Marking | undefined): void {
   let src: string | undefined
   let checked = false
   let swatch: string | undefined
   let tagColor: string | null = null
-  let shift: readonly [number, number] | undefined
+  let lines: number | undefined
   for (const key in node.properties) {
     const value = node.properties[key]
     if (value === null || value === undefined || value === false) continue
     const info = infoOf(key)
     const name = info.attribute
     if (name === 'style') continue
-    const shifted = typeof value === 'number' ? MARK_SHIFT.get(name) : undefined
     let text: string
-    if (marking && typeof value === 'number' && shifted !== undefined) {
-      if (!shift) {
-        shift = marking.shift(marking.marked.length)
+    if (marking && typeof value === 'number' && MARK_ATTRIBUTES.has(name)) {
+      if (lines === undefined) {
+        lines = marking.lines(marking.marked.length)
         marking.marked.push(el)
       }
-      text = String(value + shift[shifted])
+      text = String(name === LINE_ATTRIBUTE ? value + lines : value)
     } else {
       text =
         value === true
@@ -303,24 +293,38 @@ function markedIn(nodes: readonly ChildNode[]): Element[] {
   return out
 }
 
-function bump(el: Element, name: string, by: number): void {
-  const value = el.getAttribute(name)
-  if (value !== null) el.setAttribute(name, String(Number(value) + by))
-}
-
-function shiftMarked(
-  marked: readonly Element[],
-  from: number,
-  to: number,
-  lines: number,
-  chars: number,
-) {
-  if (lines === 0 && chars === 0) return
+// Offsets stay counted from their piece (or part) on the page, so typing changes no attribute
+// after the edit; `noteOffset` adds the start. Lines are the note's, which scroll sync reads.
+function shiftLines(marked: readonly Element[], from: number, to: number, lines: number) {
+  if (lines === 0) return
   for (let i = from; i < to; i += 1) {
     const el = marked[i]!
-    if (lines !== 0) bump(el, LINE_ATTRIBUTE, lines)
-    if (chars !== 0) for (const name of OFFSET_ATTRIBUTES) bump(el, name, chars)
+    const value = el.getAttribute(LINE_ATTRIBUTE)
+    if (value !== null) el.setAttribute(LINE_ATTRIBUTE, String(Number(value) + lines))
   }
+}
+
+export type OffsetAttribute = (typeof OFFSET_ATTRIBUTES)[number]
+
+/** Where in the note `el`'s `name` points, or undefined when it has none or is not in `shown`. */
+export function noteOffset(
+  shown: readonly ShownPiece[],
+  el: Element,
+  name: OffsetAttribute,
+): number | undefined {
+  const value = el.getAttribute(name)
+  if (value === null) return undefined
+  const piece = shown.find((one) => one.nodes.some((node) => node.contains(el)))
+  if (!piece) return undefined
+  let base = piece.offset
+  if (piece.parts) {
+    const at = piece.marked.indexOf(el)
+    let marks = 0
+    const part = piece.parts.find((one) => (marks += one.marks) > at)
+    if (at < 0 || !part) return undefined
+    base = part.offset
+  }
+  return Number(value) + base
 }
 
 function moveTo(piece: ShownPiece, to: NextPiece): void {
@@ -329,25 +333,12 @@ function moveTo(piece: ShownPiece, to: NextPiece): void {
   } else if (piece.parts && to.parts) {
     let from = 0
     for (const [at, part] of to.parts.entries()) {
-      const was = piece.parts[at]!
-      shiftMarked(
-        piece.marked,
-        from,
-        from + part.marks,
-        part.line - was.line,
-        part.offset - was.offset,
-      )
+      shiftLines(piece.marked, from, from + part.marks, part.line - piece.parts[at]!.line)
       from += part.marks
     }
     piece.parts = to.parts.map((part) => ({ ...part }))
   } else {
-    shiftMarked(
-      piece.marked,
-      0,
-      piece.marked.length,
-      to.line - piece.line,
-      to.offset - piece.offset,
-    )
+    shiftLines(piece.marked, 0, piece.marked.length, to.line - piece.line)
   }
   piece.line = to.line
   piece.offset = to.offset

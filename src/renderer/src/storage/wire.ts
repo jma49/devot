@@ -1,19 +1,30 @@
 // Storage between the core worker and the page. Tauri commands are reachable
-// from the page only, so the worker's storage calls cross to it; a note's or
-// a version's Yjs state crosses as the base64 string the commands take
-// (note_put, note_get, revision_put, revision_get). The worker codes it
-// (fromWire), finds the note's links and checks its limits, so the page
-// hands what it gets to the commands without reading it: a save or an open
-// costs the UI thread no work for each byte of a state, which for a long,
-// much-edited note is several MiB. A note opened for its editor (note_open)
-// comes as bytes, its state as stored and no body (see `openedNote`), which
-// the page passes on without decoding any JSON.
+// from the page only, so the worker's storage calls cross to it. A note to
+// write crosses as one buffer the worker lays out (`noteFrame`) and moves to
+// the page without a copy, which hands it to note_put as the raw request
+// body; a note opened for its editor (note_open) comes back as bytes the same
+// way (`openedNote`). The worker finds the note's links and checks its limits,
+// so the page reads nothing of either: a save or an open costs the UI thread
+// no work for each byte of the note, which for a long, much-edited one is
+// several MiB. A write that changed no text sends the fields alone
+// (note_put_meta). A version's Yjs state still crosses as base64 coded in the
+// worker (revision_put, revision_get), as does a note read whole (note_get).
+import * as Comlink from 'comlink'
 import type { NoteRecord, OpenedRecord, RevisionRecord, StorageAdapter } from '../../../core'
 import { noteLinks } from '../../../core/links'
-import { checkNote } from '../../../core/noteLimits'
+import { checkNote, checkNoteMeta } from '../../../core/noteLimits'
 
 export type WireNote = Omit<NoteRecord, 'ydoc'> & { ydoc: string }
 export type WireRevision = Omit<RevisionRecord, 'ydoc'> & { ydoc: string | null }
+
+/** A note to write: the page reads its ID and date, and passes `frame` (`noteFrame`) on as it is. */
+export interface WireNoteFrame {
+  id: string
+  updatedAt: number
+  /** Whether it brings the note's agent_writes rows. */
+  withRows: boolean
+  frame: ArrayBuffer
+}
 
 export interface WireStorage extends Omit<
   StorageAdapter,
@@ -22,7 +33,7 @@ export interface WireStorage extends Omit<
   getNote(id: string, options?: { trashed?: boolean }): Promise<WireNote | null>
   /** The note as `openedFrame` lays it out. */
   openNote(id: string): Promise<ArrayBuffer>
-  putNote(note: WireNote, links: string[]): Promise<void>
+  putNote(note: WireNoteFrame): Promise<void>
   getRevision(id: string): Promise<WireRevision | null>
   putRevision(revision: WireRevision): Promise<void>
 }
@@ -102,6 +113,49 @@ export function openedNote(frame: ArrayBuffer): OpenedRecord | null {
   return { ...fields, ydoc: new Uint8Array(frame, 4 + length) }
 }
 
+/**
+ * A note as note_put takes it (`note_frame` in src-tauri/src/commands/notes.rs): the length of the
+ * JSON of its fields, its links and its agent_writes rows (4 bytes, little-endian), that JSON, the
+ * length of its body, the body as UTF-8, then its Yjs state.
+ */
+export function noteFrame(note: NoteRecord, links: readonly string[]): ArrayBuffer {
+  const { bodyMd, ydoc, agentWrites, ...fields } = note
+  const json = utf8.encode(JSON.stringify({ note: fields, links, writes: agentWrites ?? null }))
+  const body = utf8.encode(bodyMd)
+  const frame = new Uint8Array(8 + json.length + body.length + ydoc.length)
+  const view = new DataView(frame.buffer)
+  view.setUint32(0, json.length, true)
+  frame.set(json, 4)
+  view.setUint32(4 + json.length, body.length, true)
+  frame.set(body, 8 + json.length)
+  frame.set(ydoc, 8 + json.length + body.length)
+  return frame.buffer
+}
+
+/** `noteFrame` read back. */
+export function framedNote(frame: ArrayBuffer): { note: NoteRecord; links: string[] } {
+  const view = new DataView(frame)
+  const jsonLength = view.getUint32(0, true)
+  const { note, links, writes } = JSON.parse(
+    fromUtf8.decode(new Uint8Array(frame, 4, jsonLength)),
+  ) as {
+    note: Omit<NoteRecord, 'bodyMd' | 'ydoc' | 'agentWrites'>
+    links: string[]
+    writes: NoteRecord['agentWrites'] | null
+  }
+  const bodyLength = view.getUint32(4 + jsonLength, true)
+  const bodyAt = 8 + jsonLength
+  return {
+    note: {
+      ...note,
+      bodyMd: fromUtf8.decode(new Uint8Array(frame, bodyAt, bodyLength)),
+      ydoc: new Uint8Array(frame.slice(bodyAt + bodyLength)),
+      ...(writes ? { agentWrites: writes } : {}),
+    },
+    links,
+  }
+}
+
 const noteIn = (note: WireNote): NoteRecord => ({ ...note, ydoc: fromBase64(note.ydoc) })
 const revisionIn = (revision: WireRevision): RevisionRecord => ({
   ...revision,
@@ -109,9 +163,9 @@ const revisionIn = (revision: WireRevision): RevisionRecord => ({
 })
 
 /**
- * The worker's storage over the page's: states are coded here, and a note's
- * links found and its limits checked here (what note_put refuses is refused
- * with its code before anything crosses). Every call is passed on by name:
+ * The worker's storage over the page's: notes are framed and states coded
+ * here, and a note's links found and its limits checked here (what note_put
+ * refuses is refused with its code before anything crosses). Every call is passed on by name:
  * the page's storage reaches the worker as a proxy, which has no methods of
  * its own to copy.
  */
@@ -132,7 +186,14 @@ export function fromWire(wire: WireStorage): StorageAdapter {
     async putNote(note) {
       const links = noteLinks(note.bodyMd)
       checkNote(note, links)
-      await wire.putNote({ ...note, ydoc: toBase64(note.ydoc) }, links)
+      const frame = noteFrame(note, links)
+      const { id, updatedAt } = note
+      const framed = { id, updatedAt, withRows: note.agentWrites !== undefined, frame }
+      await wire.putNote(Comlink.transfer(framed, [frame]))
+    },
+    async putNoteMeta(note) {
+      checkNoteMeta(note)
+      await wire.putNoteMeta(note)
     },
     putFile: (meta, data) => wire.putFile(meta, data),
     copyFiles: (noteId, copies) => wire.copyFiles(noteId, copies),
@@ -178,7 +239,7 @@ export function toWire(storage: StorageAdapter): WireStorage {
       return note ? { ...note, ydoc: toBase64(note.ydoc) } : null
     },
     openNote: async (id) => openedFrame(await storage.openNote(id)),
-    putNote: (note) => storage.putNote(noteIn(note)),
+    putNote: ({ frame }) => storage.putNote(framedNote(frame).note),
     async getRevision(id) {
       const revision = await storage.getRevision(id)
       return revision

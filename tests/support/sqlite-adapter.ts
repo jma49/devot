@@ -7,9 +7,10 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { onTestFinished } from 'vitest'
 import type { AiStorage } from '../../src/core/ai'
+import type { AgentWriteRow } from '../../src/core/authorship'
 import { checkUpload } from '../../src/core/files'
 import { noteLinks } from '../../src/core/links'
-import { checkNote } from '../../src/core/noteLimits'
+import { checkNote, checkNoteMeta } from '../../src/core/noteLimits'
 import { isNotebookIcon } from '../../src/core/notebookIcons'
 import {
   bodyExcerpt,
@@ -757,6 +758,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const dropRevisions = db.prepare('DELETE FROM revisions WHERE note_id = ?')
   const keepAgentWrites = db.prepare(AGENT_WRITES_SQL.keep)
   const putAgentWrite = db.prepare(AGENT_WRITES_SQL.put)
+  // As in SQL: the note's rows are replaced, each keeping whether it was seen.
+  const replaceAgentWrites = (noteId: string, rows: readonly AgentWriteRow[]) => {
+    keepAgentWrites.run({ noteId, ids: JSON.stringify(rows.map((w) => w.writeId)) })
+    for (const row of rows) putAgentWrite.run({ noteId, ...row, created: row.created ? 1 : 0 })
+  }
   const listAgentWrites = db.prepare<
     [{ limit: number }],
     Omit<AgentWriteSummary, 'created' | 'seen'> & { created: number; seen: number }
@@ -856,6 +862,28 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
                          THEN excluded.updated_at ELSE MAX(excluded.updated_at, updated_at) END,
        dates_hlc = MAX(excluded.dates_hlc, dates_hlc)
      WHERE purged_at IS NULL AND body_version = @bodyVersion`,
+  )
+  // The Rust store's put_note_meta: put's merge and compare-and-set, the body left as stored.
+  const putMeta = db.prepare(
+    `UPDATE notes SET
+       title = CASE WHEN @titleHlc > title_hlc THEN @title ELSE title END,
+       title_hlc = MAX(@titleHlc, title_hlc),
+       book_id = CASE WHEN @bookHlc > book_hlc THEN @bookId ELSE book_id END,
+       book_hlc = MAX(@bookHlc, book_hlc),
+       status = CASE WHEN @statusHlc > status_hlc THEN @status ELSE status END,
+       status_hlc = MAX(@statusHlc, status_hlc),
+       pinned = CASE WHEN @pinnedHlc > pinned_hlc THEN @pinned ELSE pinned END,
+       pinned_hlc = MAX(@pinnedHlc, pinned_hlc),
+       deleted_at = CASE WHEN COALESCE(@deletedHlc, '') > COALESCE(deleted_hlc, '')
+                         THEN @deletedAt ELSE deleted_at END,
+       deleted_hlc = CASE WHEN COALESCE(@deletedHlc, '') > COALESCE(deleted_hlc, '')
+                          THEN @deletedHlc ELSE deleted_hlc END,
+       body_version = @bodyVersion + 1,
+       created_at = CASE WHEN @datesHlc > dates_hlc THEN @createdAt ELSE created_at END,
+       updated_at = CASE WHEN @datesHlc > dates_hlc
+                         THEN @updatedAt ELSE MAX(@updatedAt, updated_at) END,
+       dates_hlc = MAX(@datesHlc, dates_hlc)
+     WHERE id = @id AND purged_at IS NULL AND body_version = @bodyVersion`,
   )
   const purged = db.prepare<[string], { purged: number }>(
     'SELECT purged_at IS NOT NULL AS purged FROM notes WHERE id = ?',
@@ -1055,12 +1083,25 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         }
         dropNoteLinks.run(note.id)
         for (const target of links) addNoteLink.run(note.id, target)
-        if (!agentWrites) return
-        const noteId = note.id
-        keepAgentWrites.run({ noteId, ids: JSON.stringify(agentWrites.map((w) => w.writeId)) })
-        for (const row of agentWrites) {
-          putAgentWrite.run({ noteId, ...row, created: row.created ? 1 : 0 })
+        if (agentWrites) replaceAgentWrites(note.id, agentWrites)
+      }).immediate()
+    },
+    async putNoteMeta(note) {
+      checkNoteMeta(note)
+      const { agentWrites, ...record } = note
+      db.transaction(() => {
+        const written = putMeta.run({
+          ...record,
+          pinned: record.pinned ? 1 : 0,
+          datesHlc: record.datesHlc ?? '',
+        }).changes
+        if (written === 0) {
+          const stored = purged.get(note.id)
+          if (!stored) throw new Error('E_NOTE_NOT_FOUND')
+          if (stored.purged === 0) throw new Error('E_NOTE_BODY_STALE')
+          return
         }
+        if (agentWrites) replaceAgentWrites(note.id, agentWrites)
       }).immediate()
     },
     async searchNotes(query, limit) {

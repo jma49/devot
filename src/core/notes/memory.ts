@@ -2,11 +2,11 @@ import * as Y from 'yjs'
 import { receiveStored } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { REVISION_PAUSE_MS } from '../revisions'
-import { MAX_BODY_IDS, type NoteBody, type NoteRecord, type NoteSummary } from '../storage'
+import { MAX_BODY_IDS, type NoteBody, type NoteSummary, type OpenedRecord } from '../storage'
 import { BODY } from './body'
 import type { Live, NoteContext } from './context'
 import type { Kernel } from './kernel'
-import { dirty, stampsOf } from './records'
+import { dirty, heldOf, stampsOf } from './records'
 
 /** Notes beyond this go once nothing of them can be lost (see trim); held and busy notes stay besides. */
 export const NOTES_IN_MEMORY = 8
@@ -21,16 +21,21 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
   const { stopTimers, takeVersion } = k.versions
   const { settle } = k.problems
   const { relay, relayChanges } = k.relay
-  const liveNote = (record: NoteRecord, doc: Y.Doc, fresh: boolean): Live => {
-    relayChanges(record.id, doc)
+  /** `doc` must be as stored: every note is made live once it was read or written. */
+  const liveNote = (stored: OpenedRecord, doc: Y.Doc, fresh: boolean): Live => {
+    relayChanges(stored.id, doc)
+    const record = heldOf(stored)
     const note: Live = {
       record,
       saved: record,
       doc,
       state: undefined,
+      stateBytes: stored.ydoc.byteLength,
       timer: undefined,
       edits: 0,
       savedEdits: 0,
+      changes: 0,
+      storedChanges: 0,
       queue: Promise.resolve(),
       writes: 0,
       users: 0,
@@ -49,8 +54,23 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     }
     doc.on('update', () => {
       note.state = undefined
+      note.changes += 1
     })
     return note
+  }
+
+  // The encoded state is a second copy of the note: only a note in use, held, or let go of last keeps it.
+  const keepsState = (note: Live) =>
+    note.users > 0 || holds.has(note.record.id) || ctx.lastLeft === note.record.id
+
+  const forgetState = (note: Live | undefined) => {
+    if (note && !keepsState(note)) note.state = undefined
+  }
+
+  const letGo = (id: string) => {
+    const before = ctx.lastLeft
+    ctx.lastLeft = id
+    if (before !== undefined && before !== id) forgetState(live.get(before))
   }
 
   const drop = (note: Live) => {
@@ -123,12 +143,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
           // A title stored past the limit (by an older build) is cut here, so
           // the note's writes are taken. The stored one stays until a rename:
           // a write with the same HLC never replaces it.
-          const record: NoteRecord = {
-            ...opened,
-            title: clipTitle(opened.title),
-            bodyMd: doc.getText(BODY).toString(),
-          }
-          const note = liveNote(record, doc, false)
+          const note = liveNote({ ...opened, title: clipTitle(opened.title) }, doc, false)
           note.state = tight(opened.ydoc)
           note.users = pending.users
           live.set(id, note)
@@ -151,6 +166,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
       return await work(note)
     } finally {
       note.users -= 1
+      forgetState(note)
       trim()
     }
   }
@@ -184,5 +200,17 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     return note && live.get(id) === note ? note : undefined
   }
 
-  return { liveNote, drop, bodies, summaries, getStored, load, using, trim, inMemory }
+  return {
+    liveNote,
+    drop,
+    bodies,
+    summaries,
+    getStored,
+    load,
+    using,
+    trim,
+    inMemory,
+    keepsState,
+    letGo,
+  }
 }

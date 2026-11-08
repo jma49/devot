@@ -4413,3 +4413,100 @@ fn measure_secure_delete_cost() {
         );
     }
 }
+
+fn meta_of(note: &NoteRecord) -> NoteMeta {
+    NoteMeta {
+        id: note.id.clone(),
+        title: note.title.clone(),
+        title_hlc: note.title_hlc.clone(),
+        body_version: note.body_version,
+        book_id: note.book_id.clone(),
+        book_hlc: note.book_hlc.clone(),
+        status: note.status.clone(),
+        status_hlc: note.status_hlc.clone(),
+        pinned: note.pinned,
+        pinned_hlc: note.pinned_hlc.clone(),
+        created_at: note.created_at,
+        updated_at: note.updated_at,
+        dates_hlc: note.dates_hlc.clone(),
+        deleted_at: note.deleted_at,
+        deleted_hlc: note.deleted_hlc.clone(),
+    }
+}
+
+#[test]
+fn writes_the_fields_alone_as_a_whole_write_merges_them() {
+    let (_dir, mut store) = temp_store();
+    let first = note("a", "A", 10);
+    store
+        .put_note_with_writes(
+            &first,
+            &["b".into()],
+            Some(&[agent_write("AAAAAAAAAAA", "mcp", 5)]),
+        )
+        .unwrap();
+    let edits = |store: &Store| -> i64 {
+        store
+            .conn
+            .query_row("SELECT edits FROM sync_records WHERE id = 'a'", [], |row| {
+                row.get(0)
+            })
+            .unwrap()
+    };
+    let synced = edits(&store);
+    let renamed = NoteRecord {
+        title: "Renamed".into(),
+        title_hlc: "0000000000020-0000-test".into(),
+        status: "active".into(),
+        status_hlc: "0000000000020-0000-test".into(),
+        ..based_on(1, note("a", "A", 20))
+    };
+    store.put_note_meta(&meta_of(&renamed), None).unwrap();
+    let stored = store.get_note("a", false).unwrap().unwrap();
+    assert_eq!(
+        (
+            stored.title.as_str(),
+            stored.status.as_str(),
+            stored.updated_at
+        ),
+        ("Renamed", "active", 20)
+    );
+    // The body, its state, its links and its rows stay as stored; the version moves on.
+    assert_eq!((stored.body_md, stored.ydoc), (first.body_md, first.ydoc));
+    assert_eq!(stored.body_version, 2);
+    assert_eq!(link_rows(&store), [("a".into(), "b".into())]);
+    assert_eq!(listed_writes(&store).len(), 1);
+    assert_eq!(edits(&store), synced + 1);
+
+    // An older stamp loses each field, as in a whole write; a later date still moves on.
+    let older = NoteRecord {
+        title: "Old".into(),
+        title_hlc: "0000000000001-0000-test".into(),
+        ..based_on(2, note("a", "A", 30))
+    };
+    store.put_note_meta(&meta_of(&older), Some(&[])).unwrap();
+    let stored = store.get_note("a", false).unwrap().unwrap();
+    assert_eq!(
+        (
+            stored.title.as_str(),
+            stored.status.as_str(),
+            stored.updated_at
+        ),
+        ("Renamed", "active", 30)
+    );
+    assert_eq!(listed_writes(&store), []);
+
+    let stale = store.put_note_meta(&meta_of(&based_on(1, note("a", "A", 40))), None);
+    assert!(matches!(stale, Err(StorageError::BodyStale)));
+    let unknown = store.put_note_meta(&meta_of(&note("c", "C", 40)), None);
+    assert!(matches!(
+        unknown,
+        Err(StorageError::Refused("E_NOTE_NOT_FOUND"))
+    ));
+    assert!(!store.has_note("c").unwrap());
+    store
+        .trash_and_purge("a", 50, "0000000000050-0000-test")
+        .unwrap();
+    let purged = store.put_note_meta(&meta_of(&based_on(3, note("a", "A", 60))), None);
+    assert!(matches!(purged, Err(StorageError::Purged)));
+}

@@ -50,6 +50,8 @@ struct SettingsRootView: View {
             }
         }
         .listStyle(.insetGrouped)
+        // The tab bar's scroll edge effect would otherwise fade the build footer even at the foot.
+        .contentMargins(.bottom, Tokens.Size.phoneTabEdge, for: .scrollContent)
         .settingsPage(store)
         .overlay {
             if !query.text.trimmingCharacters(in: .whitespaces).isEmpty, sections.isEmpty {
@@ -92,10 +94,7 @@ struct SettingsRootView: View {
             }
         } footer: {
             if let version = store.version {
-                Text(L10n.phoneSettingsBuild(version: version)).settingsDetail().monospacedDigit()
-                    .foregroundStyle(Color(Tokens.Color.phoneTextFaint))
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, SheetMetrics.gap)
+                BuildFooter(text: L10n.phoneSettingsBuild(version: version))
             }
         }
     }
@@ -170,6 +169,16 @@ struct SettingsRootView: View {
     }
 }
 
+/// The build under the last card, centred, its gap above scaled with its text.
+private struct BuildFooter: View {
+    let text: String
+    @ScaledMetric(relativeTo: .body) private var gap = SheetMetrics.gap
+
+    var body: some View {
+        Text(text).settingsDetail().monospacedDigit().frame(maxWidth: .infinity).padding(.top, gap)
+    }
+}
+
 /// Restore Purchases' value: what the last restore did.
 enum Restoring: Equatable {
     case running, restored, nothing
@@ -206,6 +215,7 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
     private let query: SettingsQuery
     var onAppear: () -> Void = {}
     var onPair: () -> Void = {}
+    private var footKeeper: FootKeeper?
 
     init(store: SettingsStore, query: SettingsQuery, actions: SettingsActions) {
         self.query = query
@@ -233,6 +243,13 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
         view.backgroundColor = Tokens.Color.phoneBackground
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if footKeeper == nil, let list = view.firstSubview(of: UICollectionView.self) {
+            footKeeper = FootKeeper(list)
+        }
+    }
+
     override func viewIsAppearing(_ animated: Bool) {
         super.viewIsAppearing(animated)
         onAppear()
@@ -240,5 +257,53 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
 
     func updateSearchResults(for searchController: UISearchController) {
         query.text = searchController.searchBar.text ?? ""
+    }
+}
+
+/// Keeps a list at its foot while its content grows, once the reader has scrolled there: a list keeps its
+/// offset otherwise, so a larger text size would push the build footer off the screen, and SwiftUI's list
+/// can pass through a short content size on the way.
+@MainActor
+final class FootKeeper {
+    private let list: UIScrollView
+    private let movedByTheReader: @MainActor (UIScrollView) -> Bool
+    private var observations: [NSKeyValueObservation] = []
+    private var adjusting = false
+    private(set) var atTheFoot = false
+
+    init(_ list: UIScrollView, movedByTheReader: @escaping @MainActor (UIScrollView) -> Bool = {
+        $0.isTracking || $0.isDragging || $0.isDecelerating
+    }) {
+        self.list = list
+        self.movedByTheReader = movedByTheReader
+        observations = [
+            list.observe(\.contentOffset) { [weak self] _, _ in MainActor.assumeIsolated { self?.moved() } },
+            list.observe(\.contentSize) { [weak self] _, _ in MainActor.assumeIsolated { self?.resized() } },
+        ]
+    }
+
+    private var foot: CGFloat {
+        max(-list.adjustedContentInset.top, list.contentSize.height + list.adjustedContentInset.bottom - list.bounds.height)
+    }
+
+    private func moved() {
+        guard !adjusting, movedByTheReader(list) else { return }
+        atTheFoot = list.contentOffset.y >= foot - 1
+    }
+
+    private func resized() {
+        guard atTheFoot, abs(list.contentOffset.y - foot) > 0.5 else { return }
+        adjusting = true
+        list.contentOffset.y = foot
+        adjusting = false
+    }
+}
+
+extension UIView {
+    fileprivate func firstSubview<View: UIView>(of type: View.Type) -> View? {
+        for subview in subviews {
+            if let match = subview as? View ?? subview.firstSubview(of: type) { return match }
+        }
+        return nil
     }
 }

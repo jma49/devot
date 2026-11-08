@@ -1,16 +1,19 @@
-// Yjs states cross between the core worker and the page as base64 coded in the worker, so a save or an open costs
-// the UI thread no per-byte work (a long, much-edited note's state is several MiB).
+// Notes and Yjs states cross between the core worker and the page framed or coded in the worker, so a save or an
+// open costs the UI thread no per-byte work (a long, much-edited note's state is several MiB).
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteRecord, RevisionRecord } from '../../src/core'
 import { invoke } from '../../src/renderer/src/ipc'
 import { tauriStorage, tauriWire } from '../../src/renderer/src/storage/tauri'
 import {
+  framedNote,
   fromBase64,
   fromWire,
+  noteFrame,
   toBase64,
   toWire,
   type WireNote,
+  type WireNoteFrame,
   type WireStorage,
 } from '../../src/renderer/src/storage/wire'
 import { expectWithinBudget } from '../support/budget'
@@ -135,24 +138,27 @@ describe('the worker’s side', () => {
     const sqlite = openSqliteAdapter(join(tempDir('devot-wire-'), 'devot.sqlite'))
     open.push(sqlite)
     const wire = toWire(sqlite)
-    const puts: { note: WireNote; links: string[] }[] = []
+    const puts: WireNoteFrame[] = []
     const watched: WireStorage = {
       ...wire,
-      async putNote(record, links) {
-        puts.push({ note: record, links })
-        await wire.putNote(record, links)
+      async putNote(framed) {
+        // Read before storage takes it: the frame is the note as it crossed.
+        puts.push({ ...framed, frame: framed.frame.slice(0) })
+        await wire.putNote(framed)
       },
     }
     return { sqlite, puts, storage: fromWire(watched) }
   }
 
-  it('codes states, finds the links and checks the limits before anything crosses', async () => {
+  it('frames notes, finds the links and checks the limits before anything crosses', async () => {
     const { sqlite, puts, storage } = stores()
-    const record = note({ ydoc: bytes(MIB) })
+    const record = note({ ydoc: bytes(MIB), bodyMd: `${note().bodyMd} \u00e9\u{1f600}` })
     await storage.putNote(record)
     expect(puts).toHaveLength(1)
-    expect(puts[0]?.note.ydoc).toBe(toBase64(record.ydoc))
-    expect(puts[0]?.links).toEqual(['0192a6f0-0000-7000-8000-000000000002'])
+    expect(puts[0]).toMatchObject({ id: record.id, updatedAt: 1, withRows: false })
+    const crossed = framedNote(puts[0]!.frame)
+    expect(crossed.note).toEqual(record)
+    expect(crossed.links).toEqual(['0192a6f0-0000-7000-8000-000000000002'])
     const stored = fields({ ...record, bodyVersion: 1 })
     expect(fields((await sqlite.getNote(record.id))!)).toEqual(stored)
     expect(fields((await storage.getNote(record.id))!)).toEqual(stored)
@@ -161,6 +167,19 @@ describe('the worker’s side', () => {
       'E_NOTE_TITLE_INVALID',
     )
     expect(puts).toHaveLength(1)
+
+    const { bodyMd: _, ydoc: __, ...meta } = { ...record, bodyVersion: 1 }
+    await storage.putNoteMeta({ ...meta, title: 'Renamed', titleHlc: '0000000000002-0000-test' })
+    expect(puts).toHaveLength(1)
+    expect(fields((await sqlite.getNote(record.id))!)).toEqual({
+      ...stored,
+      title: 'Renamed',
+      titleHlc: '0000000000002-0000-test',
+      bodyVersion: 2,
+    })
+    await expect(storage.putNoteMeta({ ...meta, title: 'Two\nlines' })).rejects.toThrow(
+      'E_NOTE_TITLE_INVALID',
+    )
 
     const revision: RevisionRecord = {
       id: 'r1',
@@ -180,13 +199,12 @@ describe('the worker’s side', () => {
 })
 
 describe('the page’s side', () => {
-  it('hands states to the commands as they came, without reading them', async () => {
-    const record: WireNote = { ...note(), ydoc: toBase64(bytes(MIB)) }
-    await tauriWire.putNote(record, ['x'])
-    expect(invoke).toHaveBeenCalledWith('note_put', { note: record, links: ['x'], writes: null })
-    const sent = vi.mocked(invoke).mock.calls[0]?.[1] as { note: WireNote }
-    expect(sent.note).toBe(record)
-    // The agent_writes rows go beside the note, as note_put takes them.
+  it('hands notes and states to the commands as they came, without reading them', async () => {
+    const frame = noteFrame(note({ ydoc: bytes(MIB) }), ['x'])
+    await tauriWire.putNote({ id: note().id, updatedAt: 1, withRows: false, frame })
+    expect(invoke).toHaveBeenCalledWith('note_put', frame)
+    expect(vi.mocked(invoke).mock.calls[0]?.[1]).toBe(frame)
+    // The agent_writes rows go beside the fields, as note_put_meta takes them.
     const row = {
       writeId: 'AAAAAAAAAAA',
       kind: 'mcp' as const,
@@ -194,9 +212,13 @@ describe('the page’s side', () => {
       at: 1,
       created: false,
     }
-    await tauriWire.putNote({ ...record, agentWrites: [row] }, [])
-    expect(invoke).toHaveBeenLastCalledWith('note_put', { note: record, links: [], writes: [row] })
+    const { bodyMd: _, ydoc: __, ...meta } = note()
+    await tauriWire.putNoteMeta(meta)
+    expect(invoke).toHaveBeenLastCalledWith('note_put_meta', { note: meta, writes: null })
+    await tauriWire.putNoteMeta({ ...meta, agentWrites: [row] })
+    expect(invoke).toHaveBeenLastCalledWith('note_put_meta', { note: meta, writes: [row] })
 
+    const record: WireNote = { ...note(), ydoc: toBase64(bytes(MIB)) }
     vi.mocked(invoke).mockResolvedValueOnce(record)
     expect(await tauriWire.getNote(record.id)).toBe(record)
     expect(invoke).toHaveBeenLastCalledWith('note_get', { id: record.id, trashed: false })
@@ -229,10 +251,11 @@ describe('the page’s side', () => {
 
   it('costs the UI thread no work for each byte of a 4 MiB state', async (context) => {
     const record: WireNote = { ...note(), ydoc: toBase64(bytes(4 * MIB)) }
+    const framed = { id: record.id, updatedAt: 1, withRows: false, frame: new ArrayBuffer(4 * MIB) }
     vi.mocked(invoke).mockResolvedValue(record)
     const start = performance.now()
     for (let i = 0; i < 50; i += 1) {
-      await tauriWire.putNote(record, [])
+      await tauriWire.putNote(framed)
       await tauriWire.getNote(record.id)
     }
     expectWithinBudget(context, performance.now() - start, 5)

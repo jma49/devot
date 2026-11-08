@@ -1,6 +1,6 @@
 import { clipTitle } from '../noteLimits'
 import { NOTE_STATUSES, type NoteRecord } from '../storage'
-import { dirty, hlcOf, untilWritten, withField, type MetaField } from './records'
+import { dirty, hlcOf, metaOf, untilWritten, withField, type MetaField } from './records'
 import type { Live, NoteContext } from './context'
 import type { Kernel } from './kernel'
 import type { MetaChange, NoteService } from './types'
@@ -24,7 +24,7 @@ export function metaMethods(
   const { keepBaseline, recordEvents, sweep } = k.versions
   const { settle } = k.problems
   const { takeIn } = k.relay
-  const { getStored, using } = k.memory
+  const { getStored, summaries, using } = k.memory
   const { exclusive, failed, write, save, schedule } = k.saving
   const { requireBook } = k.books
   const { retitle } = k.edits
@@ -74,7 +74,7 @@ export function metaMethods(
           text: stored.bodyMd,
           at: stored.updatedAt,
         })
-        await storage.putNote(record)
+        await storage.putNoteMeta(metaOf(record))
         recordEvents(undefined, before, record)
         sweep()
       }),
@@ -131,8 +131,16 @@ export function metaMethods(
         await save(note)
         await exclusive(note, async () => {
           // Sync writes storage directly: the note in memory may not have heard yet.
-          const stored = await getStored(id, { trashed: true })
-          if (stored) takeIn(note, stored)
+          // Every write moves the stored body version, so only a moved one is read whole.
+          const [summary] = await summaries([id]).catch(() => [])
+          if (summary?.bodyVersion !== note.record.bodyVersion) {
+            const stored = await getStored(id, { trashed: true })
+            // Storage lacks part of the document: written whole, even when the undo is not.
+            if (stored && takeIn(note, stored)) {
+              note.edits += 1
+              schedule(note)
+            }
+          }
           if (note.record.statusHlc !== undo.statusHlc) return
           const at = clock.tick()
           const untouched = note.record.bodyVersion === undo.bodyVersion && !dirty(note)

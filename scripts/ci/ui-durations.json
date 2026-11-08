@@ -109,7 +109,7 @@
   "tests/ui/quick-capture.spec.ts": 13706,
   "tests/ui/quick-tag.spec.ts": 42651,
   "tests/ui/ready.spec.ts": 8583,
-  "tests/ui/render-cost.spec.ts": 21655,
+  "tests/ui/render-cost.spec.ts": 40000,
   "tests/ui/reopen-motion.spec.ts": 61324,
   "tests/ui/restore-focus.spec.ts": 17894,
   "tests/ui/restore.spec.ts": 76771,

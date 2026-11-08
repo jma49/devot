@@ -28,6 +28,10 @@ export function observeWrites(
       (note) => storage.putNote(note),
       (note) => [note.id],
     ),
+    putNoteMeta: after(
+      (note) => storage.putNoteMeta(note),
+      (note) => [note.id],
+    ),
     putFile: after((meta, data) => storage.putFile(meta, data)),
     copyFiles: after((noteId, copies) => storage.copyFiles(noteId, copies)),
     listBooks: () => storage.listBooks(),

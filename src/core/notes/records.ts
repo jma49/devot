@@ -1,16 +1,18 @@
 import * as Y from 'yjs'
 import { errorCode } from '../errors'
 import { clipTitle } from '../noteLimits'
-import type { NoteRecord, OpenedRecord } from '../storage'
+import type { NoteFields, NoteRecord, OpenedRecord } from '../storage'
 import { BODY } from './body'
-import type { Live } from './context'
+import type { HeldRecord, Live, NoteMeta } from './context'
 
 /** Attempts when storage keeps refusing because another process wrote first; then the write fails like any other (see failed). */
 const WRITE_TRIES = 5
 
 const isStale = (error: unknown) => errorCode(error) === 'E_NOTE_BODY_STALE'
 
-export const asWritten = (record: NoteRecord): NoteRecord => ({
+export const metaOf = ({ bodyMd: _body, ydoc: _state, ...fields }: NoteRecord): NoteFields => fields
+
+export const asWritten = <T extends NoteMeta>(record: T): T => ({
   ...record,
   bodyVersion: record.bodyVersion + 1,
 })
@@ -38,17 +40,23 @@ export const stampsOf = (record: OpenedRecord) => META_HLCS.map((key) => record[
 
 export type MetaField = 'book' | 'status' | 'pinned'
 
-export const hlcOf = (record: NoteRecord, field: MetaField) =>
+/** The record without its body, as a note in memory keeps it. */
+export const heldOf = (record: NoteMeta & Partial<NoteRecord>): HeldRecord => {
+  const { ydoc: _, bodyMd: __, agentWrites: ___, ...held } = record
+  return held
+}
+
+export const hlcOf = (record: NoteMeta, field: MetaField) =>
   field === 'book' ? record.bookHlc : field === 'status' ? record.statusHlc : record.pinnedHlc
 
-export const withField = (record: NoteRecord, from: NoteRecord, field: MetaField): NoteRecord => {
+export const withField = (record: HeldRecord, from: NoteMeta, field: MetaField): HeldRecord => {
   if (field === 'book') return { ...record, bookId: from.bookId, bookHlc: from.bookHlc }
   if (field === 'status') return { ...record, status: from.status, statusHlc: from.statusHlc }
   return { ...record, pinned: from.pinned, pinnedHlc: from.pinnedHlc }
 }
 
 /** Storage's merge: per field the newer HLC wins. A title past the limit is cut. */
-export const withNewer = (to: NoteRecord, from: NoteRecord): NoteRecord => ({
+export const withNewer = (to: HeldRecord, from: NoteMeta): HeldRecord => ({
   ...to,
   ...(from.titleHlc > to.titleHlc ? { title: clipTitle(from.title), titleHlc: from.titleHlc } : {}),
   ...(from.bookHlc > to.bookHlc ? { bookId: from.bookId, bookHlc: from.bookHlc } : {}),
@@ -69,13 +77,15 @@ export const withNewer = (to: NoteRecord, from: NoteRecord): NoteRecord => ({
       : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
 })
 
+/**
+ * Whether `doc`, which has taken `stored` in, holds anything `stored` lacks.
+ * The snapshot covers deletions too, which change neither the text nor the state vector.
+ */
 export const holdsMore = (doc: Y.Doc, stored: NoteRecord) => {
   if (doc.getText(BODY).toString() !== stored.bodyMd) return true
-  const theirs = Y.decodeStateVector(Y.encodeStateVectorFromUpdate(stored.ydoc))
-  for (const [client, clock] of Y.decodeStateVector(Y.encodeStateVector(doc))) {
-    if (clock > (theirs.get(client) ?? 0)) return true
-  }
-  return false
+  const theirs = new Y.Doc()
+  Y.applyUpdate(theirs, stored.ydoc)
+  return !Y.equalSnapshots(Y.snapshot(doc), Y.snapshot(theirs))
 }
 
 export const dirty = (note: Live) =>

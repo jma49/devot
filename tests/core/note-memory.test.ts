@@ -12,6 +12,8 @@ import {
   type NoteRecord,
   type NoteService,
 } from '../../src/core'
+import type { HeldRecord } from '../../src/core/notes/context'
+import { heldOf } from '../../src/core/notes/records'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -229,5 +231,17 @@ describe('notes in memory', () => {
       title: 'Renamed',
       bodyMd: 'body 0 typed',
     })
+  })
+
+  it('keeps no stored body in the record of a note in memory', async () => {
+    const { notes, sqlite } = setup()
+    const id = await notes.create('Note')
+    await notes.flush()
+    const stored = (await sqlite.getNote(id))!
+    for (const key of ['bodyMd', 'ydoc', 'agentWrites'])
+      expect(heldOf(stored)).not.toHaveProperty(key)
+    // @ts-expect-error a stored record keeps its body, which a note in memory reads from its document
+    const held: HeldRecord = stored
+    expect(held.id).toBe(id)
   })
 })

@@ -46,6 +46,9 @@ describe('the menu at the end of a long note', () => {
         selection: { anchor: typed.doc.length + 1 },
       }).state
       if (key === '\n') continue
+      // The key's own parse, which the fastest run below leaves out anyway: on a busy runner it can
+      // outlast the trigger's parse time, which would read as no items rather than a slow menu.
+      expect(ensureSyntaxTree(typed, typed.doc.length, 30_000)).not.toBeNull()
       let fastest = Infinity
       for (let run = 0; run < 3; run++) {
         const from = performance.now()

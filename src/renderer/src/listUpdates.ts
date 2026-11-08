@@ -43,6 +43,64 @@ function sameNote(a: NoteSummary, b: NoteSummary): boolean {
   )
 }
 
+/** The notes of `next` that are new objects, each with the one it replaced, when `next` lists the notes of `prev` in the same places and at most `most` of them changed. */
+export function changedInPlace<T extends NoteSummary>(
+  prev: readonly T[],
+  next: readonly T[],
+  most = 64,
+): (readonly [was: T, now: T])[] | undefined {
+  if (prev.length !== next.length) return undefined
+  const changed: (readonly [T, T])[] = []
+  for (let i = 0; i < next.length; i += 1) {
+    const was = prev[i]!
+    const now = next[i]!
+    if (was === now) continue
+    if (was.id !== now.id || changed.length === most) return undefined
+    changed.push([was, now])
+  }
+  return changed
+}
+
+/** Whether a note counts in the same notebooks, statuses, tags and pinned notes, and passes the same filters. */
+export const countsAlike = (a: NoteSummary, b: NoteSummary) =>
+  a.bookId === b.bookId &&
+  a.status === b.status &&
+  a.pinned === b.pinned &&
+  sameIds(a.tagIds, b.tagIds)
+
+/**
+ * `sorted` with each changed note in the place `compare` gives it, or in the
+ * place of the one it replaced when the order is the given one (no
+ * `compare`); a note `sorted` does not list stays out. `sorted` itself when
+ * none of them is listed.
+ */
+export function movedInOrder<T>(
+  sorted: T[],
+  changed: readonly (readonly [was: T, now: T])[],
+  compare?: (a: T, b: T) => number,
+): T[] {
+  let next = sorted
+  for (const [was, now] of changed) {
+    const at = next.indexOf(was)
+    if (at < 0) continue
+    if (next === sorted) next = [...sorted]
+    if (!compare) {
+      next[at] = now
+      continue
+    }
+    next.splice(at, 1)
+    let low = 0
+    let high = next.length
+    while (low < high) {
+      const mid = (low + high) >>> 1
+      if (compare(next[mid]!, now) < 0) low = mid + 1
+      else high = mid
+    }
+    next.splice(low, 0, now)
+  }
+  return next
+}
+
 /**
  * A reloaded list (`next`) with each note that did not change since `prev`
  * kept as its earlier object; `prev` itself when nothing changed at all.

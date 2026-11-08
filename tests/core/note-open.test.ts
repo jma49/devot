@@ -8,16 +8,20 @@ import { tempDir } from '../support/temp-dirs'
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
-async function setup(body: string) {
+async function setup(...bodies: string[]) {
   const storage = openSqliteAdapter(join(tempDir('devot-note-open-'), 'devot.sqlite'))
   open.push(storage)
   const options = { storage, clock: createClock('mac1'), newId: createIdGenerator() }
   const maker = createNoteService({ ...options, saveDelayMs: 5 })
-  const id = await maker.create('Plan')
-  await maker.setBody(id, body)
-  await maker.release(id)
+  const ids: string[] = []
+  for (const body of bodies) {
+    const id = await maker.create('Plan')
+    await maker.setBody(id, body)
+    await maker.release(id)
+    ids.push(id)
+  }
   const notes = createNoteService({ ...options, saveDelayMs: 60_000 })
-  return { notes, id, storage }
+  return { notes, id: ids[0]!, ids, storage }
 }
 
 const textOf = (state: Uint8Array) => {
@@ -90,3 +94,121 @@ describe('opening a note in the core', () => {
     expect(editor.getText(BODY).toString()).toBe('One Plan\n')
   })
 })
+
+describe('the encoded state a note keeps', () => {
+  it('is sent as read to an open that holds nothing, and not kept after it', async () => {
+    const { notes, id, storage } = await setup('Plan\n')
+    const read = storage.openNote.bind(storage)
+    let stored: Uint8Array | undefined
+    storage.openNote = async (noteId) => {
+      const opened = await read(noteId)
+      if (!opened) return null
+      stored = opened.ydoc.slice()
+      return { ...opened, ydoc: stored }
+    }
+    const first = await notes.open(id)
+    expect(first.state).toBe(stored)
+    const again = await notes.open(id)
+    expect(again.state).not.toBe(first.state)
+    expect(textOf(again.state)).toBe('Plan\n')
+  })
+
+  it('stays with the note left last until another note is left', async () => {
+    const { notes, ids } = await setup('One\n', 'Two\n')
+    const [one, two] = ids as [string, string]
+    await notes.hold(one)
+    const shown = await notes.open(one)
+    await notes.hold(two)
+    await notes.open(two)
+    await notes.unhold(one)
+    expect((await notes.open(one)).state).toBe(shown.state)
+    await notes.hold(one)
+    await notes.unhold(two)
+    expect((await notes.open(one)).state).toBe(shown.state)
+    const left = await notes.open(two)
+    expect((await notes.open(two)).state).toBe(left.state)
+    await notes.unhold(one)
+    expect((await notes.open(two)).state).not.toBe(left.state)
+    expect((await notes.open(one)).state).toBe(shown.state)
+  })
+
+  it('is the saved state when the note left is saved after the switch', async () => {
+    const { notes, ids, storage } = await setup('One\n', 'Two\n')
+    const [one, two] = ids as [string, string]
+    const put = storage.putNote.bind(storage)
+    let saved: Uint8Array | undefined
+    storage.putNote = (record) => {
+      if (record.id === one) saved = record.ydoc
+      return put(record)
+    }
+    await notes.hold(one)
+    await notes.applyUpdate(one, typed((await notes.open(one)).state, 'Edit '))
+    await notes.hold(two)
+    await notes.open(two)
+    await notes.unhold(one)
+    await notes.flush()
+    const back = await notes.open(one)
+    expect(back.state).toBe(saved)
+    expect(textOf(back.state)).toBe('Edit One\n')
+  })
+
+  it('is not kept by a note saved that no editor holds or left last', async () => {
+    const { notes, ids } = await setup('One\n', 'Two\n')
+    const [one, two] = ids as [string, string]
+    await notes.hold(one)
+    await notes.unhold(one)
+    await notes.applyUpdate(two, typed((await notes.open(two)).state, 'Edit '))
+    await notes.flush()
+    const saved = await notes.open(two)
+    expect(textOf(saved.state)).toBe('Edit Two\n')
+    expect((await notes.open(two)).state).not.toBe(saved.state)
+  })
+
+  it('stays as the whole save encoded it through a fields-only save of a held note', async () => {
+    const { notes, id, storage } = await setup('One\n')
+    const writes = watchWrites(storage)
+    await notes.hold(id)
+    await notes.applyUpdate(id, typed((await notes.open(id)).state, 'Edit '))
+    await notes.flush()
+    await notes.setTitle(id, 'Renamed')
+    await notes.flush()
+    expect(writes.kinds).toEqual(['note', 'meta'])
+    const back = await notes.open(id)
+    expect(back.state).toBe(writes.states[0])
+    expect(textOf(back.state)).toBe('Edit One\n')
+  })
+
+  it('is neither encoded nor kept by a fields-only save of a note that does not keep it', async () => {
+    const { notes, ids, storage } = await setup('One\n', 'Two\n')
+    const [one, two] = ids as [string, string]
+    const writes = watchWrites(storage)
+    await notes.hold(one)
+    await notes.unhold(one)
+    await notes.applyUpdate(two, typed((await notes.open(two)).state, 'Edit '))
+    await notes.flush()
+    expect((await notes.open(two)).state).not.toBe(writes.states[0])
+    await notes.setTitle(two, 'Renamed')
+    await notes.flush()
+    expect(writes.kinds).toEqual(['note', 'meta'])
+    const shown = await notes.open(two)
+    expect((await notes.open(two)).state).not.toBe(shown.state)
+    expect(textOf(shown.state)).toBe('Edit Two\n')
+  })
+})
+
+function watchWrites(storage: SqliteAdapter) {
+  const kinds: ('note' | 'meta')[] = []
+  const states: Uint8Array[] = []
+  const put = storage.putNote.bind(storage)
+  const putMeta = storage.putNoteMeta.bind(storage)
+  storage.putNote = (record) => {
+    kinds.push('note')
+    states.push(record.ydoc)
+    return put(record)
+  }
+  storage.putNoteMeta = (record) => {
+    kinds.push('meta')
+    return putMeta(record)
+  }
+  return { kinds, states }
+}

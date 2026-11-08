@@ -99,6 +99,7 @@ General always lists Default Notebook, and Send Crash Reports where the build ca
 
 With the native screens installed Settings is the system's (`docs/specs/iphone-screens.md`, Settings): a navigation stack under a large title, the system's search field under it and Pair a device (`qrcode.viewfinder`) as its one bar button.
 The root is the same groups in an inset grouped list on `color.phone.background`, its cards on `color.phone.card`, labels 16/23 and descriptions, values and footers 14/19, both scaled with Dynamic Type.
+The list ends `size.phone-tab-edge` above the tab bar, so at its foot the build footer, in `color.phone.text-secondary` like every footer, is clear of the bar's scroll edge effect.
 The app row has a bird symbol on an `color.accent.fill` tile in the dove's place, as SF Symbols has no dove.
 Search results come in one section per pane, at most twelve, and No matching settings is the system's empty view.
 General, Editing, Preview, AI and License are native pages; Appearance and Sync are the page's panes under the native bar, until they are built natively.

@@ -164,6 +164,25 @@ export function editorTop(view: EditorView, scroller: HTMLElement): EditorTop | 
   return { pos: block.from, offset: y - block.top }
 }
 
+/**
+ * Scrolls the editor so that `top` is where it was (a line gone since: the end) when CodeMirror next measures.
+ * A scroll made before then wins: a busy page can hold that measure until the scroll's own event.
+ */
+export function scrollToTop(view: EditorView, scroller: HTMLElement, top: EditorTop) {
+  const from = scroller.scrollTop
+  view.requestMeasure({
+    read: (v) => {
+      if (scroller.scrollTop !== from) return undefined
+      const y = scroller.getBoundingClientRect().top - v.documentTop
+      const target = v.lineBlockAt(Math.min(top.pos, v.state.doc.length)).top + top.offset
+      return scroller.scrollTop + target - y
+    },
+    write: (scrollTop) => {
+      if (scrollTop !== undefined) scroller.scrollTop = scrollTop
+    },
+  })
+}
+
 /** The editor's props as they are when an extension runs, not when the note was shown. */
 export interface NoteEditorRefs {
   writing: RefObject<boolean>

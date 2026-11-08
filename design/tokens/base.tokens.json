@@ -1477,6 +1477,11 @@
       "$value": { "value": 24, "unit": "px" },
       "$description": "From the tab bar to the home indicator's inset."
     },
+    "phone-tab-edge": {
+      "$type": "dimension",
+      "$value": { "value": 44, "unit": "px" },
+      "$description": "How far above the tab bar its scroll edge effect fades a list (about 35 pt on iOS 26.5): the end of a native list keeps clear of it."
+    },
     "phone-list-text": {
       "$type": "dimension",
       "$value": { "value": 52, "unit": "px" },

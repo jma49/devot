@@ -57,6 +57,7 @@ import {
   noteExtensions,
   PAUSED,
   pausedSlot,
+  scrollToTop,
   templateChip,
   templateSlot,
   writeFor,
@@ -79,26 +80,12 @@ import type { LinkSources } from './linkCompletion'
 import { setWriteFocus } from './editor/write'
 import type { Core } from './core-client'
 import type { ScrollPane } from './preview/scrollSync'
-import { clampSelection, clampTop, type EditorTop } from './lastState'
+import { clampSelection, clampTop } from './lastState'
 
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
 const RESTORE = 'restore'
 
 export type ApplyRestore = (update: Uint8Array) => void
-
-/** Scrolls the editor so that `top` is where it was (a line gone since: the end). */
-function scrollToTop(view: EditorView, scroller: HTMLElement, top: EditorTop) {
-  view.requestMeasure({
-    read: (v) => {
-      const y = scroller.getBoundingClientRect().top - v.documentTop
-      const target = v.lineBlockAt(Math.min(top.pos, v.state.doc.length)).top + top.offset
-      return scroller.scrollTop + target - y
-    },
-    write: (scrollTop) => {
-      scroller.scrollTop = scrollTop
-    },
-  })
-}
 
 /**
  * Stores pasted or dropped images and inserts their links at a position that follows edits made meanwhile; if the editor closed by then the link still goes into the note (editor/anchoredInsert.ts). Images that could not be stored go to `refused` with their codes.

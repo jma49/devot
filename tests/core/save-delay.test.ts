@@ -28,16 +28,19 @@ afterEach(() => open.splice(0).forEach((a) => a.close()))
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const service = (storage: SqliteAdapter, saveDelayMs = 30) =>
+  createNoteService({
+    storage,
+    clock: createClock('mac1'),
+    newId: createIdGenerator(),
+    saveDelayMs,
+  })
+
 describe('saving a large note', () => {
   it('waits longer after a pause, and a flush still saves it at once', async () => {
     const storage = openSqliteAdapter(join(tempDir('devot-save-delay-'), 'devot.sqlite'))
     open.push(storage)
-    const notes = createNoteService({
-      storage,
-      clock: createClock('mac1'),
-      newId: createIdGenerator(),
-      saveDelayMs: 30,
-    })
+    const notes = service(storage)
     const id = await notes.create('Big')
     await notes.setBody(id, 'x'.repeat(MB + KB))
     await notes.flush()
@@ -45,6 +48,26 @@ describe('saving a large note', () => {
     await notes.setBody(id, 'edited')
     // A small note would be saved by now; this one waits about 200 ms.
     await sleep(90)
+    expect((await storage.getNote(id))?.bodyMd).not.toBe('edited')
+    await notes.flush()
+    expect((await storage.getNote(id))?.bodyMd).toBe('edited')
+  })
+
+  it('waits as long for a large note read from storage', async () => {
+    const path = join(tempDir('devot-save-delay-'), 'devot.sqlite')
+    const writer = openSqliteAdapter(path)
+    open.push(writer)
+    const before = service(writer)
+    const id = await before.create('Big')
+    await before.setBody(id, 'x'.repeat(MB + KB))
+    await before.flush()
+
+    const storage = openSqliteAdapter(path)
+    open.push(storage)
+    const notes = service(storage, 300)
+    await notes.setBody(id, 'edited')
+    // A small note would be saved by now; this one waits about 2 s.
+    await sleep(600)
     expect((await storage.getNote(id))?.bodyMd).not.toBe('edited')
     await notes.flush()
     expect((await storage.getNote(id))?.bodyMd).toBe('edited')

@@ -27,6 +27,8 @@ function setup(
   const storage: StorageAdapter = Object.assign(Object.create(sqlite) as SqliteAdapter, {
     putNote: (record: Parameters<StorageAdapter['putNote']>[0]) =>
       failing.has(record.id) ? Promise.reject(refusal) : sqlite.putNote(record),
+    putNoteMeta: (note: Parameters<StorageAdapter['putNoteMeta']>[0]) =>
+      failing.has(note.id) ? Promise.reject(refusal) : sqlite.putNoteMeta(note),
     putNoteTag: (link: Parameters<StorageAdapter['putNoteTag']>[0]) =>
       failing.has(link.noteId) ? Promise.reject(refusal) : sqlite.putNoteTag(link),
   })

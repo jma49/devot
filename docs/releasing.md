@@ -217,7 +217,7 @@ The certificate is valid for five years; renew it before it ends (the release wo
 
 ### Running it on a Mac
 
-The script runs locally too. A local check signs with a throwaway self-signed identity and leaves notarization out, which needs no Apple account: `tests/scripts/macos-sign.bench.test.ts` makes such an identity, runs the script on a small ad-hoc app and checks the signature, the dmg and the updater bundle, then a refused notarization (with a stand-in `xcrun`). The script never uses the login keychain nor changes the search list without `--search-list`; its keychain and files live in a temp folder it removes.
+The script runs locally too. A local check signs with a throwaway self-signed identity and leaves notarization out, which needs no Apple account: `tests/scripts/macos-sign.build.test.ts` makes such an identity, runs the script on a small ad-hoc app and checks the signature, the dmg and the updater bundle, then a refused notarization (with a stand-in `xcrun`). The script never uses the login keychain nor changes the search list without `--search-list`; its keychain and files live in a temp folder it removes.
 
 ```sh
 APPLE_CERTIFICATE=$(base64 -i test-identity.p12) APPLE_CERTIFICATE_PASSWORD=<password> \
@@ -225,7 +225,7 @@ APPLE_CERTIFICATE=$(base64 -i test-identity.p12) APPLE_CERTIFICATE_PASSWORD=<pas
   scripts/release/macos-sign.sh --skip-notarization path/to/Devot.app out
 ```
 
-`tests/scripts/macos-sign.bench.test.ts` also signs with `--entitlements tests/fixtures/signing/test.entitlements` and a test profile made from `tests/fixtures/signing/profile.plist`. That profile is signed with a throwaway key, never with a real profile or secret. `tests/scripts/macos-profile.test.ts` and `tests/scripts/macos-entitlements.test.ts` cover the two checks on a Mac.
+`tests/scripts/macos-sign.build.test.ts` also signs with `--entitlements tests/fixtures/signing/test.entitlements` and a test profile made from `tests/fixtures/signing/profile.plist`. That profile is signed with a throwaway key, never with a real profile or secret. `tests/scripts/macos-profile.test.ts` and `tests/scripts/macos-entitlements.test.ts` cover the two checks on a Mac.
 
 `pnpm tauri build` stays ad-hoc signed (see Building locally): only the release workflow signs with the Developer ID.
 

@@ -97,7 +97,9 @@ Every PR must test the logic it changes, which review checks.
   The screens package's tests read the same message fixtures as Vitest and `cargo test` (`tests/fixtures/screens/`).
 - `iphone-ui`, a macOS job in the `rust` gate with a 40 minute limit, builds the iPhone app for the simulator with the release UI (`pnpm tauri ios build`, whose `beforeBuildCommand` is `pnpm ui:release`), installs it and runs the XCUITest in `src-tauri/apple/DevotUITests` (`scripts/ci/iphone-ui-tests.sh`).
   The test launches the app by its bundle ID, switches all four tabs of the native tab bar and runs `performAccessibilityAudit()` on the bar; the page inside the web view is not audited there.
-  The Settings test audits the root at the top of its list and at its foot; an element whose issue is measured against a system bar's glass, or the tab bar's scroll edge effect above it, must also show clear of them in one of the two places, where it is audited for real.
+  The Settings test audits the root at the top of its list and at its foot, scrolled until the list stops; an element whose contrast is measured against a system bar's glass or a bar's scroll edge effect must also show clear of them in one of the two places, where it is audited for real, and every other issue fails wherever it shows.
+  The tab bar's edge effect is `size.phone-tab-edge` (44) above the bar, and the Settings list ends that far above it, so its build footer is audited clear at the foot.
+  Under the navigation bar, once the list has scrolled beneath it, the edge effect and the shadow of Pair a Device's glass reach 33 pt below the bar's frame (measured on the iOS 26.5 screenshot: the page differs from `color.phone.background` down to y = 148 under a bar ending at 116).
   It is the only job that runs the shipping app, so it is what catches a web view that fails to move between the tabs or a tab item without a name.
   A failed run uploads the test's result bundle as the `iphone-ui-xcresult` artifact, with each audit issue's element and the screenshots.
   A pull request runs it only when it changes `src-tauri/apple/`, `src-tauri/gen/apple/`, `src-tauri/src/native/ios/`, a `screens/` folder or `src/renderer/src/phone/` (`scripts/ci/changed-code.sh`); every other run includes it.
@@ -171,7 +173,7 @@ Every PR must test the logic it changes, which review checks.
   The release workflow builds that way, so the job that runs the dependencies' code never holds the Sentry token; a job of its own uploads the folder (`docs/releasing.md`).
   Rust panics list the binaries loaded at launch by debug ID (the SDK's `debug-images`; scrubbing keeps the ones a frame is in), so Sentry names the functions of a stripped release build's frames from that dSYM; a unit test prepares a panic with the app's client settings and a stand-in transport and checks that the binary its frames are in is listed.
   `pnpm ui:build` (development, tests, CI) never makes source maps.
-  Tests: `tests/policy/source-maps.bench.test.ts` runs the three scripts against a stand-in sentry-cli.
+  Tests: `tests/policy/source-maps.build.test.ts` runs the three scripts against a stand-in sentry-cli.
 - **One release and one environment per build:** the version is `src-tauri/Cargo.toml`'s alone.
   Rust reports `devot@<version>`; `tauri.conf.json` names no version, so Tauri gives the UI (`getVersion`) and the app bundle the same one; the source maps upload under that name.
   Rust reports `development` for a build with debug assertions and `production` otherwise; the UI reads Tauri's `TAURI_ENV_DEBUG` (`true` for `tauri dev` and `tauri build --debug`, `false` for `tauri build`) and reports the same, and a UI built outside Tauri's CLI reports `development`.
