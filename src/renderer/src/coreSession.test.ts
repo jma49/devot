@@ -127,6 +127,32 @@ describe('useQuitAndClose', () => {
     expect(props.setQuitHeld).not.toHaveBeenCalled()
   })
 
+  it('lets the quit go on at once while the window has no core', async () => {
+    tauri = mockTauri()
+    const { props } = setup()
+    renderHook(useQuitAndClose, {
+      props: { ...props, core: undefined, coreRef: { current: undefined } },
+    })
+    await settle()
+    tauri.emit('devot://flush-before-exit', { round: 1 })
+    await settle()
+    expect(tauri.calls).toEqual([['app_exit_ready', { round: 1 }]])
+    expect(props.markShownSeen).not.toHaveBeenCalled()
+  })
+
+  it('saves with the core the window adopted after it began to listen', async () => {
+    tauri = mockTauri()
+    const { core, props } = setup()
+    const coreRef: { current: Core | undefined } = { current: undefined }
+    renderHook(useQuitAndClose, { props: { ...props, core: undefined, coreRef } })
+    await settle()
+    coreRef.current = core as unknown as Core
+    tauri.emit('devot://flush-before-exit', { round: 1 })
+    await settle()
+    expect(core.flush).toHaveBeenCalled()
+    expect(tauri.calls).toEqual([['app_exit_ready', { round: 1 }]])
+  })
+
   it('stops nothing for a quit another window calls off while this one saves, and lets its import go on', async () => {
     tauri = mockTauri()
     let saved: () => void = () => {}
