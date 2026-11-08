@@ -39,6 +39,7 @@ describe('the note relay between windows', () => {
         { kind: 'gone', noteId: ID, purged: false },
         { kind: 'gone', noteId: ID, purged: true },
       ],
+      back: [{ kind: 'back', noteId: ID }],
     } satisfies EachKind
     const every: NoteRelayMessage[] = Object.values(sent).flat()
     expect(every.map((message) => toWireRelay(message, toBase64))).toStrictEqual(SHARED)

@@ -36,6 +36,20 @@ describe('a note that leaves the library', () => {
     expect(note.inbox).toEqual([])
   })
 
+  it('tells the other windows a note put back from the Trash is back', async () => {
+    const { windows, deliverAll } = twoWindows()
+    const [main, note] = windows as [(typeof windows)[number], (typeof windows)[number]]
+    const id = await main.notes.create('Second thoughts')
+    await note.notes.open(id)
+    await main.notes.trash(id)
+    note.inbox.length = 0
+
+    await main.notes.restore(id)
+    expect(note.inbox).toEqual([{ kind: 'back', noteId: id }])
+    await deliverAll()
+    expect(note.inbox).toEqual([])
+  })
+
   it('tells a window about each note Empty Trash purges', async () => {
     const { windows, deliverAll } = twoWindows()
     const [main, note] = windows as [(typeof windows)[number], (typeof windows)[number]]

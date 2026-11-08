@@ -1,6 +1,6 @@
 //! Carries what one window's core tells the others about a note (`src/core/noteRelay.ts`): a Yjs update,
-//! a state vector asking for what the others hold, a title, a stored write, or that the note was trashed
-//! or purged. Every window that edits notes (`may_relay`) hears what the others send about a note it may
+//! a state vector asking for what the others hold, a title, a stored write, that the note was trashed
+//! or purged, or that it was put back from the Trash. Every window that edits notes (`may_relay`) hears what the others send about a note it may
 //! show: every main window about every note, a note window about its own. The message is checked here
 //! and passed on as it came; Yjs data stays the base64 the page sent and is never decoded.
 
@@ -47,6 +47,10 @@ pub enum NoteRelayMessage {
         note_id: String,
         purged: bool,
     },
+    /// The note was put back from the Trash: its window can edit it again.
+    Back {
+        note_id: String,
+    },
 }
 
 fn valid_base64(data: &str) -> bool {
@@ -67,7 +71,8 @@ impl NoteRelayMessage {
             | Self::Want { note_id, .. }
             | Self::Title { note_id, .. }
             | Self::Saved { note_id, .. }
-            | Self::Gone { note_id, .. } => note_id,
+            | Self::Gone { note_id, .. }
+            | Self::Back { note_id } => note_id,
         }
     }
 
@@ -93,7 +98,8 @@ impl NoteRelayMessage {
             | Self::Want { .. }
             | Self::Title { .. }
             | Self::Saved { .. }
-            | Self::Gone { .. } => Ok(()),
+            | Self::Gone { .. }
+            | Self::Back { .. } => Ok(()),
         }
     }
 }

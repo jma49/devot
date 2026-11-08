@@ -73,8 +73,8 @@ export function trashMethods(
       await settled()
     },
 
-    restore: (id) =>
-      untilWritten(async () => {
+    async restore(id) {
+      await untilWritten(async () => {
         const record = await trashed(id)
         // A title stored past what storage takes now (by an older build) is
         // cut for the write, as when a note is loaded; the stored one stays.
@@ -84,7 +84,9 @@ export function trashMethods(
           deletedAt: null,
           deletedHlc: clock.tick(),
         })
-      }),
+      })
+      relay({ kind: 'back', noteId: id })
+    },
 
     listTrash: () => storage.listTrash(),
 

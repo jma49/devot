@@ -196,8 +196,8 @@ export function relayMethods(
       const last = heard.get(id)
       if (last) last.at = now()
       else heard.set(id, { seen: undefined, version: undefined, at: now() })
-      // The note window turns read-only on a `gone` itself (NoteWindow.tsx): nothing to take in here.
-      if (message.kind === 'saved' || message.kind === 'gone') return
+      // A note window turns read-only on `gone` and editable on `back` itself (NoteWindow.tsx): nothing to take in here.
+      if (message.kind === 'saved' || message.kind === 'gone' || message.kind === 'back') return
       const note = await inMemory(id)
       if (!note) return
       try {

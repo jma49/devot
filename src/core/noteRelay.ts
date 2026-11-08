@@ -13,6 +13,8 @@ export type NoteRelayMessage =
   | { kind: 'saved'; noteId: string; updatedAt: number; authored?: true }
   /** The note went to the Trash (`purged` false) or was deleted for good: its window turns read-only. */
   | { kind: 'gone'; noteId: string; purged: boolean }
+  /** The note was put back from the Trash: its window can edit it again. */
+  | { kind: 'back'; noteId: string }
 
 /** What a note in memory took in that its own window did not make, for the editor and title field that show it. */
 export type TakenIn =
