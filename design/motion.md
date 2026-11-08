@@ -165,6 +165,31 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Swipe actions:** rule 1, then rule 3. The row follows the finger, with 0.6 rubber band past `size.phone-swipe-open`; on release it settles on `motion.easing.phone-push`. The buttons grow with `bouncy`, the rightmost first; past `size.phone-swipe-arm` Done stretches over the others with `gentle`. Under Reduce Motion the row crossfades into place.
 - **Status mark:** rule 4. It bumps to `motion.scale.phone-bump` with `bouncy` when the status changes; its colour does not animate.
 - **Peek:** rule 3. After `motion.delay.phone-peek` the background blurs and dims, the card grows from `motion.scale.phone-peek-enter` and 30 pt below with `gentle`, and the status bar and menu follow with `bouncy`, from `motion.scale.phone-peek-bar` and `motion.scale.phone-peek-menu`, after `motion.delay.phone-peek-bar` and `motion.delay.phone-peek-menu`. Only transforms and opacity move: the blur and dim are one layer with a fixed 16 px blur that fades in over `motion.duration.ring`, never a blur radius that grows; the card, bar and menu are promoted (`will-change`) only until their transitions finish; the bar and menu draw no blur of their own over the peek's, so nothing is blurred again as they grow. Under Reduce Motion the card, bar and menu only crossfade in place, with no delay; the background blur stays.
+- **Note list rows** (the native screens): rule 2.
+  A change the page reports redraws only its rows: a changed row is drawn again in place, a row whose place changed moves there with the system's list animation (rule 3), and a row that leaves fades with it.
+  The first page, and a read after a missed change, are drawn at once.
+  An excerpt that arrives crossfades into its line over `motion.duration.phone-enter`.
+  A new note's row is put in place under the editor's cover without animation, and an untouched one goes before the list shows.
+  Under Reduce Motion every change is drawn at once.
+- **Sections and Library groups** (the native screens): rule 3.
+  A head's chevron turns between right and down at once; the section's rows fold away or open with the system's list animation, and what is below follows.
+  A notebook with notebooks inside folds them the same way from its own chevron.
+  Under Reduce Motion the rows come and go at once.
+- **Row pressed** (the native screens): rule 4.
+  A row fills with `color.phone.pressed` while pressed, with the system's highlight.
+  A row that pushed is deselected alongside the pop, and selected again when the back swipe is turned back.
+- **Swipe actions** (the native screens): rule 1, then rule 3.
+  The system's swipe: the row follows the finger and uncovers its actions, and a full trailing swipe trashes.
+  A write Devot Pro does not allow closes the row first, then raises its sheet.
+- **Peek** (the native screens): rule 3.
+  The system's context menu: the preview grows from the row with its menu, and an action runs once the menu has gone.
+  Under Reduce Motion the system decides its look.
+- **Status mark** (the native screens): rule 4.
+  A row whose status changes in place scales its mark to `motion.scale.phone-bump` and back with `bouncy`; its colour does not animate.
+  Under Reduce Motion it does not scale.
+- **Filter and week menus** (the native screens): the system's menu from its bar button, with the system's motion.
+  The filtered rows change at once (rule 2).
+  Activity's week menu stays the page's.
 - **Edit and Preview:** rule 3.
   Both panes stay drawn, the hidden one laid out but not shown, so a diagram in Preview is ready before the toggle.
   The one coming fades in over `motion.duration.phone-enter` on `motion.easing.standard` while it rises 8 pt on `motion.easing.phone-enter`; the one going fades out over the same time while it drops 8 pt on `motion.easing.phone-pair`.
@@ -175,7 +200,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Title under the bar** (the native screens): rule 2.
   Once the note's own title has scrolled under the system bar, the bar shows it; it goes when the title comes back.
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes. Under Reduce Motion it crossfades in place, and still follows a drag.
-- **Compose circle** (the web shell only; under the system tab bar New Note is a button in the list capsule, which presses as any glass control): rule 3. Where it is not offered it fades and shrinks to `motion.scale.phone-compose-hidden` with `gentle`; where it is, it comes back the same way.
+- **Compose circle** (the web shell only; under the system tab bar New Note is the compose button in the list's bar, which presses as any bar button): rule 3. Where it is not offered it fades and shrinks to `motion.scale.phone-compose-hidden` with `gentle`; where it is, it comes back the same way.
 - **New Note:** rule 3.
   The note screen pushes as any note does, with nothing beneath it changing that the user can see, and no motion of its own.
   A list that shows the note slides in under it in the same push when the screen below would not list it.

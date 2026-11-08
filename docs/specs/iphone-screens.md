@@ -142,20 +142,21 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 
 `src-tauri/src/screens/direct.rs` maps each `direct.` operation to the body of one Tauri command, its `…_inner` function.
 
-| Area            | Operations                                                                                         | Command bodies                                   |
-| --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Editor settings | `direct.editorSettings.get`, `.set { patch }`                                                      | `editor_settings_get`, `editor_settings_set`     |
-| Imported fonts  | `direct.fonts.list`                                                                                | `fonts_list`                                     |
-| Crash reports   | `direct.crashReports.get`, `.set { on }`                                                           | `crash_reports_get`, `crash_reports_set`         |
-| AI providers    | `direct.ai.get`, `.set { settings }`, `.keySet { provider, key }`, `.keyClear { provider }`        | `ai_settings_get`, `ai_settings_set`, `ai_key_*` |
-| Licence         | `direct.licence.get`, `.set { key }`, `.remove`, `.refresh`                                        | `licence_*`                                      |
-| App Store       | `direct.store.products`, `.purchase { product }`, `.restore`, `.macKey`, `.refund`                 | `store_*` of the same name                       |
-| Sync settings   | `direct.sync.get`, `.set { patch }`, `.devices`, `.usage`, `.deviceRemove { device }`              | the `sync_*` command of the same name            |
-| Sync vault      | `direct.sync.vaultCreate { relaySecret }`, `.vaultRotate { relaySecret }`, `.vaultLeave`           | the `sync_vault_*` command of the same name      |
-| Recovery key    | `direct.sync.recoveryKey`, `.recoverySaved`, `.joinRecovery { recoveryKey }`                       | the `sync_*` command of the same name            |
-| Pairing         | `direct.sync.pairingOpen`, `.pairingCheck`, `.pairingCancel`, `.joinCode { code, via? }`           | the `sync_*` command of the same name            |
-| iCloud          | `direct.sync.icloudStatus`, `.icloudUse { recoveryKey? }`, `.icloudLook`, `.icloudJoin { accept }` | the `sync_icloud_*` command of the same name     |
-| iCloud vault    | `direct.sync.icloudUploadAgain`, `.icloudRotate`, `.icloudLeave { recoveryKey }`, `.icloudStorage` | the `sync_icloud_*` command of the same name     |
+| Area            | Operations                                                                                         | Command bodies                                      |
+| --------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Editor settings | `direct.editorSettings.get`, `.set { patch }`                                                      | `editor_settings_get`, `editor_settings_set`        |
+| Imported fonts  | `direct.fonts.list`                                                                                | `fonts_list`                                        |
+| Crash reports   | `direct.crashReports.get`, `.set { on }`                                                           | `crash_reports_get`, `crash_reports_set`            |
+| AI providers    | `direct.ai.get`, `.set { settings }`, `.keySet { provider, key }`, `.keyClear { provider }`        | `ai_settings_get`, `ai_settings_set`, `ai_key_*`    |
+| Licence         | `direct.licence.get`, `.set { key }`, `.remove`, `.refresh`                                        | `licence_*`                                         |
+| App Store       | `direct.store.products`, `.purchase { product }`, `.restore`, `.macKey`, `.refund`                 | `store_*` of the same name                          |
+| Sync settings   | `direct.sync.get`, `.set { patch }`, `.devices`, `.usage`, `.deviceRemove { device }`              | the `sync_*` command of the same name               |
+| Sync vault      | `direct.sync.vaultCreate { relaySecret }`, `.vaultRotate { relaySecret }`, `.vaultLeave`           | the `sync_vault_*` command of the same name         |
+| Recovery key    | `direct.sync.recoveryKey`, `.recoverySaved`, `.joinRecovery { recoveryKey }`                       | the `sync_*` command of the same name               |
+| Pairing         | `direct.sync.pairingOpen`, `.pairingCheck`, `.pairingCancel`, `.joinCode { code, via? }`           | the `sync_*` command of the same name               |
+| iCloud          | `direct.sync.icloudStatus`, `.icloudUse { recoveryKey? }`, `.icloudLook`, `.icloudJoin { accept }` | the `sync_icloud_*` command of the same name        |
+| iCloud vault    | `direct.sync.icloudUploadAgain`, `.icloudRotate`, `.icloudLeave { recoveryKey }`, `.icloudStorage` | the `sync_icloud_*` command of the same name        |
+| Native lists    | `direct.lists.notes { view, status, offset, limit }`, `.library`, `.trash`                         | the `Store` reads of the list commands (`lists.rs`) |
 
 - An operation's name is its command's in camel case, so `direct.sync.icloudUploadAgain` runs the body of `sync_icloud_upload_again`.
 - A request's `args` are the command's arguments under the names the page passes them, and unknown fields are refused with `E_SCREENS_ARGS_INVALID` before anything runs.
@@ -163,7 +164,12 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - Rust runs the body on its async runtime and answers Swift once, from that thread; a panic there answers `E_SCREENS_INTERNAL`, and a request that comes before the app's services exist is refused with `E_SCREENS_NOT_READY`.
 - A Rust-direct request is never queued for the page or counted among the waiting requests, so it works before the page has started.
 - A change made this way emits the command's own events (`devot://editor-settings-changed`, `devot://licence-changed`, `devot://sync-changed`), so the page follows a change made in native Settings.
-- The operations reach the database only through `NoteCounts`, the two counts sync's settings show, so no Rust-direct request can write a note; a test over the operation enum holds every name to a settings area.
+- The settings operations reach the database only through `NoteCounts`, the two counts sync's settings show, and the list reads (`src-tauri/src/screens/lists.rs`) only through a lent `&Store`, so no Rust-direct request can write a note; a test over the operation enum holds every name to a settings area or the lists.
+- `direct.lists.notes` takes a `view` (`all`, `pinned`, `book { id }`, `tag { id }`, `templates`), a `status` filter (`all`, `active`, `on_hold`, `completed`) and a page (`offset`, `limit` of at most 1,000), and answers `{ rows, total }` newest first (`updatedAt`, then `id`, descending), the order Swift keeps.
+  A row is the note's title, dates, notebook, status, pinned flag, tag IDs and body version; a notebook's list takes in its notebooks' notes, and only Templates lists the templates notebook.
+- `direct.lists.library` answers the smart lists' counts (all, pinned, active, on hold, completed, templates, trash), the notebooks in the Library's order (each after its parent) with their counts, the tags with their colours and counts, and the saved searches.
+- `direct.lists.trash` answers the trashed notes, last trashed first.
+- `tests/fixtures/screens/rows.json` holds one reply of each, which Rust checks its replies against by shape and Swift decodes.
 - A failure is logged as `W_SCREENS_DIRECT_FAILED op=… id=… code=…`, and a request's arguments, which may hold a licence key, an AI key or a relay secret, are never logged.
 - The native purchase sheet reads StoreKit's price with `direct.store.products` and buys with `direct.store.purchase`, the bodies the page's sheet calls, so StoreKit's own sheet takes the payment either way.
 - Importing a font joins with the Appearance pane that first sends it.
@@ -175,14 +181,44 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - It also sends `books.changed`, `tags.changed` and `savedSearches.changed`.
 - Swift reads only the changed rows again from Rust and applies them to the list's diffable snapshot, so moves and inserts take the system's list animation.
 - When a `rev` is not the next one, Swift reloads the whole first page (200 rows) rather than guess.
+- `notes.changed { rev, ids, all: true }` says the page cannot name the notes (a sync or a launch took in changes), and Swift reloads the first page too.
+- The page reports the writes a note save does not (a note's tags, a purge, and notebooks, tags and saved searches) a moment after they complete (`phone/screens/feed.ts`).
+
+### Lists
+
+The Notes and Library tabs' roots and every list they push are native (`DevotScreens/UI/Lists/`); Activity stays a `WebTabScreen`.
+
+| Message                                  | From  | Meaning                                                                                      |
+| ---------------------------------------- | ----- | -------------------------------------------------------------------------------------------- |
+| `excerpts { ids }`                       | Swift | at most 60 IDs; answers `{ excerpts: { id: text } }`, and a note with no excerpt is left out |
+| `notes.batch { ids, change }`            | Swift | one change to several notes; answers `{ changed, failed: [{ id, code }] }`                   |
+| `trash.empty`                            | Swift | purges the Trash; answers `{ purged }`                                                       |
+| `template.create`                        | Swift | makes an empty template; answers `{ id }`, which Swift opens                                 |
+| `template.apply { templateId, bookId? }` | Swift | makes a note from a template; answers `{ id }`, which Swift opens                            |
+| `note.text { noteId }`                   | Swift | the note's title and Markdown, for the share sheet                                           |
+
+- A `change` is one of `book { bookId }`, `status { status }`, `pinned { pinned }`, `putTag { tagId }`, `removeTag { tagId }`, `trash`, `restore` and `purge`.
+- `NoteListDataSource` is one list's feed: it reads the first page when its screen loads, and a list nobody has shown reads nothing.
+  On `notes.changed` it reads again as many rows as it shows (at least 200, at most 1,000), and redraws only the rows that changed or that the notice names; a row whose place changed moves.
+  Reads are one at a time: a change while one is out is read once after it, together with any others.
+  The list asks for the next page within 40 rows of its end.
+  Sections are Pinned, Recent and Completed as `design/phone.md` describes, and Templates and Trash are one section.
+- `ExcerptCache` asks for the excerpts of the rows on screen and a screen ahead, at most 60 IDs a call, never one it holds or is asking for, and keeps them by note ID and body version, so an edit asks again.
+  A failed call is logged as `W_PHONE_EXCERPTS_FAILED code=…` and asked again when the rows next show.
+- `ListContext` holds what the lists share: the bridge, the gate, the excerpts and the Library's last read, which it reads again on a change once a screen has asked for it.
+- Every list write goes through the gate (`notes.batch`, `trash.empty`, `template.create`, `template.apply` are write intents); a swipe answers the system with whether it ran before the gate raises its sheet, and a context menu's write runs once the menu has gone.
+  A batch entry refused for the licence raises the sheet; any other failure is logged as `W_PHONE_BATCH_FAILED count=… code=…` or `W_PHONE_LIST_WRITE_FAILED op=… code=…`.
+- A failed read is logged as `W_PHONE_LIST_READ_FAILED`, `W_PHONE_LIBRARY_READ_FAILED` or `W_PHONE_TRASH_READ_FAILED` with its code, and the list keeps what it showed.
 
 ### Tabs
 
-Until the lists are native, the Notes, Library and Activity tabs are each a navigation stack with a hidden bar whose root, `WebTabScreen`, holds the web view while its tab is shown, and the page draws that tab's stack.
+The Notes and Library tabs are navigation stacks with the system bar and large titles over native lists (Lists above).
+The Activity tab is a navigation stack with a hidden bar whose root, `WebTabScreen`, holds the web view while its tab is shown, and the page draws that tab's stack.
+A list that appears asks the page to let the shown note go, as a web tab does when it takes the web view.
 The Settings tab is native (Settings tree below); the page still follows it with `tabs.show`, sent whenever the tab appears, whatever page is on its top.
 The tab bar is the system's, icon-only: each item's image is the web tab bar's symbol and its filled variant when selected, its title is nil, and its name is its VoiceOver label.
 UIKit's bar items have no large content title, so the large content viewer shows the symbol alone.
-The page keeps its own tab bar and compose circle only when the screens are not installed; under the system bar, New Note is a button in the Notes and Library list capsule.
+The page keeps its own tab bar and compose circle only when the screens are not installed; under the system bar, New Note is the compose button in the Notes and Library lists' bar.
 
 | Message                                    | From  | Meaning                                                                                         |
 | ------------------------------------------ | ----- | ----------------------------------------------------------------------------------------------- |
@@ -195,7 +231,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - Swift selects the page's tab when the page changes tab itself (All Notes from the Library, the gate's licence pane), but ignores the page's tab while a `tabs.show` is unanswered, so a stale notice never undoes a tap.
 - The bar hides over a note, search or a sheet the page draws over the whole screen, since those cover where the bar sits, and stays over a pushed list or pane.
 - Settings shows the web shell's `!` badge while the licence needs attention, with "Needs attention" as its VoiceOver value.
-- The web view rests in `WebStage` when a tab's screen disappears, and the next tab's screen takes it, so a tab switch never takes it out of the window.
+- The web view rests in `WebStage` when a tab's screen disappears, and the next tab's screen takes it, so a tab switch never takes it out of the window; when a native tab shows first, the web view goes to the stage as the screens appear.
   The stage hides it from VoiceOver and the accessibility audit, which would otherwise reach the page drawn behind the native Settings.
 - `WebTabScreen`'s view reports the window's safe area insets, and the web view derives its own from them: the page lays itself out by `env(safe-area-inset-*)` exactly as without the system bar, and its own room for a floating bar at the bottom clears the system's.
 - The view overrides `safeAreaInsets` because the tab bar's inset can reach it through its superview, which a negative `additionalSafeAreaInsets` does not take back (on iOS 26.5 each screen kept the bar's 49 points).

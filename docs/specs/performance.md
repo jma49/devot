@@ -52,6 +52,9 @@ Part of the [architecture overview](../architecture.md).
   The keyboard, system sheets and the web view's compositor transitions then run at 120 Hz; the page's `requestAnimationFrame` stays near 60 Hz, so motion drawn by script each frame does not gain from it.
 - On the iPhone's native screens a note's push starts in the frame after the tap, and the cover over a pushed note is up at most 400 ms ([iPhone screens](iphone-screens.md#row-to-editor)).
   Switching notes, the budget above, covers `editor.show`: the page swaps the note into its one editor rather than building one.
+- The iPhone's first native list paints within 400 ms of the process starting: it is one page of 200 rows read Rust-direct, before the page has started, with excerpts filled in as they come ([iPhone screens](iphone-screens.md#lists)).
+  A list scrolls its rows without reading the database again; it asks for the next page near its end and for excerpts at most 60 at a time.
+  The app's idle memory with the native lists stays under 200 MB.
   Judge the phone's smoothness on a release build on a device.
 - A note left gives back what was kept for it, held by `tests/renderer/left-note-memory.test.ts`, `tests/core/preview-pieces.test.ts` and `tests/ui/preview.spec.ts`:
   - The worker keeps, besides the open note's preview pieces, pieces of at most 50,000 characters of source (`KEPT_CHARACTERS`; a tree takes about 100 bytes a character), so a long note left is rendered again when it opens (in V8, a 250 KB note left kept 25 MB of trees, now under 7 MB).
