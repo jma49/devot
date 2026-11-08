@@ -486,23 +486,31 @@ pub async fn clipboard_write_secret(app: tauri::AppHandle, text: String) -> Resu
     validate_clipboard_text(&text).map_err(String::from)?;
     #[cfg(target_os = "macos")]
     {
+        use tauri::Manager;
         let (reply, answer) = tokio::sync::oneshot::channel();
+        let writer = app.clone();
+        // Recorded and taken on the main thread, as the exit takes it, so no quit falls between.
         app.run_on_main_thread(move || {
-            let _ = reply.send(macos::write_secret_clipboard_text(&text));
+            let count = macos::write_secret_clipboard_text(&text);
+            if let Some(count) = count {
+                writer.state::<PendingSecretClear>().wrote(count);
+            }
+            let _ = reply.send(count);
         })
         .map_err(|_| String::from("E_NATIVE_MAIN_THREAD_UNAVAILABLE"))?;
-        use tauri::Manager;
         let Ok(Some(count)) = answer.await else {
             return Err(String::from("E_CLIPBOARD_WRITE_FAILED"));
         };
-        app.state::<PendingSecretClear>().wrote(count);
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(SECRET_CLIPBOARD_SECS)).await;
-            let Some(count) = app.state::<PendingSecretClear>().take_for_timer(count) else {
-                return;
-            };
+            let clearer = app.clone();
             if app
-                .run_on_main_thread(move || macos::clear_clipboard_if_unchanged(count))
+                .run_on_main_thread(move || {
+                    if let Some(count) = clearer.state::<PendingSecretClear>().take_for_timer(count)
+                    {
+                        macos::clear_clipboard_if_unchanged(count);
+                    }
+                })
                 .is_err()
             {
                 log::warn!("W_CLIPBOARD_SECRET_NOT_CLEARED");
