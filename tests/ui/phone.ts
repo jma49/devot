@@ -19,6 +19,10 @@ export async function showPhoneTab(page: Page, tab: PhoneTab): Promise<void> {
   await page.evaluate((shown) => (globalThis as Driven).devotPhone!.showTab(shown), tab)
 }
 
+export async function phoneNoteIds(page: Page): Promise<string[]> {
+  return page.evaluate(() => (globalThis as Driven).devotPhone!.notes().map((n) => n.id))
+}
+
 /** Opens the note with this title, or the newest note neither pinned nor completed. */
 export async function openPhoneNote(page: Page, title?: string): Promise<void> {
   await page.waitForFunction((wanted) => {

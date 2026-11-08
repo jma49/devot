@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
-import { openPhoneNote } from './phone'
+import { openPhoneNote, phoneNoteIds } from './phone'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -125,6 +125,7 @@ test('typing shows the formatting bar on the keyboard and hides the bottom bar',
 })
 
 test('note info has stats in figures, icon rows and a working Move to Trash', async ({ page }) => {
+  const listed = (await phoneNoteIds(page)).length
   await note(page).getByRole('button', { name: 'Note Info' }).click()
   const sheet = page.getByRole('dialog', { name: 'Note Info' })
   await expect(sheet.locator('.phone-info-stat dd').first()).toHaveClass(/phone-figures/)
@@ -135,7 +136,8 @@ test('note info has stats in figures, icon rows and a working Move to Trash', as
   }
   await expect(sheet.getByText('Revision history')).toHaveCount(0)
   await sheet.getByRole('button', { name: 'Move to Trash' }).click()
-  await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
+  await expect(note(page)).toHaveCount(0)
+  await expect.poll(async () => (await phoneNoteIds(page)).length).toBe(listed - 1)
 })
 
 test('a long title at twice the text size wraps uncropped, and Return adds no line', async ({

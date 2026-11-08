@@ -144,8 +144,8 @@ test('the Gradient slider shows only for a gradient theme and takes its backdrop
     const [r, g, b] = color.components.map((c) => Math.round(c * 255))
     return `rgba(${r}, ${g}, ${b}, ${color.alpha})`
   })
-  const backdrop = async () =>
-    (await gradientStops(page.locator('section.phone-screen').first()))[1]
+  // WebKit does not restyle a hidden tab's screens when the strength changes, so the shown pane is measured.
+  const backdrop = async () => (await gradientStops(pane))[1]
 
   await expect(slider).toHaveCount(0)
   await lightThemes.getByRole('radio', { name: 'Tide' }).check({ force: true })
