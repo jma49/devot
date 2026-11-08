@@ -11,6 +11,9 @@ final class NoteCell: UICollectionViewListCell {
         mark.contentMode = .scaleAspectFit
         mark.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .body)
         mark.adjustsImageSizeForAccessibilityContentSizeCategory = true
+        // The status and the pin are read in the row's value. Left to UIKit, the row reads as an image.
+        mark.accessibilityElementsHidden = true
+        accessibilityTraits = .button
         configurationUpdateHandler = { cell, state in
             var background = UIBackgroundConfiguration.listCell().updated(for: state)
             background.backgroundColor =
@@ -68,6 +71,7 @@ final class NoteCell: UICollectionViewListCell {
         if note.pinned {
             let pin = UIImageView(image: UIImage(systemName: "pin.fill"))
             pin.tintColor = Tokens.Color.phoneTextFaint
+            pin.accessibilityElementsHidden = true
             pin.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .caption1)
             accessories.append(.customView(configuration: .init(customView: pin, placement: .trailing())))
         }
