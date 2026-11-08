@@ -433,6 +433,18 @@ describe('a write while editing is locked', () => {
     expect(haptics()).toEqual([{ kind: 'warning' }])
   })
 
+  it('closes the sheet for a refused write on its own once a licence change allows writing', async () => {
+    await lockedAs(RUNNING)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    current = LOCKED.K1
+    await act(async () =>
+      watchWrite('newNotebook', Promise.reject(new Error('E_LICENCE_REQUIRED'))),
+    )
+    await vi.waitFor(() => expect(dialog()).not.toBeNull())
+    await unlock()
+    expect(dialog()).toBeNull()
+  })
+
   it('logs any other failure of a write without a sheet', async () => {
     await lockedAs(RUNNING)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
