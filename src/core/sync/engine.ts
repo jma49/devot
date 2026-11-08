@@ -481,7 +481,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   const seenEdits = new Map<string, { edits: number; hlc: string }>()
   /** Record ID to the fingerprint the relay refused as too large; a changed record is tried again. */
   const tooLarge = new Map<string, string>()
-  /** Past the retry cap: left until the next `changed`. */
+  /** Past the retry cap: left until the next `changed`, or on iCloud the next poll or focus pass. */
   const parked = new Set<string>()
   /** Records this run skipped, by store name: a later pull that reads one takes it off the count. */
   const skippedIds = new Set<string>()
@@ -542,6 +542,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     passQueued = true
     void enqueue(async () => {
       passQueued = false
+      // A silent push may not come, so on iCloud this pass stands in for the `changed` that releases parked records.
+      if (via === 'icloud') parked.clear()
       // A failure before this pass (a stop, a drop) closed the connection it was queued on.
       if (connected) await syncAll()
     }).catch(() => undefined)

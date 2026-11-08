@@ -82,7 +82,7 @@ Part of the [architecture overview](../architecture.md).
     A pass that leaves a note waiting keeps the last sync time as it was, since not everything here is synced.
     When the app goes out of sight or quits, whatever waits for a push timer or a pace goes at once (`flush`; a quit that skips the quit handshake leaves it for the next launch); a large backlog (`pushMany`) and the push again after a rejected one never wait.
     The wait's own pass does not fetch from iCloud.
-    A push is based on the version this device last saw; the relay's compare-and-swap rejects it when another device wrote first, and the engine pulls (which merges), then pushes again, at most 5 times with backoff and jitter; past that the record waits for the next `changed`.
+    A push is based on the version this device last saw; the relay's compare-and-swap rejects it when another device wrote first, and the engine pulls (which merges), then pushes again, at most 5 times with backoff and jitter; past that the record waits for the next `changed`, and on iCloud, where a silent push may not come, for the next poll or focus pass.
     One record pushed more than 30 times in a minute is a loop, not typing: sync stops with `E_SYNC_CIRCUIT_OPEN`.
     The engine keeps each record's push times only while they are inside that minute; every push pass ends by dropping the rest.
   - **Pull and merge:** pulls page from the cursor in `sync_state` (`since`, an opaque string; see Transport seam); a version not above the one already seen is a replay and is skipped.
