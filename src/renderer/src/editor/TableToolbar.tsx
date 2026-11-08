@@ -169,15 +169,15 @@ function createBar(view: EditorView, aboveTable = false): TooltipView {
     dom.style.maxWidth = max
     return true
   }
-  // The grid's corner is the header row's first cell; the line around it has its own margin.
+  // The grid's corner is the header row's first cell, where it is before the rows scroll sideways;
+  // the line around it has its own margin.
   const tableEdge = (pos: number) => {
-    const row = view.domAtPos(pos).node
-    const cell = (row instanceof Element ? row : row.parentElement)
-      ?.closest('.cm-wm-row')
-      ?.querySelector('.cm-wm-cell')
-    if (cell) {
+    const node = view.domAtPos(pos).node
+    const row = (node instanceof Element ? node : node.parentElement)?.closest('.cm-wm-row')
+    const cell = row?.querySelector('.cm-wm-cell')
+    if (row && cell) {
       const rect = cell.getBoundingClientRect()
-      return { left: rect.left, top: rect.top, headerBottom: rect.bottom }
+      return { left: rect.left + row.scrollLeft, top: rect.top, headerBottom: rect.bottom }
     }
     const block = view.lineBlockAt(pos)
     return {
