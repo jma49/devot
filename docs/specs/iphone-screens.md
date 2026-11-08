@@ -324,6 +324,7 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
   Swift sets `devot.phone.running` at launch and whenever the scene activates, and clears it once the app is in the background, so a launch that finds it set followed an end in the front: a crash, or a force quit from the app switcher.
   The cleared flag reaches the preferences store a moment after the app leaves, so a kill within that moment also reads as a crash.
 - The rebuilt screens appear inside Rust's install, which refuses calls until it returns, so the calls they make then (`tabs.show`, `editor.show`) are held and sent in the turn after it.
+- The root's first appearance can come just after the install returns, still in its turn, so the Settings start it makes (the editor settings and the glass) waits for the next turn too.
 - An editor is rebuilt with an empty title, and once Rust takes requests (the turn after the install returns) Swift reads `direct.lists.titles`: a live note's title fills the bar and the cover, and an editor whose note is gone cuts its stack there without animation (`I_SCREENS_RESTORE_NOTE_GONE`).
 - A New Note screen whose note is untouched is not rebuilt: its stack ends below it, and the record lists the note with the notebook it was made in.
   The next launch sends `note.discard { noteId, made: { bookId } }` for each, and the page purges the note only if it is still as made.

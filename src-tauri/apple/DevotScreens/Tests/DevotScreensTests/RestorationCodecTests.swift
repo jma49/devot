@@ -115,7 +115,7 @@ final class RestoreFlowTests: XCTestCase {
         XCTAssertTrue(
             harness.requests().contains { $0.op == .tabsShow && $0.args == ["tab": .string("notes")] },
             "the page is told the restored tab")
-        XCTAssertEqual(harness.directs().last?.args, ["ids": .array([.string(note)])])
+        XCTAssertEqual(harness.directs().last { $0.op == .listsTitles }?.args, ["ids": .array([.string(note)])])
         harness.answerTitles([note: "Plans"])
         XCTAssertEqual(editor.cover.title, "Plans")
         XCTAssertEqual(harness.navigation(.notes).viewControllers.count, 2)

@@ -78,7 +78,8 @@ final class Screens: SettingsBridge {
         for tab in TabModel.tabs {
             root.tabs.screen(tab)?.hideEditor = { [weak self] done in self?.hideEditor(done) }
         }
-        root.onShown = { [weak root] in root?.tabs.settings.start() }
+        // A root shown before the install returns would ask Rust while it still refuses calls.
+        root.onShown = { [weak self] in self?.afterInstall { [weak self] in self?.root.tabs.settings.start() } }
         gate.present = { [weak self] in self?.presentLock($0) }
         gate.dismiss = { [weak self] in Self.close(self?.lockSheet) }
         gate.refresh = { [weak licences] done in
