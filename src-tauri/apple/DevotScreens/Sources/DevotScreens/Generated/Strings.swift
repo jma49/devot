@@ -5630,16 +5630,84 @@ public enum L10n {
     text("phone.settings.noResults", "No matching settings")
   }
 
-  public static func phoneSettingsCloseSearch() -> String {
-    text("phone.settings.closeSearch", "Close search")
-  }
-
   public static func phoneSettingsAlertOk() -> String {
     text("phone.settings.alertOk", "OK")
   }
 
   public static func phoneSettingsDefaultNotebookFooter() -> String {
     text("phone.settings.defaultNotebookFooter", "New notes go here unless a notebook is open.")
+  }
+
+  public static func phoneSettingsAppearanceThemes() -> String {
+    text("phone.settings.appearance.themes", "Theme")
+  }
+
+  public static func phoneSettingsAppearanceThemesFooter() -> String {
+    text("phone.settings.appearance.themesFooter", "Tap a swatch to set only light or only dark.")
+  }
+
+  public static func phoneSettingsAppearanceThemeBothHint() -> String {
+    text("phone.settings.appearance.themeBothHint", "Sets light and dark")
+  }
+
+  public static func phoneSettingsAppearanceThemeLight(theme p0: String) -> String {
+    fill(text("phone.settings.appearance.themeLight", "{theme}, light"), ["theme": p0])
+  }
+
+  public static func phoneSettingsAppearanceThemeDark(theme p0: String) -> String {
+    fill(text("phone.settings.appearance.themeDark", "{theme}, dark"), ["theme": p0])
+  }
+
+  public static func phoneSettingsAppearanceGlass() -> String {
+    text("phone.settings.appearance.glass", "Glass")
+  }
+
+  public static func phoneSettingsAppearanceSampleTitle() -> String {
+    text("phone.settings.appearance.sampleTitle", "Notes")
+  }
+
+  public static func phoneSettingsAppearanceSampleLabel() -> String {
+    text("phone.settings.appearance.sampleLabel", "Preview of the bars")
+  }
+
+  public static func phoneSettingsAppearanceTransparencyReduced() -> String {
+    text("phone.settings.appearance.transparencyReduced", "Reduce Transparency is on in Accessibility.")
+  }
+
+  public static func phoneSettingsAppearanceText() -> String {
+    text("phone.settings.appearance.text", "Text")
+  }
+
+  public static func phoneSettingsAppearanceSample() -> String {
+    text("phone.settings.appearance.sample", "The quick brown fox jumps over the lazy dog.")
+  }
+
+  public static func phoneSettingsAppearanceSamplePreview() -> String {
+    text("phone.settings.appearance.samplePreview", "Preview text shows at this size.")
+  }
+
+  public static func phoneSettingsAppearancePoints(size p0: String) -> String {
+    fill(text("phone.settings.appearance.points", "{size} pt"), ["size": p0])
+  }
+
+  public static func phoneSettingsAppearanceFonts() -> String {
+    text("phone.settings.appearance.fonts", "Font")
+  }
+
+  public static func phoneSettingsAppearanceAddFont() -> String {
+    text("phone.settings.appearance.addFont", "Add a Font…")
+  }
+
+  public static func phoneSettingsAppearanceFontFooter() -> String {
+    text("phone.settings.appearance.fontFooter", "Used in the editor and the preview.")
+  }
+
+  public static func phoneSettingsAppearanceImportedFonts() -> String {
+    text("phone.settings.appearance.importedFonts", "Imported")
+  }
+
+  public static func phoneSettingsAppearanceAnimationsFooter() -> String {
+    text("phone.settings.appearance.animationsFooter", "Follow System uses Reduce Motion.")
   }
 
   public static func phoneSettingsTrial() -> String {
@@ -5878,16 +5946,8 @@ public enum L10n {
     text("phone.appearance.gradientFull", "Full")
   }
 
-  public static func phoneAppearanceEditor() -> String {
-    text("phone.appearance.editor", "Editor")
-  }
-
   public static func phoneAppearanceTextSize() -> String {
     text("phone.appearance.textSize", "Text Size")
-  }
-
-  public static func phoneAppearanceTextSizeSmall() -> String {
-    text("phone.appearance.textSizeSmall", "A")
   }
 
   public static func phoneSyncHint() -> String {

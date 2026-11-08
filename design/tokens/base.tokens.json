@@ -1090,11 +1090,6 @@
       "$value": { "value": 15, "unit": "px" },
       "$description": "Half of size.phone-chip."
     },
-    "phone-theme-thumb": {
-      "$type": "dimension",
-      "$value": { "value": 10, "unit": "px" },
-      "$description": "A theme thumb; its ring adds the gap and its own width, on one centre."
-    },
     "phone-row-press": {
       "$type": "dimension",
       "$value": { "value": 16, "unit": "px" },
@@ -1104,6 +1099,16 @@
       "$type": "dimension",
       "$value": { "value": 24, "unit": "px" },
       "$description": "A card of Settings rows, on the Settings screen and in its panes."
+    },
+    "phone-scheme-mini": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" },
+      "$description": "A colour scheme card's mini phone: concentric with its card, 8 inside it."
+    },
+    "phone-glass-sample": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" },
+      "$description": "The Glass card's sample of the bars: concentric with its card, 8 inside it."
     },
     "phone-menu-row": {
       "$type": "dimension",
@@ -1364,32 +1369,6 @@
       "$type": "dimension",
       "$value": { "value": 4, "unit": "px" }
     },
-    "phone-switch-width": {
-      "$type": "dimension",
-      "$value": { "value": 51, "unit": "px" },
-      "$description": "A pane switch."
-    },
-    "phone-switch-height": {
-      "$type": "dimension",
-      "$value": { "value": 31, "unit": "px" }
-    },
-    "phone-pane-segmented": {
-      "$type": "dimension",
-      "$value": { "value": 36, "unit": "px" },
-      "$description": "A pane segmented control, drawn smaller than its 44 target."
-    },
-    "phone-slider-track": {
-      "$type": "dimension",
-      "$value": { "value": 4, "unit": "px" }
-    },
-    "phone-slider-thumb-width": {
-      "$type": "dimension",
-      "$value": { "value": 38, "unit": "px" }
-    },
-    "phone-slider-thumb-height": {
-      "$type": "dimension",
-      "$value": { "value": 24, "unit": "px" }
-    },
     "phone-sheet-done": {
       "$type": "dimension",
       "$value": { "value": 50, "unit": "px" },
@@ -1532,38 +1511,53 @@
       "$value": { "value": 20, "unit": "px" },
       "$description": "Between a pane's groups."
     },
-    "phone-stepper-height": {
-      "$type": "dimension",
-      "$value": { "value": 32, "unit": "px" },
-      "$description": "A pane stepper's capsule, in a 44 target."
-    },
-    "phone-stepper-button": {
-      "$type": "dimension",
-      "$value": { "value": 44, "unit": "px" },
-      "$description": "The width of a pane stepper's - and +."
-    },
-    "phone-stepper-field": {
-      "$type": "dimension",
-      "$value": { "value": 36, "unit": "px" },
-      "$description": "The width of a pane stepper's number."
-    },
-    "phone-theme-thumb-width": {
-      "$type": "dimension",
-      "$value": { "value": 44, "unit": "px" },
-      "$description": "A theme thumb's width: with its ring, 52 of a 390 screen's six columns."
-    },
-    "phone-theme-thumb-height": {
-      "$type": "dimension",
-      "$value": { "value": 56, "unit": "px" }
-    },
     "phone-theme-ring-gap": {
       "$type": "dimension",
       "$value": { "value": 2, "unit": "px" },
-      "$description": "From a theme thumb to the ring around it."
+      "$description": "From a swatch to the ring around it."
     },
     "phone-theme-ring": {
       "$type": "dimension",
       "$value": { "value": 2, "unit": "px" }
+    },
+    "phone-scheme-card": {
+      "$type": "dimension",
+      "$value": { "value": 150, "unit": "px" },
+      "$description": "A colour scheme card in Appearance: its mini phone and label."
+    },
+    "phone-scheme-mini-width": {
+      "$type": "dimension",
+      "$value": { "value": 56, "unit": "px" },
+      "$description": "The mini phone a colour scheme card draws in the chosen themes."
+    },
+    "phone-scheme-mini-height": {
+      "$type": "dimension",
+      "$value": { "value": 96, "unit": "px" }
+    },
+    "phone-swatch": {
+      "$type": "dimension",
+      "$value": { "value": 56, "unit": "px" },
+      "$description": "A theme swatch: the theme's screen in one appearance, with Aa and its accent."
+    },
+    "phone-swatch-box": {
+      "$type": "dimension",
+      "$value": { "value": 66, "unit": "px" },
+      "$description": "The target around a swatch, its ring inside it."
+    },
+    "phone-swatch-ring": {
+      "$type": "dimension",
+      "$value": { "value": 3, "unit": "px" },
+      "$description": "The ring on a chosen swatch, size.phone-theme-ring-gap from it."
+    },
+    "phone-swatch-badge": {
+      "$type": "dimension",
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "The sun or moon on a chosen swatch."
+    },
+    "phone-glass-sample": {
+      "$type": "dimension",
+      "$value": { "value": 120, "unit": "px" },
+      "$description": "The Glass card's sample of the bars."
     },
     "phone-group-title": {
       "$type": "dimension",

@@ -14,7 +14,6 @@ import {
   type ICloudStatus,
 } from '../syncICloud'
 import { Setting, SettingsNote } from './controls'
-import { useOnPhone } from './onPhone'
 import type { Failure } from './SyncDevices'
 import { failureText, logFailure } from './syncWhy'
 
@@ -231,7 +230,6 @@ type Stored =
 /** What the vault takes in iCloud, added up here: Devot never reads the account's own storage. */
 export function ICloudStorageRows(props: { snapshot: SyncSnapshot }) {
   const [stored, setStored] = useState<Stored>({ state: 'reading' })
-  const onPhone = useOnPhone()
   const { lastSync } = props.snapshot.status
   useEffect(() => {
     let current = true
@@ -261,7 +259,7 @@ export function ICloudStorageRows(props: { snapshot: SyncSnapshot }) {
       <Setting label="syncSettings.icloudStorage" description={text}>
         {null}
       </Setting>
-      {onPhone ? null : <SettingsNote>{t('syncSettings.icloudStorageManaged')}</SettingsNote>}
+      <SettingsNote>{t('syncSettings.icloudStorageManaged')}</SettingsNote>
     </>
   )
 }

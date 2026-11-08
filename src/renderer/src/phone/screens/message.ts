@@ -14,12 +14,13 @@ export const SCREENS_OPS = [
   'note.discard',
   'tabs.show',
   'tabs.popToRoot',
-  'settings.showPane',
   'settings.notebooks',
   'editor.show',
   'editor.hide',
   'editor.setMode',
   'editor.info',
+  'glass.get',
+  'glass.set',
   'editor.focus',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]

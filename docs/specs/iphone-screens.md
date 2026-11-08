@@ -133,7 +133,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 | Purchases, restoring them, the Mac key                                      | Rust-direct                           | `direct.store.*`; StoreKit's own sheet takes the payment                        |
 | Sync settings, pairing, devices, iCloud                                     | Rust-direct                           | `direct.sync.*`, the bodies of the `sync_*` commands Settings calls             |
 | Editor settings, themes, fonts, AI providers, crash reports                 | Rust-direct                           | `direct.editorSettings.*`, `.fonts.list`, `.ai.*`, `.crashReports.*`            |
-| Glass Transparency (this iPhone's own)                                      | Swift's `UserDefaults`                | moved from `src/renderer/src/phone/glassPrefs.ts` in stage 1                    |
+| Glass Transparency (this iPhone's own)                                      | Swift's `UserDefaults`                | `devot.phone.glassTransparency`; the page's old value moves over once           |
 
 - Each Rust-direct entry starts as a refactor: the command's body moves into a function that both the Tauri command and the screens module call, so validation is never written twice.
 - Rust's write gate (`src-tauri/src/storage/db.rs`) stays the enforcement for every write, whichever side asked for it.
@@ -145,7 +145,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 | Area            | Operations                                                                                         | Command bodies                                   |
 | --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | Editor settings | `direct.editorSettings.get`, `.set { patch }`                                                      | `editor_settings_get`, `editor_settings_set`     |
-| Imported fonts  | `direct.fonts.list`                                                                                | `fonts_list`                                     |
+| Imported fonts  | `direct.fonts.list`, `.import { path }`                                                            | `fonts_list`, `Fonts::import`                    |
 | Crash reports   | `direct.crashReports.get`, `.set { on }`                                                           | `crash_reports_get`, `crash_reports_set`         |
 | AI providers    | `direct.ai.get`, `.set { settings }`, `.keySet { provider, key }`, `.keyClear { provider }`        | `ai_settings_get`, `ai_settings_set`, `ai_key_*` |
 | Licence         | `direct.licence.get`, `.set { key }`, `.remove`, `.refresh`                                        | `licence_*`                                      |
@@ -158,6 +158,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 | iCloud vault    | `direct.sync.icloudUploadAgain`, `.icloudRotate`, `.icloudLeave { recoveryKey }`, `.icloudStorage` | the `sync_icloud_*` command of the same name     |
 
 - An operation's name is its command's in camel case, so `direct.sync.icloudUploadAgain` runs the body of `sync_icloud_upload_again`.
+- `direct.fonts.import` has no command of its own: the Mac's `font_import` opens its own dialog, while the iPhone's document picker hands Rust a copy, and Rust reads it only inside the app's temporary folder.
 - A request's `args` are the command's arguments under the names the page passes them, and unknown fields are refused with `E_SCREENS_ARGS_INVALID` before anything runs.
 - Its reply's `result` is what the command answers, and its `code` the command's own refusal code, so Swift and the page see the same outcome for the same input.
 - Rust runs the body on its async runtime and answers Swift once, from that thread; a panic there answers `E_SCREENS_INTERNAL`, and a request that comes before the app's services exist is refused with `E_SCREENS_NOT_READY`.
@@ -166,7 +167,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - The operations reach the database only through `NoteCounts`, the two counts sync's settings show, so no Rust-direct request can write a note; a test over the operation enum holds every name to a settings area.
 - A failure is logged as `W_SCREENS_DIRECT_FAILED op=… id=… code=…`, and a request's arguments, which may hold a licence key, an AI key or a relay secret, are never logged.
 - The native purchase sheet reads StoreKit's price with `direct.store.products` and buys with `direct.store.purchase`, the bodies the page's sheet calls, so StoreKit's own sheet takes the payment either way.
-- Importing a font joins with the Appearance pane that first sends it.
+- `direct.fonts.import { path }` imports the copy the document picker made, and takes only a file under the app's temporary folder.
 - The sync engine's commands (`sync_connect`, `sync_pull`, `sync_push`, `sync_disconnect`, `sync_status_report`) stay the core's.
 
 ### Keeping lists fresh
@@ -200,7 +201,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - `WebTabScreen`'s view reports the window's safe area insets, and the web view derives its own from them: the page lays itself out by `env(safe-area-inset-*)` exactly as without the system bar, and its own room for a floating bar at the bottom clears the system's.
 - The view overrides `safeAreaInsets` because the tab bar's inset can reach it through its superview, which a negative `additionalSafeAreaInsets` does not take back (on iOS 26.5 each screen kept the bar's 49 points).
 - The bar's tint is `color.accent.text` and it is never minimised on scroll.
-  Glass Transparency does not reach it: the floating tab bar ignores a bar tint (spike: bar tint).
+  Glass Transparency reaches it only below 0, through the scroll edge effect (spike: bar tint).
 - The host-app XCTests check the bar's items, the web view's moves and the key window; the `iphone-ui` CI job's XCUITest (`src-tauri/apple/DevotUITests/Tests/TabsTests.swift`) launches the real app, switches all four tabs by their names and runs the accessibility audit on the bar (docs/specs/quality.md, CI).
 
 ## Editor screen protocol
@@ -329,17 +330,16 @@ Glass is the system's, on the navigation layer only; content is never glass.
 - Devot's two glass views (the formatting bar and the toast) cast `shadow.phone-float-*` in `color.phone.float-shadow`, drawn from a shadow path so no offscreen pass runs.
 - Glass Transparency runs from −100 to 100 in steps of 5 and is this iPhone's own setting, never synced:
   - on Devot's two glass views, −100 is a solid `color.phone.glass-opaque`, values below 0 tint regular glass with it at −t/100, 0 is plain regular glass, and values above 0 are clear glass tinted at the larger of 0 and 0.25 − t/400;
-  - on the system bars, whose glass has no public opacity, only values below 0 act: a background of `color.phone.glass-opaque` at −t/100 × 0.85, and from 0 up the system's default;
-  - a change applies on every move of the slider and is saved when the finger lifts.
+  - on the system bars, whose glass has no public opacity, only values below 0 act: every scroll view under them, the web view's and the panes', takes the hard scroll edge effect, and from 0 up the automatic one;
+  - a change applies on every move of the slider and is saved when the finger lifts, or 400 ms after the last step of an adjustment without a drag (VoiceOver, Switch Control);
+  - a value that arrives within 400 ms after the lift is the drag's last one, which SwiftUI may hand over after it reports the lift, and is saved at once, so an app closed straight after a drag keeps it.
 - Reduce Transparency and Increase Contrast win over Glass Transparency: the system frosts its glass, Devot's glass views follow with a solid fill, and the slider shows disabled with a footer that says why.
 
 ## Settings tree
 
 Every pane is a SwiftUI form in a hosting controller pushed on the Settings tab's own navigation controller, so push, pop and the edge swipe are UIKit's.
 The root's rows are buttons that push through `SettingsRouter`, never SwiftUI navigation links, since no SwiftUI navigation container holds them.
-Appearance and Sync are still the page's panes: their rows push a `WebPaneScreen`, which asks the page for the pane with `settings.showPane` each time it shows and takes the web view under the native bar once the page answers, so the push never shows what the page drew before.
-The web view keeps its size there; its safe area takes in the bar, so the page's top inset clears it.
-The page keeps a pane it still shows when asked again, so a tab switch loses nothing typed in it and leaves a pairing running; once the `WebPaneScreen` leaves the stack, Swift sends `tabs.popToRoot { tab: "settings" }` and the page lets the pane go, as its own Back did.
+The page draws no Settings page: under every one the web view rests on the stage at its size, hidden from VoiceOver.
 Rows have a label, at most one short description and one trailing edge (a value with a chevron, a switch, or nothing), with no info buttons.
 A choice of three or fewer sits inline as checkmark rows, and a longer one pushes a checkmark page.
 Every choice applies in the next frame with no transition, before it is saved.
@@ -371,18 +371,35 @@ Settings root (large title, the system search field, a Pair a Device bar button 
   Wherever the shell draws a theme's `Backdrop`, each stop is mixed in sRGB towards the gradient's middle colour (its stop at 0.5) by strength / 100: 0 is that colour alone, 100 the stops as designed.
   A change applies on every move of the slider and is saved when the finger lifts, as Glass Transparency is.
 - App Font is not on the phone.
-- The root's list ends `size.phone-tab-edge` above the tab bar, so its build footer clears the bar's scroll edge effect; once the reader has scrolled to the foot, the root keeps the foot in view while the list's content grows (`FootKeeper`), since the list would keep its offset and a larger text size would push the footer off the screen, which the accessibility audit's Dynamic Type check reads as text that does not scale.
+- The root's list ends `size.phone-tab-edge` above the tab bar, so its build footer clears the bar's scroll edge effect.
+- The root and every pushed Settings page keep the reader's place when the text size changes (`PlaceKeeper`): the first row or header that starts on the screen stays where it was, until the reader scrolls again.
+  The root instead keeps its foot in view once the reader has scrolled there, for its build footer; a pane pinned to its foot would push the rows at the top of the screen under the navigation bar.
+  SwiftUI's list passes through a short content size at a new text size and drops its offset, so text the reader was looking at would leave the screen, which the accessibility audit's Dynamic Type check reads as text that does not scale.
+  The place is marked once, as the reader's scroll ends (the run loop leaves its tracking mode), not on every frame of it.
 - The panes read their snapshots (editor settings, crash reports, licence, AI, sync) through Rust-direct operations each time the root shows, and Default Notebook's choices from the page with `settings.notebooks`, so a pushed page never waits for a first read.
 - A change applies to the snapshot first and then goes to Rust; Rust's newer snapshot replaces it, an older one never does, and a refused write puts the old value back, raises the `appearanceSettings.failed` alert and logs `W_PHONE_SETTINGS_SAVE_FAILED key=… code=…`.
-- Pair a Device pushes Sync with the `pairing` anchor: the page opens the pane afresh and scrolls to its pairing card (or, before this device is in a vault, its setup rows) once drawn, unless the owner touches the pane first; the anchor goes with the push only, so coming back to the tab leaves the pane where it was.
+- Sync is native, with the page's phone layout group for group: on or off with the relay and its hint, the status and its iCloud actions, the state notes, iCloud storage or the relay's usage, Move to iCloud, the recovery key until it is saved, setup or Devices (with a You badge on this device), pairing and leaving.
+  `SyncLayout` derives the groups from the snapshot and the pane's own state, and `tests/fixtures/sync-pane.json` holds the groups for a set of snapshots, which the page's phone layout and `SyncLayoutTests` both match.
+  Its actions are the `direct.sync.*` operations, and a failure says the page's sentence and why (`syncWhy.ts`), and logs `W_SYNC_SETTINGS_FAILED op=… code=…`.
+  Confirmations are system alerts; the QR code is drawn from Rust's modules with four quiet modules round it.
+  The recovery key's Copy puts it on this device's pasteboard only, gone after 90 seconds, since the page's secret clipboard command works on the Mac alone.
+- Pair a Device pushes Sync with the `pairing` anchor, and the pane lands on its pairing group (or, before this device is in a vault, its setup rows) without a scroll animation once its snapshot is drawn; coming back to the tab leaves it where it was.
+- A pairing on show keeps running across a tab switch and ends, cancelled in Rust, when the Sync page leaves the stack.
+  It checks every 2 seconds on a relay and every 10 on iCloud, and at once on `sync.pairing`; a relay out of reach keeps it waiting, and any other failure ends it.
 - `SettingsRouter.open` sets the stack to the root and the page in one `setViewControllers`, so Back lands on the root; it animates only while the app is in front.
 - Enter License Key in the page's Pro sheet sends the `settings.open { pane: "licence", focusKey }` notice, and Swift opens License over the root with its key field focused once the push lands.
 
-| Message                               | From  | Meaning                                                                                                             |
-| ------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
-| `settings.showPane { pane, anchor? }` | Swift | the page shows `appearance` or `sync` in the web view, without its own bar; `anchor` is only `pairing`, with `sync` |
-| `settings.notebooks`                  | Swift | the page answers the notebooks, each with `id`, `name` and `depth`, in order                                        |
-| `settings.open { pane, focusKey }`    | page  | the page asks Swift to open License, its key field focused or not                                                   |
+| Message                            | From  | Meaning                                                                                                     |
+| ---------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------- |
+| `glass.get`                        | Swift | the page answers its stored Glass Transparency, or null, once, when this iPhone has no value of its own yet |
+| `glass.set { transparency }`       | Swift | the page paints its glass at this value and keeps a copy, so it paints right at the next launch             |
+| `settings.notebooks`               | Swift | the page answers the notebooks, each with `id`, `name` and `depth`, in order                                |
+| `settings.open { pane, focusKey }` | page  | the page asks Swift to open License, its key field focused or not                                           |
+| `sync.changed`                     | Rust  | after `devot://sync-changed`: Swift reads `direct.sync.get` again                                           |
+| `sync.pairing`                     | Rust  | after `devot://sync-pairing`: the Sync pane checks a pairing on show at once                                |
+
+- Rust sends `sync.changed` and `sync.pairing` itself, from the sync service's emitter, and only while the native screens are installed; the page sending either is refused with `E_SCREENS_NOTICE_UNKNOWN`.
+- Swift keeps one `direct.sync.get` in flight, and a change heard during it reads once more after it; it reads `direct.sync.icloudStatus` again when the vault, transport, on or off, status code or iCloud join state changes.
 
 - Settings search runs `settings/search.ts`'s matching in Swift over `Generated/SettingsIndex.swift`, which `pnpm i18n:apple` writes from the same entries; `tests/fixtures/settings-search.json` holds what the page finds for a set of queries, and both suites check it.
 - A purchase on the License page goes through StoreKit only, never a link outside it (ADR 0014).
@@ -462,5 +479,5 @@ These are measured on a device in stage 0, before the stages that depend on them
   The screen stays up, and which bars draw the tint is read off a screenshot taken by hand, so the report's `pass` is `null`.
   Run: `scripts/ios/run-spike.sh barTint`.
   Result (2026-11-07, iPhone18,2, iOS 27.2): only the navigation bar draws the tint, and it then draws as an opaque band instead of floating glass; the floating tab bar and the toolbar ignore it.
-  So Glass Transparency below 0 cannot reach the bars through their appearance's background colour, and the tint needs another path in PR 14.
+  So Glass Transparency below 0 cannot reach the bars through their appearance's background colour; it reaches them as the hard scroll edge effect instead, which the system draws behind every floating bar.
   iOS 26 was not measured.

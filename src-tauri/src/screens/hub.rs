@@ -86,7 +86,7 @@ impl<R: Copy> Hub<R> {
         self.state().installed = installed;
     }
 
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", test))]
     pub fn installed(&self) -> bool {
         self.state().installed
     }
@@ -287,6 +287,14 @@ mod tests {
         let hub = Hub::new();
         hub.set_installed(true);
         hub
+    }
+
+    #[test]
+    fn says_whether_the_native_screens_are_installed() {
+        let hub = Hub::<char>::new();
+        assert!(!hub.installed());
+        hub.set_installed(true);
+        assert!(hub.installed());
     }
 
     #[test]

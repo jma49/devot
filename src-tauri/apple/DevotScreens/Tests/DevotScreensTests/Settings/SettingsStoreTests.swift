@@ -142,4 +142,55 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.syncOn)
         XCTAssertFalse(store.syncNeedsOwner)
     }
+
+    func testSyncChangesHeardDuringAReadReadOnceMoreAfterIt() {
+        let (store, bridge) = store()
+        store.heard(.syncChanged)
+        store.heard(.syncChanged)
+        store.heard(.syncChanged)
+        XCTAssertEqual(bridge.ops, ["direct.sync.get"])
+        bridge.answer("direct.sync.get", .ok(.object(["enabled": .bool(true)])))
+        XCTAssertEqual(bridge.ops.filter { $0 == "direct.sync.get" }.count, 1)
+        bridge.answer("direct.sync.get", .ok(.object(["enabled": .bool(true)])))
+        XCTAssertFalse(bridge.ops.contains("direct.sync.get"))
+    }
+
+    func testICloudIsReadAgainOnlyWhenWhatItDependsOnChanges() {
+        let (store, bridge) = store()
+        store.adoptSync(.object(["enabled": .bool(true)]))
+        bridge.answer("direct.sync.icloudStatus", .ok(.object(["available": .bool(true), "account": .string("available")])))
+        XCTAssertEqual(store.icloud, ICloudStatus(available: true, account: "available"))
+        store.adoptSync(.object(["enabled": .bool(true), "status": .object(["lastSync": .number(5)])]))
+        XCTAssertTrue(bridge.sent.isEmpty)
+        store.adoptSync(.object(["enabled": .bool(false)]))
+        XCTAssertEqual(bridge.ops, ["direct.sync.icloudStatus"])
+        bridge.answer("direct.sync.icloudStatus", .failed("E_COMMAND_FAILED"))
+        XCTAssertEqual(store.icloud, .none)
+    }
+
+    func testAPairingNoticeNudgesTheSyncPane() {
+        let (store, _) = store()
+        store.heard(.syncPairing)
+        XCTAssertEqual(store.pairingNudges, 1)
+    }
+
+    func testAPatchShowsEveryKeyTellsTheThemeBeforeRustAndRollsBackTogether() {
+        let (store, bridge) = store()
+        var told: [(sent: Int, editor: [String: JSONValue])] = []
+        store.onEditor = { told.append((bridge.sent.count, $0)) }
+        store.loadEditor()
+        XCTAssertEqual(bridge.ops, ["direct.editorSettings.get"])
+        bridge.answer(
+            "direct.editorSettings.get",
+            editor(1, ["lightTheme": .string("default"), "darkTheme": .string("default")]))
+        store.setEditor(["lightTheme": .string("dawn"), "darkTheme": .string("dawn")])
+        XCTAssertEqual(told.last?.sent, 0)
+        XCTAssertEqual(told.last?.editor["darkTheme"], .string("dawn"))
+        XCTAssertEqual(
+            bridge.sent.last?.args, ["patch": .object(["lightTheme": .string("dawn"), "darkTheme": .string("dawn")])])
+        bridge.answer("direct.editorSettings.set", .failed("E_SETTINGS_WRITE"))
+        XCTAssertEqual(store.editor["lightTheme"], .string("default"))
+        XCTAssertEqual(told.last?.editor["darkTheme"], .string("default"))
+        XCTAssertEqual(bridge.lines, ["W_PHONE_SETTINGS_SAVE_FAILED key=darkTheme,lightTheme code=E_SETTINGS_WRITE"])
+    }
 }

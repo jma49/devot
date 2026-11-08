@@ -20,6 +20,17 @@ final class LicenceRowTests: XCTestCase {
         XCTAssertTrue(pro.allows(now))
     }
 
+    func testOnlyAnAppStoreBuildRestoresAndOnlyDevotProAddsTheMacKeyAndTheRefund() throws {
+        let store = { (fields: [String: JSONValue]) in
+            try self.read(["gated": .bool(true), "state": .string("none"), "appStore": .object(fields)])
+        }
+        XCTAssertEqual(StoreRow.shown(nil), [])
+        XCTAssertEqual(StoreRow.shown(try read(["gated": .bool(true), "state": .string("valid")])), [])
+        XCTAssertEqual(StoreRow.shown(try store(["pro": .bool(false)])), [.restore])
+        XCTAssertEqual(StoreRow.shown(try store(["pro": .bool(true)])), [.restore, .macKey, .refund])
+        XCTAssertFalse(try store(["takesKeys": .bool(false)]).takesKeys)
+    }
+
     func testARunningTrialCountsItsDaysAndMarksTheLastThree() throws {
         let ends = { (days: Double) in
             try self.read([

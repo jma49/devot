@@ -264,6 +264,15 @@ enum LicenceText {
         return problem.map { "\(seats) \($0)" } ?? seats
     }
 
+    /// Why sync is locked (`lockedSentence`); an App Store build names Devot Pro.
+    static func syncLocked(_ licence: Licence, _ now: Date) -> String {
+        let ended = licence.trialOver(now)
+        if licence.soldOnAppStore {
+            return catalog(ended ? "licence.locked.syncProTrialEnded" : "licence.locked.syncPro")
+        }
+        return catalog(ended ? "licence.locked.syncTrialEnded" : "licence.locked.sync")
+    }
+
     /// Why AI is locked; an App Store build, which may take no key, names Devot Pro.
     static func aiLocked(_ licence: Licence, _ now: Date) -> String {
         let ended = licence.trialOver(now)

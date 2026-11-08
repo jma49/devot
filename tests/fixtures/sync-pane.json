@@ -1,0 +1,173 @@
+{
+  "about": "The iPhone's Sync pane, group by group, for a snapshot and the reads it makes: the page's phone layout (SyncSection.test.tsx) and the native SyncLayout (SyncLayoutTests.swift) both match it. Labels and notes are catalog keys; a note or footer matches up to its first placeholder.",
+  "cases": [
+    {
+      "name": "nothing set up, without iCloud",
+      "snapshot": {
+        "relayUrl": "",
+        "enabled": false,
+        "vault": false,
+        "enrolled": false,
+        "transport": "relay",
+        "status": { "state": "off", "lastSync": null, "code": null, "tooLarge": 0 }
+      },
+      "icloud": { "available": false, "account": null },
+      "usage": null,
+      "devices": [],
+      "sections": [
+        { "labels": ["syncSettings.enabled"], "notes": [], "footer": "phone.sync.notesStay" },
+        { "labels": ["syncSettings.setup"], "notes": [], "footer": null }
+      ]
+    },
+    {
+      "name": "nothing set up, iCloud asks first",
+      "snapshot": {
+        "relayUrl": "",
+        "enabled": false,
+        "vault": false,
+        "enrolled": false,
+        "transport": "relay",
+        "status": { "state": "off", "lastSync": null, "code": null, "tooLarge": 0 }
+      },
+      "icloud": { "available": true, "account": "available" },
+      "usage": null,
+      "devices": [],
+      "sections": [
+        { "labels": ["syncSettings.enabled"], "notes": [], "footer": "phone.sync.notesStay" },
+        { "labels": ["syncSettings.setup"], "notes": [], "footer": null }
+      ]
+    },
+    {
+      "name": "a relay's vault, in sync, under a cap",
+      "snapshot": {
+        "relayUrl": "https://relay.example.test",
+        "enabled": true,
+        "vault": true,
+        "enrolled": true,
+        "transport": "relay",
+        "status": { "state": "idle", "lastSync": 1793836800000, "code": null, "tooLarge": 0 }
+      },
+      "icloud": { "available": false, "account": null },
+      "usage": { "storedBytes": 1000000, "fileBytes": 200000, "caps": { "storedBytes": 10000000 } },
+      "devices": [
+        { "id": "mac", "label": "Studio", "created": 1793923200000, "current": false },
+        { "id": "phone", "label": "Pocket", "created": 1793836800000, "current": true }
+      ],
+      "sections": [
+        {
+          "labels": ["syncSettings.enabled", "syncSettings.relay"],
+          "notes": [],
+          "footer": "phone.sync.lastSynced"
+        },
+        {
+          "labels": [
+            "syncSettings.usage.records",
+            "syncSettings.usage.images",
+            "syncSettings.usage.total",
+            "syncSettings.usage.room"
+          ],
+          "notes": ["syncSettings.usage.capNoteTotal"],
+          "footer": null
+        },
+        { "labels": ["syncSettings.devices"], "notes": [], "footer": null },
+        { "labels": ["syncSettings.pair"], "notes": [], "footer": null },
+        { "labels": ["syncSettings.leave"], "notes": [], "footer": null }
+      ]
+    },
+    {
+      "name": "a relay's vault, stopped, with files too large",
+      "snapshot": {
+        "relayUrl": "https://relay.example.test",
+        "enabled": true,
+        "vault": true,
+        "enrolled": true,
+        "transport": "relay",
+        "status": {
+          "state": "stopped",
+          "lastSync": 1793836800000,
+          "code": "E_SYNC_PROTOCOL",
+          "tooLarge": 2
+        }
+      },
+      "icloud": { "available": false, "account": null },
+      "usage": { "storedBytes": 1000000, "fileBytes": 200000, "caps": null },
+      "devices": [{ "id": "phone", "label": "Pocket", "created": 1793836800000, "current": true }],
+      "sections": [
+        {
+          "labels": ["syncSettings.enabled", "syncSettings.relay", "syncSettings.status"],
+          "notes": ["syncSettings.tooLargeOther"],
+          "footer": "phone.sync.lastSynced"
+        },
+        {
+          "labels": [
+            "syncSettings.usage.records",
+            "syncSettings.usage.images",
+            "syncSettings.usage.total",
+            "syncSettings.usage.room"
+          ],
+          "notes": [],
+          "footer": null
+        },
+        { "labels": ["syncSettings.devices"], "notes": [], "footer": null },
+        { "labels": ["syncSettings.pair"], "notes": [], "footer": null },
+        { "labels": ["syncSettings.leave"], "notes": [], "footer": null }
+      ]
+    },
+    {
+      "name": "a relay's vault this device was removed from",
+      "snapshot": {
+        "relayUrl": "https://relay.example.test",
+        "enabled": true,
+        "vault": true,
+        "enrolled": false,
+        "transport": "relay",
+        "status": { "state": "stopped", "lastSync": null, "code": "E_SYNC_REVOKED", "tooLarge": 0 }
+      },
+      "icloud": { "available": false, "account": null },
+      "usage": null,
+      "devices": [],
+      "sections": [
+        {
+          "labels": ["syncSettings.enabled", "syncSettings.relay", "syncSettings.status"],
+          "notes": [],
+          "footer": "syncSettings.neverSynced"
+        },
+        {
+          "labels": ["syncSettings.joinCode", "syncSettings.joinRecovery", "syncSettings.secret"],
+          "notes": [],
+          "footer": null
+        },
+        { "labels": ["syncSettings.leave"], "notes": [], "footer": null }
+      ]
+    },
+    {
+      "name": "iCloud's vault, in sync",
+      "snapshot": {
+        "relayUrl": "",
+        "enabled": true,
+        "vault": true,
+        "enrolled": false,
+        "transport": "icloud",
+        "status": { "state": "idle", "lastSync": 1793836800000, "code": null, "tooLarge": 0 }
+      },
+      "icloud": { "available": true, "account": "available" },
+      "usage": null,
+      "devices": [{ "id": "phone", "label": "Pocket", "created": 1793836800000, "current": true }],
+      "sections": [
+        {
+          "labels": ["syncSettings.enabled", "syncSettings.transport"],
+          "notes": [],
+          "footer": "phone.sync.lastSynced"
+        },
+        {
+          "labels": ["syncSettings.icloudStorage"],
+          "notes": [],
+          "footer": "syncSettings.icloudStorageManaged"
+        },
+        { "labels": ["syncSettings.devices"], "notes": [], "footer": null },
+        { "labels": ["syncSettings.pair"], "notes": [], "footer": null },
+        { "labels": ["syncSettings.icloudLeave"], "notes": [], "footer": null }
+      ]
+    }
+  ]
+}

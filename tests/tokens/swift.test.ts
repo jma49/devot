@@ -15,7 +15,8 @@ const themes = BUILT_IN_THEMES.map(({ id }) => ({
   dark: read(`design/tokens/themes/${id}.dark.tokens.json`),
 }))
 const backdrops = read('design/tokens/backdrops.tokens.json')
-const swift = compileSwift(base, light, dark, themes, backdrops)
+const phoneThemes = read('design/tokens/phone-themes.tokens.json')
+const swift = compileSwift(base, light, dark, themes, backdrops, phoneThemes)
 
 const baseFlat = flatten(base)
 const colours = (tree: TokenTree) =>
@@ -78,9 +79,37 @@ describe('the Swift tokens', () => {
     expect(body.match(/case \./g)).toHaveLength(expected.length)
   })
 
-  it('gives the gradient themes the default palette and their backdrop', () => {
-    expect(swift).toMatch(/Theme\(\s*id: "dawn", light: \.defaultLight, dark: \.defaultDark,/)
+  it('gives the gradient themes the default palette under their own phone colours, and their backdrop', () => {
+    expect(swift).toMatch(/Theme\(\s*id: "dawn", light: \.dawnLight, dark: \.dawnDark,/)
     expect(swift).toContain('Backdrop(angle: 160')
+    const dawn = block(swift, 'static func dawnLight(_ name: ColorName) -> RGBA {')
+    expect(dawn).toContain('case .phoneBackground: return RGBA(0xfcedf3, 1)')
+    expect(dawn).toContain('case .phoneCard: return RGBA(0xffffff, 0.3)')
+    expect(dawn).toContain('case .phoneGlassOpaque: return RGBA(0xfdf2f6, 1)')
+    expect(dawn).toContain('case .accentFill: return RGBA(0xb83a68, 1)')
+    expect(dawn).toContain('case .accentText: return RGBA(0x9a2b55, 1)')
+    const defaults = block(swift, 'static func defaultLight(_ name: ColorName) -> RGBA {')
+    const phoneText = /case \.phoneText: return .*/.exec(defaults)![0]
+    expect(dawn).toContain(phoneText)
+    expect(block(swift, 'static func emberDark(_ name: ColorName) -> RGBA {')).toContain(
+      'case .phoneBackground: return RGBA(0x1d140c, 1)',
+    )
+  })
+
+  it('gives the glow themes their glow, and the default none', () => {
+    expect(swift).toMatch(
+      /id: "dawn", [^\n]*glow: Glow\(light: \[RGBA\(0xf5c4d8, 0\.9\), RGBA\(0xfdeedc, 0\.9\)\]/,
+    )
+    expect(swift).toMatch(/id: "ivory", [^\n]*glow: Glow\(light: \[RGBA\(0xefe6d2, 0\.6\)/)
+    expect(swift).toMatch(/id: "default", [^\n]*backdrop: nil, glow: nil\)/)
+  })
+
+  it('lets SwiftUI follow the theme in effect', () => {
+    expect(swift).toContain('import Observation')
+    expect(block(swift, '@MainActor @Observable public final class ThemeState {')).toContain(
+      'public var theme: Theme = .default',
+    )
+    expect(swift).toContain('get { ThemeState.shared.theme }')
   })
 
   it('carries every size, radius, duration and curve under its group', () => {

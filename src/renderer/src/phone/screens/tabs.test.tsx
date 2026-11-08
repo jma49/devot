@@ -217,7 +217,7 @@ describe('the tab operations', () => {
     expect(shown).toStrictEqual(['show activity', 'root notes'])
   })
 
-  it('hide the bar over a note or a cover, and keep it over a pushed list or pane', () => {
+  it('hide the bar over a note or a cover, and keep it over a pushed list', () => {
     const first = initialNavigation()
     expect(tabsState(first, false, true)).toStrictEqual({
       tab: 'library',
@@ -229,8 +229,5 @@ describe('the tab operations', () => {
     expect(tabsState(list, true, false).barHidden).toBe(true)
     const note = navigate(list, { type: 'push', screen: 'note', noteId: 'n1' })
     expect(tabsState(note, false, false).barHidden).toBe(true)
-    const settings = navigate(first, { type: 'selectTab', tab: 'settings' })
-    const pane = navigate(settings, { type: 'push', screen: 'pane', pane: 'sync' })
-    expect(tabsState(pane, false, false)).toMatchObject({ tab: 'settings', barHidden: false })
   })
 })

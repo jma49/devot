@@ -9,7 +9,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     private var screens: [Tab: WebTabScreen] = [:]
 
     init(host: WebViewHost) {
-        settings = SettingsScreens(host: host)
+        settings = SettingsScreens()
         super.init(nibName: nil, bundle: nil)
         viewControllers = TabModel.tabs.map { tab in
             let navigation: UINavigationController
@@ -29,7 +29,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
         selectedIndex = TabModel.tabs.firstIndex(of: .library) ?? 0
         delegate = self
         tabBarMinimizeBehavior = .never
-        tabBar.tintColor = Tokens.Color.accentText
+        followTheme { [weak self] in self?.tabBar.tintColor = Tokens.Color.accentText }
     }
 
     required init?(coder: NSCoder) { nil }

@@ -325,8 +325,8 @@ test('New Note pushes an empty note over the list, with no sheet, and the circle
 test('keeps a stack per tab, and tapping the current tab pops to its root', async ({ page }) => {
   await openTemplates(page)
   await expect(page.getByRole('region', { name: 'Templates' })).toBeVisible()
-  await tab(page, 'Settings').evaluate((el) => (el as HTMLElement).click())
-  await expect(page.getByRole('region', { name: 'Settings' })).toBeVisible()
+  await tab(page, 'Activity').evaluate((el) => (el as HTMLElement).click())
+  await expect(page.getByRole('region', { name: 'Activity' })).toBeVisible()
   await tab(page, 'Library').click()
   await expect(page.getByRole('region', { name: 'Templates' })).toBeVisible()
   await tab(page, 'Library').evaluate((el) => (el as HTMLElement).click())
@@ -421,7 +421,6 @@ test.describe('the top bar', () => {
   const screens = [
     ['Library', 'New Notebook', 'Search'],
     ['Notes', 'Status filter', 'Search'],
-    ['Settings', 'Pair a device', 'Search Settings'],
   ] as const
 
   for (const [tabName, first, second] of screens) {
