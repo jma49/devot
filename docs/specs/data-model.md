@@ -12,7 +12,7 @@ Part of the [architecture overview](../architecture.md).
   A write and its record are one Yjs transaction.
   Text is attributed by item ID, so the records sync, merge and survive restarts and compaction with the body; a record that does not parse is skipped and kept.
   Undo All for one writer (`reverseWrites`, `NoteService.undoAgentWrites`) puts back what it deleted where the deleted items sit and deletes what it inserted, keeping the owner's and other writers' text; Clear Authorship (`clearAuthorship`) empties the maps.
-  Undo All marks each write it took back in a third root map, `undone`, and adds the text it put back to the writes that owned it in a fourth, `restored`, one key per change, so two devices that change one write before they sync merge both changes; a record is set again only to drop its deleted text (ADR 0007, risk 7).
+  Undo All marks each write it took back in a third root map, `undone`, and adds the text it put back to the writes that owned it in a fourth, `restored`, one key per change, so two devices that change one write before they sync merge both changes (ADR 0007, risk 7).
 - **Agent writes index** (schema v20 `agent_writes`): one row per write, derived from the maps as `body_md` is from the body and written with the note in the same transaction; never synced, rebuilt by the note's next write when missing.
   `seen` is this device's: a row starts unseen, an `aiEdit` one seen, and so does a duplicate's (the owner made the copy).
   The main window marks the writes its review notice showed seen when the owner leaves the note, dismisses the notice or closes the window (`NoteService.markWritesSeen`, which saves the note first).

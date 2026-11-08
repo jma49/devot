@@ -139,8 +139,9 @@ Measured with a script on yjs 13.6.33 (Node 26, M1 Pro):
 6. **Revisions weigh more.** A kept version holds the maps. Clearing does not shrink versions already taken.
 7. **Undo All on two devices offline.** If both devices undo the same writer before they sync, both put the deleted text back, and after the merge it shows twice. The pre-merge version restores either side (ADR 0002, risk 2).
    - Two devices changing one write's record before they sync would lose one change, since a Y.Map keeps one of two concurrent sets of a key: an Undo All on one device and a cap that drops the write's deleted text on the other would leave the write live again, and two Undo Alls that put text back into one writer's text would keep only one side's ranges.
-     So a write's record is set once, and dropping its `removed` text, the same on every device, is the only set after it; Undo All marks the write in a root map `undone` (write ID → true) and adds the ranges it puts back to their owners in a root map `restored`, each under a random key of its own (`{ v: 1, write, ids }`).
+     So no reader depends on a record being set again after its write; Undo All marks the write in a root map `undone` (write ID → true) and adds the ranges it puts back to their owners in a root map `restored`, each under a random key of its own (`{ v: 1, write, ids }`).
      A record with `reversed: true`, as earlier builds marked an undone write, still reads as undone.
+     Undo All still sets `reversed: true` in the record too, so an earlier build on another device does not count the write as live again; a concurrent cap can lose that mark for it, and it does not see `restored`.
 8. **Seen is per device.** A note seen on one device still shows the mark on another.
 
 ## Consequences

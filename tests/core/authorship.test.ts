@@ -474,6 +474,15 @@ describe('two devices changing one write before they sync', () => {
     expect([a.getMap(UNDONE).size, a.getMap(RESTORED).size]).toEqual([0, 0])
   })
 
+  it('marks an undone write in its record too, which an earlier build reads', () => {
+    const doc = docWith('Owner. Old.\n')
+    const id = edit(doc, claude, 'Owner.\nClaude.\n')!
+    reverseWrites(doc, { kind: 'mcp', names: ['Claude Code'] })
+    const raw = doc.getMap(WRITES).get(id)
+    expect(raw).toMatchObject({ reversed: true })
+    expect(raw).not.toHaveProperty('removed')
+  })
+
   it('reads a write an earlier build undid in its record as undone', () => {
     const doc = docWith('Owner.\n')
     const id = edit(doc, claude, 'Owner.\nClaude.\n')!

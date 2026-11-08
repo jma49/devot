@@ -4,8 +4,7 @@
 // the same through merges, sync, garbage collection and restarts, so the records need no anchors.
 // Undo All marks a write in `undone` and adds the ranges it puts back to their owners in
 // `restored`, each under a key of its own: a Y.Map keeps one of two concurrent sets of a key, so
-// a record is never set again after its write, except to drop its deleted text, which every
-// device does alike.
+// no reader depends on a record being set again after its write.
 // Records are untrusted input (another device, an outside writer, a later build): a reader skips one that
 // does not parse and leaves it in the map.
 
@@ -809,10 +808,16 @@ export function reverseWrites(
       })
     }
     const undoneMap = doc.getMap(UNDONE)
+    const writes = doc.getMap(WRITES)
     for (const write of targets) {
       undoneMap.set(write.id, true)
       // The deleted text is of no use once undone, and would count against the cap and push a live writer's out.
-      dropRemoved(doc, write.id)
+      // `reversed` is what an earlier build on another device reads; this build reads `undone`.
+      const raw = writes.get(write.id)
+      if (!isRecord(raw)) continue
+      const { removed: _removed, ...kept } = raw
+      if (raw['removed'] !== undefined || raw['reversed'] !== true)
+        writes.set(write.id, { ...kept, reversed: true })
     }
   })
   return { writes: targets.length, dropped }
