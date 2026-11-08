@@ -1,0 +1,18 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_NOTE_ID_INVALID",
+  "message": {
+    "v": 1,
+    "id": 3,
+    "op": "note.undoStatus",
+    "args": {
+      "noteId": "welcome",
+      "undo": {
+        "status": "active",
+        "updatedAt": 1800000000000,
+        "statusHlc": "0001800000000000-0000-lists1",
+        "bodyVersion": 3
+      }
+    }
+  }
+}

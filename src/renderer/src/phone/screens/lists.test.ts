@@ -33,6 +33,8 @@ function lists() {
     createTemplate: () => templates.create(),
     applyTemplate: (id, now, bookId) => templates.apply(id, { now }, bookId),
     read: (id) => notes.read(id),
+    setStatusUndoable: (id, status) => notes.setStatusUndoable(id, status),
+    undoStatus: (id, undo) => notes.undoStatus(id, undo),
   }
   return {
     notes,
@@ -128,6 +130,31 @@ describe('the native lists operations', () => {
       title: 'Shared',
       markdown: 'Some **bold** text',
     })
+  })
+
+  it('completes a note and hands back what takes the completion away', async () => {
+    const { notes, handlers } = lists()
+    const id = await notes.create('Report')
+    await notes.setStatus(id, 'active')
+    const done = (await run(handlers, 'note.complete', { noteId: id })) as {
+      undo: { status: string; updatedAt: number; statusHlc: string; bodyVersion: number }
+    }
+    expect((await notes.summaries([id]))[0]!.status).toBe('completed')
+    expect(done.undo.status).toBe('active')
+    await run(handlers, 'note.undoStatus', { noteId: id, undo: done.undo })
+    const after = (await notes.summaries([id]))[0]!
+    expect([after.status, after.updatedAt]).toStrictEqual(['active', done.undo.updatedAt])
+  })
+
+  it('leaves a status that was changed again after the completion', async () => {
+    const { notes, handlers } = lists()
+    const id = await notes.create('Report')
+    const done = (await run(handlers, 'note.complete', { noteId: id })) as {
+      undo: Record<string, unknown>
+    }
+    await notes.setStatus(id, 'on_hold')
+    await run(handlers, 'note.undoStatus', { noteId: id, undo: done.undo })
+    expect((await notes.summaries([id]))[0]!.status).toBe('on_hold')
   })
 
   it('refuses an operation before the core has started', async () => {

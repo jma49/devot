@@ -26,6 +26,8 @@ export const SCREENS_OPS = [
   'template.create',
   'template.apply',
   'note.text',
+  'note.complete',
+  'note.undoStatus',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
 

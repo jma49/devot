@@ -97,6 +97,8 @@ public enum Op: String, CaseIterable, Sendable {
     case templateCreate = "template.create"
     case templateApply = "template.apply"
     case noteText = "note.text"
+    case noteComplete = "note.complete"
+    case noteUndoStatus = "note.undoStatus"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {

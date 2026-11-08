@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::direct;
-use crate::commands::notes::{MAX_TITLE_CHARS, valid_note_id};
+use crate::commands::notes::{MAX_TITLE_CHARS, valid_hlc, valid_note_id};
 use crate::storage::NOTE_STATUSES;
 
 pub const VERSION: u64 = 1;
@@ -168,6 +168,23 @@ pub enum Change {
     Purge(Empty),
 }
 
+/// What taking a completion back needs of the note (`StatusUndo` in src/core/notes/types.ts).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct StatusUndo {
+    pub status: String,
+    pub updated_at: u64,
+    pub status_hlc: String,
+    pub body_version: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct UndoStatus {
+    pub note_id: String,
+    pub undo: StatusUndo,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Batch {
@@ -226,6 +243,10 @@ pub enum Op {
     TemplateApply(TemplateApply),
     #[serde(rename = "note.text")]
     NoteText(NoteArgs),
+    #[serde(rename = "note.complete")]
+    NoteComplete(NoteArgs),
+    #[serde(rename = "note.undoStatus")]
+    NoteUndoStatus(UndoStatus),
 }
 
 pub const OPS: &[&str] = &[
@@ -248,6 +269,8 @@ pub const OPS: &[&str] = &[
     "template.create",
     "template.apply",
     "note.text",
+    "note.complete",
+    "note.undoStatus",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -619,8 +642,15 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             (_, None) | (WebPane::Sync, Some(PaneAnchor::Pairing)) => Ok(()),
             _ => Err("E_SCREENS_ARGS_INVALID"),
         },
-        Op::EditorShow(ShowNote { note_id, .. }) | Op::NoteText(NoteArgs { note_id }) => {
-            note_ids(std::slice::from_ref(note_id), 1)
+        Op::EditorShow(ShowNote { note_id, .. })
+        | Op::NoteText(NoteArgs { note_id })
+        | Op::NoteComplete(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::NoteUndoStatus(UndoStatus { note_id, undo }) => {
+            note_ids(std::slice::from_ref(note_id), 1)?;
+            if !NOTE_STATUSES.contains(&undo.status.as_str()) || !valid_hlc(&undo.status_hlc) {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            Ok(())
         }
         Op::NotesBatch(batch) => {
             if batch.ids.is_empty() {
