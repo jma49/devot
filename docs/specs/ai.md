@@ -53,6 +53,7 @@ Part of the [architecture overview](../architecture.md).
 - **Writes:** MCP writes directly; nothing waits for acceptance.
   Every write goes through the core (`src/core/ai.ts`) and needs the note (and any notebook it names) to be visible as above: a hidden note answers `E_NOTE_NOT_FOUND`, a hidden notebook `E_BOOK_NOT_FOUND`.
   A call's steps are not one storage transaction (see Local HTTP API).
+  Each call lets the note go from the AI service's memory when it ends, failed or not (`touching`), so the next call reads the stored note, with what the app wrote since.
   Once the trial is over without a licence, writes answer `E_LICENCE_REQUIRED` and reads still work.
   - `update_note` changes the title, the body, the notebook (only to one that allows AI access), the tags and the status, any of them at once.
     The body is the whole new Markdown or a list of exact passages to replace in turn (each must occur exactly once in the body as the ones before left it: `E_AI_PATCH_NOT_FOUND`, `E_AI_PATCH_AMBIGUOUS`).
