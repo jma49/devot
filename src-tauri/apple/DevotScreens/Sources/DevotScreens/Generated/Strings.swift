@@ -5266,6 +5266,10 @@ public enum L10n {
     text("phone.tab.settings", "Settings")
   }
 
+  public static func phoneTabSearch() -> String {
+    text("phone.tab.search", "Search")
+  }
+
   public static func phoneActivityPeriod() -> String {
     text("phone.activity.period", "Week")
   }
@@ -5472,6 +5476,14 @@ public enum L10n {
 
   public static func phoneSearchHint() -> String {
     text("phone.search.hint", "Try fewer words, or search a tag with #")
+  }
+
+  public static func phoneSearchScopeAll() -> String {
+    text("phone.search.scopeAll", "All")
+  }
+
+  public static func phoneSearchScopeTitles() -> String {
+    text("phone.search.scopeTitles", "Titles")
   }
 
   public static func phoneToastTrashed() -> String {

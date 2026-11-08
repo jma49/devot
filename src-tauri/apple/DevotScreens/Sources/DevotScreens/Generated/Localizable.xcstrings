@@ -15302,6 +15302,28 @@
         }
       }
     },
+    "phone.search.scopeAll" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        }
+      }
+    },
+    "phone.search.scopeTitles" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titles"
+          }
+        }
+      }
+    },
     "phone.setStatus" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15782,6 +15804,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notes"
+          }
+        }
+      }
+    },
+    "phone.tab.search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
           }
         }
       }

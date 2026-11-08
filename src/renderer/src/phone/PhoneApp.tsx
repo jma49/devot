@@ -41,6 +41,7 @@ import { editorHandlers, type NativeEditor } from './screens/editor'
 import { newNoteHandlers, type NativeNewNote } from './screens/newNote'
 import { noteChangesRev, watchLibraryChanges, watchNoteChanges } from './screens/noteChanges'
 import { listHandlers } from './screens/lists'
+import { searchHandlers } from './screens/search'
 import { EditorHost } from './screens/EditorHost'
 import { createPreparedNotes } from './screens/prepared'
 import { modalOpen, watchModals } from './modal'
@@ -294,6 +295,7 @@ export function PhoneApp() {
       }),
       ...newNoteHandlers(() => nativeNewNote.current),
       ...listHandlers(() => latestStore.current.core),
+      ...searchHandlers(() => latestStore.current.core),
     })
     bridge.current = started
     let live = true

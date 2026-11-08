@@ -1,5 +1,7 @@
-/// Which tab the system bar and the page each show, and what to do so they agree.
+/// Which tab the system bar and the page each show, and what to do so they agree. Search is
+/// native alone: the page has no tab for it, so it is neither told of it nor followed away from it.
 struct TabModel {
+    /// The tabs the page knows; the system bar adds Search after them.
     static let tabs: [Tab] = [.notes, .library, .activity, .settings]
 
     enum Effect: Equatable {
@@ -39,14 +41,14 @@ struct TabModel {
 
     mutating func appeared(_ tab: Tab) -> [Effect] {
         selected = tab
-        guard tab != shown else { return [] }
+        guard tab != shown, tab != .search else { return [] }
         shown = tab
         unanswered += 1
         return [.show(tab)]
     }
 
     func reselected(_ tab: Tab) -> [Effect] {
-        tab == selected ? [.popToRoot(tab)] : []
+        tab == selected && tab != .search ? [.popToRoot(tab)] : []
     }
 
     mutating func showAnswered() {
@@ -65,8 +67,9 @@ struct TabModel {
             effects.append(.badge(attention))
         }
         guard unanswered == 0 else { return effects }
+        let moved = tab != shown
         shown = tab
-        if tab != selected {
+        if tab != selected, moved || selected != .search {
             selected = tab
             effects.append(.select(tab))
         }

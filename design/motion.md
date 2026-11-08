@@ -211,6 +211,13 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Returning from a new note:** rule 2.
   The note's row is already in place when the list comes back, and nothing moves into the list.
   An untouched new note (no title, no body, no chip changed) is gone before the list shows, with no motion and no toast.
+- **Search** (the native screens): rule 3, then rule 2.
+  The system's Search circle beside the tab bar grows into its field with the system's motion, and the keyboard rises with it.
+  Typing searches once it pauses for 120 ms, and a scope, a recent search or a suggestion searches at once.
+  Results, recent searches and the suggestions replace the list at once when they arrive (rule 2), with no motion of their own.
+  A result opens its note as any row does, and Back lands in Search with its query and results.
+  A saved search from the Library opens Search with its query and results, without the keyboard.
+  Under Reduce Motion the system decides its look.
 - **Undo toast:** rule 3.
   It rises `size.phone-toast-rise` over `motion.duration.phone-enter` on `motion.easing.phone-enter` while fading in, with no scale and no bounce.
   Its glass is put on once the rise has ended.
