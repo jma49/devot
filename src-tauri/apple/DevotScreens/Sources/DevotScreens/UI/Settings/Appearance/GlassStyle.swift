@@ -46,6 +46,28 @@ enum GlassStyle: Equatable {
         case .clear(let tint): return tint > 0 ? .clear.tint(opaque.opacity(tint)) : .clear
         }
     }
+
+    /// UIKit's counterpart of `devotGlass`: the glass in `view`, or the opaque glass colour behind it.
+    @MainActor func apply(to view: UIVisualEffectView, interactive: Bool) {
+        let effect: UIGlassEffect
+        let tint: CGFloat
+        switch self {
+        case .solid:
+            view.effect = nil
+            view.backgroundColor = Tokens.Color.phoneGlassOpaque
+            return
+        case .regular(let shade):
+            effect = UIGlassEffect(style: .regular)
+            tint = shade
+        case .clear(let shade):
+            effect = UIGlassEffect(style: .clear)
+            tint = shade
+        }
+        effect.isInteractive = interactive
+        effect.tintColor = tint > 0 ? Tokens.Color.phoneGlassOpaque.withAlphaComponent(tint) : nil
+        view.backgroundColor = nil
+        view.effect = effect
+    }
 }
 
 extension View {

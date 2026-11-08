@@ -58,7 +58,7 @@ class KeyboardBar: UIView {
         return UIVisualEffectView(effect: effect)
     }()
     private(set) var pieces: [GlassPiece] = []
-    private(set) var look: GlassLook = .regular(tint: 0)
+    private(set) var look: GlassStyle = .regular(tint: 0)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -69,26 +69,21 @@ class KeyboardBar: UIView {
             container.leadingAnchor.constraint(equalTo: leadingAnchor),
             container.trailingAnchor.constraint(equalTo: trailingAnchor),
         ])
-        for name in GlassStyle.changes {
-            NotificationCenter.default.addObserver(self, selector: #selector(glassChanged), name: name, object: nil)
-        }
+        followTheme { [weak self] in self?.applyGlass(GlassStyleStore.shared.style) }
     }
 
     required init?(coder: NSCoder) { nil }
-
-    @objc private func glassChanged() {
-        applyGlass(GlassStyle.current)
-    }
 
     func add(_ piece: GlassPiece) {
         pieces.append(piece)
         container.contentView.addSubview(piece.glass)
         piece.shade(in: self, below: container)
+        look.apply(to: piece.glass, interactive: true)
     }
 
-    func applyGlass(_ next: GlassLook) {
+    func applyGlass(_ next: GlassStyle) {
         look = next
-        for piece in pieces { GlassStyle.apply(next, to: piece.glass, interactive: true) }
+        for piece in pieces { next.apply(to: piece.glass, interactive: true) }
     }
 
     override func layoutSubviews() {
@@ -107,7 +102,6 @@ class KeyboardBar: UIView {
             trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -Tokens.Size.phoneScreenEdge),
             bottomAnchor.constraint(equalTo: host.keyboardLayoutGuide.topAnchor, constant: -Tokens.Size.phoneSheetInset),
         ])
-        applyGlass(GlassStyle.current)
     }
 }
 

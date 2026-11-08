@@ -12,7 +12,6 @@ final class FormattingBarTests: XCTestCase {
     override func tearDown() async throws {
         window?.isHidden = true
         window = nil
-        GlassStyle.transparency = { 0 }
     }
 
     private func pinnedBar() throws -> (FormattingBar, UIView) {
@@ -91,14 +90,16 @@ final class FormattingBarTests: XCTestCase {
         XCTAssertNil(bar.capsule.glass.backgroundColor)
     }
 
-    func testGlassTransparencyMapsToSolidRegularAndClear() {
-        XCTAssertEqual(GlassStyle.look(transparency: 0, reduceTransparency: false, increaseContrast: false), .regular(tint: 0))
-        XCTAssertEqual(GlassStyle.look(transparency: -50, reduceTransparency: false, increaseContrast: false), .regular(tint: 0.5))
-        XCTAssertEqual(GlassStyle.look(transparency: -100, reduceTransparency: false, increaseContrast: false), .solid)
-        XCTAssertEqual(GlassStyle.look(transparency: 100, reduceTransparency: false, increaseContrast: false), .clear(tint: 0))
-        XCTAssertEqual(GlassStyle.look(transparency: 40, reduceTransparency: false, increaseContrast: false), .clear(tint: 0.15))
-        XCTAssertEqual(GlassStyle.look(transparency: 40, reduceTransparency: true, increaseContrast: false), .solid)
-        XCTAssertEqual(GlassStyle.look(transparency: 40, reduceTransparency: false, increaseContrast: true), .solid)
+    func testTheBarsFollowTheGlassTransparencyAsItIsDragged() async {
+        let store = GlassStyleStore.shared
+        let before = store.transparency
+        defer { store.apply(before) }
+        let bar = FormattingBar()
+        XCTAssertEqual(bar.look, store.style)
+        store.apply(before == 100 ? 0 : 100)
+        for _ in 0..<20 where bar.look != store.style { await Task.yield() }
+        XCTAssertEqual(bar.look, store.style)
+        XCTAssertNotEqual(bar.look, GlassStyle.for(transparency: before, reduced: store.reduced))
     }
 
     func testTheFindBarShowsTheCountOnlyForAQueryAndStepsOnReturn() {
