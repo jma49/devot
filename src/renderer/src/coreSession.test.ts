@@ -53,6 +53,7 @@ function setup({ primary = true, saved = true as boolean | Promise<void> } = {})
     setSaveNoticeDismissed: vi.fn<(dismissed: boolean) => void>(),
     setQuitHeld: vi.fn<(held: boolean) => void>(),
     setCloseHeld: vi.fn<(held: boolean) => void>(),
+    flushListsNews: vi.fn<() => void>(),
   }
   return { core, props }
 }
@@ -185,6 +186,22 @@ describe('useQuitAndClose', () => {
     expect(props.setCloseHeld).not.toHaveBeenCalled()
     expect(core.stopImport).toHaveBeenCalled()
     expect(core.resumeImport).not.toHaveBeenCalled()
+  })
+
+  it('tells the other main windows of its writes before a secondary window closes', async () => {
+    tauri = mockTauri()
+    const { props } = setup({ primary: false })
+    const order: string[] = []
+    props.markShownSeen.mockImplementation(async () => void order.push('seen'))
+    props.flushListsNews.mockImplementation(() => {
+      order.push(`news after ${tauri.invoked.length} calls`)
+    })
+    renderHook(useQuitAndClose, { props })
+    await settle()
+    window.dispatchEvent(new Event(CLOSE_EVENT))
+    await settle()
+    expect(order).toEqual(['seen', 'news after 0 calls'])
+    expect(tauri.invoked).toEqual(['note_window_close_ready'])
   })
 
   it('stops the close listener that registers after the window unmounted', async () => {

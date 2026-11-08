@@ -149,6 +149,7 @@ export function useQuitAndClose({
   setSaveNoticeDismissed,
   setQuitHeld,
   setCloseHeld,
+  flushListsNews,
 }: {
   core: Core | undefined
   coreRef: RefObject<Core | undefined>
@@ -160,6 +161,8 @@ export function useQuitAndClose({
   setSaveNoticeDismissed: (dismissed: boolean) => void
   setQuitHeld: (held: boolean) => void
   setCloseHeld: (held: boolean) => void
+  /** Sends at once the other main windows' news of this window's writes that still waits. */
+  flushListsNews: () => void
 }) {
   useEffect(() => {
     if (!core) return
@@ -260,11 +263,22 @@ export function useQuitAndClose({
           await ready?.stopImport()
           // Seen before the window goes, as for a quit.
           await markShownSeen({ reload: false })
+          // The window's page, with its coalescing timer, goes with it.
+          flushListsNews()
         },
       )
     }
     return listenCloseAsked(closed)
-  }, [primary, coreRef, closeGuard, saveNow, markShownSeen, setSaveNoticeDismissed, setCloseHeld])
+  }, [
+    primary,
+    coreRef,
+    closeGuard,
+    saveNow,
+    markShownSeen,
+    setSaveNoticeDismissed,
+    setCloseHeld,
+    flushListsNews,
+  ])
 
   useEffect(
     () =>
