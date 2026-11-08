@@ -35,6 +35,19 @@ enum SettingsPage: Equatable {
         default: return nil
         }
     }
+
+    /// The name `init(pane:)` reads, which a restored stack keeps.
+    var pane: String {
+        switch self {
+        case .general: "general"
+        case .appearance: "appearance"
+        case .editing: "editing"
+        case .preview: "preview"
+        case .sync: "sync"
+        case .ai: "ai"
+        case .licence: "licence"
+        }
+    }
 }
 
 /// Pushes Settings' pages, and opens one from elsewhere over the Settings root so Back always

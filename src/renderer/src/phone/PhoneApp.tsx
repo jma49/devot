@@ -31,7 +31,8 @@ import { startPhoneRoot } from './spring'
 import { watchDragEnd, type DragEnd } from './dragEnd'
 import { PhoneActivity } from './PhoneActivity'
 import { usePhoneData } from './usePhoneData'
-import { startLicence, useLicence } from '../licence'
+import { editingAllowed, startLicence, useLicence } from '../licence'
+import { dailySettings } from '../app/useNoteMaking'
 import { choicesFromTree } from '../notebookChoices'
 import { startScreensBridge, type ScreensBridge } from './screens/bridge'
 import { noteHandlers } from './screens/notes'
@@ -325,8 +326,8 @@ export function PhoneApp() {
   const { barHidden } = tabsState(state, covered, attention)
 
   // Read afresh: a chip changed in the editor may not have reached the lists yet.
-  const leaveNewNote = (id: string) => {
-    const note = made.current.get(id)
+  const leaveNewNote = (id: string, before: MadeNote | null = null) => {
+    const note = made.current.get(id) ?? before
     made.current.delete(id)
     const core = phoneData.core
     if (!note || !core) return
@@ -393,7 +394,14 @@ export function PhoneApp() {
         void phoneData.refresh()
         return { id, rev }
       },
-      discard: (noteId) => leaveNewNote(noteId),
+      discard: (noteId, before) => leaveNewNote(noteId, before),
+      today: async () => {
+        const core = store.core
+        if (!core) throw new Error('E_SCREENS_UNAVAILABLE')
+        const { id } = await core.openTodaysNote(dailySettings(), Date.now(), editingAllowed())
+        void phoneData.refresh()
+        return { id }
+      },
     }
   })
   useEffect(() => {

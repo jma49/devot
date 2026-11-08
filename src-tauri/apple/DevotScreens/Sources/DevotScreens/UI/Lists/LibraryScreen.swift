@@ -308,20 +308,35 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
     }
 
     private func screen(_ item: Item) -> UIViewController? {
-        let note = { (title: String, view: ListView, status: StatusFilter) in
-            NoteListScreen(title: title, view: view, status: status, tab: self.listTab, context: self.context, isRoot: false)
+        let note = { (view: ListView, status: StatusFilter) in
+            Self.list(view, status, tab: self.listTab, context: self.context)
         }
         switch item {
-        case .smart(.all): return note(L10n.sidebarAllNotes(), .all, .all)
-        case .smart(.pinned): return note(L10n.sidebarPinned(), .pinned, .all)
-        case .smart(.active): return note(L10n.statusActive(), .all, .active)
-        case .smart(.completed): return note(L10n.statusCompleted(), .all, .completed)
-        case .book(let id):
-            return note(library?.books.first { $0.id == id }?.name ?? L10n.sidebarNotebooks(), .book(id), .all)
-        case .tag(let id): return note("#" + (library?.tags.first { $0.id == id }?.name ?? ""), .tag(id), .all)
+        case .smart(.all): return note(.all, .all)
+        case .smart(.pinned): return note(.pinned, .all)
+        case .smart(.active): return note(.all, .active)
+        case .smart(.completed): return note(.all, .completed)
+        case .book(let id): return note(.book(id), .all)
+        case .tag(let id): return note(.tag(id), .all)
         case .templates: return TemplatesScreen.make(context: context, tab: listTab)
         case .trash: return TrashScreen(tab: listTab, context: context)
         case .head, .search: return nil
         }
+    }
+
+    /// A list this screen opens, or a restored stack names; a notebook or tag the Library has not
+    /// been read for yet takes its name once it is.
+    static func list(_ view: ListView, _ status: StatusFilter, tab: Tab, context: ListContext) -> NoteListScreen {
+        let library = context.library
+        let title: String
+        switch view {
+        case .all where status == .all: title = L10n.sidebarAllNotes()
+        case .all: title = status.name
+        case .pinned: title = L10n.sidebarPinned()
+        case .book(let id): title = library?.books.first { $0.id == id }?.name ?? L10n.sidebarNotebooks()
+        case .tag(let id): title = "#" + (library?.tags.first { $0.id == id }?.name ?? "")
+        case .templates: title = L10n.sidebarTemplates()
+        }
+        return NoteListScreen(title: title, view: view, status: status, tab: tab, context: context, isRoot: false)
     }
 }

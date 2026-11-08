@@ -278,11 +278,51 @@ describe('New Note under the native screens', () => {
     expect(editors.focused).toStrictEqual([])
   })
 
+  it('discards a new note an earlier launch made, as that launch says it was made', async () => {
+    const book = await shell.books.create('Trips', null)
+    const left = await shell.notes.create('', book)
+    const moved = await shell.notes.create('', null)
+    await shell.notes.flush()
+    await start()
+    await swift('note.discard', { noteId: left, made: { bookId: book } })
+    await vi.waitFor(async () => expect(await listed(left)).toBeUndefined())
+    await swift('note.discard', { noteId: moved, made: { bookId: book } })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    expect(await listed(moved)).toBeDefined()
+  })
+
+  it("finds or makes today's note, the same one twice", async () => {
+    await start()
+    const first = await swift('note.today')
+    const again = await swift('note.today')
+    expect(again).toStrictEqual(first)
+    expect(Object.keys(first)).toStrictEqual(['id'])
+    expect((await listed(first['id'] as string))?.title).not.toBe('')
+  })
+
+  it("refuses to make today's note while editing is locked", async () => {
+    const ended = { state: 'ended', endsAt: Date.now() - 1, code: null, source: 'keychain' }
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === 'licence_get' ? { ...PRO, gated: true, state: 'none', trial: ended } : undefined,
+    )
+    await readCurrentLicence()
+    await start()
+    await expect(bridge.handlers['note.today']!({})).rejects.toThrow('E_LICENCE_REQUIRED')
+    expect(await shell.notes.list()).toStrictEqual([])
+  })
+
   it('refuses a focus Rust would not have passed on', async () => {
     await start()
     await expect(bridge.handlers['editor.show']!({ noteId: 'x', focus: 'title' })).rejects.toThrow(
       'E_SCREENS_ARGS_INVALID',
     )
     await expect(bridge.handlers['note.discard']!({})).rejects.toThrow('E_SCREENS_ARGS_INVALID')
+    for (const made of ['Trips', [], { bookId: '' }, { bookId: null, title: '' }]) {
+      await expect(bridge.handlers['note.discard']!({ noteId: 'x', made })).rejects.toThrow(
+        'E_SCREENS_ARGS_INVALID',
+      )
+    }
   })
 })

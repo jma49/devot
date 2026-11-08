@@ -3,6 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { compile, type TokenTree } from './compile.ts'
+import { compileLaunchColor, LAUNCH_COLOR } from './launch.ts'
 import { compileSwift, SWIFT_TOKENS } from './swift.ts'
 import { BUILT_IN_THEMES } from './themes.ts'
 
@@ -26,6 +27,7 @@ const outputs: [string, string][] = [
   ['src/renderer/src/theme/tokens.css', css],
   ['src/renderer/src/theme/tokens.ts', ts],
   [SWIFT_TOKENS, compileSwift(...sources)],
+  [LAUNCH_COLOR, compileLaunchColor(sources[0], sources[1], sources[2])],
 ]
 
 if (process.argv.includes('--check')) {

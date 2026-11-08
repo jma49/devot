@@ -73,7 +73,7 @@ struct TrashedRow: Decodable, Hashable, Sendable {
 }
 
 /// Which notes a list shows (`View` in src-tauri/src/screens/lists.rs).
-enum ListView: Hashable, Sendable {
+enum ListView: Codable, Hashable, Sendable {
     case all
     case pinned
     case book(String)
@@ -91,7 +91,7 @@ enum ListView: Hashable, Sendable {
     }
 }
 
-enum StatusFilter: String, CaseIterable, Sendable {
+enum StatusFilter: String, CaseIterable, Codable, Sendable {
     case all
     case active
     case onHold = "on_hold"

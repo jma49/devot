@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createBookService } from '../../../core/books'
 import { duplicateNote } from '../../../core/duplicate'
+import { openTodaysNote, type DailyNotesSettings } from '../../../core/dailyNotes'
 import { createClock } from '../../../core/hlc'
 import { createIdGenerator } from '../../../core/ids'
 import { noteCounts } from '../../../core/noteCounts'
@@ -26,6 +27,8 @@ export function testCore() {
   const named: Record<string, unknown> = {
     createTemplate: () => templates.create(),
     listWithTemplates: () => templates.listWithNotes(),
+    openTodaysNote: (settings: DailyNotesSettings, at: number, create: boolean) =>
+      openTodaysNote({ notes, templates, books, settings, at, create }),
     listBooks: () => books.list(),
     createBook: (name: string, parentId: string | null) => books.create(name, parentId),
     listTags: () => tags.list(),

@@ -111,6 +111,21 @@ pub struct NoteArgs {
     pub note_id: String,
 }
 
+/// A new note as Swift saw it made, for a discard after a relaunch, when the page no longer knows it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Made {
+    pub book_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Discard {
+    pub note_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub made: Option<Made>,
+}
+
 /// Where the page may put the caret once Swift asks (`editor.focus`): a new note's body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -302,7 +317,7 @@ pub enum Op {
     #[serde(rename = "note.create")]
     NoteCreate(NoteCreate),
     #[serde(rename = "note.discard")]
-    NoteDiscard(NoteArgs),
+    NoteDiscard(Discard),
     #[serde(rename = "tabs.show")]
     TabsShow(TabArgs),
     #[serde(rename = "tabs.popToRoot")]
@@ -353,6 +368,9 @@ pub enum Op {
     NoteSetDates(SetDates),
     #[serde(rename = "note.addTag")]
     NoteAddTag(AddTag),
+    /// Today's note, found or made as `devot://today` does; the answer is its `id`.
+    #[serde(rename = "note.today")]
+    NoteToday(Empty),
 }
 
 pub const OPS: &[&str] = &[
@@ -386,6 +404,7 @@ pub const OPS: &[&str] = &[
     "note.info",
     "note.setDates",
     "note.addTag",
+    "note.today",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -559,7 +578,7 @@ const NOTICES: &[&str] = &[
 ];
 
 /// The notices Rust sends Swift itself; the page can send none of them.
-pub const RUST_NOTICES: &[&str] = &["licence.changed"];
+pub const RUST_NOTICES: &[&str] = &["licence.changed", "route"];
 
 /// The licence changed (`licence::CHANGED_EVENT`): Swift reads its snapshot again.
 pub fn licence_changed() -> Value {
@@ -807,7 +826,10 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             book(create.book_id.as_ref())?;
             create.title.as_deref().map_or(Ok(()), title)
         }
-        Op::NoteDiscard(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::NoteDiscard(Discard { note_id, made }) => {
+            note_ids(std::slice::from_ref(note_id), 1)?;
+            book(made.as_ref().and_then(|made| made.book_id.as_ref()))
+        }
         Op::SettingsShowPane(ShowPane { pane, anchor }) => match (pane, anchor) {
             (_, None) | (WebPane::Sync, Some(PaneAnchor::Pairing)) => Ok(()),
             _ => Err("E_SCREENS_ARGS_INVALID"),
@@ -873,7 +895,8 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
         | Op::EditorFocus(_)
         | Op::TrashEmpty(_)
         | Op::BookCreate(_)
-        | Op::TemplateCreate(_) => Ok(()),
+        | Op::TemplateCreate(_)
+        | Op::NoteToday(_) => Ok(()),
     }
 }
 
@@ -1007,6 +1030,14 @@ mod tests {
             "rust" => {
                 let name = fixture.message["notice"].as_str().unwrap_or_default();
                 assert!(RUST_NOTICES.contains(&name), "{name} is not Rust's");
+                if name == "route" {
+                    let mut fields = fixture.message.as_object().cloned().unwrap_or_default();
+                    fields.remove("v");
+                    fields.remove("notice");
+                    let route: super::super::route::Route =
+                        serde_json::from_value(Value::Object(fields)).expect("a route");
+                    return Ok(super::super::route::notice(&route));
+                }
                 Ok(licence_changed())
             }
             other => panic!("unknown sender {other}"),

@@ -158,6 +158,11 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The bar hides over a note, search or a sheet and comes back when it goes, with the system's slide (rule 3); over a pushed list or Settings pane it stays.
   A tab the page opens itself (All Notes from the Library) moves the system's selection the same way.
   The Settings mark appears and goes at once.
+- **Deep link** (the native screens): rule 3 while the app is in front, rule 2 otherwise.
+  In front, the linked screen comes with the system's push as the tab's stack is set (`setViewControllers(_:animated:)`), and the tab bar's selection moves as for a tab the page opens; a link that launches or wakes the app sets the stack without motion, so its first frame already shows the screen.
+  A sheet over the tabs goes with the system's motion; the gate's own sheet stays.
+- **Restoring the last screens** (the native screens): rule 2.
+  The stacks are rebuilt before the first frame with no motion, and the launch screen draws that frame's background, empty large-title bar and the tab bar's place; a title fills in at once when Rust has read it, and an editor whose note has gone leaves its stack at once.
 - **Activity's section head** (the page's screens): rule 3. The chevron turns over `motion.duration.phone-chevron` on `motion.easing.phone-push`; the ranked notes fold away or open with `gentle` while fading over `motion.duration.ring`. Under Reduce Motion the rows crossfade and the chevron is simply turned.
 - **Activity week menu:** a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The stats and ranking change at once (rule 2).
 - **Note list rows** (the native screens): rule 2.

@@ -27,6 +27,10 @@ final class Screens: SettingsBridge {
     private let rust: any RustSide
     private var nextID: UInt64 = 1
     private var waiting: [UInt64: (Outcome) -> Void] = [:]
+    /// Calls the screens make while they attach, inside Rust's install, which Rust would refuse;
+    /// they go once the install has returned.
+    private var attaching = true
+    private var held: [(UInt64, Data)] = []
     private var tabModel = TabModel()
     /// Whether the page shows a note in its editor host, so a list taking the web view back asks it to let go.
     private var editorShown = false
@@ -36,14 +40,19 @@ final class Screens: SettingsBridge {
     private var fresh: [String: FreshNote] = [:]
     private var background: NSObjectProtocol?
     private weak var lockSheet: ContentSheetController?
+    private let defaults: UserDefaults
+    /// A stack a route sets while the app is not in front is not animated.
+    var inFront: () -> Bool = { UIApplication.shared.applicationState == .active }
+    var now: () -> Date = Date.init
 
     private struct FreshNote {
         let rev: Double
         var touched = false
     }
 
-    private init(rust: any RustSide, webView: WKWebView) {
+    private init(rust: any RustSide, webView: WKWebView, defaults: UserDefaults) {
         self.rust = rust
+        self.defaults = defaults
         let root = ScreensRootController(webView: webView)
         self.root = root
         let haptics = Haptics(view: root.tabs.view)
@@ -89,6 +98,12 @@ final class Screens: SettingsBridge {
         lists.hideEditor = { [weak self] done in self?.hideEditor(done) }
         lists.untouchedNewNotes = { [weak self] in self?.untouchedNewNotes() ?? [] }
         lists.bridge = self
+        root.onLeave = { [weak self] entersBackground in
+            guard let self else { return }
+            save()
+            if entersBackground { defaults.set(false, forKey: Restoration.runningKey) }
+        }
+        root.onActivate = { [weak self] in self?.defaults.set(true, forKey: Restoration.runningKey) }
         background = NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil
         ) { [weak self] _ in
@@ -109,8 +124,15 @@ final class Screens: SettingsBridge {
             rust.log(.warn, "W_SCREENS_INSTALL_REFUSED reason=class")
             return nil
         }
-        let screens = Screens(rust: rust, webView: webView)
-        UIView.performWithoutAnimation { screens.root.attach(to: root) }
+        let screens = Screens(rust: rust, webView: webView, defaults: defaults)
+        let crashed = defaults.bool(forKey: Restoration.runningKey)
+        defaults.set(true, forKey: Restoration.runningKey)
+        UIView.performWithoutAnimation {
+            screens.root.attach(to: root)
+            screens.restore(crashed: crashed)
+        }
+        screens.attaching = false
+        screens.afterInstall { [weak screens] in screens?.sendHeld() }
         #if DEBUG
             SpikeHarness.startIfAsked(screens: screens, webView: webView, defaults: defaults)
         #endif
@@ -140,7 +162,15 @@ final class Screens: SettingsBridge {
             return
         }
         waiting[id] = done
+        if attaching { return held.append((id, json)) }
+        sendHeld()
         rust.call(id, json)
+    }
+
+    private func sendHeld() {
+        let calls = held
+        held = []
+        for (id, json) in calls { rust.call(id, json) }
     }
 
     func replied(_ request: UInt64, _ json: Data?) {
@@ -163,6 +193,14 @@ final class Screens: SettingsBridge {
         }
         if kind == .settingsOpen {
             openSettings(fields)
+            return
+        }
+        if kind == .route {
+            guard let route = LinkRoute(fields) else {
+                rust.log(.warn, "W_SCREENS_NOTICE_INVALID notice=route")
+                return
+            }
+            follow(route)
             return
         }
         if routeNewNoteNotice(kind, fields) { return }
@@ -463,6 +501,192 @@ final class Screens: SettingsBridge {
             }
             done?()
         }
+    }
+
+    // MARK: Routes and restoration (docs/specs/iphone-screens.md)
+
+    private func follow(_ route: LinkRoute) {
+        switch route {
+        case .stack(let tab, let screens):
+            show(tab, screens)
+        case .today:
+            request(.noteToday) { [weak self] outcome in
+                guard let self else { return }
+                switch outcome {
+                case .ok(let today):
+                    guard let id = today["id"]?.string else {
+                        return rust.log(.warn, "W_SCREENS_TODAY_FAILED code=E_SCREENS_MESSAGE_INVALID")
+                    }
+                    show(.notes, [.editor(noteId: id)])
+                case .failed(let code) where code == ProGate.required || code == ProGate.unreadable:
+                    rust.log(.warn, "W_PHONE_WRITE_LOCKED op=note.today code=\(code)")
+                    gate.refused(code: code)
+                case .failed(let code):
+                    rust.log(.warn, "W_SCREENS_TODAY_FAILED code=\(code)")
+                }
+            }
+        case .licence(let prefill):
+            root.tabs.settings.router.open(.licence(prefill.map(LicenceEntry.prefill) ?? .plain))
+        case .mode(let mode):
+            guard shownNavigation?.topViewController is EditorScreen else { return }
+            askEditor(.editorSetMode, ["mode": .string(mode.rawValue)])
+        }
+    }
+
+    /// The tab, with these screens above its root; a note no longer there ends the stack below it.
+    private func show(_ tab: Tab, _ screens: [ScreenRoute]) {
+        liveTitles(of: screens.compactMap(\.editorId)) { [weak self] titles in
+            guard let self, let titles else { return }
+            let kept = Restoration.cut(screens, live: Set(titles.keys))
+            if kept.count < screens.count { rust.log(.info, "I_SCREENS_ROUTE_NOTE_GONE") }
+            guard let navigation = root.tabs.navigations[tab], let first = navigation.viewControllers.first else { return }
+            let animated = inFront()
+            if let shown = root.tabs.presentedViewController, shown !== lockSheet {
+                shown.dismiss(animated: animated)
+            }
+            var stack = [first]
+            for (at, screen) in kept.enumerated() {
+                let current = navigation.viewControllers.dropFirst(at + 1).first
+                if let current, descriptor(current) == screen {
+                    stack.append(current)
+                } else if let made = controller(screen, tab: tab, titles: titles) {
+                    stack.append(made)
+                } else {
+                    break
+                }
+            }
+            root.tabs.select(tab)
+            setStack(navigation, stack, animated: animated)
+        }
+    }
+
+    /// The titles of those of `ids` that are live notes; nil when the read failed.
+    private func liveTitles(of ids: [String], done: @escaping ([String: String]?) -> Void) {
+        guard !ids.isEmpty else { return done([:]) }
+        direct(.listsTitles, ["ids": .array(ids.map(JSONValue.string))]) { [weak self] outcome in
+            guard case .ok(.array(let rows)) = outcome else {
+                if case .failed(let code) = outcome { self?.rust.log(.warn, "W_SCREENS_TITLES_FAILED code=\(code)") }
+                return done(nil)
+            }
+            var titles: [String: String] = [:]
+            for row in rows {
+                if let id = row["id"]?.string, let title = row["title"]?.string { titles[id] = title }
+            }
+            done(titles)
+        }
+    }
+
+    /// Whether the last stack a route or a launch set moved, for the tests.
+    private(set) var lastStackAnimated: Bool?
+
+    private func setStack(_ navigation: UINavigationController, _ stack: [UIViewController], animated: Bool) {
+        guard navigation.viewControllers != stack else { return }
+        lastStackAnimated = animated
+        navigation.setViewControllers(stack, animated: animated)
+    }
+
+    /// A screen of the tab's own kind: Settings pages under Settings, lists and notes elsewhere.
+    private func controller(_ screen: ScreenRoute, tab: Tab, titles: [String: String]) -> UIViewController? {
+        let lists = root.tabs.lists
+        switch screen {
+        case .pane(let name):
+            guard tab == .settings else { return nil }
+            return SettingsPage(pane: name).map(root.tabs.settings.router.make)
+        case _ where tab == .settings: return nil
+        case .list(let view, let status): return LibraryScreen.list(view, status, tab: tab, context: lists)
+        case .trash: return TrashScreen(tab: tab, context: lists)
+        case .editor(let id):
+            return EditorScreen(noteId: id, title: titles[id] ?? "", tab: tab, host: root.host, actions: editorActions)
+        }
+    }
+
+    /// What a controller in a stack is, for the record; nil for one a launch does not rebuild, such
+    /// as a new note's screen before its note exists or while nothing has changed in it.
+    private func descriptor(_ controller: UIViewController) -> ScreenRoute? {
+        switch controller {
+        case let editor as EditorScreen:
+            guard let id = editor.noteId, !(editor.isNew && fresh[id]?.touched == false) else { return nil }
+            return .editor(noteId: id)
+        case let list as NoteListScreen: return .list(list.source.view, list.openedStatus)
+        case is TrashScreen: return .trash
+        default: return controller.restorationIdentifier.map(ScreenRoute.pane)
+        }
+    }
+
+    /// Writes the record a launch restores from: kinds and IDs only.
+    func save() {
+        var record = Restoration(tab: root.tabs.selected ?? .library, savedAt: now())
+        for tab in Restoration.tabs {
+            guard let navigation = root.tabs.navigations[tab] else { continue }
+            var stack: [ScreenRoute] = []
+            for controller in navigation.viewControllers.dropFirst() {
+                guard let screen = descriptor(controller) else { break }
+                stack.append(screen)
+            }
+            record.stacks[tab] = stack
+            let top = navigation.viewControllers[min(stack.count, navigation.viewControllers.count - 1)]
+            if let list = top as? NoteListScreen, let id = list.firstVisibleId { record.firstVisible[tab] = id }
+        }
+        for screen in editorScreens where screen.isNew {
+            guard let id = screen.noteId, fresh[id]?.touched == false else { continue }
+            record.newNotes.append(Restoration.NewNote(id: id, bookId: screen.bookId))
+        }
+        defaults.set(record.encoded(), forKey: Restoration.key)
+    }
+
+    /// Rebuilds the last stacks before the first frame, without animation; after a crash or eight
+    /// hours every tab starts at its root. The editors whose notes have gone are cut once Rust says
+    /// which, and the untouched new notes of the last launch are discarded.
+    private func restore(crashed: Bool) {
+        let record = Restoration.decode(defaults.data(forKey: Restoration.key))
+        let earlier = record?.newNotes ?? []
+        guard let record = record?.restorable(at: now(), crashed: crashed) else {
+            if crashed { rust.log(.info, "I_SCREENS_RESTORE_SKIPPED reason=crash") }
+            return afterInstall { [weak self] in self?.discard(earlier) }
+        }
+        for tab in Restoration.tabs {
+            guard let navigation = root.tabs.navigations[tab], let first = navigation.viewControllers.first else { continue }
+            let made = (record.stacks[tab] ?? []).compactMap { controller($0, tab: tab, titles: [:]) }
+            if !made.isEmpty { setStack(navigation, [first] + made, animated: false) }
+            if let id = record.firstVisible[tab], let list = navigation.topViewController as? NoteListScreen {
+                list.restoreFirstVisible(id)
+            }
+        }
+        if TabModel.tabs.contains(record.tab) { root.tabs.select(record.tab) }
+        afterInstall { [weak self] in
+            guard let self else { return }
+            discard(earlier)
+            let editors = editorScreens
+            liveTitles(of: editors.compactMap(\.noteId)) { [weak self] titles in
+                guard let self, let titles else { return }
+                for screen in editors {
+                    guard let id = screen.noteId else { continue }
+                    if let title = titles[id] { screen.retitle(title) } else { cut(screen) }
+                }
+            }
+        }
+    }
+
+    /// Rust takes requests only once the install that runs this has returned.
+    private func afterInstall(_ then: @escaping @MainActor () -> Void) {
+        DispatchQueue.main.async { MainActor.assumeIsolated { then() } }
+    }
+
+    private func discard(_ notes: [Restoration.NewNote]) {
+        for note in notes {
+            let made: JSONValue = .object(["bookId": note.bookId.map(JSONValue.string) ?? .null])
+            request(.noteDiscard, ["noteId": .string(note.id), "made": made]) { [weak self] outcome in
+                if case .failed(let code) = outcome { self?.rust.log(.warn, "W_PHONE_DISCARD_FAILED code=\(code)") }
+            }
+        }
+    }
+
+    private func cut(_ screen: EditorScreen) {
+        guard let navigation = screen.navigationController,
+            let at = navigation.viewControllers.firstIndex(of: screen)
+        else { return }
+        rust.log(.info, "I_SCREENS_RESTORE_NOTE_GONE")
+        setStack(navigation, Array(navigation.viewControllers[..<at]), animated: false)
     }
 
     private func ask(_ op: Op, _ tab: Tab, answered: Bool) {

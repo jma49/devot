@@ -26,7 +26,7 @@ UIApplication (tao's app delegate, unchanged)
 
 - **Swift.** The `DevotScreens` package sits beside `src-tauri/apple/DevotStore` and is linked the same way.
   `Bridge.swift` holds the C ABI and is its only file with `Unsafe*Pointer`.
-  `Model/` holds the Codable messages, the navigation state, the restoration codec and the routes, pure logic tested without UIKit.
+  `Model/` holds the Codable messages, the routes (`Route.swift`) and the restoration record (`Restoration.swift`), pure logic tested without UIKit.
   `UI/` holds the controllers and the SwiftUI views.
   `Generated/` holds the Swift tokens and strings, generated from the design tokens and the message catalog.
 - **Rust.** A `screens` module in `src-tauri/src/native/ios/` holds the C ABI, its `unsafe` blocks with SAFETY comments, the callbacks behind `catch_unwind` and the map of waiting requests, shaped like `store.rs`.
@@ -158,7 +158,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 | Pairing         | `direct.sync.pairingOpen`, `.pairingCheck`, `.pairingCancel`, `.joinCode { code, via? }`           | the `sync_*` command of the same name               |
 | iCloud          | `direct.sync.icloudStatus`, `.icloudUse { recoveryKey? }`, `.icloudLook`, `.icloudJoin { accept }` | the `sync_icloud_*` command of the same name        |
 | iCloud vault    | `direct.sync.icloudUploadAgain`, `.icloudRotate`, `.icloudLeave { recoveryKey }`, `.icloudStorage` | the `sync_icloud_*` command of the same name        |
-| Native lists    | `direct.lists.notes { view, status, offset, limit }`, `.library`, `.trash`                         | the `Store` reads of the list commands (`lists.rs`) |
+| Native lists    | `direct.lists.notes { view, status, offset, limit }`, `.library`, `.trash`, `.titles { ids }`      | the `Store` reads of the list commands (`lists.rs`) |
 
 - An operation's name is its command's in camel case, so `direct.sync.icloudUploadAgain` runs the body of `sync_icloud_upload_again`.
 - A request's `args` are the command's arguments under the names the page passes them, and unknown fields are refused with `E_SCREENS_ARGS_INVALID` before anything runs.
@@ -171,6 +171,8 @@ In stage 0 the root was empty and transparent and passed every touch through, so
   A row is the note's title, dates, notebook, status, pinned flag, tag IDs and body version; a notebook's list takes in its notebooks' notes, and only Templates lists the templates notebook.
 - `direct.lists.library` answers the smart lists' counts (all, pinned, active, on hold, completed, templates, trash), the notebooks in the Library's order (each after its parent) with their counts, the tags with their colours and counts, and the saved searches.
 - `direct.lists.trash` answers the trashed notes, last trashed first.
+- `direct.lists.titles { ids }` takes at most 16 note IDs and answers `[{ id, title }]` for those that are live notes, in the order asked; a note in the Trash or gone has no row.
+  Swift reads it before it shows a linked or restored editor, so it never opens a note that has gone.
 - `tests/fixtures/screens/rows.json` holds one reply of each, which Rust checks its replies against by shape and Swift decodes.
 - A failure is logged as `W_SCREENS_DIRECT_FAILED op=… id=… code=…`, and a request's arguments, which may hold a licence key, an AI key or a relay secret, are never logged.
 - The native purchase sheet reads StoreKit's price with `direct.store.products` and buys with `direct.store.purchase`, the bodies the page's sheet calls, so StoreKit's own sheet takes the payment either way.
@@ -274,6 +276,58 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - The bar's tint is `color.accent.text` and it is never minimised on scroll.
   Glass Transparency does not reach it: the floating tab bar ignores a bar tint (spike: bar tint).
 - The host-app XCTests check the bar's items, the web view's moves and the key window; the `iphone-ui` CI job's XCUITest (`src-tauri/apple/DevotUITests/Tests/TabsTests.swift`) launches the real app, switches all four tabs by their names and runs the accessibility audit on the bar (docs/specs/quality.md, CI).
+
+### Routes
+
+A `devot://` link reaches the iPhone's native screens as a route: Rust parses and checks the link as on the Mac (docs/specs/security.md, URL scheme), maps it to a route (`src-tauri/src/screens/route.rs`) and sends it to Swift as the `route` notice, which only Rust sends.
+A route names screens by kind and ID only, and Swift builds them.
+
+| Link                                        | Route                                                                   | Swift shows                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `devot://note/<id>`                         | `{ route: "stack", tab: "notes", stack: [{ kind: "editor", noteId }] }` | the Notes tab with the note's editor over its list                     |
+| `devot://today`                             | `{ route: "today" }`                                                    | asks the page (`note.today`), then shows that note as a note link does |
+| `devot://license?key=…`                     | `{ route: "licence", prefill }`                                         | Settings > License with the key in its field, waiting for Add          |
+| `devot://command/view.allNotes`             | `{ route: "stack", tab: "notes", stack: [] }`                           | the Notes tab at its root                                              |
+| `devot://command/view.trash`                | `{ route: "stack", tab: "library", stack: [{ kind: "trash" }] }`        | the Trash over the Library                                             |
+| `devot://command/view.edit`, `view.preview` | `{ route: "mode", mode }`                                               | the shown note's mode; nothing when no note is on top                  |
+
+- Every other command, an import and a note link whose ID is not a canonical UUIDv7 have no route: Rust logs `I_SCREENS_LINK_UNROUTED` and Swift hears nothing.
+- `devot://license?key=` only fills the License page's field and is never submitted: the owner's Add submits it, as a typed key.
+  A key that failed Rust's check routes with `prefill: null`, so the page opens empty.
+- A link never passes the Pro gate: a route only shows screens, and `note.today` makes today's note only while editing is allowed (`openTodaysNote` with `create` set to the page's licence snapshot), else answers `E_LICENCE_REQUIRED`, which Swift logs as `W_PHONE_WRITE_LOCKED op=note.today code=…` and hands to the gate's sheet.
+  Today's note that exists already opens while editing is locked, since reading is free.
+- A stack route reads `direct.lists.titles` for its editors first; a note no longer live ends the stack below it (`I_SCREENS_ROUTE_NOTE_GONE`), so the tab opens at its root.
+- Swift sets the tab's stack with `setViewControllers(_:animated:)`, keeping the screens already in place that the route names, then selects the tab; the change is animated only while the app is in front (`UIApplication.applicationState == .active`), so a link that launches or wakes the app shows its screen in the first frame.
+- A sheet over the tabs closes for a stack route, except the gate's own.
+- Links that arrive before the screens are installed wait in Rust's inbox (`deep_link.rs`) and go to the screens, in order, once the install succeeds; from then on links go only to the screens and never to the page, and a page that asks for them gets none.
+  Without the screens (the kill switch, or an install that failed) the links stay with the page as before.
+- The iPhone answers to `devot://` in every build (`plugins.deep-link.mobile` in `tauri.ios.conf.json`, written into the app's Info.plist and `project.yml`): its debug and release builds share one bundle ID, and only one of them is installed at a time.
+- The host-app XCTests (`RouteApplyTests`) deliver each route and check the stack and its animation; the `iphone-ui` XCUITest (`DeepLinkTests`) opens `devot://note/<id>` for the welcome example in the installed app.
+
+### Restoration
+
+When the app is about to leave the front (`UIScene.willDeactivateNotification`) and again once it is in the background (`UIApplication.didEnterBackgroundNotification`), Swift writes a record to `UserDefaults["devot.phone.screens"]`, and the next launch rebuilds the screens from it before the first frame, without animation.
+
+```
+{ "v": 1, "tab": "notes", "savedAt": 1762500000,
+  "stacks": { "notes": [{ "editor": { "noteId": "…" } }], "library": [{ "trash": {} }], "settings": [{ "pane": { "_0": "sync" } }] },
+  "firstVisible": { "notes": "…" },
+  "newNotes": [{ "id": "…", "bookId": "…" }] }
+```
+
+- The record holds IDs and kinds only, never a title or any other note text: the selected tab, the screens above the Notes, Library and Settings roots (a note list by its view and the status it opened with, the Trash, an editor by its note, a Settings page by its pane), the first note row the top list showed, and the untouched new notes.
+- A record of another version, or one that does not decode, is ignored, and every tab starts at its root.
+- A launch starts at the default tab (Library) with every stack at its root after a crash or when the record is more than eight hours old.
+  Swift sets `devot.phone.running` at launch and whenever the scene activates, and clears it once the app is in the background, so a launch that finds it set followed an end in the front: a crash, or a force quit from the app switcher.
+  The cleared flag reaches the preferences store a moment after the app leaves, so a kill within that moment also reads as a crash.
+- The rebuilt screens appear inside Rust's install, which refuses calls until it returns, so the calls they make then (`tabs.show`, `editor.show`) are held and sent in the turn after it.
+- An editor is rebuilt with an empty title, and once Rust takes requests (the turn after the install returns) Swift reads `direct.lists.titles`: a live note's title fills the bar and the cover, and an editor whose note is gone cuts its stack there without animation (`I_SCREENS_RESTORE_NOTE_GONE`).
+- A New Note screen whose note is untouched is not rebuilt: its stack ends below it, and the record lists the note with the notebook it was made in.
+  The next launch sends `note.discard { noteId, made: { bookId } }` for each, and the page purges the note only if it is still as made.
+- A restored list scrolls its first visible note back to the top once its rows arrive; a notebook or tag list takes its name when the Library has been read, and follows a rename.
+- Activity and Search start at their roots: Activity is the page's own stack, and a search's query is text.
+- The host-app XCTests (`RestorationCodecTests`, `RestoreFlowTests`) cover the codec and the rebuild; the `iphone-ui` XCUITest sends the app to the background, relaunches it and finds the note on top again.
+- `LaunchScreen.storyboard` draws the first frame's shape: the phone background of the default theme (the `LaunchBackground` colour, which `pnpm tokens` writes from `color.phone.background`), an empty large-title bar, and the tab bar's place left clear.
 
 ## Editor screen protocol
 
@@ -380,6 +434,7 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
 6. Swift marks a new note touched when a `notes.changed` with a later `rev` than its create names it.
    When a new note's screen is in no stack any more (its pop completed, before `editor.hide`, or the create answered after the screen had gone), Swift sends `note.discard` for an untouched one; a back swipe turned back keeps it.
    The page checks again that the note is still as made (no title, no body, no chip changed) before it purges it, so a missed `notes.changed` keeps an empty note rather than losing a word.
+   A note an earlier launch made comes as `note.discard { noteId, made: { bookId } }`, with the notebook it was made in, and the page checks it against that (Restoration above).
 7. The list under the pushed editor is the page's list for the note, moved to under the list's still; native lists replace it in stage 2.
 
 ### The gate

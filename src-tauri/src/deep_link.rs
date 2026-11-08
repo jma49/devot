@@ -3,7 +3,8 @@
 //! [`URL_COMMANDS`], `devot://today` opens today's note (made once a day when missing, so a page
 //! opening it over and over makes one note) and `devot://licence?key=<key>` offers a licence key, checked here first; the
 //! window asks before it replaces a licence the device holds. Debug builds answer to `devot-dev://` instead ([`SCHEME`]), so a development
-//! bundle never takes the links meant for an installed Devot.
+//! bundle never takes the links meant for an installed Devot; on the iPhone, where a development
+//! build replaces the installed app, every build answers to `devot://`.
 //! Every URL is checked here, whole, before the page sees anything of it: the page gets a [`Link`],
 //! never the URL. A refused URL is logged by its code alone (`W_DEEP_LINK_REFUSED`), never its
 //! text.
@@ -12,7 +13,8 @@
 //! alone and this module refuses such a URL from another app.
 //! Links wait in an [`Inbox`] until a main window has asked for them (`deep_link_take`; again
 //! after a reload) and while the Settings window is open. They go to the frontmost main window that
-//! has asked (`main_windows`). A second launch does not open the data
+//! has asked (`main_windows`); on the iPhone, once its native screens are installed, they go to
+//! the screens instead, as routes (`screens::route`), and the page never sees one. A second launch does not open the data
 //! folder: the single-instance plugin hands its arguments to this process ([`on_second_instance`])
 //! and ends it. The `devot` command hands files over the same way (`cli`).
 
@@ -30,7 +32,7 @@ use crate::settings;
 
 pub(crate) const RELEASE_SCHEME: &str = "devot";
 pub(crate) const DEBUG_SCHEME: &str = "devot-dev";
-pub(crate) const SCHEME: &str = if cfg!(debug_assertions) {
+pub(crate) const SCHEME: &str = if cfg!(debug_assertions) && !cfg!(target_os = "ios") {
     DEBUG_SCHEME
 } else {
     RELEASE_SCHEME
@@ -98,6 +100,7 @@ impl Link {
 
 /// `Debug` never shows the key: it holds the licensee's address.
 #[derive(Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(test, derive(serde::Deserialize))]
 #[serde(transparent)]
 pub struct LicenceKey(String);
 
@@ -187,7 +190,16 @@ pub(crate) struct Inbox {
     /// reloaded since.
     ready: BTreeSet<String>,
     settings_open: bool,
+    /// The iPhone's native screens are installed: they take every link, and no page does.
+    screens: bool,
     held: VecDeque<Link>,
+}
+
+/// Where released links go.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Target {
+    Window(String),
+    Screens,
 }
 
 impl Inbox {
@@ -219,6 +231,14 @@ impl Inbox {
 
     fn take(&mut self, label: &str) -> Vec<Link> {
         self.ready.insert(label.to_owned());
+        if self.screens {
+            return Vec::new();
+        }
+        self.release()
+    }
+
+    fn screens_ready(&mut self) -> Vec<Link> {
+        self.screens = true;
         self.release()
     }
 
@@ -236,7 +256,7 @@ impl Inbox {
     }
 
     fn release(&mut self) -> Vec<Link> {
-        if self.ready.is_empty() || self.settings_open {
+        if (self.ready.is_empty() && !self.screens) || self.settings_open {
             return Vec::new();
         }
         self.held.drain(..).collect()
@@ -248,6 +268,13 @@ impl Inbox {
             .filter(|label| self.ready.contains(*label))
             .map(str::to_owned)
             .or_else(|| self.ready.iter().next().cloned())
+    }
+
+    fn destination(&self, front: Option<&str>) -> Option<Target> {
+        if self.screens {
+            return Some(Target::Screens);
+        }
+        self.target(front).map(Target::Window)
     }
 }
 
@@ -264,12 +291,18 @@ impl DeepLinks {
         self.update_with(
             || main_windows::front_label(app),
             f,
-            |target, link| {
-                let sent = app.emit_to(target, EVENT, link).is_ok();
-                if !sent {
-                    log::warn!("W_DEEP_LINK_EMIT_FAILED");
+            |target, link| match target {
+                Target::Window(label) => {
+                    let sent = app.emit_to(label.as_str(), EVENT, link).is_ok();
+                    if !sent {
+                        log::warn!("W_DEEP_LINK_EMIT_FAILED");
+                    }
+                    handed(app, label, link, sent);
                 }
-                handed(app, target, link, sent);
+                Target::Screens => {
+                    to_screens(link);
+                    handed(app, "", link, false);
+                }
             },
         );
     }
@@ -282,7 +315,7 @@ impl DeepLinks {
         &self,
         front: impl FnOnce() -> Option<String>,
         f: impl FnOnce(&mut Inbox) -> Vec<Link>,
-        mut send: impl FnMut(&str, &Link),
+        mut send: impl FnMut(&Target, &Link),
     ) {
         let front = front();
         self.with(|inbox| {
@@ -290,13 +323,30 @@ impl DeepLinks {
             if links.is_empty() {
                 return;
             }
-            let Some(target) = inbox.target(front.as_deref()) else {
+            let Some(target) = inbox.destination(front.as_deref()) else {
                 return;
             };
             for link in &links {
                 send(&target, link);
             }
         });
+    }
+}
+
+/// A link the iPhone's native screens take as a route; one they do nothing with is dropped here.
+fn to_screens(link: &Link) {
+    #[cfg(target_os = "ios")]
+    crate::native::ios::screens_route(link);
+    #[cfg(not(target_os = "ios"))]
+    let _ = link;
+}
+
+/// The iPhone's native screens are installed: the links held for a page go to them, as every
+/// later one does.
+#[cfg(target_os = "ios")]
+pub(crate) fn screens_installed<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(links) = app.try_state::<DeepLinks>() {
+        links.update(app, Inbox::screens_ready);
     }
 }
 
@@ -991,9 +1041,62 @@ mod tests {
                 Some("main".to_owned())
             },
             |inbox| inbox.arrive(note()),
-            |target, link| sent.push((target.to_owned(), link.clone())),
+            |target, link| sent.push((target.clone(), link.clone())),
         );
-        assert_eq!(sent, vec![("main".to_owned(), note())]);
+        assert_eq!(sent, vec![(Target::Window("main".to_owned()), note())]);
+    }
+
+    #[test]
+    fn links_held_before_the_native_screens_go_to_them_once_installed_and_never_to_the_page() {
+        let mut inbox = Inbox::default();
+        assert!(inbox.arrive(note()).is_empty());
+        assert!(inbox.arrive(command("view.trash")).is_empty());
+        assert_eq!(inbox.screens_ready(), vec![note(), command("view.trash")]);
+        assert_eq!(inbox.destination(Some("main")), Some(Target::Screens));
+        assert!(inbox.take("main").is_empty());
+        assert_eq!(inbox.arrive(Link::Today), vec![Link::Today]);
+        assert_eq!(inbox.destination(Some("main")), Some(Target::Screens));
+    }
+
+    #[test]
+    fn links_released_to_the_native_screens_are_sent_there_in_order() {
+        let links = DeepLinks::default();
+        links.with(|inbox| inbox.arrive(note()));
+        let mut sent = Vec::new();
+        links.update_with(
+            || Some("main".to_owned()),
+            Inbox::screens_ready,
+            |target, link| sent.push((target.clone(), link.clone())),
+        );
+        links.update_with(
+            || None,
+            |inbox| inbox.arrive(Link::Today),
+            |target, link| sent.push((target.clone(), link.clone())),
+        );
+        assert_eq!(
+            sent,
+            vec![(Target::Screens, note()), (Target::Screens, Link::Today)]
+        );
+    }
+
+    #[test]
+    fn the_iphone_answers_to_the_release_scheme_in_every_build() {
+        let source = include_str!("deep_link.rs");
+        assert!(source.contains(
+            "pub(crate) const SCHEME: &str = if cfg!(debug_assertions) && !cfg!(target_os = \"ios\") {"
+        ));
+        let ios: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.ios.conf.json")).unwrap();
+        assert_eq!(
+            ios["plugins"]["deep-link"]["mobile"],
+            serde_json::json!([{ "scheme": [RELEASE_SCHEME], "appLink": false }])
+        );
+        let plist = include_str!("../gen/apple/devot_iOS/Info.plist");
+        assert!(plist.contains("<key>CFBundleURLSchemes</key>"));
+        assert!(plist.contains(&format!("<string>{RELEASE_SCHEME}</string>")));
+        assert!(!plist.contains(DEBUG_SCHEME));
+        let project = include_str!("../gen/apple/project.yml");
+        assert!(project.contains("CFBundleURLSchemes: [devot]"));
     }
 
     #[test]
