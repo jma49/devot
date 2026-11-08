@@ -146,6 +146,14 @@ const setNotice = (next: UsageNotice | null) => {
 
 export const shownUsageNotice = (): UsageNotice | null => shownNotice
 
+const atCap = (notice: UsageNotice | null) => notice === 'storageFull' || notice === 'imagesFull'
+
+/** A reading's notice replaces the shown one unless it only nears a cap while the shown one is at it. */
+const raise = (next: UsageNotice | null) => {
+  if (next === null || (atCap(shownNotice) && !atCap(next))) return
+  setNotice(next)
+}
+
 /** Clears the shown notice; only this and a change of relay do, a later reading never does. */
 export const dismissUsageNotice = (): void => setNotice(null)
 
@@ -180,7 +188,7 @@ export function watchUsage(snapshot: SyncSnapshot, now = Date.now()): void {
     if (reading.state !== 'ready' || watched !== key) return
     const { notice, seen } = noticeFor(reading.view, seenFor(relay))
     remember(relay, seen)
-    if (notice !== null) setNotice(notice)
+    raise(notice)
   })
 }
 

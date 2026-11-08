@@ -195,3 +195,12 @@ it('keeps a shown notice through later readings of the same band until it is dis
   expect(shownUsageNotice()).toBeNull()
   expect(await watch(snapshot(), 2 * USAGE_RECHECK_MS + 4)).toBeNull()
 })
+
+it('does not let a cap that only nears its limit replace a notice of one at it', async () => {
+  answers.next = { storedBytes: 4 * GB, fileBytes: 0, caps: CAPS }
+  expect(await watch(snapshot(), 0)).toBe('storageFull')
+  answers.next = { storedBytes: 4 * GB, fileBytes: 2.5 * GB, caps: CAPS }
+  expect(await watch(snapshot(), USAGE_RECHECK_MS + 1)).toBe('storageFull')
+  answers.next = { storedBytes: 4 * GB, fileBytes: 3 * GB, caps: CAPS }
+  expect(await watch(snapshot(), 2 * USAGE_RECHECK_MS + 2)).toBe('imagesFull')
+})

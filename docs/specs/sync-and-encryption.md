@@ -127,6 +127,7 @@ Part of the [architecture overview](../architecture.md).
   `caps` null (`RELAY_QUOTA=off`) and absent `caps` (a relay from before the cap) are shown as such, and `E_SYNC_BAD_MESSAGE` (a relay from before `usage`) as a relay to update.
   After sync settles the main window reads it at most every 15 minutes and sets one notice when a cap's band (below 80%, 80% to the cap, at the cap) goes up from the one last told, kept per relay in the window's storage; no cap and no answer say nothing.
   A shown notice stays until it is dismissed or the device changes relay: a later reading may raise a higher band but never clears one.
+  A notice of a cap nearing its limit does not replace a shown one of a cap at it.
   No protocol change was needed: `usage` already carried `caps`.
 - **Transport** (`src-tauri/src/sync/client.rs`, `service.rs`): vault creation and enrollment over HTTP (ureq: no redirects, no proxy), the socket over tungstenite on a thread of its own, both over the system TLS stack; https only, or http to this machine.
   The device token lives in the keychain beside the vault (account `device`, with the relay's URL and the vault ID it belongs to), never in a file or the web view.
