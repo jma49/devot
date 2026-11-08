@@ -369,6 +369,7 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
 /// back to this one.
 fn on_exit(app: &AppHandle) {
     let restarts = app.state::<ExitGate>().stop();
+    crate::native::clear_pending_secret_at_exit(app);
     if let Some(db) = app.try_state::<crate::storage::Db>() {
         checkpoint_at_exit(db.inner(), EXIT_CHECKPOINT_LIMIT);
     }
