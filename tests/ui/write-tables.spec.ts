@@ -495,3 +495,50 @@ test('a 30-column table keeps its words whole and scrolls sideways, every row to
   await page.mouse.wheel(0, 300)
   await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
 })
+
+const insideItsRow = (page: Page, text: string) => async () => {
+  const cell = (await cells(page)
+    .filter({ hasText: new RegExp(`^${text}$`) })
+    .boundingBox())!
+  const row = (await wideRows(page).first().boundingBox())!
+  return cell.x >= row.x - 1 && cell.x + cell.width <= row.x + row.width + 1
+}
+
+test('a find match in a cell scrolled out of view scrolls its cell into view', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 })
+  await createNote(page, 'Wide find', `Above\n\n${WIDE_TABLE}\n\nBelow`)
+  await page.keyboard.press('ControlOrMeta+ArrowUp')
+  await expect(cells(page)).toHaveCount(150)
+  expect(await insideItsRow(page, 'Variance27')()).toBe(false)
+
+  await page.keyboard.press('Meta+f')
+  const find = page.getByRole('search', { name: 'Find in Note' })
+  await expect(find.getByRole('textbox', { name: 'Find' })).toBeFocused()
+  await page.keyboard.type('Variance27')
+  await expect(find.getByRole('status')).toHaveText('1 of 1')
+  await expect.poll(insideItsRow(page, 'Variance27')).toBe(true)
+  expect(new Set(await rowOffsets(page)).size).toBe(1)
+})
+
+test('undo in a cell scrolled back out of view scrolls it into view again', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 })
+  await createNote(page, 'Wide undo', `Above\n\n${WIDE_TABLE}\n\nBelow`)
+  await page.keyboard.press('ControlOrMeta+ArrowUp')
+  await expect(cells(page)).toHaveCount(150)
+  await intoCell(page, 'Actuals0')
+  for (let c = 0; c < 29; c++) await page.keyboard.press('Tab')
+  await expect.poll(insideItsRow(page, 'Actuals29')).toBe(true)
+  await page.keyboard.type('q')
+  await expect(cells(page).filter({ hasText: /^Actuals29q$/ })).toHaveCount(1)
+
+  const row = (await wideRows(page).nth(2).boundingBox())!
+  await page.mouse.move(row.x + row.width / 2, row.y + row.height / 2)
+  await page.mouse.wheel(-100000, 0)
+  await expect.poll(async () => await rowOffsets(page)).toEqual(Array(5).fill(0))
+  expect(await insideItsRow(page, 'Actuals29q')()).toBe(false)
+
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(cells(page).filter({ hasText: /^Actuals29$/ })).toHaveCount(1)
+  await expect.poll(insideItsRow(page, 'Actuals29')).toBe(true)
+  expect(new Set(await rowOffsets(page)).size).toBe(1)
+})
