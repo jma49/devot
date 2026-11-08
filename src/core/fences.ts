@@ -7,7 +7,7 @@ export interface Fence {
 
 const QUOTE_MARKER = /^ {0,3}>[ \t]?/
 const OPENING = /^((?: {0,3}>[ \t]?)*) {0,3}(`{3,}|~{3,})(.*)$/s
-const CLOSING = /^ {0,3}(`{3,}|~{3,})[ \t]*$/
+const CLOSING = /^ {0,3}(`{3,}|~{3,})[ \t]*\r?$/
 
 function withoutQuoteMarkers(line: string, depth: number): string | undefined {
   let rest = line
@@ -20,7 +20,7 @@ function withoutQuoteMarkers(line: string, depth: number): string | undefined {
 }
 
 /**
- * Reads one line, without its line break, with `fence` open before it, the CommonMark way: a
+ * Reads one line, without its line feed, with `fence` open before it, the CommonMark way: a
  * backtick fence's info string holds no backtick, a closing fence nothing but spaces after its
  * marks, and a quoted fence ends with its quote. `code` says whether the line belongs to a code
  * block, its fences included.

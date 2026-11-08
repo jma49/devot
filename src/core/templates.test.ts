@@ -408,6 +408,12 @@ describe('instruction quotes', () => {
     )
   })
 
+  it('drops an instruction after a code block in a template with CRLF line breaks', () => {
+    expect(withoutInstructions('```\r\ncode\r\n```\r\n> # !Fill\r\n\r\nText\r\n')).toBe(
+      '```\r\ncode\r\n```\r\nText\r\n',
+    )
+  })
+
   it('stays in the template itself: only the draft drops it', () => {
     const body = '> # !Instructions\n> Hi\n\nBody\n'
     expect(withoutInstructions(body)).toBe('Body\n')
