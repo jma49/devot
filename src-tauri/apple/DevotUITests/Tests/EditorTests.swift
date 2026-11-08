@@ -35,13 +35,17 @@ final class EditorTests: XCTestCase {
     /// A slow drag from 2 pt inside the left edge, where only the system's back swipe starts. On a
     /// loaded simulator UIKit turns back most fast synthesized drags even in an app of plain view
     /// controllers, and keeps every slow one.
-    private func edgeSwipe(by distance: CGFloat) {
+    private func edgeSwipe(by distance: CGFloat, velocity: XCUIGestureVelocity = .slow) {
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
             .withOffset(CGVector(dx: 2, dy: 0))
         start.press(
             forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: distance, dy: 0)),
-            withVelocity: .slow, thenHoldForDuration: 0.2)
+            withVelocity: velocity, thenHoldForDuration: 0.2)
     }
+
+    /// UIKit finishes a back swipe that lifts at speed however short it is: at `.slow`'s 250 pt/s the
+    /// 60 pt drag popped the note in CI, its hold before the lift notwithstanding.
+    private static let crawl = XCUIGestureVelocity(rawValue: 40)
 
     /// The screen at a step, kept with the result bundle of a run that passes too.
     private func keepScreen(_ step: String) {
@@ -82,7 +86,7 @@ final class EditorTests: XCTestCase {
     func testANoteSlidesInAndTheBackSwipeTakesItAwayOrTurnsBack() throws {
         openExample()
 
-        edgeSwipe(by: 60)
+        edgeSwipe(by: 60, velocity: Self.crawl)
         keepScreen("a short swipe")
         XCTAssertTrue(noteBar.waitForExistence(timeout: 5), "a swipe turned back keeps the note")
         XCTAssertFalse(tabBarShown)
