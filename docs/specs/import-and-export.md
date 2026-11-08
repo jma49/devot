@@ -55,7 +55,10 @@ A cancelled panel sends nothing.
   The editor counts a CRLF as one character and the Yjs text as two, so a body that kept `\r` would put every later edit in the wrong place.
 - **Lossless:** apart from image destinations and line breaks the snapshot equals the source text byte for byte, so an export that writes the attachments back and restores their paths gives the original files (with `\n` line breaks).
 - **Backups and quitting:** an import and the Backups dialog never overlap: Backups… chosen during an import opens once the import's sheet is closed, and a folder picked while Backups is open is imported once it closes, so a restore never mixes with an import.
-  Quitting stops an import after the file it is on; only a file still unfinished when the quit allowance (2 s) runs out can be left as a note with an empty body.
+  A quit holds an import after the file it is on while the windows save (`importRuns.ts`); only a file still unfinished when the quit allowance (2 s) runs out can be left as a note with an empty body.
+  A quit that is called off lets the import go on from the next file.
+  Once the window has saved and goes on with the quit, the import ends there and lists the files it did not reach, and stays ended if another window calls the quit off after that.
+  Closing a window File > New Window opened does the same with its own import.
 - Notes get the import time as their creation and update time.
 
 ## Export and print

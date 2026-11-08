@@ -62,7 +62,8 @@ import { libraryWarmFeatures } from '../../core/preview/warmFeatures'
 import type { SyncEngine, SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent, TransportName } from '../../core/sync/transport'
 import { fromWireRelay, relayOut, type RelayOut, type WireRelay } from './noteRelayWire'
-import { lazyEngine, lazyOnce, trackedRuns } from './lazyStart'
+import { importRuns } from './importRuns'
+import { lazyEngine, lazyOnce } from './lazyStart'
 import type { SaveProblemsMessage } from './saving'
 import { starterTemplates } from './starterTemplates'
 import type { WireSync, WireTransport } from './storage/syncWire'
@@ -95,8 +96,7 @@ let savedSearches: SavedSearchService | undefined
 let templates: TemplateService | undefined
 let newId: (() => string) | undefined
 let welcome: ((content: WelcomeContent) => Promise<string | null>) | undefined
-const imports = trackedRuns()
-let stopImport = false
+const imports = importRuns()
 const mirror = lazyOnce<Awaited<ReturnType<typeof loadMirror>>, MirrorRunner>(loadMirror)
 let mirrorStorage: StorageAdapter | undefined
 let httpApi: AiService | undefined
@@ -390,8 +390,7 @@ const coreApi = {
     if (!ids) throw new Error('E_CORE_NOT_READY')
     const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
     const files = mirrorStorage
-    stopImport = false
-    return imports.run(() =>
+    return imports.run((stopped) =>
       loadImport().then(([{ importMarkdown, preparerHere }, { preparerOffThread }]) => {
         const prepare = preparerOffThread(
           () =>
@@ -409,17 +408,16 @@ const coreApi = {
           files,
           destination,
           onProgress,
-          stopped: () => stopImport,
+          stopped,
           prepare,
           wikiLinks,
         }).finally(prepare.close)
       }),
     )
   },
-  stopImport: async () => {
-    stopImport = true
-    await imports.settled()
-  },
+  holdImport: () => imports.hold(),
+  resumeImport: () => imports.resume(),
+  stopImport: () => imports.stop(),
   planExport: async (target: ExportTarget, untitled: string) => {
     const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
     const { planExport } = await loadExport()

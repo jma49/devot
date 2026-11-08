@@ -48,8 +48,16 @@ it('every cargo step of the CI rust job is a step of pnpm rust:check', () => {
   expect(steps.length).toBeGreaterThan(2)
   const missing = steps.filter((s) => !scripts['rust:check']?.includes(s))
   expect(missing).toEqual([])
-  // CI runs cargo-deny through its action; the local script runs the tool.
-  expect(job('deny')).toContain('EmbarkStudios/cargo-deny-action')
+  // CI builds cargo-deny from crates.io at a pinned version (no release download) and runs it in
+  // src-tauri with the repository's toolchain, as the local script does.
+  const deny = job('deny')
+  expect(deny).toContain('working-directory: src-tauri')
+  expect(commands(deny)).toContain('rustup toolchain install')
+  expect(commands(deny)).toContainEqual(
+    expect.stringMatching(/^cargo install --locked cargo-deny@\d+\.\d+\.\d+$/),
+  )
+  expect(commands(deny)).toContain('cargo deny check')
+  expect(deny).not.toMatch(/uses: EmbarkStudios\/cargo-deny-action@/)
   expect(scripts['rust:check']).toContain('cargo deny check')
 })
 

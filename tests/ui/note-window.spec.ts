@@ -278,15 +278,16 @@ test('a note window that cannot open its note still answers a close and a quit a
   const win = await openNoteWindow(context, '0192a6f0-0000-7000-8000-00000000dead')
   await expect(win.getByRole('alert')).toBeVisible()
   await win.evaluate(
-    (names) => {
+    ({ close, flush }) => {
       const w = window
       const make = window
-      for (const name of names) w.dispatchEvent(new make.CustomEvent(name))
+      w.dispatchEvent(new make.CustomEvent(close))
+      w.dispatchEvent(new make.CustomEvent(flush, { detail: { round: 1 } }))
     },
-    [CLOSE_EVENT, FLUSH_EVENT],
+    { close: CLOSE_EVENT, flush: FLUSH_EVENT },
   )
   await expect.poll(() => calls(win, 'note_window_close_ready')).toHaveLength(1)
-  await expect.poll(() => calls(win, 'app_exit_ready')).toHaveLength(1)
+  await expect.poll(() => calls(win, 'app_exit_ready')).toEqual([{ round: 1 }])
 })
 
 test('a note window turns read-only once the trial is over, with the bar to add a licence', async ({
