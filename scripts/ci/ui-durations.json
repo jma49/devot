@@ -96,6 +96,7 @@
   "tests/ui/phone-settings-effect.spec.ts": 20000,
   "tests/ui/phone-settings.spec.ts": 210000,
   "tests/ui/phone-sheet.spec.ts": 51532,
+  "tests/ui/phone-stack.spec.ts": 20000,
   "tests/ui/pinned-switch.spec.ts": 22027,
   "tests/ui/plugin-settings.spec.ts": 14649,
   "tests/ui/plugins-sandbox.spec.ts": 44374,
