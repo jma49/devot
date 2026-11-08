@@ -62,7 +62,7 @@ extern "C" fn screens_call(request: u64, json: *const u8, len: usize, reply: Scr
 }
 
 /// The app's own services, once its launch has managed them all. The database is reached only
-/// through `NoteCounts`, so no Rust-direct request can write a note.
+/// through `NoteCounts` and the lists' reads, so no Rust-direct request can write a note.
 fn services(app: &tauri::AppHandle) -> Option<Services> {
     use crate::{ai::Ai, editor_settings, fonts::Fonts, licence, sync};
     let announcer = app.clone();
@@ -78,6 +78,7 @@ fn services(app: &tauri::AppHandle) -> Option<Services> {
         shop: licence::app_store::Shop(app.try_state::<licence::app_store::Shop>()?.0.clone()),
         sync: Arc::clone(app.try_state::<Arc<sync::service::SyncService>>()?.inner()),
         counts: sync::commands::NoteCounts::of(app.try_state::<crate::storage::Db>()?.inner()),
+        lists: crate::screens::lists::Reads::of(app.try_state::<crate::storage::Db>()?.inner()),
     })
 }
 

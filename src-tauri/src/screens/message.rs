@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::direct;
-use crate::commands::notes::{MAX_TITLE_CHARS, valid_note_id};
+use crate::commands::notes::{MAX_TITLE_CHARS, valid_hlc, valid_note_id};
+use crate::storage::NOTE_STATUSES;
 
 pub const VERSION: u64 = 1;
 /// The store bridge's reply limit (`STORE_REPLY_LIMIT`).
@@ -14,6 +15,8 @@ pub const MAX_MESSAGE_BYTES: usize = 4 << 20;
 /// The rows a list shows at once, with room to spare.
 const MAX_EXCERPT_IDS: usize = 60;
 const MAX_CHANGED_IDS: usize = 10_000;
+/// A multiple selection: every row of a long list.
+const MAX_BATCH_IDS: usize = 10_000;
 /// The core reads at most 10 clauses of at most 100 characters (MAX_SEARCH_TERMS and
 /// MAX_TERM_CHARS in src/core/search.ts), each with up to 16 more for a qualifier, a minus, quotes
 /// and a space; it never reads a longer query further.
@@ -44,7 +47,7 @@ pub struct Search {
     pub scope: Scope,
 }
 
-/// A tab of the native tab bar; Search joins when it has a screen of its own.
+/// A tab the page has; the native Search tab is not one, so `tabs.*` naming it is refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Tab {
@@ -114,6 +117,76 @@ pub struct ModeArgs {
     pub mode: Mode,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct BookChoice {
+    pub book_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StatusChoice {
+    pub status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PinChoice {
+    pub pinned: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct TagChoice {
+    pub tag_id: String,
+}
+
+/// `BatchChange` in src/core/batch.ts, less the tag made by name, which the native lists never send.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+pub enum Change {
+    Book(BookChoice),
+    Status(StatusChoice),
+    Pinned(PinChoice),
+    PutTag(TagChoice),
+    RemoveTag(TagChoice),
+    Trash(Empty),
+    Restore(Empty),
+    Purge(Empty),
+}
+
+/// What taking a completion back needs of the note (`StatusUndo` in src/core/notes/types.ts).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct StatusUndo {
+    pub status: String,
+    pub updated_at: u64,
+    pub status_hlc: String,
+    pub body_version: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct UndoStatus {
+    pub note_id: String,
+    pub undo: StatusUndo,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Batch {
+    pub ids: Vec<String>,
+    pub change: Change,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct TemplateApply {
+    pub template_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub book_id: Option<String>,
+}
+
 /// What Swift may ask the page for: an operation joins with the pull request that first sends it.
 /// What Rust answers itself is a `direct::Op`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -137,6 +210,8 @@ pub enum Op {
     SettingsNotebooks(Empty),
     #[serde(rename = "editor.show")]
     EditorShow(ShowNote),
+    #[serde(rename = "editor.prepare")]
+    EditorPrepare(NoteArgs),
     #[serde(rename = "editor.hide")]
     EditorHide(Empty),
     #[serde(rename = "editor.setMode")]
@@ -149,6 +224,22 @@ pub enum Op {
     GlassSet(GlassSet),
     #[serde(rename = "editor.focus")]
     EditorFocus(Empty),
+    #[serde(rename = "notes.batch")]
+    NotesBatch(Batch),
+    #[serde(rename = "trash.empty")]
+    TrashEmpty(Empty),
+    #[serde(rename = "book.create")]
+    BookCreate(Empty),
+    #[serde(rename = "template.create")]
+    TemplateCreate(Empty),
+    #[serde(rename = "template.apply")]
+    TemplateApply(TemplateApply),
+    #[serde(rename = "note.text")]
+    NoteText(NoteArgs),
+    #[serde(rename = "note.complete")]
+    NoteComplete(NoteArgs),
+    #[serde(rename = "note.undoStatus")]
+    NoteUndoStatus(UndoStatus),
 }
 
 pub const OPS: &[&str] = &[
@@ -161,12 +252,21 @@ pub const OPS: &[&str] = &[
     "tabs.popToRoot",
     "settings.notebooks",
     "editor.show",
+    "editor.prepare",
     "editor.hide",
     "editor.setMode",
     "editor.info",
     "glass.get",
     "glass.set",
     "editor.focus",
+    "notes.batch",
+    "trash.empty",
+    "book.create",
+    "template.create",
+    "template.apply",
+    "note.text",
+    "note.complete",
+    "note.undoStatus",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -174,6 +274,9 @@ pub const OPS: &[&str] = &[
 pub struct NotesChanged {
     pub rev: u64,
     pub ids: Vec<String>,
+    /// Sync or another process changed notes the page cannot name: every list reads again.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub all: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -257,6 +360,12 @@ pub enum Notice {
     EditorScroll(EditorScroll),
     #[serde(rename = "note.new")]
     NoteNew(NoteNew),
+    #[serde(rename = "books.changed")]
+    BooksChanged(Empty),
+    #[serde(rename = "tags.changed")]
+    TagsChanged(Empty),
+    #[serde(rename = "savedSearches.changed")]
+    SavedSearchesChanged(Empty),
 }
 
 const NOTICES: &[&str] = &[
@@ -270,6 +379,9 @@ const NOTICES: &[&str] = &[
     "editor.mode",
     "editor.scroll",
     "note.new",
+    "books.changed",
+    "tags.changed",
+    "savedSearches.changed",
 ];
 
 /// What Rust tells Swift itself, never passed on from the page: a notice without fields, after
@@ -555,7 +667,28 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             create.title.as_deref().map_or(Ok(()), title)
         }
         Op::NoteDiscard(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
-        Op::EditorShow(ShowNote { note_id, .. }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::EditorShow(ShowNote { note_id, .. })
+        | Op::EditorPrepare(NoteArgs { note_id })
+        | Op::NoteText(NoteArgs { note_id })
+        | Op::NoteComplete(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::NoteUndoStatus(UndoStatus { note_id, undo }) => {
+            note_ids(std::slice::from_ref(note_id), 1)?;
+            if !NOTE_STATUSES.contains(&undo.status.as_str()) || !valid_hlc(&undo.status_hlc) {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            Ok(())
+        }
+        Op::NotesBatch(batch) => {
+            if batch.ids.is_empty() {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            note_ids(&batch.ids, MAX_BATCH_IDS)?;
+            change(&batch.change)
+        }
+        Op::TemplateApply(apply) => {
+            note_ids(std::slice::from_ref(&apply.template_id), 1)?;
+            book(apply.book_id.as_ref())
+        }
         Op::GlassSet(GlassSet { transparency }) => {
             if !(-GLASS_TRANSPARENCY_MAX..=GLASS_TRANSPARENCY_MAX).contains(transparency)
                 || transparency % GLASS_TRANSPARENCY_STEP != 0
@@ -571,7 +704,24 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
         | Op::EditorInfo(_)
-        | Op::EditorFocus(_) => Ok(()),
+        | Op::EditorFocus(_)
+        | Op::TrashEmpty(_)
+        | Op::BookCreate(_)
+        | Op::TemplateCreate(_) => Ok(()),
+    }
+}
+
+fn change(change: &Change) -> Result<(), &'static str> {
+    match change {
+        Change::Book(BookChoice { book_id }) => book(book_id.as_ref()),
+        Change::Status(StatusChoice { status }) if NOTE_STATUSES.contains(&status.as_str()) => {
+            Ok(())
+        }
+        Change::Status(_) => Err("E_SCREENS_ARGS_INVALID"),
+        Change::PutTag(TagChoice { tag_id }) | Change::RemoveTag(TagChoice { tag_id }) => {
+            note_ids(std::slice::from_ref(tag_id), 1)
+        }
+        Change::Pinned(_) | Change::Trash(_) | Change::Restore(_) | Change::Purge(_) => Ok(()),
     }
 }
 
@@ -594,7 +744,10 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
         Notice::TabsState(_)
         | Notice::SettingsOpen(_)
         | Notice::NavBack(_)
-        | Notice::EditorScroll(_) => Ok(()),
+        | Notice::EditorScroll(_)
+        | Notice::BooksChanged(_)
+        | Notice::TagsChanged(_)
+        | Notice::SavedSearchesChanged(_) => Ok(()),
     }
 }
 

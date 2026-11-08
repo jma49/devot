@@ -11,7 +11,7 @@ import { displayTitle } from '../headlines'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { haptic } from './haptics'
-import { SectionHead } from './PhoneNoteList'
+import { SectionHead } from './PhoneControls'
 import type { PhoneData } from './usePhoneData'
 
 const RANKED_NOTES = 4

@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+import { showPhoneTab } from './phone'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -59,7 +60,7 @@ async function seed(page: Page) {
     )
   })
   await page.reload()
-  await page.getByRole('button', { name: 'Activity' }).click()
+  await showPhoneTab(page, 'activity')
   await expect(screen(page)).toBeVisible()
 }
 

@@ -481,10 +481,18 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
         'status hold': [solid(theme, 'status.hold-mark'), marked],
         'status done': [solid(theme, 'status.done-mark'), marked],
         'status dropped': [solid(theme, 'status.dropped-mark'), marked],
-        'glyph on pin': [onAction, [solid(theme, 'phone.action-pin')]],
-        'glyph on trash': [onAction, [solid(theme, 'phone.action-trash')]],
         'glyph on done': [onAction, [solid(theme, 'phone.action-done')]],
         'dove on the page': [solid(theme, 'phone.dove'), [solid(theme, 'phone.background')]],
+      }),
+    ).toEqual([])
+  })
+
+  it("keeps the swipe actions' glyphs at 3.8:1", () => {
+    expect(
+      under(3.8, {
+        'glyph on pin': [onAction, [solid(theme, 'phone.action-pin')]],
+        'glyph on trash': [onAction, [solid(theme, 'phone.action-trash')]],
+        'glyph on status': [onAction, [solid(theme, 'phone.action-status')]],
       }),
     ).toEqual([])
   })

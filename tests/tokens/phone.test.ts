@@ -16,6 +16,7 @@ describe('the phone layout tokens', () => {
     ['size.phone-row-icon', 28],
     ['size.icon-phone-row', 21],
     ['size.icon-phone-status', 20],
+    ['size.icon-phone-tag-dot', 10],
     ['size.phone-swipe-action', 52],
     ['size.phone-swipe-action-height', 34],
     ['size.phone-swipe-surface-inset', 3],
@@ -154,14 +155,14 @@ describe('the phone motion tokens', () => {
     ).toEqual([])
   })
 
-  it('draws the glass rim from tokens, on the bars and the lifted lens', () => {
+  it('draws the glass rim from tokens', () => {
     expect(px('shadow.phone-glass-rim-offset')).toBe(1.5)
     expect(px('shadow.phone-glass-rim-blur')).toBe(1)
     expect(px('shadow.phone-glass-rim-spread')).toBe(-1)
     const css = readFileSync('src/renderer/src/phone/phone.css', 'utf8')
     const shadows = [...css.matchAll(/box-shadow:([^;]*);/g)].map((match) => match[1]!)
     const rims = shadows.filter((shadow) => shadow.includes('--color-phone-glass-highlight'))
-    expect(rims.length).toBeGreaterThanOrEqual(2)
+    expect(rims.length).toBeGreaterThanOrEqual(1)
     for (const rim of rims) {
       const highlight = rim.split(',').find((layer) => layer.includes('glass-highlight'))!
       expect(highlight).not.toMatch(/\d(px|pt)\b/)

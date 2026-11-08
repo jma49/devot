@@ -30,9 +30,8 @@ final class Screens: SettingsBridge {
     private var tabModel = TabModel()
     /// Whether the page shows a note in its editor host, so a list taking the web view back asks it to let go.
     private var editorShown = false
-    let selectionFeedback: UISelectionFeedbackGenerator
+    let haptics: Haptics
     let gate: ProGate
-    private let lockFeedback: UINotificationFeedbackGenerator
     /// New Note's notes, until their screen has gone: whether a change came after the one that made them.
     private var fresh: [String: FreshNote] = [:]
     private var background: NSObjectProtocol?
@@ -47,24 +46,23 @@ final class Screens: SettingsBridge {
         self.rust = rust
         let root = ScreensRootController(webView: webView)
         self.root = root
-        selectionFeedback = UISelectionFeedbackGenerator(view: root.tabs.view)
-        lockFeedback = UINotificationFeedbackGenerator(view: root.tabs.view)
+        let haptics = Haptics(view: root.tabs.view)
+        root.tabs.lists.haptics = haptics
+        root.tabs.settings.store.haptics = haptics
+        self.haptics = haptics
         let licences = root.tabs.settings.store.licences
         gate = ProGate { [licences] in licences.licence }
         root.log = { [rust] in rust.log($0, $1) }
         root.tabs.onAppear = { [weak self] tab in
             guard let self else { return }
             // A bar item gives no touch-down, so the warning is made ready while a list shows locked.
-            if gate.locked() { lockFeedback.prepare() }
+            if gate.locked() { haptics.prepare(.gateSheet) }
             run(tabModel.appeared(tab))
         }
         root.tabs.onReselect = { [weak self] tab in
             guard let self else { return }
             let effects = tabModel.reselected(tab)
-            if !effects.isEmpty {
-                selectionFeedback.prepare()
-                selectionFeedback.selectionChanged()
-            }
+            if !effects.isEmpty { haptics.play(.tabReselect) }
             run(effects)
         }
         root.tabs.settings.bridge = self
@@ -79,10 +77,18 @@ final class Screens: SettingsBridge {
             licences.read(done: done)
         }
         gate.perform = { [weak self] intent in
+            guard let self else { return }
             switch intent {
-            case .newNote(let bookId): self?.pushNewNote(bookId)
+            case .newNote(let bookId): pushNewNote(bookId)
+            default: root.tabs.lists.perform(intent)
             }
         }
+        let lists = root.tabs.lists
+        lists.gate = gate
+        lists.open = { [weak self] id, title in self?.openNote(id, title: title) }
+        lists.hideEditor = { [weak self] done in self?.hideEditor(done) }
+        lists.untouchedNewNotes = { [weak self] in self?.untouchedNewNotes() ?? [] }
+        lists.bridge = self
         background = NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil
         ) { [weak self] _ in
@@ -245,9 +251,14 @@ final class Screens: SettingsBridge {
             return true
         case .notesChanged:
             guard let rev = fields["rev"]?.number, let ids = fields["ids"]?.array else { return invalid(kind) }
-            for id in ids.compactMap(\.string) where (fresh[id]?.rev ?? .infinity) < rev {
+            let named = ids.compactMap(\.string)
+            for id in named where (fresh[id]?.rev ?? .infinity) < rev {
                 fresh[id]?.touched = true
             }
+            root.tabs.lists.notesChanged(rev: rev, ids: named, all: fields["all"]?.bool ?? false)
+            return false
+        case .booksChanged, .tagsChanged, .savedSearchesChanged:
+            root.tabs.lists.libraryChanged()
             return false
         default:
             return false
@@ -260,12 +271,11 @@ final class Screens: SettingsBridge {
     }
 
     private var shownNavigation: UINavigationController? {
-        root.tabs.selectedViewController as? UINavigationController
+        root.tabs.shownNavigation
     }
 
     private var editorScreens: [EditorScreen] {
-        (root.tabs.viewControllers ?? []).compactMap { $0 as? UINavigationController }
-            .flatMap(\.viewControllers).compactMap { $0 as? EditorScreen }
+        root.tabs.navigations.values.flatMap(\.viewControllers).compactMap { $0 as? EditorScreen }
     }
 
     /// Pushed at once on the shown tab; a second tap while a push runs, or on the note already shown, does nothing.
@@ -292,6 +302,9 @@ final class Screens: SettingsBridge {
                 guard let id = made["id"]?.string else { return refusedCreate(screen, code: "E_SCREENS_MESSAGE_INVALID") }
                 fresh[id] = FreshNote(rev: made["rev"]?.number ?? 0)
                 screen.created(id)
+                if let stack = screen.navigationController?.viewControllers, let at = stack.firstIndex(of: screen), at > 0 {
+                    (stack[at - 1] as? NoteListScreen)?.created(id)
+                }
                 discardLeftNewNotes()
             case .failed(let code):
                 refusedCreate(screen, code: code)
@@ -337,6 +350,13 @@ final class Screens: SettingsBridge {
         }
     }
 
+    /// The new notes a native list drops before the pop that leaves them draws a frame; the page
+    /// still decides, on `note.discard`, whether each one goes.
+    private func untouchedNewNotes() -> [String] {
+        let shown = Set(editorScreens.compactMap(\.noteId))
+        return fresh.filter { !$0.value.touched && !shown.contains($0.key) }.map(\.key)
+    }
+
     /// One sheet per locked tap, with the warning played in the same turn as it rises.
     private func presentLock(_ surface: LockSurface) {
         let store = root.tabs.settings.store
@@ -367,7 +387,7 @@ final class Screens: SettingsBridge {
         sheet.onDismiss = { [weak self] in self?.gate.dismissed() }
         sheet.view.accessibilityViewIsModal = true
         let presenter = root.tabs.presentedViewController ?? root.tabs
-        lockFeedback.notificationOccurred(.warning)
+        haptics.play(.gateSheet)
         presenter.present(sheet, animated: true)
     }
 

@@ -87,12 +87,21 @@ public enum Op: String, CaseIterable, Sendable {
     case tabsPopToRoot = "tabs.popToRoot"
     case settingsNotebooks = "settings.notebooks"
     case editorShow = "editor.show"
+    case editorPrepare = "editor.prepare"
     case editorHide = "editor.hide"
     case editorSetMode = "editor.setMode"
     case editorInfo = "editor.info"
     case glassGet = "glass.get"
     case glassSet = "glass.set"
     case editorFocus = "editor.focus"
+    case notesBatch = "notes.batch"
+    case trashEmpty = "trash.empty"
+    case bookCreate = "book.create"
+    case templateCreate = "template.create"
+    case templateApply = "template.apply"
+    case noteText = "note.text"
+    case noteComplete = "note.complete"
+    case noteUndoStatus = "note.undoStatus"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {
@@ -106,6 +115,9 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case editorMode = "editor.mode"
     case editorScroll = "editor.scroll"
     case noteNew = "note.new"
+    case booksChanged = "books.changed"
+    case tagsChanged = "tags.changed"
+    case savedSearchesChanged = "savedSearches.changed"
     /// Rust's own: the sync snapshot changed.
     case syncChanged = "sync.changed"
     /// Rust's own: a pairing on show through iCloud may have moved on.

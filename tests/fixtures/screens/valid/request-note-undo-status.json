@@ -1,0 +1,17 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 3,
+    "op": "note.undoStatus",
+    "args": {
+      "noteId": "01890a5d-ac96-774b-bcce-b302099a8057",
+      "undo": {
+        "status": "active",
+        "updatedAt": 1800000000000,
+        "statusHlc": "0001800000000000-0000-lists1",
+        "bodyVersion": 3
+      }
+    }
+  }
+}

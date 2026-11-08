@@ -5246,10 +5246,6 @@ public enum L10n {
     text("noteMenu.clearAuthorship", "Clear Authorship…")
   }
 
-  public static func phoneTabs() -> String {
-    text("phone.tabs", "Tabs")
-  }
-
   public static func phoneTabNotes() -> String {
     text("phone.tab.notes", "Notes")
   }
@@ -5264,6 +5260,10 @@ public enum L10n {
 
   public static func phoneTabSettings() -> String {
     text("phone.tab.settings", "Settings")
+  }
+
+  public static func phoneTabSearch() -> String {
+    text("phone.tab.search", "Search")
   }
 
   public static func phoneActivityPeriod() -> String {
@@ -5338,18 +5338,6 @@ public enum L10n {
     text("phone.badge.attention", "Needs attention")
   }
 
-  public static func phoneLibraryDone() -> String {
-    text("phone.library.done", "Done")
-  }
-
-  public static func phoneLibrarySmart() -> String {
-    text("phone.library.smart", "Smart lists")
-  }
-
-  public static func phoneLibrarySavedSearches() -> String {
-    text("phone.library.savedSearches", "Saved Searches")
-  }
-
   public static func phoneLibraryExpand(name p0: String) -> String {
     fill(text("phone.library.expand", "Show notebooks in {name}"), ["name": p0])
   }
@@ -5360,10 +5348,6 @@ public enum L10n {
 
   public static func phoneLibraryNoteCount(count p0: String) -> String {
     fill(text("phone.library.noteCount", "{count} notes"), ["count": p0])
-  }
-
-  public static func phoneLibraryBackedUpAt(time p0: String) -> String {
-    fill(text("phone.library.backedUpAt", "backed up {time}"), ["time": p0])
   }
 
   public static func phoneClose() -> String {
@@ -5402,16 +5386,36 @@ public enum L10n {
     text("phone.setStatus", "Set Status")
   }
 
-  public static func phoneRowActions(title p0: String) -> String {
-    fill(text("phone.rowActions", "Actions for {title}"), ["title": p0])
-  }
-
   public static func phoneActionPin() -> String {
     text("phone.action.pin", "Pin")
   }
 
   public static func phoneActionTrash() -> String {
     text("phone.action.trash", "Trash")
+  }
+
+  public static func phoneActionComplete() -> String {
+    text("phone.action.complete", "Complete")
+  }
+
+  public static func phoneActionShare() -> String {
+    text("phone.action.share", "Share")
+  }
+
+  public static func phoneListSelect() -> String {
+    text("phone.list.select", "Select")
+  }
+
+  public static func phoneListNewNoteIn() -> String {
+    text("phone.list.newNoteIn", "New Note in…")
+  }
+
+  public static func phoneListFromTemplate() -> String {
+    text("phone.list.fromTemplate", "From Template…")
+  }
+
+  public static func phoneListTags() -> String {
+    text("phone.list.tags", "Tags")
   }
 
   public static func phoneFilterAll() -> String {
@@ -5430,10 +5434,6 @@ public enum L10n {
     text("phone.search.placeholder", "Search notes, #tags")
   }
 
-  public static func phoneSearchClose() -> String {
-    text("phone.search.close", "Close search")
-  }
-
   public static func phoneSearchRecent() -> String {
     text("phone.search.recent", "Recent")
   }
@@ -5444,6 +5444,34 @@ public enum L10n {
 
   public static func phoneSearchHint() -> String {
     text("phone.search.hint", "Try fewer words, or search a tag with #")
+  }
+
+  public static func phoneSearchScopeAll() -> String {
+    text("phone.search.scopeAll", "All")
+  }
+
+  public static func phoneSearchScopeTitles() -> String {
+    text("phone.search.scopeTitles", "Titles")
+  }
+
+  public static func phoneSearchCountCapped(count p0: String) -> String {
+    fill(text("phone.search.countCapped", "{count}+"), ["count": p0])
+  }
+
+  public static func phoneSearchFoundOne(count p0: String) -> String {
+    fill(text("phone.search.foundOne", "{count} note found"), ["count": p0])
+  }
+
+  public static func phoneSearchFoundOther(count p0: String) -> String {
+    fill(text("phone.search.foundOther", "{count} notes found"), ["count": p0])
+  }
+
+  public static func phoneSearchFoundCapped(count p0: String) -> String {
+    fill(text("phone.search.foundCapped", "More than {count} notes found"), ["count": p0])
+  }
+
+  public static func phoneSearchSuggestionHint() -> String {
+    text("phone.search.suggestionHint", "Searches for it")
   }
 
   public static func phoneToastTrashed() -> String {
@@ -5460,10 +5488,6 @@ public enum L10n {
 
   public static func phoneListRecent() -> String {
     text("phone.list.recent", "Recent")
-  }
-
-  public static func phoneListShowMore(count p0: String) -> String {
-    fill(text("phone.list.showMore", "Show more ({count} completed hidden)"), ["count": p0])
   }
 
   public static func phoneNoteTitle() -> String {

@@ -4,6 +4,7 @@
 
 pub mod direct;
 pub mod hub;
+pub mod lists;
 pub mod message;
 
 const MAX_LOG_LINE: usize = 200;

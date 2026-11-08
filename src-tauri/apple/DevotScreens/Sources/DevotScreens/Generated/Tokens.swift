@@ -113,6 +113,7 @@ public enum Tokens {
     case phoneActionPin = "color.phone.action-pin"
     case phoneActionTrash = "color.phone.action-trash"
     case phoneActionDone = "color.phone.action-done"
+    case phoneActionStatus = "color.phone.action-status"
     case phoneBadge = "color.phone.badge"
     case phoneBadgeRing = "color.phone.badge-ring"
     case phoneDestructive = "color.phone.destructive"
@@ -361,9 +362,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0xb0751f, 1)
+      case .phoneActionTrash: return RGBA(0xd4564c, 1)
       case .phoneActionDone: return RGBA(0x259f58, 1)
+      case .phoneActionStatus: return RGBA(0x5f6f86, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0xffffff, 0.9)
       case .phoneDestructive: return RGBA(0xcc2e25, 1)
@@ -591,9 +593,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0x99651a, 1)
+      case .phoneActionTrash: return RGBA(0xb94a41, 1)
       case .phoneActionDone: return RGBA(0x2ea95d, 1)
+      case .phoneActionStatus: return RGBA(0x4f5d72, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0x2c2c30, 0.9)
       case .phoneDestructive: return RGBA(0xff6b63, 1)
@@ -821,9 +824,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0xb0751f, 1)
+      case .phoneActionTrash: return RGBA(0xd4564c, 1)
       case .phoneActionDone: return RGBA(0x259f58, 1)
+      case .phoneActionStatus: return RGBA(0x5f6f86, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0xffffff, 0.9)
       case .phoneDestructive: return RGBA(0xb83a2f, 1)
@@ -1051,9 +1055,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0x99651a, 1)
+      case .phoneActionTrash: return RGBA(0xb94a41, 1)
       case .phoneActionDone: return RGBA(0x2ea95d, 1)
+      case .phoneActionStatus: return RGBA(0x4f5d72, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0x353533, 0.9)
       case .phoneDestructive: return RGBA(0xee8a86, 1)
@@ -1281,9 +1286,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0xb0751f, 1)
+      case .phoneActionTrash: return RGBA(0xd4564c, 1)
       case .phoneActionDone: return RGBA(0x259f58, 1)
+      case .phoneActionStatus: return RGBA(0x5f6f86, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0xffffff, 0.9)
       case .phoneDestructive: return RGBA(0xcc2e25, 1)
@@ -1511,9 +1517,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0x99651a, 1)
+      case .phoneActionTrash: return RGBA(0xb94a41, 1)
       case .phoneActionDone: return RGBA(0x2ea95d, 1)
+      case .phoneActionStatus: return RGBA(0x4f5d72, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0x2c2c30, 0.9)
       case .phoneDestructive: return RGBA(0xff6b63, 1)
@@ -1741,9 +1748,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0xb0751f, 1)
+      case .phoneActionTrash: return RGBA(0xd4564c, 1)
       case .phoneActionDone: return RGBA(0x259f58, 1)
+      case .phoneActionStatus: return RGBA(0x5f6f86, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0xffffff, 0.9)
       case .phoneDestructive: return RGBA(0xcc2e25, 1)
@@ -1971,9 +1979,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0x99651a, 1)
+      case .phoneActionTrash: return RGBA(0xb94a41, 1)
       case .phoneActionDone: return RGBA(0x2ea95d, 1)
+      case .phoneActionStatus: return RGBA(0x4f5d72, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0x2c2c30, 0.9)
       case .phoneDestructive: return RGBA(0xff6b63, 1)
@@ -2201,9 +2210,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0xb0751f, 1)
+      case .phoneActionTrash: return RGBA(0xd4564c, 1)
       case .phoneActionDone: return RGBA(0x259f58, 1)
+      case .phoneActionStatus: return RGBA(0x5f6f86, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0xffffff, 0.9)
       case .phoneDestructive: return RGBA(0xcc2e25, 1)
@@ -2431,9 +2441,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0x99651a, 1)
+      case .phoneActionTrash: return RGBA(0xb94a41, 1)
       case .phoneActionDone: return RGBA(0x2ea95d, 1)
+      case .phoneActionStatus: return RGBA(0x4f5d72, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0x2c2c30, 0.9)
       case .phoneDestructive: return RGBA(0xff6b63, 1)
@@ -2661,9 +2672,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0xb0751f, 1)
+      case .phoneActionTrash: return RGBA(0xd4564c, 1)
       case .phoneActionDone: return RGBA(0x259f58, 1)
+      case .phoneActionStatus: return RGBA(0x5f6f86, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0xffffff, 0.9)
       case .phoneDestructive: return RGBA(0xcc2e25, 1)
@@ -2891,9 +2903,10 @@ public enum Tokens {
       case .phoneShadow: return RGBA(0x000000, 0.12)
       case .phoneShadowFloat: return RGBA(0x000000, 0.25)
       case .phoneOnAction: return RGBA(0xffffff, 1)
-      case .phoneActionPin: return RGBA(0xd97f00, 1)
-      case .phoneActionTrash: return RGBA(0xff3b30, 1)
+      case .phoneActionPin: return RGBA(0x99651a, 1)
+      case .phoneActionTrash: return RGBA(0xb94a41, 1)
       case .phoneActionDone: return RGBA(0x2ea95d, 1)
+      case .phoneActionStatus: return RGBA(0x4f5d72, 1)
       case .phoneBadge: return RGBA(0xdf342a, 1)
       case .phoneBadgeRing: return RGBA(0x2c2c30, 0.9)
       case .phoneDestructive: return RGBA(0xff6b63, 1)
@@ -3173,6 +3186,7 @@ public enum Tokens {
     public static var phoneActionPin: UIColor { Theme.current.color(.phoneActionPin) }
     public static var phoneActionTrash: UIColor { Theme.current.color(.phoneActionTrash) }
     public static var phoneActionDone: UIColor { Theme.current.color(.phoneActionDone) }
+    public static var phoneActionStatus: UIColor { Theme.current.color(.phoneActionStatus) }
     public static var phoneBadge: UIColor { Theme.current.color(.phoneBadge) }
     public static var phoneBadgeRing: UIColor { Theme.current.color(.phoneBadgeRing) }
     public static var phoneDestructive: UIColor { Theme.current.color(.phoneDestructive) }
@@ -3630,6 +3644,7 @@ public enum Tokens {
     public static let iconPhoneStatus: CGFloat = 20
     public static let iconPhoneRow: CGFloat = 21
     public static let phoneRowIcon: CGFloat = 28
+    public static let iconPhoneTagDot: CGFloat = 10
     public static let iconSm: CGFloat = 14
     public static let iconMd: CGFloat = 17
     public static let iconLg: CGFloat = 22
@@ -3773,7 +3788,7 @@ public enum Tokens {
   }
 
   public enum Scale {
-    public static let phoneBump: CGFloat = 1.6
+    public static let phoneBump: CGFloat = 1.25
     public static let phoneIconDip: CGFloat = 0.87
     public static let phoneIconPop: CGFloat = 1.1
     public static let phoneGlassPress: CGFloat = 1.08

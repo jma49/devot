@@ -19,14 +19,14 @@ final class NewNoteTests: XCTestCase {
         notes.tap()
     }
 
-    private var page: XCUIElement { app.webViews.firstMatch }
-    private var noteBar: XCUIElement { app.navigationBars.firstMatch }
-    private var newNote: XCUIElement { page.buttons[L10n.noteListNewNote()] }
-
-    /// A row's actions button, one per listed note.
-    private var rows: XCUIElementQuery {
-        page.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", L10n.phoneRowActions(title: "")))
+    /// The note's own bar, told from a list's by its Info button.
+    private var noteBar: XCUIElement {
+        app.navigationBars.containing(NSPredicate(format: "label == %@", L10n.phoneInfoTitle())).firstMatch
     }
+    private var newNote: XCUIElement { app.navigationBars.buttons[L10n.noteListNewNote()] }
+
+    /// The native list's cells: its section heads and one row per listed note.
+    private var rows: XCUIElementQuery { app.collectionViews.firstMatch.cells }
 
     private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 5) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)

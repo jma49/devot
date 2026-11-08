@@ -1,0 +1,16 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_ARGS_INVALID",
+  "message": {
+    "v": 1,
+    "id": 3,
+    "op": "notes.batch",
+    "args": {
+      "ids": ["01890a5d-ac96-774b-bcce-b302099a8057"],
+      "change": {
+        "kind": "addTag",
+        "name": "work"
+      }
+    }
+  }
+}

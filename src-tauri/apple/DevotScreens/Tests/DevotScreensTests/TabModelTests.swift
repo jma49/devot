@@ -44,6 +44,19 @@ final class TabModelTests: XCTestCase {
         XCTAssertEqual(model.pageState(tab: .notes, barHidden: false, attention: false), [])
     }
 
+    func testSearchIsNativeAloneSoThePageIsNeitherToldNorFollowed() {
+        var model = TabModel()
+        _ = model.appeared(.library)
+        model.showAnswered()
+        XCTAssertEqual(model.appeared(.search), [])
+        XCTAssertEqual(model.selected, .search)
+        XCTAssertEqual(model.reselected(.search), [])
+        XCTAssertEqual(model.pageState(tab: .library, barHidden: false, attention: true), [.badge(true)])
+        XCTAssertEqual(model.selected, .search)
+        XCTAssertEqual(model.pageState(tab: .settings, barHidden: false, attention: true), [.select(.settings)])
+        XCTAssertEqual(model.appeared(.library), [.show(.library)])
+    }
+
     func testHidesTheBarAndShowsTheBadgeOnlyWhenTheyChange() {
         var model = TabModel()
         XCTAssertEqual(model.pageState(tab: .library, barHidden: true, attention: true), [.hideBar(true), .badge(true)])

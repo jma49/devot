@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
 import { act, useEffect, useRef } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import * as Y from 'yjs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BODY } from '../../../../core'
 import type { Core } from '../../core-client'
 import type { EditorHandle } from '../../editor/handle'
+import { changeEditorSettings } from '../../editorSettings'
 import { invoke } from '../../ipc'
 import { readCurrentLicence } from '../../licence'
 import { closePurchase } from '../../purchaseSheet'
@@ -117,10 +120,6 @@ afterEach(() => {
 })
 
 const notices = (name: ScreensNotice['notice']) => bridge.notices.filter((n) => n.notice === name)
-const shownStack = () => host.querySelector('.phone-stack:not([hidden])')!
-const rows = () => [...shownStack().querySelectorAll<HTMLButtonElement>('.phone-note-open')]
-const newNoteButton = () =>
-  shownStack().querySelector<HTMLButtonElement>('button[aria-label="New Note"]')
 
 async function start() {
   await act(async () => root.render(<PhoneApp />))
@@ -150,13 +149,15 @@ async function focus() {
 const listed = async (id: string) => (await shell.notes.list()).find((n) => n.id === id)
 
 describe('New Note under the native screens', () => {
-  it('leaves the gate and the push to Swift: the capsule only names the notebook', async () => {
+  it('puts a note Swift names no notebook for in the Default Notebook', async () => {
+    const book = await shell.books.create('Inbox', null)
     await start()
-    await vi.waitFor(() => expect(newNoteButton()).not.toBeNull())
-    await act(async () => newNoteButton()!.click())
-    expect(notices('note.new')).toStrictEqual([{ notice: 'note.new' }])
-    expect(await shell.notes.list()).toStrictEqual([])
-    expect(notices('nav.openNote')).toStrictEqual([])
+    const unfiled = await swift('note.create', {})
+    expect(await listed(unfiled['id'] as string)).toMatchObject({ bookId: null })
+    void changeEditorSettings({ defaultNotebook: book }).catch(() => {})
+    const filed = await swift('note.create', {})
+    expect(await listed(filed['id'] as string)).toMatchObject({ bookId: book })
+    expect(notices('note.new')).toStrictEqual([])
   })
 
   it('makes an empty note with status none in the notebook Swift names', async () => {
@@ -190,16 +191,46 @@ describe('New Note under the native screens', () => {
     await start()
     const left = (await swift('note.create', {}))['id'] as string
     const titled = (await swift('note.create', {}))['id'] as string
-    await vi.waitFor(() => expect(rows()).toHaveLength(2))
     await act(async () => {
       await shell.notes.setTitle(titled, 'Plans')
       await shell.notes.flush()
     })
     await swift('note.discard', { noteId: left })
-    expect(rows().length).toBeLessThan(2)
     await vi.waitFor(async () => expect(await listed(left)).toBeUndefined())
+    expect(await shell.core.listTrash()).toEqual([])
     await swift('note.discard', { noteId: titled })
     expect(await listed(titled)).toBeDefined()
+  })
+
+  it('keeps a new note whose status was changed', async () => {
+    await start()
+    const id = (await swift('note.create', {}))['id'] as string
+    await act(async () => {
+      await shell.notes.setStatus(id, 'active')
+      await shell.notes.flush()
+    })
+    await swift('note.discard', { noteId: id })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    expect(await listed(id)).toMatchObject({ status: 'active' })
+  })
+
+  it('keeps a new note, and logs the refusal by its code, when sync wrote a body into it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await start()
+    const id = (await swift('note.create', {}))['id'] as string
+    const opened = await shell.notes.open(id)
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, opened.state)
+    const before = Y.encodeStateVector(doc)
+    doc.getText(BODY).insert(0, 'From the Mac')
+    await shell.notes.applyUpdate(id, Y.encodeStateAsUpdate(doc, before))
+    await swift('note.discard', { noteId: id })
+    await vi.waitFor(() =>
+      expect(warn).toHaveBeenCalledWith('W_PHONE_DISCARD_REFUSED code=E_NOTE_NOT_TRASHED'),
+    )
+    expect(await listed(id)).toBeDefined()
   })
 
   it('puts the caret in the body only of a note Swift showed to be typed in', async () => {

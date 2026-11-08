@@ -133,6 +133,19 @@ final class EditorScreenTests: XCTestCase {
         settle()
     }
 
+    /// Runs the run loop until a tab switch has ended: the shown tab's stack is in the window and the
+    /// one left has gone from it. iOS 26.5 can finish the switch, and so the lists' `viewDidAppear`, turns later.
+    private func settleTabSwitch(
+        _ tabs: DevotTabBarController, from: Tab, to: Tab, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        settle(
+            until: {
+                tabs.navigations[to]?.viewIfLoaded?.window != nil && tabs.navigations[from]?.viewIfLoaded?.window == nil
+                    && tabs.transitionCoordinator == nil
+            }, file: file, line: line)
+        settle()
+    }
+
     private func editor(_ noteId: String, title: String = "Plans", coverTimeout: TimeInterval = 10)
         -> EditorScreen
     {
@@ -350,8 +363,8 @@ final class EditorScreenTests: XCTestCase {
         } }
         var answered = 0
         let answerAll = {
-            for (id, _) in rust.calls.dropFirst(answered) {
-                screens.replied(id, try Message.reply(id: id, outcome: .ok(.object([:]))).json())
+            for (id, json) in rust.calls.dropFirst(answered) {
+                screens.replied(id, try Message.reply(id: id, outcome: .ok(FakeRust.emptyAnswer(json))).json())
             }
             answered = rust.calls.count
         }
@@ -374,19 +387,19 @@ final class EditorScreenTests: XCTestCase {
         try answerAll()
 
         tabs.select(.notes)
-        settle()
-        XCTAssertTrue(webView.superview === tabs.screen(.notes)?.view)
+        settleTabSwitch(tabs, from: .library, to: .notes)
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
         XCTAssertTrue(try requests().contains(.editorHide))
         try answerAll()
         tabs.select(.library)
-        settle()
+        settleTabSwitch(tabs, from: .notes, to: .library)
         XCTAssertTrue(webView.isDescendant(of: screen.view))
         XCTAssertEqual(try requests().filter { $0 == .editorShow }.count, 2)
 
         screens.delivered(Data(#"{"v":1,"notice":"nav.back"}"#.utf8))
         settleTransition(navigation)
-        XCTAssertTrue(navigation.topViewController === tabs.screen(.library))
-        XCTAssertTrue(webView.superview === tabs.screen(.library)?.view)
+        XCTAssertTrue(navigation.topViewController === tabs.listRoots[.library])
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(rust.lines.filter { $0.hasPrefix("W_") }, [])
     }

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useReducer,
@@ -10,16 +11,8 @@ import {
 } from 'react'
 import { buildBookTree } from '../../../core/books'
 import { errorCode } from '../../../core/errors'
-import { TEMPLATES_BOOK_ID } from '../../../core/templatesBook'
+import type { NoteSummary } from '../../../core/storage'
 import { editorSettings } from '../editorSettings'
-import {
-  startEarlyKeys,
-  takeEarlyKeys,
-  type EarlyKey,
-  type EarlyKeysTicket,
-} from '../editor/earlyKeys'
-import { t } from '../i18n'
-import { Icon } from '../icons/Icon'
 import { motionMs } from '../motionTiming'
 import { motionReduced } from '../motionPreference'
 import {
@@ -33,24 +26,11 @@ import {
   type PhoneRoute,
   type PhoneTab,
 } from './navigation'
-import {
-  discardNewNote,
-  listUnderNewNote,
-  makeNewNote,
-  newNoteBook,
-  newNoteOffered,
-  newNotesLeft,
-  untouched,
-  type MadeNote,
-  type ShownList,
-} from './newNote'
+import { discardNewNote, makeNewNote, newNoteBook, untouched, type MadeNote } from './newNote'
 import { startPhoneRoot } from './spring'
 import { watchDragEnd, type DragEnd } from './dragEnd'
-import type { PhoneView } from './library'
 import { PhoneActivity } from './PhoneActivity'
-import { PhoneLibrary } from './PhoneLibrary'
-import { usePhoneData, type PhoneData } from './usePhoneData'
-import { haptic } from './haptics'
+import { usePhoneData } from './usePhoneData'
 import { startLicence, useLicence } from '../licence'
 import { choicesFromTree } from '../notebookChoices'
 import { startScreensBridge, type ScreensBridge } from './screens/bridge'
@@ -60,7 +40,9 @@ import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
 import { editorHandlers, type NativeEditor } from './screens/editor'
 import { newNoteHandlers, type NativeNewNote } from './screens/newNote'
-import { noteChangesRev, watchNoteChanges } from './screens/noteChanges'
+import { noteChangesRev, watchLibraryChanges, watchNoteChanges } from './screens/noteChanges'
+import { listHandlers } from './screens/lists'
+import { searchHandlers } from './screens/search'
 import { EditorHost } from './screens/EditorHost'
 import { createPreparedNotes } from './screens/prepared'
 import { modalOpen, watchModals } from './modal'
@@ -70,13 +52,9 @@ import { useSyncEngine } from '../sync'
 import { licenceRow, welcomeDue } from './settingsRows'
 import { openPurchase } from '../purchaseSheet'
 import { PhoneGate } from './PhoneProSheet'
-import { dropIntent, refusedWrite, requireEditing, watchWrite } from './requireEditing'
+import { dropIntent, watchWrite } from './requireEditing'
 import { applyGlassPrefs } from './glassPrefs'
 import { PhoneNote } from './PhoneNote'
-import { PhoneNoteList } from './PhoneNoteList'
-import { PhoneSearch } from './PhoneSearch'
-import { PhoneToast, useUndoToast } from './PhoneToast'
-import { PhoneTabBar } from './PhoneTabBar'
 import { useLicenceClock } from './licenceClock'
 import './phone.css'
 
@@ -122,7 +100,6 @@ function leavingDuration(): number {
 function Stack(props: {
   routes: readonly PhoneRoute[]
   active: boolean
-  covered: boolean
   drag: number
   width: number
   dragging: boolean
@@ -141,7 +118,7 @@ function Stack(props: {
   }, [props.routes])
   const top = props.routes.length - 1
   return (
-    <div className="phone-stack" hidden={!props.active} inert={props.covered}>
+    <div className="phone-stack" hidden={!props.active}>
       {props.routes.map((route, index) => {
         const { x, dim } = layerPlacement(index, top, props.drag, props.width)
         return (
@@ -191,7 +168,7 @@ function BackSwipeZone(props: {
   useLayoutEffect(() => {
     latest.current = props
   })
-  // Leaving mid-swipe (search opened, the screen popped) must not leave the screens offset.
+  // Leaving mid-swipe (the screen popped) must not leave the screens offset.
   useEffect(() => () => start.current?.stop(), [])
   const move = (event: PointerEvent) => {
     const swipe = start.current
@@ -237,46 +214,14 @@ function BackSwipeZone(props: {
   )
 }
 
-function viewTitle(view: PhoneView | undefined, data: PhoneData): string {
-  switch (view?.kind) {
-    case 'pinned':
-      return t('sidebar.pinned')
-    case 'book':
-      return data.books.find((b) => b.id === view.id)?.name ?? t('sidebar.notebooks')
-    case 'tag':
-      return data.tags.find((tag) => tag.id === view.id)?.name ?? t('sidebar.tags')
-    case 'templates':
-      return t('sidebar.templates')
-    case 'trash':
-      return t('sidebar.trash')
-    default:
-      return t('sidebar.allNotes')
-  }
-}
-
-const ARRIVAL_MS = 1200
-
 // Rust takes at most this many IDs in one `notes.changed`.
 const MAX_CHANGED_IDS = 10_000
-
-interface Made extends MadeNote {
-  touched: boolean
-  handedOver: boolean
-}
 
 const without = (ids: ReadonlySet<string>, id: string): ReadonlySet<string> => {
   const next = new Set(ids)
   next.delete(id)
   return next
 }
-
-/** The notes a screen lists: the Notes root (a smart tile's view and status) or a pushed list. */
-const listOf = (tab: PhoneTab, route: PhoneRoute, notes: ShownList): ShownList | null =>
-  route.screen === 'list'
-    ? { view: route.view ?? { kind: 'all' }, status: 'all' }
-    : tab === 'notes' && route.screen === 'root'
-      ? notes
-      : null
 
 /** Where focus and a pending intent go when the page leaves a tab. */
 const leaveTab = () => {
@@ -285,10 +230,11 @@ const leaveTab = () => {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
 }
 
-const takeProxyText = (proxy: HTMLTextAreaElement): EarlyKey[] => {
-  const text = proxy.value
-  proxy.value = ''
-  return [...text].map((key) => ({ key, shift: false }))
+/** What the UI tests drive the fallback with, since it has no tab bar or lists of its own. */
+interface PhoneTestDriver {
+  showTab(tab: PhoneTab): void
+  openNote(noteId: string): void
+  notes(): readonly NoteSummary[]
 }
 
 export function PhoneApp() {
@@ -308,34 +254,25 @@ export function PhoneApp() {
   useSyncEngine(store.core, label)
   const [drag, setDrag] = useState(0)
   const [dragging, setDragging] = useState(false)
-  const [arrivedId, setArrivedId] = useState<string | null>(null)
-  const [searching, setSearching] = useState(false)
-  const [searchQuery, setSearchQuery] = useState<string>()
   const licence = useLicence()
   const welcomed = useRef(false)
-  const undoable = useUndoToast(store)
   const now = useLicenceClock(licence)
   const root = useRef<HTMLDivElement>(null)
-  const keyboardProxy = useRef<HTMLTextAreaElement>(null)
-  const made = useRef(new Map<string, Made>())
-  const earlyKeys = useRef<EarlyKeysTicket | null>(null)
-  const making = useRef(false)
-  const composing = useRef(false)
-  const committedLater = useRef<(() => void) | null>(null)
+  const made = useRef(new Map<string, MadeNote>())
   const latest = useRef(state)
   const nativeTabs = useRef<NativeTabs | null>(null)
   const nativeSettings = useRef<NativeSettings | null>(null)
   const nativeEditor = useRef<NativeEditor | null>(null)
   const nativeNewNote = useRef<NativeNewNote | null>(null)
-  // The list New Note was pressed in, for the list Swift's note goes over once its gate let it.
-  const askedNewNote = useRef<{ list: ShownList | null; bookId: string | null } | null>(null)
   const [prepared] = useState(createPreparedNotes)
   const bridge = useRef<ScreensBridge | null>(null)
-  // Null until the bridge says whether the native tab bar is there; the page draws its own without it.
+  // Null until the bridge says whether the native screens are there; without them the page is the fallback.
   const [native, setNative] = useState<boolean | null>(null)
   const covered = useSyncExternalStore(watchModals, modalOpen)
+  const latestStore = useRef(store)
   useLayoutEffect(() => {
     latest.current = state
+    latestStore.current = store
   })
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
   useEffect(() => startLicence(), [])
@@ -349,9 +286,16 @@ export function PhoneApp() {
       ...settingsHandlers({
         notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
-      ...editorHandlers(() => nativeEditor.current),
+      ...editorHandlers(() => nativeEditor.current, {
+        prepare: (noteId) => {
+          const core = latestStore.current.core
+          if (core) prepared.prepare(core, noteId)
+        },
+      }),
       ...glassHandlers(),
       ...newNoteHandlers(() => nativeNewNote.current),
+      ...listHandlers(() => latestStore.current.core),
+      ...searchHandlers(() => latestStore.current.core),
     })
     bridge.current = started
     let live = true
@@ -370,132 +314,40 @@ export function PhoneApp() {
     welcomed.current = true
     openPurchase()
   }, [licence])
-  useEffect(() => {
-    if (arrivedId === null) return
-    const timer = setTimeout(() => setArrivedId(null), ARRIVAL_MS)
-    return () => clearTimeout(timer)
-  }, [arrivedId])
 
   const width = window.innerWidth
   const stack = state.stacks[state.tab]
   const depth = stack.length - 1
-  const top = stack[depth]!
-  const rootX = depth === 0 ? '0vw' : layerPlacement(0, depth, drag, width).x
-  const shownList = listOf(state.tab, top, state.notes)
-  const offered = !searching && drag === 0 ? newNoteOffered(state.tab, top, shownList) : null
   const attention = licenceRow(licence, now).needsAttention
-  const { barHidden } = tabsState(state, searching || covered, attention)
+  const { barHidden } = tabsState(state, covered, attention)
 
-  const releaseKeyboard = () => {
-    earlyKeys.current?.fail()
-    earlyKeys.current = null
-    committedLater.current?.()
-    const proxy = keyboardProxy.current
-    if (!proxy) return
-    if (document.activeElement === proxy) proxy.blur()
-    proxy.value = ''
-  }
-
+  // Read afresh: a chip changed in the editor may not have reached the lists yet.
   const leaveNewNote = (id: string) => {
     const note = made.current.get(id)
     made.current.delete(id)
-    if (!note) return
-    if (!note.handedOver) releaseKeyboard()
     const core = phoneData.core
-    const listed = [...phoneData.notes, ...phoneData.templates].find((n) => n.id === id)
-    if (!core || note.touched || !untouched(note, listed)) {
-      setArrivedId(id)
-      return
-    }
-    setDiscarding((ids) => new Set(ids).add(id))
-    void discardNewNote(core, id).then(async (gone) => {
-      if (gone) await phoneData.refresh()
-      setDiscarding((ids) => without(ids, id))
-      if (!gone) setArrivedId(id)
-    })
+    if (!note || !core) return
+    void core
+      .listWithTemplates()
+      .then(async ({ notes, templates }) => {
+        if (
+          !untouched(
+            note,
+            [...notes, ...templates].find((n) => n.id === id),
+          )
+        )
+          return
+        setDiscarding((ids) => new Set(ids).add(id))
+        if (await discardNewNote(core, id)) await phoneData.refresh()
+        setDiscarding((ids) => without(ids, id))
+      })
+      .catch((error: unknown) => console.warn('W_PHONE_DISCARD_FAILED', errorCode(error)))
   }
 
-  // Every navigation that can leave a screen comes through here, so a new note left untouched goes with it.
-  const go = (action: PhoneNavigationAction) => {
-    const next = navigate(latest.current, action)
-    for (const id of newNotesLeft(latest.current, next)) leaveNewNote(id)
-    latest.current = next
+  const go = useCallback((action: PhoneNavigationAction) => {
+    latest.current = navigate(latest.current, action)
     dispatch(action)
-  }
-
-  const newNote = (kind: 'note' | 'template', list: ShownList | null) => {
-    const bookId =
-      kind === 'template' ? null : newNoteBook(list, editorSettings().defaultNotebook, store.books)
-    requireEditing({ op: 'newNote', id: bookId }, () => {
-      const core = store.core
-      if (!core || making.current) return
-      making.current = true
-      const from = latest.current
-      const fromTop = from.stacks[from.tab].at(-1)?.id
-      // WebKit raises the keyboard only for a focus inside the tap: a hidden field holds it until the body can.
-      releaseKeyboard()
-      const ticket = startEarlyKeys()
-      earlyKeys.current = ticket
-      keyboardProxy.current?.focus({ preventScroll: true })
-      void makeNewNote(core, kind, bookId)
-        .then(async (id) => {
-          await phoneData.refresh()
-          const shown = latest.current
-          // The user went elsewhere while the note was made: nobody saw it, so it goes.
-          if (shown.tab !== from.tab || shown.stacks[shown.tab].at(-1)?.id !== fromTop) {
-            if (earlyKeys.current === ticket) releaseKeyboard()
-            if (await discardNewNote(core, id)) await phoneData.refresh()
-            return
-          }
-          made.current.set(id, {
-            bookId: kind === 'template' ? TEMPLATES_BOOK_ID : bookId,
-            touched: false,
-            handedOver: false,
-          })
-          go({ type: 'newNoteShown', listView: listUnderNewNote(list, kind, bookId), noteId: id })
-        })
-        .catch((error: unknown) => {
-          if (earlyKeys.current === ticket) releaseKeyboard()
-          if (!refusedWrite('newNote', error))
-            console.warn('W_PHONE_NEW_NOTE_FAILED', errorCode(error))
-        })
-        .finally(() => {
-          making.current = false
-        })
-    })
-  }
-
-  const handOver = (
-    id: string,
-    typeLater: (keys: readonly EarlyKey[]) => void,
-  ): readonly EarlyKey[] | null => {
-    const note = made.current.get(id)
-    if (!note || note.handedOver) return null
-    note.handedOver = true
-    earlyKeys.current?.claim(id)
-    earlyKeys.current = null
-    const keys = takeEarlyKeys(id)
-    const proxy = keyboardProxy.current
-    if (!proxy) return keys
-    if (!composing.current) return [...keys, ...takeProxyText(proxy)]
-    // Marked text is not the user's yet: it moves over once the input method commits it.
-    const committed = () => {
-      cancel()
-      typeLater(takeProxyText(proxy))
-    }
-    const cancel = () => {
-      proxy.removeEventListener('compositionend', committed)
-      committedLater.current = null
-    }
-    proxy.addEventListener('compositionend', committed)
-    committedLater.current = cancel
-    return keys
-  }
-
-  const touch = (id: string) => {
-    const note = made.current.get(id)
-    if (note) note.touched = true
-  }
+  }, [])
 
   useLayoutEffect(() => {
     nativeTabs.current = {
@@ -512,18 +364,15 @@ export function PhoneApp() {
       notebooks: () => choicesFromTree(buildBookTree(store.books)),
     }
     nativeNewNote.current = {
-      create: async (bookId) => {
+      create: async (named) => {
         const core = store.core
         if (!core) throw new Error('E_SCREENS_UNAVAILABLE')
-        const asked = askedNewNote.current
-        askedNewNote.current = null
-        const id = await makeNewNote(core, 'note', bookId)
+        const bookId = newNoteBook(named, editorSettings().defaultNotebook, store.books)
+        const id = await makeNewNote(core, bookId)
         // The write that made the note is reported in a microtask: the reply counts it.
         await Promise.resolve()
         const rev = noteChangesRev()
-        made.current.set(id, { bookId, touched: false, handedOver: true })
-        const under = asked?.bookId === bookId ? listUnderNewNote(asked.list, 'note', bookId) : null
-        if (under) go({ type: 'push', screen: 'list', view: under })
+        made.current.set(id, { bookId })
         void phoneData.refresh()
         return { id, rev }
       },
@@ -532,34 +381,44 @@ export function PhoneApp() {
   })
   useEffect(() => {
     if (!native) return
-    return watchNoteChanges((rev, ids) =>
-      bridge.current?.notify({ notice: 'notes.changed', rev, ids: ids.slice(0, MAX_CHANGED_IDS) }),
+    const notes = watchNoteChanges((rev, ids, all) =>
+      bridge.current?.notify({
+        notice: 'notes.changed',
+        rev,
+        // Past the limit Swift cannot read the rows named, so it reads every list again.
+        ids: ids.length > MAX_CHANGED_IDS ? [] : ids,
+        ...(all || ids.length > MAX_CHANGED_IDS ? { all: true as const } : {}),
+      }),
     )
+    const library = watchLibraryChanges((notice) => bridge.current?.notify({ notice }))
+    return () => {
+      notes()
+      library()
+    }
   }, [native])
   useEffect(() => {
     if (native)
       bridge.current?.notify({ notice: 'tabs.state', tab: state.tab, barHidden, attention })
   }, [native, state.tab, barHidden, attention])
-
-  /** New Note in a list's capsule, where the native tab bar has taken the circle's corner. */
-  const capsuleNewNote = (tab: PhoneTab, route: PhoneRoute) => {
-    if (!native) return {}
-    const list = listOf(tab, route, state.notes)
-    const kind = newNoteOffered(tab, route, list)
-    if (!kind) return {}
-    return {
-      newNote: {
-        label: t(kind === 'template' ? 'templates.new' : 'noteList.newNote'),
-        onPress: () => {
-          if (kind === 'template') return newNote(kind, list)
-          // Swift's gate decides, then pushes the editor and asks for the note.
-          const bookId = newNoteBook(list, editorSettings().defaultNotebook, store.books)
-          askedNewNote.current = { list, bookId }
-          bridge.current?.notify({ notice: 'note.new', ...(bookId === null ? {} : { bookId }) })
-        },
+  // The fallback has no lists: it opens on Activity, whose notes open.
+  useEffect(() => {
+    if (native === false) go({ type: 'selectTab', tab: 'activity' })
+  }, [native, go])
+  useEffect(() => {
+    if (!DEVOT_UI_TEST || native !== false) return
+    const driven = globalThis as { devotPhone?: PhoneTestDriver }
+    driven.devotPhone = {
+      showTab: (tab) => {
+        leaveTab()
+        go({ type: 'selectTab', tab })
       },
+      openNote: (noteId) => go({ type: 'push', screen: 'note', noteId }),
+      notes: () => latestStore.current.notes,
     }
-  }
+    return () => {
+      delete driven.devotPhone
+    }
+  }, [native, go])
 
   const pop = () => go({ type: 'pop' })
   // Under the native screens Swift pushes the note's own screen; the web stack never draws it.
@@ -571,79 +430,18 @@ export function PhoneApp() {
     const note = [...store.notes, ...store.templates].find((n) => n.id === noteId)
     bridge.current?.notify({ notice: 'nav.openNote', noteId, title: note?.title ?? '' })
   }
-  const prepareNote = (noteId: string) => {
-    if (native && store.core) prepared.prepare(store.core, noteId)
-  }
-  const openSearch = (query?: string) => {
-    setSearchQuery(query)
-    setSearching(true)
+  // The note's screen is popped by the editor; the native lists offer their own Undo.
+  const trash = (note: NoteSummary) => {
+    const core = store.core
+    if (core)
+      watchWrite('trash', core.trash(note.id).then(store.refresh), 'W_PHONE_NOTE_ACTION_FAILED')
   }
 
   const render = (tab: PhoneTab, route: PhoneRoute) => {
-    const index = state.stacks[tab].findIndex((r) => r.id === route.id)
-    const onBack = index > 0 ? pop : undefined
-    if (route.screen === 'note' && route.noteId) {
-      const noteId = route.noteId
-      return (
-        <PhoneNote
-          store={store}
-          noteId={noteId}
-          onBack={pop}
-          onTrash={undoable.trash}
-          {...(route.fresh
-            ? {
-                arrival: {
-                  takeTyped: (typeLater) => handOver(noteId, typeLater),
-                  onTouched: () => touch(noteId),
-                },
-              }
-            : {})}
-        />
-      )
-    }
-    if (tab === 'library' && route.screen === 'root')
-      return (
-        <PhoneLibrary
-          data={store}
-          {...capsuleNewNote(tab, route)}
-          onShowNotes={(view, status) => go({ type: 'showNotes', view, status })}
-          onOpenList={(view) => go({ type: 'push', screen: 'list', view })}
-          onSearch={() => openSearch()}
-          onSavedSearch={openSearch}
-          onNewNotebook={() =>
-            requireEditing({ op: 'newNotebook', id: null }, () => {
-              const core = store.core
-              if (core)
-                watchWrite(
-                  'newNotebook',
-                  core.createBook(t('book.new'), null).then(store.refresh),
-                  'W_PHONE_NEW_NOTEBOOK_FAILED',
-                )
-            })
-          }
-        />
-      )
+    if (route.screen === 'note' && route.noteId)
+      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} onTrash={trash} />
     if (tab === 'activity') return <PhoneActivity data={store} onOpenNote={openNote} />
-    // Settings is native; the web shell left as a fallback has no Settings of its own.
-    if (tab === 'settings') return null
-    const view =
-      route.screen === 'root' ? state.notes.view : (route.view ?? { kind: 'all' as const })
-    return (
-      <PhoneNoteList
-        data={store}
-        {...capsuleNewNote(tab, route)}
-        view={view}
-        status={route.screen === 'root' ? state.notes.status : 'all'}
-        title={viewTitle(view, store)}
-        arrivedId={arrivedId}
-        {...(onBack ? { onBack } : {})}
-        onOpenNote={openNote}
-        {...(native ? { onPrepareNote: prepareNote } : {})}
-        onSearch={() => openSearch()}
-        onTrash={undoable.trash}
-        onComplete={undoable.complete}
-      />
-    )
+    return null
   }
 
   useLayoutEffect(applyGlassPrefs, [])
@@ -667,58 +465,12 @@ export function PhoneApp() {
           key={tab}
           routes={state.stacks[tab]}
           active={tab === state.tab}
-          covered={searching}
           drag={tab === state.tab ? drag : 0}
           width={width}
           dragging={dragging}
           render={(route) => render(tab, route)}
         />
       ))}
-      {native === false && (
-        <>
-          <PhoneTabBar
-            tab={state.tab}
-            x={rootX}
-            covered={depth > 0 || searching}
-            dragging={dragging}
-            needsAttention={attention}
-            onSelect={(tab) => {
-              if (tab !== state.tab) {
-                leaveTab()
-                haptic('selection')
-              }
-              go({ type: 'selectTab', tab })
-            }}
-          />
-          <button
-            type="button"
-            className="phone-glass phone-compose"
-            data-hidden={offered === null || undefined}
-            inert={offered === null}
-            aria-hidden={offered === null || undefined}
-            aria-label={t(offered === 'template' ? 'templates.new' : 'noteList.newNote')}
-            onClick={() => {
-              if (offered) newNote(offered, shownList)
-            }}
-          >
-            <Icon name="note.new" size="phone-compose" />
-          </button>
-        </>
-      )}
-      <textarea
-        ref={keyboardProxy}
-        className="phone-keyboard-proxy"
-        data-keyboard-proxy=""
-        aria-hidden="true"
-        tabIndex={-1}
-        inputMode="text"
-        onCompositionStart={() => {
-          composing.current = true
-        }}
-        onCompositionEnd={() => {
-          composing.current = false
-        }}
-      />
       {native && (
         <EditorHost
           store={store}
@@ -726,28 +478,16 @@ export function PhoneApp() {
           editor={nativeEditor}
           prepared={prepared}
           openNote={openNote}
-          onTrash={undoable.trash}
+          onTrash={trash}
         />
       )}
-      <PhoneToast toast={undoable.toast} />
       <PhoneGate
         licence={licence}
         onOpenLicence={(focusKey) => {
-          setSearching(false)
           bridge.current?.notify({ notice: 'settings.open', pane: 'licence', focusKey })
         }}
       />
-      <PhoneSearch
-        store={store}
-        open={searching}
-        query={searchQuery}
-        onClose={() => setSearching(false)}
-        onOpenNote={(noteId) => {
-          setSearching(false)
-          openNote(noteId)
-        }}
-      />
-      {depth > 0 && !searching && (
+      {depth > 0 && (
         <BackSwipeZone
           onMove={(next) => {
             setDragging(true)

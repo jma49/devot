@@ -223,3 +223,12 @@ it('the package tests read the Settings fixtures the page tests read', () => {
   expect(project).toContain('path: ../../../../tests/fixtures/settings-search.json')
   expect(project).toContain('path: ../../../../tests/fixtures/sync-pane.json')
 })
+
+it("the lists' Rust reads know the Templates notebook by the core's ID", () => {
+  const core = /TEMPLATES_BOOK_ID = '([^']+)'/.exec(read('src/core/templatesBook.ts'))?.[1]
+  const lists = /TEMPLATES_BOOK_ID: &str = "([^"]+)"/.exec(
+    read('src-tauri/src/screens/lists.rs'),
+  )?.[1]
+  expect(core).toBeDefined()
+  expect(lists).toBe(core)
+})

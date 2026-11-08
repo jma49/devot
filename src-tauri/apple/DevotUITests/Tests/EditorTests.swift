@@ -1,7 +1,7 @@
 import DevotScreens
 import XCTest
 
-/// A note pushed over the Notes list in the installed app: its cover, the back swipe, a link to
+/// A note pushed from its row in the native Notes list of the installed app: its cover, the back swipe, a link to
 /// another note, and the welcome example's diagrams and math drawn on the device.
 @MainActor
 final class EditorTests: XCTestCase {
@@ -17,7 +17,10 @@ final class EditorTests: XCTestCase {
 
     private var page: XCUIElement { app.webViews.firstMatch }
     private var tabBar: XCUIElement { app.tabBars.firstMatch }
-    private var noteBar: XCUIElement { app.navigationBars.firstMatch }
+    /// The note's own bar, told from a list's by its Info button.
+    private var noteBar: XCUIElement {
+        app.navigationBars.containing(NSPredicate(format: "label == %@", L10n.phoneInfoTitle())).firstMatch
+    }
     /// A note hides the tab bar, which may then be gone from the tree, where `isHittable` would fail.
     private var tabBarShown: Bool { tabBar.exists && tabBar.isHittable }
 
@@ -55,16 +58,14 @@ final class EditorTests: XCTestCase {
         return found()
     }
 
-    /// The app starts on Library; the Notes tab lists every note. A row is one button whose label
-    /// holds its status, title, date and excerpt, since a web view's button exposes no children.
+    /// The app starts on Library; the Notes tab's native list has every note, a row a cell whose
+    /// label holds its title and second line.
     private func openExample() {
         let notes = tabBar.buttons[L10n.phoneTabNotes()]
         XCTAssertTrue(notes.waitForExistence(timeout: 10))
         notes.tap()
-        let title = L10n.welcomeExampleTitle()
-        let row = page.buttons.matching(
-            NSPredicate(
-                format: "label CONTAINS %@ AND label != %@", title, L10n.phoneRowActions(title: title))
+        let row = app.collectionViews.cells.containing(
+            NSPredicate(format: "label == %@", L10n.welcomeExampleTitle())
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 30), "the welcome example is listed")
         XCTAssertTrue(waitUntil { row.isHittable }, "the welcome example's row is on screen")

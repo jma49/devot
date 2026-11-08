@@ -349,19 +349,19 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.851, 0.498, 0.0],
-          "hex": "#d97f00"
+          "components": [0.6902, 0.4588, 0.1216],
+          "hex": "#b0751f"
         },
-        "$description": "Pin. Design #ff9500, moved toward black until a white glyph has 3:1."
+        "$description": "Pin, a muted amber under a white glyph at 3.8:1 or more."
       },
       "action-trash": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 0.2314, 0.1882],
-          "hex": "#ff3b30"
+          "components": [0.8314, 0.3373, 0.298],
+          "hex": "#d4564c"
         },
-        "$description": "Trash."
+        "$description": "Trash, a muted red under a white glyph at 3.8:1 or more."
       },
       "action-done": {
         "$type": "color",
@@ -371,6 +371,15 @@
           "hex": "#259f58"
         },
         "$description": "Done. Dark: design #34c06a, moved toward black until a white glyph has 3:1."
+      },
+      "action-status": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3725, 0.4353, 0.5255],
+          "hex": "#5f6f86"
+        },
+        "$description": "The status swipe action, a muted slate under a white glyph at 3.8:1 or more."
       },
       "badge": {
         "$type": "color",

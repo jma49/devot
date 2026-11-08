@@ -24,21 +24,6 @@ it('draws the recipe of the glass spec', () => {
   expect(css).toContain('transform var(--motion-duration-phone-glass-press)')
 })
 
-it('makes menus and the compose circle glass', () => {
-  const list = readFileSync('src/renderer/src/phone/PhoneNoteList.tsx', 'utf8')
-  const app = readFileSync('src/renderer/src/phone/PhoneApp.tsx', 'utf8')
-  expect(list).toContain('className="phone-glass phone-peek-status"')
-  expect(list).toContain('className="phone-glass phone-peek-menu"')
-  expect(list).toContain('className="phone-glass phone-peek-menu phone-filter-menu"')
-  expect(app).toContain('className="phone-glass phone-compose"')
-})
-
-it('puts no coloured tile behind a Library row icon', () => {
-  const source = readFileSync('src/renderer/src/phone/PhoneLibrary.tsx', 'utf8')
-  expect(source).not.toMatch(/PANE_TILES|phone-row-tile|tileColor/)
-  expect(source).not.toContain('phone-row-icon" style')
-})
-
 it('lets the iPhone lay out edge to edge', () => {
   const html = readFileSync('src/renderer/index.html', 'utf8')
   expect(html).toContain('viewport-fit=cover')

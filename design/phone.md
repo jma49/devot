@@ -6,12 +6,12 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 
 ## Glass
 
-- Glass is on floating controls only: the tab bar, top bar buttons and capsules, the compose circle, the note's bottom bar, the keyboard's accessory bar, menus, toasts and sheets' buttons. Rows, cards and the note itself are never glass, and glass never sits on glass.
+- Glass is on floating controls only: the tab bar, top bar buttons and capsules, the note's bottom bar, the keyboard's accessory bar, menus, the undo toast and sheets' buttons. Rows, cards and the note itself are never glass, and glass never sits on glass.
 - `.phone-glass` is the one recipe: the `color.phone.glass` tint, `blur(10px) saturate(1.9) brightness(1.04)`, a 0.5 edge, inner highlights, inner glow, two drop shadows, a `size.phone-glass-rim` gradient rim (`::before`) and a radial sheen (`::after`). The pseudo-elements are taken: a glass control extends its hit area on a child.
 - A pressed glass control grows to `motion.scale.phone-glass-press` and brightens to 1.05.
 - The peek's status bar and menu sit over the peek's own 16 px blur and draw no blur of their own: a second one would add nothing, and it would be drawn again every frame they grow.
 - Content runs the full height of the screen and scrolls under the glass, with the frosted band under each top bar: `size.phone-topbar-band` below the safe area, `blur(20px) saturate(1.8)`, `color.phone.bar`, a 0.5 hairline in `color.phone.separator`. Content starts `size.phone-content-top` below the safe area. Reduce Transparency makes the band opaque.
-- Colour on glass marks what is selected only: the accent on the selected tab, the caret's violet on AI. The compose circle's icon is in the text colour.
+- Colour on glass marks what is selected only: the accent on the selected tab, the caret's violet on AI.
 - Curves share a centre: a capsule is height / 2, and an inner radius is the outer radius minus the inset. A grouped row's pressed fill is the exception: `radius.phone-row-press` 16 in a 22 card.
 - CSS draws the glass (ADR 0010).
 - Glass Transparency is this iPhone's own choice, never the Mac's settings and never synced. Under the native screens it lives in `UserDefaults` under `devot.phone.glassTransparency` (`GlassStyleStore`), taken once from the webview's storage key of the same name, and the native store sets the page's glass with `glass.set`; the web shell alone keeps it in the webview's storage (`phone/glassPrefs.ts`). It moves `.phone-glass`'s tint: -100 is `color.phone.glass-opaque`, 0 the design, 100 half the tint's opacity. Devot's native glass maps it through `GlassStyle`: -100 solid, below 0 the regular glass tinted towards `color.phone.glass-opaque`, 0 the regular glass, above 0 the clear glass with a tint that thins to nothing at 100. The system bars have no glass opacity of their own, so a value below 0 gives their scroll edge the hard style, a firmer bar, and 0 or above leaves the system's. Reduce Transparency and Increase Contrast win over it: Devot's glass turns solid and the slider is locked with a footer.
@@ -23,15 +23,16 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 
 - Every target is at least `size.phone-target` (44 pt). A smaller drawing keeps its size and extends its hit area: the formatting bar's buttons (38 by 40), the sheet's close, and the note's chips (30 in a layout item 44 tall, so wrapped rows' targets touch and never overlap).
 - A back swipe starts from the left edge and tracks the finger; every push can be undone by it. A vertical scroll never starts a swipe.
-- Anything a gesture does is reachable without it: swipe actions and the peek's actions are also VoiceOver custom actions.
+- Anything a gesture does is reachable without it: a row's swipe actions are also in its context menu, and VoiceOver offers both.
 
 ## Behaviour
 
 - Each note list section is newest first, so a new note lands at the top of Recent.
-- A move of more than 8 pt that is mostly horizontal starts a swipe; a vertical one scrolls and never swipes; a 420 ms hold without either peeks. An open row takes no peek. The peek stays inside the safe area at any text size: its preview gives up its excerpt first, then its menu scrolls, so every action can be reached.
-- Every row has a hidden "Actions for…" button that opens the peek's menu, so the swipe and peek actions need no gesture. It stands in for VoiceOver custom actions, which a web view cannot declare.
-- A swipe raises the row on a surface (`radius.phone-swipe-surface`, `size.phone-swipe-surface-inset`). Its capsules are `size.phone-swipe-action` by `size.phone-swipe-action-height` with an 11 pt label under each; Pin stays `color.phone.action-pin`, darker than the design's orange so its glyph keeps 3:1.
-- Trashing or completing a note (swipe, peek or note info) shows the undo toast for `motion.duration.phone-toast`. Undo puts the note back as it was, its place in the list too (`phone/undo.ts`: a status write moves `updatedAt`, so it restores that as well). A second action replaces the toast and the first stays done. Completing a note already completed does nothing. Only a note's status picker changes a status without one.
+- Swipe actions are muted so their white glyphs keep 3.8:1: Pin is `color.phone.action-pin`, Trash `color.phone.action-trash` and the status action `color.phone.action-status`.
+- Trashing one note or completing one from a list shows the undo toast for `motion.duration.phone-toast`.
+  Undo puts the note back as it was, its place in the list too (a status write moves `updatedAt`, so `note.undoStatus` restores that as well).
+  A second action replaces the toast and the first stays done.
+  Completing a note already completed does nothing.
 - Settings is native: every pane is a SwiftUI form (`docs/specs/iphone-screens.md`, Settings tree), and the page draws no Settings of its own.
   Keyboard, Mirror, Integrations, Local HTTP API, Plugins and Usage (the phone records no usage events) have no row on the phone, and General has one only when the build can send crash reports, its one setting there.
 - A pane leaves out what only the Mac has: the Mac's Glass Transparency, the system accent color, the board, activity strip, menu bar, updates, command line tool and folder buttons, Synced Scrolling (there is no split view) and Installed Font (iOS lists no installed fonts to an app; it stays only while it is the choice).
@@ -51,34 +52,51 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 
 One page background, `color.phone.background`, on plain and grouped screens.
 
-Top bar: 44 high, `size.phone-topbar-top` below the safe area, 16 from each side. A title is 22 bold, left-aligned at x 20, or after a 44 back circle. On the right, one glass capsule of up to two `size.phone-capsule-button` by 44 buttons: Library has new notebook and search, Notes has filter and search, Settings has pair device and search. The filter button opens a menu of All, Active, On Hold and Done, and turns the accent colour while a filter is on.
+Top bar: 44 high, `size.phone-topbar-top` below the safe area, 16 from each side. A title is 22 bold, left-aligned at x 20, or after a 44 back circle. On the right, one glass capsule of up to two `size.phone-capsule-button` by 44 buttons: Settings has pair device and search.
 
 Plain lists sit at `size.phone-list-edge` (x 20 to 370), with text at `size.phone-list-text` (52).
 
-Note list: sections Pinned, Recent (not pinned, not completed) and Completed (not pinned, completed); a pinned completed note is in Pinned, and an empty section is left out. Templates and Trash are one flat list. A head (`size.phone-section-head`, drawn 40 in a 44 target) has the title, a mono count, a hairline and a chevron that turns when the section is collapsed. Completed starts collapsed, with a dashed Show more in a `size.phone-show-more` slot, unless the status filter is on Done. Collapsing lasts the session. A saved note opens Recent, and clears a filter that would hide it.
-
-A row is `size.phone-list-row`: a `size.icon-phone-status` status mark at x 20, the title 17 regular with the time in `.phone-figures` 14 `color.phone.text-faint` on the right, then the first tag in its colour, the excerpt 14 on one line and a pin glyph. Rows have no separators.
+A section head (`size.phone-section-head`, drawn 40 in a 44 target) has the title, a hairline and a chevron that turns when the section is collapsed; collapsing lasts the session.
 
 Grouped pages: cards inset 16, `radius.phone-card`, `size.phone-card-inset` around their rows, no separators. Rows are 44 with `size.phone-row-pad`, and a pressed row fills to `radius.phone-row-press`. A row's value sits beside its label while both fit and goes under it when they don't, so neither breaks a letter at a time; on the Settings root and note info's icon rows it always goes under at the accessibility sizes. The Settings screen and its panes are the exception: they follow Phone grouped lists in `design/layout.md`, with `radius.phone-grouped-card`, separators and titles on the card's 16 keyline.
-
-Library: a card of All Notes, Pinned, Active and Completed, each opening Notes filtered; then Notebooks and Tags under section heads like the note list's, without a count, and collapsing for the session; a card of Templates and Trash; a footer in `.phone-figures`. A nested row starts at `size.phone-child-indent`, a further 28 for each level below down to the fourth nested level (the second at the accessibility sizes), where deeper levels line up so a name keeps room to read, with a 1 pt guide through its parent's icon column; an open parent's chevron points down. Counts are in `color.phone.text-secondary` where the design has faint, which keeps 4.5:1 only on the page, not on a card.
 
 Activity: "Week" capsule, then a card of the last 15 weeks (`size.phone-heat-cell` days, `radius.phone-heat-cell`, `size.phone-heat-gap` apart, in `color.activity.level-*`, a month over the week it starts, the current month's included, a name in the last week ending at the grid's edge, a less-more legend of `size.phone-heat-legend`); three stat cards, which stack as text grows; then the ranked notes under a section head, their growth in `color.phone.grow`. The capsule's menu offers This week and Last week and changes the stats and the ranking only, never the heatmap. VoiceOver reads the heatmap as one summary, not 105 cells.
 
 Times, counts and stats use `.phone-figures`: the UI font with tabular figures.
 A notebook's path and the Mac key use `.phone-mono`, the mono font.
 
-Tab bar: four icon-only tabs (Notes, Library, Activity, Settings) in a `size.phone-glass-bar` glass bar at x 16, as wide as the screen leaves beside the `size.phone-compose` glass circle: 286 on a 390 screen, with the circle at x 312. The selected tab has a lens (inset 4 on every side at every tab, `radius.phone-lens-bar`, concentric with the bar) and a filled icon in the accent; the lens stretches between tabs by width and never reaches past the bar's inner edge, and it can be dragged along the bar; Settings shows a badge when the licence needs attention. The circle is offered on the Notes and Library screens that can take a new note, and hidden on Activity, Settings, Templates, Trash, a note and a pane.
+The tab bar is the system's (`docs/specs/iphone-screens.md`, Tabs): four icon-only tabs (Notes, Library, Activity, Settings), the selected one in `color.accent-text`, and a badge on Settings when the licence needs attention.
+The system's search circle follows the four tabs and opens the Search tab with the keyboard up.
+Without the native screens (`docs/specs/iphone-screens.md`, Kill switch) the page draws no tab bar and no lists: it opens on Activity, and its ranked notes open the editor.
 
-With the native screens installed the tab bar is the system's (`docs/specs/iphone-screens.md`, Tabs): the same four icon-only tabs and symbols, the selected one in `color.accent-text`, Settings with the same badge, and no compose circle.
-New Note is then a glass button in the Notes and Library list capsule, after Search, on the screens that offered the circle.
+The note lists, Library, Templates and Trash are system lists (`docs/specs/iphone-screens.md`, Lists).
+A note list has the sections Pinned, Recent (not pinned, not completed) and Completed (not pinned, completed); a pinned completed note is in Pinned, and an empty section is left out.
+Completed starts folded unless the status filter is on Done.
+Templates and Trash are one flat list.
+A row is a system list cell: the status mark leading, the title in body, a second line of the first tag and the excerpt in subheadline `color.phone.text-secondary`, the time trailing in `color.phone.text-faint`, and a pin glyph on a pinned note.
+Rows have no unread, sync or AI marks.
+VoiceOver reads a row as a button, with its status and pin in its value rather than their symbols.
+A head folds its section with a chevron, for the session.
+Swipe actions are the system's rectangles: Pin leading, Trash and Complete trailing (a completed note has no Complete), in the action colours of Behaviour.
+A hold peeks with the system's context menu: Pin, Status, Move to, Tags, Share and Move to Trash.
+Move to ticks the note's notebook, or No Notebook; the selection bar's Move ticks nothing, and New Note in a notebook offers only notebooks.
+The filter button's menu offers All, Active, On Hold and Done, and Select, which turns on multiple selection with a toolbar of Pin, Move, Set Status and Trash.
+The Library is an inset grouped list: the smart lists with their counts, Notebooks and Tags under heads that fold for the session, then Templates and Trash.
+Its bar has New Notebook (`folder.badge.plus`) beside New Note, which adds a notebook named New Notebook at the top level, as on the Mac.
+A notebook with notebooks inside has a 44 pt chevron of its own that folds them, and the rest of its row opens it.
+Saved searches follow Tags under a head that folds, each with a magnifying glass, and open the Search tab with their query run.
+In Trash, Restore leads and Delete Permanently trails; it and Empty Trash ask first.
 
-New Note: the circle makes an empty note, in the notebook the list shows, else the default notebook, else none, and pushes its screen at once with the caret in the body.
-Where the screen below would not list it (a status list, a tag list, the Library), its notebook's list or All Notes slides in under it on the same tab, so Back finds it.
+New Note is the compose button in the bar of the Notes and Library lists; held, it offers New Note in a notebook and From Template.
+It makes an empty note, in the notebook the list shows, else the default notebook, else none, and pushes its screen at once with the caret in the body.
+Where the screen below would not list it (a status list, a tag list, the Library), its notebook's list or All Notes is put under it on the same tab, so Back finds it.
 Back from a note left untouched deletes it for good.
-In Templates the circle is New Template and makes a template the same way.
+In Templates the button is New Template and makes a template the same way.
 
-Search: an overlay over the whole screen, including the tab bar. In the top bar's place, a 44 glass field and a 44 close circle. With no query: Recent, then chips (`size.phone-search-chip`, a 44 target) for Notebooks, Status and Tags, each filling the field with `in:`, `is:` or `#`. Recent searches stay in this device's `localStorage`, added on Return or on opening a result; they are never synced or logged. Results are note rows without swipes, found words in `color.phone.match`, the notebook in mono where the time goes, the excerpt moved to start a few words before the match, since one line holds far less than the core's excerpt.
+With the native screens installed Search is a tab of its own (`docs/specs/iphone-screens.md`, Search): a navigation stack under a large title with the system's search field and its All and Titles scopes, never an overlay.
+Before a query, Recent, Notebooks, Statuses and Tags are solid rows under plain heads, each filling the field with its clause and searching; recent searches stay on this iPhone.
+Results are the list's note rows under a Notes head with their count, and replace the list at once when they arrive; nothing found is the system's empty view with the query.
+A result opens its note on the Search tab, so Back lands in Search as it was.
 
 Settings: a card with the app row (dove tile, version and licence state, a badge when the licence needs attention; it opens the trial sheet during a trial and the Licence pane otherwise); General (General, Appearance, Editing, Preview); Sync & storage (Sync); AI & integrations (AI); a card of Licence; a build footer in `.phone-figures`. Its search button opens a glass field that filters the panes that open on a phone, by name. There is no Backups or About row: neither has a pane on the phone.
 General always lists Default Notebook, and Send Crash Reports where the build can send them.
@@ -114,7 +132,7 @@ The recovery key shows only while a new vault's key waits to be saved, as on the
 AI: the provider segmented control and its endpoint, model and key with its state under the field, then next edit suggestions.
 There are no accent swatches.
 
-Sheets: note info, the pickers, the trial and short messages rise from the bottom edge, the full width of the screen, with `radius.phone-sheet` on the top corners only, since a floating sheet's corners cannot be concentric with every device's. They render at the app's root, over the tab bar and the compose circle; the scrim covers the whole screen. The contents scroll inside, and their bottom padding clears the home indicator (`safe-area-inset-bottom` plus `size.phone-sheet-inset`, at least 16). A sheet is modal: it takes the keyboard when it opens, the rest of the app is inert behind it, Tab goes round its own controls, Escape closes it, and the keyboard goes back to what opened it. A sheet opened over a sheet is the live one until it closes. The tag field's corners are concentric with the sheet (`radius.phone-sheet` less `size.phone-sheet-pad`), and the colour picker's previews cut a long name with an ellipsis and stack at the accessibility sizes.
+Sheets: note info, the pickers, the trial and short messages rise from the bottom edge, the full width of the screen, with `radius.phone-sheet` on the top corners only, since a floating sheet's corners cannot be concentric with every device's. They render at the app's root, over everything; the scrim covers the whole screen. The contents scroll inside, and their bottom padding clears the home indicator (`safe-area-inset-bottom` plus `size.phone-sheet-inset`, at least 16). A sheet is modal: it takes the keyboard when it opens, the rest of the app is inert behind it, Tab goes round its own controls, Escape closes it, and the keyboard goes back to what opened it. A sheet opened over a sheet is the live one until it closes. The tag field's corners are concentric with the sheet (`radius.phone-sheet` less `size.phone-sheet-pad`), and the colour picker's previews cut a long name with an ellipsis and stack at the accessibility sizes.
 
 Detail sheet, for the trial and a failed suggestion: a sheet with a `color.phone.lens` circle holding the info icon, a 20 bold title, the body 16/24 in `color.phone.text-secondary`, and a full-width glass Done, `size.phone-sheet-done` high.
 
@@ -143,19 +161,18 @@ The bar shows the title only once the note's own has scrolled under it.
 Find: the editor's own find, in a glass bar on the keyboard with a count, its numbers in `.phone-figures` and its words in the body font, previous, next and a close circle. It switches a note in Preview to Edit.
 While editing is locked that editor takes no caret, so a tap in the text raises no keyboard.
 
-Note info: the sheet has the stats in mono, in two columns at the accessibility sizes; icon rows for notebook, created, modified and, on an enrolled device, synced devices, plain rows at full opacity, not buttons, each value under its label at the accessibility sizes; backlinks, which opens the linking notes when there are any; and Move to Trash, with the undo toast. There is no revision history or export row: neither has a phone screen yet.
+Note info: the sheet has the stats in mono, in two columns at the accessibility sizes; icon rows for notebook, created, modified and, on an enrolled device, synced devices, plain rows at full opacity, not buttons, each value under its label at the accessibility sizes; backlinks, which opens the linking notes when there are any; and Move to Trash. There is no revision history or export row: neither has a phone screen yet.
 
-Undo toast: `size.phone-toast` high, centred, `size.phone-toast-bottom` above the bottom on the tab bar's safe-area logic, above the compose circle. The Undo pill (`size.phone-toast-undo`) reaches its 44 target inside the toast.
-
-The tab bar sits at the larger of `size.phone-tab-bottom` and the bottom safe area less 10, so 24 from the screen's edge at the design's 34 pt inset, clear of the home indicator on any iPhone.
+Undo toast: regular glass, not interactive, `size.phone-toast` high between the `size.phone-screen-edge` keylines, `size.phone-toast-gap` above the tab bar (or above the safe area where no bar is up, and above the keyboard while it is), over a `shadow.phone-float-*` shadow in `color.phone.float-shadow`; the kind's glyph, the message and the Undo pill.
+The Undo pill (`size.phone-toast-undo`) reaches its 44 target inside the toast.
 
 ## Dynamic Type
 
 Text follows the system's text size, up to the largest accessibility size.
 
 - Numbers in the specs are at the default size (Large). The scale is the computed size of `font: -apple-system-body` over 17, read at launch and on return to the foreground, and set on the root as `--phone-text-scale`; every font size and line height in the layout is its number times that scale.
-- Heights that hold text are minimums, so `size.phone-list-row`, `size.phone-grouped-row`, `size.phone-info-row` and `size.phone-chip` grow with their text. Nothing is positioned by assuming a row height: the list measures its rows, and a saved note's neighbours shift by the height it really takes.
-- Text wraps rather than being cut wherever a row can grow. At the accessibility sizes the note list's title may take two lines, a row's time moves under its title, and its preview takes two lines.
+- Heights that hold text are minimums, so `size.phone-list-row`, `size.phone-grouped-row`, `size.phone-info-row` and `size.phone-chip` grow with their text. Nothing is positioned by assuming a row height.
+- Text wraps rather than being cut wherever a row can grow. At the accessibility sizes a note row's title may take two lines.
 - Icons beside text grow with it. Glass bars keep their heights and glyphs, because they sit in fixed places: the top bar's title stops at 1.35.
 - The note's editor and preview keep the text size chosen in Settings, and start from the system's scale until one is chosen.
 - Preview Font Size is the preview body's size in pixels: the phone draws the Glass type scale at the body size (`note.heading.glass.body-size`) rather than at `preview-reference`, so headings keep their ratios to it.

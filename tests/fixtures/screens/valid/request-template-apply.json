@@ -1,0 +1,12 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 3,
+    "op": "template.apply",
+    "args": {
+      "templateId": "01890a5d-ac96-774b-bcce-b302099a8057",
+      "bookId": "01890a5d-ac96-774b-bcce-b302099a8058"
+    }
+  }
+}

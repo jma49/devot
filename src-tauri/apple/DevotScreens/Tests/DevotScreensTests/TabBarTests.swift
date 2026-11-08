@@ -10,18 +10,37 @@ final class TabBarTests: XCTestCase {
         DevotTabBarController(host: WebViewHost(webView: WKWebView()))
     }
 
-    func testFourIconOnlyTabsNamedForVoiceOverAndTheLargeContentViewer() throws {
+    func testFourIconOnlyTabsNamedForVoiceOverThenTheSystemSearchTab() throws {
         let tabs = controller()
-        let items = try XCTUnwrap(tabs.viewControllers).map(\.tabBarItem)
+        let items = tabs.tabs
+        XCTAssertEqual(items.count, 5)
+        let content = Array(items.prefix(4))
         let names = [L10n.phoneTabNotes(), L10n.phoneTabLibrary(), L10n.phoneTabActivity(), L10n.phoneTabSettings()]
-        XCTAssertEqual(items.map { $0?.title }, [nil, nil, nil, nil])
-        XCTAssertEqual(items.map { $0?.accessibilityLabel }, names)
-        for item in items {
-            XCTAssertNotNil(item?.image)
-            XCTAssertNotNil(item?.selectedImage)
-            XCTAssertNotNil(item?.largeContentSizeImage)
+        XCTAssertEqual(content.map(\.title), ["", "", "", ""])
+        XCTAssertEqual(content.map(\.accessibilityLabel), names)
+        for item in content {
+            XCTAssertNotNil(item.image)
+            #if compiler(>=6.4)
+                if #available(iOS 26.1, *) { XCTAssertNotNil(item.selectedImage) }
+            #endif
         }
-        XCTAssertEqual(tabs.selectedIndex, TabModel.tabs.firstIndex(of: .library))
+        let search = try XCTUnwrap(items.last as? UISearchTab)
+        XCTAssertTrue(search === tabs.searchTab)
+        XCTAssertTrue(search.automaticallyActivatesSearch)
+        XCTAssertEqual(search.accessibilityLabel, L10n.phoneTabSearch())
+        XCTAssertEqual(tabs.selected, .library)
+    }
+
+    func testTheUndoToastSitsAboveTheBarAndTheListsOfferItTheirUndoableWrites() {
+        let tabs = controller()
+        tabs.loadViewIfNeeded()
+        XCTAssertTrue(tabs.lists.undoToasts === tabs.toasts)
+        tabs.toasts.offer(UndoToast(kind: .trashed) {})
+        tabs.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        tabs.view.layoutIfNeeded()
+        let toast = tabs.toasts.current
+        XCTAssertTrue(toast?.superview === tabs.view)
+        tabs.toasts.dismissNow()
     }
 
     func testTheSymbolsAreTheWebTabBarsWithTheirFilledVariantWhenSelected() {
@@ -43,21 +62,51 @@ final class TabBarTests: XCTestCase {
         }
     }
 
-    func testSettingsIsNativeUnderALargeTitleAndTheOtherTabsAreWebScreensUnderAHiddenBar() throws {
+    func testNotesLibraryAndSettingsAreNativeUnderLargeTitlesAndActivityIsAWebScreenUnderAHiddenBar() throws {
         let tabs = controller()
-        for (index, tab) in TabModel.tabs.enumerated() {
-            let navigation = try XCTUnwrap(tabs.viewControllers?[index] as? UINavigationController)
-            if tab == .settings {
+        for tab in TabModel.tabs {
+            let navigation = try XCTUnwrap(tabs.navigations[tab])
+            XCTAssertTrue(tabs.items[tab]?.viewController === navigation || tabs.items[tab]?.viewController == nil)
+            switch tab {
+            case .settings:
                 XCTAssertTrue(navigation === tabs.settings.navigation)
                 XCTAssertFalse(navigation.isNavigationBarHidden)
                 XCTAssertTrue(navigation.navigationBar.prefersLargeTitles)
                 XCTAssertTrue(navigation.viewControllers.first === tabs.settings.root)
                 XCTAssertNil(tabs.screen(tab))
-            } else {
+            case .notes, .library:
+                let root = try XCTUnwrap(tabs.listRoots[tab])
+                XCTAssertTrue(navigation.viewControllers.first === root)
+                XCTAssertFalse(navigation.isNavigationBarHidden)
+                XCTAssertTrue(navigation.navigationBar.prefersLargeTitles)
+                XCTAssertEqual(root.navigationItem.largeTitleDisplayMode, .always)
+                XCTAssertEqual(root.navigationItem.title, tab == .notes ? L10n.phoneTabNotes() : L10n.phoneTabLibrary())
+                XCTAssertTrue(tab == .notes ? root is NoteListScreen : root is LibraryScreen)
+                XCTAssertNil(tabs.screen(tab))
+            default:
                 XCTAssertTrue(navigation.isNavigationBarHidden)
                 XCTAssertTrue(navigation.viewControllers.first === tabs.screen(tab))
             }
         }
+    }
+
+    func testNewNoteIsTheListsComposeItemWithItsMenuBesideTheFilter() throws {
+        let tabs = controller()
+        let notes = try XCTUnwrap(tabs.listRoots[.notes])
+        notes.loadViewIfNeeded()
+        let items = try XCTUnwrap(notes.navigationItem.rightBarButtonItems)
+        XCTAssertEqual(items.count, 3)
+        XCTAssertEqual(items[0].accessibilityLabel, L10n.noteListNewNote())
+        XCTAssertNotNil(items[0].primaryAction)
+        XCTAssertEqual(
+            items[0].menu?.children.map(\.title),
+            [L10n.noteListNewNote(), L10n.phoneListNewNoteIn(), L10n.phoneListFromTemplate()])
+        XCTAssertEqual(items[2].accessibilityLabel, L10n.phoneFilterLabel())
+        let filters = try XCTUnwrap(items[2].menu?.children.compactMap { $0 as? UIMenu }.first { $0.options.contains(.singleSelection) })
+        XCTAssertEqual(filters.children.map(\.title), StatusFilter.allCases.map(\.name))
+        let library = try XCTUnwrap(tabs.listRoots[.library])
+        library.loadViewIfNeeded()
+        XCTAssertEqual(library.navigationItem.rightBarButtonItem?.accessibilityLabel, L10n.noteListNewNote())
     }
 
     func testTheSettingsRootSearchesAndPairs() throws {
@@ -73,7 +122,7 @@ final class TabBarTests: XCTestCase {
         let tabs = controller()
         tabs.settings.router.inFront = { false }
         tabs.settings.router.open(.licence(.focusKey))
-        XCTAssertEqual(tabs.selectedIndex, TabModel.tabs.firstIndex(of: .settings))
+        XCTAssertEqual(tabs.selected, .settings)
         XCTAssertEqual(tabs.settings.navigation.viewControllers.count, 2)
     }
 
@@ -81,16 +130,45 @@ final class TabBarTests: XCTestCase {
         let tabs = controller()
         var reselected: [Tab] = []
         tabs.onReselect = { reselected.append($0) }
-        let selected = try XCTUnwrap(tabs.selectedViewController)
-        let other = try XCTUnwrap(tabs.viewControllers?.first)
-        XCTAssertTrue(tabs.tabBarController(tabs, shouldSelect: selected))
-        XCTAssertTrue(tabs.tabBarController(tabs, shouldSelect: other))
+        let selected = try XCTUnwrap(tabs.selectedTab)
+        let other = try XCTUnwrap(tabs.items[.notes])
+        XCTAssertTrue(tabs.tabBarController(tabs, shouldSelectTab: selected))
+        XCTAssertTrue(tabs.tabBarController(tabs, shouldSelectTab: other))
         XCTAssertEqual(reselected, [.library])
+    }
+
+    func testSearchIsANativeStackUnderALargeTitleWhoseRootSearches() throws {
+        let tabs = controller()
+        let navigation = try XCTUnwrap(tabs.navigations[.search])
+        XCTAssertTrue(navigation.viewControllers.first === tabs.search)
+        XCTAssertTrue(tabs.listRoots[.search] === tabs.search)
+        XCTAssertTrue(navigation.navigationBar.prefersLargeTitles)
+        XCTAssertEqual(tabs.searchTab.accessibilityIdentifier, Tab.search.rawValue)
+        var appeared: [Tab] = []
+        tabs.onAppear = { appeared.append($0) }
+        tabs.search.onAppear(.search)
+        XCTAssertEqual(appeared, [.search])
+    }
+
+    func testASavedSearchOpensTheSearchTabAndRunsWithoutRaisingTheKeyboard() throws {
+        let tabs = controller()
+        tabs.openSearch("tag:work")
+        XCTAssertEqual(tabs.selected, .search)
+        XCTAssertEqual(tabs.search.search.searchBar.text, "tag:work")
+        XCTAssertFalse(tabs.searchTab.automaticallyActivatesSearch)
+        let later = expectation(description: "a run-loop turn")
+        DispatchQueue.main.async { later.fulfill() }
+        wait(for: [later], timeout: 1)
+        XCTAssertFalse(tabs.searchTab.automaticallyActivatesSearch, "the keyboard stays down after the switch")
+        tabs.select(.notes)
+        XCTAssertFalse(tabs.searchTab.automaticallyActivatesSearch)
+        XCTAssertTrue(tabs.tabBarController(tabs, shouldSelectTab: tabs.searchTab))
+        XCTAssertTrue(tabs.searchTab.automaticallyActivatesSearch, "choosing Search raises the keyboard again")
     }
 
     func testSettingsShowsTheMarkAndSaysWhyWhenTheLicenceNeedsAttention() throws {
         let tabs = controller()
-        let settings = try XCTUnwrap(tabs.viewControllers?[3].tabBarItem)
+        let settings = try XCTUnwrap(tabs.items[.settings])
         XCTAssertNil(settings.badgeValue)
         tabs.setAttention(true)
         XCTAssertEqual(settings.badgeValue, "!")

@@ -3,6 +3,13 @@ import Foundation
 /// A write the user asked for while the gate held it: only what they picked, never text.
 enum WriteIntent: Equatable {
     case newNote(bookId: String?)
+    case batch(ids: [String], change: NoteChange)
+    /// Completes one note, with the undo toast that takes it back.
+    case complete(id: String)
+    case emptyTrash
+    case newNotebook
+    case newTemplate
+    case fromTemplate(templateId: String, bookId: String?)
 }
 
 /// The short Pro sheet's kinds, as `requireEditing.ts` names them.

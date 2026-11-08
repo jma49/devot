@@ -1,0 +1,92 @@
+{
+  "notes": {
+    "rows": [
+      {
+        "id": "01890a5d-ac96-774b-bcce-000000000001",
+        "title": "Pinned plan",
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000300000,
+        "bookId": "01890a5d-ac96-774b-bcce-b30209900001",
+        "status": "active",
+        "pinned": true,
+        "tagIds": ["01890a5d-ac96-774b-bcce-b30209900003"],
+        "bodyVersion": 4
+      },
+      {
+        "id": "01890a5d-ac96-774b-bcce-000000000002",
+        "title": "Recent note",
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000200000,
+        "bookId": null,
+        "status": "none",
+        "pinned": false,
+        "tagIds": [],
+        "bodyVersion": 1
+      },
+      {
+        "id": "01890a5d-ac96-774b-bcce-000000000003",
+        "title": "",
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000100000,
+        "bookId": null,
+        "status": "completed",
+        "pinned": false,
+        "tagIds": [],
+        "bodyVersion": 0
+      }
+    ],
+    "total": 3
+  },
+  "library": {
+    "counts": {
+      "all": 3,
+      "pinned": 1,
+      "active": 1,
+      "onHold": 0,
+      "completed": 1,
+      "templates": 1,
+      "trash": 1
+    },
+    "books": [
+      {
+        "id": "01890a5d-ac96-774b-bcce-b30209900001",
+        "name": "Work",
+        "parentId": null,
+        "icon": null,
+        "iconColor": null,
+        "count": 1
+      },
+      {
+        "id": "01890a5d-ac96-774b-bcce-b30209900002",
+        "name": "Drafts",
+        "parentId": "01890a5d-ac96-774b-bcce-b30209900001",
+        "icon": "folder",
+        "iconColor": "blue",
+        "count": 0
+      }
+    ],
+    "tags": [
+      {
+        "id": "01890a5d-ac96-774b-bcce-b30209900003",
+        "name": "work",
+        "color": null,
+        "count": 1
+      }
+    ],
+    "savedSearches": [
+      {
+        "id": "01890a5d-ac96-774b-bcce-b30209900004",
+        "name": "Open work",
+        "query": "status:active"
+      }
+    ]
+  },
+  "trash": [
+    {
+      "id": "01890a5d-ac96-774b-bcce-000000000011",
+      "title": "Old note",
+      "deletedAt": 1700000400000,
+      "bookId": null
+    }
+  ]
+}
