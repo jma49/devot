@@ -187,7 +187,7 @@ pub fn screens_tell(notice: FromRust) {
 }
 
 /// Shows a link on the native screens, when they have a route for it.
-pub fn screens_route(link: &crate::deep_link::Link) {
+pub(crate) fn screens_route(link: &crate::deep_link::Link) {
     match crate::screens::route::route(link) {
         Some(route) => deliver(crate::screens::route::notice(&route).to_string().as_bytes()),
         None => log::info!("I_SCREENS_LINK_UNROUTED"),
