@@ -27,6 +27,8 @@ const EMPHASIS = classOf(tags.emphasis)
 const COLOURED = [tags.link, tags.url, tags.processingInstruction]
   .map((tag) => `:not(.${classOf(tag)})`)
   .join('')
+/** Brackets that are no link lose only the link's look: a heading's or quote's colour, a strike and an address stay. */
+const PLAIN_LINK = `.cm-wm-plain .${classOf(tags.link)}`
 
 export const writeTheme = EditorView.theme({
   '&[data-write] .cm-wm-bullet, &[data-write] .cm-wm-bullet *': { color: 'transparent' },
@@ -85,9 +87,15 @@ export const writeTheme = EditorView.theme({
   [`&[data-write] .cm-md-alert .${QUOTE_TEXT}:not(.${EMPHASIS})`]: { fontStyle: 'normal' },
   [`&[data-write] .cm-md-alert .${QUOTE_TEXT}${COLOURED}`]: { color: token('text-editor') },
   '.cm-wm-note-chip': { textUnderlineOffset: '4px' },
-  '&[data-write] .cm-wm-plain, &[data-write] .cm-wm-plain *': {
+  [`&[data-write] ${PLAIN_LINK}:not(.${classOf(tags.url)})`]: {
     color: token('text-editor'),
     textDecoration: 'none',
+  },
+  [`&[data-write] ${PLAIN_LINK}.${classOf(tags.heading)}`]: { color: token('syntax-heading') },
+  [`&[data-write] ${PLAIN_LINK}.${QUOTE_TEXT}`]: { color: token('syntax-quote') },
+  [`&[data-write] .cm-md-alert ${PLAIN_LINK}.${QUOTE_TEXT}`]: { color: token('text-editor') },
+  [`&[data-write] ${PLAIN_LINK}.${classOf(tags.strikethrough)}`]: {
+    textDecoration: 'line-through',
   },
   // Raised by position, so the line keeps its height with the number as with its source.
   '.cm-wm-footnote': {
