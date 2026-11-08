@@ -59,9 +59,9 @@ interface Part {
   starts: number[]
 }
 
-// Elements this deep (the preview's pieces) keep what they read, so a read
-// after an edit walks only the pieces the edit touched.
-const PART_DEPTH = 2
+// Elements this deep (the preview's blocks, in their chunks: see dom.ts) keep
+// what they read, so a read after an edit walks only the blocks it touched.
+const PART_DEPTH = 3
 
 const sameState = (a: ReadState, b: ReadState) =>
   a.empty === b.empty && a.lastBlock === b.lastBlock && a.lineBreak === b.lineBreak

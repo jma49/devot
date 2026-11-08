@@ -31,6 +31,11 @@ const LINES = [
   '[^m]: more[^n]',
   '`[^n]` in code',
   '\\[^n] escaped',
+  '[Ref]: https://example.com',
+  'a [ref] link',
+  '[Ref]:',
+  '/url "a title',
+  'its end"',
 ]
 
 const PIECES = ['x', ' ', '|', '$', '`', '\n', '[^n]', '[^', ']', '!', '-', '\\']

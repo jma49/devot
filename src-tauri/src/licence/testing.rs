@@ -11,8 +11,8 @@ use serde_json::{Value, json};
 use super::keys::TEST;
 use super::store::MemoryKey;
 use super::{Gate, Licence, PublicKeys, Snapshot};
-use crate::commands::notes::{NoteFrame, put_frame};
-use crate::storage::{Db, NoteRecord};
+use crate::commands::notes::{NoteFrame, put_frame, put_meta};
+use crate::storage::{Db, NoteMeta, NoteRecord};
 
 pub(crate) const VECTORS: &str = include_str!("../../../licence/test-vectors.json");
 pub(crate) const ID: &str = "5vEvzHainWD0cA2Ht_ljHg";
@@ -86,7 +86,52 @@ pub(crate) fn gated_db(licence: &Arc<Licence>) -> (tempfile::TempDir, Db) {
 
 /// Saves note `id` as the window does, at the body version its last save left.
 pub(crate) fn save_note(db: &Db, id: &str, body_version: i64) -> Result<(), String> {
-    let note = NoteRecord {
+    put(db, record(id, body_version, None, None))
+}
+
+/// Moves note `id` to the Trash with a whole save, as the window does.
+pub(crate) fn trash_note(db: &Db, id: &str, body_version: i64) -> Result<(), String> {
+    put(db, record(id, body_version, Some(2), Some(TRASHED)))
+}
+
+/// Brings note `id` back from the Trash with a whole save, its title and body as given.
+pub(crate) fn restore_note(db: &Db, id: &str, body_version: i64) -> Result<(), String> {
+    put(db, record(id, body_version, None, Some(RESTORED)))
+}
+
+/// Brings note `id` back from the Trash with a save of its fields alone.
+pub(crate) fn restore_note_meta(db: &Db, id: &str, body_version: i64) -> Result<(), String> {
+    let note = record(id, body_version, None, Some(RESTORED));
+    let meta = NoteMeta {
+        id: note.id,
+        title: "Restored".into(),
+        title_hlc: "0001728000000003-0000-node".into(),
+        body_version: note.body_version,
+        book_id: note.book_id,
+        book_hlc: note.book_hlc,
+        status: note.status,
+        status_hlc: note.status_hlc,
+        pinned: note.pinned,
+        pinned_hlc: note.pinned_hlc,
+        created_at: note.created_at,
+        updated_at: note.updated_at,
+        dates_hlc: note.dates_hlc,
+        deleted_at: note.deleted_at,
+        deleted_hlc: note.deleted_hlc,
+    };
+    tauri::async_runtime::block_on(put_meta(db, meta, None))
+}
+
+const TRASHED: &str = "0001728000000001-0000-node";
+const RESTORED: &str = "0001728000000002-0000-node";
+
+fn record(
+    id: &str,
+    body_version: i64,
+    deleted_at: Option<i64>,
+    deleted_hlc: Option<&str>,
+) -> NoteRecord {
+    NoteRecord {
         id: id.into(),
         title: "Title".into(),
         title_hlc: "0001728000000000-0000-node".into(),
@@ -102,9 +147,12 @@ pub(crate) fn save_note(db: &Db, id: &str, body_version: i64) -> Result<(), Stri
         created_at: 1,
         updated_at: 1,
         dates_hlc: String::new(),
-        deleted_at: None,
-        deleted_hlc: None,
-    };
+        deleted_at,
+        deleted_hlc: deleted_hlc.map(str::to_owned),
+    }
+}
+
+fn put(db: &Db, note: NoteRecord) -> Result<(), String> {
     tauri::async_runtime::block_on(put_frame(
         db,
         NoteFrame {
@@ -113,6 +161,14 @@ pub(crate) fn save_note(db: &Db, id: &str, body_version: i64) -> Result<(), Stri
             writes: None,
         },
     ))
+}
+
+/// Whether note `id` is stored in the Trash.
+pub(crate) fn is_trashed(db: &Db, id: &str) -> bool {
+    let id = id.to_owned();
+    tauri::async_runtime::block_on(db.call(move |store| store.get_note(&id, true)))
+        .expect("read")
+        .is_some_and(|note| note.deleted_at.is_some())
 }
 
 /// Whether note `id` is stored, in the trash or not.

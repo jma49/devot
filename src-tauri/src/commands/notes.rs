@@ -388,15 +388,38 @@ pub async fn note_put_meta(
     if let Some(rows) = &writes {
         validate_agent_writes(rows).map_err(String::from)?;
     }
-    db.write(Write::Body, move |store| {
-        store.put_note_meta(&meta, writes.as_deref())
-    })
+    put_meta(&db, meta, writes).await
+}
+
+/// A save of the fields alone edits a note already stored, unless it brings the note back from
+/// the Trash, which the gate counts as content.
+pub(crate) async fn put_meta(
+    db: &Db,
+    meta: NoteMeta,
+    writes: Option<Vec<AgentWriteRow>>,
+) -> Result<(), String> {
+    let (id, deleted_at, deleted_hlc) =
+        (meta.id.clone(), meta.deleted_at, meta.deleted_hlc.clone());
+    db.write_judged(
+        &[Write::Body, Write::Content],
+        move |store| {
+            Ok(
+                if store.restores_note(&id, deleted_at, deleted_hlc.as_deref())? {
+                    Write::Content
+                } else {
+                    Write::Body
+                },
+            )
+        },
+        move |store| store.put_note_meta(&meta, writes.as_deref()),
+    )
     .await
     .map_err(|e| e.to_string())
 }
 
-/// A note's first save creates user content; only a save of a note already stored is a body
-/// edit, which the gate still lets land for a short grace after editing ends.
+/// A note's first save, or one that brings it back from the Trash, creates user content; only a
+/// save of a note already stored is a body edit, which the gate still lets land for a short grace
+/// after editing ends.
 pub(crate) async fn put_frame(
     db: &Db,
     NoteFrame {
@@ -409,15 +432,23 @@ pub(crate) async fn put_frame(
     if let Some(rows) = &writes {
         validate_agent_writes(rows).map_err(String::from)?;
     }
-    let id = record.id.clone();
+    let (id, deleted_at, deleted_hlc) = (
+        record.id.clone(),
+        record.deleted_at,
+        record.deleted_hlc.clone(),
+    );
     db.write_judged(
         &[Write::Body, Write::Content],
         move |store| {
-            Ok(if store.has_note(&id)? {
-                Write::Body
-            } else {
-                Write::Content
-            })
+            Ok(
+                if store.has_note(&id)?
+                    && !store.restores_note(&id, deleted_at, deleted_hlc.as_deref())?
+                {
+                    Write::Body
+                } else {
+                    Write::Content
+                },
+            )
         },
         move |store| store.put_note_with_writes(&record, &links, writes.as_deref()),
     )

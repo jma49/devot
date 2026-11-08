@@ -84,6 +84,21 @@
   margin-bottom: 0;
 }
 
+/* The live preview's runs of blocks (preview/dom.ts), each on a layer of its own so that a keystroke
+   repaints one run's event region and not the whole note's (issue 727).
+   No box of their own: margins collapse through them. */
+.preview-chunk {
+  will-change: transform;
+}
+
+.preview .preview-body > .preview-chunk:first-child > :first-child {
+  margin-top: 0;
+}
+
+.preview .preview-body > .preview-chunk:last-child > :last-child {
+  margin-bottom: 0;
+}
+
 .preview :is(h1, h2, h3, h4, h5, h6) {
   margin: var(--note-space-4) 0 var(--note-space-1);
   line-height: var(--note-line-height-heading);

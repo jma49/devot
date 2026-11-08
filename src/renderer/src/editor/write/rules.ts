@@ -10,11 +10,18 @@ import type { EditorState } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { noteIdOf } from '../../../../core/links'
 import { codeLanguage, parseCodeInfo } from '../../../../core/preview/code'
+import { normalizeLabel } from '../../../../core/preview/definitions'
 import { isInlineTex } from '../../../../core/preview/math'
 import { ALERT_KINDS, type AlertKind } from '../blocks'
 import { writeBlocksOf, type WriteBlock } from './blockRanges'
 import { touches, type Selected } from './selection'
-import { FOOTNOTE_DEFINITION, FOOTNOTE_REF, footnoteKey, footnoteNumbers } from './footnotes'
+import {
+  FOOTNOTE_DEFINITION,
+  FOOTNOTE_REF,
+  footnoteKey,
+  footnoteNumbers,
+  linkDefinitions,
+} from './footnotes'
 
 export type WriteRange =
   | { kind: 'hide'; from: number; to: number }
@@ -351,7 +358,18 @@ export function writeRanges(
     return true
   }
 
-  /** An inline link or a full reference: a shortcut reference (`[text]`) may be literal brackets, so it stays. */
+  /** A reference whose label has no definition is literal text, as the preview shows it, its inline marks still drawn. */
+  function undefinedReference(node: SyntaxNode, open: SyntaxNode, close: SyntaxNode): boolean {
+    const label = node.getChild('LinkLabel')
+    const named =
+      label && label.to - label.from > 2 ? text(label.from + 1, label.to - 1) : undefined
+    const key = normalizeLabel(named ?? text(open.to, close.from))
+    if (key !== '' && linkDefinitions(doc).has(key)) return false
+    out.push({ kind: 'mark', from: node.from, to: node.to, className: 'cm-wm-plain' })
+    return true
+  }
+
+  /** An inline link or a full reference: a shortcut reference (`[text]`) keeps its brackets. */
   function link(node: SyntaxNode): false | undefined {
     if (footnoteReference(node)) return false
     const marks = node.getChildren('LinkMark')
@@ -360,6 +378,9 @@ export function writeRanges(
     const url = node.getChild('URL')
     if (open && close && !url && !node.getChild('LinkLabel') && doubleBracketed(node, close))
       return false
+    const address = marks[2] !== undefined && text(marks[2].from, marks[2].to) === '('
+    const reference = open && close && !url && !address && open.from === node.from
+    if (reference && undefinedReference(node, open, close)) return
     if (!open || !close || open.from !== node.from || (!url && !node.getChild('LinkLabel'))) return
     if (shows(node.from, node.to)) return false
     const id = url ? noteIdOf(text(url.from, url.to)) : undefined

@@ -22,7 +22,7 @@ test('CJK text gets the line breaking and spacing the web view supports', async 
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Preview' })
     .click()
-  const paragraph = preview(page).locator('.preview-body > p').first()
+  const paragraph = preview(page).locator('.preview-chunk > p').first()
   await expect(paragraph).toBeVisible()
   await expect(paragraph).toHaveCSS('line-break', 'strict')
   await expect(paragraph).toHaveCSS('font-kerning', 'normal')
