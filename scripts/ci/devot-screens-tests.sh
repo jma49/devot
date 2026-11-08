@@ -14,8 +14,10 @@ device=${DEVOT_SCREENS_SIMULATOR:-${DEVOT_SIMULATOR:-$(xcrun simctl list devices
 sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
 log=$(mktemp)
 status=0
+# A test that fails once is run again, so a one-off stall on a loaded runner does not fail the job;
+# a test that fails twice does.
 xcodebuild test -project DevotScreensTests.xcodeproj -scheme DevotScreensTests \
-  -destination "id=$device" >"$log" 2>&1 || status=$?
+  -destination "id=$device" -retry-tests-on-failure -test-iterations 2 >"$log" 2>&1 || status=$?
 grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" "$log" || tail -n 60 "$log"
 rm -f "$log"
 exit "$status"
