@@ -29,7 +29,7 @@ final class NoteListDataSource {
         /// Rows still listed whose content may have changed.
         let reconfigured: Set<String>
         let animated: Bool
-        /// The first page read again from scratch: the list redraws it whole.
+        /// The rows read again from scratch: the list redraws them whole.
         let reloaded: Bool
         let selected: String?
     }
@@ -42,6 +42,9 @@ final class NoteListDataSource {
         case none
         case more
         case refresh
+        /// Every row already read, read again and redrawn whole: a change the list could not follow.
+        case resync
+        /// The first page from scratch: a new filter.
         case reload
 
         static func < (a: Read, b: Read) -> Bool { a.rawValue < b.rawValue }
@@ -95,18 +98,15 @@ final class NoteListDataSource {
     }
 
     /// `notes.changed`: the named rows are read again in place; a skipped notice, or a change too
-    /// large to name, reads the first page again.
+    /// large to name, reads every loaded row again, so the list keeps its length and place.
     func changed(rev: Double, ids: [String], all: Bool) {
         if let last = lastRev, rev <= last { return }
         let skipped = all || lastRev.map { rev > $0 + 1 } ?? false
         lastRev = rev
         named.formUnion(ids)
         guard loaded || reading else { return }
-        read(skipped ? .reload : .refresh)
+        read(skipped ? .resync : .refresh)
     }
-
-    /// The page reported a change it could not attribute (a sync, a launch): read everything again.
-    func reload() { read(.reload) }
 
     /// A new note's row, left untouched, goes before the pop that reveals it draws a frame.
     func removeUntouched(_ id: String) {
@@ -135,7 +135,7 @@ final class NoteListDataSource {
         let offset = kind == .more ? order.count : 0
         let limit =
             switch kind {
-            case .refresh: min(max(order.count, Self.pageRows), Self.maxRows)
+            case .refresh, .resync: min(max(order.count, Self.pageRows), Self.maxRows)
             default: Self.pageRows
             }
         let args: [String: JSONValue] = [
@@ -191,7 +191,7 @@ final class NoteListDataSource {
         selecting = nil
         publish(
             reconfigured: reconfigured, animated: !first && !quiet && !reduceMotion(),
-            reloaded: kind == .reload && !first, selected: selected)
+            reloaded: (kind == .reload || kind == .resync) && !first, selected: selected)
     }
 
     private func publish(reconfigured: Set<String>, animated: Bool, reloaded: Bool, selected: String? = nil) {

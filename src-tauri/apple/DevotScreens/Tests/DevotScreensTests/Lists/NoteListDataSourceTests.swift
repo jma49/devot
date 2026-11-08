@@ -49,6 +49,17 @@ final class NoteListDataSourceTests: XCTestCase {
         return source
     }
 
+    /// A list scrolled far enough to have read a second page.
+    private func pagedIn(_ rows: [NoteRow]) -> NoteListDataSource {
+        let source = NoteListDataSource(view: .all, bridge: bridge)
+        source.onUpdate = { [unowned self] in updates.append($0) }
+        source.load()
+        bridge.answer(DirectOp.listsNotes.rawValue, page(Array(rows.prefix(NoteListDataSource.pageRows)), total: rows.count))
+        source.loadMore()
+        bridge.answer(DirectOp.listsNotes.rawValue, page(Array(rows.dropFirst(NoteListDataSource.pageRows)), total: rows.count))
+        return source
+    }
+
     private var lastAsk: [String: JSONValue]? { bridge.sent.last { $0.op == DirectOp.listsNotes.rawValue }?.args }
 
     func testTheRowsDecodeFromTheSharedFixture() throws {
@@ -121,7 +132,7 @@ final class NoteListDataSourceTests: XCTestCase {
         XCTAssertEqual(update.layout.ids[.completed], [a.id])
     }
 
-    func testASkippedRevReloadsTheFirstPage() throws {
+    func testASkippedRevReadsTheListAgain() throws {
         let source = source()
         source.changed(rev: 4, ids: [a.id], all: false)
         bridge.answer(DirectOp.listsNotes.rawValue, page([a, b, c]))
@@ -133,6 +144,25 @@ final class NoteListDataSourceTests: XCTestCase {
         let update = try XCTUnwrap(updates.last)
         XCTAssertTrue(update.reloaded)
         XCTAssertEqual(update.layout.ids[.recent], [b.id, c.id])
+    }
+
+    func testAMissedChangeReadsAgainEveryRowAlreadyPagedIn() throws {
+        let many = (1...250).map { noteRow($0, updated: Double(1000 - $0)) }
+        let source = pagedIn(many)
+        XCTAssertEqual(source.count, 250)
+        source.changed(rev: 3, ids: [], all: true)
+        XCTAssertEqual(lastAsk?["offset"], .number(0))
+        XCTAssertEqual(lastAsk?["limit"], .number(250))
+        bridge.answer(DirectOp.listsNotes.rawValue, page(many, total: 250))
+        XCTAssertEqual(source.count, 250)
+        XCTAssertEqual(updates.last?.reloaded, true)
+    }
+
+    func testAStatusFilterStartsAgainFromTheFirstPage() {
+        let many = (1...250).map { noteRow($0, updated: Double(1000 - $0)) }
+        let source = pagedIn(many)
+        source.filter(.active)
+        XCTAssertEqual(lastAsk?["limit"], .number(Double(NoteListDataSource.pageRows)))
     }
 
     func testAChangeTooLargeToNameReloadsAndAnOldRevIsIgnored() {

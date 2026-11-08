@@ -26,7 +26,7 @@ enum ListMenus {
             })
         let move = UIMenu(
             title: L10n.phoneMoveTo(), image: UIImage(systemName: "folder"),
-            children: [notebooks(selected: note.bookId, library: library) { write(.batch(ids: ids, change: .book($0))) }])
+            children: [notebooks(for: .note(in: note.bookId), library: library) { write(.batch(ids: ids, change: .book($0))) }])
         let tags = UIMenu(
             title: L10n.phoneListTags(), image: UIImage(systemName: "number"),
             children: [
@@ -55,36 +55,54 @@ enum ListMenus {
         ])
     }
 
+    /// What a notebook menu files.
+    enum NotebookPick: Equatable {
+        /// One note: its notebook, or No Notebook, is ticked, and choosing it again writes nothing.
+        case note(in: String?)
+        /// Several notes, wherever they are: nothing is ticked and every choice moves them.
+        case notes
+        /// A new note: notebooks only, as naming none means the default notebook.
+        case newNote
+    }
+
+    struct NotebookChoice: Equatable {
+        let book: String?
+        let title: String
+        let depth: Int
+        let on: Bool
+
+        var writes: Bool { !on }
+    }
+
+    static func notebookChoices(_ contents: LibraryContents?, for pick: NotebookPick) -> [NotebookChoice] {
+        let current: String?? = if case .note(let book) = pick { .some(book) } else { .none }
+        let depths = contents?.depths ?? [:]
+        let books = (contents?.books ?? []).map { book in
+            NotebookChoice(book: book.id, title: book.name, depth: depths[book.id] ?? 0, on: current == .some(book.id))
+        }
+        guard pick != .newNote else { return books }
+        return [NotebookChoice(book: nil, title: L10n.phoneNoNotebook(), depth: 0, on: current == .some(nil))] + books
+    }
+
     /// No Notebook, then every notebook indented under its parent, read when the menu opens.
     static func notebooks(
-        selected: String?, library: @escaping (@escaping (LibraryContents?) -> Void) -> Void,
+        for pick: NotebookPick, library: @escaping (@escaping (LibraryContents?) -> Void) -> Void,
         choose: @escaping (String?) -> Void
     ) -> UIMenuElement {
         UIDeferredMenuElement.uncached { provide in
             library { contents in
-                let none = UIAction(title: L10n.phoneNoNotebook(), state: selected == nil ? .on : .off) { _ in
-                    if selected != nil { choose(nil) }
-                }
-                let depths = contents?.depths ?? [:]
-                let books = (contents?.books ?? []).map { book in
-                    let action = UIAction(
-                        title: book.name, image: UIImage(systemName: "folder"),
-                        state: selected == book.id ? .on : .off
-                    ) { _ in
-                        if selected != book.id { choose(book.id) }
-                    }
-                    return Self.indented(action, depths[book.id] ?? 0)
-                }
-                provide([none] + books)
+                provide(
+                    notebookChoices(contents, for: pick).map { choice in
+                        UIAction(
+                            title: String(repeating: "\u{2003}", count: min(choice.depth, 4)) + choice.title,
+                            image: choice.book == nil ? nil : UIImage(systemName: "folder"),
+                            state: choice.on ? .on : .off
+                        ) { _ in
+                            if choice.writes { choose(choice.book) }
+                        }
+                    })
             }
         }
-    }
-
-    /// A nested notebook's name starts further in, as the Library shows it.
-    private static func indented(_ action: UIAction, _ depth: Int) -> UIAction {
-        guard depth > 0 else { return action }
-        action.title = String(repeating: "\u{2003}", count: min(depth, 4)) + action.title
-        return action
     }
 
     static func filter(_ selected: StatusFilter, select: (() -> Void)?, choose: @escaping (StatusFilter) -> Void) -> UIMenu {
@@ -110,7 +128,7 @@ enum ListMenus {
         }
         let into = UIMenu(
             title: L10n.phoneListNewNoteIn(), image: UIImage(systemName: "folder"),
-            children: [notebooks(selected: nil, library: library) { newNote($0) }])
+            children: [notebooks(for: .newNote, library: library) { newNote($0) }])
         let template = UIAction(title: L10n.phoneListFromTemplate(), image: UIImage(systemName: "doc.on.doc")) { _ in
             fromTemplate()
         }

@@ -240,6 +240,12 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
         source.quietly(selecting: id)
     }
 
+    /// The toolbar belongs to the navigation controller, so a list popped while selecting takes it away.
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if isMovingFromParent, collection.isEditing { select(false) }
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         let interactive = transitionCoordinator?.isInteractive ?? false
         if !interactive {
@@ -400,7 +406,7 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
 
     // MARK: Selecting several notes
 
-    private func select(_ on: Bool) {
+    func select(_ on: Bool) {
         collection.isEditing = on
         if on { context.prepareHaptics() }
         if !on {
@@ -432,7 +438,7 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
         let move = UIBarButtonItem(
             title: L10n.batchMove(), image: UIImage(systemName: "folder"),
             menu: UIMenu(children: [
-                ListMenus.notebooks(selected: nil, library: { [weak self] in self?.library($0) }) { [weak self] book in
+                ListMenus.notebooks(for: .notes, library: { [weak self] in self?.library($0) }) { [weak self] book in
                     context.ask(.batch(ids: ids, change: .book(book)))
                     self?.select(false)
                 }
