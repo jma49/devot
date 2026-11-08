@@ -43,11 +43,16 @@ interface EditorProps {
   core: Core
   noteId: string
   onLoaded?: (text: string) => void
+  onOpenFailed?: (noteId: string, code: string) => void
   handleRef?: { current: EditorHandle | null }
 }
 
-// `held` keeps each load back until the test lets it through, as a slow open does.
-const editors = vi.hoisted(() => ({ focused: [] as string[], held: null as (() => void)[] | null }))
+// `held` keeps each load back until the test lets it through, as a slow open does; `fails` opens fail.
+const editors = vi.hoisted(() => ({
+  focused: [] as string[],
+  held: null as (() => void)[] | null,
+  fails: false,
+}))
 vi.mock('../../NoteEditor', () => ({
   NoteEditor: (props: EditorProps) => {
     const { noteId, handleRef } = props
@@ -62,7 +67,8 @@ vi.mock('../../NoteEditor', () => ({
         } as unknown as EditorHandle
       }
       const load = () => latest.current.onLoaded?.('')
-      if (editors.held) editors.held.push(load)
+      if (editors.fails) latest.current.onOpenFailed?.(noteId, 'E_STORAGE_READ_FAILED')
+      else if (editors.held) editors.held.push(load)
       else load()
     }, [noteId, handleRef])
     return <div className="cm-editor" />
@@ -95,6 +101,7 @@ beforeEach(async () => {
   bridge.notices = []
   editors.focused = []
   editors.held = null
+  editors.fails = false
   vi.mocked(invoke).mockImplementation(async (command) =>
     command === 'licence_get' ? PRO : undefined,
   )
@@ -275,6 +282,19 @@ describe('New Note under the native screens', () => {
     })
     vi.useRealTimers()
     expect(await asked).toStrictEqual({ focused: false })
+    expect(editors.focused).toStrictEqual([])
+  })
+
+  it('takes no caret, and stops waiting at once, for a note whose open failed', async () => {
+    await start()
+    const id = (await swift('note.create', {}))['id'] as string
+    editors.fails = true
+    await swift('editor.show', { noteId: id, focus: 'body' })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const asked = bridge.handlers['editor.focus']!({})
+    await act(async () => {})
+    vi.useRealTimers()
+    expect(await Promise.race([asked, 'still waiting'])).toStrictEqual({ focused: false })
     expect(editors.focused).toStrictEqual([])
   })
 

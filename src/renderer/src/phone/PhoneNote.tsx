@@ -98,6 +98,7 @@ export interface NoteCommands {
 export interface NativeNoteChrome {
   readonly openNote: (id: string) => void
   readonly loaded: (id: string) => void
+  readonly openFailed: (id: string) => void
   readonly mode: (id: string, mode: EditorMode) => void
   readonly title: (id: string, title: string) => void
   readonly titleVisible: (visible: boolean) => void
@@ -540,6 +541,7 @@ export function PhoneNote(props: {
               noKeyboard
               onText={(read) => showText(noteId, read())}
               onLoaded={(loaded) => noteLoaded(noteId, loaded)}
+              onOpenFailed={(id) => native?.openFailed(id)}
               links={links}
               showAlertMenu={showAlertMenu}
               handleRef={editor}

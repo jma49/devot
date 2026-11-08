@@ -23,8 +23,8 @@ function afterPaint(then: () => void): () => void {
 }
 
 // The keyboard is up when Swift asks, so the caret waits for the note's load however slow it is (over
-// a second on a busy simulator); only an open that failed, which reports nothing, or a note that opens
-// in Preview, takes no caret.
+// a second on a busy simulator); a failed open or a note that opens in Preview takes no caret, and the
+// wait gives up only on a load that hangs.
 const FOCUS_WAIT_MS = 5000
 
 interface Focusing {
@@ -62,6 +62,10 @@ export function EditorHost(props: {
     () => ({
       openNote: (id) => latest.current.openNote(id),
       loaded: setLoadedId,
+      openFailed: (id) => {
+        if (typedIn.current === id) typedIn.current = null
+        if (focusing.current?.noteId === id) focusing.current.settle(false)
+      },
       mode: (noteId, mode) => {
         setShownMode({ noteId, mode })
         latest.current.notify({ notice: 'editor.mode', noteId, mode })
