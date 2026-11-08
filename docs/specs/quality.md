@@ -146,6 +146,7 @@ Every PR must test the logic it changes, which review checks.
   The minidump itself holds stack memory, which may contain note text, so it never reaches the disk or the network, and registers are not kept.
   The next launch (DSN builds only) sends up to five saved reports, newest first, on its own thread and one request each (ureq over the system TLS, as Sentry's transport, but reading Sentry's answer, which the SDK's background transport drops), and deletes the rest.
   A report is deleted once Sentry has accepted it or refused it for good (another 4xx); without a connection, on a 429 or a 5xx it waits for a later launch, for up to 30 days, and nothing more is sent that launch.
+  The choice is read again before each request, so turning reports off while they are being sent stops those already read from disk too.
   The reporter sleeps in the kernel until a crash arrives (no polling) and exits when the app's end of a pipe closes, which happens on any quit or kill.
   Builds without a DSN start no reporter, attach no handler and create no folder; a build without a DSN also refuses `--crash-reporter`.
   Release builds keep line tables in a separate `devot.dSYM` next to the stripped binary, so Sentry can name functions once it is uploaded (below).
