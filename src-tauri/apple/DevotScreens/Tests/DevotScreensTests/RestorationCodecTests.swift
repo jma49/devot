@@ -111,7 +111,9 @@ final class RestoreFlowTests: XCTestCase {
         XCTAssertEqual(harness.screens.root.tabs.selected, .notes)
         XCTAssertEqual(harness.screens.lastStackAnimated, false)
         XCTAssertFalse(harness.directs().contains { $0.op == .listsTitles }, "Rust takes requests once the install returns")
-        harness.settle()
+        harness.settle(until: {
+            harness.requests().contains { $0.op == .tabsShow } && harness.directs().contains { $0.op == .listsTitles }
+        })
         XCTAssertTrue(
             harness.requests().contains { $0.op == .tabsShow && $0.args == ["tab": .string("notes")] },
             "the page is told the restored tab")

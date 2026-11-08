@@ -45,7 +45,7 @@ final class InstallTests: XCTestCase {
 
     /// Lets queued appearance and layout run, as the next turn of the main run loop would.
     private func settle() {
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.25))
     }
 
     /// Turns the main run loop until the condition holds; a slow CI runner can take more than one turn.
@@ -289,7 +289,14 @@ final class InstallTests: XCTestCase {
         XCTAssertEqual(rust.calls.count, 0)
         try show(root)
         root.view.layoutIfNeeded()
-        settle()
+        let asked = { (try? self.sent(rust).compactMap { message -> String? in
+            switch message {
+            case .direct(_, let op, _): op.rawValue
+            case .request(_, let op, _): op.rawValue
+            default: nil
+            }
+        }) ?? [] }
+        settle(until: { asked().contains("direct.editorSettings.get") && asked().contains { $0.hasPrefix("glass.") } })
         withExtendedLifetime(screens) {}
         let ops = try sent(rust).compactMap { message -> String? in
             switch message {

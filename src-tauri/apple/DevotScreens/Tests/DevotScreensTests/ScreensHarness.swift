@@ -38,7 +38,8 @@ final class ScreensHarness {
         window.isHidden = true
     }
 
-    func settle(_ seconds: TimeInterval = 0.05) {
+    /// A loaded CI runner can need more than one short turn for a chain of main-queue hops.
+    func settle(_ seconds: TimeInterval = 0.25) {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
     }
 
