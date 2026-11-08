@@ -43,7 +43,8 @@ interface EditorProps {
   handleRef?: { current: EditorHandle | null }
 }
 
-const editors = vi.hoisted(() => ({ focused: [] as string[] }))
+// `held` keeps each load back until the test lets it through, as a slow open does.
+const editors = vi.hoisted(() => ({ focused: [] as string[], held: null as (() => void)[] | null }))
 vi.mock('../../NoteEditor', () => ({
   NoteEditor: (props: EditorProps) => {
     const { noteId, handleRef } = props
@@ -57,7 +58,9 @@ vi.mock('../../NoteEditor', () => ({
           focusStart: () => editors.focused.push(noteId),
         } as unknown as EditorHandle
       }
-      latest.current.onLoaded?.('')
+      const load = () => latest.current.onLoaded?.('')
+      if (editors.held) editors.held.push(load)
+      else load()
     }, [noteId, handleRef])
     return <div className="cm-editor" />
   },
@@ -88,6 +91,7 @@ beforeEach(async () => {
   bridge.handlers = {}
   bridge.notices = []
   editors.focused = []
+  editors.held = null
   vi.mocked(invoke).mockImplementation(async (command) =>
     command === 'licence_get' ? PRO : undefined,
   )
@@ -208,6 +212,39 @@ describe('New Note under the native screens', () => {
     await swift('editor.show', { noteId: id })
     expect(await focus()).toStrictEqual({ focused: false })
     expect(editors.focused).toStrictEqual([id])
+  })
+
+  it('puts the caret in the body of a note that loads long after Swift asked', async () => {
+    await start()
+    const id = (await swift('note.create', {}))['id'] as string
+    editors.held = []
+    await swift('editor.show', { noteId: id, focus: 'body' })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const asked = bridge.handlers['editor.focus']!({})
+    await act(async () => {
+      vi.advanceTimersByTime(3000)
+    })
+    vi.useRealTimers()
+    const loads = editors.held
+    editors.held = null
+    await act(async () => loads.forEach((load) => load()))
+    expect(await asked).toStrictEqual({ focused: true })
+    expect(editors.focused).toStrictEqual([id])
+  })
+
+  it('takes no caret for a note whose load never comes', async () => {
+    await start()
+    const id = (await swift('note.create', {}))['id'] as string
+    editors.held = []
+    await swift('editor.show', { noteId: id, focus: 'body' })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const asked = bridge.handlers['editor.focus']!({})
+    await act(async () => {
+      vi.advanceTimersByTime(60_000)
+    })
+    vi.useRealTimers()
+    expect(await asked).toStrictEqual({ focused: false })
+    expect(editors.focused).toStrictEqual([])
   })
 
   it('refuses a focus Rust would not have passed on', async () => {

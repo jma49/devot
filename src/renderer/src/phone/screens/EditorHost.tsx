@@ -22,8 +22,10 @@ function afterPaint(then: () => void): () => void {
   return () => cancelAnimationFrame(frame)
 }
 
-// The keyboard is up when Swift asks; a note that is slow to load or opens in Preview takes no caret.
-const FOCUS_WAIT_MS = 600
+// The keyboard is up when Swift asks, so the caret waits for the note's load however slow it is (over
+// a second on a busy simulator); only an open that failed, which reports nothing, or a note that opens
+// in Preview, takes no caret.
+const FOCUS_WAIT_MS = 5000
 
 interface Focusing {
   readonly noteId: string
