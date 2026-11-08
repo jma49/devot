@@ -86,6 +86,16 @@ test('Back pressed mid-swipe leaves the screen below where it belongs', async ({
 })
 
 test('Back slides the popped screen out, keeping its own screen', async ({ page }) => {
+  // Opening a note can hold frames for seconds, and a pop from a push not yet begun has no way to slide.
+  await expect
+    .poll(() =>
+      topLayer(page).evaluate(
+        (layer) =>
+          layer.getAnimations().length === 0 &&
+          new DOMMatrix(getComputedStyle(layer).transform).m41 === 0,
+      ),
+    )
+    .toBe(true)
   // Slowed five times (the UI tests' build reads it on each motion), so a busy frame cannot skip the slide.
   await page.evaluate(() => {
     localStorage.setItem('devot.motionScale', '5')
