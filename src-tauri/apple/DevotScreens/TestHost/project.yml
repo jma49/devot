@@ -31,6 +31,8 @@ targets:
         buildPhase: resources
       - path: ../../../../tests/fixtures/settings-search.json
         buildPhase: resources
+      - path: ../../../../tests/fixtures/licence-gate.json
+        buildPhase: resources
     dependencies:
       - target: DevotScreensHost
       - package: DevotScreens

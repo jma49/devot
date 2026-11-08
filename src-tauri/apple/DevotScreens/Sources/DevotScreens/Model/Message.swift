@@ -82,6 +82,7 @@ public enum Op: String, CaseIterable, Sendable {
     case excerpts
     case search
     case noteCreate = "note.create"
+    case noteDiscard = "note.discard"
     case tabsShow = "tabs.show"
     case tabsPopToRoot = "tabs.popToRoot"
     case settingsShowPane = "settings.showPane"
@@ -90,6 +91,7 @@ public enum Op: String, CaseIterable, Sendable {
     case editorHide = "editor.hide"
     case editorSetMode = "editor.setMode"
     case editorInfo = "editor.info"
+    case editorFocus = "editor.focus"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {
@@ -102,6 +104,9 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case editorReady = "editor.ready"
     case editorMode = "editor.mode"
     case editorScroll = "editor.scroll"
+    case noteNew = "note.new"
+    /// Sent by Rust itself, never by the page.
+    case licenceChanged = "licence.changed"
 }
 
 public enum Outcome: Equatable, Sendable {

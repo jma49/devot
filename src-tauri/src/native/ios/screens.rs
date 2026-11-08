@@ -175,6 +175,18 @@ pub fn screens_post(message: &[u8]) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// Swift's licence snapshot is only the screens' guess (Rust refuses every locked write itself),
+/// read again whenever the licence changes.
+pub fn screens_licence_changed() {
+    if HUB.installed() {
+        deliver(
+            crate::screens::message::licence_changed()
+                .to_string()
+                .as_bytes(),
+        );
+    }
+}
+
 pub fn screens_page_started() {
     for (reply, request, json) in HUB.page_started() {
         send(reply, request, &json);

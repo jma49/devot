@@ -86,6 +86,11 @@ impl<R: Copy> Hub<R> {
         self.state().installed = installed;
     }
 
+    #[cfg(target_os = "ios")]
+    pub fn installed(&self) -> bool {
+        self.state().installed
+    }
+
     pub fn call(&self, request: u64, bytes: &[u8], reply: R) -> Called<R> {
         let refuse = |code: &str| {
             log::warn!("W_SCREENS_REQUEST_REFUSED id={request} code={code}");

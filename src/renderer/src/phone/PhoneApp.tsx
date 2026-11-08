@@ -58,6 +58,8 @@ import { SCREENS_HANDLERS } from './screens/ops'
 import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
 import { editorHandlers, type NativeEditor } from './screens/editor'
+import { newNoteHandlers, type NativeNewNote } from './screens/newNote'
+import { noteChangesRev, watchNoteChanges } from './screens/noteChanges'
 import { EditorHost } from './screens/EditorHost'
 import { createPreparedNotes } from './screens/prepared'
 import { modalOpen, watchModals } from './modal'
@@ -254,6 +256,9 @@ function viewTitle(view: PhoneView | undefined, data: PhoneData): string {
 
 const ARRIVAL_MS = 1200
 
+// Rust takes at most this many IDs in one `notes.changed`.
+const MAX_CHANGED_IDS = 10_000
+
 interface Made extends MadeNote {
   touched: boolean
   handedOver: boolean
@@ -321,6 +326,9 @@ export function PhoneApp() {
   const nativeTabs = useRef<NativeTabs | null>(null)
   const nativeSettings = useRef<NativeSettings | null>(null)
   const nativeEditor = useRef<NativeEditor | null>(null)
+  const nativeNewNote = useRef<NativeNewNote | null>(null)
+  // The list New Note was pressed in, for the list Swift's note goes over once its gate let it.
+  const askedNewNote = useRef<{ list: ShownList | null; bookId: string | null } | null>(null)
   const [prepared] = useState(createPreparedNotes)
   const bridge = useRef<ScreensBridge | null>(null)
   // Null until the bridge says whether the native tab bar is there; the page draws its own without it.
@@ -343,6 +351,7 @@ export function PhoneApp() {
         notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
       ...editorHandlers(() => nativeEditor.current),
+      ...newNoteHandlers(() => nativeNewNote.current),
     })
     bridge.current = started
     let live = true
@@ -516,7 +525,31 @@ export function PhoneApp() {
       },
       notebooks: () => choicesFromTree(buildBookTree(store.books)),
     }
+    nativeNewNote.current = {
+      create: async (bookId) => {
+        const core = store.core
+        if (!core) throw new Error('E_SCREENS_UNAVAILABLE')
+        const asked = askedNewNote.current
+        askedNewNote.current = null
+        const id = await makeNewNote(core, 'note', bookId)
+        // The write that made the note is reported in a microtask: the reply counts it.
+        await Promise.resolve()
+        const rev = noteChangesRev()
+        made.current.set(id, { bookId, touched: false, handedOver: true })
+        const under = asked?.bookId === bookId ? listUnderNewNote(asked.list, 'note', bookId) : null
+        if (under) go({ type: 'push', screen: 'list', view: under })
+        void phoneData.refresh()
+        return { id, rev }
+      },
+      discard: (noteId) => leaveNewNote(noteId),
+    }
   })
+  useEffect(() => {
+    if (!native) return
+    return watchNoteChanges((rev, ids) =>
+      bridge.current?.notify({ notice: 'notes.changed', rev, ids: ids.slice(0, MAX_CHANGED_IDS) }),
+    )
+  }, [native])
   useEffect(() => {
     if (native)
       bridge.current?.notify({ notice: 'tabs.state', tab: state.tab, barHidden, attention })
@@ -531,7 +564,13 @@ export function PhoneApp() {
     return {
       newNote: {
         label: t(kind === 'template' ? 'templates.new' : 'noteList.newNote'),
-        onPress: () => newNote(kind, list),
+        onPress: () => {
+          if (kind === 'template') return newNote(kind, list)
+          // Swift's gate decides, then pushes the editor and asks for the note.
+          const bookId = newNoteBook(list, editorSettings().defaultNotebook, store.books)
+          askedNewNote.current = { list, bookId }
+          bridge.current?.notify({ notice: 'note.new', ...(bookId === null ? {} : { bookId }) })
+        },
       },
     }
   }

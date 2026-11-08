@@ -43,6 +43,8 @@ extension View {
         modifier(SettingsType(size: 20, line: 25, weight: .bold, relativeTo: .title3, secondary: false))
     }
     func sheetBody() -> some View { modifier(SettingsType(size: 16, line: 24, secondary: true)) }
+    /// A short sheet's one line, in the primary text colour: the sheet's material lets the list through.
+    func sheetMessage() -> some View { modifier(SettingsType(size: 16, line: 24, secondary: false)) }
 
     /// A row on the grouped card, at least the row's height.
     func settingsRow(described: Bool = false) -> some View {
