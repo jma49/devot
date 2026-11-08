@@ -72,3 +72,4 @@ Part of the [architecture overview](../architecture.md).
   `/deactivate` and the `/devices` page free a seat.
   No hardware identifier, address or machine name is stored, and the key travels in the request body.
   The app's `activation` item also lists every licence it has tried (32 at most), so a migration window cannot be restarted by pasting a key again or swapping keys; a seat item that cannot be read locks the device, and one that does not parse is replaced when the key is pasted again.
+  A pasted key the keychain will not store changes no seat: the licence held keeps its lease or window, and the new key is not counted as tried.
