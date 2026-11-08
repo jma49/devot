@@ -59,7 +59,8 @@ import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
 import { editorHandlers, type NativeEditor } from './screens/editor'
 import { newNoteHandlers, type NativeNewNote } from './screens/newNote'
-import { noteChangesRev, watchNoteChanges } from './screens/noteChanges'
+import { noteChangesRev, watchLibraryChanges, watchNoteChanges } from './screens/noteChanges'
+import { listHandlers } from './screens/lists'
 import { EditorHost } from './screens/EditorHost'
 import { createPreparedNotes } from './screens/prepared'
 import { modalOpen, watchModals } from './modal'
@@ -334,8 +335,10 @@ export function PhoneApp() {
   // Null until the bridge says whether the native tab bar is there; the page draws its own without it.
   const [native, setNative] = useState<boolean | null>(null)
   const covered = useSyncExternalStore(watchModals, modalOpen)
+  const latestCore = useRef(store.core)
   useLayoutEffect(() => {
     latest.current = state
+    latestCore.current = store.core
   })
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
   useEffect(() => startLicence(), [])
@@ -352,6 +355,7 @@ export function PhoneApp() {
       }),
       ...editorHandlers(() => nativeEditor.current),
       ...newNoteHandlers(() => nativeNewNote.current),
+      ...listHandlers(() => latestCore.current),
     })
     bridge.current = started
     let live = true
@@ -546,9 +550,20 @@ export function PhoneApp() {
   })
   useEffect(() => {
     if (!native) return
-    return watchNoteChanges((rev, ids) =>
-      bridge.current?.notify({ notice: 'notes.changed', rev, ids: ids.slice(0, MAX_CHANGED_IDS) }),
+    const notes = watchNoteChanges((rev, ids, all) =>
+      bridge.current?.notify({
+        notice: 'notes.changed',
+        rev,
+        // Past the limit Swift cannot read the rows named, so it reads every list again.
+        ids: ids.length > MAX_CHANGED_IDS ? [] : ids,
+        ...(all || ids.length > MAX_CHANGED_IDS ? { all: true as const } : {}),
+      }),
     )
+    const library = watchLibraryChanges((notice) => bridge.current?.notify({ notice }))
+    return () => {
+      notes()
+      library()
+    }
   }, [native])
   useEffect(() => {
     if (native)

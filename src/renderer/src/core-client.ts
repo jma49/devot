@@ -61,6 +61,8 @@ export async function startCore(
     onAuthored?: () => void
     onRelay?: (message: WireRelay) => void
     onTakenIn?: (change: TakenIn) => void
+    /** Wraps the storage the core writes through, after the note writes are reported. */
+    reporting?: (storage: WireStorage) => WireStorage
   } = {},
 ): Promise<Core> {
   const worker = new Worker(new URL('./core.worker.ts', import.meta.url), { type: 'module' })
@@ -69,7 +71,8 @@ export async function startCore(
     // another build of the app shares that, and two processes must never
     // stamp a write alike.
     start: (c) => {
-      const noted = reportingNoteWrites(wire, onNoteWrites, windowed.onAuthored)
+      const reported = reportingNoteWrites(wire, onNoteWrites, windowed.onAuthored)
+      const noted = windowed.reporting ? windowed.reporting(reported) : reported
       const served = windowed.onWrote ? reportingWrites(noted, windowed.onWrote) : noted
       return c.init(Comlink.proxy(served), newNodeId(), {
         lean: windowed.lean ?? false,

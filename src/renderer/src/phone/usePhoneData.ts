@@ -14,7 +14,8 @@ import { useExternalChanges } from '../externalChanges'
 import { saveEdits } from '../saveGuards'
 import { welcomeContent } from '../welcome/content'
 import { listSeeded } from '../welcome/seed'
-import { noteWritesReported } from './screens/noteChanges'
+import { reportingListWrites } from './screens/feed'
+import { externalChangesReported, noteWritesReported } from './screens/noteChanges'
 
 export interface PhoneData {
   readonly core: Core | null
@@ -115,7 +116,10 @@ export function usePhoneData(): PhoneStore {
         void refresh()
       },
       (code) => console.warn('W_PHONE_CORE_FAILED', code),
-      { onTakenIn: (change) => takenIn.forEach((listener) => listener(change)) },
+      {
+        onTakenIn: (change) => takenIn.forEach((listener) => listener(change)),
+        reporting: reportingListWrites,
+      },
     )
       .then(async (core) => {
         started = core
@@ -144,6 +148,7 @@ export function usePhoneData(): PhoneStore {
           await core.mergeStored()
           await saveEdits(core)
           await load(core)
+          externalChangesReported()
         }
       : undefined,
   )
