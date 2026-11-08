@@ -244,6 +244,20 @@ impl Mirror {
         Turn(self)
     }
 
+    /// `None` when a batch still holds the folder after `limit`.
+    fn write_turn_within(&self, limit: std::time::Duration) -> Option<Turn<'_>> {
+        let writing = crate::locks::lock(&self.writing);
+        let (mut writing, waited) = self
+            .idle
+            .wait_timeout_while(writing, limit, |writing| *writing)
+            .unwrap_or_else(PoisonError::into_inner);
+        if waited.timed_out() && *writing {
+            return None;
+        }
+        *writing = true;
+        Some(Turn(self))
+    }
+
     /// Reads the setting at first use, and again on every use while it cannot be read.
     fn lock(&self, notify: Notify) -> Result<MutexGuard<'_, Inner>, &'static str> {
         let mut inner = self.inner.lock().map_err(|_| "E_MIRROR_LOCK_FAILED")?;
@@ -333,12 +347,13 @@ impl Mirror {
     }
 
     /// Lets the folder go, writing back first a manifest that is only in memory, unless a batch is
-    /// writing the folder: that batch writes back its own (`apply`).
-    fn leave(&self, inner: &mut Inner) {
+    /// writing the folder: that batch writes back its own (`apply`). `turn` says the caller holds
+    /// the write turn itself.
+    fn leave(&self, inner: &mut Inner, turn: bool) {
         if inner.dirty
             && let (Some(path), Some(manifest)) = (inner.folder.clone(), inner.manifest.take())
         {
-            let batch = *crate::locks::lock(&self.writing);
+            let batch = !turn && *crate::locks::lock(&self.writing);
             let saved = !batch
                 && Root::open(&path).is_ok_and(|root| save_manifest(&root, &manifest).is_ok());
             if !saved {
@@ -353,12 +368,17 @@ impl Mirror {
         inner.kept_count = 0;
     }
 
-    /// At quit: every manifest only in memory goes back to its folder if it can.
-    pub fn flush(&self) {
+    /// At quit: every manifest only in memory goes back to its folder if it can, once a batch
+    /// still writing has written back its own; one that outlasts `limit` is left to finish alone.
+    pub fn flush(&self, limit: std::time::Duration) {
+        let Some(_turn) = self.write_turn_within(limit) else {
+            log::warn!("W_MIRROR_FLUSH_BUSY");
+            return;
+        };
         let Ok(mut inner) = self.inner.lock() else {
             return;
         };
-        self.leave(&mut inner);
+        self.leave(&mut inner, true);
         for (path, manifest) in inner.pending.drain() {
             if !Root::open(&path).is_ok_and(|root| save_manifest(&root, &manifest).is_ok()) {
                 log::warn!("W_MIRROR_MANIFEST_UNSAVED");
@@ -392,7 +412,7 @@ impl Mirror {
             self.store(&inner, folder.as_deref(), include)?;
             if folder != inner.folder {
                 log::info!("I_MIRROR_OFF");
-                self.leave(&mut inner);
+                self.leave(&mut inner, false);
             }
             inner.folder = folder;
             inner.include_attachments = include;
@@ -414,11 +434,12 @@ impl Mirror {
         &self,
         inner: &mut Inner,
         root: PathBuf,
+        turn: bool,
         notify: Notify,
     ) -> Result<Status, &'static str> {
         self.store(inner, Some(&root), inner.include_attachments)?;
         log::info!("I_MIRROR_FOLDER_CHOSEN");
-        self.leave(inner);
+        self.leave(inner, turn);
         inner.folder = Some(root);
         inner.generation += 1;
         Ok(self.changed(inner, notify))
@@ -444,7 +465,7 @@ impl Mirror {
         }
         if empty || (owner.is_some() && owner == inner.library) {
             return Ok(Choice::Chosen {
-                status: self.use_folder(&mut inner, path, notify)?,
+                status: self.use_folder(&mut inner, path, false, notify)?,
             });
         }
         inner.next_choice += 1;
@@ -470,7 +491,7 @@ impl Mirror {
             ..Manifest::default()
         };
         save_manifest(&root, &manifest).map_err(|_| "E_MIRROR_FOLDER_READ_ONLY")?;
-        self.use_folder(&mut inner, path, notify)
+        self.use_folder(&mut inner, path, true, notify)
     }
 
     pub fn open(&self, known: Option<u64>, notify: Notify) -> Result<Opened, &'static str> {

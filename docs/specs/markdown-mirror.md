@@ -57,6 +57,7 @@ The notes database stays the source of truth: the folder is written by Devot and
   A manifest that could not be written back stays in memory and is written when the mirror resumes, never read again from the folder.
   Turning the mirror off, choosing a folder (the same one again too) and quitting write such a manifest back to its folder first; one that still cannot be written is kept in memory for that folder and written, instead of the folder's older copy being read, the next time the folder is used.
   A batch the mirror is turned off or moved under does the same with its own manifest.
+  Quitting first lets a batch still writing the folder write back its own manifest, waiting up to two seconds for it.
   A batch whose files were written but whose manifest could not be written back answers with one more result after its operations' results, carrying the pause's code, so the pass ends paused as after any other pause.
   A paused mirror checks its folder every 30 seconds and when the main window comes to the front (`mirror_open`) and resumes with a reconcile; Devot never makes the chosen folder itself.
   A manifest that cannot be read, or files without one, pause it too, until a folder is chosen again (or a missing manifest comes back), and the notice says so (`E_MIRROR_MANIFEST_MISSING`, `E_MIRROR_MANIFEST_INVALID`); so does a manifest another library wrote (`E_MIRROR_MANIFEST_FOREIGN`).

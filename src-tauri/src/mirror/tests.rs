@@ -542,8 +542,9 @@ fn reports_a_pause_from_its_manifest_save_as_a_last_result_of_its_own() {
 }
 
 /// Pauses the mirror on `Notes` with a move to `Moved.md` only in memory, lets the manifest be
-/// written again, and returns the folder and its older manifest, which lists `Plan.md`.
-fn pause_with_a_move_unsaved(f: &Fixture) -> (PathBuf, Vec<u8>) {
+/// written again, and returns the folder, its older manifest, which lists `Plan.md`, and the
+/// generation.
+fn pause_with_a_move_unsaved(f: &Fixture) -> (PathBuf, Vec<u8>, u64) {
     let folder = f.folder("Notes");
     f.choose(&folder);
     let generation = f.open().unwrap().generation;
@@ -556,7 +557,7 @@ fn pause_with_a_move_unsaved(f: &Fixture) -> (PathBuf, Vec<u8>) {
     f.apply(generation, &[moved]);
     assert_eq!(f.get().paused, Some("E_MIRROR_FOLDER_READ_ONLY"));
     fs::remove_dir(folder.join(MANIFEST)).unwrap();
-    (folder, older)
+    (folder, older, generation)
 }
 
 fn stored_path(folder: &Path) -> String {
@@ -567,7 +568,7 @@ fn stored_path(folder: &Path) -> String {
 #[test]
 fn writes_back_a_manifest_it_could_not_write_when_turned_off_or_its_folder_chosen_again() {
     let f = Fixture::new();
-    let (folder, _) = pause_with_a_move_unsaved(&f);
+    let (folder, ..) = pause_with_a_move_unsaved(&f);
     f.mirror
         .set(&patch(json!({ "turnOff": true })), &f.notify())
         .unwrap();
@@ -579,7 +580,7 @@ fn writes_back_a_manifest_it_could_not_write_when_turned_off_or_its_folder_chose
     );
 
     let f = Fixture::new();
-    let (folder, older) = pause_with_a_move_unsaved(&f);
+    let (folder, older, _) = pause_with_a_move_unsaved(&f);
     fs::write(folder.join(MANIFEST), older).unwrap();
     assert!(matches!(f.choose(&folder), Choice::Chosen { .. }));
     assert_eq!(stored_path(&folder), "Moved.md");
@@ -592,7 +593,7 @@ fn writes_back_a_manifest_it_could_not_write_when_turned_off_or_its_folder_chose
 #[test]
 fn keeps_a_manifest_it_still_cannot_write_for_the_next_use_of_its_folder() {
     let f = Fixture::new();
-    let (folder, older) = pause_with_a_move_unsaved(&f);
+    let (folder, older, _) = pause_with_a_move_unsaved(&f);
     fs::create_dir(folder.join(MANIFEST)).unwrap();
     f.mirror
         .set(&patch(json!({ "turnOff": true })), &f.notify())
@@ -610,8 +611,21 @@ fn keeps_a_manifest_it_still_cannot_write_for_the_next_use_of_its_folder() {
 #[test]
 fn writes_back_at_quit_a_manifest_it_could_not_write() {
     let f = Fixture::new();
-    let (folder, _) = pause_with_a_move_unsaved(&f);
-    f.mirror.flush();
+    let (folder, ..) = pause_with_a_move_unsaved(&f);
+    f.mirror.flush(WAIT);
+    assert_eq!(stored_path(&folder), "Moved.md");
+}
+
+#[test]
+fn writes_back_a_manifest_it_could_not_write_before_using_a_confirmed_folder() {
+    let f = Fixture::new();
+    let (folder, ..) = pause_with_a_move_unsaved(&f);
+    let other = f.folder("Docs");
+    fs::write(other.join("theirs.md"), "theirs").unwrap();
+    let Choice::Confirm { token, .. } = f.choose(&other) else {
+        panic!("a folder in use needs a confirmation");
+    };
+    f.mirror.confirm(token, &f.notify()).unwrap();
     assert_eq!(stored_path(&folder), "Moved.md");
 }
 
@@ -1123,6 +1137,51 @@ fn a_batch_the_mirror_is_turned_off_under_keeps_a_manifest_it_could_not_write() 
     fs::write(folder.join(MANIFEST), older).unwrap();
     assert!(matches!(f.choose(&folder), Choice::Chosen { .. }));
     assert!(f.open().unwrap().manifest.unwrap().files.contains_key(FILE));
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert!(stored.files.contains_key(FILE));
+}
+
+#[test]
+fn at_quit_waits_for_a_batch_to_write_back_its_manifest_first() {
+    let f = Fixture::new();
+    let (folder, _, generation) = pause_with_a_move_unsaved(&f);
+    let mirror = &f.mirror;
+    let ops = [file_op("a.png")];
+    std::thread::scope(|scope| {
+        let (batch, release) = hold(scope, mirror, generation, &ops);
+        let (flushed, done) = std::sync::mpsc::channel();
+        scope.spawn(move || {
+            mirror.flush(WAIT);
+            let _ = flushed.send(());
+        });
+        let waited = done
+            .recv_timeout(std::time::Duration::from_millis(300))
+            .is_err();
+        drop(release);
+        assert!(waited, "quit wrote the folder beside a batch");
+        assert_eq!(batch.join().unwrap().unwrap()[0].code, None);
+        done.recv_timeout(WAIT).expect("quit waited on");
+    });
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert_eq!(stored.notes[NOTE].path, "Moved.md");
+    assert!(stored.files.contains_key(FILE));
+}
+
+#[test]
+fn at_quit_leaves_a_batch_that_outlasts_the_limit_to_finish_alone() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    let mirror = &f.mirror;
+    let ops = [file_op("a.png")];
+    std::thread::scope(|scope| {
+        let (batch, release) = hold(scope, mirror, generation, &ops);
+        let flushed = soon(scope, || mirror.flush(std::time::Duration::from_millis(50)));
+        drop(release);
+        assert!(flushed.is_some(), "quit waited past its limit");
+        assert_eq!(batch.join().unwrap().unwrap()[0].code, None);
+    });
     let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
     assert!(stored.files.contains_key(FILE));
 }
