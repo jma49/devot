@@ -42,6 +42,7 @@ Losing or corrupting a note is the one failure that cannot be undone.
   The raw copy reads the three files through `/bin/cat` in a process of its own, on the database's thread, and keeps a file only when `cat` exits cleanly, since closing any descriptor of a file in the app's process would drop every POSIX lock it holds on it, the app's own SQLite locks included (#761).
   Every other window with a core of its own (each main window, `main` hidden too, and each note window) is asked first (`devot://restore-prepare`): it saves, holds compaction, stops its core and answers (`backup_restore_ready`); a window that has not answered in 5 seconds calls the restore off (`E_BACKUP_RESTORE_WINDOWS`).
   Once the restore is over, ran or not, each of them reloads (`devot://restore-done`).
+  From its start until those are sent, every restore, one with no other window to ask too, refuses another (`E_BACKUP_RESTORE_BUSY`, `RestorePhase` in `src-tauri/src/backups.rs`).
   So no window writes the notes it held from before the restore back over it, and the compaction in `main` is held wherever the restore starts.
   Failures are logged by code and shown as a notice.
   While sync is on, a restore is refused (`E_BACKUP_SYNC_ON`, said in the sheet): the relay's newer clocks would win the next sync's merges and its purges are final, so the restore would be undone within a cycle.
