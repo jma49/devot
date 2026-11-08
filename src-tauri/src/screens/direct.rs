@@ -303,7 +303,7 @@ pub async fn run(services: &Services, op: Op) -> Result<Value, &'static str> {
     } = services;
     match op {
         Op::EditorSettingsGet(Empty {}) => {
-            value(editor_settings::editor_settings_get_inner(settings).await)
+            value(editor_settings::editor_settings_get_inner(settings, |next| announce(next)).await)
         }
         Op::EditorSettingsSet(EditorPatch { patch }) => value(
             editor_settings::editor_settings_set_inner(settings, patch, |next| announce(next))
@@ -648,7 +648,10 @@ mod tests {
         let store = &by_command.services.editor_settings;
         assert_eq!(
             direct(&by_direct, "direct.editorSettings.get", json!({})),
-            json(block_on(editor_settings::editor_settings_get_inner(store)))
+            json(block_on(editor_settings::editor_settings_get_inner(
+                store,
+                |_| {}
+            )))
         );
         let larger = json!({ "fontSize": 16 });
         let commanded = json(block_on(editor_settings::editor_settings_set_inner(

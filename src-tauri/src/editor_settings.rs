@@ -562,6 +562,9 @@ struct Held {
     /// None while the file cannot be read: nothing is written over it then, since a change would
     /// drop every value it holds.
     stored: Option<Map<String, Value>>,
+    /// The settings a read recovered after failed ones, until a caller announces them: the pages
+    /// shown meanwhile hold the defaults and take only announced revisions.
+    unannounced: bool,
 }
 
 const CODES: Codes = Codes {
@@ -622,6 +625,7 @@ impl EditorSettingsStore {
                 settings,
             },
             stored,
+            unannounced: false,
         }
     }
 
@@ -636,6 +640,7 @@ impl EditorSettingsStore {
                     unread
                 } else {
                     read.snapshot.revision = unread.snapshot.revision + 1;
+                    read.unannounced = true;
                     read
                 }
             }
@@ -650,6 +655,17 @@ impl EditorSettingsStore {
             .lock()
             .map_err(|_| "E_EDITOR_SETTINGS_LOCK_FAILED")?;
         Ok(self.held(&mut current).snapshot.clone())
+    }
+
+    /// The snapshot, and whether it holds settings recovered since the windows were last told;
+    /// the caller announces them then, so the windows read meanwhile leave the defaults.
+    fn get_to_announce(&self) -> Result<(Snapshot, bool), &'static str> {
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|_| "E_EDITOR_SETTINGS_LOCK_FAILED")?;
+        let held = self.held(&mut current);
+        Ok((held.snapshot.clone(), std::mem::take(&mut held.unannounced)))
     }
 
     pub fn update(&self, patch: &Map<String, Value>) -> Result<Snapshot, &'static str> {
@@ -687,6 +703,7 @@ impl EditorSettingsStore {
         *now = Held {
             snapshot: next.clone(),
             stored: Some(stored),
+            unannounced: false,
         };
         Ok(next)
     }
@@ -697,7 +714,7 @@ pub async fn editor_settings_get(
     app: AppHandle,
     store: State<'_, Arc<EditorSettingsStore>>,
 ) -> Result<Snapshot, String> {
-    let snapshot = editor_settings_get_inner(&store).await?;
+    let snapshot = editor_settings_get_inner(&store, |recovered| announce(&app, recovered)).await?;
     // An iOS window is built without a theme and its scene connects after setup: the page's first
     // read is when its window surely exists.
     #[cfg(target_os = "ios")]
@@ -761,11 +778,17 @@ pub async fn editor_settings_set(
 }
 
 /// The bodies of the commands, which the iPhone's native Settings call too
-/// (`screens::direct`).
+/// (`screens::direct`). A read that recovers the settings after failed ones is announced.
 pub(crate) async fn editor_settings_get_inner(
     store: &Arc<EditorSettingsStore>,
+    announce: impl FnOnce(&Snapshot),
 ) -> Result<Snapshot, &'static str> {
-    crate::task::coded_with(store, TASK_FAILED, |store| store.get()).await
+    let (snapshot, recovered) =
+        crate::task::coded_with(store, TASK_FAILED, |store| store.get_to_announce()).await?;
+    if recovered {
+        announce(&snapshot);
+    }
+    Ok(snapshot)
 }
 
 /// `announce` tells every window before the caller hears the change.
@@ -1900,6 +1923,32 @@ mod tests {
             written,
             json!({ "fontSize": 16, "darkTheme": "ivory", "lineNumbers": false })
         );
+    }
+
+    #[test]
+    fn the_read_that_recovers_the_settings_is_announced_once() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        std::fs::create_dir(&path).unwrap();
+        let s = Arc::new(store(&dir));
+        let announced = AtomicUsize::new(0);
+        let read = || {
+            tauri::async_runtime::block_on(editor_settings_get_inner(&s, |_| {
+                announced.fetch_add(1, Ordering::SeqCst);
+            }))
+            .unwrap()
+        };
+        assert_eq!(read().settings, EditorSettings::default());
+        assert_eq!(announced.load(Ordering::SeqCst), 0);
+        std::fs::remove_dir(&path).unwrap();
+        std::fs::write(&path, br#"{ "fontSize": 16 }"#).unwrap();
+        // A window built meanwhile reads first; the page's read still announces the recovery.
+        assert_eq!(s.get().unwrap().settings.font_size, 16);
+        assert_eq!(read().settings.font_size, 16);
+        assert_eq!(announced.load(Ordering::SeqCst), 1);
+        read();
+        assert_eq!(announced.load(Ordering::SeqCst), 1);
     }
 
     #[cfg(unix)]
