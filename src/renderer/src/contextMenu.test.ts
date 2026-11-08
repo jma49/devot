@@ -61,7 +61,10 @@ describe('shownGroups', () => {
   })
 })
 
-function fakeApi() {
+const nextTick = () => new Promise<void>((resolve) => setTimeout(resolve))
+
+/** `slow`: insert, remove and setText resolve on the next tick, and popup stays open until `close`. */
+function fakeApi({ slow = false } = {}) {
   interface Item {
     kind: 'item' | 'separator' | 'submenu' | 'predefined'
     options?: NativeItemOptions
@@ -71,6 +74,7 @@ function fakeApi() {
   }
   const calls: string[] = []
   const menus: Item[][] = []
+  let closeOpen = () => {}
   const api: NativeMenuApi = {
     async item(options) {
       const item: Item = { kind: 'item', options, text: options.text }
@@ -78,6 +82,7 @@ function fakeApi() {
       return Object.assign(item, {
         async setText(text: string) {
           calls.push(`setText ${text}`)
+          if (slow) await nextTick()
           item.text = text
         },
         async setChecked(checked: boolean) {
@@ -109,14 +114,17 @@ function fakeApi() {
       return {
         async insert(more, position) {
           calls.push(`insert ${position}`)
+          if (slow) await nextTick()
           list.splice(position, 0, ...(more as Item[]))
         },
         async remove(item) {
           calls.push('remove')
+          if (slow) await nextTick()
           list.splice(list.indexOf(item as Item), 1)
         },
         async popup(at) {
           calls.push(at ? `popup at ${at.x},${at.y}` : 'popup')
+          if (slow) await new Promise<void>((resolve) => (closeOpen = resolve))
         },
         async close() {
           calls.push('close')
@@ -145,7 +153,7 @@ function fakeApi() {
     if (!item?.options) throw new Error(`no item ${id}`)
     item.options.action()
   }
-  return { api, calls, menus, shown, click }
+  return { api, calls, menus, shown, click, close: () => closeOpen() }
 }
 
 describe('createContextMenu', () => {
@@ -257,6 +265,63 @@ describe('createContextMenu', () => {
     fake.click('devot.test.lift')
     fake.click('devot.test.drop')
     expect(picked).toEqual(['lift', 'drop'])
+  })
+
+  it('lays out and pops up for the newest target when a second popup comes while the first is laid out', async () => {
+    const fake = fakeApi({ slow: true })
+    const picked: [Action, string][] = []
+    const menu = await createContextMenu(
+      'test',
+      GROUPS,
+      (a, t) => picked.push([a, t.name]),
+      fake.api,
+      target(),
+    )
+    const first = menu.popup(target({ name: 'A', nested: true, flagged: true }))
+    const second = menu.popup(target({ name: 'B', nested: true }))
+    await vi.waitFor(() => expect(fake.calls.filter((c) => c === 'popup')).toHaveLength(1))
+    expect(fake.shown()).toEqual([
+      'New Notebook',
+      '---',
+      'Pin to Top P',
+      'All Notes',
+      '---',
+      'Trash [ ]',
+    ])
+    fake.click('devot.test.lift')
+    fake.close()
+    await Promise.all([first, second])
+    expect(picked).toEqual([['lift', 'B']])
+    expect(fake.calls.filter((c) => c === 'popup')).toHaveLength(1)
+  })
+
+  it('waits for an open popup to close before laying out the next, and picks act on the target shown', async () => {
+    const fake = fakeApi({ slow: true })
+    const picked: [Action, string][] = []
+    const menu = await createContextMenu(
+      'test',
+      GROUPS,
+      (a, t) => picked.push([a, t.name]),
+      fake.api,
+      target(),
+    )
+    const first = menu.popup(target({ name: 'A', nested: true }))
+    await vi.waitFor(() => expect(fake.calls).toContain('popup'))
+    const second = menu.popup(target({ name: 'B' }))
+    await nextTick()
+    expect(fake.shown()).toContain('All Notes')
+    fake.click('devot.test.lift')
+    fake.close()
+    await first
+    await vi.waitFor(() => expect(fake.calls.filter((c) => c === 'popup')).toHaveLength(2))
+    expect(fake.shown()).toEqual(['New Notebook', '---', 'Pin to Top P', '---', 'Trash [ ]'])
+    fake.click('devot.test.drop')
+    fake.close()
+    await second
+    expect(picked).toEqual([
+      ['lift', 'A'],
+      ['drop', 'B'],
+    ])
   })
 
   it('adds system items as they are and never relabels them', async () => {
