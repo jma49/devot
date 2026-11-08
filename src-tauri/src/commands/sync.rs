@@ -23,7 +23,7 @@ const MAX_STATE_VALUE: usize = 128;
 const MAX_CURSOR: usize = 4096;
 /// A change tag is the transport's too: empty on a relay, archived record system fields on iCloud.
 pub(crate) const MAX_TAG: usize = 8192;
-const STATE_KEYS: [&str; 8] = [
+const STATE_KEYS: [&str; 9] = [
     "since",
     "epoch",
     "lastSync",
@@ -32,6 +32,7 @@ const STATE_KEYS: [&str; 8] = [
     "hasSynced",
     "restoredAt",
     "keepRestoredBefore",
+    "keepingRestored",
 ];
 const MAX_VERSION: i64 = 9_007_199_254_740_991;
 
@@ -418,6 +419,7 @@ mod tests {
         assert_eq!(validate_state("keepRestoredBefore", ""), Ok(()));
         assert_eq!(validate_state("restoredAt", ""), Ok(()));
         assert!(validate_state("restoredAt", "1730000000000").is_err());
+        assert_eq!(validate_state("keepingRestored", "1730000000000"), Ok(()));
     }
 
     const FILE: &str = "0192a6f0-0000-7000-8000-00000000f001";
