@@ -24,7 +24,10 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
             let item = UITab(title: "", image: UIImage(systemName: TabModel.symbol(tab)), identifier: tab.rawValue) { _ in
                 navigation
             }
-            if #available(iOS 26.1, *) { item.selectedImage = UIImage(systemName: TabModel.symbol(tab) + ".fill") }
+            // UITab.selectedImage first appears in the iOS 27 SDK (Swift 6.4); CI builds with the iOS 26 SDK.
+            #if compiler(>=6.4)
+                if #available(iOS 26.1, *) { item.selectedImage = UIImage(systemName: TabModel.symbol(tab) + ".fill") }
+            #endif
             item.accessibilityLabel = Self.name(tab)
             item.accessibilityIdentifier = tab.rawValue
             items[tab] = item
