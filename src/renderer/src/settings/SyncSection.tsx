@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react'
 import { errorCode } from '../backups'
 import { QUOTA } from '../../../core/sync/transport'
 import { countOf, untilTime, uploadCounts } from '../format'
@@ -119,6 +119,38 @@ function rotatedMessage(onICloud: boolean, madeHere: boolean): MessageKey {
   return madeHere ? 'syncSettings.rotatedIcloud' : 'syncSettings.rotatedIcloudFollowed'
 }
 
+type SetupPath = 'first' | 'another'
+
+/** The setup a device not in a vault goes through, and the recovery key on offer in one. */
+interface Setup {
+  inVault: boolean
+  path: SetupPath | undefined
+  relayChosen: boolean | undefined
+  recoveryKey: string | undefined
+}
+
+type SetupChange =
+  | { kind: 'membership'; inVault: boolean }
+  | { kind: 'path'; path: SetupPath | undefined }
+  | { kind: 'relay'; chosen: boolean }
+  | { kind: 'recoveryKey'; key: string | undefined }
+
+// Leaving a vault forgets its key in Rust, so its offer goes and the setup starts again.
+function setupReducer(setup: Setup, change: SetupChange): Setup {
+  switch (change.kind) {
+    case 'membership':
+      if (change.inVault === setup.inVault) return setup
+      if (change.inVault) return { ...setup, inVault: true }
+      return { inVault: false, path: undefined, relayChosen: undefined, recoveryKey: undefined }
+    case 'path':
+      return { ...setup, path: change.path }
+    case 'relay':
+      return { ...setup, relayChosen: change.chosen }
+    case 'recoveryKey':
+      return { ...setup, recoveryKey: change.key }
+  }
+}
+
 /**
  * Settings > Sync: iCloud or a relay first (a build without the container offers only the relay).
  * For a vault on iCloud: its state and what to do about it, storage and devices. For a relay: the
@@ -136,10 +168,7 @@ export function SyncSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string; n: number }>()
   const [creating, setCreating] = useState(false)
   const [announcement, setAnnouncement] = useState('')
-  const [recoveryKey, setRecoveryKey] = useState<string>()
   const [keyFocus, setKeyFocus] = useState(false)
-  const [path, setPath] = useState<'first' | 'another'>()
-  const [relayChosen, setRelayChosen] = useState<boolean>()
   const [chosen, setChosen] = useState(0)
   const [backedOut, setBackedOut] = useState(0)
   const [focusPairing, setFocusPairing] = useState(0)
@@ -160,6 +189,17 @@ export function SyncSection() {
   const icloud = useICloudStatus(snapshot)
   const onICloud = snapshot.vault && snapshot.transport === 'icloud'
   const inVault = snapshot.enrolled || onICloud
+  const [setup, change] = useReducer(setupReducer, {
+    inVault,
+    path: undefined,
+    relayChosen: undefined,
+    recoveryKey: undefined,
+  })
+  const { path, relayChosen, recoveryKey } = setup
+  const setRecoveryKey = (key: string | undefined) => change({ kind: 'recoveryKey', key })
+  const setPath = (next: SetupPath | undefined) => change({ kind: 'path', path: next })
+  const setRelayChosen = (relay: boolean) => change({ kind: 'relay', chosen: relay })
+  useEffect(() => change({ kind: 'membership', inVault }), [inVault])
   // Another device changed the key: only its successor can be joined, and no code is shown.
   const rotatedAway = snapshot.rotated || snapshot.status.code === 'E_SYNC_VAULT_ROTATED'
   const attention = icloudAttention(snapshot)
@@ -211,7 +251,7 @@ export function SyncSection() {
     let current = true
     pendingRecoveryKey().then(
       (key) => {
-        if (current && key) setRecoveryKey(key)
+        if (current && key) change({ kind: 'recoveryKey', key })
       },
       () => undefined,
     )
@@ -233,7 +273,7 @@ export function SyncSection() {
     if (backedOut > 0) firstButton.current?.focus()
   }, [backedOut])
 
-  const choose = (next: 'first' | 'another') => {
+  const choose = (next: SetupPath) => {
     setPath(next)
     setChosen((n) => n + 1)
   }

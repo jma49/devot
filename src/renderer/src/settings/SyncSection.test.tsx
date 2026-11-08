@@ -18,6 +18,8 @@ interface Answers {
   useFails?: string | undefined
   leaveFails?: string | undefined
   rotatedKey?: string | null | undefined
+  pendingKey?: string | undefined
+  joined?: Record<string, unknown> | undefined
 }
 
 const DEVICES = [
@@ -50,7 +52,9 @@ vi.mock('../ipc', () => ({
         if (answers.icloud instanceof Error) throw answers.icloud
         return answers.icloud
       case 'sync_recovery_key':
-        return null
+        return answers.pendingKey ?? null
+      case 'sync_join_code':
+        return answers.joined
       case 'sync_vault_rotate':
         if ((args as { relaySecret?: string }).relaySecret !== 'relay-secret')
           throw new Error('E_SYNC_RELAY_SECRET')
@@ -126,6 +130,8 @@ afterEach(() => {
   answers.useFails = undefined
   answers.leaveFails = undefined
   answers.rotatedKey = undefined
+  answers.pendingKey = undefined
+  answers.joined = undefined
   vi.restoreAllMocks()
 })
 
@@ -621,6 +627,40 @@ describe('Settings > Sync on the Mac', () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 60)))
     expect(el.textContent).toMatch(/left the vault|Vault left/)
     expect(button(el, 'Leave This Vault…')).toBeUndefined()
+  })
+
+  it('drops the recovery key on offer once the vault is left, and asks the first question again', async () => {
+    answers.pendingKey = 'ABCDE-FGHIJ-KLMNO'
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER)
+    expect(el.textContent).toContain('ABCDE-FGHIJ-KLMNO')
+    answers.pendingKey = undefined
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    await act(async () => button(el, 'Leave')?.click())
+    await settle()
+    expect(el.textContent).not.toContain('ABCDE-FGHIJ-KLMNO')
+    expect(button(el, 'I Saved It')).toBeUndefined()
+    expect(button(el, 'This Is My First Device')).toBeDefined()
+    expect(button(el, 'I’m Adding Another Device')).toBeDefined()
+  })
+
+  it('asks the first question again when a device that joined with a code leaves', async () => {
+    const away = { ...snapshot({ transport: 'relay', vault: false, enabled: false }) }
+    const el = await show({ ...away, relayUrl: 'https://relay.example.test' }, NO_CONTAINER)
+    await act(async () => button(el, 'I’m Adding Another Device')?.click())
+    const code = el.querySelector<HTMLInputElement>('input[type=text]')
+    if (!code) throw new Error('no code field')
+    type(code, 'ABCD-EFGH')
+    answers.joined = snapshot({ transport: 'relay', enrolled: true })
+    const join = el.querySelector<HTMLButtonElement>('button[aria-label="Join With a Code"]')
+    await act(async () => join?.click())
+    await settle()
+    expect(button(el, 'Leave This Vault…')).toBeDefined()
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    await act(async () => button(el, 'Leave')?.click())
+    await settle()
+    expect(button(el, 'This Is My First Device')).toBeDefined()
+    expect(button(el, 'I’m Adding Another Device')).toBeDefined()
+    expect(el.querySelector('button[aria-label="Join With a Code"]')).toBeNull()
   })
 
   it('offers a stuck relay device the way out beside the joins', async () => {
