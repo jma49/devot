@@ -224,6 +224,7 @@ Part of the [architecture overview](../architecture.md).
   Each window saves its own changes: a relayed change is not a pending edit of the window it reaches, which also keeps no version or baseline of it (the window that made the change does).
   Saves merge into the stored state rather than replace it: two windows writing the same note are two writers on one body version, so the second write is refused (`E_NOTE_BODY_STALE`), takes the stored copy in and writes again (see Body versions), and what it takes in reaches its editor too.
   Each write is relayed as `saved` with its date, so the main window's lists move the note without a reload (a note made in a note window, through a `[[` link, reloads them).
+  A write reported while a notebook change or a batch reloads the lists waits for the last such reload to finish and then dates its note, as the reloaded rows may have been read before it (`src/renderer/src/app/useLibraryLists.ts`).
   A note trashed or purged is relayed as `gone` (`purged` when it was deleted for good), so its note window turns read-only and says why; a note put back from the Trash is relayed as `back`, and its note window turns editable again.
   A note window's note is live, trashed or purged (`nextLife` in `src/renderer/src/noteWindow/noteLife.ts`): only `gone` and `back` move it, and a purge is final.
   Empty Trash relays each note as soon as it is purged, so a purge that fails later in the run still leaves the windows of the notes before it told.
