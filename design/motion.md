@@ -238,6 +238,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Under the native screens the note's pickers (notebook, status, tags) are the system's sheets at medium and large height, with a grabber and a close item, and a list scrolled to its edge pulls the sheet to large; they rise and close with the system's motion.
   A single choice closes the sheet, then writes; the tags picker stays open and its ticks follow each write.
   Note Info is a content-sized system sheet with the date pickers; Share is the system's share sheet.
+  Note Info's Properties card shows the note's front matter; Apply on a row is rule 1: it writes through the gate, and once the note changes the sheet reads Note Info again and the rows are replaced at once, so the applied row's badge and Apply go without motion.
 - **New Note** (the native screens): rule 3.
   The compose button in the list's bar presses as any bar button.
   The tap pushes the new note's screen in the same turn with the system's push, before the note exists; its cover holds, with no title, until the note exists and the page has painted it, then fades as any note's cover does.

@@ -16,6 +16,8 @@ enum WriteIntent: Equatable {
     case duplicate(noteId: String)
     /// Note Info's dates, as milliseconds since 1970.
     case setDates(noteId: String, createdAt: Double?, updatedAt: Double?)
+    /// A front matter row's value given to the note, from Note Info's Apply.
+    case applyFrontMatter(noteId: String, field: FrontMatter.Field, value: String)
 }
 
 /// The short Pro sheet's kinds, as `requireEditing.ts` names them.

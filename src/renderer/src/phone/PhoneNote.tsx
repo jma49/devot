@@ -13,6 +13,7 @@ import { createAiGenerator } from '../../../core/aiProvider'
 import { createSuggester } from '../../../core/aiSuggest'
 import { noteCounts } from '../../../core/noteCounts'
 import { tagCounts } from '../../../core/tags'
+import { TEMPLATES_BOOK_ID } from '../../../core/templatesBook'
 import { aiTransport } from '../ai'
 import { aiSuggestFailure } from '../aiEditView'
 import { licenceEntitlements, useEditing } from '../licence'
@@ -558,6 +559,7 @@ export function PhoneNote(props: {
             <Preview
               core={core}
               markdown={mode === 'preview' ? text : previewText}
+              frontMatterInInfo={native !== undefined && note?.bookId !== TEMPLATES_BOOK_ID}
               onOpenNote={openNote}
               onToggleTask={(at) =>
                 requireEditing({ op: 'task', id: noteId }, () => editor.current?.toggleTask(at))

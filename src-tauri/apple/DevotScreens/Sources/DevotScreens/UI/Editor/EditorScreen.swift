@@ -330,9 +330,11 @@ final class EditorScreen: WebHolderScreen {
         guard facts.id == noteId else { return }
         note = facts
         tagPicker?.noteChanged(facts)
+        readInfoAgain()
     }
 
     func retitle(_ next: String) {
+        if next != noteTitle { readInfoAgain() }
         noteTitle = next
         cover.title = next
         showBarTitle()
@@ -583,11 +585,24 @@ final class EditorScreen: WebHolderScreen {
         guard let note, presentedViewController == nil else { return }
         actions.library { [weak self] contents in
             let notebook = contents?.books.first { $0.id == note.bookId }?.name ?? L10n.phoneNoNotebook()
-            self?.actions.page(.noteInfo, ["noteId": .string(note.id)]) { outcome in
-                var info: NoteInfo?
-                if case .ok(let result) = outcome { info = NoteInfo(result) }
-                self?.presentInfo(note: note, notebook: notebook, info: info)
-            }
+            self?.readInfo(note.id) { info in self?.presentInfo(note: note, notebook: notebook, info: info) }
+        }
+    }
+
+    /// Note Info while its sheet is up: Apply changes the note, and the note's change reads it again.
+    private(set) weak var noteInfo: NoteInfoModel?
+
+    private func readInfo(_ id: String, done: @escaping (NoteInfo?) -> Void) {
+        actions.page(.noteInfo, ["noteId": .string(id)]) { outcome in
+            if case .ok(let result) = outcome { return done(NoteInfo(result)) }
+            done(nil)
+        }
+    }
+
+    private func readInfoAgain() {
+        guard let shown = noteInfo, let id = noteId else { return }
+        readInfo(id) { [weak shown] info in
+            if let info { shown?.info = info }
         }
     }
 
@@ -595,9 +610,13 @@ final class EditorScreen: WebHolderScreen {
         guard view.window != nil, presentedViewController == nil else { return }
         weak var shown: ContentSheetController?
         let write = actions.write
+        let model = NoteInfoModel(info: info) { field, value in
+            write(.applyFrontMatter(noteId: note.id, field: field, value: value))
+        }
+        noteInfo = model
         let sheet = ContentSheetController(
             NoteInfoSheet(
-                note: note, notebook: notebook, info: info,
+                note: note, notebook: notebook, model: model,
                 actions: NoteInfoActions(
                     setDates: { created, updated in
                         write(.setDates(noteId: note.id, createdAt: created, updatedAt: updated))

@@ -39,6 +39,7 @@ export const SCREENS_OPS = [
   'editor.duplicate',
   'note.info',
   'note.setDates',
+  'note.applyFrontMatter',
   'note.addTag',
   'note.today',
   'activity.writing',

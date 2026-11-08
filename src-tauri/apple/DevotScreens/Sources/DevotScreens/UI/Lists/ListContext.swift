@@ -196,6 +196,11 @@ final class ListContext {
             if let createdAt { args["createdAt"] = .number(createdAt) }
             if let updatedAt { args["updatedAt"] = .number(updatedAt) }
             write(.noteSetDates, args) { _ in }
+        case .applyFrontMatter(let noteId, let field, let value):
+            write(
+                .noteApplyFrontMatter,
+                ["noteId": .string(noteId), "field": .string(field.rawValue), "value": .string(value)]
+            ) { _ in }
         }
         return true
     }

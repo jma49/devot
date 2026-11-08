@@ -24,6 +24,8 @@ const MAX_QUERY_CHARS: usize = 10 * (100 + 16);
 const MAX_CODE_CHARS: usize = 64;
 /// MAX_TAG_NAME_CHARS in src/core/tagNames.ts.
 const MAX_TAG_NAME_CHARS: usize = 100;
+/// Far more tags than one note's front matter names.
+const MAX_FRONT_MATTER_TAGS: usize = 200;
 /// What the native find bar takes: a phrase, never a document.
 const MAX_FIND_CHARS: usize = 1000;
 /// A keyboard and its bar never cover more than a tall screen.
@@ -283,6 +285,24 @@ pub struct SetDates {
     pub updated_at: Option<u64>,
 }
 
+/// The note field a front matter row names otherwise (`frontMatterView` in src/core/preview).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NoteField {
+    Title,
+    Status,
+    Tags,
+}
+
+/// Note Info's Apply: `value` is what the row offers, the tags as a JSON list of names.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ApplyFrontMatter {
+    pub note_id: String,
+    pub field: NoteField,
+    pub value: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct AddTag {
@@ -355,6 +375,8 @@ pub enum Op {
     NoteInfo(NoteArgs),
     #[serde(rename = "note.setDates")]
     NoteSetDates(SetDates),
+    #[serde(rename = "note.applyFrontMatter")]
+    NoteApplyFrontMatter(ApplyFrontMatter),
     #[serde(rename = "note.addTag")]
     NoteAddTag(AddTag),
     /// Today's note, found or made as `devot://today` does; the answer is its `id`.
@@ -396,6 +418,7 @@ pub const OPS: &[&str] = &[
     "editor.duplicate",
     "note.info",
     "note.setDates",
+    "note.applyFrontMatter",
     "note.addTag",
     "note.today",
     "activity.writing",
@@ -895,6 +918,10 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             note_ids(std::slice::from_ref(note_id), 1)?;
             tag_name(name)
         }
+        Op::NoteApplyFrontMatter(apply) => {
+            note_ids(std::slice::from_ref(&apply.note_id), 1)?;
+            front_matter_value(apply.field, &apply.value)
+        }
         Op::EditorFind(find) => match (find.action, find.query.as_deref()) {
             (FindAction::Search, Some(query)) if query.chars().count() <= MAX_FIND_CHARS => Ok(()),
             (FindAction::Search, Some(_)) => Err("E_SCREENS_QUERY_TOO_LONG"),
@@ -947,6 +974,22 @@ fn change(change: &Change) -> Result<(), &'static str> {
             note_ids(std::slice::from_ref(tag_id), 1)
         }
         Change::Pinned(_) | Change::Trash(_) | Change::Restore(_) | Change::Purge(_) => Ok(()),
+    }
+}
+
+fn front_matter_value(field: NoteField, value: &str) -> Result<(), &'static str> {
+    match field {
+        NoteField::Title => title(value),
+        NoteField::Status if NOTE_STATUSES.contains(&value) => Ok(()),
+        NoteField::Status => Err("E_SCREENS_ARGS_INVALID"),
+        NoteField::Tags => {
+            let names: Vec<String> =
+                serde_json::from_str(value).map_err(|_| "E_SCREENS_ARGS_INVALID")?;
+            if names.len() > MAX_FRONT_MATTER_TAGS {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            names.iter().try_for_each(|name| tag_name(name))
+        }
     }
 }
 
@@ -1155,6 +1198,28 @@ mod tests {
         assert_eq!(
             from_swift(1, &excerpts(MAX_EXCERPT_IDS + 1)),
             Err("E_SCREENS_IDS_TOO_MANY")
+        );
+    }
+
+    fn apply_tags(count: usize) -> Vec<u8> {
+        let names: Vec<String> = (0..count).map(|i| format!("t{i}")).collect();
+        let value = serde_json::to_string(&names).unwrap();
+        bytes(&json!({
+            "v": 1, "id": 1, "op": "note.applyFrontMatter",
+            "args": { "noteId": NOTE, "field": "tags", "value": value }
+        }))
+    }
+
+    #[test]
+    fn applies_at_most_max_front_matter_tags_tags() {
+        assert!(from_swift(1, &apply_tags(MAX_FRONT_MATTER_TAGS)).is_ok());
+        assert!(
+            from_swift(1, &apply_tags(0)).is_ok(),
+            "the front matter may take every tag off"
+        );
+        assert_eq!(
+            from_swift(1, &apply_tags(MAX_FRONT_MATTER_TAGS + 1)),
+            Err("E_SCREENS_ARGS_INVALID")
         );
     }
 

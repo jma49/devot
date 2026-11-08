@@ -61,6 +61,14 @@ final class ListContextTests: XCTestCase {
         XCTAssertEqual(shown.count, 2)
     }
 
+    func testAFrontMatterRowIsAppliedByThePage() throws {
+        XCTAssertTrue(context.perform(.applyFrontMatter(noteId: id, field: .tags, value: #"["work"]"#)))
+        let sent = try XCTUnwrap(bridge.sent.first)
+        XCTAssertEqual(sent.op, Op.noteApplyFrontMatter.rawValue)
+        XCTAssertEqual(
+            sent.args, ["noteId": .string(id), "field": .string("tags"), "value": .string(#"["work"]"#)])
+    }
+
     func testANewNotebookIsMadeByThePage() throws {
         XCTAssertTrue(context.perform(.newNotebook))
         let sent = try XCTUnwrap(bridge.sent.first)

@@ -300,7 +300,17 @@ export function PhoneApp() {
       ...newNoteHandlers(() => nativeNewNote.current),
       ...listHandlers(() => latestStore.current.core),
       ...searchHandlers(() => latestStore.current.core),
-      ...noteHandlers(() => latestStore.current.core),
+      ...noteHandlers(
+        () => latestStore.current.core,
+        () => {
+          const { notes, templates, tags, refresh } = latestStore.current
+          return {
+            note: (id) => notes.find((n) => n.id === id) ?? templates.find((n) => n.id === id),
+            tags,
+            refresh,
+          }
+        },
+      ),
       ...activityHandlers(() => {
         const { core, notes } = latestStore.current
         return (

@@ -368,6 +368,40 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertEqual(screen.navigationItem.backButtonDisplayMode, .minimal)
     }
 
+    private func info(title: String?) -> JSONValue {
+        var row: [String: JSONValue] = [
+            "key": .string("title"), "value": .object(["kind": .string("text"), "text": .string("Trip")]),
+        ]
+        if let title {
+            row["difference"] = .object(["field": .string("title"), "badge": .string("Note: \(title)"), "value": .string("Trip")])
+        }
+        return .object([
+            "words": .number(1), "characters": .number(4), "readingMinutes": .number(1), "revisions": .number(0),
+            "backlinks": .array([]),
+            "frontMatter": .object(["kind": .string("properties"), "rows": .array([.object(row)])]),
+        ])
+    }
+
+    func testNoteInfoAppliesAFrontMatterRowThroughTheGateAndReadsItselfAgain() throws {
+        let screen = editor(first)
+        push(screen)
+        screen.showNote(facts(first))
+        page.answers[.noteInfo] = info(title: "Plans")
+        screen.showInfo()
+        settle(until: { screen.presentedViewController is ContentSheetController })
+        let shown = try XCTUnwrap(screen.noteInfo)
+        let row = try XCTUnwrap(shown.rows.first)
+        XCTAssertEqual(row.difference?.value, "Trip")
+        shown.apply(try XCTUnwrap(row.difference))
+        XCTAssertEqual(page.writes.last, .applyFrontMatter(noteId: first, field: .title, value: "Trip"))
+        page.answers[.noteInfo] = info(title: nil)
+        screen.retitle("Trip")
+        XCTAssertEqual(page.ops(.noteInfo).count, 2, "the note's new title reads Note Info again")
+        XCTAssertNil(shown.rows.first?.difference)
+        screen.showNote(facts(first, status: "active"))
+        XCTAssertEqual(page.ops(.noteInfo).count, 3)
+    }
+
     private func facts(_ id: String, pinned: Bool = false, status: String = "none") -> EditorNote {
         EditorNote(id: id, bookId: nil, status: status, pinned: pinned, tagIds: [], createdAt: 1, updatedAt: 2)
     }

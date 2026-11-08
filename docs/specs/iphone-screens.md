@@ -374,8 +374,9 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 | `editor.ai { action }`                             | Swift → page | the toolbar's AI button (`suggest`) or the formatting bar's accept (`accept`)                                           |
 | `editor.find { action, query? }`                   | Swift → page | the native find bar: `search` with its query, `next`, `previous`, `close`; answers `{ total, current, capped }`         |
 | `editor.duplicate`                                 | Swift → page | More > Duplicate: the core copies the shown note with its tags and answers `{ id, title }`                              |
-| `note.info { noteId }`                             | Swift → page | Note Info opened: answers `{ words, characters, readingMinutes, revisions, backlinks }`                                 |
+| `note.info { noteId }`                             | Swift → page | Note Info opened: answers `{ words, characters, readingMinutes, revisions, backlinks, frontMatter }`                    |
 | `note.setDates { noteId, createdAt?, updatedAt? }` | Swift → page | a Note Info date picker, in milliseconds; created after modified is `E_SCREENS_DATES_ORDER`                             |
+| `note.applyFrontMatter { noteId, field, value }`   | Swift → page | Note Info's Apply on a front matter row: `field` is `title`, `status` or `tags`, the tags a JSON list of names          |
 | `note.addTag { noteId, name }`                     | Swift → page | the tags picker's new tag: the core makes or finds the tag, puts it on the note and answers `{ tagId }`                 |
 | `editor.note { id, bookId, status, … }`            | page → Swift | the shown note's notebook, status, pin, tags and dates, again after each change, for More, the pickers and Info         |
 | `editor.picker { noteId, picker }`                 | page → Swift | a chip under the title: Swift opens the `notebook`, `status` or `tags` picker                                           |
@@ -386,7 +387,7 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 | `note.discard { noteId }`                          | Swift → page | a new note's screen left untouched: the page purges the note if it is still as made                                     |
 | `licence.changed`                                  | Rust → Swift | the licence changed: Swift reads its snapshot again; only Rust may send it                                              |
 
-- Each message joins the bridge with the change that first sends it: `editor.prepare` with the native lists, `editor.show`'s `focus` with New Note, `editor.gate` with the gate, and the editor's bars, find, pickers and Note Info (`editor.insets`, `editor.format`, `editor.ai`, `editor.find`, `editor.duplicate`, `note.info`, `note.setDates`, `note.addTag`, `editor.note`, `editor.picker`, `editor.haptic`) with the native editor bars.
+- Each message joins the bridge with the change that first sends it: `editor.prepare` with the native lists, `editor.show`'s `focus` with New Note, `editor.gate` with the gate, and the editor's bars, find, pickers and Note Info (`editor.insets`, `editor.format`, `editor.ai`, `editor.find`, `editor.duplicate`, `note.info`, `note.setDates`, `note.applyFrontMatter`, `note.addTag`, `editor.note`, `editor.picker`, `editor.haptic`) with the native editor bars.
 - On `editor.prepare` the page holds and opens the note (`phone/screens/prepared.ts`), and the editor takes the opened state when Swift shows it; a note no tap took is let go after 1.5 s.
 - The page decides the mode, so `editor.show` carries none: Edit for an empty note while writes are allowed, Preview otherwise, and Preview for every note while writes are locked.
 - A hidden editor keeps the last note open until the next `editor.show`, so going back to it costs nothing; its history and caret are kept per note as before.
@@ -398,7 +399,10 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 - The More menu has no History yet: the iPhone has no history view, and History joins the menu with the native history sheet (stage 4).
 - The editor's formatting bar formats only while editing is allowed; a press while locked opens the gate's sheet, as Edit does.
 - A Find query sent while the note still loads waits for its editor (at most 5 s), and only the latest such query runs.
-- `note.info`, `note.setDates` and `note.addTag` are answered by the core (`phone/screens/notes.ts`); `editor.find` drives CodeMirror's search on the shown editor, and Rust refuses a query over 1000 characters (`E_SCREENS_QUERY_TOO_LONG`).
+- `note.info`, `note.setDates`, `note.applyFrontMatter` and `note.addTag` are answered by the core (`phone/screens/notes.ts`); `editor.find` drives CodeMirror's search on the shown editor, and Rust refuses a query over 1000 characters (`E_SCREENS_QUERY_TOO_LONG`).
+- Note Info shows the note's front matter as the Mac's card does, and the preview under the native screens leaves it out (`frontMatterInInfo`); a template's front matter stays in its preview, and its rows offer no Apply.
+- A row whose title, status or tags differ from the note's shows the note's value and Apply, which goes through the gate as `WriteIntent.applyFrontMatter`; the editor screen reads Note Info again when the note's title, status or tags change while the sheet is up.
+- Rust checks `note.applyFrontMatter`: a title of at most 1000 characters, a known status, and at most 200 tag names that each pass `note.addTag`'s check; the page takes only what `frontMatterChange` would have offered.
 - `editor.insets` takes a bottom of at most 4096 pt, a duration of at most 2 s and a curve of at most 7, each finite and not negative (`E_SCREENS_ARGS_INVALID`).
 
 ### The page scrolls as one document

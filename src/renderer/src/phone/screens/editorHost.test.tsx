@@ -88,8 +88,13 @@ vi.mock('../../NoteEditor', () => ({
     return <div className="cm-editor" hidden={props.hidden} />
   },
 }))
-vi.mock('../../preview/Preview', () => ({
-  Preview: (props: { markdown: string }) => <div className="preview">{props.markdown}</div>,
+const previews = vi.hoisted(() => [] as { frontMatterInInfo?: boolean }[])
+vi.mock('../../preview/Preview', async (actual) => ({
+  previewNote: (await actual<typeof import('../../preview/Preview')>()).previewNote,
+  Preview: (props: { markdown: string; frontMatterInInfo?: boolean }) => {
+    previews.push(props)
+    return <div className="preview">{props.markdown}</div>
+  },
 }))
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 
@@ -126,6 +131,7 @@ beforeEach(async () => {
   editors.latest = null
   editors.given = []
   editors.findTarget = searchable()
+  previews.length = 0
   licence = PRO
   vi.mocked(invoke).mockImplementation(async (command) =>
     command === 'licence_get' ? licence : undefined,
@@ -458,7 +464,7 @@ describe('the editor host under the native screens', () => {
     expect((await summary(made.id))?.tagIds).toHaveLength(1)
   })
 
-  it('answers Note Info with the counts, the revisions and the backlinks', async () => {
+  it('answers Note Info with the counts, the revisions, the backlinks and no front matter', async () => {
     const id = await shell.notes.create('Plans', null)
     await start()
     expect(await swift('note.info', { noteId: id })).toStrictEqual({
@@ -467,7 +473,72 @@ describe('the editor host under the native screens', () => {
       readingMinutes: 1,
       revisions: 0,
       backlinks: [],
+      frontMatter: null,
     })
+  })
+
+  it('answers Note Info with the front matter rows and what differs from the note', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await shell.tags.addToNote(id, 'work')
+    await shell.notes.setBody(
+      id,
+      '---\ntitle: Trip\nstatus: active\ntags: [work]\nwhere: Oslo\n---\nBody',
+    )
+    await shell.notes.flush()
+    await start()
+    const info = (await swift('note.info', { noteId: id })) as { frontMatter: unknown }
+    expect(info.frontMatter).toStrictEqual({
+      kind: 'properties',
+      rows: [
+        {
+          key: 'title',
+          value: { kind: 'text', text: 'Trip' },
+          difference: { field: 'title', badge: 'Note: Plans', value: 'Trip' },
+        },
+        {
+          key: 'status',
+          value: { kind: 'text', text: 'active' },
+          difference: { field: 'status', badge: 'Note: No Status', value: 'active' },
+        },
+        { key: 'tags', value: { kind: 'chips', chips: [{ name: 'work' }] } },
+        { key: 'where', value: { kind: 'text', text: 'Oslo' } },
+      ],
+    })
+  })
+
+  it('applies the front matter’s title, status and tags to the note', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await shell.tags.addToNote(id, 'old')
+    await start()
+    await swift('note.applyFrontMatter', { noteId: id, field: 'title', value: 'Trip' })
+    await swift('note.applyFrontMatter', { noteId: id, field: 'status', value: 'active' })
+    await swift('note.applyFrontMatter', { noteId: id, field: 'tags', value: '["work","Old"]' })
+    await shell.notes.flush()
+    const applied = await summary(id)
+    expect(applied?.title).toBe('Trip')
+    expect(applied?.status).toBe('active')
+    const names = (await shell.tags.list())
+      .filter((tag) => applied?.tagIds.includes(tag.id))
+      .map((tag) => tag.name)
+    expect(names.sort()).toStrictEqual(['old', 'work'])
+  })
+
+  it('refuses a front matter change the preview would not have offered', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await expect(
+      bridge.handlers['note.applyFrontMatter']!({ noteId: id, field: 'status', value: 'later' }),
+    ).rejects.toThrow('E_SCREENS_ARGS_INVALID')
+    await expect(
+      bridge.handlers['note.applyFrontMatter']!({ noteId: id, field: 'tags', value: '{"a":1}' }),
+    ).rejects.toThrow('E_SCREENS_ARGS_INVALID')
+  })
+
+  it('leaves the front matter out of the preview under the native screens', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await swift('editor.show', { noteId: id })
+    expect(previews.at(-1)?.frontMatterInInfo).toBe(true)
   })
 
   it('sets the dates Note Info picks', async () => {

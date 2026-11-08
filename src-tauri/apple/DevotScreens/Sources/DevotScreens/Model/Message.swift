@@ -108,6 +108,7 @@ public enum Op: String, CaseIterable, Sendable {
     case editorDuplicate = "editor.duplicate"
     case noteInfo = "note.info"
     case noteSetDates = "note.setDates"
+    case noteApplyFrontMatter = "note.applyFrontMatter"
     case noteAddTag = "note.addTag"
     case noteToday = "note.today"
     case activityWriting = "activity.writing"
