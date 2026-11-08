@@ -32,7 +32,7 @@
 #   runs for the Swift packages and the app project (src-tauri/apple/,
 #   src-tauri/gen/apple/), the phone's native code (src-tauri/src/native/ios/),
 #   the screens bridge on every side (any screens/ folder), the phone page
-#   (src/renderer/src/phone/), its own script and the scripts that pick its Xcode and simulator.
+#   (src/renderer/src/phone/), its own scripts and the scripts that pick its Xcode and simulator.
 # A list with no files needs everything, so a doubt runs everything.
 web=false
 iphone_ui=false
@@ -85,8 +85,7 @@ while IFS= read -r file; do
   esac
   case "$file" in
     src-tauri/apple/* | src-tauri/gen/apple/* | src-tauri/src/native/ios/* | */screens/* | \
-      src/renderer/src/phone/* | scripts/ci/iphone-ui-tests.sh | scripts/ci/iphone-simulator.ts | \
-      scripts/ci/xcode.sh)
+      src/renderer/src/phone/* | scripts/ci/iphone-* | scripts/ci/xcode.sh)
       iphone_ui=true
       ;;
   esac

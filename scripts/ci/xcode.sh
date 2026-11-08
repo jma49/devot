@@ -1,7 +1,8 @@
 #!/bin/sh
 # CI helper: selects the Xcode an iPhone job builds with, DEVOT_XCODE (an app path, which the
 # workflow pins), and fails before any build when the runner image has no such Xcode, so a job
-# never falls back to the image's default one. Later steps get it as DEVELOPER_DIR too.
+# never falls back to the image's default one. Later steps get it as DEVELOPER_DIR too, and its
+# build number as DEVOT_XCODE_BUILD, which keys the caches of what it compiled.
 set -eu
 xcode=${DEVOT_XCODE:?E_CI_XCODE_UNSET: the workflow names no Xcode}
 version=$(basename "$xcode" .app | sed 's/^Xcode_//')
@@ -10,9 +11,6 @@ if [ ! -d "$xcode/Contents/Developer" ]; then
   exit 1
 fi
 sudo xcode-select -s "$xcode/Contents/Developer"
-if [ -n "${GITHUB_ENV:-}" ]; then
-  echo "DEVELOPER_DIR=$xcode/Contents/Developer" >> "$GITHUB_ENV"
-fi
 reported=$(xcodebuild -version)
 echo "$reported"
 case "$(printf '%s\n' "$reported" | head -n 1)" in
@@ -22,4 +20,8 @@ case "$(printf '%s\n' "$reported" | head -n 1)" in
     exit 1
     ;;
 esac
+if [ -n "${GITHUB_ENV:-}" ]; then
+  echo "DEVELOPER_DIR=$xcode/Contents/Developer" >> "$GITHUB_ENV"
+  echo "DEVOT_XCODE_BUILD=$(printf '%s\n' "$reported" | sed -n 's/^Build version //p')" >> "$GITHUB_ENV"
+fi
 swift --version 2>&1 | head -n 1

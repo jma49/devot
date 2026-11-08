@@ -389,9 +389,7 @@ jobs:
       - run: cargo test --lib input_accessory
 
   # The Swift packages (src-tauri/apple/DevotStore and DevotScreens): their tests in host apps on an
-  # iPhone simulator, as StoreKit Test and UIKit need, then the iPhone app built for the simulator,
-  # the only build that links the packages and Rust's calls into them. When iphone-ui runs, it
-  # builds the app instead, so the build runs once per run.
+  # iPhone simulator, as StoreKit Test and UIKit need. iphone-build builds the app that links them.
   ios-app:
     name: iPhone app and StoreKit tests
     needs: changes
@@ -402,11 +400,10 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: sh scripts/ci/xcode.sh
       - run: brew install xcodegen
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
       # A cold boot takes a minute or more: it runs in the background while the job builds, and
       # each test script waits for it. The StoreKit tests need an iOS version whose StoreKit Test
       # works under xcodebuild (scripts/ci/iphone-simulator.ts), so they may get a phone of their own.
@@ -420,52 +417,22 @@ jobs:
           for device in $(printf '%s\n' "$store" "$screens" | sort -u); do
             nohup xcrun simctl boot "$device" >>"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
           done
-      - run: pnpm install --frozen-lockfile
       - run: sh scripts/ci/devot-store-tests.sh
       # Frees the runner's memory for the screens tests when the StoreKit tests had a phone of their own.
       - run: '[ "$DEVOT_STORE_SIMULATOR" = "$DEVOT_SIMULATOR" ] || xcrun simctl shutdown "$DEVOT_STORE_SIMULATOR"'
       - run: sh scripts/ci/devot-screens-tests.sh
       # The spike harness is built into a debug app only (docs/specs/iphone-screens.md, Spikes).
       - run: sh scripts/ci/devot-screens-release-check.sh
-      # A placeholder for the UI, as in rust-check.
-      - if: needs.changes.outputs.iphone_ui == 'false'
-        run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
-      - if: needs.changes.outputs.iphone_ui == 'false'
-        run: rustup toolchain install
-        working-directory: src-tauri
-      - if: needs.changes.outputs.iphone_ui == 'false'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          workspaces: src-tauri
-          # The same dependencies as iphone-ui's build, which saves them from main.
-          shared-key: iphone-sim
-          save-if: false
-      - if: needs.changes.outputs.iphone_ui == 'false'
-        run: pnpm tauri ios build --debug --target aarch64-sim --config '{"build":{"beforeBuildCommand":""}}'
 
-  # The shipping iPhone app, with the release UI build, launched in a simulator: an XCUITest
-  # (src-tauri/apple/DevotUITests) switches every tab of the native tab bar and runs the system's
-  # accessibility audit on it. It runs for the native screens, the phone page and the app project
-  # (scripts/ci/changed-code.sh). Two jobs share the test classes, each building the app: handing
-  # one build over as an artifact would put its upload and download in series.
-  iphone-ui:
-    name: iPhone UI test (${{ matrix.part }})
+  # The iPhone app for the simulator, with the release UI build: the only build that links the
+  # Swift packages and Rust's calls into them. When the UI test runs, this job also builds its test
+  # runner and hands both to the iphone-ui jobs as one artifact, so each run builds the app once.
+  iphone-build:
+    name: iPhone app build
     needs: changes
-    if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: xcode-27
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # The Settings tests take about as long as all the others together; a new class joins
-          # the others.
-          - part: settings
-            tests: -only-testing:DevotUITests/SettingsTests
-          - part: others
-            tests: -skip-testing:DevotUITests/SettingsTests
-    env:
-      DEVOT_UI_TESTS: ${{ matrix.tests }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: sh scripts/ci/xcode.sh
@@ -475,29 +442,91 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      # A cold boot takes a minute or more: it runs in the background while the job builds, and
-      # each test script waits for it.
+      # pnpm checks the lockfile against its supply-chain policies with registry metadata, which
+      # this image fetched in 4-5 min; its metadata cache keeps the verdict for an unchanged lockfile.
+      - id: pnpm-cache-path
+        run: echo "path=$(pnpm cache path)" >> "$GITHUB_OUTPUT"
+      - id: pnpm-metadata
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-cache-path.outputs.path }}
+          key: pnpm-metadata-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
+          restore-keys: pnpm-metadata-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - if: steps.pnpm-metadata.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-cache-path.outputs.path }}
+          key: ${{ steps.pnpm-metadata.outputs.cache-primary-key }}
+      - run: rustup toolchain install
+        working-directory: src-tauri
+      # The dependencies built with this Xcode's SDK. Saved from main only, so a pull request never
+      # writes a cache that a later run builds on.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+          shared-key: iphone-sim
+          key: xcode-${{ env.DEVOT_XCODE_BUILD }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # Tauri's beforeBuildCommand builds the release UI, which the app embeds.
+      - run: pnpm tauri ios build --debug --target aarch64-sim
+      - if: needs.changes.outputs.iphone_ui != 'false'
+        run: sh scripts/ci/iphone-ui-tests.sh build
+      # tar keeps the bundles' symbolic links and file modes, which the artifact's zip would not.
+      - if: needs.changes.outputs.iphone_ui != 'false'
+        run: tar -C test-results -cf - iphone-ui-build | zstd -T0 -10 -q -o "$RUNNER_TEMP/iphone-ui-build.tar.zst"
+      - if: needs.changes.outputs.iphone_ui != 'false'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: iphone-ui-build
+          path: ${{ runner.temp }}/iphone-ui-build.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  # The shipping iPhone app, with the release UI build, launched in a simulator: the XCUITests
+  # (src-tauri/apple/DevotUITests) switch every tab of the native tab bar, run the system's
+  # accessibility audit and go through the screens. They run for the native screens, the phone page
+  # and the app project (scripts/ci/changed-code.sh), from iphone-build's app and test runner,
+  # split into shards that run side by side (scripts/ci/iphone-ui-shards.ts).
+  iphone-ui:
+    name: iPhone UI test (${{ matrix.shard }})
+    needs: [changes, iphone-build]
+    if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.docs_only != 'true'
+    runs-on: xcode-27
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [settings-1, settings-2, editor, rest]
+    env:
+      DEVOT_UI_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          sparse-checkout: scripts/ci
+      - run: sh scripts/ci/xcode.sh
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # A cold boot takes a minute or more: it runs in the background during the download, and the
+      # test script waits for it.
       - name: Boot the iPhone simulator
         run: |
           device=$(xcrun simctl list devices available --json | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
           echo "DEVOT_SIMULATOR=$device" >> "$GITHUB_ENV"
           nohup xcrun simctl boot "$device" >"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
-      - run: pnpm install --frozen-lockfile
-      - run: rustup toolchain install
-        working-directory: src-tauri
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          workspaces: src-tauri
-          shared-key: iphone-sim
-          # One save per main run: the other part's would find the key taken.
-          save-if: ${{ github.ref == 'refs/heads/main' && matrix.part == 'others' }}
-      # Tauri's beforeBuildCommand builds the release UI, which the app embeds.
-      - run: pnpm tauri ios build --debug --target aarch64-sim
-      - run: sh scripts/ci/iphone-ui-tests.sh
+          name: iphone-ui-build
+          path: ${{ runner.temp }}
+      - run: mkdir -p test-results && zstd -dc "$RUNNER_TEMP/iphone-ui-build.tar.zst" | tar -C test-results -xf -
+      - run: sh scripts/ci/iphone-ui-tests.sh test
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: iphone-ui-xcresult-${{ matrix.part }}
+          name: iphone-ui-xcresult-${{ matrix.shard }}
           path: test-results/iphone-ui.xcresult/
           if-no-files-found: ignore
           retention-days: 7
@@ -517,10 +546,10 @@ jobs:
           manifest-path: src-tauri/Cargo.toml
 
   # Required check for Rust. It runs even when a Rust job was skipped and
-  # fails when the change detection, compilation, tests, the iPhone UI test or
-  # the deny check failed.
+  # fails when the change detection, compilation, tests, the iPhone app build,
+  # any iPhone UI test shard or the deny check failed.
   rust:
-    needs: [changes, rust-check, ios-check, ios-app, iphone-ui, deny]
+    needs: [changes, rust-check, ios-check, ios-app, iphone-build, iphone-ui, deny]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -530,15 +559,16 @@ jobs:
           RUST: ${{ needs.rust-check.result }}
           IOS: ${{ needs.ios-check.result }}
           IOS_APP: ${{ needs.ios-app.result }}
+          IPHONE_BUILD: ${{ needs.iphone-build.result }}
           IPHONE_UI: ${{ needs.iphone-ui.result }}
           DENY: ${{ needs.deny.result }}
         run: |
-          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP iphone-ui=$IPHONE_UI deny=$DENY"
+          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP iphone-build=$IPHONE_BUILD iphone-ui=$IPHONE_UI deny=$DENY"
           {
             printf '### Rust merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone app and StoreKit tests' "$IOS_APP" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone app and StoreKit tests' "$IOS_APP" 'iPhone app build' "$IPHONE_BUILD" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$IPHONE_UI" "$DENY"; do
+          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac
