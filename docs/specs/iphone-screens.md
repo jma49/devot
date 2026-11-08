@@ -244,7 +244,8 @@ The Search tab is a navigation stack under a large title whose root, `SearchScre
 - `SearchModel` searches once typing pauses for 120 ms, and at once for a scope, a recent search or a suggestion; results replace the list when they arrive, and an answer to an older search is dropped.
 - A query that differs only in its outer spaces is not searched again, and an empty field shows the start at once.
 - A `notes.changed` notice searches the shown query again after the same pause.
-- A failed search is logged as `W_PHONE_SEARCH_FAILED code=…`, and the list keeps what it showed.
+- A failed search is logged as `W_PHONE_SEARCH_FAILED code=…` and takes away the results shown, which answered an older query.
+- `SearchModel` cuts the typed text to that limit, counted in Unicode scalars as Rust counts, so a long query is searched as the core would cut it rather than refused.
 - Before a query the list shows this iPhone's recent searches, then the notebooks, statuses and tags, each filling the field with its clause (by name where quoting holds the name, else `bookId:` or `tagId:`) and searching.
 - Recent searches are the six newest queries whose result was opened, kept in `UserDefaults` and never synced or logged.
 - A result opens its `EditorScreen` on the Search tab, so Back lands in Search with the query and results as they were.

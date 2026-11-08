@@ -191,16 +191,27 @@ final class SearchModelTests: XCTestCase {
         XCTAssertTrue(bridge.sent.isEmpty)
     }
 
-    func testAFailedSearchKeepsWhatIsShownAndLogsItsCode() {
+    func testAFailedSearchTakesAwayTheOlderQuerysResultsAndLogsItsCode() {
         let model = model()
         model.type("a")
         fire()
         bridge.answer(Op.search.rawValue, found([noteRow(1, updated: 1)]))
+        let before = shown
         model.type("ab")
         fire()
-        bridge.answer(Op.search.rawValue, .failed("E_SCREENS_QUERY_TOO_LONG"))
-        XCTAssertEqual(model.results?.query, "a")
-        XCTAssertEqual(bridge.lines, ["W_PHONE_SEARCH_FAILED code=E_SCREENS_QUERY_TOO_LONG"])
+        bridge.answer(Op.search.rawValue, .failed("E_STORAGE_BUSY"))
+        XCTAssertNil(model.results, "results for \"a\" would read as the answer to \"ab\"")
+        XCTAssertEqual(shown, before + 1)
+        XCTAssertEqual(bridge.lines, ["W_PHONE_SEARCH_FAILED code=E_STORAGE_BUSY"])
+    }
+
+    func testAQueryPastWhatRustTakesIsCutToItsLength() {
+        let model = model()
+        let long = String(repeating: "\u{e9}", count: SearchModel.maxQuery + 5)
+        model.run(long)
+        XCTAssertEqual(asked().query?.unicodeScalars.count, SearchModel.maxQuery)
+        XCTAssertEqual(model.query.unicodeScalars.count, SearchModel.maxQuery)
+        XCTAssertEqual(SearchModel.maxQuery, 1160)
     }
 
     func testANoteChangeSearchesAgainAfterThePause() {

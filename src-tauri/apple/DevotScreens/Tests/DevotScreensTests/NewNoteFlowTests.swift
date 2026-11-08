@@ -48,6 +48,17 @@ final class NewNoteFlowTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
     }
 
+    /// Runs the run loop until the shown push or pop has ended and the turn after it has run.
+    private func settleTransition(timeout: TimeInterval = 30, file: StaticString = #filePath, line: UInt = #line) {
+        settle()
+        var finished = navigation.transitionCoordinator == nil
+        navigation.transitionCoordinator?.animate(alongsideTransition: nil) { _ in finished = true }
+        let deadline = Date().addingTimeInterval(timeout)
+        while !finished, Date() < deadline { settle(0.02) }
+        if !finished { XCTFail("waited \(timeout) s and the transition never finished", file: file, line: line) }
+        settle()
+    }
+
     /// Runs the run loop until the condition holds, for a step that waits on the system's push and pop.
     private func settle(
         until condition: () throws -> Bool, timeout: TimeInterval = 30, file: StaticString = #filePath,
@@ -118,7 +129,7 @@ final class NewNoteFlowTests: XCTestCase {
 
         try answer(.noteCreate, .ok(.object(["id": .string(made), "rev": .number(3)])))
         XCTAssertEqual(screen.noteId, made)
-        settle(1)
+        settleTransition()
         let shows = try requests().filter { $0.op == .editorShow }
         XCTAssertEqual(shows.map(\.args), [["noteId": .string(made), "focus": .string("body")]])
         XCTAssertEqual(try requests().last?.op, .editorFocus, "the caret is asked for once the push has landed")
@@ -178,7 +189,7 @@ final class NewNoteFlowTests: XCTestCase {
     func testAnotherRefusalPopsWithoutASurface() throws {
         deliver(#"{"v":1,"notice":"note.new"}"#)
         try answer(.noteCreate, .failed("E_STORAGE_FULL"))
-        settle(1.5)
+        try settle(until: { !(navigation.topViewController is EditorScreen) && navigation.transitionCoordinator == nil })
         XCTAssertFalse(navigation.topViewController is EditorScreen)
         XCTAssertNil(screens.root.tabs.presentedViewController)
         XCTAssertEqual(rust.lines, ["W_PHONE_NEW_NOTE_FAILED code=E_STORAGE_FULL"])
@@ -188,7 +199,7 @@ final class NewNoteFlowTests: XCTestCase {
         deliver(#"{"v":1,"notice":"note.new"}"#)
         let screen = try XCTUnwrap(navigation.topViewController as? EditorScreen)
         try answer(.noteCreate, .ok(.object(["id": .string(made), "rev": .number(3)])))
-        settle(1)
+        settleTransition()
         answerAll(.object(["focused": .bool(true)]))
         return screen
     }
@@ -202,7 +213,7 @@ final class NewNoteFlowTests: XCTestCase {
         deliver(#"{"v":1,"notice":"notes.changed","rev":3,"ids":["\#(made)"]}"#)
         navigation.popViewController(animated: true)
         XCTAssertEqual(try discards, [])
-        settle(1)
+        settleTransition()
         XCTAssertEqual(try discards, [["noteId": .string(made)]])
         let ops = try requests().map(\.op)
         let discard = try XCTUnwrap(ops.lastIndex(of: .noteDiscard))
@@ -216,7 +227,7 @@ final class NewNoteFlowTests: XCTestCase {
         _ = try pushNewNote()
         deliver(#"{"v":1,"notice":"notes.changed","rev":4,"ids":["\#(made)"]}"#)
         navigation.popViewController(animated: true)
-        settle(1)
+        settleTransition()
         answerAll()
         settle(0.5)
         XCTAssertEqual(try discards, [])
@@ -231,7 +242,7 @@ final class NewNoteFlowTests: XCTestCase {
         swipe.interaction.update(0.5)
         settle()
         swipe.interaction.cancel()
-        settle(1)
+        settleTransition()
         navigation.delegate = nil
         XCTAssertTrue(navigation.topViewController === screen)
         XCTAssertEqual(try discards, [])
@@ -239,9 +250,9 @@ final class NewNoteFlowTests: XCTestCase {
 
     func testANoteMadeAfterItsScreenWentIsDiscardedAtOnce() throws {
         deliver(#"{"v":1,"notice":"note.new"}"#)
-        settle(1)
+        settleTransition()
         navigation.popViewController(animated: true)
-        settle(1)
+        settleTransition()
         XCTAssertEqual(try discards, [])
         try answer(.noteCreate, .ok(.object(["id": .string(made), "rev": .number(3)])))
         XCTAssertEqual(try discards, [["noteId": .string(made)]])
