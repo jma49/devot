@@ -691,6 +691,22 @@ mod tests {
     }
 
     #[test]
+    fn the_read_that_recovers_the_editor_settings_tells_every_window() {
+        let setup = setup();
+        let path = setup._dir.path().join(editor_settings::FILE);
+        std::fs::create_dir(&path).unwrap();
+        assert!(direct(&setup, "direct.editorSettings.get", json!({})).is_ok());
+        assert!(setup.announced.lock().unwrap().is_empty());
+        std::fs::remove_dir(&path).unwrap();
+        std::fs::write(&path, br#"{ "fontSize": 16 }"#).unwrap();
+        let recovered = direct(&setup, "direct.editorSettings.get", json!({}));
+        assert_eq!(recovered.as_ref().unwrap()["settings"]["fontSize"], 16);
+        let heard = setup.announced.lock().unwrap().clone();
+        assert_eq!(heard.len(), 1);
+        assert_eq!(json(Ok(heard[0].clone())), recovered);
+    }
+
+    #[test]
     fn fonts_and_crash_reports_read_as_the_commands_read_them() {
         let setup = setup();
         assert_eq!(
