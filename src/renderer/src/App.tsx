@@ -67,6 +67,7 @@ import { useOpenNote } from './app/useOpenNote'
 import { useOutline } from './app/useOutline'
 import { usePalette, usePaletteKeyboard, usePaletteLibrary } from './app/usePalette'
 import { useListLayoutFade, usePanes, useSidebarMenu } from './app/usePanes'
+import { useQuickTagNote } from './app/useQuickTagNote'
 import { useSavedSearches } from './app/useSavedSearches'
 import { useSaveNotice } from './app/useSaveNotice'
 import { useScrollEdges } from './app/useScrollEdges'
@@ -111,7 +112,7 @@ export function App() {
   const opening = useNoteOpening({ selected, editorRef, panesRef })
   const { title, opens, setTitle } = opening
   const tagInputRef = useRef<HTMLInputElement>(null)
-  const [quickTagNote, setQuickTagNote] = useState<string>()
+  const [quickTagNote, setQuickTagNote] = useQuickTagNote(selected)
   const syncSnapshot = useSyncSnapshot()
   useEffect(() => startSyncStatus(), [])
   // Re-renders when the licence changes, so what is locked follows it.

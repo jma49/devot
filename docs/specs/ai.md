@@ -84,6 +84,7 @@ Part of the [architecture overview](../architecture.md).
     They show in Edit and Split; the history bar's overlay covers them with the panes.
   - **Review notice** (`AuthorshipNotice.tsx`): above the panes, so the history bar's overlay never covers it (inert while a version shows), when the open note has unseen writes: how many and by whom, Review Changes, one Undo All per writer and Dismiss.
     Review Changes steps through the unseen writes' places in document order (`reviewSteps`: an inserted run, a deletion point, or both), selects and scrolls to each, with Previous, Next (also the arrow keys) and Done; Keep and a per-step Undo (ADR 0007) are not built yet.
+    Review Changes is offered only while the editor shows (Edit or Split), and switching to Preview ends a review as Done does.
     Undo All runs `NoteService.undoAgentWrites` as an owner edit over every write of that writer on the note, seen ones too, so its button gives the count when that is more than the notice names; the editor takes it as one undo step, and a notice says when deleted text was too old to put back.
     Undo All is off once the trial is over without a license; Review Changes and Dismiss are not.
     When Done, Dismiss or Undo All takes away the control with the keyboard, the editor gets it.

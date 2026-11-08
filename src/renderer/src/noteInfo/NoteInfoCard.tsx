@@ -30,6 +30,14 @@ export interface Backlink {
 
 const cardRef = closingRef('scale', 'note-info-card')
 
+/** A save's answer closes the picker only while that same save is still the one it waits on. */
+type Picker =
+  | { kind: 'closed' }
+  | { kind: 'open'; field: DateField; pendingAt: number | null }
+  | { kind: 'saving'; field: DateField; pendingAt: number | null; save: number }
+
+const CLOSED: Picker = { kind: 'closed' }
+
 const shownPicker = (card: HTMLElement | null) =>
   card?.querySelector<HTMLElement>(':scope > .date-picker:not([data-closing])') ?? null
 
@@ -155,16 +163,26 @@ export function NoteInfoCard(props: {
     card.current = el
     return cardRef(el)
   }, [])
-  const [editing, setEditing] = useState<DateField>()
-  const [pendingAt, setPendingAt] = useState<number | null>(null)
+  const [picker, setPicker] = useState<Picker>(CLOSED)
+  const pickerNow = useRef(picker)
+  const saves = useRef(0)
+  const move = useCallback((next: (now: Picker) => Picker) => {
+    pickerNow.current = next(pickerNow.current)
+    setPicker(pickerNow.current)
+  }, [])
+  const editing = picker.kind === 'closed' ? undefined : picker.field
 
   const closePicker = useCallback(
     (field: DateField) => {
-      setEditing(undefined)
-      setPendingAt(null)
+      move(() => CLOSED)
       rows.current[field]?.focus()
     },
-    [setPendingAt],
+    [move],
+  )
+  const setPendingAt = useCallback(
+    (pendingAt: number | null) =>
+      move((now) => (now.kind === 'closed' ? now : { ...now, pendingAt })),
+    [move],
   )
 
   useLayoutEffect(() => {
@@ -203,13 +221,20 @@ export function NoteInfoCard(props: {
     if (!onSetDates) return Promise.resolve('failed')
     const dates = datesEdit(info, field, at)
     if (!dates) return Promise.resolve('refused')
+    const save = ++saves.current
+    move((now) => (now.kind === 'closed' ? now : { ...now, kind: 'saving', save }))
+    const waiting = () => {
+      const now = pickerNow.current
+      return now.kind === 'saving' && now.field === field && now.save === save
+    }
     return onSetDates(info.noteId, dates).then(
       (): DateOutcome => {
-        closePicker(field)
+        if (waiting()) closePicker(field)
         return 'saved'
       },
       (): DateOutcome => {
         console.warn('W_NOTE_DATES_FAILED', info.noteId)
+        if (waiting()) move((now) => (now.kind === 'saving' ? { ...now, kind: 'open' } : now))
         return 'failed'
       },
     )
@@ -217,7 +242,8 @@ export function NoteInfoCard(props: {
 
   const dateRow = (field: DateField, icon: IconName, at: number) => {
     const label = t(field === 'created' ? 'noteInfo.created' : 'noteInfo.updated')
-    const shown = editing === field && pendingAt !== null ? pendingAt : at
+    const pendingAt = picker.kind !== 'closed' && picker.field === field ? picker.pendingAt : null
+    const shown = pendingAt ?? at
     const value = fullDate(shown, locale)
     const time = (
       <time dateTime={new Date(shown).toISOString()} data-info={field}>
@@ -250,10 +276,9 @@ export function NoteInfoCard(props: {
         aria-haspopup="dialog"
         aria-expanded={editing === field}
         data-editing={editing === field || undefined}
-        onClick={() => {
-          setPendingAt(null)
-          setEditing(editing === field ? undefined : field)
-        }}
+        onClick={() =>
+          move(() => (editing === field ? CLOSED : { kind: 'open', field, pendingAt: null }))
+        }
       >
         <span className="note-info-icon">
           <Icon name={icon} size="sm" />

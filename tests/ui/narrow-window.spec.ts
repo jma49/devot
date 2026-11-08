@@ -166,3 +166,24 @@ test('Cmd+/ shows the sidebar in a narrow window, which then fits without scroll
   await page.keyboard.press('Meta+Slash')
   await expect(sidebar(page)).toBeHidden()
 })
+
+test('showing the sidebar in a narrow window keeps a sidebar hidden in a wide one hidden', async ({
+  page,
+}) => {
+  await openNote(page, 1200, 'note')
+  await page.getByRole('button', { name: 'Hide Sidebar' }).click()
+  await expect(sidebar(page)).toBeHidden()
+  await page.setViewportSize({ width: 900, height: 700 })
+  await expect(page.locator('.window')).toHaveAttribute('data-narrow')
+  await page.keyboard.press('Meta+Slash')
+  await expect(sidebar(page)).toBeVisible()
+  await page.keyboard.press('Meta+Slash')
+  await expect(sidebar(page)).toBeHidden()
+  await page.keyboard.press('Meta+Slash')
+  await expect(sidebar(page)).toBeVisible()
+
+  await page.setViewportSize({ width: 1200, height: 700 })
+  await expect(page.locator('.window')).not.toHaveAttribute('data-narrow')
+  await expect(sidebar(page)).toBeHidden()
+  expect(await page.evaluate(() => localStorage.getItem('devot.sidebarHidden.main'))).toBe('1')
+})

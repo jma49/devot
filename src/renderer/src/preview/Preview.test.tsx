@@ -299,6 +299,48 @@ describe('Preview', () => {
     expect(content(body())).toBe(await wholeBuild(other))
   }, 60_000)
 
+  it('reports scrolls once a restore past the end of the note runs out of time', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    try {
+      const { core, renders } = fakeCore()
+      const at = document.createElement('div')
+      document.body.append(at)
+      root = createRoot(at)
+      const reported: number[] = []
+      act(() => {
+        root!.render(
+          <Preview
+            core={core}
+            markdown={note(2_000, 'short')}
+            noteId="n1"
+            onOpenNote={() => undefined}
+            initialScroll={() => 5_000}
+            onScroll={(top) => reported.push(top)}
+          />,
+        )
+      })
+      const pane = at.querySelector<HTMLElement>('.preview')!
+      // The note ends at 300 px, short of the saved position.
+      let top = 0
+      Object.defineProperty(pane, 'scrollTop', {
+        configurable: true,
+        get: () => top,
+        set: (value: number) => (top = Math.min(value, 300)),
+      })
+      await firstRender(renders)
+      expect(pane.scrollTop).toBe(300)
+
+      act(() => void vi.advanceTimersByTime(5_001))
+      act(() => {
+        pane.scrollTop = 120
+        pane.dispatchEvent(new Event('scroll'))
+      })
+      expect(reported).toEqual([120])
+    } finally {
+      vi.useRealTimers()
+    }
+  }, 60_000)
+
   it('shows another note anew when its text follows the switch, while either note still builds', async () => {
     const { core, asked, renders } = fakeCore()
     const first = note(200_000, 'one')

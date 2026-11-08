@@ -245,6 +245,70 @@ describe('the date picker', () => {
     expect(row.getAttribute('aria-expanded')).toBe('false')
   })
 
+  it('leaves the picker opened while an earlier save ran when that save answers', async () => {
+    let answer = () => {}
+    const dates = vi.fn<() => Promise<void>>(
+      () =>
+        new Promise<void>((resolve) => {
+          answer = resolve
+        }),
+    )
+    show({ onSetDates: dates })
+    click(button(/^Created:/))
+    press('ArrowLeft')
+    press('Enter')
+    expect(dates).toHaveBeenCalledOnce()
+    const updated = button(/^Updated:/)!
+    act(() => updated.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+    click(updated)
+    act(() => updated.focus())
+    answer()
+    await settle()
+    expect(document.querySelector('.date-picker')?.getAttribute('aria-label')).toMatch(/Updated/)
+    expect(updated.getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement?.getAttribute('aria-label')).not.toMatch(/^Created:/)
+  })
+
+  it('takes no focus when a save answers after a click outside closed its picker', async () => {
+    let answer = () => {}
+    show({
+      onSetDates: () =>
+        new Promise<void>((resolve) => {
+          answer = resolve
+        }),
+    })
+    click(button(/^Created:/))
+    press('ArrowLeft')
+    press('Enter')
+    const elsewhere = document.createElement('button')
+    document.body.append(elsewhere)
+    act(() => elsewhere.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+    act(() => elsewhere.focus())
+    answer()
+    await settle()
+    expect(document.activeElement).toBe(elsewhere)
+  })
+
+  it('keeps PM when the hour is cleared and typed again, and takes P while it is cleared', async () => {
+    const afternoon = { ...info, updatedAt: new Date(2026, 10, 2, 15, 30, 12).getTime() }
+    const calls = show({ info: afternoon })
+    click(button(/^Updated:/))
+    const segment = (name: string) =>
+      document.querySelector<HTMLElement>(`[role="spinbutton"][aria-label="${name}"]`)
+    act(() => segment('Hour')?.focus())
+    press('Backspace')
+    expect(segment('Hour')?.textContent).toBe('--')
+    expect(segment('AM or PM')?.getAttribute('aria-valuenow')).toBe('1')
+    act(() => segment('AM or PM')?.focus())
+    press('a')
+    press('p')
+    act(() => segment('Hour')?.focus())
+    press('3')
+    press('Enter')
+    await settle()
+    expect(calls.dates).toHaveBeenCalledWith(info.noteId, { updatedAt: afternoon.updatedAt })
+  })
+
   it('takes typed minutes and says when the date could not be saved', async () => {
     show({ onSetDates: vi.fn<() => Promise<void>>(() => Promise.reject(new Error('E_X'))) })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

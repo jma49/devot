@@ -124,6 +124,7 @@ Import and export are in [import-and-export.md](import-and-export.md), the `devo
   Up and Down wrap around.
   Return picks: the `/query` goes and the command runs in its place, as one transaction and one undo step.
   A query that matches nothing closes the list, and that slash does not open it again (Backspace included); nor does Escape's or a lost focus's.
+  Each slash so closed stays closed while it is there, however many others are closed after it.
   It never opens with several cursors or a selection, nor in code, HTML, comments, front matter, or a link's address.
   The empty line holding the cursor shows `Type '/' for commands...` as ghost text (drawn by CSS, not text of the note), and an empty note shows a chip that runs New Note from Template.
   The same popup style serves the `[[` note popup, `:` plus two or more word characters (emoji shortcodes; picking one inserts the emoji) and `> [!` (the alert kinds).

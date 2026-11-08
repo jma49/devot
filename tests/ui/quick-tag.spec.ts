@@ -196,3 +196,16 @@ test('the palette has the command', async ({ page }) => {
   await search.press('Enter')
   await expect(popup(page)).toBeVisible()
 })
+
+test('opening another note closes it for good, so going back shows it closed', async ({ page }) => {
+  await noteWithTags(page)
+  await noteWithTags(page)
+  await openFromRow(page)
+  const forward = page.getByRole('button', { name: 'Forward', exact: true })
+  await page.keyboard.press('Meta+BracketLeft')
+  await expect(popup(page)).toHaveCount(0)
+  await expect(forward).toBeEnabled()
+  await page.keyboard.press('Meta+BracketRight')
+  await expect(forward).toBeDisabled()
+  await expect(popup(page)).toHaveCount(0)
+})

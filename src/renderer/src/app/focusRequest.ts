@@ -32,10 +32,12 @@ export function useFocusRequest({
     const request = focusAfter.current
     if (!request) return
     if (request.kind === 'area') {
-      const go = areaTargets(editorRef.current)[request.area]
       // The area may show on a pass of its own (a sidebar the same click
-      // shows): the ask stays for the passes of the next second.
-      if (!go && performance.now() - focusAskedAt.current < AREA_ASK_MS) return
+      // shows): the ask stays for the passes of the next second, and a pass
+      // after that drops it, so a later render cannot carry it out.
+      const fresh = performance.now() - focusAskedAt.current < AREA_ASK_MS
+      const go = fresh ? areaTargets(editorRef.current)[request.area] : undefined
+      if (!go && fresh) return
       focusAfter.current = undefined
       return go?.()
     }

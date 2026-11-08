@@ -329,23 +329,27 @@ export function Preview({
   // A restored scroll position (see `initialScroll`): asked for at the first
   // render with content, then applied again as the content grows (images,
   // diagrams) until it is reached, the user scrolls, or time runs out.
-  const scrollTarget = useRef<{ top: number; until: number; sizes: ResizeObserver }>(undefined)
+  const scrollTarget = useRef<{
+    top: number
+    sizes: ResizeObserver
+    expiry: ReturnType<typeof setTimeout>
+  }>(undefined)
   const scrollAskedOnce = useRef(false)
   const stopRestoring = useCallback(() => {
     scrollTarget.current?.sizes.disconnect()
+    clearTimeout(scrollTarget.current?.expiry)
     scrollTarget.current = undefined
   }, [])
   const keepRestoring = useCallback(() => {
     const target = scrollTarget.current
     const el = pane.current
     if (!target || !el) return
-    if (performance.now() > target.until) return stopRestoring()
     buildToHeight(el, target.top + el.clientHeight)
     el.scrollTop = target.top
     if (Math.abs(el.scrollTop - target.top) < 1) return stopRestoring()
     for (const child of Array.from(el.children)) target.sizes.observe(child)
   }, [stopRestoring, buildToHeight])
-  useEffect(() => () => scrollTarget.current?.sizes.disconnect(), [])
+  useEffect(() => stopRestoring, [stopRestoring])
 
   useEffect(() => {
     if (!pane.current) return
@@ -412,7 +416,9 @@ export function Preview({
           const top = scrollAsked.current?.()
           if (top !== undefined) {
             const sizes = new ResizeObserver(keepRestoring)
-            scrollTarget.current = { top, until: performance.now() + RESTORE_SCROLL_MS, sizes }
+            // A timer, so a position the note no longer reaches stops being restored without another render.
+            const expiry = setTimeout(stopRestoring, RESTORE_SCROLL_MS)
+            scrollTarget.current = { top, sizes, expiry }
           }
         }
         keepRestoring()
@@ -421,7 +427,7 @@ export function Preview({
       () => console.warn('W_PREVIEW_RENDER_FAILED'),
     )
     render.current = run
-  }, [core, afterBuild, buildLater, keepRestoring])
+  }, [core, afterBuild, buildLater, keepRestoring, stopRestoring])
 
   useEffect(() => {
     islandContext.current = { appearance, theme }

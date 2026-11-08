@@ -114,11 +114,15 @@ export interface ContextMenu<T> {
   close(): Promise<void>
 }
 
-/** Builds a context menu once with every item it can show; `onPick` gets the clicked item's action. Item IDs are `devot.<name>.<action>`. */
+/**
+ * Builds a context menu once with every item it can show; `onPick` gets the clicked item's action and the target the open menu was laid out for.
+ * Popups are laid out one at a time, and one still waiting or being laid out is dropped when a newer one comes or the menu is closed.
+ * Item IDs are `devot.<name>.<action>`.
+ */
 export async function createContextMenu<A extends string, T>(
   name: string,
   groups: MenuGroups<A, T>,
-  onPick: (action: A) => void,
+  onPick: (action: A, target: T) => void,
   api: NativeMenuApi,
   first: T,
 ): Promise<ContextMenu<T>> {
@@ -129,6 +133,7 @@ export async function createContextMenu<A extends string, T>(
     checked: boolean | undefined
   }
   const nested: Slot[] = []
+  let shownFor = first
   const build = async (entry: MenuEntry<A, T>): Promise<Slot> => {
     const text = labelFor(entry, first)
     const id = `devot.${name}.${entry.action}`
@@ -152,7 +157,7 @@ export async function createContextMenu<A extends string, T>(
         // The system may flip a check item when it is clicked: set it
         // again next time, whatever the target.
         slot.checked = undefined
-        onPick(entry.action)
+        onPick(entry.action, shownFor)
       },
     })
     return Object.assign(slot, { item })
@@ -175,34 +180,57 @@ export async function createContextMenu<A extends string, T>(
   let current = layout(first)
   const menu = await api.menu(current)
 
+  const layOut = async (target: T): Promise<void> => {
+    const next = layout(target)
+    // Both lists keep the same order, so removing what goes and inserting
+    // what comes, front to back, gives the next layout.
+    for (const item of current) if (!next.includes(item)) await menu.remove(item)
+    current = current.filter((item) => next.includes(item))
+    for (const [i, item] of next.entries()) {
+      if (current[i] === item) continue
+      await menu.insert([item], i)
+      current.splice(i, 0, item)
+    }
+    for (const slot of [...slots.flat(), ...nested]) {
+      if (slot.entry.predefined) continue
+      const text = labelFor(slot.entry, target)
+      if (text !== slot.text) {
+        await slot.item.setText?.(text)
+        slot.text = text
+      }
+      const checked = slot.entry.checked?.(target)
+      if (checked !== undefined && checked !== slot.checked) {
+        await slot.item.setChecked?.(checked)
+        slot.checked = checked
+      }
+    }
+  }
+
+  let latest = 0
+  let queue: Promise<void> = Promise.resolve()
   return {
-    async popup(target, at) {
-      const next = layout(target)
-      // Both lists keep the same order, so removing what goes and inserting
-      // what comes, front to back, gives the next layout.
-      for (const item of current) if (!next.includes(item)) await menu.remove(item)
-      current = current.filter((item) => next.includes(item))
-      for (const [i, item] of next.entries()) {
-        if (current[i] === item) continue
-        await menu.insert([item], i)
-        current.splice(i, 0, item)
-      }
-      for (const slot of [...slots.flat(), ...nested]) {
-        if (slot.entry.predefined) continue
-        const text = labelFor(slot.entry, target)
-        if (text !== slot.text) {
-          await slot.item.setText?.(text)
-          slot.text = text
-        }
-        const checked = slot.entry.checked?.(target)
-        if (checked !== undefined && checked !== slot.checked) {
-          await slot.item.setChecked?.(checked)
-          slot.checked = checked
-        }
-      }
-      await menu.popup(at)
+    popup(target, at) {
+      const ticket = ++latest
+      // Only laying out waits its turn: an open menu takes the pointer and keyboard, so no other popup comes while it shows.
+      const laidOut = queue.then(async () => {
+        if (ticket !== latest) return false
+        await layOut(target)
+        return ticket === latest
+      })
+      queue = laidOut.then(
+        () => {},
+        () => {},
+      )
+      return laidOut.then((show) => {
+        if (!show) return
+        shownFor = target
+        return menu.popup(at)
+      })
     },
-    close: () => menu.close(),
+    close() {
+      latest++
+      return menu.close()
+    },
   }
 }
 
@@ -234,7 +262,7 @@ export async function tauriMenus(): Promise<NativeMenuApi> {
   }
 }
 
-/** A context menu for this window, built on first use and kept for its life. `show(target, at?)` pops it up and resolves once it has closed; a picked item calls `onPick` with that target. */
+/** A context menu for this window, built on first use and kept for its life. `show(target, at?)` pops it up and resolves once it has closed, or once a newer show replaces it before it opens; a picked item calls `onPick` with the target its menu was shown for. */
 export function useContextMenu<A extends string, T>(
   name: string,
   groups: MenuGroups<A, T>,
@@ -246,7 +274,6 @@ export function useContextMenu<A extends string, T>(
   useEffect(() => {
     pick.current = onPick
   }, [onPick])
-  const target = useRef<{ value: T }>(undefined)
   const menu = useRef<Promise<ContextMenu<T>>>(undefined)
   const builtWith = useRef<unknown>(undefined)
   useEffect(
@@ -256,24 +283,23 @@ export function useContextMenu<A extends string, T>(
     [],
   )
   return useCallback(async (next: T, at?: MenuPoint) => {
-    target.current = { value: next }
     if (menu.current && builtWith.current !== currentKeymap()) {
       const old = menu.current
       menu.current = undefined
       void old.then((m) => m.close()).catch(() => {})
     }
     builtWith.current = currentKeymap()
-    menu.current ??= spec.current.api().then((native) =>
-      createContextMenu(
-        spec.current.name,
-        spec.current.groups,
-        (action) => {
-          if (target.current) pick.current(action, target.current.value)
-        },
-        native,
-        next,
-      ),
-    )
+    menu.current ??= spec.current
+      .api()
+      .then((native) =>
+        createContextMenu(
+          spec.current.name,
+          spec.current.groups,
+          (action, shown) => pick.current(action, shown),
+          native,
+          next,
+        ),
+      )
     const built = menu.current
     try {
       await (await built).popup(next, at)

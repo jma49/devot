@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment happy-dom
+import { act, createElement } from 'react'
+import { createRoot } from 'react-dom/client'
+import { describe, expect, it, vi } from 'vitest'
 import type { AgentWriteSummary } from '../../core/storage'
-import { noticeWriters, stepFrom, undoAllLabel } from './AuthorshipNotice'
+import { AuthorshipNotice, noticeWriters, stepFrom, undoAllLabel } from './AuthorshipNotice'
+import type { EditorHandle } from './editor/handle'
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const row = (
   writeId: string,
@@ -59,5 +65,46 @@ describe('the review notice', () => {
     expect(stepFrom(2, 1, 3)).toBe(2)
     expect(stepFrom(0, -1, 3)).toBe(0)
     expect(stepFrom(5, -1, 3)).toBe(2)
+  })
+
+  it('ends the review when the editor stops showing, as Done does', async () => {
+    const unseen = [row('a', 'mcp', 'Codex')]
+    const reveal = vi.fn<EditorHandle['reveal']>()
+    const handle = {
+      reviewSteps: () => [{ writeId: 'a', from: 0, to: 3, deleted: false }],
+      reveal,
+      focus: () => undefined,
+    } as unknown as EditorHandle
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    const render = (canReview: boolean) =>
+      act(async () =>
+        root.render(
+          createElement(AuthorshipNotice, {
+            unseen,
+            written: unseen,
+            editor: { current: handle },
+            canReview,
+            editing: true,
+            onUndoAll: async () => undefined,
+            onDismiss: () => undefined,
+          }),
+        ),
+      )
+    const button = (name: string) =>
+      [...host.querySelectorAll('button')].find((b) => b.textContent === name)
+    await render(true)
+    await act(async () => button('Review Changes')!.click())
+    expect(button('Next Change')).toBeDefined()
+    await render(false)
+    expect(host.textContent).toContain('1 change by Codex (MCP) since you last looked.')
+    expect(button('Next Change')).toBeUndefined()
+    expect(button('Done')).toBeUndefined()
+    await render(true)
+    expect(button('Review Changes')).toBeDefined()
+    expect(reveal).toHaveBeenCalledTimes(1)
+    await act(async () => root.unmount())
+    host.remove()
   })
 })

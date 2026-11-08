@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, unmountAll } from '../../../../tests/support/render-hook'
 import type { EditorHandle } from '../editor/handle'
 import { useFocusRequest, useRequestedFocus } from './focusRequest'
 
 afterEach(() => {
+  vi.restoreAllMocks()
   unmountAll()
   document.body.replaceChildren()
 })
@@ -21,6 +22,18 @@ function titleField(value: string) {
   field.value = value
   document.body.append(field)
   return field
+}
+
+function inertSidebarRow() {
+  const sidebar = document.createElement('nav')
+  sidebar.dataset.devotPart = 'sidebar'
+  sidebar.inert = true
+  const row = document.createElement('div')
+  row.dataset.sidebarRow = ''
+  row.tabIndex = 0
+  sidebar.append(row)
+  document.body.append(sidebar)
+  return { sidebar, row }
 }
 
 const noEditor = { current: null as EditorHandle | null }
@@ -44,5 +57,30 @@ describe('useFocusRequest', () => {
     expect(document.activeElement).not.toBe(field)
     hook.rerender({ ...props, selected: 'n1' })
     expect(document.activeElement).not.toBe(field)
+  })
+
+  it('focuses an area that shows on a later render within the second', () => {
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+    const { sidebar, row } = inertSidebarRow()
+    const props = { editorRef: noEditor, titleRef: { current: null }, selected: undefined }
+    const hook = renderHook(focusing, { props })
+    act(() => hook.current.requestFocus({ kind: 'area', area: 'sidebar' }))
+    expect(document.activeElement).not.toBe(row)
+    now.mockReturnValue(500)
+    sidebar.inert = false
+    hook.rerender({ ...props })
+    expect(document.activeElement).toBe(row)
+  })
+
+  it('drops an area request whose area did not show within its second', () => {
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+    const { sidebar, row } = inertSidebarRow()
+    const props = { editorRef: noEditor, titleRef: { current: null }, selected: undefined }
+    const hook = renderHook(focusing, { props })
+    act(() => hook.current.requestFocus({ kind: 'area', area: 'sidebar' }))
+    now.mockReturnValue(5000)
+    sidebar.inert = false
+    hook.rerender({ ...props })
+    expect(document.activeElement).not.toBe(row)
   })
 })

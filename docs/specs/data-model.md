@@ -30,9 +30,11 @@ Part of the [architecture overview](../architecture.md).
   A write may be based on a whole number below 2^53 − 1 (`MAX_BODY_VERSION`), so the version it moves on to is still exact in JavaScript; `note_put` and `note_put_meta` refuse any other with `E_NOTE_VERSION_INVALID`, as every storage adapter does (`checkNote`, `checkNoteMeta`).
 - **Hand-set dates:** Note Info's Created and Updated rows set a note's created and updated dates (`noteInfo/NoteInfoCard.tsx`).
   A click on a row opens Devot's own date picker under it (`DatePicker.tsx`, its logic in `noteInfo/calendar.ts`): a month with the days of the weeks around it, the week starting on the locale's first day, and the hour and minute (with AM and PM where the locale writes them).
+  AM or PM is its own part of the time: clearing or retyping the hour keeps it, and A or P chooses it while the hour is cleared.
   The picker keeps the date's seconds and milliseconds and turns off the days the other date rules out: Created no later than Updated, Updated no earlier than Created.
   A date left unchanged is written back exactly as stored, even in the hour that comes twice when the clocks go back.
   Set is turned off while the time breaks that rule, is incomplete or is skipped when the clocks go forward, and says why; Return sets, Escape cancels, and a save that fails says so and keeps the picker open.
+  A save that answers after its picker was closed, or after another one was opened, changes nothing on screen and leaves the focus where it is.
   Both dates share one HLC (schema v17 `notes.dates_hlc`, `datesHlc` on a record, '' when never set): a write with a newer one sets both as written, any other keeps `created_at` and moves `updated_at` only forward, in every storage adapter alike.
   `NoteService.setDates` refuses a time that is not a whole, non-negative millisecond count, or a note updated before it was created (`E_NOTE_TIME_INVALID`, as `note_put` does).
   The next edit moves the update date on as usual.
@@ -222,6 +224,7 @@ Part of the [architecture overview](../architecture.md).
   Each window saves its own changes: a relayed change is not a pending edit of the window it reaches, which also keeps no version or baseline of it (the window that made the change does).
   Saves merge into the stored state rather than replace it: two windows writing the same note are two writers on one body version, so the second write is refused (`E_NOTE_BODY_STALE`), takes the stored copy in and writes again (see Body versions), and what it takes in reaches its editor too.
   Each write is relayed as `saved` with its date, so the main window's lists move the note without a reload (a note made in a note window, through a `[[` link, reloads them).
+  A write reported while a notebook change or a batch reloads the lists waits for the last such reload to finish and then dates its note, as the reloaded rows may have been read before it (`src/renderer/src/app/useLibraryLists.ts`).
   A note trashed or purged is relayed as `gone` (`purged` when it was deleted for good), so its note window turns read-only and says why; a note put back from the Trash is relayed as `back`, and its note window turns editable again.
   A note window's note is live, trashed or purged (`nextLife` in `src/renderer/src/noteWindow/noteLife.ts`): only `gone` and `back` move it, and a purge is final.
   Empty Trash relays each note as soon as it is purged, so a purge that fails later in the run still leaves the windows of the notes before it told.
