@@ -263,7 +263,9 @@ final class SettingsHosting<Content: View>: UIHostingController<Content> {
 extension View {
     /// The grouped list on the phone's background, and the one-line alert of a refused write.
     func settingsPage(_ store: SettingsStore, glow: Bool = false) -> some View {
-        scrollContentBackground(.hidden)
+        // The tab bar's scroll edge effect would otherwise fade a pane's last footer even at the foot.
+        contentMargins(.bottom, Tokens.Size.phoneTabEdge, for: .scrollContent)
+            .scrollContentBackground(.hidden)
             .background(alignment: .top) {
                 ZStack(alignment: .top) {
                     Color(Tokens.Color.phoneBackground)

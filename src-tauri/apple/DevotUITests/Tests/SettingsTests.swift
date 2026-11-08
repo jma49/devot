@@ -87,7 +87,7 @@ final class SettingsTests: XCTestCase {
     /// Scrolls the pane until `element` shows whole between the bars, down the pane or back up it.
     private func scrolled(to element: XCUIElement, back: Bool = false) -> XCUIElement {
         let list = app.collectionViews.firstMatch
-        for _ in 0..<6 where !(element.exists && element.isHittable && clearOfTheBars().contains(element.frame)) {
+        for _ in 0..<6 where !(element.exists && element.isHittable && clearOfTheBars(scrolled: false).contains(element.frame)) {
             if back { list.swipeDown(velocity: .slow) } else { list.swipeUp(velocity: .slow) }
         }
         XCTAssertTrue(element.exists)
@@ -130,7 +130,9 @@ final class SettingsTests: XCTestCase {
         for _ in 0..<3 where shown != value {
             let position = slider.normalizedSliderPosition + CGFloat(value - (shown ?? 0)) / 200
             slider.adjust(toNormalizedSliderPosition: min(max(position, 0), 1))
+            let atOnce = slider.value as? String
             shown = settled(slider)
+            print("slider drag towards \(value): read at once \(atOnce ?? "-"), settled \(shown.map(String.init) ?? "-")")
         }
         return shown
     }
@@ -202,22 +204,32 @@ final class SettingsTests: XCTestCase {
         return CGRect(x: screen.minX, y: top, width: screen.width, height: bottom - top)
     }
 
+    /// What the list shows, by label and place, to tell whether a swipe moved it.
+    private func listed() throws -> [String] {
+        var shown: [String] = []
+        func walk(_ snapshot: any XCUIElementSnapshot) {
+            if !snapshot.label.isEmpty { shown.append("\(snapshot.label) \(snapshot.frame)") }
+            snapshot.children.forEach(walk)
+        }
+        walk(try app.collectionViews.firstMatch.snapshot())
+        return shown
+    }
+
+    /// Drags the list up by about half a screen from its left margin, where no slider takes the
+    /// touch, and holds before the lift so the list does not fling past a part of the pane.
+    private func halfAPageUp() {
+        let list = app.collectionViews.firstMatch
+        let from = list.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.7))
+        let to = list.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.25))
+        from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
+    }
+
     /// Swipes up until a swipe moves nothing the list shows.
     private func scrollToTheFoot() throws {
-        let list = app.collectionViews.firstMatch
-        func shown() throws -> [String] {
-            var shown: [String] = []
-            func walk(_ snapshot: any XCUIElementSnapshot) {
-                if !snapshot.label.isEmpty { shown.append("\(snapshot.label) \(snapshot.frame)") }
-                snapshot.children.forEach(walk)
-            }
-            walk(try list.snapshot())
-            return shown
-        }
-        var last = try shown()
+        var last = try listed()
         for _ in 0..<8 {
-            list.swipeUp()
-            let now = try shown()
+            app.collectionViews.firstMatch.swipeUp()
+            let now = try listed()
             if now == last { return }
             last = now
         }
@@ -239,6 +251,7 @@ final class SettingsTests: XCTestCase {
                 return true
             }
             print("audit issue: \(issue.compactDescription) on \(element.map { "\($0.elementType.rawValue)" } ?? "-") '\(element?.label ?? "")' \(frame)")
+            print("audit issue detail: \(issue.detailedDescription)")
             return false
         }
         // Contrast runs alone: audited with the rest, a row under the tab bar comes without its element.
@@ -279,10 +292,14 @@ final class SettingsTests: XCTestCase {
         openAppearance()
         var overABar: Set<Element> = []
         var auditedClear: Set<Element> = []
-        // The pane is about three screens long: its top, then a screen further down each time.
-        for page in 0..<4 {
-            if page > 0 { app.collectionViews.firstMatch.swipeUp(velocity: .slow) }
-            let clear = clearOfTheBars()
+        // The top, then half a screen further down each time, until a drag moves nothing.
+        var last: [String] = []
+        for page in 0..<12 {
+            if page > 0 { halfAPageUp() }
+            let now = try listed()
+            if now == last { break }
+            last = now
+            let clear = clearOfTheBars(scrolled: page > 0)
             auditedClear.formUnion(try shownClear(clear))
             overABar.formUnion(try audit(clear: clear))
         }

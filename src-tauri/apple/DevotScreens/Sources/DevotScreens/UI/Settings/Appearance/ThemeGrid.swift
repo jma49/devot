@@ -49,10 +49,9 @@ private struct ThemeCard: View {
                 shape.fill(Color(Tokens.Color.phoneCard))
                     .overlay(shape.strokeBorder(Color(Tokens.Color.phoneSeparator), lineWidth: Tokens.Size.phoneSeparator))
                     .overlay(alignment: .bottom) {
-                        if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("nonames") { Color.clear.frame(height: 23).padding(.bottom, Tokens.Space.space7) } else {
                         Text(name).cardLabel(both ? Tokens.Color.accentText : Tokens.Color.phoneText)
                             .lineLimit(1)
-                            .padding(.bottom, Tokens.Space.space7) }
+                            .padding(.bottom, Tokens.Space.space7)
                     }
                     .contentShape(shape)
             }
@@ -112,12 +111,7 @@ struct ThemeSwatchView: View {
         Circle().fill(Color(swatch.background))
             .overlay { ThemeGlow(colors: swatch.glow).clipShape(Circle()) }
             .overlay {
-                if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("noaa") { Color.clear } else if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("aacanvas") {
-                    Canvas { context, size in
-                        context.draw(context.resolve(Text(verbatim: "Aa").font(.system(size: 20, weight: .semibold)).foregroundStyle(Color(swatch.text))), at: CGPoint(x: size.width / 2, y: size.height / 2))
-                    }
-                } else {
-                TextPicture(text: "Aa", font: .system(size: 20, weight: .semibold), color: swatch.text, wraps: false) }
+                TextPicture(text: "Aa", font: .system(size: 20, weight: .semibold), color: swatch.text, wraps: false)
             }
             .overlay(alignment: .bottomTrailing) {
                 Circle().fill(Color(swatch.accent)).frame(width: 10, height: 10).padding(Tokens.Space.space4)

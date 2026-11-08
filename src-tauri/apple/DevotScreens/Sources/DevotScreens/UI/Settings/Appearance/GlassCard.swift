@@ -6,7 +6,7 @@ struct GlassCard: View {
     let glass: GlassStyleStore
 
     var body: some View {
-        Group { if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("nosample") { Color.clear } else { GlassSample(style: glass.style, firm: glass.barEdge == .hard) } }
+        GlassSample(style: glass.style, firm: glass.barEdge == .hard)
             .frame(height: Tokens.Size.phoneGlassSample)
             .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.phoneGlassSample, style: .continuous))
             .listRowInsets(EdgeInsets(
@@ -51,9 +51,9 @@ struct GlassSample: View {
                     .foregroundStyle(Color(Tokens.Color.phoneText))
                     .frame(width: Self.control, height: Self.control)
                     .devotGlass(style, in: Circle())
-                if !(ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("nosampletitle") { TextPicture(
+                TextPicture(
                     text: L10n.phoneSettingsAppearanceSampleTitle(), font: .system(size: 16, weight: .semibold),
-                    color: Tokens.Color.phoneText, wraps: false) }
+                    color: Tokens.Color.phoneText, wraps: false)
                 Spacer()
             }
             .padding(.horizontal, Tokens.Space.space4)

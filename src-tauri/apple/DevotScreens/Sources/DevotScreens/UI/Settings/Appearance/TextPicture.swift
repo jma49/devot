@@ -11,10 +11,6 @@ struct TextPicture: View {
     var wraps = true
 
     var body: some View {
-        if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("nopics") { Color.clear.frame(height: 20) } else { real }
-    }
-
-    var real: some View {
         // The hidden text takes the picture's place, so the picture is drawn at the size it lays out at.
         Text(text).font(font)
             .fixedSize(horizontal: !wraps, vertical: true)
