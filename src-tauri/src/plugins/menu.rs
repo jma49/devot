@@ -93,12 +93,65 @@ pub fn plan(plugins: &[Installed], editing: bool) -> Vec<Planned> {
     out
 }
 
+/// Where a rebuild puts and takes its items: the app's menu bar, or a stand-in in tests.
+trait Bar {
+    type Item;
+    fn remove(&self, place: Place, item: &Self::Item) -> bool;
+    /// `at` is the item's position in the Plugins menu; the other places append.
+    fn add(&self, id: &str, item: &Planned, at: Option<usize>) -> Option<Self::Item>;
+}
+
+struct Table<I> {
+    added: Mutex<Vec<(Place, I)>>,
+    actions: Mutex<HashMap<String, Action>>,
+}
+
+impl<I> Table<I> {
+    fn new() -> Self {
+        Self {
+            added: Mutex::new(Vec::new()),
+            actions: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn action(&self, id: &str) -> Option<Action> {
+        crate::locks::lock(&self.actions).get(id).cloned()
+    }
+
+    /// Holds no lock while it changes the menu bar, whose changes wait on the main thread.
+    fn rebuild(&self, bar: &impl Bar<Item = I>, planned: Vec<Planned>) {
+        let old = std::mem::take(&mut *crate::locks::lock(&self.added));
+        for (place, item) in old {
+            if !bar.remove(place, &item) {
+                log::warn!("W_PLUGIN_MENU_FAILED");
+            }
+        }
+        let mut added = Vec::new();
+        let mut actions = HashMap::new();
+        let mut in_plugins = 0;
+        for (n, item) in planned.into_iter().enumerate() {
+            let id = format!("{ITEM_PREFIX}{n}");
+            let at = (item.place == Place::Plugins).then_some(in_plugins);
+            let Some(built) = bar.add(&id, &item, at) else {
+                log::warn!("W_PLUGIN_MENU_FAILED");
+                continue;
+            };
+            if at.is_some() {
+                in_plugins += 1;
+            }
+            added.push((item.place, built));
+            actions.insert(id, item.action);
+        }
+        *crate::locks::lock(&self.actions) = actions;
+        crate::locks::lock(&self.added).extend(added);
+    }
+}
+
 pub struct PluginMenus {
     pub plugins: Submenu<Wry>,
     pub import: Submenu<Wry>,
     pub export: Submenu<Wry>,
-    added: Mutex<Vec<(Place, MenuItem<Wry>)>>,
-    actions: Mutex<HashMap<String, Action>>,
+    table: Table<MenuItem<Wry>>,
 }
 
 impl PluginMenus {
@@ -107,8 +160,7 @@ impl PluginMenus {
             plugins,
             import,
             export,
-            added: Mutex::new(Vec::new()),
-            actions: Mutex::new(HashMap::new()),
+            table: Table::new(),
         }
     }
 
@@ -118,6 +170,14 @@ impl PluginMenus {
             Place::Import => &self.import,
             Place::Export => &self.export,
         }
+    }
+}
+
+/// `refresh` on the main thread, so rebuilds never overlap and their menu changes run there directly.
+pub fn refresh_on_main_thread(app: &AppHandle) {
+    let handle = app.clone();
+    if app.run_on_main_thread(move || refresh(&handle)).is_err() {
+        log::warn!("W_PLUGIN_MENU_FAILED");
     }
 }
 
@@ -137,34 +197,30 @@ pub fn refresh(app: &AppHandle) {
                 .is_ok()
         });
     let planned = plan(&plugins.list(), editing);
-    let mut added = crate::locks::lock(&menus.added);
-    let mut actions = crate::locks::lock(&menus.actions);
-    for (place, item) in added.drain(..) {
-        if menus.submenu(place).remove(&item).is_err() {
-            log::warn!("W_PLUGIN_MENU_FAILED");
-        }
+    let bar = AppBar { app, menus: &menus };
+    menus.table.rebuild(&bar, planned);
+}
+
+struct AppBar<'a> {
+    app: &'a AppHandle,
+    menus: &'a PluginMenus,
+}
+
+impl Bar for AppBar<'_> {
+    type Item = MenuItem<Wry>;
+
+    fn remove(&self, place: Place, item: &MenuItem<Wry>) -> bool {
+        self.menus.submenu(place).remove(item).is_ok()
     }
-    actions.clear();
-    let mut in_plugins = 0;
-    for (n, item) in planned.into_iter().enumerate() {
-        let id = format!("{ITEM_PREFIX}{n}");
-        let Ok(built) = MenuItem::with_id(app, &id, &item.text, item.enabled, None::<&str>) else {
-            log::warn!("W_PLUGIN_MENU_FAILED");
-            continue;
+
+    fn add(&self, id: &str, item: &Planned, at: Option<usize>) -> Option<MenuItem<Wry>> {
+        let built = MenuItem::with_id(self.app, id, &item.text, item.enabled, None::<&str>).ok()?;
+        let submenu = self.menus.submenu(item.place);
+        let put = match at {
+            Some(at) => submenu.insert(&built, at),
+            None => submenu.append(&built),
         };
-        let submenu = menus.submenu(item.place);
-        let put = if item.place == Place::Plugins {
-            in_plugins += 1;
-            submenu.insert(&built, in_plugins - 1)
-        } else {
-            submenu.append(&built)
-        };
-        if put.is_err() {
-            log::warn!("W_PLUGIN_MENU_FAILED");
-            continue;
-        }
-        actions.insert(id, item.action);
-        added.push((item.place, built));
+        put.ok().map(|()| built)
     }
 }
 
@@ -179,7 +235,7 @@ pub fn on_menu_event(app: &AppHandle, id: &str) -> bool {
     }
     let action = app
         .try_state::<PluginMenus>()
-        .and_then(|menus| crate::locks::lock(&menus.actions).get(id).cloned());
+        .and_then(|menus| menus.table.action(id));
     if let Some(action) = action
         && crate::main_windows::emit_front(app, ACTION_EVENT, action).is_err()
     {
@@ -252,6 +308,107 @@ mod tests {
                 (Place::Plugins, true),
                 (Place::Import, false),
                 (Place::Export, true),
+            ]
+        );
+    }
+
+    type Task = Box<dyn FnOnce() + Send>;
+
+    /// A menu bar whose changes run on one thread, as AppKit's do: a change from another thread
+    /// is posted there and waits for its reply.
+    struct MainThreadBar {
+        main: std::thread::ThreadId,
+        post: Mutex<std::sync::mpsc::Sender<Option<Task>>>,
+        shown: Arc<Mutex<Vec<(u64, String)>>>,
+        serial: std::sync::atomic::AtomicU64,
+    }
+
+    impl MainThreadBar {
+        fn run<T: Send + 'static>(&self, change: impl FnOnce() -> T + Send + 'static) -> T {
+            if std::thread::current().id() == self.main {
+                return change();
+            }
+            let (reply, answer) = std::sync::mpsc::channel();
+            let task: Task = Box::new(move || {
+                let _ = reply.send(change());
+            });
+            self.post.lock().unwrap().send(Some(task)).unwrap();
+            answer.recv().unwrap()
+        }
+    }
+
+    impl Bar for MainThreadBar {
+        type Item = u64;
+
+        fn remove(&self, _: Place, item: &u64) -> bool {
+            let (shown, item) = (Arc::clone(&self.shown), *item);
+            self.run(move || shown.lock().unwrap().retain(|(serial, _)| *serial != item));
+            true
+        }
+
+        fn add(&self, id: &str, _: &Planned, _: Option<usize>) -> Option<u64> {
+            let serial = self
+                .serial
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let (shown, id) = (Arc::clone(&self.shown), id.to_string());
+            self.run(move || shown.lock().unwrap().push((serial, id)));
+            Some(serial)
+        }
+    }
+
+    fn planned() -> Vec<Planned> {
+        let all = ["commands", "menus", "import", "export"];
+        plan(&[installed(EVERYTHING, true, &all)], true)
+    }
+
+    #[test]
+    fn a_rebuild_off_the_main_thread_lets_the_main_thread_pick_and_rebuild() {
+        let (finished, done) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let (post, tasks) = std::sync::mpsc::channel::<Option<Task>>();
+            let bar = Arc::new(MainThreadBar {
+                main: std::thread::current().id(),
+                post: Mutex::new(post),
+                shown: Arc::new(Mutex::new(Vec::new())),
+                serial: Default::default(),
+            });
+            let table = Arc::new(Table::new());
+            table.rebuild(&*bar, planned());
+            let worker = std::thread::spawn({
+                let (bar, table) = (Arc::clone(&bar), Arc::clone(&table));
+                move || {
+                    table.rebuild(&*bar, planned());
+                    bar.post.lock().unwrap().send(None).unwrap();
+                }
+            });
+            let first = tasks.recv().unwrap();
+            let picked = table.action(&format!("{ITEM_PREFIX}0"));
+            table.rebuild(&*bar, planned());
+            for task in std::iter::once(first).chain(tasks.iter()) {
+                let Some(task) = task else { break };
+                task();
+            }
+            worker.join().unwrap();
+            table.rebuild(&*bar, planned());
+            let shown: Vec<String> = bar
+                .shown
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|(_, id)| id.clone())
+                .collect();
+            let _ = finished.send((picked, shown));
+        });
+        let (picked, shown) = done
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("a pick and a rebuild on the main thread finish while another rebuild runs");
+        assert!(picked.is_none_or(|action| action.id == "b"));
+        assert_eq!(
+            shown,
+            [
+                format!("{ITEM_PREFIX}0"),
+                format!("{ITEM_PREFIX}1"),
+                format!("{ITEM_PREFIX}2"),
             ]
         );
     }

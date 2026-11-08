@@ -463,7 +463,7 @@ fn changed(app: &AppHandle) {
         log::warn!("W_PLUGINS_CHANGED_EMIT_FAILED");
     }
     #[cfg(desktop)]
-    menu::refresh(app);
+    menu::refresh_on_main_thread(app);
 }
 
 async fn blocking<T: Send + 'static>(
