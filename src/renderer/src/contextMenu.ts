@@ -116,7 +116,7 @@ export interface ContextMenu<T> {
 
 /**
  * Builds a context menu once with every item it can show; `onPick` gets the clicked item's action and the target the open menu was laid out for.
- * One popup runs at a time: a popup waits for the one before it to close, and one still waiting or being laid out is dropped when a newer one comes or the menu is closed.
+ * Popups are laid out one at a time, and one still waiting or being laid out is dropped when a newer one comes or the menu is closed.
  * Item IDs are `devot.<name>.<action>`.
  */
 export async function createContextMenu<A extends string, T>(
@@ -211,16 +211,21 @@ export async function createContextMenu<A extends string, T>(
   return {
     popup(target, at) {
       const ticket = ++latest
-      const run = async () => {
-        if (ticket !== latest) return
+      // Only laying out waits its turn: an open menu takes the pointer and keyboard, so no other popup comes while it shows.
+      const laidOut = queue.then(async () => {
+        if (ticket !== latest) return false
         await layOut(target)
-        if (ticket !== latest) return
+        return ticket === latest
+      })
+      queue = laidOut.then(
+        () => {},
+        () => {},
+      )
+      return laidOut.then((show) => {
+        if (!show) return
         shownFor = target
-        await menu.popup(at)
-      }
-      const done = queue.then(run)
-      queue = done.catch(() => {})
-      return done
+        return menu.popup(at)
+      })
     },
     close() {
       latest++
