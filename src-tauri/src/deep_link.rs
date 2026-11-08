@@ -237,6 +237,7 @@ impl Inbox {
         self.release()
     }
 
+    #[cfg(any(target_os = "ios", test))]
     fn screens_ready(&mut self) -> Vec<Link> {
         self.screens = true;
         self.release()
