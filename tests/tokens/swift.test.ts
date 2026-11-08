@@ -50,7 +50,7 @@ describe('the Swift tokens', () => {
     expect(stack).toEqual([])
     expect(code).not.toMatch(/undefined|NaN|Infinity|\[object|\$\{/)
     for (const line of code.split('\n').filter((l) => /static let/.test(l))) {
-      expect(line).toMatch(/^\s+public static let [`\w]+: [\w.[\]]+ = \S.*$/)
+      expect(line).toMatch(/^\s+public static let [`\w]+: [\w.[\]?]+ = \S.*$/)
     }
   })
 

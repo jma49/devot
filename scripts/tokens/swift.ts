@@ -401,7 +401,7 @@ export function compileSwift(
     '  /// The theme a window draws in; a change makes UIKit draw its colours again.',
     '  public struct ThemeTrait: UITraitDefinition {',
     '    public static let defaultValue: Theme? = nil',
-    '    public static let affectsColorAppearance = true',
+    '    public static let affectsColorAppearance: Bool = true',
     '  }',
     '',
     '  @MainActor @Observable public final class ThemeState {',
