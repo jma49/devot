@@ -27,8 +27,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
           await expect
             .poll(() =>
               page
-                .locator('html')
-                .evaluate((el) => el.style.getPropertyValue('--sidebar-surround-clip')),
+                .locator(settings ? '.settings' : '.window')
+                .evaluate((el) =>
+                  (el as HTMLElement).style.getPropertyValue('--sidebar-surround-clip'),
+                ),
             )
             .toContain(`H${viewport.width}V${viewport.height}H0Z`)
           // Isolate the surrounding sheet from the sidebar's CSS glass. The cutout must leave
