@@ -53,11 +53,11 @@ final class SettingsRootScreenTests: XCTestCase {
         XCTAssertEqual(list.contentOffset.y, top, accuracy: 1)
     }
 
-    private func scrolled(byTheReader reader: @escaping () -> Bool) -> (UIScrollView, FootKeeper) {
+    private func scrolled(byTheReader reader: @escaping () -> Bool) -> (UIScrollView, PlaceKeeper) {
         let list = UIScrollView(frame: CGRect(x: 0, y: 0, width: 400, height: 600))
         list.contentInsetAdjustmentBehavior = .never
         list.contentSize = CGSize(width: 400, height: 1000)
-        return (list, FootKeeper(list) { _ in reader() })
+        return (list, PlaceKeeper(list) { _ in reader() })
     }
 
     /// The list passes through a short content size on its way to the larger one, as SwiftUI's does.
