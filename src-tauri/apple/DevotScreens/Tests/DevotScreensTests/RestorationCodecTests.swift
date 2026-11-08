@@ -151,7 +151,7 @@ final class RestoreFlowTests: XCTestCase {
         let record = Restoration(
             tab: .library, newNotes: [Restoration.NewNote(id: note, bookId: book)], savedAt: Date())
         let harness = try launch(after: record)
-        harness.settle()
+        harness.settle(until: { harness.requests().contains { $0.op == .noteDiscard } })
         let discard = try XCTUnwrap(harness.requests().first { $0.op == .noteDiscard })
         XCTAssertEqual(discard.args, ["noteId": .string(note), "made": .object(["bookId": .string(book)])])
     }

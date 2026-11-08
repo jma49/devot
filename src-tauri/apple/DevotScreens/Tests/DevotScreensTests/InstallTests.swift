@@ -48,6 +48,12 @@ final class InstallTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
     }
 
+    /// Turns the main run loop until the condition holds; a slow CI runner can take more than one turn.
+    private func settle(until condition: () -> Bool, timeout: TimeInterval = 10) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    }
+
     private func sent(_ rust: FakeRust) throws -> [Message] {
         try rust.calls.map { try Message(json: $0.1) }
     }
@@ -250,8 +256,11 @@ final class InstallTests: XCTestCase {
         screens.root.view.layoutIfNeeded()
         settle()
         screens.delivered(Data(#"{"v":1,"notice":"settings.open","pane":"licence","focusKey":true}"#.utf8))
-        settle()
         let tabs = screens.root.tabs
+        settle(until: {
+            tabs.settings.navigation.viewControllers.count == 2
+                && (try? sent(rust).contains { if case .direct(_, .licenceGet, _) = $0 { true } else { false } }) == true
+        })
         XCTAssertEqual(tabs.selected, .settings)
         XCTAssertEqual(tabs.settings.navigation.viewControllers.count, 2)
         XCTAssertTrue(tabs.settings.navigation.viewControllers.first === tabs.settings.root)
