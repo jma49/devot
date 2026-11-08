@@ -55,6 +55,8 @@ const BLOCK_ENDS = [
   'Text [^a].\n\n[^a]: A\n\n        code [^b]\n\n[^b]: B',
   '- item\n  ```\n  x\n  ```\n    [^b] text\n\n[^b]: B',
   '[^a]: A\n---\nAfter [^b]\n\nText [^a].\n\n[^b]: B',
+  '[^a]: A\n===\n   lazy [^b]\n\nText [^a].\n\n[^b]: B',
+  '> q\n===\n\t[^b] text\n\n[^b]: B',
 ]
 
 describe('footnote numbers', () => {

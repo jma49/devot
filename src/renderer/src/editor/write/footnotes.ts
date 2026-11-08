@@ -218,9 +218,10 @@ function definitionOn(text: string): { label: string; stage: number } | null {
 
 /**
  * What a line's `text`, after its `containers`, does to the paragraph or link definition `open`
- * before it: what is open after it. A link definition's line notes it in `adds`.
+ * before it: what is open after it. A link definition's line notes it in `adds`. A line that
+ * continues a footnote definition without its indent is `lazy`.
  */
-function readBlock(text: string, containers: string, open: Open, adds: Found): Open {
+function readBlock(text: string, containers: string, open: Open, adds: Found, lazy: boolean): Open {
   if (text === '' || HEADING.test(text) || RULE.test(text)) return CLOSED
   const quotes = Math.min(containers.split('>').length - 1, 7)
   const { link: stage, quotes: outer } = open
@@ -229,7 +230,9 @@ function readBlock(text: string, containers: string, open: Open, adds: Found): O
     (open.paragraph || stage !== COMPLETE) && quotes <= outer && !ITEM_MARK.test(containers)
   if (continues) {
     const paragraph = { paragraph: true, quotes: outer, link: COMPLETE }
-    if (stage !== MAY_TAKE_TITLE && UNDERLINE.test(text)) return CLOSED
+    // A lazy line is never a heading's underline, so it stays paragraph text.
+    const underlines = !lazy && quotes === outer && stage !== MAY_TAKE_TITLE
+    if (underlines && UNDERLINE.test(text)) return CLOSED
     if (stage === COMPLETE) return paragraph
     const after = readDefinition(text, 0, stage)
     if (after === COMPLETE || after === MAY_TAKE_TITLE) adds.closesLink = true
@@ -287,7 +290,8 @@ function next(state: Reading, line: string, number: number, found: Found[]): Rea
   const prefix = CONTAINERS.exec(line)?.[0].length ?? 0
   const text = line.slice(prefix)
   const adds: Found = { line: number, defined: [], inText: [], inDefinitions: [] }
-  const open = readBlock(text, line.slice(0, prefix), state, adds)
+  const lazy = definition === 'open' && !indented
+  const open = readBlock(text, line.slice(0, prefix), state, adds, lazy)
   // A line that completes a link definition holds no references; one of a definition still open may yet be text.
   const defines = adds.closesLink === true || (adds.link !== undefined && !adds.linkOpen)
   if (!defines && line.includes('[^')) {
