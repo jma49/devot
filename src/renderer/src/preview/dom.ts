@@ -5,6 +5,7 @@ import type { Element as HastElement, ElementContent, RootContent } from 'hast'
 import { find, html } from 'property-information'
 import { isCustomTagColor } from '../../../core/tags'
 import { isMissingImage, markMissing } from '../missingImages'
+import { CHUNK_BLOCKS, CHUNK_CLASS } from './chunks'
 import { ISLAND_ATTRIBUTE } from './islands'
 
 type HastChild = RootContent | ElementContent
@@ -346,21 +347,21 @@ function moveTo(piece: ShownPiece, to: NextPiece): void {
 
 /** `patchChildren` for the run `old`, which sits just before `before`. */
 function patchRange(
-  parent: Element,
+  host: Element,
   old: readonly ChildNode[],
   next: readonly HastChild[],
   before: Node | null,
 ): ChildNode[] {
   const wanted = next.filter(isShown)
-  const ns = parent.namespaceURI
+  const ns = host.namespaceURI
   const out: ChildNode[] = []
   for (let i = 0; i < wanted.length; i += 1) {
     const node = wanted[i]!
     const dom = old[i]
     if (!dom || !sameKind(dom, node, ns)) {
       const created = create(node, ns) as ChildNode
-      if (dom) parent.replaceChild(created, dom)
-      else parent.insertBefore(created, before)
+      if (dom) dom.replaceWith(created)
+      else place(host, [created], before)
       out.push(created)
       continue
     }
@@ -418,6 +419,100 @@ function controlsOf(host: Element): Node | null {
   return first
 }
 
+// `heading + *` and `.alert:has(+ .alert)` (content.css) match only within one chunk.
+const keepsNext = (el: Element | null) =>
+  el !== null && (/^h[1-6]$/.test(el.localName) || el.classList.contains('alert'))
+
+function newChunk(host: Element, before: Node | null): Element {
+  const chunk = document.createElement('div')
+  chunk.className = CHUNK_CLASS
+  host.insertBefore(chunk, before)
+  return chunk
+}
+
+/**
+ * Puts `nodes` before `before`: a node of the note joins its chunk, and nodes put at the end fill
+ * the last chunk and then new ones. Chunks never take nodes from each other, so an edit moves
+ * nothing it does not touch.
+ */
+function place(host: Element, nodes: readonly Node[], before: Node | null): void {
+  if (nodes.length === 0) return
+  const parent = before?.parentNode
+  if (before && parent && parent !== host) {
+    if (nodes.length === 1) parent.insertBefore(nodes[0]!, before)
+    else {
+      const fragment = document.createDocumentFragment()
+      fragment.append(...nodes)
+      parent.insertBefore(fragment, before)
+    }
+    return
+  }
+  const end = before ?? controlsOf(host)
+  const lastChunk = end ? end.previousSibling : host.lastChild
+  let chunk = lastChunk instanceof Element ? lastChunk : null
+  let room = chunk ? CHUNK_BLOCKS - chunk.childElementCount : 0
+  let last = chunk?.lastElementChild ?? null
+  const fill = document.createDocumentFragment()
+  const flush = () => {
+    if (chunk && fill.hasChildNodes()) chunk.appendChild(fill)
+  }
+  for (const node of nodes) {
+    const block = node instanceof Element
+    if (!chunk || (block && room <= 0 && !keepsNext(last))) {
+      flush()
+      chunk = newChunk(host, end)
+      room = CHUNK_BLOCKS
+    }
+    if (block) {
+      room -= 1
+      last = node
+    }
+    fill.appendChild(node)
+  }
+  flush()
+}
+
+function keepTogether(into: Element, from: Element): void {
+  for (let first = from.firstElementChild; first; first = from.firstElementChild) {
+    if (!keepsNext(into.lastElementChild)) return
+    while (from.firstChild !== first) into.appendChild(from.firstChild!)
+    into.appendChild(first)
+  }
+}
+
+/** Cuts `chunk` into chunks of `CHUNK_BLOCKS` blocks. */
+function splitChunk(host: Element, chunk: Element): void {
+  for (let at = chunk; at.childElementCount > CHUNK_BLOCKS;) {
+    let cut = at.children[CHUNK_BLOCKS] ?? null
+    while (cut && keepsNext(cut.previousElementSibling)) cut = cut.nextElementSibling
+    if (!cut) return
+    const rest = document.createDocumentFragment()
+    for (let node: ChildNode | null = cut; node;) {
+      const following: ChildNode | null = node.nextSibling
+      rest.appendChild(node)
+      node = following
+    }
+    at = newChunk(host, at.nextSibling)
+    at.appendChild(rest)
+  }
+}
+
+/**
+ * Removes the chunks an edit emptied, splits one it made more than twice `CHUNK_BLOCKS` long (a
+ * paste), and keeps a heading or an alert in the chunk of the block after it.
+ */
+function tidyChunks(host: Element): void {
+  let previous: Element | null = null
+  for (let node = host.firstElementChild; node && !isUi(node);) {
+    if (previous) keepTogether(previous, node)
+    if (node.childElementCount > 2 * CHUNK_BLOCKS) splitChunk(host, node)
+    const next = node.nextElementSibling
+    if (node.hasChildNodes()) previous = node
+    else node.remove()
+    node = next
+  }
+}
+
 export const hasPending = (pieces: readonly ShownPiece[]) => pieces.at(-1)?.pending !== undefined
 
 /** The index of the first piece waiting, or the count when none waits; they are always the last. */
@@ -444,7 +539,7 @@ export function buildPending(
 ): number {
   let at = firstPending(pieces)
   if (at === pieces.length) return 0
-  const fragment = document.createDocumentFragment()
+  const nodes: ChildNode[] = []
   const start = at
   for (; at < pieces.length; at += 1) {
     const piece = pieces[at]!
@@ -453,9 +548,9 @@ export function buildPending(
     piece.nodes = made.nodes
     piece.marked = made.marked
     delete piece.pending
-    for (const node of made.nodes) fragment.appendChild(node)
+    nodes.push(...made.nodes)
   }
-  host.insertBefore(fragment, controlsOf(host))
+  place(host, nodes, null)
   return at - start
 }
 
@@ -584,13 +679,13 @@ export function patchPieces(
           for (const piece of made) middle.push(waiting(piece))
           if (made.length > 0) waits = true
         } else {
-          const fragment = document.createDocumentFragment()
+          const madeNodes: ChildNode[] = []
           for (const piece of made) {
             const shownPiece = built(piece, piece.nodes!, host.namespaceURI)
-            for (const node of shownPiece.nodes) fragment.appendChild(node)
+            madeNodes.push(...shownPiece.nodes)
             middle.push(shownPiece)
           }
-          host.insertBefore(fragment, until)
+          place(host, madeNodes, until)
         }
       }
       const stays = oldMiddle[was]
@@ -617,8 +712,13 @@ export function patchPieces(
     for (const piece of oldMiddle) {
       if (!reused.has(piece)) for (const node of piece.nodes) node.remove()
     }
-    for (const piece of middle) for (const node of piece.nodes) host.insertBefore(node, before)
+    place(
+      host,
+      middle.flatMap((piece) => piece.nodes),
+      before,
+    )
   }
+  tidyChunks(host)
 
   const out = [...shown.slice(0, head), ...middle, ...after]
   for (let i = 0; i < out.length; i += 1) {

@@ -58,6 +58,17 @@ Part of the [architecture overview](../architecture.md).
   A piece built later is built the same way: an edit above it moves only its start until then, and building it shifts its lines alone.
   `preview/dom.test.ts` holds the offsets read from pieces built after an edit above them to a whole build's, and `preview/Preview.test.tsx` a note switch and typing through the text store while pieces still wait.
   `tests/ui/render-cost.spec.ts` holds typing in Split view to no render of the preview or its copy buttons and at most one media query per key (on a 250 KB note with 468 code blocks there were about 470 copy-button renders and 2,500 media queries per key before).
+- The live preview puts the note's top-level blocks in chunks of about 100 (`CHUNK_BLOCKS` in `src/renderer/src/preview/dom.ts`), each composited on a layer of its own (`will-change: transform` on `.preview-chunk`, content.css).
+  WebKit repaints a layer's whole event region after any paint in it, and while the page has a wheel listener (React's root, CodeMirror and scroll sync each add one, passive or not) that pass walks every block of the layer down to its line boxes.
+  With the whole preview on one layer, a keystroke near the top of a big note walked everything below the scroll position, which scroll sync keeps at the edit point (#727).
+  `tests/ui/split-top-typing.spec.ts` holds the chunks and their `will-change` on every platform, and on macOS 40 keys at the top of a 250 KB note in Split view under 1.3 s of the web process's main thread; they took about 2 s (half of it in event regions) on one layer and about 0.9 s (a tenth) in chunks, with the same memory in the web and GPU processes.
+  The CPU check runs on macOS only, where WebKit has this event-region pass; CI's Linux runners skip it.
+  A chunk is a plain block box, so margins collapse through it and the page lays out as without chunks; it is a stacking context, so nothing inside a block may reach over the next chunk.
+  New blocks join the chunk they are put in, at the end they fill the last chunk and start new ones, an edit that empties a chunk removes it and one that makes a chunk more than twice as long (a paste) cuts it up.
+  A heading or an alert never ends a chunk with blocks after it, so `heading + *` and `.alert:has(+ .alert)` still match.
+  Rich text copied across a chunk boundary carries the chunks' `div` wrappers in its HTML; its plain text is unchanged, and Devot's own paste reads only the plain text.
+  Not `content-visibility: auto`: on each block it cut the event regions but cost more than it saved, as WebKit checks every such element against the selection on each selection change by its index among about 3,000 siblings; on chunks the probe never settled and timed out.
+  Not a layer for every block: about 3,000 layers in a 250 KB note.
 - The iPhone draws at its display's refresh rate: `CADisableMinimumFrameDurationOnPhone` in `src-tauri/gen/apple/devot_iOS/Info.plist` and `project.yml` (held by `tests/policy/iphone-info-plist.test.ts`) lifts the 60 Hz cap a ProMotion iPhone otherwise puts on Core Animation and the display link.
   The keyboard, system sheets and the web view's compositor transitions then run at 120 Hz; the page's `requestAnimationFrame` stays near 60 Hz, so motion drawn by script each frame does not gain from it.
 - On the iPhone's native screens a note's push starts in the frame after the tap, and the cover over a pushed note is up at most 400 ms ([iPhone screens](iphone-screens.md#row-to-editor)).
