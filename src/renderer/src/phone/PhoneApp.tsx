@@ -311,14 +311,12 @@ export function PhoneApp() {
           }
         },
       ),
-      ...activityHandlers(() => {
-        const { core, notes } = latestStore.current
-        return (
-          core && {
-            writing: (at) => core.writing(at),
-            titles: () => new Map(notes.map((note) => [note.id, note.title])),
-          }
-        )
+      ...activityHandlers(async () => {
+        const core = await latestStore.current.started()
+        return {
+          writing: (at) => core.writing(at),
+          titles: () => new Map(latestStore.current.notes.map((note) => [note.id, note.title])),
+        }
       }),
     })
     bridge.current = started

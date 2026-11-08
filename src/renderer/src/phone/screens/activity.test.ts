@@ -22,6 +22,8 @@ interface Answer {
   >
 }
 
+const empty = { words: 0, streak: 0, notesEdited: 0, mostEdited: [] }
+
 function measuring(titles: () => ReadonlyMap<string, string>) {
   const notes = createNoteService({
     storage: memoryStorage,
@@ -30,7 +32,7 @@ function measuring(titles: () => ReadonlyMap<string, string>) {
     saveDelayMs: 60_000,
   })
   const core: ActivityCore = { writing: (now) => notes.writing(now), titles }
-  const handler = activityHandlers(() => core)['activity.writing']
+  const handler = activityHandlers(async () => core)['activity.writing']
   if (!handler) throw new Error('no activity handler')
   return { notes, run: () => handler({}) as Promise<Answer> }
 }
@@ -66,8 +68,23 @@ describe('the native Activity tab operation', () => {
     expect(ranked.map((note) => note.title)).not.toContain('Note 0')
   })
 
-  it('refuses until the core has started', async () => {
-    const handler = activityHandlers(() => null)['activity.writing']
+  it('waits for the core to start instead of refusing a read asked at launch', async () => {
+    let start: (core: ActivityCore) => void = () => {}
+    const started = new Promise<ActivityCore>((resolve) => (start = resolve))
+    const handler = activityHandlers(
+      () => started,
+      () => 0,
+    )['activity.writing']
+    const answer = handler?.({})
+    const writing = { first: 0, today: 0, days: [], weeks: { this: empty, last: empty } }
+    start({ writing: async () => writing, titles: () => new Map() })
+    await expect(answer).resolves.toMatchObject({ first: 0, today: 0, days: [] })
+  })
+
+  it('refuses when the core failed to start', async () => {
+    const handler = activityHandlers(() => Promise.reject(new Error('E_SCREENS_UNAVAILABLE')))[
+      'activity.writing'
+    ]
     await expect(handler?.({})).rejects.toThrow('E_SCREENS_UNAVAILABLE')
   })
 })

@@ -27,13 +27,12 @@ const week = (figures: WritingWeek, titles: ReadonlyMap<string, string>) => ({
 
 /** The writing of the last weeks, each day by its number and shade, and each week's figures. */
 export function activityHandlers(
-  core: () => ActivityCore | null,
+  core: () => Promise<ActivityCore>,
   now: () => number = Date.now,
 ): ScreensHandlers {
   return {
     'activity.writing': async () => {
-      const found = core()
-      if (!found) throw new Error('E_SCREENS_UNAVAILABLE')
+      const found = await core()
       const writing = await found.writing(now())
       const titles = found.titles()
       return {
