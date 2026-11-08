@@ -414,7 +414,7 @@ test('a 30-column table keeps its words whole and scrolls sideways, every row to
   await page.setViewportSize({ width: 1280, height: 820 })
   const below = Array.from({ length: 60 }, (_, n) => `Line ${n + 1}`).join('\n\n')
   await createNote(page, 'Wide', `Above\n\n${WIDE_TABLE}\n\n${below}`)
-  await page.keyboard.press('ControlOrMeta+ArrowUp')
+  await page.keyboard.press('ControlOrMeta+Home')
   await expect(cells(page)).toHaveCount(150)
   expect(await brokenCells(page)).toEqual([])
   const narrowest = await cells(page).evaluateAll((all) =>
@@ -507,7 +507,7 @@ const insideItsRow = (page: Page, text: string) => async () => {
 test('a find match in a cell scrolled out of view scrolls its cell into view', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 })
   await createNote(page, 'Wide find', `Above\n\n${WIDE_TABLE}\n\nBelow`)
-  await page.keyboard.press('ControlOrMeta+ArrowUp')
+  await page.keyboard.press('ControlOrMeta+Home')
   await expect(cells(page)).toHaveCount(150)
   expect(await insideItsRow(page, 'Variance27')()).toBe(false)
 
@@ -523,7 +523,7 @@ test('a find match in a cell scrolled out of view scrolls its cell into view', a
 test('undo in a cell scrolled back out of view scrolls it into view again', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 })
   await createNote(page, 'Wide undo', `Above\n\n${WIDE_TABLE}\n\nBelow`)
-  await page.keyboard.press('ControlOrMeta+ArrowUp')
+  await page.keyboard.press('ControlOrMeta+Home')
   await expect(cells(page)).toHaveCount(150)
   await intoCell(page, 'Actuals0')
   for (let c = 0; c < 29; c++) await page.keyboard.press('Tab')
