@@ -435,9 +435,13 @@ test('a 30-column table keeps its words whole and scrolls sideways, every row to
     .boundingBox())!
   await page.mouse.move(middle.x + middle.width / 2, middle.y + middle.height / 2)
   await page.mouse.wheel(400, 0)
-  await expect.poll(async () => new Set(await rowOffsets(page)).size).toBe(1)
-  const [offset] = await rowOffsets(page)
-  expect(offset).toBeGreaterThan(100)
+  // WebKit on Linux animates a wheel scroll, so the rows agree on every step before they arrive.
+  await expect
+    .poll(async () => {
+      const offsets = await rowOffsets(page)
+      return new Set(offsets).size === 1 && offsets[0]! > 100
+    })
+    .toBe(true)
   expect((await page.locator('.cm-line').first().boundingBox())!.x).toBe(aboveBox.x)
 
   // Typing in a cell scrolled into view, and the caret drawn where it is.
