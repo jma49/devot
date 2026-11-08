@@ -1,12 +1,12 @@
 // A copy button on each fenced code block in the preview. It is the page's
 // own control, never part of the note's HTML: the core renders no button,
 // the patcher leaves it alone (`UI_ATTRIBUTE`), and printing hides it.
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { writeClipboardText } from '../clipboard'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
-import { UI_ATTRIBUTE } from './dom'
+import { UI_ATTRIBUTE, type ShownPiece } from './dom'
 
 const FEEDBACK_MS = 1500
 
@@ -14,15 +14,34 @@ export function codeText(pre: Element): string {
   return (pre.querySelector(':scope > code')?.textContent ?? '').replace(/\n$/, '')
 }
 
+const hasText = (pre: Element) => {
+  const text = pre.querySelector(':scope > code')?.textContent ?? ''
+  return text !== '' && text !== '\n'
+}
+
+const CODE_BLOCK = 'pre:not(.frontmatter)'
+
+// Keyed by the node list, which a piece waiting to be built (`buildPending`) gets anew.
+const blocksOf = new WeakMap<readonly ChildNode[], HTMLElement[]>()
+
 /**
- * The fenced code blocks in `host` that have text to copy (front matter is
- * shown as code, but is not a code block). Runs after every rendering, so it
- * looks at the text without copying it.
+ * The fenced code blocks of `pieces` that have text to copy (front matter is shown as code, but
+ * is not a code block). Runs after every rendering: a piece the page kept is read once.
  */
-export function codeBlocks(host: Element): HTMLElement[] {
-  return Array.from(host.querySelectorAll<HTMLElement>('pre:not(.frontmatter)')).filter((pre) => {
-    const text = pre.querySelector(':scope > code')?.textContent ?? ''
-    return text !== '' && text !== '\n'
+export function pieceCodeBlocks(pieces: readonly ShownPiece[]): HTMLElement[] {
+  return pieces.flatMap((piece) => {
+    let blocks = blocksOf.get(piece.nodes)
+    if (!blocks) {
+      blocks = []
+      for (const node of piece.nodes) {
+        if (!(node instanceof HTMLElement)) continue
+        if (node.matches(CODE_BLOCK)) blocks.push(node)
+        blocks.push(...node.querySelectorAll<HTMLElement>(CODE_BLOCK))
+      }
+      blocks = blocks.filter(hasText)
+      blocksOf.set(piece.nodes, blocks)
+    }
+    return blocks
   })
 }
 
@@ -36,7 +55,8 @@ const LABELS = {
 
 const ICONS = { idle: 'code.copy', copied: 'code.copied', failed: 'code.copyFailed' } as const
 
-function CopyButton({ block }: { block: HTMLElement }) {
+// Kept from rendering again with the preview: each button's icon reads the appearance.
+const CopyButton = memo(function CopyButton({ block }: { block: HTMLElement }) {
   const [state, setState] = useState<State>('idle')
   useEffect(() => {
     if (state === 'idle') return
@@ -71,7 +91,7 @@ function CopyButton({ block }: { block: HTMLElement }) {
       <Icon name={ICONS[state]} size="sm" />
     </button>
   )
-}
+})
 
 /** A key per block element, so a block keeps its button while it stays. */
 const keys = new WeakMap<HTMLElement, string>()

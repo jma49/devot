@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tempDir } from '../support/temp-dirs'
 
-// What fails before any Apple tool runs; macos-sign.bench.test.ts signs on a Mac.
+// What fails before any Apple tool runs; macos-sign.build.test.ts signs on a Mac.
 const SCRIPT = 'scripts/release/macos-sign.sh'
 const IDENTITY = 'Developer ID Application: Devot Test (TESTTEAM01)'
 const CREDENTIALS = {

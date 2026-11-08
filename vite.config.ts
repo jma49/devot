@@ -53,11 +53,11 @@ export default defineConfig({
   // Vite's dependency scan does not follow `new Worker(new URL(...))`, so a package only the
   // core worker imports was found at first load; Vite re-bundled and reloaded every page and a
   // cold start lost the first tests. Naming the worker pre-bundles it
-  // (tests/scripts/vite-deps.bench.test.ts); entries replace the default pages, so they stay listed.
+  // (tests/scripts/vite-deps.build.test.ts); entries replace the default pages, so they stay listed.
   optimizeDeps: { entries: ['*.html', 'src/core.worker.ts'] },
   // ES module workers, so lazy imports (math, emoji, highlighting, sync, import) become chunks.
   // No chunk may import the entry: WebKit runs the worker script a second time when one does,
-  // and that copy answers with E_CORE_NOT_READY (tests/scripts/worker-chunks.bench.test.ts).
+  // and that copy answers with E_CORE_NOT_READY (tests/scripts/worker-chunks.build.test.ts).
   // So the entry is a facade, everything it loads statically goes to `core-shared`, and what
   // only lazy chunks share to `core-lazy`.
   worker: {

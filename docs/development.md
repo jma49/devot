@@ -30,7 +30,7 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 | `pnpm ui:release`               | The UI for a release build; uploads source maps to Sentry when set up                                        |
 | `pnpm sentry:debug-files`       | Upload the release build's debug symbols to Sentry when set up                                               |
 | `pnpm test` / `pnpm test:watch` | Vitest                                                                                                       |
-| `pnpm test:fast`                | Vitest without the benchmarks and builds (`*.bench.test.ts`); what the pre-push hook runs                    |
+| `pnpm test:fast`                | Vitest without the benchmarks and builds (`*.bench.test.ts`, `*.build.test.ts`); what the pre-push hook runs |
 | `pnpm test:policy`              | Policy and token tests, which also read the docs; what docs-only pushes and pull requests run                |
 | `pnpm test:ui`                  | Playwright UI tests (WebKit, IPC mocked)                                                                     |
 | `pnpm bench`                    | Renderer performance baseline into `docs/benchmarks/results.json` (WebKit, IPC mocked)                       |

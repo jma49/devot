@@ -18,10 +18,10 @@ export function slug(text: string): string {
   return text.toLowerCase().replace(DROPPED, '').replace(/ /g, '-')
 }
 
-export function createSlugger(): (text: string) => string {
+/** Names headings in order from their `slug`s, numbering repeats. */
+export function createSlugger(): (base: string) => string {
   const used = new Map<string, number>()
-  return (text) => {
-    const base = slug(text)
+  return (base) => {
     let id = base
     // A repeat can collide with a heading that is literally named `a-1`.
     while (used.has(id)) {
@@ -40,7 +40,7 @@ function visit(node: Root | Element, next: (text: string) => string): void {
   for (const child of node.children) {
     if (child.type !== 'element') continue
     if (HEADING.test(child.tagName) && child.properties['id'] === undefined) {
-      const id = next(textOf(child))
+      const id = next(slug(textOf(child)))
       if (id) child.properties['id'] = ID_PREFIX + id
     }
     visit(child, next)

@@ -356,6 +356,7 @@ describe('Tauri command permissions', () => {
       'allow-note-open',
       'allow-note-purge',
       'allow-note-put',
+      'allow-note-put-meta',
       'allow-note-relay-send',
       'allow-note-window-close-cancel',
       'allow-note-window-close-ready',

@@ -1,6 +1,6 @@
-// Storage over Tauri commands. Yjs states cross IPC as base64 strings, which
-// the core worker codes (see wire.ts): this side hands them to the commands
-// as they come, so a save or an open costs the UI thread nothing per byte.
+// Storage over Tauri commands. Notes and Yjs states come framed or coded by
+// the core worker (see wire.ts): this side hands them to the commands as they
+// come, so a save or an open costs the UI thread nothing per byte.
 import * as Comlink from 'comlink'
 import { invoke } from '../ipc'
 import type {
@@ -34,11 +34,9 @@ export const tauriWire: WireStorage = {
     invoke<ArrayBuffer>('note_open', { id }).then((frame) => Comlink.transfer(frame, [frame])),
   getBodies: (ids) => invoke<NoteBody[]>('notes_bodies', { ids }),
   // The worker found the links and checked the note and its agent_writes rows (what note_put refuses).
-  putNote: (note, links) => {
-    if (note.agentWrites === undefined) return invoke('note_put', { note, links, writes: null })
-    const { agentWrites, ...record } = note
-    return invoke('note_put', { note: record, links, writes: agentWrites })
-  },
+  putNote: ({ frame }) => invoke('note_put', frame),
+  putNoteMeta: ({ agentWrites, ...note }) =>
+    invoke('note_put_meta', { note, writes: agentWrites ?? null }),
   searchNotes: (query, limit) => invoke<NoteSummary[]>('notes_search', { query, limit }),
   listBacklinks: (id, excludeBookId, limit) =>
     invoke<NoteSummary[]>('note_backlinks', { id, excludeBookId, limit }),

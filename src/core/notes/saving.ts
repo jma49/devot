@@ -1,11 +1,11 @@
 import * as Y from 'yjs'
 import { agentWriteRows, sameRows, type AgentWriteRow } from '../authorship'
 import { errorCode } from '../errors'
-import type { NoteRecord } from '../storage'
+import type { NoteFields, NoteRecord } from '../storage'
 import { BODY } from './body'
 import type { Live, NoteContext } from './context'
 import type { Kernel } from './kernel'
-import { asWritten, dirty, untilWritten } from './records'
+import { asWritten, dirty, heldOf, untilWritten } from './records'
 import type { NoteService } from './types'
 
 /** Each save encodes a note's whole Yjs state, so a note whose state is past the first size waits longer after a pause, up to SAVE_DELAY_STRETCH times as long at the second. */
@@ -36,7 +36,7 @@ export function createSaving(
   const { unchecked, keepBaseline, recordEvents, sweep } = k.versions
   const { report, settle } = k.problems
   const { relay, takeIn } = k.relay
-  const { drop, getStored, trim } = k.memory
+  const { drop, getStored, keepsState, trim } = k.memory
   /** Serialises writes of a note so they never overlap and land in the order asked for. */
   const exclusive = <T>(note: Live, work: () => Promise<T>): Promise<T> => {
     note.writes += 1
@@ -75,8 +75,17 @@ export function createSaving(
     report()
   }
 
-  /** Retries up to WRITE_TRIES times after taking in the stored copy when another process wrote first. Returns undefined when the note was deleted for good meanwhile (it is let go). Runs only through exclusive. */
-  const put = (note: Live, make: () => NoteRecord): Promise<NoteRecord | undefined> =>
+  /**
+   * Retries up to WRITE_TRIES times after taking in the stored copy when another process wrote first. `fields()` gives the record to write and `body()` its body, taken from the document.
+   * While `bodyStored()` the fields alone are written; a retry, which took in another process's write, and a note storage does not have are written whole.
+   * Returns undefined when the note was deleted for good meanwhile (it is let go). Runs only through exclusive.
+   */
+  const put = (
+    note: Live,
+    fields: () => NoteFields,
+    body: () => Pick<NoteRecord, 'bodyMd' | 'ydoc'>,
+    bodyStored: () => boolean = () => false,
+  ): Promise<{ record: NoteFields; state?: Uint8Array } | undefined> =>
     untilWritten(async (retry) => {
       if (retry) {
         const stored = await getStored(note.record.id, { trashed: true })
@@ -88,9 +97,18 @@ export function createSaving(
         takeIn(note, stored)
         if (note.record.title !== title) note.retitled = true
       }
-      const record = make()
+      if (!retry && bodyStored()) {
+        const record = fields()
+        try {
+          await storage.putNoteMeta(record)
+          return { record }
+        } catch (error) {
+          if (errorCode(error) !== 'E_NOTE_NOT_FOUND') throw error
+        }
+      }
+      const record = { ...fields(), ...body() }
       await storage.putNote(record)
-      return record
+      return { record, state: record.ydoc }
     })
 
   /** The rows to write with the note: undefined (left as stored) when they are what storage holds. */
@@ -109,23 +127,36 @@ export function createSaving(
       keepBaseline(note.record.id, body, note.rev)
     }
     let edits = note.edits
+    let changes = note.changes
     let rows: readonly AgentWriteRow[] | undefined
-    const record = await put(note, () => {
-      edits = note.edits
-      const datesSet = (note.record.datesHlc ?? '') > (note.saved.datesHlc ?? '')
-      const derived = rowsOf(note)
-      rows = derived.rows
-      const state = Y.encodeStateAsUpdate(note.doc)
-      note.state = state
-      note.record = {
-        ...note.record,
-        bodyMd: note.doc.getText(BODY).toString(),
-        ydoc: state,
-        updatedAt: datesSet ? note.record.updatedAt : Math.max(now(), note.record.createdAt),
-      }
-      return derived.changed ? { ...note.record, agentWrites: derived.changed } : note.record
-    })
-    if (!record) return
+    const written = await put(
+      note,
+      () => {
+        edits = note.edits
+        changes = note.changes
+        const datesSet = (note.record.datesHlc ?? '') > (note.saved.datesHlc ?? '')
+        const derived = rowsOf(note)
+        rows = derived.rows
+        note.record = {
+          ...note.record,
+          updatedAt: datesSet ? note.record.updatedAt : Math.max(now(), note.record.createdAt),
+        }
+        return derived.changed ? { ...note.record, agentWrites: derived.changed } : note.record
+      },
+      () => {
+        const state = Y.encodeStateAsUpdate(note.doc)
+        note.state = keepsState(note) ? state : undefined
+        return { bodyMd: note.doc.getText(BODY).toString(), ydoc: state }
+      },
+      // An update waiting on one that has not arrived raises no change, but storage lacks it too.
+      () =>
+        note.storedChanges === note.changes &&
+        note.doc.store.pendingStructs === null &&
+        note.doc.store.pendingDs === null,
+    )
+    if (!written) return
+    const { record, state } = written
+    note.storedChanges = changes
     // A note's first write here writes its rows again; none where none were known tells no one.
     const authored =
       record.agentWrites !== undefined && (note.rows !== undefined || record.agentWrites.length > 0)
@@ -136,13 +167,14 @@ export function createSaving(
       updatedAt: record.updatedAt,
       ...(authored ? { authored: true } : {}),
     })
-    const written = asWritten(record)
-    note.record = { ...note.record, bodyVersion: written.bodyVersion }
+    if (state) note.stateBytes = state.byteLength
+    const saved = asWritten(heldOf(record))
+    note.record = { ...note.record, bodyVersion: saved.bodyVersion }
     const before = note.saved
-    note.saved = written
+    note.saved = saved
     note.savedEdits = edits
     settle(note)
-    recordEvents(note.rev, before, written)
+    recordEvents(note.rev, before, saved)
     sweep()
   }
 
@@ -163,7 +195,7 @@ export function createSaving(
 
   const schedule = (note: Live) => {
     clearTimeout(note.timer)
-    const delay = saveDelay(saveDelayMs, note.saved.ydoc.byteLength)
+    const delay = saveDelay(saveDelayMs, note.stateBytes)
     note.timer = setTimeout(() => {
       note.timer = undefined
       save(note).catch(() => {})

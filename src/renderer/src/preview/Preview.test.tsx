@@ -8,6 +8,7 @@ import { labels } from '../../../../tests/support/preview-html'
 import type { Core } from '../core-client'
 import type { FindTarget } from '../find/target'
 import { patchPieces, UI_ATTRIBUTE } from './dom'
+import { textStore } from '../textStore'
 import { Preview } from './Preview'
 import type { ScrollPane } from './scrollSync'
 
@@ -112,6 +113,21 @@ function show(core: Core, markdown: string, noteId: string) {
     })
   render(markdown, noteId)
   return { render, handles, body: () => at.querySelector('.preview-body')! }
+}
+
+/** `show` for a preview that follows a text store, as Split view's does. */
+function follow(core: Core, markdown: string, noteId: string) {
+  const at = document.createElement('div')
+  document.body.append(at)
+  root = createRoot(at)
+  const text = textStore(markdown, (run) => setTimeout(run, 0))
+  const open = (id: string) =>
+    act(() => {
+      root!.render(<Preview core={core} text={text} noteId={id} onOpenNote={() => undefined} />)
+    })
+  open(noteId)
+  const type = (next: string) => act(() => text.changed(() => next))
+  return { open, type, body: () => at.querySelector('.preview-body')! }
 }
 
 /** Waits for the first render to reach the page, but for no timer the page set. */
@@ -281,5 +297,35 @@ describe('Preview', () => {
     expect(asked.at(-1)).toEqual([])
     expect(body().contains(before)).toBe(false)
     expect(content(body())).toBe(await wholeBuild(other))
+  }, 60_000)
+
+  it('shows another note anew when its text follows the switch, while either note still builds', async () => {
+    const { core, asked, renders } = fakeCore()
+    const first = note(200_000, 'one')
+    const { open, type, body } = follow(core, first, 'n1')
+    await firstRender(renders)
+    const before = body().querySelector('p')!
+    expect(body().querySelectorAll('h2').length).toBeLessThan(first.split('## ').length - 1)
+
+    const other = note(60_000, 'two')
+    const from = renders.length
+    open('n2')
+    type(other)
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await renders[from]
+      for (let i = 0; i < 20; i += 1) await Promise.resolve()
+    })
+    expect(asked[from]).toEqual([])
+    expect(body().contains(before)).toBe(false)
+    expect(body().querySelectorAll('h2').length).toBeLessThan(other.split('## ').length - 1)
+
+    // Typed in a piece built at once, with pieces still waiting after it.
+    const edited = other.replace('Paragraph 2 of two with', 'Paragraph 2 of two, typed, with')
+    type(edited)
+    await settle()
+    expect(asked.at(-1)!.length).toBeGreaterThan(0)
+    expect(content(body())).toBe(await wholeBuild(edited))
+    expect(body().querySelectorAll('.code-copy')).toHaveLength(edited.split('```ts').length - 1)
   }, 60_000)
 })

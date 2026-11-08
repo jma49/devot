@@ -176,6 +176,47 @@ describe('createPieceRenderer', () => {
     }
   })
 
+  it('renders a note edited again and again as a first render of it does', async () => {
+    const parts = [...Object.values(CASES), '# Same\n\nRepeated.', '# Same\n\nRepeated.']
+    let seed = 11
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    const render = small()
+    const kept = new Map<string, RootContent[]>()
+    let known: string[] = []
+    let markdown = parts.join('\n\n')
+    for (let round = 0; round < 40; round += 1) {
+      const at = Math.floor(random() * markdown.length)
+      const removed = random() < 0.3 ? Math.floor(random() * 30) : 0
+      const added = parts[Math.floor(random() * parts.length)]!.slice(0, Math.floor(random() * 25))
+      markdown = markdown.slice(0, at) + added + markdown.slice(at + removed)
+      const pieces = await render(markdown, options, known)
+      known = pieces.map((piece) => piece.key)
+      const want = blocksOnly(assemble(await small()(markdown, options), new Map()))
+      expect(blocksOnly(assemble(pieces, kept)), `round ${round}`).toEqual(want)
+    }
+  })
+
+  it('keeps pieces with the same text apart as copies of it come and go', async () => {
+    const render = small()
+    const kept = new Map<string, RootContent[]>()
+    let known: string[] = []
+    for (const markdown of [
+      'A\n\n# X\n\nB\n\n# X\n',
+      'A\n\n# X\n\nB\n\n# X\n\n# X\n',
+      '# X\n\nA\n\n# X\n\nB\n\n# X\n',
+      '# X\n\nA typed\n\n# X\n\nB\n\n# X\n',
+      'A typed\n\n# X\n\nB\n\n# X\n',
+    ]) {
+      const pieces = await render(markdown, options, known)
+      known = pieces.map((piece) => piece.key)
+      expect(new Set(known).size).toBe(known.length)
+      const sent = pieces.flatMap((piece) => piece.nodes ?? []).filter((n) => n.type === 'element')
+      expect(new Set(sent).size).toBe(sent.length)
+      const want = blocksOnly(assemble(await small()(markdown, options), new Map()))
+      expect(blocksOnly(assemble(pieces, kept))).toEqual(want)
+    }
+  })
+
   it('cuts a note with definitions into pieces', () => {
     expect(splitBlocks(CASES['link definitions']!, 1)).toHaveLength(4)
     expect(splitBlocks(CASES['footnotes']!, 1)).toHaveLength(4)

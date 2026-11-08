@@ -7,7 +7,7 @@ final class WebPaneScreen: UIViewController {
     let pane: String
     private var anchor: PaneAnchor?
     private let host: WebViewHost
-    private let show: (_ pane: String, _ anchor: PaneAnchor?, _ shown: @escaping () -> Void) -> Void
+    private let show: @MainActor (_ pane: String, _ anchor: PaneAnchor?, _ shown: @escaping @MainActor () -> Void) -> Void
     private let left: () -> Void
     private var showing = false
     /// The page was asked for the pane since the screen last left the stack.
@@ -17,7 +17,7 @@ final class WebPaneScreen: UIViewController {
     /// screen has left the stack, so the page lets the pane go.
     init(
         pane: String, anchor: PaneAnchor? = nil, title: String, host: WebViewHost,
-        show: @escaping (_ pane: String, _ anchor: PaneAnchor?, _ shown: @escaping () -> Void) -> Void,
+        show: @escaping @MainActor (_ pane: String, _ anchor: PaneAnchor?, _ shown: @escaping @MainActor () -> Void) -> Void,
         left: @escaping () -> Void
     ) {
         self.pane = pane
