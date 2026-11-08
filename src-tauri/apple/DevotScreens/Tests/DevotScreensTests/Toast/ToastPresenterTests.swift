@@ -200,6 +200,22 @@ final class ToastPresenterTests: XCTestCase {
         try await eventually("it is gone") { view.superview == nil }
     }
 
+    func testALayoutAfterTheToastHasGoneLeavesItsPlacementAlone() async throws {
+        barTop = nil
+        presenter.offer(toast())
+        let view = try shown()
+        view.undo.sendActions(for: .touchUpInside)
+        try await eventually("it is gone") { view.superview == nil }
+        barTop = 600
+        presenter.hostDidLayout()
+        host.view.layoutIfNeeded()
+        XCTAssertFalse(view.aboveBar?.isActive ?? false, "a gone toast's constraint is never activated")
+        presenter.offer(toast(.completed, "second"))
+        let next = try shown()
+        host.view.layoutIfNeeded()
+        XCTAssertEqual(next.center.y + next.bounds.height / 2, 600 - Tokens.Size.phoneToastGap, accuracy: 0.5)
+    }
+
     func testReduceMotionCrossfadesInPlace() async throws {
         presenter.reduceMotion = { true }
         presenter.offer(toast())

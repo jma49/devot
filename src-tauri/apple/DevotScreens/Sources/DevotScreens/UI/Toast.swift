@@ -24,6 +24,8 @@ final class ToastView: UIView {
     let label = UILabel()
     let undo = UIButton(type: .system)
     let pan = UIPanGestureRecognizer()
+    /// Held by the toast it places: once the toast has gone, activating it would crash.
+    var aboveBar: NSLayoutConstraint?
     private(set) var kind: UndoToast.Kind
 
     init(kind: UndoToast.Kind) {
@@ -156,7 +158,6 @@ final class ToastPresenter: NSObject, UndoOffering, UIGestureRecognizerDelegate 
     private var cancelTimer: (() -> Void)?
     private(set) var rise: UIViewPropertyAnimator?
     private var settle: SettleAnimator?
-    private var aboveBar: NSLayoutConstraint?
 
     func attach(to host: UIView) {
         self.host = host
@@ -164,7 +165,7 @@ final class ToastPresenter: NSObject, UndoOffering, UIGestureRecognizerDelegate 
 
     /// The host laid out: the toast keeps its gap above the tab bar.
     func hostDidLayout() {
-        guard let host, let aboveBar else { return }
+        guard let host, let aboveBar = current?.aboveBar else { return }
         let top = barTop()
         let constant = (top ?? 0) - Tokens.Size.phoneToastGap
         if aboveBar.isActive != (top != nil) { aboveBar.isActive = top != nil }
@@ -185,7 +186,6 @@ final class ToastPresenter: NSObject, UndoOffering, UIGestureRecognizerDelegate 
         guard let host else { return }
         let view = ToastView(kind: toast.kind)
         install(view, in: host)
-        current = view
         arrive(view)
         restartTimer()
     }
@@ -213,7 +213,7 @@ final class ToastPresenter: NSObject, UndoOffering, UIGestureRecognizerDelegate 
         let aboveBar = view.bottomAnchor.constraint(equalTo: host.topAnchor)
         aboveBar.priority = UILayoutPriority(999)
         aboveBar.isActive = false
-        self.aboveBar = aboveBar
+        view.aboveBar = aboveBar
         NSLayoutConstraint.activate([
             view.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: Tokens.Size.phoneScreenEdge),
             view.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -Tokens.Size.phoneScreenEdge),
@@ -224,6 +224,7 @@ final class ToastPresenter: NSObject, UndoOffering, UIGestureRecognizerDelegate 
         view.undo.addAction(UIAction { [weak self] _ in self?.undoTapped() }, for: .touchUpInside)
         view.pan.delegate = self
         view.pan.addTarget(self, action: #selector(panned(_:)))
+        current = view
         hostDidLayout()
         host.layoutIfNeeded()
     }
