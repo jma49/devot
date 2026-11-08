@@ -1,12 +1,14 @@
 import UIKit
 
-/// The system tab bar: icons only, each tab a navigation stack. Settings is native; the other
-/// tabs' roots hold the web view.
+/// The system tab bar: icons only, each tab a navigation stack. Notes, Library and Settings are
+/// native; Activity's root holds the web view.
 final class DevotTabBarController: UITabBarController, UITabBarControllerDelegate {
     var onAppear: ((Tab) -> Void)?
     var onReselect: ((Tab) -> Void)?
     let settings: SettingsScreens
+    let lists = ListContext()
     private var screens: [Tab: WebTabScreen] = [:]
+    private(set) var listRoots: [Tab: ListScreen] = [:]
 
     init(host: WebViewHost) {
         settings = SettingsScreens(host: host)
@@ -16,6 +18,15 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
             if tab == .settings {
                 navigation = settings.navigation
                 settings.onTabAppear = { [weak self] in self?.onAppear?(.settings) }
+            } else if let root = listRoot(tab) {
+                listRoots[tab] = root
+                root.onAppear = { [weak self] in self?.onAppear?($0) }
+                navigation = UINavigationController(rootViewController: root)
+                navigation.navigationBar.prefersLargeTitles = true
+                navigation.view.backgroundColor = Tokens.Color.phoneBackground
+                if let library = root as? LibraryScreen {
+                    library.push = { [weak navigation] in navigation?.pushViewController($0, animated: true) }
+                }
             } else {
                 let screen = WebTabScreen(tab: tab, host: host) { [weak self] in self?.onAppear?($0) }
                 screens[tab] = screen
@@ -50,6 +61,14 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
         case .library: L10n.phoneTabLibrary()
         case .activity: L10n.phoneTabActivity()
         case .settings, .search: L10n.phoneTabSettings()
+        }
+    }
+
+    private func listRoot(_ tab: Tab) -> ListScreen? {
+        switch tab {
+        case .notes: NoteListScreen(title: L10n.phoneTabNotes(), view: .all, tab: .notes, context: lists, isRoot: true)
+        case .library: LibraryScreen(tab: .library, context: lists)
+        case .activity, .settings, .search: nil
         }
     }
 

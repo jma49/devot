@@ -73,11 +73,12 @@ final class NewNoteFlowTests: XCTestCase {
         screens.replied(id, try Message.reply(id: id, outcome: outcome).json())
     }
 
-    /// Whatever else waits gets an empty answer: tab, editor and settings requests.
+    /// Whatever else waits gets an empty answer: tab, editor and settings requests, and list reads.
     private func answerAll(_ result: JSONValue = .object([:])) {
-        for (id, _) in rust.calls where !answered.contains(id) {
+        for (id, json) in rust.calls where !answered.contains(id) {
             answered.insert(id)
-            screens.replied(id, try? Message.reply(id: id, outcome: .ok(result)).json())
+            let answer = FakeRust.emptyAnswer(json, request: result)
+            screens.replied(id, try? Message.reply(id: id, outcome: .ok(answer)).json())
         }
     }
 

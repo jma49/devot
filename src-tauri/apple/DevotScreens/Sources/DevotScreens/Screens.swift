@@ -79,10 +79,18 @@ final class Screens: SettingsBridge {
             licences.read(done: done)
         }
         gate.perform = { [weak self] intent in
+            guard let self else { return }
             switch intent {
-            case .newNote(let bookId): self?.pushNewNote(bookId)
+            case .newNote(let bookId): pushNewNote(bookId)
+            default: root.tabs.lists.perform(intent)
             }
         }
+        let lists = root.tabs.lists
+        lists.gate = gate
+        lists.open = { [weak self] id, title in self?.openNote(id, title: title) }
+        lists.hideEditor = { [weak self] done in self?.hideEditor(done) }
+        lists.untouchedNewNotes = { [weak self] in self?.untouchedNewNotes() ?? [] }
+        lists.bridge = self
         background = NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil
         ) { [weak self] _ in
@@ -241,9 +249,14 @@ final class Screens: SettingsBridge {
             return true
         case .notesChanged:
             guard let rev = fields["rev"]?.number, let ids = fields["ids"]?.array else { return invalid(kind) }
-            for id in ids.compactMap(\.string) where (fresh[id]?.rev ?? .infinity) < rev {
+            let named = ids.compactMap(\.string)
+            for id in named where (fresh[id]?.rev ?? .infinity) < rev {
                 fresh[id]?.touched = true
             }
+            root.tabs.lists.notesChanged(rev: rev, ids: named, all: fields["all"]?.bool ?? false)
+            return false
+        case .booksChanged, .tagsChanged, .savedSearchesChanged:
+            root.tabs.lists.libraryChanged()
             return false
         default:
             return false
@@ -288,6 +301,9 @@ final class Screens: SettingsBridge {
                 guard let id = made["id"]?.string else { return refusedCreate(screen, code: "E_SCREENS_MESSAGE_INVALID") }
                 fresh[id] = FreshNote(rev: made["rev"]?.number ?? 0)
                 screen.created(id)
+                if let stack = screen.navigationController?.viewControllers, let at = stack.firstIndex(of: screen), at > 0 {
+                    (stack[at - 1] as? NoteListScreen)?.created(id)
+                }
                 discardLeftNewNotes()
             case .failed(let code):
                 refusedCreate(screen, code: code)
@@ -331,6 +347,13 @@ final class Screens: SettingsBridge {
                 if case .failed(let code) = outcome { self?.rust.log(.warn, "W_PHONE_DISCARD_FAILED code=\(code)") }
             }
         }
+    }
+
+    /// The new notes a native list drops before the pop that leaves them draws a frame; the page
+    /// still decides, on `note.discard`, whether each one goes.
+    private func untouchedNewNotes() -> [String] {
+        let shown = Set(editorScreens.compactMap(\.noteId))
+        return fresh.filter { !$0.value.touched && !shown.contains($0.key) }.map(\.key)
     }
 
     /// One sheet per locked tap, with the warning played in the same turn as it rises.

@@ -43,21 +43,50 @@ final class TabBarTests: XCTestCase {
         }
     }
 
-    func testSettingsIsNativeUnderALargeTitleAndTheOtherTabsAreWebScreensUnderAHiddenBar() throws {
+    func testNotesLibraryAndSettingsAreNativeUnderLargeTitlesAndActivityIsAWebScreenUnderAHiddenBar() throws {
         let tabs = controller()
         for (index, tab) in TabModel.tabs.enumerated() {
             let navigation = try XCTUnwrap(tabs.viewControllers?[index] as? UINavigationController)
-            if tab == .settings {
+            switch tab {
+            case .settings:
                 XCTAssertTrue(navigation === tabs.settings.navigation)
                 XCTAssertFalse(navigation.isNavigationBarHidden)
                 XCTAssertTrue(navigation.navigationBar.prefersLargeTitles)
                 XCTAssertTrue(navigation.viewControllers.first === tabs.settings.root)
                 XCTAssertNil(tabs.screen(tab))
-            } else {
+            case .notes, .library:
+                let root = try XCTUnwrap(tabs.listRoots[tab])
+                XCTAssertTrue(navigation.viewControllers.first === root)
+                XCTAssertFalse(navigation.isNavigationBarHidden)
+                XCTAssertTrue(navigation.navigationBar.prefersLargeTitles)
+                XCTAssertEqual(root.navigationItem.largeTitleDisplayMode, .always)
+                XCTAssertEqual(root.navigationItem.title, tab == .notes ? L10n.phoneTabNotes() : L10n.phoneTabLibrary())
+                XCTAssertTrue(tab == .notes ? root is NoteListScreen : root is LibraryScreen)
+                XCTAssertNil(tabs.screen(tab))
+            default:
                 XCTAssertTrue(navigation.isNavigationBarHidden)
                 XCTAssertTrue(navigation.viewControllers.first === tabs.screen(tab))
             }
         }
+    }
+
+    func testNewNoteIsTheListsComposeItemWithItsMenuBesideTheFilter() throws {
+        let tabs = controller()
+        let notes = try XCTUnwrap(tabs.listRoots[.notes])
+        notes.loadViewIfNeeded()
+        let items = try XCTUnwrap(notes.navigationItem.rightBarButtonItems)
+        XCTAssertEqual(items.count, 3)
+        XCTAssertEqual(items[0].accessibilityLabel, L10n.noteListNewNote())
+        XCTAssertNotNil(items[0].primaryAction)
+        XCTAssertEqual(
+            items[0].menu?.children.map(\.title),
+            [L10n.noteListNewNote(), L10n.phoneListNewNoteIn(), L10n.phoneListFromTemplate()])
+        XCTAssertEqual(items[2].accessibilityLabel, L10n.phoneFilterLabel())
+        let filters = try XCTUnwrap(items[2].menu?.children.compactMap { $0 as? UIMenu }.first { $0.options.contains(.singleSelection) })
+        XCTAssertEqual(filters.children.map(\.title), StatusFilter.allCases.map(\.name))
+        let library = try XCTUnwrap(tabs.listRoots[.library])
+        library.loadViewIfNeeded()
+        XCTAssertEqual(library.navigationItem.rightBarButtonItem?.accessibilityLabel, L10n.noteListNewNote())
     }
 
     func testTheSettingsRootSearchesAndPairs() throws {

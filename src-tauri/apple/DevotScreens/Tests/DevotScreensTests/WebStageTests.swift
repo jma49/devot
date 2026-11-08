@@ -106,7 +106,7 @@ final class WebStageTests: XCTestCase {
         XCTAssertEqual(webView.bounds.size, CGSize(width: 844, height: 390))
     }
 
-    func testEachTabTakesTheWebViewWithoutResizingIt() throws {
+    func testEachWebTabTakesTheWebViewAndEachNativeListRestsItWithoutResizingIt() throws {
         let webView = RecordingWebView()
         let rust = FakeRust()
         let tao = UIViewController()
@@ -119,13 +119,19 @@ final class WebStageTests: XCTestCase {
         webView.resized = 0
         let tabs = screens.root.tabs
 
-        let web = TabModel.tabs.filter { $0 != .settings }
-        for tab in web + web.reversed() {
+        let shown = TabModel.tabs.filter { $0 != .settings }
+        XCTAssertNotNil(tabs.screen(.activity))
+        for tab in shown + shown.reversed() {
             tabs.select(tab)
             tabs.view.layoutIfNeeded()
-            let screen = try XCTUnwrap(tabs.screen(tab))
-            XCTAssertTrue(webView.superview === screen.view, "\(tab)")
             XCTAssertEqual(webView.bounds.size, window.bounds.size, "\(tab)")
+            guard let screen = tabs.screen(tab) else {
+                XCTAssertNotNil(tabs.listRoots[tab], "\(tab)")
+                XCTAssertTrue(webView.superview === screens.root.host.stage, "\(tab)")
+                XCTAssertFalse(reachableByVoiceOver(webView), "\(tab)")
+                continue
+            }
+            XCTAssertTrue(webView.superview === screen.view, "\(tab)")
             XCTAssertEqual(screen.view.safeAreaInsets, window.safeAreaInsets, "\(tab)")
             XCTAssertEqual(webView.safeAreaInsets, window.safeAreaInsets, "\(tab)")
         }
@@ -151,7 +157,8 @@ final class WebStageTests: XCTestCase {
         tao.view.layoutIfNeeded()
         webView.resized = 0
         let tabs = screens.root.tabs
-        XCTAssertTrue(reachableByVoiceOver(webView))
+        XCTAssertTrue(webView.superview === screens.root.host.stage, "the native Library shows first")
+        XCTAssertFalse(reachableByVoiceOver(webView))
         tabs.select(.settings)
         tabs.view.layoutIfNeeded()
         XCTAssertTrue(webView.superview === screens.root.host.stage)

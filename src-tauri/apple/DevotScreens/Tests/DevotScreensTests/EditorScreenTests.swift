@@ -319,8 +319,8 @@ final class EditorScreenTests: XCTestCase {
         } }
         var answered = 0
         let answerAll = {
-            for (id, _) in rust.calls.dropFirst(answered) {
-                screens.replied(id, try Message.reply(id: id, outcome: .ok(.object([:]))).json())
+            for (id, json) in rust.calls.dropFirst(answered) {
+                screens.replied(id, try Message.reply(id: id, outcome: .ok(FakeRust.emptyAnswer(json))).json())
             }
             answered = rust.calls.count
         }
@@ -344,7 +344,7 @@ final class EditorScreenTests: XCTestCase {
 
         tabs.select(.notes)
         settle()
-        XCTAssertTrue(webView.superview === tabs.screen(.notes)?.view)
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
         XCTAssertTrue(try requests().contains(.editorHide))
         try answerAll()
         tabs.select(.library)
@@ -354,8 +354,8 @@ final class EditorScreenTests: XCTestCase {
 
         screens.delivered(Data(#"{"v":1,"notice":"nav.back"}"#.utf8))
         settle(1)
-        XCTAssertTrue(navigation.topViewController === tabs.screen(.library))
-        XCTAssertTrue(webView.superview === tabs.screen(.library)?.view)
+        XCTAssertTrue(navigation.topViewController === tabs.listRoots[.library])
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(rust.lines.filter { $0.hasPrefix("W_") }, [])
     }

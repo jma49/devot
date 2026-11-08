@@ -43,8 +43,10 @@ final class ScreensRootController: UIViewController {
         didMove(toParent: parent)
     }
 
+    /// A native tab shown first leaves the web view where tao put it, still reachable by VoiceOver.
     override func viewIsAppearing(_ animated: Bool) {
         super.viewIsAppearing(animated)
+        if host.holder == nil { host.rest() }
         makeWindowKey()
     }
 
