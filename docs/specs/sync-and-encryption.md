@@ -157,6 +157,7 @@ Part of the [architecture overview](../architecture.md).
   A leave takes the lock a connect holds throughout and then the one a move to iCloud holds, so a connect or move under way ends before the leave starts and keeps nothing of the vault left.
   The page sees the code and the QR code's modules (drawn in `color.qr.*`) while the code is on show, and the outcome; Rust keeps the secret and the key.
   The offer and confirmation go through a `PairingChannel` (open, take, confirm, poll, close); `RelayPairing` is the relay's, and a vault in iCloud gets its own (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md).
+  Closing answers the state it closed, on iCloud saved against the record as read and read again when another device changed it, so an offer taken while the showing device was not polling, or taken as it closed, still ends as `unconfirmed`, as does a confirmation it never checked.
 - **Recovery key:** the vault ID and key with a version byte and a 4-byte checksum (SHA-256 over a label and the rest), as 85 characters of Crockford base32 in groups of five.
   Reading it ignores case, spaces and hyphens and takes O for zero and I or L for one; a mistyped key fails its checksum (`E_SYNC_RECOVERY_CHECKSUM`) before anything uses it.
   Entered with the relay's URL on a new device, it restores the vault into the keychain (or finds it there already), enrolls the device and turns sync on; it needs nothing a relay from before pairing lacks.

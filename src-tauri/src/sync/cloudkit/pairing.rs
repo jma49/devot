@@ -156,30 +156,40 @@ impl PairingChannel for ICloudPairing {
 
     fn poll(&self, id: &str) -> Result<PairingState, &'static str> {
         self.hosting()?;
-        let record = self.fetch(id)?;
-        match record.text(STATE) {
-            Some(OPEN) => Ok(PairingState::Open),
-            Some(TAKEN) => Ok(PairingState::Taken),
-            Some(CONFIRMED) => Ok(PairingState::Confirmed(
-                record.bytes(PROOF).unwrap_or_default().to_vec(),
-            )),
-            _ => Err(GONE),
-        }
+        state_of(&self.fetch(id)?)
     }
 
-    fn close(&self, id: &str) -> Result<(), &'static str> {
+    /// Saved against the record as read, so a take that lands meanwhile is the state closed.
+    fn close(&self, id: &str) -> Result<Option<PairingState>, &'static str> {
         self.hosting()?;
-        let record = self.fetch(id)?;
-        if record.text(STATE) == Some(CLOSED) {
-            return Err(GONE);
+        loop {
+            let record = self.fetch(id)?;
+            let state = state_of(&record)?;
+            match self.save(closed(record), SavePolicy::IfUnchanged) {
+                Err(GONE) => continue,
+                saved => return saved.map(|()| Some(state)),
+            }
         }
-        self.save(closed(record), SavePolicy::Overwrite)
+    }
+}
+
+fn state_of(record: &CkRecord) -> Result<PairingState, &'static str> {
+    match record.text(STATE) {
+        Some(OPEN) => Ok(PairingState::Open),
+        Some(TAKEN) => Ok(PairingState::Taken),
+        Some(CONFIRMED) => Ok(PairingState::Confirmed(
+            record.bytes(PROOF).unwrap_or_default().to_vec(),
+        )),
+        _ => Err(GONE),
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
     use super::super::fake::Fake;
+    use super::super::kit::{Account, Changes};
     use super::*;
 
     const ID: &str = "pairing-1";
@@ -220,7 +230,10 @@ mod tests {
             Ok(PairingState::Confirmed(b"proof".to_vec()))
         );
         assert_eq!(phone.confirm(ID, b"again"), Err(GONE));
-        shown.close(ID).unwrap();
+        assert_eq!(
+            shown.close(ID),
+            Ok(Some(PairingState::Confirmed(b"proof".to_vec())))
+        );
         assert_eq!(shown.poll(ID), Err(GONE));
         assert_eq!(kit.record(ZONE_DEVOT, ID).unwrap().bytes(PROOF), None);
         assert_eq!(shown.close(ID), Err(GONE));
@@ -282,6 +295,77 @@ mod tests {
             assert_eq!(record.text(STATE), Some(state), "{name}");
         }
         assert_eq!(kit.record(ZONE_DEVOT, "left").unwrap().bytes(OFFER), None);
+    }
+
+    /// Zone `devot` where another device takes the offer right after this one's next read.
+    struct TakenAfterRead {
+        kit: Arc<Fake>,
+        armed: AtomicBool,
+    }
+
+    impl CloudKit for TakenAfterRead {
+        fn available(&self) -> bool {
+            self.kit.available()
+        }
+        fn account(&self) -> Result<Account, CkError> {
+            self.kit.account()
+        }
+        fn user_record_name(&self) -> Result<String, CkError> {
+            self.kit.user_record_name()
+        }
+        fn zones_exist(&self, zones: &[String]) -> Result<Vec<bool>, CkError> {
+            self.kit.zones_exist(zones)
+        }
+        fn save_zones(&self, zones: &[String]) -> Result<(), CkError> {
+            self.kit.save_zones(zones)
+        }
+        fn delete_zones(&self, zones: &[String]) -> Result<(), CkError> {
+            self.kit.delete_zones(zones)
+        }
+        fn delete(&self, zone: &str, names: &[String]) -> Result<(), CkError> {
+            self.kit.delete(zone, names)
+        }
+        fn fetch(&self, zone: &str, names: &[String]) -> Result<Vec<Option<CkRecord>>, CkError> {
+            let read = self.kit.fetch(zone, names);
+            if self.armed.swap(false, Ordering::Relaxed) {
+                join(&self.kit).take(ID).unwrap();
+            }
+            read
+        }
+        fn save(
+            &self,
+            zone: &str,
+            records: &[CkRecord],
+            policy: SavePolicy,
+        ) -> Result<Vec<Result<CkRecord, CkError>>, CkError> {
+            self.kit.save(zone, records, policy)
+        }
+        fn changes(
+            &self,
+            zone: &str,
+            token: Option<&[u8]>,
+            limit: usize,
+        ) -> Result<Changes, CkError> {
+            self.kit.changes(zone, token, limit)
+        }
+        fn subscribe(&self, zone: &str, id: &str) -> Result<(), CkError> {
+            self.kit.subscribe(zone, id)
+        }
+    }
+
+    #[test]
+    fn a_take_that_lands_while_the_offer_closes_is_the_state_it_closed() {
+        let kit = kit();
+        host(&kit).open(ID, b"sealed offer").unwrap();
+        let racing = Arc::new(TakenAfterRead {
+            kit: Arc::clone(&kit),
+            armed: AtomicBool::new(true),
+        });
+        let shown = ICloudPairing::host(racing as _, UNTIL, NOW);
+        assert_eq!(shown.close(ID), Ok(Some(PairingState::Taken)));
+        let record = kit.record(ZONE_DEVOT, ID).unwrap();
+        assert_eq!(record.text(STATE), Some(CLOSED));
+        assert_eq!(shown.close(ID), Err(GONE));
     }
 
     #[test]

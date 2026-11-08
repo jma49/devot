@@ -352,7 +352,8 @@ pub(crate) trait PairingChannel: Send + Sync {
     fn take(&self, id: &str) -> Result<Vec<u8>, &'static str>;
     fn confirm(&self, id: &str, proof: &[u8]) -> Result<(), &'static str>;
     fn poll(&self, id: &str) -> Result<PairingState, &'static str>;
-    fn close(&self, id: &str) -> Result<(), &'static str>;
+    /// Closes the pairing and answers the state it closed, `None` where the channel does not say.
+    fn close(&self, id: &str) -> Result<Option<PairingState>, &'static str>;
 }
 
 /// Pairing through the relay's `/v1/pairings` routes.
@@ -401,9 +402,9 @@ impl PairingChannel for RelayPairing {
         client::pairing_status(&self.relay, vault, token, id)
     }
 
-    fn close(&self, id: &str) -> Result<(), &'static str> {
+    fn close(&self, id: &str) -> Result<Option<PairingState>, &'static str> {
         let (vault, token) = self.hosting()?;
-        client::pairing_close(&self.relay, vault, token, id)
+        client::pairing_close(&self.relay, vault, token, id).map(|()| None)
     }
 }
 

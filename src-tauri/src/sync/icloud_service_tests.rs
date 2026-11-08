@@ -889,6 +889,22 @@ fn an_expired_icloud_offer_is_refused_by_the_joining_device() {
     assert_eq!(mac.service.pairing_check().unwrap().state, "unconfirmed");
 }
 
+#[test]
+fn an_icloud_offer_taken_while_the_showing_device_was_not_polling_ends_unconfirmed() {
+    use super::pairing::PairingChannel as _;
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    mac.service.use_icloud(None, 0).unwrap();
+    let shown = mac.service.pairing_open().unwrap();
+    mac.service.shift_clock(super::pairing::TTL_MS + 1);
+    let (pairing, _) = offer_record(&kit, &shown.code);
+    super::cloudkit::pairing::ICloudPairing::join(Arc::clone(&kit) as _)
+        .take(pairing.id())
+        .unwrap();
+    mac.service.shift_clock(super::pairing::GRACE_MS);
+    assert_eq!(mac.service.pairing_check().unwrap().state, "unconfirmed");
+}
+
 /// A keychain whose next `failures` writes fail as the Security framework's would.
 #[derive(Default)]
 struct Flaky {
