@@ -82,6 +82,11 @@ export interface ScrollPane {
   onLayout?(listener: () => void): () => void
   /** The pane moved its own scroll position to keep showing what it showed (content above it grew): that scroll is no lead. */
   onMove?(listener: () => void): () => void
+  /**
+   * Wheel events over the pane, from a non-passive listener it keeps while it lives. Once one is removed, WebKit
+   * rebuilds the event region of what was built under it box by box: about 18 s on a 600 KB preview (issue 782).
+   */
+  onWheel?(listener: (event: Event) => void): () => void
 }
 
 export interface SyncOptions {
@@ -293,7 +298,9 @@ export function syncScrolling(
   for (const pane of [first, second]) {
     note(pane)
     listen(pane.element, 'scroll', onScroll(pane))
-    listen(pane.element, 'wheel', onWheel(pane), { passive: false })
+    const stopWheel = pane.onWheel?.(onWheel(pane))
+    if (stopWheel) stops.push(stopWheel)
+    else listen(pane.element, 'wheel', onWheel(pane), { passive: false })
     listen(
       pane.element,
       'touchstart',
@@ -601,6 +608,11 @@ export function previewScrollPane(
     if (element.scrollTop !== before) for (const listener of moves) listener()
   }
   shifts.set(element, shift)
+  const wheels = new Set<(event: Event) => void>()
+  const wheeled = (event: Event) => {
+    for (const listener of wheels) listener(event)
+  }
+  element.addEventListener('wheel', wheeled, { passive: false })
 
   return {
     element,
@@ -616,6 +628,10 @@ export function previewScrollPane(
     onMove: (listener) => {
       moves.add(listener)
       return () => moves.delete(listener)
+    },
+    onWheel: (listener) => {
+      wheels.add(listener)
+      return () => wheels.delete(listener)
     },
     rendered: (count, next) => {
       lines = count
@@ -642,10 +658,12 @@ export function previewScrollPane(
       resize.disconnect()
       element.removeEventListener('scroll', scrolled)
       element.removeEventListener('load', resized, true)
+      element.removeEventListener('wheel', wheeled)
       if (queued !== undefined) cancel(queued)
       queued = undefined
       listeners.clear()
       moves.clear()
+      wheels.clear()
       if (shifts.get(element) === shift) shifts.delete(element)
     },
   }
