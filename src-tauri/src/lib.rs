@@ -117,7 +117,6 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             native::symbol_png,
-            native::haptic,
             native::system_accent,
             native::clipboard_write_text,
             native::clipboard_read_text,

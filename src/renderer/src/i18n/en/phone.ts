@@ -87,7 +87,6 @@ export const messages = {
   'phone.info.notebook': 'Notebook',
   'phone.info.created': 'Created',
   'phone.info.modified': 'Modified',
-  'phone.info.devices': 'Synced devices',
   'phone.info.backlinks': 'Backlinks',
   'phone.settings.appName': 'Devot',
   'phone.settings.pair': 'Pair a device',

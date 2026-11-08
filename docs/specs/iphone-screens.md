@@ -50,6 +50,7 @@ UIApplication (tao's app delegate, unchanged)
 6. With `installed` the page mounts the editor host alone (no tab bar, lists, sheets or glass); otherwise it mounts the web fallback.
    Both paths start the core and seed the welcome notes the same way.
 7. The web fallback draws no tab bar, note list, Library, search or toast, which are all native: it opens on Activity, whose ranked notes open the page's note screen, and its Settings only from the Devot Pro prompt's License button.
+   That note screen keeps Back, the mode toggle and the chips' web pickers, and has none of the editor's bars, find or Note Info, which are native.
    UI tests reach its other screens through `globalThis.devotPhone` (`showTab`, `openNote`, `notes`), which the page installs only in a `DEVOT_UI_TEST` build.
 
 The kill switch is the `DevotScreensOff` key of the app's own `UserDefaults`, which the launch argument `-DevotScreensOff YES` sets for one run; the privacy manifest gives reason `CA92.1` for reading it.
@@ -461,8 +462,8 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
 - A bar button gives no touch-down, so a list prepares when a context menu opens or the selection bar shows, and `Screens` prepares the warning while a list shows locked.
 - A list write picked from a menu or the selection bar goes through `ListContext.ask`, which plays its event once the gate lets the write through; a swipe action goes to the gate directly, as the system plays its own haptic for it.
 - `SettingsStore.run` plays `success` when Restore Purchases unlocked writing and `error` when a purchase or restore failed.
-- While a note's screen is up the editor's haptics reach Swift as `editor.haptic` and play there (`Haptics.play(page:)`): `light` and `soft` as `light`, then `selection`, `success` and `warning`; a picker's choice plays `pickerChoice`.
-- The web panes' haptics stay the page's `haptic` command (`native/ios/uikit.rs`).
+- Under the native screens every haptic the page plays (`phone/haptics.ts`) reaches Swift as `editor.haptic` and plays there (`Haptics.play(page:)`): `light` and `soft` as `light`, then `selection`, `success` and `warning`; a picker's choice plays `pickerChoice`.
+- Rust has no haptic command, so the web fallback plays none.
 
 ## Glass map
 

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '../ipc'
 import { readCurrentLicence, useLicence } from '../licence'
 import { closePurchase } from '../purchaseSheet'
+import { routeHaptics, type HapticKind } from './haptics'
 import { PhoneGate } from './PhoneProSheet'
 import { closeGate, requireEditing, watchWrite, type WriteIntent } from './requireEditing'
 
@@ -59,6 +60,7 @@ let root: Root
 let current: unknown
 let answers: Record<string, () => unknown>
 let openedLicence: boolean[]
+let played: HapticKind[]
 
 function Gate() {
   const licence = useLicence()
@@ -68,6 +70,8 @@ function Gate() {
 beforeEach(() => {
   answers = {}
   openedLicence = []
+  played = []
+  routeHaptics((kind) => played.push(kind))
   vi.mocked(invoke).mockImplementation(async (command) => {
     if (command === 'licence_get')
       return answers['licence_get'] ? answers['licence_get']() : current
@@ -88,6 +92,7 @@ afterEach(() => {
     root.unmount()
   })
   host.remove()
+  routeHaptics(null)
   document.body.innerHTML = ''
   vi.mocked(invoke).mockReset()
   vi.restoreAllMocks()
@@ -125,11 +130,7 @@ const unlock = async (licence: unknown = RUNNING) => {
   current = licence
   await act(async () => void (await readCurrentLicence()))
 }
-const haptics = () =>
-  vi
-    .mocked(invoke)
-    .mock.calls.filter(([command]) => command === 'haptic')
-    .map(([, args]) => args)
+const haptics = () => played
 
 describe('a write while editing is locked', () => {
   const ROWS = [
@@ -199,7 +200,7 @@ describe('a write while editing is locked', () => {
       expect(dialog()?.textContent).toContain(row.text)
       expect(document.body.textContent).not.toMatch(/\b[EWI]_[A-Z0-9_]+/)
       expect(write.runs.count).toBe(0)
-      expect(haptics()).toEqual([{ kind: 'warning' }])
+      expect(haptics()).toEqual(['warning'])
     })
 
   it('names a price only in the purchase sheet, never in the short sheet', async () => {
@@ -408,7 +409,7 @@ describe('a write while editing is locked', () => {
     await unlock()
     expect(runs.count).toBe(1)
     expect(dialogs()).toBeLessThanOrEqual(1)
-    expect(haptics()).toEqual([{ kind: 'warning' }])
+    expect(haptics()).toEqual(['warning'])
   })
 
   it('logs any other failure of a write without a sheet', async () => {

@@ -129,7 +129,7 @@ function Screen(props: { store: PhoneStore }) {
   const licence = useLicence()
   return (
     <>
-      <PhoneNote store={props.store} noteId="n1" onBack={() => {}} onTrash={() => {}} />
+      <PhoneNote store={props.store} noteId="n1" onBack={() => {}} />
       <PhoneGate licence={licence} onOpenLicence={() => {}} />
     </>
   )

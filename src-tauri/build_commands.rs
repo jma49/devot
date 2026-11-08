@@ -5,7 +5,6 @@
 /// and the app's exit.
 const SHELL: &[&str] = &[
     "symbol_png",
-    "haptic",
     "system_accent",
     "clipboard_write_text",
     "clipboard_read_text",

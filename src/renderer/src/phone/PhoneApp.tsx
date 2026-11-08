@@ -54,7 +54,7 @@ import { useSyncEngine } from '../sync'
 import { licenceRow, welcomeDue } from './settingsRows'
 import { openPurchase } from '../purchaseSheet'
 import { PhoneGate } from './PhoneProSheet'
-import { dropIntent, watchWrite } from './requireEditing'
+import { dropIntent } from './requireEditing'
 import { applyGlassPrefs } from './glassPrefs'
 import { routeHaptics } from './haptics'
 import { PhoneNote } from './PhoneNote'
@@ -446,16 +446,10 @@ export function PhoneApp() {
     const note = [...store.notes, ...store.templates].find((n) => n.id === noteId)
     bridge.current?.notify({ notice: 'nav.openNote', noteId, title: note?.title ?? '' })
   }
-  // The note's screen is popped by the editor; the native lists offer their own Undo.
-  const trash = (note: NoteSummary) => {
-    const core = store.core
-    if (core)
-      watchWrite('trash', core.trash(note.id).then(store.refresh), 'W_PHONE_NOTE_ACTION_FAILED')
-  }
 
   const render = (tab: PhoneTab, route: PhoneRoute) => {
     if (route.screen === 'note' && route.noteId)
-      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} onTrash={trash} />
+      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} />
     if (tab === 'activity') return <PhoneActivity data={store} onOpenNote={openNote} />
     return null
   }
@@ -494,7 +488,6 @@ export function PhoneApp() {
           editor={nativeEditor}
           prepared={prepared}
           openNote={openNote}
-          onTrash={trash}
         />
       )}
       <PhoneGate

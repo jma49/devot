@@ -5586,10 +5586,6 @@ public enum L10n {
     text("phone.info.modified", "Modified")
   }
 
-  public static func phoneInfoDevices() -> String {
-    text("phone.info.devices", "Synced devices")
-  }
-
   public static func phoneInfoBacklinks() -> String {
     text("phone.info.backlinks", "Backlinks")
   }

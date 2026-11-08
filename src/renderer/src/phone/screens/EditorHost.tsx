@@ -7,7 +7,6 @@ import {
   useState,
   type RefObject,
 } from 'react'
-import type { NoteSummary } from '../../../../core/storage'
 import { PhoneNote, type NativeNoteChrome, type NoteCommands } from '../PhoneNote'
 import type { PhoneStore } from '../usePhoneData'
 import { NO_FIND_COUNT, type NativeEditor } from './editor'
@@ -43,7 +42,6 @@ export function EditorHost(props: {
   editor: RefObject<NativeEditor | null>
   prepared: PreparedNotes
   openNote: (id: string) => void
-  onTrash: (note: NoteSummary) => void
 }) {
   const [shown, setShown] = useState<{ noteId: string; turn: number } | null>(null)
   const [visible, setVisible] = useState(false)
@@ -156,7 +154,6 @@ export function EditorHost(props: {
           store={props.store}
           noteId={shown.noteId}
           onBack={() => latest.current.notify({ notice: 'nav.back' })}
-          onTrash={(note) => latest.current.onTrash(note)}
           native={chrome}
           takePreopened={props.prepared.take}
         />

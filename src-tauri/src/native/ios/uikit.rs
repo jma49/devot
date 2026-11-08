@@ -1,4 +1,4 @@
-//! UIKit: haptics, opening a URL, the interface style, the share sheet and SF Symbols.
+//! UIKit: opening a URL, the interface style, the share sheet and SF Symbols.
 
 use block2::RcBlock;
 use objc2::AllocAnyThread;
@@ -10,46 +10,7 @@ use objc2_ui_kit::{
     UIImageSymbolWeight, UITraitCollection,
 };
 
-use crate::native::{
-    HapticKind, SYMBOL_PIXELS_PER_POINT, guarded, symbol_canvas, symbol_weight_rank,
-};
-
-/// On the main thread only (`native::haptic` sends it there); off it, nothing plays.
-pub fn haptic(kind: HapticKind) {
-    use objc2::{MainThreadMarker, MainThreadOnly};
-    use objc2_ui_kit::{
-        UIImpactFeedbackGenerator, UIImpactFeedbackStyle, UINotificationFeedbackGenerator,
-        UINotificationFeedbackType, UISelectionFeedbackGenerator,
-    };
-    let Some(mtm) = MainThreadMarker::new() else {
-        return;
-    };
-    let _ = guarded("W_NATIVE_HAPTIC_FAILED", || {
-        match kind {
-            HapticKind::Light | HapticKind::Soft => {
-                let style = if kind == HapticKind::Light {
-                    UIImpactFeedbackStyle::Light
-                } else {
-                    UIImpactFeedbackStyle::Soft
-                };
-                // Its replacement, `feedbackGeneratorWithStyle_forView`, needs the web view, which this
-                // command does not hold; the deprecated initializer still plays on every supported iOS.
-                #[allow(deprecated)]
-                let generator = UIImpactFeedbackGenerator::initWithStyle(
-                    UIImpactFeedbackGenerator::alloc(mtm),
-                    style,
-                );
-                generator.impactOccurred();
-            }
-            HapticKind::Selection => UISelectionFeedbackGenerator::new(mtm).selectionChanged(),
-            HapticKind::Success => UINotificationFeedbackGenerator::new(mtm)
-                .notificationOccurred(UINotificationFeedbackType::Success),
-            HapticKind::Warning => UINotificationFeedbackGenerator::new(mtm)
-                .notificationOccurred(UINotificationFeedbackType::Warning),
-        }
-        Some(())
-    });
-}
+use crate::native::{SYMBOL_PIXELS_PER_POINT, guarded, symbol_canvas, symbol_weight_rank};
 
 /// Hands an https URL to Safari (`external::open_external` has checked it). Main thread only;
 /// `false` when it was not handed over.

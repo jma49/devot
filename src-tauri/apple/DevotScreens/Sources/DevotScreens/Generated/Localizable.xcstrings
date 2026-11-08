@@ -14334,17 +14334,6 @@
         }
       }
     },
-    "phone.info.devices" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Synced devices"
-          }
-        }
-      }
-    },
     "phone.info.minutes" : {
       "extractionState" : "manual",
       "localizations" : {

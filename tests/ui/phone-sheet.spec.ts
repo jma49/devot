@@ -33,14 +33,14 @@ async function expectWholeSheet(page: Page, sheet: Locator, last: Locator): Prom
   }
 }
 
-async function openNoteInfo(page: Page): Promise<Locator> {
+async function openStatus(page: Page): Promise<Locator> {
   const note = await openNoteScreen(page)
-  await note.getByRole('button', { name: 'Note Info' }).click()
-  return page.getByRole('dialog', { name: 'Note Info' })
+  await note.locator('.phone-chip-target').nth(1).click()
+  return page.getByRole('dialog', { name: 'Status' })
 }
 
 test('a sheet drag that loses its capture settles back open', async ({ page }) => {
-  const sheet = await openNoteInfo(page)
+  const sheet = await openStatus(page)
   await expect(sheet).toBeVisible()
   const handle = sheet.locator('.phone-sheet-handle')
   const box = (await handle.boundingBox())!
@@ -60,12 +60,12 @@ test('a sheet drag that loses its capture settles back open', async ({ page }) =
 })
 
 test('a sheet taller than the screen scrolls inside and stays whole', async ({ page }) => {
-  const sheet = await openNoteInfo(page)
+  const sheet = await openStatus(page)
   await page.setViewportSize({ width: 390, height: 240 })
-  await expectWholeSheet(page, sheet, sheet.getByRole('button', { name: 'Move to Trash' }))
+  await expectWholeSheet(page, sheet, sheet.getByRole('button').last())
 })
 
-test('note info and the note pickers are whole, on the note screen', async ({ page }) => {
+test('the note pickers are whole, on the note screen', async ({ page }) => {
   await page.addInitScript(() => {
     ;(globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome = true
   })
@@ -73,12 +73,6 @@ test('note info and the note pickers are whole, on the note screen', async ({ pa
   await openPhoneNote(page)
   const note = page.locator('section.phone-screen:has(.phone-note-scroll)')
   await expect(note.locator('.cm-content')).toBeAttached()
-
-  await note.getByRole('button', { name: 'Note Info' }).click()
-  const info = page.getByRole('dialog', { name: 'Note Info' })
-  await expectWholeSheet(page, info, info.getByRole('button', { name: 'Move to Trash' }))
-  await info.getByRole('button', { name: 'Close' }).click()
-  await expect(info).toHaveCount(0)
 
   await note.locator('.phone-chip-target').nth(1).click()
   const status = page.getByRole('dialog', { name: 'Status' })
@@ -121,18 +115,18 @@ test('a sheet takes the keyboard, keeps Tab inside, and Escape gives it back to 
   page,
 }) => {
   const note = await openNoteScreen(page)
-  const trigger = note.getByRole('button', { name: 'Note Info' })
+  const trigger = note.locator('.phone-chip-target').nth(1)
   await trigger.focus()
   await page.keyboard.press('Enter')
-  const info = page.getByRole('dialog', { name: 'Note Info' })
-  await expect(info).toBeVisible()
-  await expect.poll(() => focusIn(info)).toBe(true)
-  await expectTabStaysIn(page, info, 12)
+  const status = page.getByRole('dialog', { name: 'Status' })
+  await expect(status).toBeVisible()
+  await expect.poll(() => focusIn(status)).toBe(true)
+  await expectTabStaysIn(page, status, 12)
   const behind = () => trigger.evaluate((el) => el.closest('[inert]') !== null)
   expect(await behind()).toBe(true)
 
   await page.keyboard.press('Escape')
-  await expect(info).toHaveCount(0)
+  await expect(status).toHaveCount(0)
   await expect(trigger).toBeFocused()
   expect(await behind()).toBe(false)
 })

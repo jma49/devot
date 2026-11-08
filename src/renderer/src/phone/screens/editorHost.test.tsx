@@ -326,12 +326,10 @@ describe('the editor host under the native screens', () => {
     expect(noteScreen()?.getAttribute('aria-label')).toBe('First')
   })
 
-  it('leaves the bars, the find bar and the sheets to Swift, and sends it the chips’ taps', async () => {
+  it('sends Swift the chips’ taps for its pickers', async () => {
     const id = await shell.notes.create('Plans', null)
     await start()
     await swift('editor.show', { noteId: id })
-    expect(editorHost().querySelector('.phone-note-bottom')).toBeNull()
-    expect(editorHost().querySelector('.phone-accessory')).toBeNull()
     const chips = [...editorHost().querySelectorAll<HTMLButtonElement>('.phone-chip-target')]
     await act(async () => chips[0]!.click())
     await act(async () => chips[1]!.click())
@@ -424,7 +422,6 @@ describe('the editor host under the native screens', () => {
     await start()
     await act(async () => haptic('selection'))
     expect(notices('editor.haptic')).toStrictEqual([{ notice: 'editor.haptic', kind: 'selection' }])
-    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith('haptic', expect.anything())
   })
 
   it('refuses a request without a note or with an unknown mode', async () => {

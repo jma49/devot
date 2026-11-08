@@ -196,7 +196,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A push, a pop, a tab switch and any other sheet's rise have none.
   A bar button gives no touch-down, so the generators are made ready when a context menu opens or the selection bar shows, and the warning's while a locked list shows.
   A write Devot Pro does not allow feels only the warning.
-  Under the native screens the editor's haptics are Swift's too: while a note's screen is up the page sends `editor.haptic` instead of playing its `haptic` command, and a picker's choice plays `selection`.
+  The page's haptics are Swift's too: the page sends `editor.haptic` and has no haptic command of its own, so the web fallback plays none, and a picker's choice plays `selection`.
 - **Filter and week menus** (the native screens): the system's menu from its bar button, with the system's motion.
   The filtered rows change at once (rule 2).
   Activity's week menu stays the page's.
@@ -296,8 +296,6 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The value is stored when the finger lifts, or, for a step VoiceOver or Switch Control makes without a drag, once the steps settle for 400 ms.
   A value SwiftUI hands over within 400 ms after the lift is the drag's last one and is stored at once.
 - **Note mode toggle** (the web shell): rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. The panes crossfade as Edit and Preview says.
-- **Note bottom bar and formatting bar:** rule 2. As the keyboard rises the bottom bar fades and drops 20 pt with `gentle`, and the formatting bar fades in on the keyboard. Under Reduce Motion both only crossfade. The system's bar of previous, next and a check mark is not shown above the keyboard, so the formatting bar sits on the keyboard itself, and Hide keyboard lowers the keyboard with the system's motion.
-- **Find bar:** rule 2. It appears at once on the keyboard, in the bottom bar's place, and matches change as you type.
 - **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` over `motion.duration.phone-glass-press` on `motion.easing.phone-push`, and brightens over `motion.duration.ring`.
 
 ## Local diagrams

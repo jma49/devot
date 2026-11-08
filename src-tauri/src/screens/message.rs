@@ -583,12 +583,7 @@ pub enum FromRust {
 /// The notice that carries a link's route (`screens::route`); unlike `FromRust` it has fields.
 pub const ROUTE_NOTICE: &str = "route";
 
-pub const RUST_NOTICES: &[&str] = &[
-    "sync.changed",
-    "sync.pairing",
-    "licence.changed",
-    ROUTE_NOTICE,
-];
+pub const RUST_NOTICES: &[&str] = &["sync.changed", "sync.pairing", "licence.changed", "route"];
 
 impl FromRust {
     pub const ALL: [Self; 3] = [Self::SyncChanged, Self::SyncPairing, Self::LicenceChanged];
