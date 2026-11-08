@@ -289,6 +289,26 @@ describe('the date picker', () => {
     expect(document.activeElement).toBe(elsewhere)
   })
 
+  it('keeps PM when the hour is cleared and typed again, and takes P while it is cleared', async () => {
+    const afternoon = { ...info, updatedAt: new Date(2026, 10, 2, 15, 30, 12).getTime() }
+    const calls = show({ info: afternoon })
+    click(button(/^Updated:/))
+    const segment = (name: string) =>
+      document.querySelector<HTMLElement>(`[role="spinbutton"][aria-label="${name}"]`)
+    act(() => segment('Hour')?.focus())
+    press('Backspace')
+    expect(segment('Hour')?.textContent).toBe('--')
+    expect(segment('AM or PM')?.getAttribute('aria-valuenow')).toBe('1')
+    act(() => segment('AM or PM')?.focus())
+    press('a')
+    press('p')
+    act(() => segment('Hour')?.focus())
+    press('3')
+    press('Enter')
+    await settle()
+    expect(calls.dates).toHaveBeenCalledWith(info.noteId, { updatedAt: afternoon.updatedAt })
+  })
+
   it('takes typed minutes and says when the date could not be saved', async () => {
     show({ onSetDates: vi.fn<() => Promise<void>>(() => Promise.reject(new Error('E_X'))) })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
