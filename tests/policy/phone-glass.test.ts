@@ -24,12 +24,6 @@ it('draws the recipe of the glass spec', () => {
   expect(css).toContain('transform var(--motion-duration-phone-glass-press)')
 })
 
-it('puts no coloured tile behind a Settings row icon', () => {
-  const source = readFileSync('src/renderer/src/phone/PhoneSettings.tsx', 'utf8')
-  expect(source).not.toMatch(/PANE_TILES|phone-row-tile|tileColor/)
-  expect(source).not.toContain('phone-row-icon" style')
-})
-
 it('lets the iPhone lay out edge to edge', () => {
   const html = readFileSync('src/renderer/index.html', 'utf8')
   expect(html).toContain('viewport-fit=cover')

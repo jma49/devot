@@ -82,28 +82,15 @@ pub struct NoteCreate {
     pub title: Option<String>,
 }
 
-/// A Settings pane the page still draws under the native Settings, until its native pane lands.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum WebPane {
-    Appearance,
-    Sync,
-}
-
-/// A place a web pane opens scrolled to: Sync's pairing, for Pair a device.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PaneAnchor {
-    Pairing,
-}
-
+/// The iPhone's Glass Transparency: -100 is solid, 0 the design, 100 the clearest, in steps of 5.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ShowPane {
-    pub pane: WebPane,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub anchor: Option<PaneAnchor>,
+pub struct GlassSet {
+    pub transparency: i32,
 }
+
+pub const GLASS_TRANSPARENCY_MAX: i32 = 100;
+pub const GLASS_TRANSPARENCY_STEP: i32 = 5;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -322,8 +309,6 @@ pub enum Op {
     TabsShow(TabArgs),
     #[serde(rename = "tabs.popToRoot")]
     TabsPopToRoot(TabArgs),
-    #[serde(rename = "settings.showPane")]
-    SettingsShowPane(ShowPane),
     #[serde(rename = "settings.notebooks")]
     SettingsNotebooks(Empty),
     #[serde(rename = "editor.show")]
@@ -334,6 +319,10 @@ pub enum Op {
     EditorHide(Empty),
     #[serde(rename = "editor.setMode")]
     EditorSetMode(ModeArgs),
+    #[serde(rename = "glass.get")]
+    GlassGet(Empty),
+    #[serde(rename = "glass.set")]
+    GlassSet(GlassSet),
     #[serde(rename = "editor.focus")]
     EditorFocus(Empty),
     #[serde(rename = "notes.batch")]
@@ -381,12 +370,13 @@ pub const OPS: &[&str] = &[
     "note.discard",
     "tabs.show",
     "tabs.popToRoot",
-    "settings.showPane",
     "settings.notebooks",
     "editor.show",
     "editor.prepare",
     "editor.hide",
     "editor.setMode",
+    "glass.get",
+    "glass.set",
     "editor.focus",
     "notes.batch",
     "trash.empty",
@@ -577,12 +567,53 @@ const NOTICES: &[&str] = &[
     "editor.haptic",
 ];
 
-/// The notices Rust sends Swift itself; the page can send none of them.
-pub const RUST_NOTICES: &[&str] = &["licence.changed", "route"];
+/// What Rust tells Swift itself, never passed on from the page: a notice without fields, after
+/// which Swift reads again through Rust-direct operations what changed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FromRust {
+    /// The sync snapshot changed (`devot://sync-changed`).
+    SyncChanged,
+    /// A pairing on show through iCloud may have moved on (`devot://sync-pairing`).
+    SyncPairing,
+    /// The licence changed (`licence::CHANGED_EVENT`): Swift reads its snapshot again, which is only
+    /// the screens' guess, since Rust refuses every locked write itself.
+    LicenceChanged,
+}
 
-/// The licence changed (`licence::CHANGED_EVENT`): Swift reads its snapshot again.
-pub fn licence_changed() -> Value {
-    json!({ "v": VERSION, "notice": "licence.changed" })
+/// The notice that carries a link's route (`screens::route`); unlike `FromRust` it has fields.
+pub const ROUTE_NOTICE: &str = "route";
+
+pub const RUST_NOTICES: &[&str] = &[
+    "sync.changed",
+    "sync.pairing",
+    "licence.changed",
+    ROUTE_NOTICE,
+];
+
+impl FromRust {
+    pub const ALL: [Self; 3] = [Self::SyncChanged, Self::SyncPairing, Self::LicenceChanged];
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::SyncChanged => "sync.changed",
+            Self::SyncPairing => "sync.pairing",
+            Self::LicenceChanged => "licence.changed",
+        }
+    }
+
+    /// The notice Swift hears after the sync service emits `event`, if any; the licence tells Swift itself.
+    pub fn after(event: &str) -> Option<Self> {
+        use crate::sync::service::{CHANGED_EVENT, PAIRING_EVENT};
+        match event {
+            CHANGED_EVENT => Some(Self::SyncChanged),
+            PAIRING_EVENT => Some(Self::SyncPairing),
+            _ => None,
+        }
+    }
+
+    pub fn to_value(self) -> Value {
+        json!({ "v": VERSION, "notice": self.name() })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -830,10 +861,6 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             note_ids(std::slice::from_ref(note_id), 1)?;
             book(made.as_ref().and_then(|made| made.book_id.as_ref()))
         }
-        Op::SettingsShowPane(ShowPane { pane, anchor }) => match (pane, anchor) {
-            (_, None) | (WebPane::Sync, Some(PaneAnchor::Pairing)) => Ok(()),
-            _ => Err("E_SCREENS_ARGS_INVALID"),
-        },
         Op::EditorShow(ShowNote { note_id, .. })
         | Op::EditorPrepare(NoteArgs { note_id })
         | Op::NoteText(NoteArgs { note_id })
@@ -887,9 +914,18 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             }
         }
         Op::EditorFormat(_) | Op::EditorAi(_) | Op::EditorDuplicate(_) => Ok(()),
+        Op::GlassSet(GlassSet { transparency }) => {
+            if !(-GLASS_TRANSPARENCY_MAX..=GLASS_TRANSPARENCY_MAX).contains(transparency)
+                || transparency % GLASS_TRANSPARENCY_STEP != 0
+            {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            Ok(())
+        }
         Op::TabsShow(_)
         | Op::TabsPopToRoot(_)
         | Op::SettingsNotebooks(_)
+        | Op::GlassGet(_)
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
         | Op::EditorFocus(_)
@@ -1027,21 +1063,33 @@ mod tests {
                 FromPage::Reply(reply) => reply.to_value(),
                 FromPage::Notice(notice) => notice.to_value(),
             }),
-            "rust" => {
-                let name = fixture.message["notice"].as_str().unwrap_or_default();
-                assert!(RUST_NOTICES.contains(&name), "{name} is not Rust's");
-                if name == "route" {
-                    let mut fields = fixture.message.as_object().cloned().unwrap_or_default();
-                    fields.remove("v");
-                    fields.remove("notice");
-                    let route: super::super::route::Route =
-                        serde_json::from_value(Value::Object(fields)).expect("a route");
-                    return Ok(super::super::route::notice(&route));
-                }
-                Ok(licence_changed())
+            "rust" if fixture.message["notice"] == ROUTE_NOTICE => {
+                let mut fields = fixture.message.as_object().cloned().unwrap_or_default();
+                fields.remove("v");
+                fields.remove("notice");
+                let route: super::super::route::Route =
+                    serde_json::from_value(Value::Object(fields)).expect("a route");
+                Ok(super::super::route::notice(&route))
             }
+            "rust" => FromRust::ALL
+                .into_iter()
+                .map(FromRust::to_value)
+                .find(|told| *told == fixture.message)
+                .ok_or("E_SCREENS_NOTICE_UNKNOWN"),
             other => panic!("unknown sender {other}"),
         }
+    }
+
+    #[test]
+    fn tells_swift_of_a_sync_change_and_a_pairing_but_nothing_else_the_service_emits() {
+        use crate::sync::service::{CHANGED_EVENT, PAIRING_EVENT, SOCKET_EVENT};
+        assert_eq!(FromRust::after(CHANGED_EVENT), Some(FromRust::SyncChanged));
+        assert_eq!(FromRust::after(PAIRING_EVENT), Some(FromRust::SyncPairing));
+        assert_eq!(FromRust::after(SOCKET_EVENT), None);
+        let mut names: Vec<_> = FromRust::ALL.into_iter().map(FromRust::name).collect();
+        names.push(ROUTE_NOTICE);
+        assert_eq!(names, RUST_NOTICES);
+        assert!(RUST_NOTICES.iter().all(|name| !NOTICES.contains(name)));
     }
 
     #[test]
@@ -1242,7 +1290,7 @@ mod tests {
             assert!(!NOTICES.contains(name));
         }
         assert_eq!(
-            licence_changed(),
+            FromRust::LicenceChanged.to_value(),
             json!({ "v": 1, "notice": "licence.changed" })
         );
     }

@@ -10,6 +10,8 @@ final class ScreensRootController: UIViewController {
     /// The app is leaving the front (`entersBackground` once it is gone), for the record a launch restores.
     var onLeave: ((_ entersBackground: Bool) -> Void)?
     var onActivate: (() -> Void)?
+    /// The screens are on screen for the first time.
+    var onShown: (() -> Void)?
 
     init(webView: WKWebView) {
         host = WebViewHost(webView: webView)
@@ -23,6 +25,7 @@ final class ScreensRootController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .clear
         view.addSubview(host.stage)
+        GlassStyleStore.shared.register(host.webView.scrollView)
         addChild(tabs)
         tabs.view.frame = view.bounds
         tabs.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -56,6 +59,8 @@ final class ScreensRootController: UIViewController {
         super.viewIsAppearing(animated)
         if host.holder == nil { host.rest() }
         makeWindowKey()
+        onShown?()
+        onShown = nil
     }
 
     override func viewDidLayoutSubviews() {

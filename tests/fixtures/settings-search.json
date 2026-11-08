@@ -151,6 +151,19 @@
           "label": "previewSettings.remoteImages"
         }
       ]
+    },
+    {
+      "query": "theme",
+      "results": [
+        {
+          "pane": "appearance",
+          "label": "phone.settings.appearance.themes"
+        }
+      ]
+    },
+    {
+      "query": "light mode",
+      "results": []
     }
   ]
 }

@@ -85,12 +85,13 @@ public enum Op: String, CaseIterable, Sendable {
     case noteDiscard = "note.discard"
     case tabsShow = "tabs.show"
     case tabsPopToRoot = "tabs.popToRoot"
-    case settingsShowPane = "settings.showPane"
     case settingsNotebooks = "settings.notebooks"
     case editorShow = "editor.show"
     case editorPrepare = "editor.prepare"
     case editorHide = "editor.hide"
     case editorSetMode = "editor.setMode"
+    case glassGet = "glass.get"
+    case glassSet = "glass.set"
     case editorFocus = "editor.focus"
     case notesBatch = "notes.batch"
     case trashEmpty = "trash.empty"
@@ -128,9 +129,13 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case editorNote = "editor.note"
     case editorPicker = "editor.picker"
     case editorHaptic = "editor.haptic"
-    /// Sent by Rust itself, never by the page.
+    /// Rust's own: the sync snapshot changed.
+    case syncChanged = "sync.changed"
+    /// Rust's own: a pairing on show through iCloud may have moved on.
+    case syncPairing = "sync.pairing"
+    /// Rust's own: the licence changed.
     case licenceChanged = "licence.changed"
-    /// Sent by Rust itself: a deep link to show (Model/Route.swift).
+    /// Rust's own: a deep link to show (Model/Route.swift).
     case route
 }
 

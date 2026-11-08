@@ -40,8 +40,7 @@ pub use input_accessory::hide_input_accessory_bar;
 pub use keychain::add_device_only_password;
 #[cfg(target_os = "ios")]
 pub use screens::{
-    install_screens, screens_licence_changed, screens_page_started, screens_post, screens_route,
-    screens_take,
+    install_screens, screens_page_started, screens_post, screens_route, screens_take, screens_tell,
 };
 #[cfg(target_os = "ios")]
 pub use store::{

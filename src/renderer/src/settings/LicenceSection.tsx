@@ -19,7 +19,6 @@ import {
   trialSentence,
 } from '../licenceView'
 import { Setting, SettingsNote, SettingsSection } from './controls'
-import { useOnPhone } from './onPhone'
 import { failureText, logFailure } from '../failure'
 
 const MINUTE_MS = 60_000
@@ -40,7 +39,6 @@ function useMinutes(): number {
  * to Rust, which checks it, and never comes back.
  */
 export function LicenceSection() {
-  const onPhone = useOnPhone()
   const ids = useId()
   const id = (name: string) => `${ids}-${name}`
   const licence = useLicence()
@@ -132,12 +130,8 @@ export function LicenceSection() {
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
-      <SettingsSection
-        title="licenceSettings.title"
-        titleHidden={onPhone}
-        footnote={onPhone ? t('licenceSettings.detail') : undefined}
-      >
-        {onPhone ? null : <SettingsNote>{t('licenceSettings.detail')}</SettingsNote>}
+      <SettingsSection title="licenceSettings.title">
+        <SettingsNote>{t('licenceSettings.detail')}</SettingsNote>
         {licence.gated || licence.state === 'none' ? null : (
           <SettingsNote>{t('licenceSettings.ungated')}</SettingsNote>
         )}

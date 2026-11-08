@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 
-use super::message::{Mode, VERSION};
+use super::message::{Mode, ROUTE_NOTICE, VERSION};
 use crate::commands::notes::valid_note_id;
 use crate::deep_link::{LicenceKey, Link};
 
@@ -87,7 +87,7 @@ fn command(id: &str) -> Option<Route> {
 pub fn notice(route: &Route) -> Value {
     let mut message = Map::new();
     message.insert("v".into(), json!(VERSION));
-    message.insert("notice".into(), json!("route"));
+    message.insert("notice".into(), json!(ROUTE_NOTICE));
     if let Ok(Value::Object(fields)) = serde_json::to_value(route) {
         message.extend(fields);
     }

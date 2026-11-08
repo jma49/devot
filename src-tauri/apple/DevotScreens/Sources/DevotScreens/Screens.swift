@@ -75,10 +75,10 @@ final class Screens: SettingsBridge {
             run(effects)
         }
         root.tabs.settings.bridge = self
-        root.tabs.settings.hideEditor = { [weak self] done in self?.hideEditor(done) }
         for tab in TabModel.tabs {
             root.tabs.screen(tab)?.hideEditor = { [weak self] done in self?.hideEditor(done) }
         }
+        root.onShown = { [weak root] in root?.tabs.settings.start() }
         gate.present = { [weak self] in self?.presentLock($0) }
         gate.dismiss = { [weak self] in Self.close(self?.lockSheet) }
         gate.refresh = { [weak licences] done in
@@ -201,6 +201,10 @@ final class Screens: SettingsBridge {
                 return
             }
             follow(route)
+            return
+        }
+        if kind == .syncChanged || kind == .syncPairing {
+            root.tabs.settings.store.heard(kind)
             return
         }
         if routeNewNoteNotice(kind, fields) { return }

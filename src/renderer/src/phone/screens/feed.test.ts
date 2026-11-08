@@ -7,9 +7,11 @@ import { createIdGenerator } from '../../../../core/ids'
 import { createNoteService } from '../../../../core/notes/service'
 import { createSavedSearchService } from '../../../../core/savedSearches'
 import { createTagService } from '../../../../core/tags'
+import { welcomeSeed } from '../../../../core/welcome'
 import { memoryStorage } from '../../storage/memory'
 import { reportingNoteWrites } from '../../noteWrites'
 import { fromWire, toWire } from '../../storage/wire'
+import { welcomeContent } from '../../welcome/content'
 import { externalChangesReported, reportingListWrites, type LibraryNotice } from './feed'
 import { noteWritesReported, watchLibraryChanges, watchNoteChanges } from './noteChanges'
 
@@ -83,6 +85,22 @@ describe('the native lists feed', () => {
     await searches.create('Open', 'status:active')
     await settle()
     expect(library).toStrictEqual(['savedSearches.changed'])
+  })
+
+  const seeding = (seeded: boolean) =>
+    reportingListWrites({ ...toWire(memoryStorage), seedWelcome: async () => seeded }).seedWelcome(
+      welcomeSeed(welcomeContent(), '0', 0),
+    )
+
+  it('has every list read again once the first-launch notes are seeded', async () => {
+    expect(await seeding(true)).toBe(true)
+    expect(heard).toStrictEqual([expect.objectContaining({ ids: [], all: true })])
+  })
+
+  it('reports nothing when the library already held notes and nothing was seeded', async () => {
+    expect(await seeding(false)).toBe(false)
+    await settle()
+    expect(heard).toStrictEqual([])
   })
 
   it('ends what sync took in with one change that every list reads again for', () => {

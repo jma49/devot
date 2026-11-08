@@ -94,8 +94,6 @@
   "tests/ui/phone-activity.spec.ts": 14421,
   "tests/ui/phone-note.spec.ts": 171808,
   "tests/ui/phone-quick-tag.spec.ts": 18615,
-  "tests/ui/phone-settings-effect.spec.ts": 20000,
-  "tests/ui/phone-settings.spec.ts": 210000,
   "tests/ui/phone-sheet.spec.ts": 51532,
   "tests/ui/phone-stack.spec.ts": 20000,
   "tests/ui/pinned-switch.spec.ts": 22027,

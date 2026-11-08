@@ -20,6 +20,7 @@ const sources = [
     dark: read(`design/tokens/themes/${id}.dark.tokens.json`),
   })),
   read('design/tokens/backdrops.tokens.json'),
+  read('design/tokens/phone-themes.tokens.json'),
 ] as const
 const { css, ts } = compile(...sources)
 

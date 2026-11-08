@@ -1,12 +1,9 @@
 // @vitest-environment happy-dom
-// Settings > Sync on the Mac and the phone layouts, for each state Rust reports: the snapshot it
+// Settings > Sync on the Mac, for each state Rust reports: the snapshot it
 // sends and `sync_icloud_status`, answered here as the commands answer.
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setIPhoneWording } from '../i18n'
-import { enPhone } from '../i18n/phone'
-import { OnPhone } from './onPhone'
 import { SyncSection } from './SyncSection'
 import { SYNC_CHANGED } from '../sync'
 import type { ICloudStatus } from '../syncICloud'
@@ -124,7 +121,6 @@ afterEach(() => {
   if (root) act(() => root?.unmount())
   host?.remove()
   root = undefined
-  setIPhoneWording(false)
   calls.length = 0
   answers.devices = DEVICES
   answers.useFails = undefined
@@ -136,22 +132,14 @@ afterEach(() => {
 async function show(
   shown: Record<string, unknown>,
   icloud: ICloudStatus | Error,
-  phone: boolean,
 ): Promise<HTMLElement> {
   answers.snapshot = shown
   answers.icloud = icloud
-  setIPhoneWording(phone)
   host = document.createElement('div')
   document.body.append(host)
   const r = createRoot(host)
   root = r
-  act(() =>
-    r.render(
-      <OnPhone.Provider value={phone}>
-        <SyncSection />
-      </OnPhone.Provider>,
-    ),
-  )
+  act(() => r.render(<SyncSection />))
   await settle()
   // The listener outlives a test: each shows its snapshot as Rust's change event would.
   act(() => window.dispatchEvent(new CustomEvent(SYNC_CHANGED, { detail: shown })))
@@ -173,16 +161,9 @@ const type = (input: HTMLInputElement, text: string) =>
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
 
-describe.each([
-  ['the Mac', false],
-  ['the phone', true],
-])('Settings > Sync on %s', (_, phone) => {
+describe('Settings > Sync on the Mac', () => {
   it('asks iCloud or a relay first, and keeps the relay under the advanced choice', async () => {
-    const el = await show(
-      snapshot({ enabled: false, vault: false, transport: 'relay' }),
-      ICLOUD,
-      phone,
-    )
+    const el = await show(snapshot({ enabled: false, vault: false, transport: 'relay' }), ICLOUD)
     expect(button(el, 'Sync Through iCloud')?.disabled).toBe(false)
     expect(button(el, 'Use My Own Relay')).toBeDefined()
     expect(button(el, 'This Is My First Device')).toBeUndefined()
@@ -193,11 +174,7 @@ describe.each([
   })
 
   it('turns iCloud on from the question', async () => {
-    const el = await show(
-      snapshot({ enabled: false, vault: false, transport: 'relay' }),
-      ICLOUD,
-      phone,
-    )
+    const el = await show(snapshot({ enabled: false, vault: false, transport: 'relay' }), ICLOUD)
     await act(async () => button(el, 'Sync Through iCloud')?.click())
     await settle()
     expect(calls.filter((c) => c.cmd === 'sync_icloud_use')).toEqual([
@@ -209,7 +186,6 @@ describe.each([
     const el = await show(
       snapshot({ enabled: false, vault: false, transport: 'relay' }),
       NO_CONTAINER,
-      phone,
     )
     expect(button(el, 'Sync Through iCloud')).toBeUndefined()
     expect(button(el, 'This Is My First Device')).toBeDefined()
@@ -221,11 +197,10 @@ describe.each([
       ['restricted', /restricted/],
       ['temporarilyUnavailable', /not available right now|unavailable/],
     ] as const) {
-      const el = await show(
-        snapshot({ enabled: false, vault: false, transport: 'relay' }),
-        { available: true, account },
-        phone,
-      )
+      const el = await show(snapshot({ enabled: false, vault: false, transport: 'relay' }), {
+        available: true,
+        account,
+      })
       expect(button(el, 'Sync Through iCloud')?.disabled).toBe(true)
       expect(el.textContent).toMatch(words)
       act(() => root?.unmount())
@@ -242,7 +217,6 @@ describe.each([
         icloudJoin: { state: 'ask', notes: 42 },
       }),
       ICLOUD,
-      phone,
     )
     expect(el.textContent).toContain('42')
     expect(button(el, 'Not Now')).toBeDefined()
@@ -260,7 +234,6 @@ describe.each([
         icloudJoin: { state: 'fallback', reason: 'missing' },
       }),
       ICLOUD,
-      phone,
     )
     expect(el.textContent).toMatch(/code.* or (with )?the recovery key/)
     expect(el.textContent).toContain('Join With a Code')
@@ -268,14 +241,12 @@ describe.each([
   })
 
   it('shows a vault on iCloud: transport, storage, devices without Remove, and the code as fallback', async () => {
-    const el = await show(snapshot({}), ICLOUD, phone)
+    const el = await show(snapshot({}), ICLOUD)
     expect(el.textContent).toContain('Syncs Through')
     expect(el.textContent).toMatch(/iCloud, (with your notes )?encrypted by Devot/)
     expect(el.textContent).toContain('Stored in iCloud')
     expect(el.textContent).toMatch(/About 2\.5\s?MB/)
-    expect(el.textContent).toMatch(
-      phone ? /Manage iCloud storage in Settings/ : /System Settings > Apple Account > iCloud/,
-    )
+    expect(el.textContent).toMatch(/System Settings > Apple Account > iCloud/)
     expect(el.textContent).toMatch(/day each was last seen/i)
     expect(el.textContent).not.toMatch(/leaves? by signing out/i)
     expect(el.textContent).toContain('Pocket')
@@ -297,7 +268,7 @@ describe.each([
         unseen: true,
       },
     ]
-    const el = await show(snapshot({}), ICLOUD, phone)
+    const el = await show(snapshot({}), ICLOUD)
     const rows = [...el.querySelectorAll('.sync-device')].map((row) => row.textContent ?? '')
     expect(rows).toHaveLength(3)
     const pad = rows.find((row) => row.includes('Slate'))
@@ -320,7 +291,7 @@ describe.each([
         unseen: true,
       },
     ]
-    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, phone)
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER)
     const rows = [...el.querySelectorAll('.sync-device')].map((row) => row.textContent ?? '')
     expect(rows).toHaveLength(3)
     const lost = rows.find((row) => row.includes('Slate'))
@@ -344,7 +315,7 @@ describe.each([
   })
 
   it('says nothing of the move once every device is on iCloud', async () => {
-    const el = await show(snapshot({}), ICLOUD, phone)
+    const el = await show(snapshot({}), ICLOUD)
     expect(el.textContent).not.toMatch(/Not on iCloud yet|follow the move/)
   })
 
@@ -383,7 +354,7 @@ describe.each([
       ['Turn Sync Off'],
     ],
   ] as const)('words the vault %s, with what to do', async (_state, status, words, actions) => {
-    const el = await show(snapshot({ status }), ICLOUD, phone)
+    const el = await show(snapshot({ status }), ICLOUD)
     expect(el.textContent).toMatch(words)
     for (const action of actions) expect(button(el, action)?.disabled).toBe(false)
     expect(button(el, 'Turn Sync Off') !== undefined).toBe(
@@ -393,11 +364,7 @@ describe.each([
 
   it('words a failure the app can explain without its code, and logs the code', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const el = await show(
-      snapshot({ enabled: false, vault: false, transport: 'relay' }),
-      ICLOUD,
-      phone,
-    )
+    const el = await show(snapshot({ enabled: false, vault: false, transport: 'relay' }), ICLOUD)
     answers.useFails = 'E_SYNC_CLOUDKIT_UNAVAILABLE'
     await act(async () => button(el, 'Sync Through iCloud')?.click())
     await settle()
@@ -409,11 +376,7 @@ describe.each([
 
   it('drops the failure banner when the next iCloud attempt succeeds', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const el = await show(
-      snapshot({ enabled: false, vault: false, transport: 'relay' }),
-      ICLOUD,
-      phone,
-    )
+    const el = await show(snapshot({ enabled: false, vault: false, transport: 'relay' }), ICLOUD)
     answers.useFails = 'E_SYNC_UNEXPLAINED'
     await act(async () => button(el, 'Sync Through iCloud')?.click())
     await settle()
@@ -427,11 +390,7 @@ describe.each([
 
   it('says only the action for a failure the app cannot explain, and logs its code', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const el = await show(
-      snapshot({ enabled: false, vault: false, transport: 'relay' }),
-      ICLOUD,
-      phone,
-    )
+    const el = await show(snapshot({ enabled: false, vault: false, transport: 'relay' }), ICLOUD)
     answers.useFails = 'E_SYNC_UNEXPLAINED'
     await act(async () => button(el, 'Sync Through iCloud')?.click())
     await settle()
@@ -445,7 +404,6 @@ describe.each([
     const plain = await show(
       snapshot({ transport: 'relay', status: { state: 'stopped', code: 'E_SYNC_UNEXPLAINED' } }),
       ICLOUD,
-      phone,
     )
     expect(plain.textContent).toContain('Stopped.')
     expect(plain.textContent).not.toContain('E_SYNC_UNEXPLAINED')
@@ -455,7 +413,6 @@ describe.each([
     const el = await show(
       snapshot({ status: { state: 'stopped', code: 'E_SYNC_CLOUDKIT_UNAVAILABLE' } }),
       ICLOUD,
-      phone,
     )
     expect(el.textContent).not.toContain('E_SYNC_CLOUDKIT_UNAVAILABLE')
     expect(el.textContent).toMatch(/cannot (use|sync through) iCloud/)
@@ -472,7 +429,6 @@ describe.each([
     const el = await show(
       snapshot({ transport: 'relay', status: { state, code, pausedUntil } }),
       ICLOUD,
-      phone,
     )
     expect(el.textContent).toMatch(words)
     expect(el.textContent).not.toContain(code)
@@ -488,7 +444,6 @@ describe.each([
     const el = await show(
       snapshot({ transport: 'relay', status: { state, code, pausedUntil: null } }),
       ICLOUD,
-      phone,
     )
     expect(el.textContent).not.toContain(code)
   })
@@ -497,7 +452,6 @@ describe.each([
     const el = await show(
       snapshot({ transport: 'relay', status: { state: 'paused', code: 'E_SYNC_QUOTA' } }),
       ICLOUD,
-      phone,
     )
     expect(el.textContent).not.toContain('E_SYNC_QUOTA')
   })
@@ -508,7 +462,6 @@ describe.each([
         status: { state: 'paused', code: 'E_SYNC_ICLOUD_FULL', upload: { sent: 3, total: 10 } },
       }),
       ICLOUD,
-      phone,
     )
     expect(el.textContent).toMatch(/iCloud (storage )?is full/)
     expect(el.textContent).toContain('3 of 10 items uploaded.')
@@ -520,7 +473,6 @@ describe.each([
     const el = await show(
       snapshot({ status: { state: 'stopped', code: 'E_SYNC_ICLOUD_ACCOUNT_CHANGED' } }),
       ICLOUD,
-      phone,
     )
     await act(async () => button(el, 'Move to This Apple ID…')?.click())
     expect(document.body.textContent).toContain(
@@ -532,7 +484,6 @@ describe.each([
     const el = await show(
       snapshot({ status: { state: 'stopped', code: 'E_SYNC_ICLOUD_DELETED' } }),
       ICLOUD,
-      phone,
     )
     await act(async () => button(el, 'Turn Sync Off')?.click())
     await settle()
@@ -540,7 +491,7 @@ describe.each([
   })
 
   it('says the device joined through the iCloud Keychain', async () => {
-    const el = await show(snapshot({ icloudJoin: { state: 'joined' } }), ICLOUD, phone)
+    const el = await show(snapshot({ icloudJoin: { state: 'joined' } }), ICLOUD)
     expect(el.textContent).toMatch(
       /Joined through iCloud Keychain|through the iCloud Keychain and joined/,
     )
@@ -554,7 +505,6 @@ describe.each([
         status: { state: 'stopped', code: 'E_SYNC_VAULT_MOVED' },
       }),
       ICLOUD,
-      phone,
     )
     expect(el.textContent).toMatch(/moved to iCloud/)
     await act(async () => button(el, 'Follow to iCloud')?.click())
@@ -571,9 +521,8 @@ describe.each([
         status: { state: 'stopped', code: 'E_SYNC_VAULT_MOVED' },
       }),
       ICLOUD,
-      phone,
     )
-    expect(el.textContent).toMatch(phone ? /Move to iCloud not finished/ : /started on this device/)
+    expect(el.textContent).toMatch(/started on this device/)
     expect(el.textContent).not.toMatch(/another of your devices/)
     expect(button(el, 'Follow to iCloud')).toBeUndefined()
     expect(button(el, 'Move to iCloud…')).toBeUndefined()
@@ -584,27 +533,25 @@ describe.each([
 
   it('offers a relay vault the move to iCloud only where iCloud can take it', async () => {
     const relay = snapshot({ transport: 'relay', enrolled: true })
-    const el = await show(relay, ICLOUD, phone)
+    const el = await show(relay, ICLOUD)
     expect(button(el, 'Move to iCloud…')).toBeDefined()
     act(() => root?.unmount())
     root = undefined
-    const without = await show(relay, NO_CONTAINER, phone)
+    const without = await show(relay, NO_CONTAINER)
     expect(button(without, 'Move to iCloud…')).toBeUndefined()
     expect(without.textContent).not.toContain('Syncs Through')
     expect(without.querySelector('input[type=url]')).not.toBeNull()
   })
 
   it('leaves an iCloud vault only once its recovery key is typed', async () => {
-    const el = await show(snapshot({}), ICLOUD, phone)
+    const el = await show(snapshot({}), ICLOUD)
     expect(el.textContent).toMatch(/notes stay/i)
     expect(el.querySelector('input[type=text]')).toBeNull()
     await act(async () => button(el, 'Leave This Vault…')?.click())
     const key = el.querySelector<HTMLInputElement>('input[type=text]')
     expect(key).not.toBeNull()
     const hint = key?.getAttribute('aria-describedby')
-    expect(hint && document.getElementById(hint)?.textContent).toMatch(
-      phone ? /^Removed from iCloud for every device$/ : /recovery key/,
-    )
+    expect(hint && document.getElementById(hint)?.textContent).toMatch(/recovery key/)
     expect(button(el, 'Leave This Vault')?.disabled).toBe(true)
     expect(calls.some((c) => c.cmd === 'sync_icloud_leave')).toBe(false)
     if (!key) return
@@ -632,7 +579,7 @@ describe.each([
         status: { state: 'stopped', code: 'E_SYNC_VAULT_ROTATED' },
       }),
     ]) {
-      const el = await show(shown, NO_CONTAINER, phone)
+      const el = await show(shown, NO_CONTAINER)
       expect(el.textContent).toMatch(/key was changed on another device/)
       expect(button(el, 'Join')).toBeDefined()
       expect(button(el, 'Show Pairing Code')).toBeUndefined()
@@ -643,7 +590,7 @@ describe.each([
   })
 
   it('cancels leaving without a word to Rust', async () => {
-    const el = await show(snapshot({}), ICLOUD, phone)
+    const el = await show(snapshot({}), ICLOUD)
     await act(async () => button(el, 'Leave This Vault…')?.click())
     await act(async () => button(el, 'Cancel')?.click())
     expect(el.querySelector('input[type=text]')).toBeNull()
@@ -652,7 +599,7 @@ describe.each([
   })
 
   it('leaves a relay vault once confirmed, and asks no recovery key for it', async () => {
-    const el = await show(snapshot({ transport: 'relay', enrolled: true }), ICLOUD, phone)
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), ICLOUD)
     expect(el.textContent).toMatch(/notes stay on this device/i)
     await act(async () => button(el, 'Leave This Vault…')?.click())
     expect(el.querySelector('input[type=text]')).toBeNull()
@@ -681,18 +628,18 @@ describe.each([
       snapshot({ transport: 'relay', enrolled: false, enabled: false }),
       snapshot({ transport: 'relay', enrolled: true, rotated: true }),
     ]) {
-      const el = await show(shown, NO_CONTAINER, phone)
+      const el = await show(shown, NO_CONTAINER)
       expect(button(el, 'Leave This Vault…')).toBeDefined()
       act(() => root?.unmount())
       root = undefined
     }
-    const none = await show(snapshot({ transport: 'relay', vault: false }), NO_CONTAINER, phone)
+    const none = await show(snapshot({ transport: 'relay', vault: false }), NO_CONTAINER)
     expect(button(none, 'Leave This Vault…')).toBeUndefined()
   })
 
   it('says why a relay vault could not be left', async () => {
     answers.leaveFails = 'E_SYNC_KEYCHAIN'
-    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, phone)
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER)
     await act(async () => button(el, 'Leave This Vault…')?.click())
     await act(async () => button(el, 'Leave')?.click())
     await settle()
@@ -701,23 +648,9 @@ describe.each([
   })
 })
 
-it('points the key field at its hint only when there is one', async () => {
-  const shown = enPhone['syncSettings.icloudLeaveKeyHint']
-  enPhone['syncSettings.icloudLeaveKeyHint'] = ''
-  try {
-    const el = await show(snapshot({}), ICLOUD, true)
-    await act(async () => button(el, 'Leave This Vault…')?.click())
-    const key = el.querySelector<HTMLInputElement>('input[type=text]')
-    expect(key).not.toBeNull()
-    expect(key?.hasAttribute('aria-describedby')).toBe(false)
-  } finally {
-    Object.assign(enPhone, { 'syncSettings.icloudLeaveKeyHint': shown })
-  }
-})
-
 describe('Change Vault Key', () => {
   it('changes a relay vault\u2019s key once the relay\u2019s secret is typed, then shows the new recovery key', async () => {
-    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, false)
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER)
     expect(el.querySelector('input[type=password]')).toBeNull()
     await act(async () => button(el, 'Change Vault Key…')?.click())
     const field = el.querySelector<HTMLInputElement>('input[type=password]')
@@ -741,7 +674,7 @@ describe('Change Vault Key', () => {
   })
 
   it('cancels without a word to Rust', async () => {
-    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, false)
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER)
     await act(async () => button(el, 'Change Vault Key…')?.click())
     await act(async () => button(el, 'Cancel')?.click())
     expect(el.querySelector('input[type=password]')).toBeNull()
@@ -749,7 +682,7 @@ describe('Change Vault Key', () => {
   })
 
   it('changes an iCloud vault\u2019s key once the warning about a lost device is confirmed', async () => {
-    const el = await show(snapshot({}), ICLOUD, false)
+    const el = await show(snapshot({}), ICLOUD)
     expect(el.textContent).toMatch(/devices on this Apple ID follow on their own/)
     await act(async () => button(el, 'Change Vault Key…')?.click())
     expect(el.textContent).toMatch(/Remove a lost device from your Apple ID first/)
@@ -771,7 +704,7 @@ describe('Change Vault Key', () => {
 
   it('says so when another device\u2019s change of the iCloud vault\u2019s key won and this one follows it', async () => {
     answers.rotatedKey = null
-    const el = await show(snapshot({}), ICLOUD, false)
+    const el = await show(snapshot({}), ICLOUD)
     await act(async () => button(el, 'Change Vault Key…')?.click())
     await act(async () => button(el, 'Change Key')?.click())
     await settle()
@@ -787,7 +720,7 @@ describe('Change Vault Key', () => {
       snapshot({ rotated: true }),
       snapshot({ status: { state: 'stopped', code: 'E_SYNC_VAULT_ROTATED' } }),
     ]) {
-      const el = await show(shown, ICLOUD, false)
+      const el = await show(shown, ICLOUD)
       expect(el.textContent).toMatch(/has not reached this one through iCloud Keychain/)
       expect(button(el, 'Join')).toBeDefined()
       expect(button(el, 'Show Pairing Code')).toBeUndefined()
@@ -797,16 +730,8 @@ describe('Change Vault Key', () => {
     }
   })
 
-  it('is offered on the Mac only, and on a relay only to an enrolled device', async () => {
-    for (const [shown, icloud, phone] of [
-      [snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, true],
-      [snapshot({}), ICLOUD, true],
-      [snapshot({ transport: 'relay', enrolled: false }), NO_CONTAINER, false],
-    ] as const) {
-      const el = await show(shown, icloud, phone)
-      expect(button(el, 'Change Vault Key…')).toBeUndefined()
-      act(() => root?.unmount())
-      root = undefined
-    }
+  it('is offered on a relay only to an enrolled device', async () => {
+    const el = await show(snapshot({ transport: 'relay', enrolled: false }), NO_CONTAINER)
+    expect(button(el, 'Change Vault Key…')).toBeUndefined()
   })
 })

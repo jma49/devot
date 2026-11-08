@@ -27,7 +27,6 @@ import {
   useSettingsChange,
 } from './controls'
 import { FontSection } from './FontChoice'
-import { useOnPhone } from './onPhone'
 import { useTypedNumber } from './typedNumber'
 import { failureText } from '../failure'
 
@@ -106,7 +105,6 @@ export function EditingSection() {
   // The font size description names the keys in effect.
   useKeymap()
   const [error, change] = useSettingsChange()
-  const onPhone = useOnPhone()
   const ids = useId()
   const locale = currentLocale()
   const decimal = useMemo(
@@ -175,7 +173,7 @@ export function EditingSection() {
           settings.lineWrapping !== 'off' ? undefined : 'editorSettings.readableWidthNote',
         )}
         {flag('scrollPastEnd')}
-        {onPhone ? null : flag('showCounts')}
+        {flag('showCounts')}
         <Setting
           label="editorSettings.cursorScrollMargin"
           description={t('editorSettings.cursorScrollMarginHint')}

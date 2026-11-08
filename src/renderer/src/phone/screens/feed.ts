@@ -37,6 +37,11 @@ export function reportingListWrites(storage: WireStorage): WireStorage {
   }
   return {
     ...storage,
+    async seedWelcome(seed) {
+      const seeded = await storage.seedWelcome(seed)
+      if (seeded) externalChangesReported()
+      return seeded
+    },
     async purgeNote(id, at, hlc) {
       await storage.purgeNote(id, at, hlc)
       note(id)
