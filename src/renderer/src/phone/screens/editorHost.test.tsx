@@ -293,6 +293,28 @@ describe('the editor host under the native screens', () => {
     ).toBe(true)
   })
 
+  it('rests the hidden pane again when the note changes during a crossfade', async () => {
+    const first = await shell.notes.create('First', null)
+    const second = await shell.notes.create('Second', null)
+    editors.bodies.set(second, 'Read me')
+    await start()
+    await swift('editor.show', { noteId: first })
+    const finishes: (() => void)[] = []
+    vi.spyOn(Element.prototype, 'animate').mockImplementation(() => {
+      const finished = new Promise<void>((resolve) => finishes.push(resolve))
+      return { finished, cancel: () => {} } as unknown as Animation
+    })
+    await swift('editor.setMode', { mode: 'preview' })
+    expect(finishes.length).toBeGreaterThan(0)
+    await swift('editor.show', { noteId: second })
+    expect(notices('editor.mode').at(-1)).toMatchObject({ noteId: second, mode: 'preview' })
+    await act(async () => {
+      for (const finish of finishes) finish()
+    })
+    expect(layer('edit').dataset['resting']).toBe('true')
+    expect(editors.latest?.hidden).toBe(true)
+  })
+
   it('opens a locked note in Preview, read-only, and keeps it there', async () => {
     const id = await shell.notes.create('Plans', null)
     licence = ENDED

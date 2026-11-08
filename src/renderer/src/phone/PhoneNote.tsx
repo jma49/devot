@@ -339,8 +339,10 @@ export function PhoneNote(props: {
     void crossfadePanes(incoming, outgoing, motionReduced()).then(() => {
       if (current) setMoving(false)
     })
+    // A note shown mid-fade ends it: no later run of this effect would.
     return () => {
       current = false
+      setMoving(false)
     }
   }, [noteId, mode])
 
