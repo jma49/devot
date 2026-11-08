@@ -146,6 +146,9 @@ const setNotice = (next: UsageNotice | null) => {
 
 export const shownUsageNotice = (): UsageNotice | null => shownNotice
 
+/** Clears the shown notice; only this and a change of relay do, a later reading never does. */
+export const dismissUsageNotice = (): void => setNotice(null)
+
 /** Between two readings for the notice; a relay is not asked for its storage on every sync pass. */
 export const USAGE_RECHECK_MS = 15 * 60_000
 
@@ -155,7 +158,8 @@ let watchedAt = 0
 
 /**
  * Reads the relay's storage after a sync pass settles, and sets the notice when a cap's band went
- * up from the one last told (`noticeFor`). Cheap to call on every snapshot.
+ * up from the one last told (`noticeFor`); a reading that calls for none leaves a shown one. Cheap
+ * to call on every snapshot.
  */
 export function watchUsage(snapshot: SyncSnapshot, now = Date.now()): void {
   const { state, code, unsyncedFiles } = snapshot.status
@@ -176,7 +180,7 @@ export function watchUsage(snapshot: SyncSnapshot, now = Date.now()): void {
     if (reading.state !== 'ready' || watched !== key) return
     const { notice, seen } = noticeFor(reading.view, seenFor(relay))
     remember(relay, seen)
-    setNotice(notice)
+    if (notice !== null) setNotice(notice)
   })
 }
 
@@ -188,7 +192,7 @@ export function resetUsageWatch(): void {
   setNotice(null)
 }
 
-/** The notice a settled sync pass called for; the caller keeps it until it is dismissed. */
+/** The notice a settled sync pass called for, kept until `dismissUsageNotice` or a change of relay. */
 export function useUsageNotice(snapshot: SyncSnapshot): UsageNotice | null {
   useEffect(() => watchUsage(snapshot), [snapshot])
   return useSyncExternalStore(
