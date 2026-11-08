@@ -387,9 +387,12 @@ export function PhoneApp() {
     }
     nativeNewNote.current = {
       create: async (named) => {
-        const core = store.core
-        if (!core) throw new Error('E_SCREENS_UNAVAILABLE')
-        const bookId = newNoteBook(named, editorSettings().defaultNotebook, store.books)
+        const core = await latestStore.current.started()
+        const bookId = newNoteBook(
+          named,
+          editorSettings().defaultNotebook,
+          latestStore.current.books,
+        )
         const id = await makeNewNote(core, bookId)
         // The write that made the note is reported in a microtask: the reply counts it.
         await Promise.resolve()
@@ -400,8 +403,7 @@ export function PhoneApp() {
       },
       discard: (noteId, before) => leaveNewNote(noteId, before),
       today: async () => {
-        const core = store.core
-        if (!core) throw new Error('E_SCREENS_UNAVAILABLE')
+        const core = await latestStore.current.started()
         const { id } = await core.openTodaysNote(dailySettings(), Date.now(), editingAllowed())
         void phoneData.refresh()
         return { id }

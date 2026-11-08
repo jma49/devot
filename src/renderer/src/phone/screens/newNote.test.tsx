@@ -156,6 +156,29 @@ async function focus() {
 const listed = async (id: string) => (await shell.notes.list()).find((n) => n.id === id)
 
 describe('New Note under the native screens', () => {
+  it('waits for the core when New Note is asked before the lists are first read', async () => {
+    let release: () => void = () => {}
+    const flushed = new Promise<void>((resolve) => (release = resolve))
+    let held = false
+    const core = shell.core
+    setTestCore(
+      new Proxy(core, {
+        get: (target, key) => {
+          if (key !== 'flush' || held) return Reflect.get(target, key) as unknown
+          held = true
+          return () => flushed
+        },
+      }),
+    )
+    await act(async () => root.render(<PhoneApp />))
+    await vi.waitFor(() => expect(bridge.handlers['note.create']).toBeDefined())
+    const made = await swift('note.create', {})
+    expect(await listed(made['id'] as string)).toMatchObject({ bookId: null })
+    const today = await swift('note.today')
+    expect(await listed(today['id'] as string)).toBeDefined()
+    release()
+  })
+
   it('puts a note Swift names no notebook for in the Default Notebook', async () => {
     const book = await shell.books.create('Inbox', null)
     await start()

@@ -54,8 +54,10 @@ export function testCore() {
     }),
   }
   // What the screens ask of the core besides these goes to the note service, or finds nothing.
+  // `then` stays undefined, so a promise can resolve to the core instead of waiting on it.
   const core = new Proxy(named, {
     get: (target, key) => {
+      if (key === 'then') return undefined
       if (key in target) return target[key as string]
       const own = (notes as unknown as Record<string | symbol, unknown>)[key]
       return typeof own === 'function' ? own.bind(notes) : async () => undefined
