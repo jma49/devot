@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { CHUNK_BLOCKS, CHUNK_CLASS } from '../../src/renderer/src/preview/chunks'
 import { expectWithinBudget, setOverloadProbe } from '../support/budget'
 import { machineOverloaded } from '../support/machine-load'
 import { expect, openApp, test } from './fixtures'
@@ -9,7 +10,8 @@ import { mainThreadSeconds, quietProcess, webProcessOf } from './webProcess'
 // WebKit repaints a layer's event region after every paint in it, and the page's wheel listeners make
 // that pass walk every block of the layer. With the whole preview on one layer, these keys took about
 // 2 s of a developer's Mac, half of it in that pass; with the blocks in chunks on layers of their own,
-// about 0.9 s (issue 727). Locally an overloaded machine skips; CI stretches the budget (budget.ts).
+// about 0.9 s (issue 727). That pass is WebKit's macOS path, so the CPU check runs on macOS only and
+// the chunk test holds the layers everywhere. Locally an overloaded machine skips (budget.ts).
 const MAIN_THREAD_BUDGET_MS = 1300
 const NOTE_CHARS = 250_000
 const KEYS = 'abcdefghij'.repeat(4)
@@ -88,10 +90,10 @@ function section(i: number): string {
   ].join('\n')
 }
 
-function corpusNote(): { text: string; sections: number } {
+function corpusNote(chars: number): { text: string; sections: number } {
   const parts = ['# Big rich note\n\n']
   let i = 1
-  for (let length = 0; length < NOTE_CHARS; i++) {
+  for (let length = 0; length < chars; i++) {
     const next = section(i)
     parts.push(next)
     length += next.length
@@ -99,11 +101,7 @@ function corpusNote(): { text: string; sections: number } {
   return { text: parts.join(''), sections: i - 1 }
 }
 
-test('typing at the top of a 250 KB note in Split view keeps the main thread within its budget', async ({
-  page,
-}) => {
-  test.setTimeout(300_000)
-  const note = corpusNote()
+async function openInSplit(page: Page, note: { text: string; sections: number }): Promise<void> {
   await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await body(page).click()
@@ -121,7 +119,48 @@ test('typing at the top of a 250 KB note in Split view keeps the main thread wit
   await expect(preview(page).locator('h2')).toHaveCount(note.sections, {
     timeout: 60_000,
   })
+}
+
+test('the preview of a big note puts its blocks in chunks, each on a layer of its own', async ({
+  page,
+}) => {
+  await openInSplit(page, corpusNote(60_000))
+  const chunks = await preview(page)
+    .locator('.preview-body')
+    .evaluate(
+      (host, chunkClass) =>
+        [...host.children]
+          .filter((el) => !el.hasAttribute('data-devot-ui'))
+          .map((el) => ({
+            chunk: el.classList.contains(chunkClass),
+            willChange: getComputedStyle(el).willChange,
+            blocks: el.childElementCount,
+          })),
+      CHUNK_CLASS,
+    )
+  expect(chunks.length).toBeGreaterThan(3)
+  for (const chunk of chunks) {
+    expect(chunk.chunk).toBe(true)
+    expect(chunk.willChange).toBe('transform')
+    expect(chunk.blocks).toBeGreaterThan(0)
+    expect(chunk.blocks).toBeLessThanOrEqual(2 * CHUNK_BLOCKS)
+  }
+})
+
+test('typing at the top of a 250 KB note in Split view keeps the main thread within its budget', async ({
+  page,
+}) => {
+  test.skip(process.platform !== 'darwin', "WebKit's event-region pass runs on macOS only")
+  test.setTimeout(300_000)
+  await openInSplit(page, corpusNote(NOTE_CHARS))
   const pid = await webProcessOf(page)
+  if (pid === undefined) {
+    test.skip(
+      true,
+      'E_TEST_WEB_PROCESS: the page was not the only web process busy while it burned',
+    )
+    return
+  }
   await quietProcess(pid)
   await body(page).evaluate((el) => {
     const view = (el as unknown as { cmTile: { view: ViewLike } }).cmTile.view

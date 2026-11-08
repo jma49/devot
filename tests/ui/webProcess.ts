@@ -1,13 +1,12 @@
 import type { Page } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 
-// The CPU time of the page's web process, read from outside the page: the rendering work a page cannot
-// time itself (style, layout, paint, event regions) runs on that process's main thread. macOS starts
-// the process from launchd, not as the browser's child, so it is found by the CPU a busy page burns.
+// The CPU time of the page's web process on macOS, read from outside the page: the rendering work a
+// page cannot time itself (style, layout, paint, event regions) runs on that process's main thread.
+// macOS starts the process from launchd, not as the browser's child, so it is found by the CPU it
+// burns while the page is busy and does not burn while the page is idle.
 
-const linux = process.platform === 'linux'
-const ticks = linux ? Number(execFileSync('getconf', ['CLK_TCK']).toString().trim()) : 0
+const BURN_MS = 1500
 
 const clock = (text: string) =>
   text
@@ -16,20 +15,12 @@ const clock = (text: string) =>
     .map(Number)
     .reduce((sum, part) => sum * 60 + part, 0)
 
-/** The user and system seconds in a `/proc/.../stat` line. */
-function procSeconds(path: string): number {
-  const fields = readFileSync(path, 'utf8').split(') ')[1]!.split(' ')
-  return (Number(fields[11]) + Number(fields[12])) / ticks
-}
-
 function processSeconds(pid: number): number {
-  if (linux) return procSeconds(`/proc/${pid}/stat`)
   return clock(execFileSync('ps', ['-o', 'time=', '-p', String(pid)]).toString())
 }
 
 /** The CPU seconds of `pid`'s main thread. */
 export function mainThreadSeconds(pid: number): number {
-  if (linux) return procSeconds(`/proc/${pid}/task/${pid}/stat`)
   const [, main] = execFileSync('ps', ['-M', '-p', String(pid)])
     .toString()
     .trim()
@@ -43,7 +34,7 @@ function webProcesses(): Map<number, number> {
   const out = new Map<number, number>()
   const list = execFileSync('ps', ['-axo', 'pid=,command=']).toString()
   for (const line of list.split('\n')) {
-    if (!line.includes('ms-playwright') || !/WebContent|WebKitWebProcess/.test(line)) continue
+    if (!line.includes('ms-playwright') || !line.includes('WebContent')) continue
     const pid = Number(/^\s*(\d+)/.exec(line)?.[1])
     try {
       out.set(pid, processSeconds(pid))
@@ -54,23 +45,40 @@ function webProcesses(): Map<number, number> {
   return out
 }
 
-/** The pid of `page`'s web process: the one that gains most of the CPU the page burns. */
-export async function webProcessOf(page: Page): Promise<number> {
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const before = webProcesses()
-    await page.evaluate(() => {
-      const end = performance.now() + 1500
-      while (performance.now() < end) {
-        // Burns the page's main thread.
-      }
-    })
-    const gains = [...webProcesses()]
-      .map(([pid, seconds]) => [pid, seconds - (before.get(pid) ?? seconds)] as const)
-      .sort((a, b) => b[1] - a[1])
-    const [best, next] = gains
-    if (best && best[1] >= 1 && (!next || next[1] < best[1] / 2)) return best[0]
+/** The CPU seconds each web process gained while `during` ran. */
+async function gains(during: () => Promise<unknown>): Promise<Map<number, number>> {
+  const before = webProcesses()
+  await during()
+  const out = new Map<number, number>()
+  for (const [pid, seconds] of webProcesses()) out.set(pid, seconds - (before.get(pid) ?? seconds))
+  return out
+}
+
+/**
+ * The pid of `page`'s web process, or undefined when it cannot be told apart. Other workers' pages
+ * may be busy too, so a candidate must keep up with the page through every burn and rest while the
+ * page rests, until one is left.
+ */
+export async function webProcessOf(page: Page): Promise<number | undefined> {
+  let candidates: Set<number> | undefined
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const busy = await gains(() =>
+      page.evaluate((ms) => {
+        const end = performance.now() + ms
+        while (performance.now() < end) {
+          // Burns the page's main thread.
+        }
+      }, BURN_MS),
+    )
+    const idle = await gains(() => new Promise((resolve) => setTimeout(resolve, BURN_MS)))
+    const kept = [...busy]
+      .filter(([pid, seconds]) => seconds >= (0.6 * BURN_MS) / 1000 && (idle.get(pid) ?? 0) < 0.3)
+      .map(([pid]) => pid)
+    candidates = new Set(candidates ? kept.filter((pid) => candidates!.has(pid)) : kept)
+    if (candidates.size === 1) return [...candidates][0]
+    if (candidates.size === 0) candidates = undefined
   }
-  throw new Error('E_TEST_WEB_PROCESS')
+  return undefined
 }
 
 /** Waits until `pid` has used under 8% of a core for a second, at most `timeout` ms. */

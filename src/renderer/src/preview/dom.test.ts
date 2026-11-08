@@ -8,8 +8,6 @@ import {
   buildFirstPieces,
   buildPending,
   buildToLine,
-  CHUNK_BLOCKS,
-  CHUNK_CLASS,
   hasPending,
   noteOffset,
   patchChildren,
@@ -17,6 +15,7 @@ import {
   type NextPiece,
   type ShownPiece,
 } from './dom'
+import { CHUNK_BLOCKS, CHUNK_CLASS } from './chunks'
 
 const el = (
   tagName: string,

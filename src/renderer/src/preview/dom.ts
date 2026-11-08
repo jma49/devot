@@ -5,6 +5,7 @@ import type { Element as HastElement, ElementContent, RootContent } from 'hast'
 import { find, html } from 'property-information'
 import { isCustomTagColor } from '../../../core/tags'
 import { isMissingImage, markMissing } from '../missingImages'
+import { CHUNK_BLOCKS, CHUNK_CLASS } from './chunks'
 import { ISLAND_ATTRIBUTE } from './islands'
 
 type HastChild = RootContent | ElementContent
@@ -417,15 +418,6 @@ function controlsOf(host: Element): Node | null {
   for (let node = host.lastChild; node && isUi(node); node = node.previousSibling) first = node
   return first
 }
-
-/**
- * The note's top-level nodes sit in chunks, runs of about `CHUNK_BLOCKS` blocks that each get a
- * composited layer (content.css). WebKit repaints a layer's whole event region after any paint in
- * it, and the page's wheel listeners make that pass walk every block of the layer, so on one layer
- * a keystroke walked the whole preview below the scroll position (issue 727).
- */
-export const CHUNK_CLASS = 'preview-chunk'
-export const CHUNK_BLOCKS = 100
 
 // `heading + *` and `.alert:has(+ .alert)` (content.css) match only within one chunk.
 const keepsNext = (el: Element | null) =>
