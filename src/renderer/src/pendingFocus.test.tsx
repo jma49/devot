@@ -8,7 +8,6 @@ import { NoteBoard } from './NoteBoard'
 import { NoteGallery } from './NoteGallery'
 import { NoteList } from './NoteList'
 import { usePendingFocus } from './pendingFocus'
-
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const note = (id: string, status: NoteStatus = 'active'): NoteSummary => ({
@@ -128,10 +127,14 @@ describe('a focus request for a note the view does not show', () => {
 })
 
 const asks: { request: (id: string) => void } = { request: noop }
+let takes = 0
 const ask = (id: string) => asks.request(id)
 
-/** A listbox that renders a note only while asked to focus it or focused, as a long list does with a row outside its window. */
-function Rows(props: { view: string; ids: readonly string[] }) {
+/**
+ * A listbox that renders a note only while asked to focus it or focused, as a long list does with a row outside its window.
+ * With `focusable` false, the note's element never takes the keyboard.
+ */
+function Rows(props: { view: string; ids: readonly string[]; focusable?: boolean }) {
   const box = useRef<HTMLUListElement>(null)
   const [focused, setFocused] = useState<string>()
   const pending = usePendingFocus({
@@ -139,7 +142,10 @@ function Rows(props: { view: string; ids: readonly string[] }) {
     listed: (id) => props.ids.includes(id),
     element: (id) => box.current?.querySelector<HTMLElement>(`[data-note-id="${id}"]`) ?? undefined,
     container: () => box.current,
-    take: (el) => el.focus(),
+    take: (el) => {
+      takes++
+      if (props.focusable !== false) el.focus()
+    },
   })
   useEffect(() => {
     asks.request = pending.request
@@ -158,6 +164,7 @@ function Rows(props: { view: string; ids: readonly string[] }) {
 describe('a pending focus request', () => {
   const start = async () => {
     host = undefined
+    takes = 0
     await render(<Rows view="all" ids={['a']} />)
   }
 
@@ -201,5 +208,13 @@ describe('a pending focus request', () => {
     await start()
     await act(async () => ask('z'))
     expect(card('z')).toBeNull()
+  })
+
+  it('tries the note once, so a note that does not take the keyboard is not tried on every render', async () => {
+    await start()
+    await act(async () => root!.render(<Rows view="all" ids={['a']} focusable={false} />))
+    await act(async () => ask('a'))
+    await act(async () => root!.render(<Rows view="all" ids={['a', 'b']} focusable={false} />))
+    expect(takes).toBe(1)
   })
 })

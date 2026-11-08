@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStable } from './stable'
 
 /** A note the list, board or gallery has asked to give the keyboard to before its element has rendered. */
@@ -35,10 +35,14 @@ export function usePendingFocus(options: Options): {
   if (stale) setIntent(NONE)
   const live = stale ? NONE : intent
 
-  // The note's element taking the keyboard ends the request (the focusin below).
+  // One try per request: an element that does not take the keyboard is not tried again on every render.
+  const tried = useRef<FocusIntent>(NONE)
   useEffect(() => {
+    if (live === tried.current) return
     const el = live.kind === 'pending' ? element(live.id) : undefined
-    if (el) take(el)
+    if (!el) return
+    tried.current = live
+    take(el)
   })
 
   const container = useStable(options.container)
