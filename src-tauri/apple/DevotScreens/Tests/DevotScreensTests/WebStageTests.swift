@@ -46,6 +46,12 @@ final class WebStageTests: XCTestCase {
         return window
     }
 
+    private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition(), Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        XCTAssertTrue(condition(), file: file, line: line)
+    }
+
     /// UIKit leaves a view out of the accessibility tree when it or a superview hides its elements.
     private func reachableByVoiceOver(_ view: UIView) -> Bool {
         !sequence(first: view, next: \.superview).contains { $0.accessibilityElementsHidden }
@@ -153,7 +159,8 @@ final class WebStageTests: XCTestCase {
         let tabs = screens.root.tabs
         XCTAssertTrue(reachableByVoiceOver(webView))
         tabs.select(.settings)
-        tabs.view.layoutIfNeeded()
+        // iOS 26.5 can swap in the selected tab's view a turn later.
+        waitUntil { tabs.settings.navigation.viewIfLoaded?.window != nil }
         XCTAssertTrue(webView.superview === screens.root.host.stage)
         XCTAssertFalse(reachableByVoiceOver(webView))
 
@@ -180,7 +187,7 @@ final class WebStageTests: XCTestCase {
         _ = try shownWindow(tao)
         let tabs = screens.root.tabs
         tabs.select(.settings)
-        tabs.view.layoutIfNeeded()
+        waitUntil { tabs.settings.navigation.viewIfLoaded?.window != nil }
         tabs.settings.root.onPair()
         tabs.view.layoutIfNeeded()
         let pane = try XCTUnwrap(tabs.settings.navigation.topViewController)
