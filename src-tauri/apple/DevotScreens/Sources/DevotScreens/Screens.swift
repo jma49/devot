@@ -229,6 +229,18 @@ final class Screens: SettingsBridge {
         case .editorScroll:
             guard case .bool(let visible)? = fields["titleVisible"] else { return invalid(kind) }
             (root.host.holder as? EditorScreen)?.titleVisible(visible)
+        case .editorNote:
+            guard let note = EditorNote(fields) else { return invalid(kind) }
+            for screen in editorScreens where screen.noteId == note.id { screen.showNote(note) }
+        case .editorPicker:
+            guard case .string(let id)? = fields["noteId"], let name = fields["picker"]?.string,
+                let picker = EditorScreen.Picker(rawValue: name)
+            else { return invalid(kind) }
+            guard let screen = root.host.holder as? EditorScreen, screen.noteId == id else { return true }
+            screen.showPicker(picker)
+        case .editorHaptic:
+            guard let name = fields["kind"]?.string else { return invalid(kind) }
+            haptics.play(page: name)
         default:
             return false
         }
@@ -401,7 +413,6 @@ final class Screens: SettingsBridge {
                 self?.askEditor(.editorShow, args)
             },
             setMode: { [weak self] mode in self?.askEditor(.editorSetMode, ["mode": .string(mode.rawValue)]) },
-            info: { [weak self] in self?.askEditor(.editorInfo) },
             appeared: { [weak self] tab in
                 guard let self else { return }
                 run(tabModel.appeared(tab))
@@ -413,7 +424,28 @@ final class Screens: SettingsBridge {
                     }
                 }
             },
-            left: { [weak self] _ in self?.discardLeftNewNotes() })
+            left: { [weak self] _ in self?.discardLeftNewNotes() },
+            page: { [weak self] op, args, done in
+                guard let self else { return done(.failed("E_SCREENS_UNAVAILABLE")) }
+                request(op, args) { [weak self] outcome in
+                    if case .failed(let code) = outcome {
+                        self?.rust.log(.warn, "W_SCREENS_EDITOR_FAILED op=\(op.rawValue) code=\(code)")
+                    }
+                    done(outcome)
+                }
+            },
+            write: { [weak self] intent in self?.gate.require(intent) },
+            ask: { [weak self] intent in self?.root.tabs.lists.ask(intent) },
+            locked: { [weak self] in self?.gate.locked() ?? false },
+            library: { [weak self] done in
+                guard let lists = self?.root.tabs.lists else { return done(nil) }
+                if let library = lists.library { return done(library) }
+                lists.readLibrary()
+                done(nil)
+            },
+            open: { [weak self] id, title in self?.openNote(id, title: title) },
+            text: { [weak self] id, done in self?.root.tabs.lists.text(id) { _, markdown in done(markdown) } },
+            haptics: haptics)
     }
 
     private func hideEditor(_ done: @escaping () -> Void) {

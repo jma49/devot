@@ -191,7 +191,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A push, a pop, a tab switch and any other sheet's rise have none.
   A bar button gives no touch-down, so the generators are made ready when a context menu opens or the selection bar shows, and the warning's while a locked list shows.
   A write Devot Pro does not allow feels only the warning.
-  The editor's haptics stay the page's `haptic` command until the editor's bars are native.
+  Under the native screens the editor's haptics are Swift's too: while a note's screen is up the page sends `editor.haptic` instead of playing its `haptic` command, and a picker's choice plays `selection`.
 - **Filter and week menus** (the native screens): the system's menu from its bar button, with the system's motion.
   The filtered rows change at once (rule 2).
   Activity's week menu stays the page's.
@@ -204,7 +204,29 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Under Reduce Motion the panes only fade.
 - **Title under the bar** (the native screens): rule 2.
   Once the note's own title has scrolled under the system bar, the bar shows it; it goes when the title comes back.
+- **Bottom toolbar and the keyboard** (the native screens): rule 3.
+  A note's screen has the system's bottom toolbar of Back, Forward, Find and, in Edit, AI.
+  It hides as the keyboard rises and comes back as it goes, inside the keyboard's own animation: the same duration and curve, never the toolbar's own slide.
+  The page scrolls as one document in the web view's own scroll view, so the system bar's scroll edge effect follows it, and a drag down through the keyboard takes the keyboard with the finger.
+  The keyboard's height reaches the page once per change as `editor.insets`, which the page applies at once, with no motion of its own; the native scroll view's bottom inset changes with it.
+  Under Reduce Motion the keyboard decides its own look, and the toolbar follows it.
+- **Formatting bar on the keyboard** (the native screens): rule 3.
+  In Edit, while the keyboard is up, a 44 pt glass capsule of the formatting buttons and a 44 pt Hide Keyboard circle sit in one glass container `size.phone-sheet-inset` above it.
+  They are pinned to the keyboard's layout guide, so they ride its curve, an interactive dismissal and an undocked keyboard with no animation of their own.
+  The glass is the system's interactive glass, so a press is the system's; it is solid under Reduce Transparency or Increase Contrast.
+  A button formats at the caret and never takes the keyboard; Hide Keyboard lowers it, and the bar goes with it.
+  On a narrow phone the capsule's row scrolls sideways, and every button keeps its 44 pt.
+- **Find bar** (the native screens): rule 2.
+  Find, from the toolbar or the More menu, swaps a glass bar in at once in the formatting bar's place: a field, the count, previous, next, and a close circle.
+  The count follows each key typed; a count for an older query is dropped.
+  Return steps to the next match; Close clears the highlights and swaps the bar out at once.
+- **Note's More menu** (the native screens): the system's menu from its bar button, with the system's motion.
+  Pin, Status, Move to Notebook, Tags, Share, Find in Note, Duplicate and Move to Trash; a write goes through the gate and plays its haptic.
+  Move to Trash pops the note's screen and offers the undo toast over the list.
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes. Under Reduce Motion it crossfades in place, and still follows a drag.
+  Under the native screens the note's pickers (notebook, status, tags) are the system's sheets at medium and large height, with a grabber and a close item, and a list scrolled to its edge pulls the sheet to large; they rise and close with the system's motion.
+  A single choice closes the sheet, then writes; the tags picker stays open and its ticks follow each write.
+  Note Info is a content-sized system sheet with the date pickers; Share is the system's share sheet.
 - **New Note** (the native screens): rule 3.
   The compose button in the list's bar presses as any bar button.
   The tap pushes the new note's screen in the same turn with the system's push, before the note exists; its cover holds, with no title, until the note exists and the page has painted it, then fades as any note's cover does.

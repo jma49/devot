@@ -5558,6 +5558,10 @@ public enum L10n {
     text("phone.note.hideKeyboard", "Hide keyboard")
   }
 
+  public static func phoneNoteTags() -> String {
+    text("phone.note.tags", "Tags…")
+  }
+
   public static func phoneInfoTitle() -> String {
     text("phone.info.title", "Note Info")
   }

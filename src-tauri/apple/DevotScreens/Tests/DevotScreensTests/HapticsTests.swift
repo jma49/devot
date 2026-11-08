@@ -94,4 +94,15 @@ final class HapticsTests: XCTestCase {
             XCTAssertTrue(generator.feedback.view === view, "\(kind)")
         }
     }
+
+    func testThePagesHapticNamesPlayTheirGeneratorsAndAnUnknownNamePlaysNothing() {
+        for (name, kind) in [("light", HapticKind.light), ("soft", .light), ("selection", .selection), ("success", .success), ("warning", .warning)] {
+            recorder.clear()
+            haptics.play(page: name)
+            XCTAssertEqual(recorder.log, ["\(kind).prepare", "\(kind).occurred"], name)
+        }
+        recorder.clear()
+        haptics.play(page: "rumble")
+        XCTAssertEqual(recorder.log, [])
+    }
 }

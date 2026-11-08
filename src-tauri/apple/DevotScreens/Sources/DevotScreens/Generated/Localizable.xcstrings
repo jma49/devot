@@ -14818,6 +14818,17 @@
         }
       }
     },
+    "phone.note.tags" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags…"
+          }
+        }
+      }
+    },
     "phone.note.title" : {
       "extractionState" : "manual",
       "localizations" : {

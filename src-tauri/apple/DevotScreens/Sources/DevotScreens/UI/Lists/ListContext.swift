@@ -168,6 +168,18 @@ final class ListContext {
             write(.templateApply, args) { [weak self] made in
                 if let id = made["id"]?.string { self?.open(id, "") }
             }
+        case .addTag(let noteId, let name):
+            write(.noteAddTag, ["noteId": .string(noteId), "name": .string(name)]) { _ in }
+        case .duplicate(let noteId):
+            write(.editorDuplicate, [:]) { [weak self] made in
+                guard let id = made["id"]?.string, id != noteId else { return }
+                self?.open(id, made["title"]?.string ?? "")
+            }
+        case .setDates(let noteId, let createdAt, let updatedAt):
+            var args: [String: JSONValue] = ["noteId": .string(noteId)]
+            if let createdAt { args["createdAt"] = .number(createdAt) }
+            if let updatedAt { args["updatedAt"] = .number(updatedAt) }
+            write(.noteSetDates, args) { _ in }
         }
         return true
     }

@@ -12,17 +12,29 @@ private let second = "01970000-0000-7000-8000-000000000002"
 private final class FakePage {
     var shown: [String] = []
     var modes: [NoteMode] = []
-    var infos = 0
     var hides: [() -> Void] = []
     var appeared: [Tab] = []
+    var asked: [(op: Op, args: [String: JSONValue])] = []
+    var answers: [Op: JSONValue] = [:]
+    var writes: [WriteIntent] = []
+    var opened: [String] = []
 
     var actions: EditorActions {
-        EditorActions(
+        var actions = EditorActions(
             show: { [unowned self] id, _ in shown.append(id) },
             setMode: { [unowned self] in modes.append($0) },
-            info: { [unowned self] in infos += 1 },
             appeared: { [unowned self] in appeared.append($0) })
+        actions.page = { [unowned self] op, args, done in
+            asked.append((op, args))
+            done(.ok(answers[op] ?? .object([:])))
+        }
+        actions.ask = { [unowned self] in writes.append($0) }
+        actions.write = { [unowned self] in writes.append($0) }
+        actions.open = { [unowned self] id, _ in opened.append(id) }
+        return actions
     }
+
+    func ops(_ op: Op) -> [[String: JSONValue]] { asked.filter { $0.op == op }.map(\.args) }
 }
 
 /// A back swipe the test holds part way and then lets go or turns back, as a finger would.
@@ -324,9 +336,112 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertEqual(screen.modeItem.accessibilityLabel, L10n.phoneNoteEdit())
         screen.toggleMode()
         XCTAssertEqual(page.modes, [.preview, .edit])
+        screen.showNote(facts(first))
         screen.showInfo()
-        XCTAssertEqual(page.infos, 1)
+        XCTAssertEqual(page.ops(.noteInfo).first?["noteId"], .string(first))
+        settle(until: { screen.presentedViewController is ContentSheetController })
         XCTAssertEqual(screen.navigationItem.backButtonDisplayMode, .minimal)
+    }
+
+    private func facts(_ id: String, pinned: Bool = false, status: String = "none") -> EditorNote {
+        EditorNote(id: id, bookId: nil, status: status, pinned: pinned, tagIds: [], createdAt: 1, updatedAt: 2)
+    }
+
+    func testTheBarsCarryMoreModeAndInfoAndTheToolbarBackForwardFindAndAI() throws {
+        let screen = editor(first)
+        push(screen)
+        XCTAssertEqual(screen.navigationItem.rightBarButtonItems, [screen.moreItem, screen.modeItem, screen.infoItem])
+        XCTAssertEqual(screen.moreItem.accessibilityLabel, L10n.noteMore())
+        XCTAssertFalse(navigation.isToolbarHidden)
+        let items = try XCTUnwrap(screen.toolbarItems)
+        for item in [screen.backItem, screen.forwardItem, screen.findItem, screen.aiItem] {
+            XCTAssertTrue(items.contains(item))
+        }
+        XCTAssertFalse(screen.forwardItem.isEnabled)
+        screen.showMode(.preview)
+        XCTAssertTrue(screen.aiItem.isHidden)
+        screen.showMode(.edit)
+        XCTAssertFalse(screen.aiItem.isHidden)
+    }
+
+    func testTheMoreMenuNamesEachActionAndTicksTheNotesStatus() throws {
+        let screen = editor(first)
+        push(screen)
+        XCTAssertTrue(screen.moreMenu().isEmpty, "no menu before the page has said what the note is")
+        screen.showNote(facts(first, pinned: true, status: "active"))
+        let titles = screen.moreMenu().compactMap { $0 as? UIMenu }.flatMap(\.children).map(\.title)
+        XCTAssertEqual(
+            titles,
+            [
+                L10n.noteUnpin(), L10n.phoneStatus(), L10n.noteMenuMove(), L10n.phoneNoteTags(), L10n.phoneActionShare(),
+                L10n.phoneNoteFind(), L10n.noteMenuDuplicate(), L10n.noteMoveToTrash(),
+            ])
+        let statuses = try XCTUnwrap(
+            screen.moreMenu().compactMap { $0 as? UIMenu }.flatMap(\.children).compactMap { $0 as? UIMenu }.first)
+        XCTAssertEqual(statuses.children.compactMap { ($0 as? UIAction)?.state == .on ? $0.title : nil }, [NoteStatus.active.name])
+        XCTAssertTrue(page.writes.isEmpty, "a menu writes nothing until an item is chosen")
+    }
+
+    func testForwardOpensTheNotePoppedLastOffTheScreen() {
+        let one = editor(first)
+        push(one)
+        push(editor(second, title: "Second"))
+        navigation.popViewController(animated: true)
+        settleTransition()
+        XCTAssertTrue(one.forwardItem.isEnabled)
+        XCTAssertEqual(one.forward?.id, second)
+    }
+
+    func testFindSwapsInItsBarAndShowsTheCountOfTheLatestQuery() {
+        let screen = editor(first)
+        push(screen)
+        page.answers[.editorFind] = .object(["total": .number(3), "current": .number(1), "capped": .bool(false)])
+        screen.startFind()
+        XCTAssertTrue(screen.finding)
+        XCTAssertEqual(screen.findBar.alpha, 1)
+        XCTAssertEqual(screen.formattingBar.alpha, 0)
+        XCTAssertTrue(navigation.isToolbarHidden)
+        screen.findBar.field.text = "cat"
+        screen.findBar.field.sendActions(for: .editingChanged)
+        XCTAssertEqual(page.ops(.editorFind).last, ["action": .string("search"), "query": .string("cat")])
+        XCTAssertEqual(screen.findBar.count.text, L10n.phoneFindCount(current: "1", total: "3"))
+        screen.closeFind()
+        XCTAssertEqual(page.ops(.editorFind).last, ["action": .string("close")])
+        XCTAssertEqual(screen.findBar.alpha, 0)
+    }
+
+    func testTheToolbarHidesInsideTheKeyboardsOwnAnimationAndThePageGetsTheInsetsAtOnce() throws {
+        let screen = editor(first)
+        push(screen)
+        var animations: [(TimeInterval, UIView.AnimationOptions)] = []
+        var hiddenInside: Bool?
+        screen.keyboard.animate = { [unowned self] duration, options, changes in
+            animations.append((duration, options))
+            changes()
+            hiddenInside = navigation.isToolbarHidden
+        }
+        let window = try XCTUnwrap(screen.view.window)
+        let height: CGFloat = 336
+        let frame = CGRect(x: 0, y: window.bounds.height - height, width: window.bounds.width, height: height)
+        let screenFrame = window.convert(frame, to: window.screen.coordinateSpace)
+        screen.keyboard.keyboardWillChange([
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: screenFrame),
+            UIResponder.keyboardAnimationDurationUserInfoKey: NSNumber(value: 0.25),
+            UIResponder.keyboardAnimationCurveUserInfoKey: NSNumber(value: 7),
+        ])
+        XCTAssertEqual(animations.count, 1)
+        XCTAssertEqual(animations.first?.0, 0.25)
+        XCTAssertEqual(animations.first?.1, UIView.AnimationOptions(rawValue: 7 << 16))
+        XCTAssertEqual(hiddenInside, true)
+        XCTAssertEqual(screen.formattingBar.alpha, 1)
+        let insets = try XCTUnwrap(page.ops(.editorInsets).last)
+        let bottom = height + Tokens.Size.phoneTarget + Tokens.Size.phoneSheetInset
+        XCTAssertEqual(insets["bottom"], .number(Double(bottom)))
+        XCTAssertEqual(insets["duration"], .number(0.25))
+        XCTAssertEqual(insets["curve"], .number(7))
+        XCTAssertEqual(webView.scrollView.contentInset.bottom, bottom)
+        XCTAssertEqual(webView.scrollView.keyboardDismissMode, .interactive)
+        XCTAssertTrue(screen.contentScrollView(for: .top) === webView.scrollView)
     }
 
     func testTheBarTakesTheTitleOnceTheNotesOwnIsUnderIt() {

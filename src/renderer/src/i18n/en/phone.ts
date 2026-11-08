@@ -80,6 +80,7 @@ export const messages = {
   'phone.note.accept': 'Accept AI suggestion',
   'phone.note.formatting': 'Formatting',
   'phone.note.hideKeyboard': 'Hide keyboard',
+  'phone.note.tags': 'Tags\u2026',
   'phone.info.title': 'Note Info',
   'phone.info.words': 'Words',
   'phone.info.characters': 'Characters',
