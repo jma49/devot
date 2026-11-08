@@ -122,13 +122,30 @@ final class SettingsTests: XCTestCase {
         return Self.number(value)
     }
 
-    /// Drags the slider towards `value`, nudging it where the drag lands off: a drag lands within a few
-    /// steps of its target, not on it, except at the ends.
+    /// Half the thumb's width: the thumb's centre stops this far inside the slider's frame at either end.
+    private static let thumbRadius: CGFloat = 18
+
+    /// Where the thumb's centre is at `position`, 0 at the start and 1 at the end; past an end outside 0...1.
+    private func track(_ slider: XCUIElement, at position: CGFloat) -> XCUICoordinate {
+        let travel = slider.frame.width - 2 * Self.thumbRadius
+        return slider.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+            .withOffset(CGVector(dx: Self.thumbRadius + position * travel, dy: 0))
+    }
+
+    /// Presses the thumb, drags it slowly to `position` and holds it there before the lift. `adjust` lifts
+    /// as its drag ends, before the slider catches up with the finger: on iOS 26.5 a drag from 0 to the
+    /// start settled at -65.
+    private func slide(_ slider: XCUIElement, to position: CGFloat) {
+        track(slider, at: slider.normalizedSliderPosition)
+            .press(forDuration: 0.2, thenDragTo: track(slider, at: position), withVelocity: .slow, thenHoldForDuration: 0.5)
+    }
+
+    /// Drags the slider towards `value`, nudging it where the drag lands off: away from the ends a drag
+    /// lands within a step or two of its target, on either side.
     private func drag(_ slider: XCUIElement, to value: Int) {
         var shown = settled(slider)
         for _ in 0..<3 where shown != value {
-            let position = slider.normalizedSliderPosition + CGFloat(value - (shown ?? 0)) / 200
-            slider.adjust(toNormalizedSliderPosition: min(max(position, 0), 1))
+            slide(slider, to: slider.normalizedSliderPosition + CGFloat(value - (shown ?? 0)) / 200)
             shown = settled(slider)
         }
     }
@@ -153,7 +170,7 @@ final class SettingsTests: XCTestCase {
     func testGlassTransparencyIsKeptAcrossALaunch() {
         openAppearance()
         let slider = transparency()
-        slider.adjust(toNormalizedSliderPosition: 0)
+        slide(slider, to: -0.2)
         XCTAssertEqual(settled(slider), -100)
         launch()
         openAppearance()
@@ -161,7 +178,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(kept.value as? String, Self.signed(-100))
         // A drag's last value can come just after the lift: the app closes at once, inside the debounce
         // that lost it in CI.
-        kept.adjust(toNormalizedSliderPosition: 1)
+        slide(kept, to: 1.2)
         launch()
         openAppearance()
         XCTAssertEqual(transparency().value as? String, Self.signed(100))
