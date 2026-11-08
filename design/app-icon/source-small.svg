@@ -1,35 +1,70 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
     <linearGradient id="tile" x1="0" y1="100" x2="0" y2="924" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fdfdfc"/><stop offset="1" stop-color="#f1f0ed"/></linearGradient>
-    <radialGradient id="glow" cx="560" cy="600" r="420" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#63cdbf" stop-opacity="0.12"/><stop offset="1" stop-color="#63cdbf" stop-opacity="0"/></radialGradient>
-    <linearGradient id="sheen" x1="0" y1="100" x2="0" y2="520" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0.6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="well" x1="243.20000000000005" y1="243.20000000000005" x2="780.8" y2="780.8" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f1f0ed"/><stop offset="1" stop-color="#fdfdfc"/></linearGradient>
+    <radialGradient id="glow" cx="512" cy="540" r="384" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#63cdbf" stop-opacity="0.14"/><stop offset="1" stop-color="#63cdbf" stop-opacity="0"/></radialGradient>
     <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="0" y1="3" x2="0" y2="69"><stop offset="0" stop-color="#25837a"/><stop offset="0.5" stop-color="#0e6b62"/><stop offset="1" stop-color="#0d655c"/></linearGradient>
+    <radialGradient id="shine" cx="40" cy="22" r="46" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffffff" stop-opacity="0.42"/><stop offset="0.55" stop-color="#ffffff" stop-opacity="0.105"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
     <clipPath id="tileclip"><path d="M627.36 100 c103.834 0 155.751 0 195.41 20.207 a185.4 185.4 0 0 1 81.023 81.023 c20.207 39.659 20.207 91.576 20.207 195.41 L924 627.36 c0 103.834 0 155.751 -20.207 195.41 a185.4 185.4 0 0 1 -81.023 81.023 c-39.659 20.207 -91.576 20.207 -195.41 20.207 L396.64 924 c-103.834 0 -155.751 0 -195.41 -20.207 a185.4 185.4 0 0 1 -81.023 -81.023 c-20.207 -39.659 -20.207 -91.576 -20.207 -195.41 L100 396.64 c0 -103.834 0 -155.751 20.207 -195.41 a185.4 185.4 0 0 1 81.023 -81.023 c39.659 -20.207 91.576 -20.207 195.41 -20.207 Z"/></clipPath>
     <filter id="tileshadow" x="-20%" y="-20%" width="140%" height="150%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.2"/>
-      <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.1"/>
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.2"/>
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.1"/>
     </filter>
-    <filter id="lift" x="-20%" y="-20%" width="140%" height="150%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="1.078" stdDeviation="1.347" flood-color="#0d655c" flood-opacity="0.22"/>
+    <filter id="dish" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="24" result="blur"/>
+      <feOffset in="blur" dx="21" dy="27" result="down"/>
+      <feComposite in="SourceAlpha" in2="down" operator="out" result="shadeBand"/>
+      <feFlood flood-color="#5c5952" flood-opacity="0.2"/>
+      <feComposite in2="shadeBand" operator="in" result="shade"/>
+      <feOffset in="blur" dx="-18" dy="-21" result="up"/>
+      <feComposite in="SourceAlpha" in2="up" operator="out" result="lightBand"/>
+      <feFlood flood-color="#ffffff" flood-opacity="1"/>
+      <feComposite in2="lightBand" operator="in" result="light"/>
+      <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="shade"/><feMergeNode in="light"/></feMerge>
     </filter>
-    <filter id="edge" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
-      <feOffset in="SourceAlpha" dy="0.404" result="down"/>
-      <feComposite in="SourceAlpha" in2="down" operator="out" result="band"/>
-      <feGaussianBlur in="band" stdDeviation="0.162" result="soft"/>
-      <feComposite in="soft" in2="SourceAlpha" operator="in" result="rim"/>
-      <feFlood flood-color="#fff" flood-opacity="0.22"/>
-      <feComposite in2="rim" operator="in"/>
+    <filter id="lip" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="15" result="blur"/>
+      <feOffset in="blur" dx="-13.5" dy="-16.5" result="up"/>
+      <feFlood flood-color="#ffffff" flood-opacity="1"/>
+      <feComposite in2="up" operator="in" result="light"/>
+      <feOffset in="blur" dx="15" dy="19.5" result="down"/>
+      <feFlood flood-color="#5c5952" flood-opacity="0.150"/>
+      <feComposite in2="down" operator="in" result="shade"/>
+      <feMerge><feMergeNode in="light"/><feMergeNode in="shade"/></feMerge>
     </filter>
+    <filter id="cast" x="-20%" y="-20%" width="150%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="22.5"/>
+      <feOffset dx="18" dy="27" result="far"/>
+      <feFlood flood-color="#0d655c" flood-opacity="0.3"/>
+      <feComposite in2="far" operator="in" result="farShadow"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="5.25"/>
+      <feOffset dx="4.5" dy="7.5" result="near"/>
+      <feFlood flood-color="#0d655c" flood-opacity="0.270"/>
+      <feComposite in2="near" operator="in" result="nearShadow"/>
+      <feMerge><feMergeNode in="farShadow"/><feMergeNode in="nearShadow"/></feMerge>
+    </filter>
+    <filter id="pillow" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10.5" result="blur"/>
+      <feOffset in="blur" dx="-9" dy="-12" result="up"/>
+      <feComposite in="SourceAlpha" in2="up" operator="out" result="coreBand"/>
+      <feFlood flood-color="#000000" flood-opacity="0.32"/>
+      <feComposite in2="coreBand" operator="in" result="core"/>
+      <feOffset in="blur" dx="7.5" dy="9" result="down"/>
+      <feComposite in="SourceAlpha" in2="down" operator="out" result="rimBand"/>
+      <feFlood flood-color="#ffffff" flood-opacity="0.5"/>
+      <feComposite in2="rimBand" operator="in" result="rim"/>
+      <feMerge><feMergeNode in="core"/><feMergeNode in="rim"/></feMerge>
+    </filter>
+    <clipPath id="doveclip"><path transform="translate(512 512) scale(7.55) translate(-44.854751 -39.728486)" d="M2.6 50.5 C2.2 50.25 2.12 49.75 2.39 49.35 C5.05 45.4 7.05 41.1 10.95 37.8 C13.75 35.43 16.18 34.35 19.65 34.35 C23.55 34.35 26.12 36.15 29.7 37.55 C31.85 38.39 33.65 37.4 34.65 35.4 C41.1 22.6 53.4 10.2 67.2 3.05 C68 2.635 68.75 3.37 68.39 4.21 L65.5 14.1 C65.2 15.1 65.75 16.1 66.8 16.35 C72.6 17.7 76.05 20.8 75.65 24.35 C75.29 27.55 71.36 32.03 67.85 35.15 C66.94 35.96 67.16 37.24 68.28 37.83 C73.19 40.43 77.45 43.64 82 44.55 C82.96 44.742 83.31 45.66 82.6 46.48 L77.94 50.42 C77.12 51.11 77.12 52.07 77.98 52.82 L82.43 56.7 C83.2 57.37 82.84 58.26 81.94 58.53 C72.05 60.82 61.54 65.78 51.1 67.7 C41.05 69.55 30.17 68.58 23.3 65.94 C17.35 63.65 14.6 59.87 10.32 55.97 C7.53 53.43 4.96 52.03 2.6 50.5 Z M13.1 43.95 a4 4 0 1 0 8 0 a4 4 0 1 0 -8 0 Z"/></clipPath>
   </defs>
   <g filter="url(#tileshadow)"><path d="M627.36 100 c103.834 0 155.751 0 195.41 20.207 a185.4 185.4 0 0 1 81.023 81.023 c20.207 39.659 20.207 91.576 20.207 195.41 L924 627.36 c0 103.834 0 155.751 -20.207 195.41 a185.4 185.4 0 0 1 -81.023 81.023 c-39.659 20.207 -91.576 20.207 -195.41 20.207 L396.64 924 c-103.834 0 -155.751 0 -195.41 -20.207 a185.4 185.4 0 0 1 -81.023 -81.023 c-20.207 -39.659 -20.207 -91.576 -20.207 -195.41 L100 396.64 c0 -103.834 0 -155.751 20.207 -195.41 a185.4 185.4 0 0 1 81.023 -81.023 c39.659 -20.207 91.576 -20.207 195.41 -20.207 Z" fill="url(#tile)"/></g>
-  <g clip-path="url(#tileclip)">
-    <rect x="100" y="100" width="824" height="824" fill="url(#glow)"/>
-    <rect x="100" y="100" width="824" height="420" fill="url(#sheen)"/>
-  </g>
-  <path d="M627.36 100 c103.834 0 155.751 0 195.41 20.207 a185.4 185.4 0 0 1 81.023 81.023 c20.207 39.659 20.207 91.576 20.207 195.41 L924 627.36 c0 103.834 0 155.751 -20.207 195.41 a185.4 185.4 0 0 1 -81.023 81.023 c-39.659 20.207 -91.576 20.207 -195.41 20.207 L396.64 924 c-103.834 0 -155.751 0 -195.41 -20.207 a185.4 185.4 0 0 1 -81.023 -81.023 c-20.207 -39.659 -20.207 -91.576 -20.207 -195.41 L100 396.64 c0 -103.834 0 -155.751 20.207 -195.41 a185.4 185.4 0 0 1 81.023 -81.023 c39.659 -20.207 91.576 -20.207 195.41 -20.207 Z" fill="none" stroke="#5c5952" stroke-opacity="0.1" stroke-width="1" transform="translate(0 0)"/>
-  <g clip-path="url(#tileclip)"><path d="M627.36 100 c103.834 0 155.751 0 195.41 20.207 a185.4 185.4 0 0 1 81.023 81.023 c20.207 39.659 20.207 91.576 20.207 195.41 L924 627.36 c0 103.834 0 155.751 -20.207 195.41 a185.4 185.4 0 0 1 -81.023 81.023 c-39.659 20.207 -91.576 20.207 -195.41 20.207 L396.64 924 c-103.834 0 -155.751 0 -195.41 -20.207 a185.4 185.4 0 0 1 -81.023 -81.023 c-20.207 -39.659 -20.207 -91.576 -20.207 -195.41 L100 396.64 c0 -103.834 0 -155.751 20.207 -195.41 a185.4 185.4 0 0 1 81.023 -81.023 c39.659 -20.207 91.576 -20.207 195.41 -20.207 Z" fill="none" stroke="#ffffff" stroke-opacity="0.9" stroke-width="2" transform="translate(0 1)"/></g>
-  <g transform="translate(512 512) scale(7.5517995) translate(-44.854751 -39.728486)">
-    <path d="M2.6 50.5 C2.2 50.25 2.12 49.75 2.39 49.35 C5.05 45.4 7.05 41.1 10.95 37.8 C13.75 35.43 16.18 34.35 19.65 34.35 C23.55 34.35 26.12 36.15 29.7 37.55 C31.85 38.39 33.65 37.4 34.65 35.4 C41.1 22.6 53.4 10.2 67.2 3.05 C68 2.635 68.75 3.37 68.39 4.21 L65.5 14.1 C65.2 15.1 65.75 16.1 66.8 16.35 C72.6 17.7 76.05 20.8 75.65 24.35 C75.29 27.55 71.36 32.03 67.85 35.15 C66.94 35.96 67.16 37.24 68.28 37.83 C73.19 40.43 77.45 43.64 82 44.55 C82.96 44.742 83.31 45.66 82.6 46.48 L77.94 50.42 C77.12 51.11 77.12 52.07 77.98 52.82 L82.43 56.7 C83.2 57.37 82.84 58.26 81.94 58.53 C72.05 60.82 61.54 65.78 51.1 67.7 C41.05 69.55 30.17 68.58 23.3 65.94 C17.35 63.65 14.6 59.87 10.32 55.97 C7.53 53.43 4.96 52.03 2.6 50.5 Z M13.1 43.95 a4 4 0 1 0 8 0 a4 4 0 1 0 -8 0 Z" fill="url(#ink)" fill-rule="evenodd" filter="url(#lift)"/>
-    <path d="M2.6 50.5 C2.2 50.25 2.12 49.75 2.39 49.35 C5.05 45.4 7.05 41.1 10.95 37.8 C13.75 35.43 16.18 34.35 19.65 34.35 C23.55 34.35 26.12 36.15 29.7 37.55 C31.85 38.39 33.65 37.4 34.65 35.4 C41.1 22.6 53.4 10.2 67.2 3.05 C68 2.635 68.75 3.37 68.39 4.21 L65.5 14.1 C65.2 15.1 65.75 16.1 66.8 16.35 C72.6 17.7 76.05 20.8 75.65 24.35 C75.29 27.55 71.36 32.03 67.85 35.15 C66.94 35.96 67.16 37.24 68.28 37.83 C73.19 40.43 77.45 43.64 82 44.55 C82.96 44.742 83.31 45.66 82.6 46.48 L77.94 50.42 C77.12 51.11 77.12 52.07 77.98 52.82 L82.43 56.7 C83.2 57.37 82.84 58.26 81.94 58.53 C72.05 60.82 61.54 65.78 51.1 67.7 C41.05 69.55 30.17 68.58 23.3 65.94 C17.35 63.65 14.6 59.87 10.32 55.97 C7.53 53.43 4.96 52.03 2.6 50.5 Z M13.1 43.95 a4 4 0 1 0 8 0 a4 4 0 1 0 -8 0 Z" fill="#000" fill-rule="evenodd" filter="url(#edge)"/>
-  </g>
+  <path d="M627.36 100 c103.834 0 155.751 0 195.41 20.207 a185.4 185.4 0 0 1 81.023 81.023 c20.207 39.659 20.207 91.576 20.207 195.41 L924 627.36 c0 103.834 0 155.751 -20.207 195.41 a185.4 185.4 0 0 1 -81.023 81.023 c-39.659 20.207 -91.576 20.207 -195.41 20.207 L396.64 924 c-103.834 0 -155.751 0 -195.41 -20.207 a185.4 185.4 0 0 1 -81.023 -81.023 c-20.207 -39.659 -20.207 -91.576 -20.207 -195.41 L100 396.64 c0 -103.834 0 -155.751 20.207 -195.41 a185.4 185.4 0 0 1 81.023 -81.023 c39.659 -20.207 91.576 -20.207 195.41 -20.207 Z" fill="none" stroke="#5c5952" stroke-opacity="0.1" stroke-width="2"/>
+  <g clip-path="url(#tileclip)"><path d="M627.36 100 c103.834 0 155.751 0 195.41 20.207 a185.4 185.4 0 0 1 81.023 81.023 c20.207 39.659 20.207 91.576 20.207 195.41 L924 627.36 c0 103.834 0 155.751 -20.207 195.41 a185.4 185.4 0 0 1 -81.023 81.023 c-39.659 20.207 -91.576 20.207 -195.41 20.207 L396.64 924 c-103.834 0 -155.751 0 -195.41 -20.207 a185.4 185.4 0 0 1 -81.023 -81.023 c-20.207 -39.659 -20.207 -91.576 -20.207 -195.41 L100 396.64 c0 -103.834 0 -155.751 20.207 -195.41 a185.4 185.4 0 0 1 81.023 -81.023 c39.659 -20.207 91.576 -20.207 195.41 -20.207 Z" fill="none" stroke="#ffffff" stroke-opacity="0.9" stroke-width="4" transform="translate(0 2)"/></g>
+  <circle cx="512" cy="512" r="384" fill="#fdfdfc" filter="url(#lip)"/>
+  <circle cx="512" cy="512" r="384" fill="url(#well)" filter="url(#dish)"/>
+  <circle cx="512" cy="512" r="384" fill="url(#glow)"/>
+  <g filter="url(#cast)"><path transform="translate(512 512) scale(7.55) translate(-44.854751 -39.728486)" d="M2.6 50.5 C2.2 50.25 2.12 49.75 2.39 49.35 C5.05 45.4 7.05 41.1 10.95 37.8 C13.75 35.43 16.18 34.35 19.65 34.35 C23.55 34.35 26.12 36.15 29.7 37.55 C31.85 38.39 33.65 37.4 34.65 35.4 C41.1 22.6 53.4 10.2 67.2 3.05 C68 2.635 68.75 3.37 68.39 4.21 L65.5 14.1 C65.2 15.1 65.75 16.1 66.8 16.35 C72.6 17.7 76.05 20.8 75.65 24.35 C75.29 27.55 71.36 32.03 67.85 35.15 C66.94 35.96 67.16 37.24 68.28 37.83 C73.19 40.43 77.45 43.64 82 44.55 C82.96 44.742 83.31 45.66 82.6 46.48 L77.94 50.42 C77.12 51.11 77.12 52.07 77.98 52.82 L82.43 56.7 C83.2 57.37 82.84 58.26 81.94 58.53 C72.05 60.82 61.54 65.78 51.1 67.7 C41.05 69.55 30.17 68.58 23.3 65.94 C17.35 63.65 14.6 59.87 10.32 55.97 C7.53 53.43 4.96 52.03 2.6 50.5 Z M13.1 43.95 a4 4 0 1 0 8 0 a4 4 0 1 0 -8 0 Z" fill-rule="evenodd"/></g>
+  <path transform="translate(512 512) scale(7.55) translate(-44.854751 -39.728486)" d="M2.6 50.5 C2.2 50.25 2.12 49.75 2.39 49.35 C5.05 45.4 7.05 41.1 10.95 37.8 C13.75 35.43 16.18 34.35 19.65 34.35 C23.55 34.35 26.12 36.15 29.7 37.55 C31.85 38.39 33.65 37.4 34.65 35.4 C41.1 22.6 53.4 10.2 67.2 3.05 C68 2.635 68.75 3.37 68.39 4.21 L65.5 14.1 C65.2 15.1 65.75 16.1 66.8 16.35 C72.6 17.7 76.05 20.8 75.65 24.35 C75.29 27.55 71.36 32.03 67.85 35.15 C66.94 35.96 67.16 37.24 68.28 37.83 C73.19 40.43 77.45 43.64 82 44.55 C82.96 44.742 83.31 45.66 82.6 46.48 L77.94 50.42 C77.12 51.11 77.12 52.07 77.98 52.82 L82.43 56.7 C83.2 57.37 82.84 58.26 81.94 58.53 C72.05 60.82 61.54 65.78 51.1 67.7 C41.05 69.55 30.17 68.58 23.3 65.94 C17.35 63.65 14.6 59.87 10.32 55.97 C7.53 53.43 4.96 52.03 2.6 50.5 Z M13.1 43.95 a4 4 0 1 0 8 0 a4 4 0 1 0 -8 0 Z" fill="url(#ink)" fill-rule="evenodd"/>
+  <g clip-path="url(#doveclip)"><rect transform="translate(512 512) scale(7.55) translate(-44.854751 -39.728486)" x="0" y="0" width="86" height="74" fill="url(#shine)"/></g>
+  <g filter="url(#pillow)"><path transform="translate(512 512) scale(7.55) translate(-44.854751 -39.728486)" d="M2.6 50.5 C2.2 50.25 2.12 49.75 2.39 49.35 C5.05 45.4 7.05 41.1 10.95 37.8 C13.75 35.43 16.18 34.35 19.65 34.35 C23.55 34.35 26.12 36.15 29.7 37.55 C31.85 38.39 33.65 37.4 34.65 35.4 C41.1 22.6 53.4 10.2 67.2 3.05 C68 2.635 68.75 3.37 68.39 4.21 L65.5 14.1 C65.2 15.1 65.75 16.1 66.8 16.35 C72.6 17.7 76.05 20.8 75.65 24.35 C75.29 27.55 71.36 32.03 67.85 35.15 C66.94 35.96 67.16 37.24 68.28 37.83 C73.19 40.43 77.45 43.64 82 44.55 C82.96 44.742 83.31 45.66 82.6 46.48 L77.94 50.42 C77.12 51.11 77.12 52.07 77.98 52.82 L82.43 56.7 C83.2 57.37 82.84 58.26 81.94 58.53 C72.05 60.82 61.54 65.78 51.1 67.7 C41.05 69.55 30.17 68.58 23.3 65.94 C17.35 63.65 14.6 59.87 10.32 55.97 C7.53 53.43 4.96 52.03 2.6 50.5 Z M13.1 43.95 a4 4 0 1 0 8 0 a4 4 0 1 0 -8 0 Z" fill-rule="evenodd"/></g>
 </svg>
