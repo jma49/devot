@@ -139,6 +139,20 @@ final class NewNoteFlowTests: XCTestCase {
         XCTAssertEqual(field.text ?? "", "", "the field keeps nothing once the page has it")
     }
 
+    func testWhatWasTypedIsCappedByUnicodeScalarsAsRustCountsThem() throws {
+        deliver(#"{"v":1,"notice":"note.new"}"#)
+        let screen = try XCTUnwrap(navigation.topViewController as? EditorScreen)
+        settle(until: { screen.view.subviews.contains { $0 is UITextField && $0.isFirstResponder } })
+        let field = try XCTUnwrap(screen.view.subviews.compactMap { $0 as? UITextField }.first)
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}"
+        field.insertText(String(repeating: family, count: EditorScreen.maxTyped))
+        try answer(.noteCreate, .ok(.object(["id": .string(made), "rev": .number(3)])))
+        settle(1)
+        let focus = try XCTUnwrap(try requests().last { $0.op == .editorFocus })
+        let typed = try XCTUnwrap(focus.args["typed"]?.string)
+        XCTAssertEqual(typed.unicodeScalars.count, EditorScreen.maxTyped)
+    }
+
     func testANewNoteWithoutANotebookAsksForAnUnfiledOne() throws {
         deliver(#"{"v":1,"notice":"note.new"}"#)
         XCTAssertEqual(try requests().last?.op, .noteCreate)

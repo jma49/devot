@@ -181,7 +181,8 @@ final class EditorScreen: WebHolderScreen {
     private func askFocus() {
         guard appearedForTyping, shownForTyping, !focusAsked, host.holder === self else { return }
         focusAsked = true
-        let typed = String((keyField.text ?? "").prefix(Self.maxTyped))
+        // Rust counts Unicode scalars, not the characters Swift's prefix would.
+        let typed = String(String.UnicodeScalarView((keyField.text ?? "").unicodeScalars.prefix(Self.maxTyped)))
         keyField.text = nil
         host.webView.becomeFirstResponder()
         actions.focus(self, typed)
