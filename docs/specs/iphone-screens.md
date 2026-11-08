@@ -476,6 +476,7 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 - A pairing on show keeps running across a tab switch and ends, cancelled in Rust, when the Sync page leaves the stack.
   It checks every 2 seconds on a relay and every 10 on iCloud, and at once on `sync.pairing`; a relay out of reach keeps it waiting, and any other failure ends it.
 - `SettingsRouter.open` sets the stack to the root and the page in one `setViewControllers`, so Back lands on the root; it animates only while the app is in front.
+- License runs one licence action at a time (`LicencePaneModel`): while Add or Replace, Remove or Retry waits on Rust, all three are disabled, and only that action's reply ends the wait and says how it went.
 - Enter License Key in the page's Pro sheet sends the `settings.open { pane: "licence", focusKey }` notice, and Swift opens License over the root with its key field focused once the push lands.
 
 | Message                            | From  | Meaning                                                                                                     |
