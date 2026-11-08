@@ -434,6 +434,16 @@ export const memoryStorage: StorageAdapter = {
     const wanted = new Set(ids)
     return activityRevisions(since).filter((r) => wanted.has(r.noteId))
   },
+  // The fields over the body as stored: what a whole write of the same body would leave.
+  async putNoteMeta(note) {
+    const current = read<Stored>(NOTES).find((n) => n.id === note.id)
+    if (!current) throw new Error('E_NOTE_NOT_FOUND')
+    await memoryStorage.putNote({
+      ...note,
+      bodyMd: current.bodyMd,
+      ydoc: Uint8Array.from(current.ydoc),
+    })
+  },
   async putNote({ agentWrites, ...note }) {
     await slowWrite(DELAY_NOTE_WRITES)
     failWith(FAIL_NOTE_WRITES)

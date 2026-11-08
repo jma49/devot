@@ -1,7 +1,7 @@
 import { setFlagsFromString } from 'node:v8'
 import { runInNewContext } from 'node:vm'
 import { expect, type TestContext } from 'vitest'
-import { skipIfOverloaded } from './budget'
+import { recordBudgetCheck, skipIfOverloaded } from './budget'
 
 // Whether work grows linearly, as a ratio of two sizes measured on the same machine moments apart,
 // so no budget depends on how fast the machine is: four times the input takes about 4 times as
@@ -33,6 +33,35 @@ const timed = (work: () => void) => {
 const median = (values: number[]) =>
   values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)] as number
 
+/**
+ * The process's CPU milliseconds for `work`, after a collection. Waits on timers and the disk cost
+ * nothing, so what a busy runner's disk does to the clock on the wall does not count.
+ */
+export async function cpuMs(work: () => Promise<unknown>): Promise<number> {
+  collect()
+  const start = process.cpuUsage()
+  await work()
+  const { user, system } = process.cpuUsage(start)
+  return (user + system) / 1000
+}
+
+/** As fourfoldGrowth, for async work; with the median CPU milliseconds of the larger size. */
+export async function fourfoldGrowthAsync(
+  prepare: (n: number) => Promise<() => Promise<unknown>>,
+  n: number,
+  rounds = 3,
+): Promise<{ growth: number; largeMs: number }> {
+  await cpuMs(await prepare(n))
+  await cpuMs(await prepare(4 * n))
+  const small: number[] = []
+  const large: number[] = []
+  for (let round = 0; round < rounds; round += 1) {
+    small.push(await cpuMs(await prepare(n)))
+    large.push(await cpuMs(await prepare(4 * n)))
+  }
+  return { growth: median(large) / median(small), largeMs: median(large) }
+}
+
 /** `prepare(n)` builds the input of size `n` (untimed) and returns the work to time. */
 export function fourfoldGrowth(prepare: (n: number) => () => void, n: number, rounds = 5): number {
   timed(prepare(n))
@@ -48,6 +77,7 @@ export function fourfoldGrowth(prepare: (n: number) => () => void, n: number, ro
 
 /** Over the limit on an overloaded local machine skips instead of failing, as budgets do. */
 export function expectLinearGrowth(context: TestContext, growth: number): void {
+  recordBudgetCheck(context, { value: growth, budget: LIMIT, limit: LIMIT })
   if (growth >= LIMIT) skipIfOverloaded(context, `grew ${growth.toFixed(1)} times`)
   expect(growth).toBeLessThan(LIMIT)
 }

@@ -61,8 +61,11 @@ export function createRelay(ctx: NoteContext) {
     return true
   }
 
-  /** Merges the stored copy in: a Yjs merge, and the newer HLC of each metadata field. */
-  const takeIn = (note: Live, stored: NoteRecord) => {
+  /**
+   * Merges the stored copy in: a Yjs merge, and the newer HLC of each metadata field.
+   * Returns whether storage now lacks part of the document, which the next save then writes whole.
+   */
+  const takeIn = (note: Live, stored: NoteRecord): boolean => {
     const title = note.record.title
     note.record = {
       ...withNewer(note.record, stored),
@@ -73,11 +76,15 @@ export function createRelay(ctx: NoteContext) {
       bodyVersion: stored.bodyVersion,
     }
     takeOutside(note, stored.ydoc)
+    // After the merge the document holds all of the stored copy, so either they match or storage falls short.
+    const short = holdsMore(note.doc, stored)
+    note.storedChanges = short ? -1 : note.changes
     if (note.record.title !== title) {
       const { id, title: taken, titleHlc } = note.record
       tell({ kind: 'title', noteId: id, title: taken })
       relay({ kind: 'title', noteId: id, title: taken, hlc: titleHlc })
     }
+    return short
   }
 
   return { relay, relayChanges, tell, takeOutside, takeIn }
@@ -163,8 +170,8 @@ export function relayMethods(
             return
           }
           const title = note.record.title
-          takeIn(note, stored)
-          if (holdsMore(note.doc, stored)) {
+          // Storage lacks part of the document: the save this schedules writes it whole.
+          if (takeIn(note, stored)) {
             note.edits += 1
             schedule(note)
           }

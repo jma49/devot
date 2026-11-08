@@ -34,6 +34,9 @@ export interface NoteRecord {
   agentWrites?: readonly AgentWriteRow[]
 }
 
+/** A note's fields without its body, for a write that changed no text (putNoteMeta). */
+export type NoteFields = Omit<NoteRecord, 'bodyMd' | 'ydoc'>
+
 /** A row of the agent_writes index (ADR 0007): derived, never synced; `seen` is this device's. */
 export interface AgentWriteSummary extends AgentWriteRow {
   noteId: string
@@ -254,6 +257,8 @@ export interface StorageAdapter {
   purgeNote(id: string, at: number, hlc: string): Promise<void>
   /** A compare-and-set on the body: written only while the stored body is at `note.bodyVersion`, then moved to the next version. Otherwise refused with E_NOTE_BODY_STALE; the writer merges the stored body (Yjs) and writes again. Metadata merges per field (newer HLC wins). Records outside the limits are refused (checkNote in noteLimits.ts). A purged note is left alone. */
   putNote(note: NoteRecord): Promise<void>
+  /** putNote for a note whose body and Yjs state are the ones stored at `note.bodyVersion`: the fields alone are written, merged and compared as putNote does, and the version moves on (another process reads a moved version as a write to take in). The body, its state and its links stay as stored. E_NOTE_NOT_FOUND for a note storage does not have. */
+  putNoteMeta(note: NoteFields): Promise<void>
   /** For a note not in the trash. Throws an error code for an unknown note, a refused format or a size out of range. */
   putFile(meta: FileMeta, data: Uint8Array): Promise<void>
   /** A file that does not exist is skipped. Throws E_NOTE_NOT_FOUND for an unknown or trashed note. */

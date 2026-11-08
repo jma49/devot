@@ -100,13 +100,13 @@ describe('a batch change', () => {
     await s.notes.flush()
     expect(result).toEqual({ changed: ids, failed: [] })
     // Per note: the note read, its history checked, a baseline kept (these
-    // notes have none yet), the note written and its event recorded.
+    // notes have none yet), its fields written without the body and its event recorded.
     expect(s.calls()).toEqual({
       isLiveBook: 1,
       getNote: 100,
       listRevisions: 100,
       putRevision: 200,
-      putNote: 100,
+      putNoteMeta: 100,
     })
     for (const id of ids) {
       const stored = (await s.sqlite.getNote(id))!

@@ -173,7 +173,7 @@ Every PR must test the logic it changes, which review checks.
   The release workflow builds that way, so the job that runs the dependencies' code never holds the Sentry token; a job of its own uploads the folder (`docs/releasing.md`).
   Rust panics list the binaries loaded at launch by debug ID (the SDK's `debug-images`; scrubbing keeps the ones a frame is in), so Sentry names the functions of a stripped release build's frames from that dSYM; a unit test prepares a panic with the app's client settings and a stand-in transport and checks that the binary its frames are in is listed.
   `pnpm ui:build` (development, tests, CI) never makes source maps.
-  Tests: `tests/policy/source-maps.bench.test.ts` runs the three scripts against a stand-in sentry-cli.
+  Tests: `tests/policy/source-maps.build.test.ts` runs the three scripts against a stand-in sentry-cli.
 - **One release and one environment per build:** the version is `src-tauri/Cargo.toml`'s alone.
   Rust reports `devot@<version>`; `tauri.conf.json` names no version, so Tauri gives the UI (`getVersion`) and the app bundle the same one; the source maps upload under that name.
   Rust reports `development` for a build with debug assertions and `production` otherwise; the UI reads Tauri's `TAURI_ENV_DEBUG` (`true` for `tauri dev` and `tauri build --debug`, `false` for `tauri build`) and reports the same, and a UI built outside Tauri's CLI reports `development`.

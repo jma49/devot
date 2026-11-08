@@ -4,15 +4,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use base64::Engine as _;
-use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ed25519_dalek::{Signer, SigningKey};
 use serde_json::{Value, json};
 
 use super::keys::TEST;
 use super::store::MemoryKey;
 use super::{Gate, Licence, PublicKeys, Snapshot};
-use crate::commands::notes::{NoteDto, put_note};
-use crate::storage::Db;
+use crate::commands::notes::{NoteFrame, put_frame};
+use crate::storage::{Db, NoteRecord};
 
 pub(crate) const VECTORS: &str = include_str!("../../../licence/test-vectors.json");
 pub(crate) const ID: &str = "5vEvzHainWD0cA2Ht_ljHg";
@@ -86,12 +86,12 @@ pub(crate) fn gated_db(licence: &Arc<Licence>) -> (tempfile::TempDir, Db) {
 
 /// Saves note `id` as the window does, at the body version its last save left.
 pub(crate) fn save_note(db: &Db, id: &str, body_version: i64) -> Result<(), String> {
-    let note = NoteDto {
+    let note = NoteRecord {
         id: id.into(),
         title: "Title".into(),
         title_hlc: "0001728000000000-0000-node".into(),
         body_md: "Typed".into(),
-        ydoc: STANDARD.encode([1]),
+        ydoc: vec![1],
         body_version,
         book_id: None,
         book_hlc: String::new(),
@@ -105,7 +105,14 @@ pub(crate) fn save_note(db: &Db, id: &str, body_version: i64) -> Result<(), Stri
         deleted_at: None,
         deleted_hlc: None,
     };
-    tauri::async_runtime::block_on(put_note(db, note, Vec::new(), None))
+    tauri::async_runtime::block_on(put_frame(
+        db,
+        NoteFrame {
+            record: note,
+            links: Vec::new(),
+            writes: None,
+        },
+    ))
 }
 
 /// Whether note `id` is stored, in the trash or not.

@@ -21,6 +21,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
   const { stopTimers, takeVersion } = k.versions
   const { settle } = k.problems
   const { relay, relayChanges } = k.relay
+  /** `doc` must be as stored: every note is made live once it was read or written. */
   const liveNote = (stored: OpenedRecord, doc: Y.Doc, fresh: boolean): Live => {
     relayChanges(stored.id, doc)
     const record = heldOf(stored)
@@ -33,6 +34,8 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
       timer: undefined,
       edits: 0,
       savedEdits: 0,
+      changes: 0,
+      storedChanges: 0,
       queue: Promise.resolve(),
       writes: 0,
       users: 0,
@@ -51,6 +54,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     }
     doc.on('update', () => {
       note.state = undefined
+      note.changes += 1
     })
     return note
   }

@@ -34,6 +34,13 @@ describe('reportingNoteWrites', () => {
     await reported()
     expect(heard.at(-1)).toEqual(new Map([[a, 2_000]]))
     expect((await adapter.getNote(a))?.updatedAt).toBe(2_000)
+
+    // A write of the fields alone, as of a title, is reported the same.
+    clock = 3_000
+    await notes.setTitle(a, 'Renamed')
+    await notes.flush()
+    await reported()
+    expect(heard.at(-1)).toEqual(new Map([[a, 3_000]]))
   })
 
   it('reports nothing for a write that failed', async () => {
