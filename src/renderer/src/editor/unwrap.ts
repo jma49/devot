@@ -37,6 +37,13 @@ type Ranges = readonly { from: number; to: number }[]
 
 const BLOCKS = new Set(['FencedCode', 'CodeBlock', 'Table'])
 
+/** Whether a block scrolls sideways on its own (Write mode's grids) and so stays out of unwrapping. */
+export const scrollsOnItsOwn =
+  Facet.define<(state: EditorState, from: number, to: number) => boolean>()
+
+const ownScroll = (state: EditorState, node: SyntaxNode) =>
+  state.facet(scrollsOnItsOwn).some((test) => test(state, node.from, node.to))
+
 /**
  * Whether `node` is a code block or a table outside any quote (an alert is
  * a quote). A fence still waiting for its closing one is not a block yet:
@@ -75,7 +82,7 @@ export function activeBlock(state: EditorState): SyntaxNode | null {
   const tree = syntaxTree(state)
   for (const side of [-1, 1] as const) {
     for (let node: SyntaxNode | null = tree.resolveInner(head, side); node; node = node.parent)
-      if (BLOCKS.has(node.name)) return unwrappable(node) ? node : null
+      if (BLOCKS.has(node.name)) return unwrappable(node) && !ownScroll(state, node) ? node : null
   }
   return null
 }
@@ -96,7 +103,7 @@ export function unwrapLines(state: EditorState, ranges: Ranges): UnwrapBlock[] {
       enter(node) {
         if (node.name === 'Paragraph') return false
         if (!BLOCKS.has(node.name)) return undefined
-        if (unwrappable(node.node) && !seen.has(node.from)) {
+        if (unwrappable(node.node) && !seen.has(node.from) && !ownScroll(state, node.node)) {
           seen.add(node.from)
           out.push(linesOf(state, node.node, ranges))
         }
