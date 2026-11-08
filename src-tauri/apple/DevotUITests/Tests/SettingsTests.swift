@@ -122,19 +122,16 @@ final class SettingsTests: XCTestCase {
         return Self.number(value)
     }
 
-    /// Drags the slider towards `value`, nudging it where the drag lands off, and returns where it settles:
-    /// a drag lands within a few steps of its target, not on it.
-    @discardableResult
-    private func drag(_ slider: XCUIElement, to value: Int) -> Int? {
-        var shown = settled(slider)
-        for _ in 0..<3 where shown != value {
-            let position = slider.normalizedSliderPosition + CGFloat(value - (shown ?? 0)) / 200
-            slider.adjust(toNormalizedSliderPosition: min(max(position, 0), 1))
-            let atOnce = slider.value as? String
-            shown = settled(slider)
-            print("slider drag towards \(value): read at once \(atOnce ?? "-"), settled \(shown.map(String.init) ?? "-")")
+    /// Sets the slider to exactly `value`, one its increments reach from the left end: a drag lands
+    /// only near its target, so the drag goes to the end and VoiceOver's increments step from there.
+    private func set(_ slider: XCUIElement, to value: Int) {
+        slider.adjust(toNormalizedSliderPosition: 0)
+        var shown = settled(slider) ?? .max
+        for _ in 0..<40 where shown < value {
+            slider.increment()
+            shown = Self.number(slider.value as? String) ?? .max
         }
-        return shown
+        XCTAssertEqual(settled(slider), value)
     }
 
     func testAThemeCardRingsBothOfItsSwatches() {
@@ -156,13 +153,20 @@ final class SettingsTests: XCTestCase {
 
     func testGlassTransparencyIsKeptAcrossALaunch() throws {
         openAppearance()
-        let dragged = try XCTUnwrap(drag(transparency(), to: -50))
-        XCTAssertLessThan(dragged, 0, "the drag left the design's value")
+        set(transparency(), to: -60)
         launch()
         openAppearance()
         let slider = transparency()
-        XCTAssertEqual(slider.value as? String, Self.signed(dragged))
-        drag(slider, to: 0)
+        XCTAssertEqual(slider.value as? String, Self.signed(-60))
+        // A drag's last value can come just after the lift: the app closes at once, inside the debounce
+        // that lost it in CI.
+        slider.adjust(toNormalizedSliderPosition: 0.8)
+        let dragged = try XCTUnwrap(slider.value as? String)
+        XCTAssertNotEqual(dragged, Self.signed(-60))
+        launch()
+        openAppearance()
+        XCTAssertEqual(transparency().value as? String, dragged)
+        set(transparency(), to: 0)
     }
 
     func testUnderReduceTransparencyTheGlassSliderIsLockedAndSaysWhy() {
