@@ -327,6 +327,7 @@ It moves between superviews with `addSubview` alone, never `removeFromSuperview`
 4. The page swaps the note in under 16 ms and answers `editor.ready`.
 5. The cover fades over `motion.duration.phone-adjust` once `editor.ready` arrives, never before the push's first frame.
    Without `editor.ready` after 400 ms the cover fades anyway and the page shows its own loading state.
+   A note whose body cannot be opened never shows the body of the note before it: the editor is left empty and inert, the page says under the caption that the note could not be opened, and logs `W_NOTE_OPEN_FAILED` with the note's ID and the code.
 
 A note opens in Edit when it is empty and writes are allowed, and in Preview otherwise; while writes are locked every note opens in Preview and stays there.
 

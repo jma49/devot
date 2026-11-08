@@ -718,6 +718,17 @@ export function NoteEditor({
       if (typed.length) replayEarlyKeys(view, typed)
     }
 
+    // A note that cannot open leaves an empty body, never the paused one before it.
+    const dropLeftNote = () => {
+      const view = editor.current?.view
+      const left = shown.current
+      if (!view || !left) return
+      const leftState = view.state
+      shown.current = null
+      view.setState(EditorState.create({ extensions: PAUSED }))
+      left.close(leftState)
+    }
+
     const given = preopened.current?.(core, noteId)
     const now = shown.current
     if (now?.noteId === noteId && now.core === core) {
@@ -763,6 +774,7 @@ export function NoteEditor({
           if (cancelled) return
           keys?.fail()
           keys = undefined
+          dropLeftNote()
           loading.current?.(false)
           openFailed.current?.(noteId, errorCode(e))
         },

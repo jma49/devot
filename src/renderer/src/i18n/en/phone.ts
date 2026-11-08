@@ -68,6 +68,7 @@ export const messages = {
   'phone.note.caption': 'Edited {time} · {count} words',
   'phone.note.edit': 'Edit',
   'phone.note.preview': 'Preview',
+  'phone.note.openFailed': 'This note could not be opened.',
   'phone.note.find': 'Find in Note',
   'phone.find.previous': 'Previous match',
   'phone.find.next': 'Next match',

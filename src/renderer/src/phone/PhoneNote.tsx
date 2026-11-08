@@ -317,7 +317,9 @@ export function PhoneNote(props: {
     if (next !== '') touched(id)
     setBody((shown) => (shown.id === id ? { id, text: next } : shown))
   }
+  const [openFailure, setOpenFailure] = useState<{ noteId: string; code: string } | null>(null)
   const noteLoaded = (id: string, loaded: string) => {
+    setOpenFailure(null)
     setLoadedId(id)
     native?.loaded(id)
     setBody({ id, text: loaded })
@@ -573,6 +575,11 @@ export function PhoneNote(props: {
             count: stats.words.toLocaleString(currentLocale()),
           })}
         </p>
+        {openFailure?.noteId === noteId && (
+          <p className="phone-note-caption" role="status">
+            {t('phone.note.openFailed')}
+          </p>
+        )}
         <div className="phone-note-body" data-mode={mode}>
           <div
             ref={editLayer}
@@ -593,6 +600,10 @@ export function PhoneNote(props: {
               noKeyboard
               onText={(read) => showText(noteId, read())}
               onLoaded={(loaded) => noteLoaded(noteId, loaded)}
+              onOpenFailed={(id, code) => {
+                console.warn('W_NOTE_OPEN_FAILED', id, code)
+                setOpenFailure({ noteId: id, code })
+              }}
               links={links}
               showAlertMenu={showAlertMenu}
               handleRef={editor}
