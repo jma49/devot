@@ -158,7 +158,7 @@ Under the native screens a note is its own screen pushed over the list, full ble
 The page then draws neither its top bar nor the Back and Forward capsule, since the screens' stack is the note's history, and a link pushes the linked note's screen.
 The bar shows the title only once the note's own has scrolled under it.
 
-Find: the editor's own find, in a glass bar on the keyboard with a count, its numbers in `.phone-figures` and its words in the body font, previous, next and a close circle. It switches a note in Preview to Edit.
+Find: the editor's own find, in a glass bar on the keyboard with a count, its numbers in `.phone-figures` and its words in the body font, previous, next and a close circle. It switches a note in Preview to Edit; on a locked note it shows the editor only while it is open, and the note keeps the mode it had.
 While editing is locked that editor takes no caret, so a tap in the text raises no keyboard.
 
 Note info: the sheet has the stats in mono, in two columns at the accessibility sizes; icon rows for notebook, created, modified and, on an enrolled device, synced devices, plain rows at full opacity, not buttons, each value under its label at the accessibility sizes; backlinks, which opens the linking notes when there are any; and Move to Trash. There is no revision history or export row: neither has a phone screen yet.

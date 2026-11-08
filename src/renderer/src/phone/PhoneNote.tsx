@@ -305,7 +305,7 @@ export function PhoneNote(props: {
   const [finding, setFinding] = useState(false)
   const [findTarget, setFindTarget] = useState<FindTarget | null>(null)
   // A locked note stays in Preview; only Find shows its editor, which then takes no caret.
-  const mode = editing || finding ? (modes[noteId] ?? 'preview') : 'preview'
+  const mode = finding ? 'edit' : editing ? (modes[noteId] ?? 'preview') : 'preview'
   const titleField = useRef<HTMLTextAreaElement>(null)
   const editor = useRef<EditorHandle | null>(null)
   const showAlertMenu = useAlertMenu()
@@ -700,7 +700,7 @@ export function PhoneNote(props: {
           className="phone-glass phone-note-circle"
           aria-label={t('phone.note.find')}
           onClick={() => {
-            setMode('edit')
+            if (editing) setMode('edit')
             setFinding(true)
           }}
         >
