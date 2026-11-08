@@ -127,13 +127,15 @@ interface Setup {
   path: SetupPath | undefined
   relayChosen: boolean | undefined
   recoveryKey: string | undefined
+  /** Grows with each key offered here, so each takes focus; 0 for one the pane found on offer. */
+  keyFocus: number
 }
 
 type SetupChange =
   | { kind: 'membership'; inVault: boolean }
   | { kind: 'path'; path: SetupPath | undefined }
   | { kind: 'relay'; chosen: boolean }
-  | { kind: 'recoveryKey'; key: string | undefined }
+  | { kind: 'recoveryKey'; key: string | undefined; focus: boolean }
 
 // Leaving a vault forgets its key in Rust, so its offer goes and the setup starts again.
 function setupReducer(setup: Setup, change: SetupChange): Setup {
@@ -141,13 +143,23 @@ function setupReducer(setup: Setup, change: SetupChange): Setup {
     case 'membership':
       if (change.inVault === setup.inVault) return setup
       if (change.inVault) return { ...setup, inVault: true }
-      return { inVault: false, path: undefined, relayChosen: undefined, recoveryKey: undefined }
+      return {
+        inVault: false,
+        path: undefined,
+        relayChosen: undefined,
+        recoveryKey: undefined,
+        keyFocus: 0,
+      }
     case 'path':
       return { ...setup, path: change.path }
     case 'relay':
       return { ...setup, relayChosen: change.chosen }
     case 'recoveryKey':
-      return { ...setup, recoveryKey: change.key }
+      return {
+        ...setup,
+        recoveryKey: change.key,
+        keyFocus: change.focus ? setup.keyFocus + 1 : 0,
+      }
   }
 }
 
@@ -168,7 +180,6 @@ export function SyncSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string; n: number }>()
   const [creating, setCreating] = useState(false)
   const [announcement, setAnnouncement] = useState('')
-  const [keyFocus, setKeyFocus] = useState(false)
   const [chosen, setChosen] = useState(0)
   const [backedOut, setBackedOut] = useState(0)
   const [focusPairing, setFocusPairing] = useState(0)
@@ -194,9 +205,11 @@ export function SyncSection() {
     path: undefined,
     relayChosen: undefined,
     recoveryKey: undefined,
+    keyFocus: 0,
   })
-  const { path, relayChosen, recoveryKey } = setup
-  const setRecoveryKey = (key: string | undefined) => change({ kind: 'recoveryKey', key })
+  const { path, relayChosen, recoveryKey, keyFocus } = setup
+  const offerKey = (key: string | undefined, focus: boolean) =>
+    change({ kind: 'recoveryKey', key, focus })
   const setPath = (next: SetupPath | undefined) => change({ kind: 'path', path: next })
   const setRelayChosen = (relay: boolean) => change({ kind: 'relay', chosen: relay })
   useEffect(() => change({ kind: 'membership', inVault }), [inVault])
@@ -251,7 +264,7 @@ export function SyncSection() {
     let current = true
     pendingRecoveryKey().then(
       (key) => {
-        if (current && key) change({ kind: 'recoveryKey', key })
+        if (current && key) change({ kind: 'recoveryKey', key, focus: false })
       },
       () => undefined,
     )
@@ -286,7 +299,7 @@ export function SyncSection() {
 
   const saved = () =>
     void recoverySaved().then(() => {
-      setRecoveryKey(undefined)
+      offerKey(undefined, false)
       setFocusPairing((n) => n + 1)
     }, failed('syncSettings.recoverySaveFailed'))
 
@@ -310,10 +323,7 @@ export function SyncSection() {
         setError(undefined)
         setSecret('')
         setPath(undefined)
-        if (created.recoveryKey) {
-          setRecoveryKey(created.recoveryKey)
-          setKeyFocus(true)
-        }
+        if (created.recoveryKey) offerKey(created.recoveryKey, true)
         say(t('syncSettings.vaultReady'))
       }, failed('syncSettings.vaultFailed'))
       .finally(() => setCreating(false))
@@ -364,7 +374,7 @@ export function SyncSection() {
         <RecoveryKeyPanel
           recoveryKey={recoveryKey}
           icloud={onICloud}
-          focus={keyFocus}
+          focusRequest={keyFocus}
           onDone={saved}
           onAnnounce={announce}
           failed={failed}
@@ -456,10 +466,7 @@ export function SyncSection() {
     </>
   )
   const rotated = (key: string | null) => {
-    if (key) {
-      setRecoveryKey(key)
-      setKeyFocus(true)
-    }
+    if (key) offerKey(key, true)
     announce(t(rotatedMessage(onICloud, key !== null)))
   }
   const pathRow = (hint: MessageKey) => (

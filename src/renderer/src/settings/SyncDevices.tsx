@@ -69,16 +69,17 @@ export function RecoveryKeyPanel(props: {
   recoveryKey: string
   /** The vault syncs through iCloud, so the key alone restores it. */
   icloud?: boolean
-  focus: boolean
+  /** Moves focus to the key each time it grows. */
+  focusRequest: number
   onDone: () => void
   onAnnounce: (text: string) => void
   failed: Failure
 }) {
   const key = useRef<HTMLPreElement>(null)
-  const { focus } = props
+  const { focusRequest } = props
   useEffect(() => {
-    if (focus) key.current?.focus()
-  }, [focus])
+    if (focusRequest > 0) key.current?.focus()
+  }, [focusRequest])
   const copy = () =>
     void writeClipboardSecret(props.recoveryKey).then(
       () => props.onAnnounce(t('syncSettings.recoveryCopied')),

@@ -55,6 +55,9 @@ vi.mock('../ipc', () => ({
         return answers.pendingKey ?? null
       case 'sync_join_code':
         return answers.joined
+      case 'sync_vault_create':
+        answers.snapshot = snapshot({ transport: 'relay', enrolled: true })
+        return { snapshot: answers.snapshot, recoveryKey: 'VWXYZ-23456-789AB' }
       case 'sync_vault_rotate':
         if ((args as { relaySecret?: string }).relaySecret !== 'relay-secret')
           throw new Error('E_SYNC_RELAY_SECRET')
@@ -711,6 +714,30 @@ describe('Change Vault Key', () => {
     expect(el.textContent).toContain('ABCDE-FGHIJ-KLMNO')
     expect(el.querySelector('input[type=password]')).toBeNull()
     expect(button(el, 'Change Vault Key…')).toBeDefined()
+  })
+
+  it('moves focus to the new recovery key when it replaces one still on offer', async () => {
+    const away = snapshot({ transport: 'relay', vault: false, enabled: false })
+    const el = await show({ ...away, relayUrl: 'https://relay.example.test' }, NO_CONTAINER)
+    await act(async () => button(el, 'This Is My First Device')?.click())
+    const secret = el.querySelector<HTMLInputElement>('input[type=password]')
+    if (!secret) throw new Error('no secret field')
+    type(secret, 'relay-secret')
+    await act(async () => button(el, 'Create Vault')?.click())
+    await settle()
+    const key = () => el.querySelector('.recovery-key pre')
+    expect(key()?.textContent).toBe('VWXYZ-23456-789AB')
+    expect(document.activeElement).toBe(key())
+    await act(async () => button(el, 'Change Vault Key…')?.click())
+    const field = el.querySelector<HTMLInputElement>('input[type=password]')
+    if (!field) throw new Error('no secret field')
+    type(field, 'relay-secret')
+    await act(async () =>
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    )
+    await settle()
+    expect(key()?.textContent).toBe('ABCDE-FGHIJ-KLMNO')
+    expect(document.activeElement).toBe(key())
   })
 
   it('cancels without a word to Rust', async () => {
