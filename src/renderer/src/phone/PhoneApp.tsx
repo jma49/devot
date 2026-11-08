@@ -294,8 +294,8 @@ export function PhoneApp() {
       }),
       ...glassHandlers(),
       ...newNoteHandlers(() => nativeNewNote.current),
-      ...listHandlers(() => latestStore.current.core),
-      ...searchHandlers(() => latestStore.current.core),
+      ...listHandlers(() => latestStore.current.started()),
+      ...searchHandlers(() => latestStore.current.started()),
     })
     bridge.current = started
     let live = true

@@ -22,39 +22,32 @@ const idOrNone = (value: unknown): string | null => (typeof value === 'string' ?
 
 /** Rust has checked every argument (`screens::message`); the core checks them again. */
 export function listHandlers(
-  core: () => ListsCore | null,
+  started: () => Promise<ListsCore>,
   now: () => number = Date.now,
 ): ScreensHandlers {
-  const started = () => {
-    const found = core()
-    if (!found) throw new Error('E_SCREENS_UNAVAILABLE')
-    return found
-  }
   return {
     excerpts: async (args) => ({
-      excerpts: await started().excerpts(strings(args['ids'])),
+      excerpts: await (await started()).excerpts(strings(args['ids'])),
     }),
     'notes.batch': async (args) =>
-      started().batch(strings(args['ids']), args['change'] as BatchChange),
-    'trash.empty': async () => ({ purged: await started().emptyTrash() }),
-    'book.create': async () => ({ id: await started().createBook(t('book.new'), null) }),
-    'template.create': async () => ({ id: await started().createTemplate() }),
+      (await started()).batch(strings(args['ids']), args['change'] as BatchChange),
+    'trash.empty': async () => ({ purged: await (await started()).emptyTrash() }),
+    'book.create': async () => ({ id: await (await started()).createBook(t('book.new'), null) }),
+    'template.create': async () => ({ id: await (await started()).createTemplate() }),
     'template.apply': async (args) => ({
-      id: await started().applyTemplate(
-        String(args['templateId']),
-        now(),
-        idOrNone(args['bookId']),
-      ),
+      id: await (
+        await started()
+      ).applyTemplate(String(args['templateId']), now(), idOrNone(args['bookId'])),
     }),
     'note.complete': async (args) => ({
-      undo: await started().setStatusUndoable(String(args['noteId']), 'completed'),
+      undo: await (await started()).setStatusUndoable(String(args['noteId']), 'completed'),
     }),
     'note.undoStatus': async (args) => {
-      await started().undoStatus(String(args['noteId']), args['undo'] as StatusUndo)
+      await (await started()).undoStatus(String(args['noteId']), args['undo'] as StatusUndo)
       return {}
     },
     'note.text': async (args) => {
-      const note = await started().read(String(args['noteId']))
+      const note = await (await started()).read(String(args['noteId']))
       return { title: note.title, markdown: note.bodyMd }
     },
   }

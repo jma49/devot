@@ -10,6 +10,7 @@ import { createTemplateService } from '../../../../core/templates'
 import { TEMPLATES_BOOK_ID } from '../../../../core/templatesBook'
 import { t } from '../../i18n'
 import { memoryStorage } from '../../storage/memory'
+import { createCoreGate } from '../coreGate'
 import { listHandlers, type ListsCore } from './lists'
 
 function lists() {
@@ -42,8 +43,9 @@ function lists() {
     notes,
     books,
     tags,
+    core,
     handlers: listHandlers(
-      () => core,
+      async () => core,
       () => 1_800_000_000_000,
     ),
   }
@@ -166,8 +168,21 @@ describe('the native lists operations', () => {
     expect((await notes.summaries([id]))[0]!.status).toBe('on_hold')
   })
 
-  it('refuses an operation before the core has started', async () => {
-    const handlers = listHandlers(() => null)
-    await expect(run(handlers, 'trash.empty')).rejects.toThrow('E_SCREENS_UNAVAILABLE')
+  it('runs an operation asked while the core is starting once it has started', async () => {
+    const { notes, core } = lists()
+    const gate = createCoreGate<ListsCore>()
+    const id = await notes.create('Early')
+    await notes.trash(id)
+    const emptied = run(listHandlers(gate.started), 'trash.empty')
+    gate.open(core)
+    expect(((await emptied) as { purged: number }).purged).toBeGreaterThanOrEqual(1)
+    expect((await notes.listTrash()).map((n) => n.id)).not.toContain(id)
+  })
+
+  it('refuses an operation once the core failed to start', async () => {
+    const gate = createCoreGate<ListsCore>()
+    const emptied = run(listHandlers(gate.started), 'trash.empty')
+    gate.fail()
+    await expect(emptied).rejects.toThrow('E_SCREENS_UNAVAILABLE')
   })
 })

@@ -5,9 +5,10 @@ import { createIdGenerator } from '../../../../core/ids'
 import { createNoteService } from '../../../../core/notes/service'
 import { parseSearch } from '../../../../core/search'
 import { memoryStorage } from '../../storage/memory'
+import { createCoreGate } from '../coreGate'
 import { searchHandlers, titlesOnly, type SearchCore } from './search'
 
-function searching() {
+function searching(started?: () => Promise<SearchCore>) {
   const notes = createNoteService({
     storage: memoryStorage,
     clock: createClock('search1'),
@@ -21,13 +22,13 @@ function searching() {
       return notes.search(query, scope, options)
     },
   }
-  const handlers = searchHandlers(() => core)
+  const handlers = searchHandlers(started ?? (async () => core))
   const run = (args: Record<string, unknown>) => {
     const handler = handlers.search
     if (!handler) throw new Error('no search handler')
     return handler(args) as Promise<{ rows: { id: string; excerpt?: string }[]; capped: boolean }>
   }
-  return { notes, asked, run }
+  return { notes, asked, run, core }
 }
 
 describe('the native Search tab operation', () => {
@@ -70,9 +71,22 @@ describe('the native Search tab operation', () => {
     expect(asked).toStrictEqual([])
   })
 
-  it('refuses while the core has not started', async () => {
-    const handler = searchHandlers(() => null).search
-    await expect(handler?.({ query: 'x', scope: 'all' })).rejects.toThrow('E_SCREENS_UNAVAILABLE')
+  it('answers a search asked while the core is starting once it has started', async () => {
+    const gate = createCoreGate<SearchCore>()
+    const { notes, run, core } = searching(gate.started)
+    const id = await notes.create('Early wombat')
+    await notes.flush()
+    const found = run({ query: 'wombat', scope: 'all' })
+    gate.open(core)
+    expect((await found).rows.map((row) => row.id)).toStrictEqual([id])
+  })
+
+  it('refuses once the core failed to start', async () => {
+    const gate = createCoreGate<SearchCore>()
+    const { run } = searching(gate.started)
+    const found = run({ query: 'x', scope: 'all' })
+    gate.fail()
+    await expect(found).rejects.toThrow('E_SCREENS_UNAVAILABLE')
   })
 })
 

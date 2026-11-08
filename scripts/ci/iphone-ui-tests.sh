@@ -116,6 +116,15 @@ run_tests() {
     -resultBundlePath "$results" $selection >"$log" 2>&1 || status=$?
   grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit|Evidence: " "$log" || tail -n 60 "$log"
   rm -f "$log"
+  # The app's own log holds codes and IDs only (src-tauri/src/logs.rs); its warnings say why a screen stayed empty.
+  if [ "$status" -ne 0 ]; then
+    app_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$bundle/Devot.app/Info.plist")
+    data=$(xcrun simctl get_app_container "$device" "$app_id" data 2>/dev/null || true)
+    find "${data:-/nonexistent}" -name devot.log -path '*logs*' 2>/dev/null | while read -r file; do
+      echo "app log: warnings and errors"
+      grep -E '"level":"(warn|error)"' "$file" | tail -n 40
+    done
+  fi
   return "$status"
 }
 

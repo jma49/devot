@@ -38,11 +38,12 @@ let root: Root
 
 beforeEach(() => {
   vi.stubGlobal('DEVOT_UI_TEST', false)
+  // What the shell asks of the core besides sync finds nothing.
+  const core = new Proxy(engine, {
+    get: (target, key) => Reflect.get(target, key) ?? (async () => undefined),
+  }) as unknown as Core
   store = {
-    // What the shell asks of the core besides sync finds nothing.
-    core: new Proxy(engine, {
-      get: (target, key) => Reflect.get(target, key) ?? (async () => undefined),
-    }) as unknown as Core,
+    core,
     notes: [],
     templates: [],
     books: [],
@@ -53,6 +54,7 @@ beforeEach(() => {
     loadedAt: 0,
     refresh: async () => {},
     onTakenIn: () => () => {},
+    started: async () => core,
   }
   host = document.createElement('div')
   document.body.append(host)

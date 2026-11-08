@@ -76,6 +76,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - Rust keeps at most 1024 requests waiting, and refuses more with `E_SCREENS_BUSY`.
 - A panic in Rust on a request's way abandons it, and Swift hears `E_SCREENS_INTERNAL` unless it was answered already, so no request waits for ever.
 - A request that comes before the page listens waits in Rust until the page calls `screens_take`; one that comes later goes out as the event at once.
+- A core operation that reaches the page while its core is still starting waits for the core and the first read of the lists; once the core failed to start, the page refuses it with `E_SCREENS_UNAVAILABLE`.
 - A reload of the page fails the requests it was handed with `E_SCREENS_PAGE_RELOADED`, and the next page takes those still queued.
 - Without the screens installed, Rust refuses every request with `E_SCREENS_NOT_INSTALLED` and the page stops listening.
 - A no-operation round trip stays within p50 4 ms and p95 10 ms on an iPhone 15 or later.
