@@ -74,9 +74,8 @@ async function showCode() {
     ),
   )
   await act(async () => button('Show Pairing Code')?.click())
-  await pass()
-  await pass()
-  expect(tauri.listening(PAIRING_EVENT)).toBe(1)
+  // The listener comes through a dynamic import, which takes a few turns of real time to load.
+  await vi.waitFor(() => expect(tauri.listening(PAIRING_EVENT)).toBe(1), { interval: 0 })
 }
 
 it('keeps one iCloud poll loop when a push lands while a check is in flight, and none after Cancel', async () => {
@@ -84,17 +83,33 @@ it('keeps one iCloud poll loop when a push lands while a check is in flight, and
   await pass(ICLOUD_POLL_MS)
   expect(checks()).toBe(1)
   tauri.emit(PAIRING_EVENT)
+  tauri.emit(PAIRING_EVENT)
   await pass()
   expect(checks()).toBe(1)
   await answerAll('waiting')
-  for (let round = 2; round <= 4; round++) {
-    await pass(ICLOUD_POLL_MS)
+  expect(checks()).toBe(2)
+  await answerAll('waiting')
+  for (let round = 3; round <= 5; round++) {
+    await pass(ICLOUD_POLL_MS - 1)
+    expect(checks()).toBe(round - 1)
+    await pass(1)
     expect(checks()).toBe(round)
     await answerAll('waiting')
   }
   await act(async () => button('Cancel')?.click())
   await pass(ICLOUD_POLL_MS * 3)
-  expect(checks()).toBe(4)
+  expect(checks()).toBe(5)
+})
+
+it('checks again at once after a transient failure when a push landed while it was out', async () => {
+  await showCode()
+  await pass(ICLOUD_POLL_MS)
+  expect(checks()).toBe(1)
+  tauri.emit(PAIRING_EVENT)
+  await pass()
+  for (const answer of answering.splice(0)) answer(Promise.reject(new Error('E_SYNC_OFFLINE')))
+  await pass()
+  expect(checks()).toBe(2)
 })
 
 it('checks at once on a push between checks, and waits the full interval after it', async () => {

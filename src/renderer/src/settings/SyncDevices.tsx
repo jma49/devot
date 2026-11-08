@@ -155,6 +155,8 @@ export function PairingRow(props: {
     let stopped = false
     // One check at a time: its answer sets the next timer, so a push while one is out adds no loop.
     let inFlight = false
+    // A push while a check is out may have come after that check read the zone.
+    let pushedDuring = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const end = (message?: MessageKey) => {
       stopped = true
@@ -172,6 +174,7 @@ export function PairingRow(props: {
     const check = () => {
       if (stopped || inFlight) return
       inFlight = true
+      pushedDuring = false
       checkPairing().then(
         (state) => {
           inFlight = false
@@ -188,7 +191,7 @@ export function PairingRow(props: {
             onDevicesChanged()
           } else {
             setProgress(state.state)
-            timer = setTimeout(check, pollMs)
+            timer = setTimeout(check, pushedDuring ? 0 : pollMs)
           }
         },
         (e: unknown) => {
@@ -196,7 +199,7 @@ export function PairingRow(props: {
           if (stopped) return
           if (TRANSIENT.has(errorCode(e))) {
             setUnreachable(true)
-            timer = setTimeout(check, pollMs)
+            timer = setTimeout(check, pushedDuring ? 0 : pollMs)
             return
           }
           end()
@@ -214,7 +217,11 @@ export function PairingRow(props: {
       void import('@tauri-apps/api/event')
         .then(({ listen }) =>
           listen(PAIRING_EVENT, () => {
-            if (stopped || inFlight) return
+            if (stopped) return
+            if (inFlight) {
+              pushedDuring = true
+              return
+            }
             clearTimeout(timer)
             check()
           }),
