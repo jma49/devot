@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { errorCode } from '../backups'
 import { formatNumber } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Select, Setting, SettingsSection, SettingToggle } from './controls'
 import type { McpAccess, McpScope, RunMode } from './mcpConfigs'
+import { useQueuedChoices } from './queuedChoices'
 import {
   loadMcpAccess,
   loadRunMode,
@@ -23,6 +24,12 @@ const KEYCHAIN_WAITING = 'E_MCP_KEYCHAIN_WAITING'
 
 type Choices = Pick<McpAccess, 'enabled' | 'scope' | 'backgroundStart'>
 
+const choicesOf = ({ enabled, scope, backgroundStart }: McpAccess): Choices => ({
+  enabled,
+  scope,
+  backgroundStart,
+})
+
 /**
  * Settings > Integrations > AI Tools: whether the bridge may reach Devot and start it, which
  * notebooks it sees, and how Devot runs now, with a way to quit it (ADR 0012). `changed` counts
@@ -39,22 +46,31 @@ export function McpAccessSection(props: {
   const [access, setAccess] = useState<McpAccess>()
   const [mode, setMode] = useState<RunMode>()
   const [failure, setFailure] = useState<{ message: MessageKey; code: string }>()
-  const saving = useRef<Promise<void>>(Promise.resolve())
-  const wanted = useRef<Choices | null>(null)
+  const choices = useQueuedChoices<Choices>(
+    async (sent) => {
+      const next = await saveMcpAccess(sent)
+      setAccess(next)
+      onChange(next)
+      setFailure(undefined)
+      return choicesOf(next)
+    },
+    (e: unknown) =>
+      setFailure({
+        message: 'mcpAccess.saveFailed',
+        code: logFailure(errorCode(e), 'W_MCP_ACCESS_FAILED'),
+      }),
+  )
 
   useEffect(() => {
     let live = true
     const load = () => {
+      const take = choices.reading()
       loadMcpAccess().then(
         (loaded) => {
-          if (!live) return
+          // A save queued or running since answers with what Rust holds after it.
+          if (!live || !take(choicesOf(loaded))) return
           setAccess(loaded)
           onChange(loaded)
-          wanted.current = {
-            enabled: loaded.enabled,
-            scope: loaded.scope,
-            backgroundStart: loaded.backgroundStart,
-          }
         },
         (e: unknown) => {
           if (live)
@@ -85,30 +101,9 @@ export function McpAccessSection(props: {
       window.removeEventListener('focus', load)
     }
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A change of `changed` reads the access again.
-  }, [changed, onChange])
+  }, [changed, onChange, choices])
 
-  /** Saves one after another, each sending every choice as it stands then. */
-  const change = (patch: Partial<Choices>) => {
-    const current = wanted.current
-    if (!current) return
-    wanted.current = { ...current, ...patch }
-    saving.current = saving.current.then(async () => {
-      const sent = wanted.current
-      if (!sent) return
-      await saveMcpAccess(sent).then(
-        (next) => {
-          setAccess(next)
-          onChange(next)
-          setFailure(undefined)
-        },
-        (e: unknown) =>
-          setFailure({
-            message: 'mcpAccess.saveFailed',
-            code: logFailure(errorCode(e), 'W_MCP_ACCESS_FAILED'),
-          }),
-      )
-    })
-  }
+  const change = choices.change
 
   const quit = () => {
     quitDevot().catch((e: unknown) =>

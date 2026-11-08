@@ -4,6 +4,7 @@ Part of the [architecture overview](../architecture.md).
 
 Other tools (launchers, scripts, editor integrations) can read and write notes while Devot runs, through a local HTTP API (`src-tauri/src/http_api/`, desktop only).
 Settings > Integrations > Local HTTP API turns it on (off by default), sets its port and shows its token.
+The switch and the port are sent together, one save after another (`queuedChoices.ts`), and after a refused save the next one starts from what Rust holds, so changing the port never sends a refused switch again.
 The MCP bridge reaches the same routes and guards on a Unix socket of its own, with a token of its own (see AI, ADR 0012): this port opens only while the HTTP API's switch is on, and the bridge's token is refused on it.
 Every request passes these guards before anything reaches the notes:
 
