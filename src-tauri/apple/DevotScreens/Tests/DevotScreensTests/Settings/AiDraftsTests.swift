@@ -31,7 +31,7 @@ final class AiDraftsTests: XCTestCase {
     func testARefusedProviderSwitchKeepsTheEndpointAndModelTyped() {
         let (drafts, store, bridge) = drafts()
         drafts["anthropic"] = AiDrafts.Draft(endpoint: "http://192.168.1.5:11434", model: "local")
-        drafts.commit(active: "openai")
+        drafts.commit { $0.active = "openai" }
         XCTAssertEqual(store.ai?.active, "openai")
         bridge.answer("direct.ai.set", .failed("E_AI_ENDPOINT_INVALID"))
         XCTAssertEqual(store.ai?.active, "anthropic")
@@ -44,7 +44,7 @@ final class AiDraftsTests: XCTestCase {
     func testAConfirmedChangeShowsWhatRustKeptButNotOverWhatWasTypedMeanwhile() {
         let (drafts, store, bridge) = drafts()
         drafts["anthropic"] = AiDrafts.Draft(endpoint: " https://proxy.example.test ", model: "claude")
-        drafts.commit(active: "openai")
+        drafts.commit { $0.active = "openai" }
         drafts["openai"] = AiDrafts.Draft(endpoint: "https://gpt.example.test", model: "gpt")
         bridge.answer(
             "direct.ai.set", .ok(Self.view(active: "openai", anthropic: "https://proxy.example.test")))
@@ -66,5 +66,46 @@ final class AiDraftsTests: XCTestCase {
         store.ai = AiView(Self.view(anthropic: "https://two.example.test"))
         drafts.fill()
         XCTAssertEqual(drafts["anthropic"], AiDrafts.Draft(endpoint: "https://one.example.test", model: "typed"))
+    }
+
+    private func sentEndpoint(_ bridge: FakeBridge) -> String? {
+        bridge.sent.last { $0.op == "direct.ai.set" }?.args["settings"]?["anthropic"]?["endpoint"]?.string
+    }
+
+    func testLeavingStoresTheEndpointTypedWithoutReturn() {
+        let (drafts, store, bridge) = drafts()
+        drafts["anthropic"]?.endpoint = "https://proxy.example.test"
+        drafts.commit(skippingRefused: true)
+        XCTAssertEqual(sentEndpoint(bridge), "https://proxy.example.test")
+        bridge.answer("direct.ai.set", .ok(Self.view(anthropic: "https://proxy.example.test")))
+        XCTAssertEqual(store.ai?.anthropic.endpoint, "https://proxy.example.test")
+    }
+
+    func testTheSuggestSwitchStoresTheTypedDraftsWithIt() {
+        let (drafts, store, bridge) = drafts()
+        drafts["anthropic"]?.endpoint = "https://proxy.example.test"
+        drafts.commit(skippingRefused: true) { $0.suggestOnIdle = true }
+        XCTAssertEqual(sentEndpoint(bridge), "https://proxy.example.test")
+        XCTAssertEqual(store.ai?.suggestOnIdle, true)
+    }
+
+    func testARefusedDraftIsSentAgainOnlyByReturnOrOnceEdited() {
+        let (drafts, store, bridge) = drafts()
+        drafts["anthropic"]?.endpoint = "http://192.168.1.5:11434"
+        drafts.commit()
+        bridge.answer("direct.ai.set", .failed("E_AI_ENDPOINT_INVALID"))
+        store.failure = nil
+        drafts.commit(skippingRefused: true)
+        XCTAssertFalse(bridge.ops.contains("direct.ai.set"))
+        drafts.commit(skippingRefused: true) { $0.suggestOnIdle = true }
+        XCTAssertEqual(sentEndpoint(bridge), "")
+        bridge.answer("direct.ai.set", .ok(Self.view()))
+        drafts.commit()
+        XCTAssertEqual(sentEndpoint(bridge), "http://192.168.1.5:11434")
+        bridge.answer("direct.ai.set", .failed("E_AI_ENDPOINT_INVALID"))
+        drafts["anthropic"]?.endpoint = "http://localhost:11434"
+        drafts.commit(skippingRefused: true)
+        XCTAssertEqual(sentEndpoint(bridge), "http://localhost:11434")
+        XCTAssertEqual(drafts["anthropic"]?.endpoint, "http://localhost:11434")
     }
 }

@@ -1,4 +1,6 @@
+import Combine
 import SwiftUI
+import UIKit
 
 /// AI: the licence's notice while AI is locked, the provider, its endpoint, model and key, and
 /// Suggest on Idle (`AiSection.tsx`, its phone layout).
@@ -9,6 +11,11 @@ struct AiPane: View {
     @State private var key = ""
     @State private var problem: String?
     @State private var announcement: String?
+    @FocusState private var focused: Field?
+
+    private enum Field {
+        case endpoint, model
+    }
 
     var body: some View {
         Form {
@@ -26,9 +33,7 @@ struct AiPane: View {
                 providerSection(view)
                 Section {
                     ToggleRow(title: L10n.aiSettingsSuggestOnIdle(), isOn: view.suggestOnIdle) { on in
-                        var next = view
-                        next.suggestOnIdle = on
-                        store.setAi(next)
+                        drafts.commit(skippingRefused: true) { $0.suggestOnIdle = on }
                     }
                 } header: {
                     Header(L10n.phoneAiFeatures())
@@ -41,6 +46,11 @@ struct AiPane: View {
         .onAppear { drafts.fill() }
         .onChange(of: store.ai != nil) { drafts.fill() }
         .onChange(of: store.ai?.active) { key = "" }
+        .onChange(of: focused) { was, _ in if was != nil { save() } }
+        .onDisappear { save() }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            save()
+        }
     }
 
     private func providerSection(_ view: AiView) -> some View {
@@ -55,10 +65,10 @@ struct AiPane: View {
             .labelsHidden()
             .listRowBackground(Color(Tokens.Color.phoneCard))
             field(
-                L10n.aiSettingsEndpoint(), L10n.aiSettingsEndpointHint(), draft(view.active, \.endpoint),
+                .endpoint, L10n.aiSettingsEndpoint(), L10n.aiSettingsEndpointHint(), draft(view.active, \.endpoint),
                 shown.defaultEndpoint)
             field(
-                L10n.aiSettingsModel(),
+                .model, L10n.aiSettingsModel(),
                 shown.defaultModel.isEmpty ? L10n.aiSettingsModelRequiredHint() : L10n.aiSettingsModelHint(),
                 draft(view.active, \.model), shown.defaultModel)
             VStack(alignment: .leading, spacing: Tokens.Space.space4) {
@@ -88,10 +98,13 @@ struct AiPane: View {
         "unavailable": L10n.aiSettingsKeyUnavailable(),
     ]
 
-    private func field(_ title: String, _ detail: String, _ text: Binding<String>, _ placeholder: String) -> some View {
+    private func field(
+        _ id: Field, _ title: String, _ detail: String, _ text: Binding<String>, _ placeholder: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.space4) {
             RowText(title: title, detail: detail)
             TextField(placeholder, text: text)
+                .focused($focused, equals: id)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .submitLabel(.done)
@@ -105,10 +118,15 @@ struct AiPane: View {
     }
 
     private func choose(_ active: String) {
-        drafts.commit(active: active)
+        drafts.commit { $0.active = active }
+    }
+
+    private func save() {
+        drafts.commit(skippingRefused: true)
     }
 
     private func saveKey(_ provider: String) {
+        save()
         changeKey(.aiKeySet, ["provider": .string(provider), "key": .string(key)], L10n.aiSettingsKeySaved)
     }
 

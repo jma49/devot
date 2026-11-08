@@ -2,6 +2,7 @@ import Observation
 
 /// The AI pane's typed endpoint and model, one draft per provider. A draft is refilled only from
 /// a view Rust confirmed, so a refused change, a provider switch among them, keeps what was typed.
+/// Leaving a field or the pane stores what was typed, as the page does on blur.
 @Observable
 @MainActor
 final class AiDrafts {
@@ -12,6 +13,7 @@ final class AiDrafts {
 
     let store: SettingsStore
     private var typed: [String: Draft] = [:]
+    @ObservationIgnored private var refused: [String: Draft] = [:]
 
     init(store: SettingsStore) {
         self.store = store
@@ -30,17 +32,23 @@ final class AiDrafts {
         }
     }
 
-    /// Stores the drafts, and `active` when given; a draft Rust took shows the value Rust kept.
-    func commit(active: String? = nil) {
+    /// Stores the drafts with `change`; a draft Rust took shows the value Rust kept. Without a
+    /// Return or a switch (`skippingRefused`), a draft Rust refused is not sent again until edited.
+    func commit(skippingRefused: Bool = false, _ change: (inout AiView) -> Void = { _ in }) {
         guard var next = store.ai else { return }
-        let sent = typed
+        let sent = typed.filter { !skippingRefused || refused[$0.key] != $0.value }
         for (provider, draft) in sent {
             next[provider].endpoint = draft.endpoint
             next[provider].model = draft.model
         }
-        if let active { next.active = active }
+        change(&next)
         store.setAi(next) { [weak self] confirmed in
-            guard let self, let confirmed else { return }
+            guard let self else { return }
+            guard let confirmed else {
+                refused.merge(sent) { $1 }
+                return
+            }
+            for provider in sent.keys { refused[provider] = nil }
             for provider in AiView.providers where typed[provider] == sent[provider] {
                 typed[provider] = Draft(endpoint: confirmed[provider].endpoint, model: confirmed[provider].model)
             }
