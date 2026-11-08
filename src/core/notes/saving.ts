@@ -3,7 +3,7 @@ import { agentWriteRows, sameRows, type AgentWriteRow } from '../authorship'
 import { errorCode } from '../errors'
 import type { NoteFields, NoteRecord } from '../storage'
 import { BODY } from './body'
-import type { Live, NoteContext } from './context'
+import { goneError, type Live, type NoteContext } from './context'
 import type { Kernel } from './kernel'
 import { asWritten, dirty, heldOf, untilWritten } from './records'
 import type { NoteService } from './types'
@@ -90,7 +90,7 @@ export function createSaving(
       if (retry) {
         const stored = await getStored(note.record.id, { trashed: true })
         if (!stored) {
-          drop(note)
+          drop(note, 'purged')
           return undefined
         }
         const title = note.record.title
@@ -118,6 +118,7 @@ export function createSaving(
   }
 
   const write = async (note: Live) => {
+    if (note.gone) throw goneError(note.gone)
     if (!dirty(note) || live.get(note.record.id) !== note) return
     // A title, notebook, status or pin change before any body edit moves
     // `updatedAt`: keep the body as a version first, dated by its own save.
@@ -194,6 +195,7 @@ export function createSaving(
   const saveAll = () => Promise.allSettled([...live.values()].map(save))
 
   const schedule = (note: Live) => {
+    if (note.gone) throw goneError(note.gone)
     clearTimeout(note.timer)
     const delay = saveDelay(saveDelayMs, note.stateBytes)
     note.timer = setTimeout(() => {

@@ -166,7 +166,7 @@ export function relayMethods(
           const stored = await getStored(id, { trashed: true })
           if (live.get(id) !== note) return
           if (!stored) {
-            drop(note)
+            drop(note, 'purged')
             return
           }
           const title = note.record.title

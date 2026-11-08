@@ -39,10 +39,12 @@ export function trashMethods(
           }
           if (live.get(id) !== note) return
           takeVersion(note)
+          // What reaches the note from here on would not be stored: refused.
+          note.gone = 'trashed'
           // Written apart: when it fails, the note stays as it was. With the
           // body as the document holds it, which may have taken in what
           // another process wrote since the last write (see mergeStored).
-          await put(
+          const moved = put(
             note,
             () => {
               const { changed } = rowsOf(note)
@@ -58,6 +60,12 @@ export function trashMethods(
               ydoc: Y.encodeStateAsUpdate(note.doc),
             }),
           )
+          try {
+            await moved
+          } catch (error) {
+            if (note.gone === 'trashed') note.gone = undefined
+            throw error
+          }
           drop(note)
         })
       })
@@ -93,7 +101,7 @@ export function trashMethods(
       await Promise.all([...live.values()].map(save))
       await storage.purgeNote(id, now(), clock.tick())
       const note = live.get(id)
-      if (note) drop(note)
+      if (note) drop(note, 'purged')
       relay({ kind: 'gone', noteId: id, purged: true })
     },
 
@@ -103,7 +111,7 @@ export function trashMethods(
       if (!(await getStored(id))) throw new Error('E_NOTE_NOT_FOUND')
       await storage.purgeNote(id, now(), clock.tick())
       const note = live.get(id)
-      if (note) drop(note)
+      if (note) drop(note, 'purged')
       relay({ kind: 'gone', noteId: id, purged: true })
     },
 
