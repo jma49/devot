@@ -688,10 +688,19 @@ impl Licence {
         activation::write(store, &stored)
     }
 
-    /// Takes or renews this device's seat; a failure leaves the lease kept and says why.
+    /// Takes or renews this device's seat; a failure leaves the lease kept and says why, and a
+    /// refusal from the Worker ends this licence's migration window.
     fn activate_now(&self, licence_id: &str, key: &str) -> Result<(), &'static str> {
         let device = self.device_id()?;
-        let reply = (self.activator)(key, &device, DEVICE_LABEL)?;
+        let reply = match (self.activator)(key, &device, DEVICE_LABEL) {
+            Ok(reply) => reply,
+            Err(code) => {
+                if !activation::offline(code) {
+                    self.end_migration(licence_id);
+                }
+                return Err(code);
+            }
+        };
         self.with_activation_record(|stored| {
             stored.lease = Some(reply.lease.clone());
             stored.used = reply.used;
@@ -732,6 +741,27 @@ impl Licence {
             }
         });
         if started.and_then(|()| self.persist_activation()).is_err() {
+            log::warn!("W_LICENCE_MIGRATION_WRITE_FAILED");
+        }
+    }
+
+    fn end_migration(&self, licence_id: &str) {
+        let ended = self.with_activation_record(|stored| {
+            let open = stored
+                .migration
+                .as_ref()
+                .is_some_and(|m| m.id == licence_id);
+            if open {
+                stored.migration = None;
+            }
+            open
+        });
+        let persisted = match ended {
+            Ok(true) => self.persist_activation(),
+            Ok(false) => Ok(()),
+            Err(code) => Err(code),
+        };
+        if persisted.is_err() {
             log::warn!("W_LICENCE_MIGRATION_WRITE_FAILED");
         }
     }

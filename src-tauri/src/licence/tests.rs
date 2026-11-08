@@ -1313,6 +1313,38 @@ mod seats {
     }
 
     #[test]
+    fn a_seat_refusal_closes_the_window_of_a_key_held_from_before_seats() {
+        let held = key(ID);
+        let s = seat_setup_with(Some(held.as_str()), |_| Err("E_LICENCE_DEVICE_LIMIT"));
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+        assert!(s.licence.refresh_activation_if_due());
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+    }
+
+    #[test]
+    fn an_unreachable_worker_keeps_the_window_of_a_key_held_from_before_seats() {
+        let held = key(ID);
+        let s = seat_setup_with(Some(held.as_str()), |_| Err("E_NET_TIMEOUT"));
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+        assert!(!s.licence.refresh_activation_if_due());
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+    }
+
+    #[test]
     fn a_refused_key_cannot_reopen_a_window_by_going_offline() {
         let online = Arc::new(AtomicBool::new(true));
         let flag = Arc::clone(&online);
