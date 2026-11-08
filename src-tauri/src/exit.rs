@@ -369,8 +369,12 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
 /// back to this one.
 fn on_exit(app: &AppHandle) {
     let restarts = app.state::<ExitGate>().stop();
+    crate::native::clear_pending_secret_at_exit(app);
     if let Some(db) = app.try_state::<crate::storage::Db>() {
         checkpoint_at_exit(db.inner(), EXIT_CHECKPOINT_LIMIT);
+    }
+    if let Some(mirror) = app.try_state::<std::sync::Arc<crate::mirror::Mirror>>() {
+        mirror.flush(EXIT_MIRROR_LIMIT);
     }
     #[cfg(desktop)]
     if let Some(api) = app.try_state::<std::sync::Arc<crate::http_api::HttpApi>>() {
@@ -383,6 +387,8 @@ fn on_exit(app: &AppHandle) {
 
 // A job still ahead of it can take long; the next launch recovers the WAL anyway.
 const EXIT_CHECKPOINT_LIMIT: Duration = Duration::from_secs(2);
+// A batch still writing the mirror's folder at quit gets this long to write back its manifest.
+const EXIT_MIRROR_LIMIT: Duration = Duration::from_secs(2);
 
 fn checkpoint_at_exit(db: &crate::storage::Db, limit: Duration) -> bool {
     // The timer needs the runtime it is made in, and the main thread at exit is not inside one.

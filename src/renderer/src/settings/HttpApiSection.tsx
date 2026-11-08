@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { errorCode } from '../backups'
 import { writeClipboardText } from '../clipboard'
 import { format, t, type MessageKey } from '../i18n'
@@ -14,6 +14,7 @@ import {
   type HttpApiScope,
   type HttpApiView,
 } from './httpApi'
+import { useQueuedChoices } from './queuedChoices'
 import { useTypedNumber } from './typedNumber'
 import { failureText, logFailure } from '../failure'
 
@@ -30,19 +31,31 @@ export function HttpApiSection() {
   const [shown, setShown] = useState<string>()
   const [failure, setFailure] = useState<{ message: MessageKey; code: string }>()
   const [announcement, setAnnouncement] = useState('')
-  // The pair asked for, each control changing only its own field, and the saves one after another:
-  // the switch and the port each send the whole pair, so building it from a stale view (or letting
+  // The switch and the port each send the whole pair, so building it from a stale view (or letting
   // two saves race) would undo the other.
-  const wanted = useRef<{ enabled: boolean; port: number } | null>(null)
-  const saving = useRef<Promise<void>>(Promise.resolve())
+  const pair = useQueuedChoices<{ enabled: boolean; port: number }>(
+    async (sent) => {
+      const next = await saveHttpApi(sent.enabled, sent.port)
+      setView(next)
+      setFailure(undefined)
+      return { enabled: next.enabled, port: next.port }
+    },
+    (e: unknown) => {
+      setAnnouncement('')
+      setFailure({
+        message: 'httpApi.saveFailed',
+        code: logFailure(errorCode(e), 'W_HTTP_API_SETTINGS_FAILED'),
+      })
+    },
+  )
 
   useEffect(() => {
     let live = true
+    const take = pair.reading()
     loadHttpApi().then(
       (loaded) => {
-        if (!live) return
+        if (!live || !take({ enabled: loaded.enabled, port: loaded.port })) return
         setView(loaded)
-        wanted.current = { enabled: loaded.enabled, port: loaded.port }
       },
       (e: unknown) => {
         if (live)
@@ -55,7 +68,7 @@ export function HttpApiSection() {
     return () => {
       live = false
     }
-  }, [])
+  }, [pair])
 
   const settle = (change: Promise<HttpApiView>, failed: MessageKey, done?: MessageKey) =>
     change.then(
@@ -75,22 +88,7 @@ export function HttpApiSection() {
       },
     )
 
-  /** Changes one field of the pair and saves it once the save before has answered. */
-  const change = (patch: Partial<{ enabled: boolean; port: number }>) => {
-    const current = wanted.current
-    if (!current) return
-    const asked = { ...current, ...patch }
-    wanted.current = asked
-    saving.current = saving.current.then(async () => {
-      // Built at send time, so a change made while another save was in flight is in this one too.
-      const sent = wanted.current
-      if (!sent) return
-      const next = await settle(saveHttpApi(sent.enabled, sent.port), 'httpApi.saveFailed')
-      // Rust's answer is what it holds: take it in unless a newer change came meanwhile.
-      if (next && wanted.current === sent)
-        wanted.current = { enabled: next.enabled, port: next.port }
-    })
-  }
+  const change = pair.change
 
   const port = useTypedNumber({
     stored: view?.port ?? HTTP_API_MIN_PORT,

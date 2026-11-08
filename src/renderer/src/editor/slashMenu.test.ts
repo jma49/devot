@@ -263,6 +263,18 @@ describe('slashSource', () => {
     expect(slashSource(context(s))).not.toBeNull()
   })
 
+  it('keeps every dismissed slash closed, not only the last one', () => {
+    let s = state('/h^\n/h')
+    s = s.update({ changes: { from: 2, insert: 'd' }, selection: { anchor: 3 } }).state
+    s = s.update({ selection: { anchor: 6 } }).state
+    expect(slashSource(context(s))).not.toBeNull()
+    s = s.update({ changes: { from: 6, insert: 'd' }, selection: { anchor: 7 } }).state
+    expect(slashSource(context(s))).toBeNull()
+    s = s.update({ changes: { from: 2, to: 3 }, selection: { anchor: 2 } }).state
+    expect(show(s)).toBe('/h^\n/hd')
+    expect(slashSource(context(s))).toBeNull()
+  })
+
   it('writes Remote Image as a snippet: `alt` selected, Tab goes to `url`', () => {
     const s = state('/rem^')
     const result = slashSource(context(s))!

@@ -42,6 +42,7 @@ interface Window {
   devotPlugins: unknown[]
   devotReleaseHttpApi(): void
   devotReleaseImport(): void
+  devotReleaseLicenceSet(): void
   devotRelease?: (text: string) => void
   devotRendered: string[]
   devotRenders: Record<string, number>

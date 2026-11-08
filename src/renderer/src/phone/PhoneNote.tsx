@@ -87,8 +87,8 @@ export interface NoteCommands {
   readonly duplicate: () => Promise<{ id: string; title: string } | null>
   /** The screen went: sheets, Find and the keyboard go with it. */
   readonly leave: () => void
-  /** Puts the caret at the start of the body, in Edit only; whether it took it. */
-  readonly focusBody: () => boolean
+  /** Puts the caret at the start of the body, in Edit only, and types `typed` there; whether it took it. */
+  readonly focusBody: (typed: string) => boolean
 }
 
 /**
@@ -161,7 +161,11 @@ export function PhoneNote(props: {
     store.notes.find((n) => n.id === noteId) ?? store.templates.find((n) => n.id === noteId)
   const [modes, setModes] = useState<Readonly<Record<string, 'edit' | 'preview'>>>({})
   const editing = useEditing()
-  const setMode = (next: 'edit' | 'preview') => setModes((m) => ({ ...m, [noteId]: next }))
+  // Find shows the editor whatever the note's mode, so choosing Preview ends it.
+  const setMode = (next: 'edit' | 'preview') => {
+    if (next === 'preview') setFinding(false)
+    setModes((m) => ({ ...m, [noteId]: next }))
+  }
   const [toggles, setToggles] = useState(0)
   const [moving, setMoving] = useState(false)
   const editLayer = useRef<HTMLDivElement>(null)
@@ -192,7 +196,7 @@ export function PhoneNote(props: {
     pending.answer(runFind(target, 'search', pending.query))
   }, [])
   // A locked note stays in Preview; only Find shows its editor, which then takes no caret.
-  const mode = editing || finding ? (modes[noteId] ?? 'preview') : 'preview'
+  const mode = finding ? 'edit' : editing ? (modes[noteId] ?? 'preview') : 'preview'
   const titleField = useRef<HTMLTextAreaElement>(null)
   const editor = useRef<EditorHandle | null>(null)
   const showAlertMenu = useAlertMenu()
@@ -201,7 +205,9 @@ export function PhoneNote(props: {
     if (next !== '') touched(id)
     setBody((shown) => (shown.id === id ? { id, text: next } : shown))
   }
+  const [openFailure, setOpenFailure] = useState<{ noteId: string; code: string } | null>(null)
   const noteLoaded = (id: string, loaded: string) => {
+    setOpenFailure(null)
     setLoadedId(id)
     native?.loaded(id)
     setBody({ id, text: loaded })
@@ -223,8 +229,10 @@ export function PhoneNote(props: {
     void crossfadePanes(incoming, outgoing, motionReduced()).then(() => {
       if (current) setMoving(false)
     })
+    // A note shown mid-fade ends it: no later run of this effect would.
     return () => {
       current = false
+      setMoving(false)
     }
   }, [noteId, mode])
 
@@ -337,7 +345,7 @@ export function PhoneNote(props: {
       ),
     find: (action, query) => {
       if (action === 'search') {
-        setMode('edit')
+        if (editing) setMode('edit')
         setFinding(true)
       }
       if (action === 'close') setFinding(false)
@@ -365,10 +373,12 @@ export function PhoneNote(props: {
       const id = await core.duplicate(note.id, t('note.copySuffix'), [...note.tagIds])
       return { id, title: (await core.read(id)).title }
     },
-    focusBody: () => {
+    focusBody: (typed) => {
       const shown = editor.current
       if (!editing || mode !== 'edit' || !shown) return false
       shown.focusStart()
+      // By code unit: a character outside the BMP comes back whole as its two halves join.
+      if (typed) shown.type(typed.split('').map((key) => ({ key, shift: false })))
       return true
     },
     leave: () => {
@@ -521,6 +531,11 @@ export function PhoneNote(props: {
             count: stats.words.toLocaleString(currentLocale()),
           })}
         </p>
+        {openFailure?.noteId === noteId && (
+          <p className="phone-note-caption" role="status">
+            {t('phone.note.openFailed')}
+          </p>
+        )}
         <div className="phone-note-body" data-mode={mode}>
           <div
             ref={editLayer}
@@ -541,7 +556,11 @@ export function PhoneNote(props: {
               noKeyboard
               onText={(read) => showText(noteId, read())}
               onLoaded={(loaded) => noteLoaded(noteId, loaded)}
-              onOpenFailed={(id) => native?.openFailed(id)}
+              onOpenFailed={(id, code) => {
+                console.warn('W_NOTE_OPEN_FAILED', id, code)
+                setOpenFailure({ noteId: id, code })
+                native?.openFailed(id)
+              }}
               links={links}
               showAlertMenu={showAlertMenu}
               handleRef={editor}

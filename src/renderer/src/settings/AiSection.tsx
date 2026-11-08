@@ -1,10 +1,5 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
-import {
-  AI_PROVIDERS,
-  type AiProviderId,
-  type AiSettingsChange,
-  type AiSettingsView,
-} from '../../../core/aiProvider'
+import { AI_PROVIDERS, type AiProviderId, type AiSettingsView } from '../../../core/aiProvider'
 import { errorCode } from '../backups'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
@@ -28,6 +23,7 @@ const KEY_STATES = {
 } as const
 
 type Drafts = Record<AiProviderId, { endpoint: string; model: string }>
+type Choices = Pick<AiSettingsView, 'active' | 'suggestOnIdle'>
 
 const draftsOf = (view: AiSettingsView): Drafts => ({
   anthropic: { endpoint: view.anthropic.endpoint, model: view.anthropic.model },
@@ -37,8 +33,28 @@ const draftsOf = (view: AiSettingsView): Drafts => ({
 export function AiSection() {
   const ids = useId()
   const id = (name: string) => `${ids}-${name}`
-  const [view, setView] = useState<AiSettingsView>()
-  const [drafts, setDrafts] = useState<Drafts>()
+  const [view, setShownView] = useState<AiSettingsView>()
+  const [drafts, setShownDrafts] = useState<Drafts>()
+  // Saves go one after another, each built at send time from these, so a change made while an
+  // earlier save was in flight is neither lost in Rust nor overwritten on screen by its answer.
+  const storedView = useRef<AiSettingsView>(undefined)
+  const typed = useRef<Drafts>(undefined)
+  const asked = useRef<Choices>(undefined)
+  const [shownChoices, setShownChoices] = useState<Choices>()
+  const setAsked = (next: Choices) => {
+    asked.current = next
+    setShownChoices(next)
+  }
+  const saving = useRef<Promise<void>>(Promise.resolve())
+  const setView = (next: AiSettingsView) => {
+    storedView.current = next
+    setShownView(next)
+  }
+  const setDrafts = (next: (now: Drafts) => Drafts) => {
+    if (!typed.current) return
+    typed.current = next(typed.current)
+    setShownDrafts(typed.current)
+  }
   const [keys, setKeys] = useState<Record<AiProviderId, string>>({ anthropic: '', openai: '' })
   const [loadError, setLoadError] = useState<string>()
   const [saveError, setSaveError] = useState<string>()
@@ -54,8 +70,12 @@ export function AiSection() {
     loadAiSettings().then(
       (loaded) => {
         if (!live) return
-        setView(loaded)
-        setDrafts(draftsOf(loaded))
+        storedView.current = loaded
+        setShownView(loaded)
+        typed.current = draftsOf(loaded)
+        setShownDrafts(typed.current)
+        asked.current = { active: loaded.active, suggestOnIdle: loaded.suggestOnIdle }
+        setShownChoices(asked.current)
       },
       (e: unknown) => {
         if (live) setLoadError(logFailure(errorCode(e), 'W_AI_SETTINGS_FAILED'))
@@ -70,8 +90,7 @@ export function AiSection() {
   const settle = (sent: Drafts, stored: AiSettingsView) =>
     setDrafts(
       (now) =>
-        now &&
-        (Object.fromEntries(
+        Object.fromEntries(
           AI_PROVIDERS.map((p) => [
             p,
             {
@@ -79,39 +98,46 @@ export function AiSection() {
               model: now[p].model === sent[p].model ? stored[p].model : now[p].model,
             },
           ]),
-        ) as Drafts),
+        ) as Drafts,
     )
 
-  const save = (change: AiSettingsChange) =>
-    saveAiSettings(change).then(
-      (next) => {
-        setView(next)
-        settle(change, next)
-        setSaveError(undefined)
-      },
-      (e: unknown) => {
-        setSaveError(logFailure(errorCode(e), 'W_AI_SETTINGS_FAILED'))
-        // What Rust keeps is what the fields show again.
-        if (view) settle(change, view)
-      },
-    )
-
-  const commit = (active: AiProviderId = view?.active ?? 'anthropic') => {
-    if (!view || !drafts) return
+  const send = async () => {
+    const before = storedView.current
+    const choices = asked.current
+    const sent = typed.current
+    if (!before || !choices || !sent) return
     const unchanged =
-      active === view.active &&
+      choices.active === before.active &&
+      choices.suggestOnIdle === before.suggestOnIdle &&
       AI_PROVIDERS.every(
-        (p) => drafts[p].endpoint === view[p].endpoint && drafts[p].model === view[p].model,
+        (p) => sent[p].endpoint === before[p].endpoint && sent[p].model === before[p].model,
       )
-    if (!unchanged) {
-      void save({
-        active,
-        suggestOnIdle: view.suggestOnIdle,
-        anthropic: drafts.anthropic,
-        openai: drafts.openai,
-      })
+    if (unchanged) return
+    let kept = before
+    try {
+      kept = await saveAiSettings({ ...choices, anthropic: sent.anthropic, openai: sent.openai })
+      setView(kept)
+      setSaveError(undefined)
+    } catch (e: unknown) {
+      setSaveError(logFailure(errorCode(e), 'W_AI_SETTINGS_FAILED'))
     }
+    // What Rust keeps is what the pane shows again, except what was changed meanwhile.
+    settle(sent, kept)
+    const now = asked.current ?? choices
+    setAsked({
+      active: now.active === choices.active ? kept.active : now.active,
+      suggestOnIdle:
+        now.suggestOnIdle === choices.suggestOnIdle ? kept.suggestOnIdle : now.suggestOnIdle,
+    })
   }
+
+  const save = (choices: Partial<Choices> = {}) => {
+    if (!asked.current) return
+    setAsked({ ...asked.current, ...choices })
+    saving.current = saving.current.then(send)
+  }
+
+  const commit = (active?: AiProviderId) => save(active ? { active } : {})
 
   const commitTyped = useEffectEvent(() => commit())
   // Back, or a tap that dismisses the app, can leave a field without blurring it.
@@ -126,13 +152,10 @@ export function AiSection() {
     }
   }, [])
 
-  const setSuggestOnIdle = (suggestOnIdle: boolean) => {
-    if (!view || !drafts) return
-    void save({ active: view.active, suggestOnIdle, ...drafts })
-  }
+  const setSuggestOnIdle = (suggestOnIdle: boolean) => save({ suggestOnIdle })
 
   const editDraft = (provider: AiProviderId, field: 'endpoint' | 'model', value: string) =>
-    setDrafts((now) => now && { ...now, [provider]: { ...now[provider], [field]: value } })
+    setDrafts((now) => ({ ...now, [provider]: { ...now[provider], [field]: value } }))
 
   const changeKey = (provider: AiProviderId, change: Promise<AiSettingsView>, done: MessageKey) =>
     change.then(
@@ -306,7 +329,7 @@ export function AiSection() {
           </Setting>
         </SettingsSection>
       )}
-      {view && drafts ? (
+      {view && drafts && shownChoices ? (
         <>
           <SettingsSection title="aiSettings.activeTitle">
             <Setting
@@ -317,7 +340,7 @@ export function AiSection() {
             >
               <Select
                 id={id('active')}
-                value={view.active}
+                value={shownChoices.active}
                 aria-describedby={id('active-hint')}
                 onChange={(e) => commit(e.currentTarget.value as AiProviderId)}
               >
@@ -337,7 +360,7 @@ export function AiSection() {
                 before: SUGGEST_BEFORE_CHARS.toLocaleString(currentLocale()),
                 after: SUGGEST_AFTER_CHARS.toLocaleString(currentLocale()),
               }}
-              checked={view.suggestOnIdle}
+              checked={shownChoices.suggestOnIdle}
               onChange={setSuggestOnIdle}
             />
           </SettingsSection>

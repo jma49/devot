@@ -125,6 +125,9 @@ pub(crate) struct SyncService {
     /// Holds the next connect once it has the vault and the token, until the test lets it go.
     #[cfg(test)]
     pauses_connect: Mutex<Option<ConnectPause>>,
+    /// Holds the next relay rotation once its new key is recorded, until the test lets it go.
+    #[cfg(test)]
+    pauses_rotation: Mutex<Option<ConnectPause>>,
     /// Fails an iCloud rotation at this step as if the app quit just before it.
     #[cfg(test)]
     quits_at: Mutex<Option<&'static str>>,
@@ -187,6 +190,8 @@ impl SyncService {
             fails_retired_list: std::sync::atomic::AtomicBool::new(false),
             #[cfg(test)]
             pauses_connect: Mutex::new(None),
+            #[cfg(test)]
+            pauses_rotation: Mutex::new(None),
             #[cfg(test)]
             quits_at: Mutex::new(None),
         }
@@ -251,15 +256,40 @@ impl SyncService {
     pub(crate) fn pause_next_connect(
         &self,
     ) -> (std::sync::mpsc::Receiver<()>, std::sync::mpsc::Sender<()>) {
+        Self::pause_at(&self.pauses_connect)
+    }
+
+    /// Returns where the next relay rotation says it paused, and where the test lets it go on.
+    #[cfg(test)]
+    pub(crate) fn pause_next_rotation(
+        &self,
+    ) -> (std::sync::mpsc::Receiver<()>, std::sync::mpsc::Sender<()>) {
+        Self::pause_at(&self.pauses_rotation)
+    }
+
+    #[cfg(test)]
+    fn pause_at(
+        slot: &Mutex<Option<ConnectPause>>,
+    ) -> (std::sync::mpsc::Receiver<()>, std::sync::mpsc::Sender<()>) {
         let (paused, on_pause) = std::sync::mpsc::channel();
         let (go, on_go) = std::sync::mpsc::channel();
-        *self.pauses_connect.lock().unwrap() = Some((paused, on_go));
+        *slot.lock().unwrap() = Some((paused, on_go));
         (on_pause, go)
     }
 
     #[cfg(test)]
     fn wait_if_paused(&self) {
-        let pause = self.pauses_connect.lock().unwrap().take();
+        Self::wait_at(&self.pauses_connect);
+    }
+
+    #[cfg(test)]
+    fn wait_if_rotation_paused(&self) {
+        Self::wait_at(&self.pauses_rotation);
+    }
+
+    #[cfg(test)]
+    fn wait_at(slot: &Mutex<Option<ConnectPause>>) {
+        let pause = slot.lock().unwrap().take();
         if let Some((paused, go)) = pause {
             paused.send(()).unwrap();
             go.recv().unwrap();

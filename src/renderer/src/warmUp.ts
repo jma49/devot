@@ -55,11 +55,10 @@ export function warmUp(core: Core, source: WarmSource, schedule: Idle = idle): v
               ?.load()
               .catch(() => {})
           }
-          return core.renderPreviewPieces(
-            warmSample(features),
-            { labels: previewLabels(), loadedEmbeds: [] },
-            [],
-          )
+          return core.warmPreviewPieces(warmSample(features), {
+            labels: previewLabels(),
+            loadedEmbeds: [],
+          })
         })
         .then((pieces) => patchPieces(document.createElement('div'), [], pieces))
         .catch(() => {})

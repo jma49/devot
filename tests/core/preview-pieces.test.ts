@@ -9,7 +9,7 @@ import {
   type PreviewOptions,
   type PreviewPiece,
 } from '../../src/core'
-import { splitBlocks } from '../../src/core/preview/blocks'
+import { createBlockSplitter, splitBlocks } from '../../src/core/preview/blocks'
 import { KEPT_CHARACTERS } from '../../src/core/preview'
 import { sampleNote } from '../../scripts/bench/fixtures'
 import { labels, noteFields } from '../support/preview-html'
@@ -485,5 +485,32 @@ describe('createPieceRenderer', () => {
     const shown = first.map((p) => p.key)
     const edited = await render(note('').replace('Piece 7.', 'Piece 7 edited.'), options, shown)
     expect(edited.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([15])
+  })
+
+  it('keeps every piece the note shows through a sample it renders but does not show', async () => {
+    const render = createPieceRenderer({ capacity: 20, pieceLength: 1 })
+    const note = [...Array(20).keys()].map((i) => `Piece ${i}.`).join('\n\n')
+    const first = await render(note, options)
+    await render.sample('Sample one.\n\nSample two.\n\nSample three.', options)
+    const again = await render(note, options)
+    expect(again.map((p) => p.key)).toEqual(first.map((p) => p.key))
+  })
+
+  it('splits a sample apart from the note, so the note is still cut again only around an edit', async () => {
+    const splitter = createBlockSplitter(1)
+    const split: string[] = []
+    const render = createPieceRenderer({
+      split: (markdown) => {
+        split.push(markdown)
+        return splitter(markdown)
+      },
+    })
+    const note = 'One.\n\nTwo.\n\nThree.'
+    const shown = (await render(note, options)).map((p) => p.key)
+    await render.sample('Sample.', options)
+    const edited = note.replace('Three.', 'Three edited.')
+    const again = await render(edited, options, shown)
+    expect(split).toEqual([note, edited])
+    expect(again.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([5])
   })
 })

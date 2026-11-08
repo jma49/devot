@@ -15,6 +15,7 @@ import {
 } from '../syncICloud'
 import { Setting, SettingsNote } from './controls'
 import type { Failure } from './SyncDevices'
+import type { ConfirmStep } from './SyncRotate'
 import { failureText, logFailure } from './syncWhy'
 
 // Settings > Sync for a vault on iCloud, and the question a device with none answers first
@@ -270,9 +271,10 @@ export function ICloudStorageRows(props: { snapshot: SyncSnapshot }) {
  */
 export function LeaveICloudRow(props: { onLeft: () => void; failed: Failure }) {
   const ids = useId()
-  const [asking, setAsking] = useState(false)
+  const [step, setStep] = useState<ConfirmStep>('idle')
   const [key, setKey] = useState('')
-  const [leaving, setLeaving] = useState(false)
+  const asking = step !== 'idle'
+  const leaving = step === 'running'
   const field = useRef<HTMLInputElement>(null)
   const opener = useRef<HTMLButtonElement>(null)
   const { onLeft, failed } = props
@@ -280,20 +282,25 @@ export function LeaveICloudRow(props: { onLeft: () => void; failed: Failure }) {
     if (asking) field.current?.focus()
   }, [asking])
   const cancel = () => {
-    setAsking(false)
+    if (leaving) return
+    setStep('idle')
     setKey('')
     requestAnimationFrame(() => opener.current?.focus())
   }
   const leave = () => {
     if (key.trim() === '' || leaving) return
-    setLeaving(true)
-    leaveICloudVault(key)
-      .then(() => {
+    setStep('running')
+    leaveICloudVault(key).then(
+      () => {
         setKey('')
-        setAsking(false)
+        setStep('idle')
         onLeft()
-      }, failed('syncSettings.icloudLeaveFailed'))
-      .finally(() => setLeaving(false))
+      },
+      (e: unknown) => {
+        setStep('asking')
+        failed('syncSettings.icloudLeaveFailed')(e)
+      },
+    )
   }
   if (!asking)
     return (
@@ -304,7 +311,7 @@ export function LeaveICloudRow(props: { onLeft: () => void; failed: Failure }) {
             type="button"
             className="button"
             data-destructive
-            onClick={() => setAsking(true)}
+            onClick={() => setStep('asking')}
           >
             {`${t('syncSettings.icloudLeave')}…`}
           </button>

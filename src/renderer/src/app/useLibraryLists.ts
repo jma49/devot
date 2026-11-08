@@ -139,12 +139,12 @@ export function useLibraryLists({
   )
 
   // Every note write dates the note in the lists at once, so an edited note moves without a reload.
-  // Not for a change that reloads the lists when done (`changeBooks`): a re-dated note could move before the reload removes it, sending the keyboard to the wrong row.
+  // Not while a change that reloads the lists when done is running (`changeBooks`): a re-dated note could move before the reload removes it, sending the keyboard to the wrong row.
+  // Its writes wait until the last reload is done, as the rows it installs may have been read before them.
   const reloadsPending = useRef(0)
-  const showWrites = useCallback(
+  const writesDuringReload = useRef(new Map<string, number>())
+  const dateWrites = useCallback(
     (writes: ReadonlyMap<string, number>) => {
-      for (const at of writes.values()) markWrite(at)
-      if (reloadsPending.current > 0) return
       setNotes((list) => withWrites(list, writes))
       setTemplates((list) => withWrites(list, writes))
       setResults((shown) => {
@@ -154,11 +154,24 @@ export function useLibraryLists({
     },
     [setResults],
   )
+  const showWrites = useCallback(
+    (writes: ReadonlyMap<string, number>) => {
+      for (const at of writes.values()) markWrite(at)
+      if (reloadsPending.current === 0) return dateWrites(writes)
+      const held = writesDuringReload.current
+      for (const [id, at] of writes) held.set(id, Math.max(at, held.get(id) ?? at))
+    },
+    [dateWrites],
+  )
   const reloadStarted = () => {
     reloadsPending.current += 1
   }
   const reloadDone = () => {
     reloadsPending.current -= 1
+    const held = writesDuringReload.current
+    if (reloadsPending.current > 0 || held.size === 0) return
+    writesDuringReload.current = new Map()
+    dateWrites(held)
   }
 
   const retitleListed = useCallback(

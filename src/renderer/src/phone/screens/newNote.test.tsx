@@ -52,6 +52,7 @@ const editors = vi.hoisted(() => ({
   focused: [] as string[],
   held: null as (() => void)[] | null,
   fails: false,
+  typed: [] as { noteId: string; text: string }[],
 }))
 vi.mock('../../NoteEditor', () => ({
   NoteEditor: (props: EditorProps) => {
@@ -64,6 +65,8 @@ vi.mock('../../NoteEditor', () => ({
       if (handleRef) {
         handleRef.current = {
           focusStart: () => editors.focused.push(noteId),
+          type: (keys: readonly { key: string }[]) =>
+            editors.typed.push({ noteId, text: keys.map((k) => k.key).join('') }),
         } as unknown as EditorHandle
       }
       const load = () => latest.current.onLoaded?.('')
@@ -100,6 +103,7 @@ beforeEach(async () => {
   bridge.handlers = {}
   bridge.notices = []
   editors.focused = []
+  editors.typed = []
   editors.held = null
   editors.fails = false
   vi.mocked(invoke).mockImplementation(async (command) =>
@@ -145,8 +149,8 @@ async function swift(op: keyof ScreensHandlers, args: Record<string, unknown> = 
 }
 
 // The page focuses in an effect, which `act` runs only once its callback is done.
-async function focus() {
-  const asked = bridge.handlers['editor.focus']!({})
+async function focus(args: Record<string, unknown> = {}) {
+  const asked = bridge.handlers['editor.focus']!(args)
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
@@ -273,6 +277,19 @@ describe('New Note under the native screens', () => {
     await swift('editor.show', { noteId: id })
     expect(await focus()).toStrictEqual({ focused: false })
     expect(editors.focused).toStrictEqual([id])
+  })
+
+  it('types what Swift took before the caret at the start of the body, once it has the caret', async () => {
+    await start()
+    const id = (await swift('note.create', {}))['id'] as string
+    await swift('editor.show', { noteId: id, focus: 'body' })
+    await vi.waitFor(() => expect(notices('editor.mode').at(-1)).toMatchObject({ mode: 'edit' }))
+    expect(await focus({ typed: 'Shop \u{1F6D2}' })).toStrictEqual({ focused: true })
+    expect(editors.focused).toStrictEqual([id])
+    expect(editors.typed).toStrictEqual([{ noteId: id, text: 'Shop \u{1F6D2}' }])
+    await expect(bridge.handlers['editor.focus']!({ typed: 3 })).rejects.toThrow(
+      'E_SCREENS_ARGS_INVALID',
+    )
   })
 
   it('puts the caret in the body of a note that loads long after Swift asked', async () => {

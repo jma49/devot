@@ -166,7 +166,8 @@ While typing in Edit the native formatting bar sits on the keyboard: a glass cap
 The chips open the native pickers; Info opens Note Info as a system sheet with its figures, notebook, the created and modified dates, the backlinks and Move to Trash.
 The bar shows the title only once the note's own has scrolled under it.
 
-Find: the editor's own find, driven by the native find bar in the formatting bar's place, with a count in monospaced digits, previous, next and a close circle. It switches a note in Preview to Edit.
+Find: the editor's own find, driven by the native find bar in the formatting bar's place, with a count in monospaced digits, previous, next and a close circle. It switches a note in Preview to Edit; on a locked note it shows the editor only while it is open, and the note keeps the mode it had.
+Choosing Preview while Find is open ends it.
 While editing is locked that editor takes no caret, so a tap in the text raises no keyboard.
 
 Undo toast: regular glass, not interactive, `size.phone-toast` high between the `size.phone-screen-edge` keylines, `size.phone-toast-gap` above the tab bar (or above the safe area where no bar is up, and above the keyboard while it is), over a `shadow.phone-float-*` shadow in `color.phone.float-shadow`; the kind's glyph, the message and the Undo pill.

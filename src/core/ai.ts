@@ -303,6 +303,14 @@ export function createAiService(options: AiServiceOptions): AiService {
     compact: false,
     ...(options.log ? { log: options.log } : {}),
   })
+  /** Every call that brings a note into memory goes through here, so the next call reads it from storage whether this one failed or not. */
+  const touching = async <T>(id: string, work: () => Promise<T>): Promise<T> => {
+    try {
+      return await work()
+    } finally {
+      await notes.release(id)
+    }
+  }
   const tagService = createTagService({ storage, clock, newId, now })
   const bookService = createBookService({ storage, clock, newId, now })
 
@@ -444,11 +452,9 @@ export function createAiService(options: AiServiceOptions): AiService {
       return atomically(async () => {
         const book = await resolveBook(notebook)
         const id = await notes.create(clean, book.id)
-        try {
-          await notes.agentWrite(id, { writer: options.writer(), markdown: body, created: true })
-        } finally {
-          await notes.release(id)
-        }
+        await touching(id, () =>
+          notes.agentWrite(id, { writer: options.writer(), markdown: body, created: true }),
+        )
         return { id, title: clean, notebook: ref(book) }
       })
     },
@@ -472,29 +478,29 @@ export function createAiService(options: AiServiceOptions): AiService {
       await atomically(async () => {
         const { record, book } = await visible(id)
         const target = notebook === undefined ? book : await resolveBook(notebook)
-        let markdown: string | undefined
-        if (body !== undefined) {
-          if ('markdown' in body) {
-            markdown = lineFeeds(body.markdown)
-          } else {
-            // Patched as the note's document holds the text, which the
-            // edit is the difference from.
-            markdown = applyPatches((await notes.read(id)).bodyMd, body.patches)
-            checkBody(markdown, MAX_BODY_BYTES)
+        await touching(id, async () => {
+          let markdown: string | undefined
+          if (body !== undefined) {
+            if ('markdown' in body) {
+              markdown = lineFeeds(body.markdown)
+            } else {
+              // Patched as the note's document holds the text, which the
+              // edit is the difference from.
+              markdown = applyPatches((await notes.read(id)).bodyMd, body.patches)
+              checkBody(markdown, MAX_BODY_BYTES)
+            }
           }
-        }
-        const retitled = newTitle !== undefined && newTitle !== record.title
-        const moved = target.id !== record.bookId
-        const restatused = status !== undefined && status !== record.status
-        if (wantedTags !== undefined) await refuseHiddenTags(id, wantedTags)
-        const retagged = wantedTags !== undefined && (await tagsChange(id, wantedTags))
-        const fields: WriteField[] = [
-          ...(retitled ? (['title'] as const) : []),
-          ...(moved ? (['notebook'] as const) : []),
-          ...(retagged ? (['tags'] as const) : []),
-          ...(restatused ? (['status'] as const) : []),
-        ]
-        try {
+          const retitled = newTitle !== undefined && newTitle !== record.title
+          const moved = target.id !== record.bookId
+          const restatused = status !== undefined && status !== record.status
+          if (wantedTags !== undefined) await refuseHiddenTags(id, wantedTags)
+          const retagged = wantedTags !== undefined && (await tagsChange(id, wantedTags))
+          const fields: WriteField[] = [
+            ...(retitled ? (['title'] as const) : []),
+            ...(moved ? (['notebook'] as const) : []),
+            ...(retagged ? (['tags'] as const) : []),
+            ...(restatused ? (['status'] as const) : []),
+          ]
           await notes.agentWrite(id, {
             writer: options.writer(),
             ...(markdown === undefined ? {} : { markdown }),
@@ -503,9 +509,7 @@ export function createAiService(options: AiServiceOptions): AiService {
           if (retitled) await notes.setTitle(id, newTitle)
           if (moved) await notes.setBook(id, target.id)
           if (restatused) await notes.setStatus(id, status)
-        } finally {
-          await notes.release(id)
-        }
+        })
         if (wantedTags !== undefined) await setTags(id, wantedTags)
       })
       return service.read(id)
@@ -520,14 +524,12 @@ export function createAiService(options: AiServiceOptions): AiService {
           ...(heading === undefined ? {} : { heading }),
           ...(separator === undefined ? {} : { separator }),
         }
-        // Placed in the text as the note's document holds it, which the edit is the difference from.
-        const markdown = appendedBody((await notes.read(id)).bodyMd, text, where)
-        checkBody(markdown, MAX_BODY_BYTES)
-        try {
+        await touching(id, async () => {
+          // Placed in the text as the note's document holds it, which the edit is the difference from.
+          const markdown = appendedBody((await notes.read(id)).bodyMd, text, where)
+          checkBody(markdown, MAX_BODY_BYTES)
           await notes.agentWrite(id, { writer: options.writer(), markdown, fields: [] })
-        } finally {
-          await notes.release(id)
-        }
+        })
       })
       return service.read(id)
     },
@@ -535,8 +537,10 @@ export function createAiService(options: AiServiceOptions): AiService {
     async trash(id) {
       return atomically(async () => {
         const { record } = await visible(id)
-        await notes.agentWrite(id, { writer: options.writer(), fields: ['trash'] })
-        await notes.trash(id)
+        await touching(id, async () => {
+          await notes.agentWrite(id, { writer: options.writer(), fields: ['trash'] })
+          await notes.trash(id)
+        })
         return { id, title: record.title }
       })
     },

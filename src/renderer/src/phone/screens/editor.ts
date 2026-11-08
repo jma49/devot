@@ -38,8 +38,11 @@ export interface NativeEditor {
   /** Resolves once the page has painted without the editor. */
   readonly hide: () => Promise<void>
   readonly setMode: (mode: EditorMode) => void
-  /** Whether the body of a note shown to be typed in took the caret; the keyboard is up by now. */
-  readonly focus: () => Promise<boolean>
+  /**
+   * Whether the body of a note shown to be typed in took the caret; the keyboard is up by now.
+   * `typed`, what the native field took before, goes in at the caret.
+   */
+  readonly focus: (typed: string) => Promise<boolean>
   readonly format: (id: BarFormat) => void
   readonly ai: (action: 'suggest' | 'accept') => void
   readonly find: (action: FindAction, query: string) => FindCount | Promise<FindCount>
@@ -88,7 +91,11 @@ export function editorHandlers(
       editor()?.setMode(mode)
       return {}
     },
-    'editor.focus': async () => ({ focused: (await editor()?.focus()) ?? false }),
+    'editor.focus': async (args) => {
+      const typed = args['typed'] ?? ''
+      if (typeof typed !== 'string') throw invalid()
+      return { focused: (await editor()?.focus(typed)) ?? false }
+    },
     'editor.format': async (args) => {
       const id = args['id']
       if (!isFormat(id)) throw invalid()

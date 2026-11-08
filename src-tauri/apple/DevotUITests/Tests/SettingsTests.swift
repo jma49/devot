@@ -19,7 +19,7 @@ final class SettingsTests: XCTestCase {
         let bar = app.tabBars.firstMatch
         // A cold debug build starts slowly on a CI simulator.
         XCTAssertTrue(bar.waitForExistence(timeout: 120))
-        bar.buttons[L10n.phoneTabSettings()].tap()
+        bar.buttons[L10n.phoneTabSettings()].tapOnceHittable()
         XCTAssertTrue(app.navigationBars[L10n.settingsTitle()].waitForExistence(timeout: 10))
     }
 
@@ -197,8 +197,13 @@ final class SettingsTests: XCTestCase {
         let kept = transparency()
         XCTAssertEqual(kept.value as? String, Self.signed(-100))
         // A drag's last value can come just after the lift: the app closes at once, inside the debounce
-        // that lost it in CI.
+        // that lost it in CI. It closes only once it has drawn that value: `slide` returns while the
+        // app is still moving the thumb, and a close then (the CI recording: the thumb held at -10)
+        // ends the drag where the thumb had got to.
         slide(kept, to: 1.2)
+        let reached = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", Self.signed(100)), object: kept)
+        XCTAssertEqual(XCTWaiter().wait(for: [reached], timeout: 10), .completed)
         launch()
         openAppearance()
         XCTAssertEqual(transparency().value as? String, Self.signed(100))

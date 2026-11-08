@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BookNode } from '../../core/books'
-import { aiAccessChanges, checkedNotebooks, inverseChanges, notebooksInOrder } from './aiAccess'
+import { aiAccessChanges, inverseChanges, notebooksInOrder } from './aiAccess'
 
 const node = (
   id: string,
@@ -41,15 +41,9 @@ describe('notebooksInOrder', () => {
   })
 })
 
-describe('checkedNotebooks', () => {
-  it('starts from the notebooks that allow AI access now', () => {
-    expect([...checkedNotebooks(tree)].sort()).toEqual(['archive', 'work/projects'])
-  })
-})
-
 describe('aiAccessChanges', () => {
   it('changes only the notebooks whose switch differs, in tree order', () => {
-    const checked = checkedNotebooks(tree)
+    const checked = new Set(['work/projects', 'archive'])
     expect(aiAccessChanges(tree, checked)).toEqual([])
     checked.add('home')
     checked.delete('archive')

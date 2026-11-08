@@ -814,7 +814,7 @@ export interface MirrorHost {
   hashes(ids: readonly string[]): Promise<{ id: string; sha256: string }[]>
   /** For null, every manifest path whose file does not hold what the manifest says. */
   check(generation: number, paths: readonly string[] | null): Promise<Record<string, DiskState>>
-  /** One result each, in order, up to a failure that stops them all. */
+  /** One result each, in order, up to a failure that stops them all; then one more when writing the manifest back paused the mirror. */
   apply(generation: number, ops: readonly MirrorOp[]): Promise<MirrorResult[]>
 }
 
@@ -1141,6 +1141,8 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
             if (op.kind === 'file' && code === 'E_FILE_NOT_FOUND') files.set(op.id, null)
           }
         }
+        const unsaved = results[batch.length]?.code
+        if (unsaved !== undefined) throw new Error(unsaved)
         await pause()
       }
     }

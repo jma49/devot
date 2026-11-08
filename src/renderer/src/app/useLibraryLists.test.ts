@@ -1,10 +1,19 @@
 // @vitest-environment happy-dom
 import { act, type Dispatch, type SetStateAction } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { NoteSummary, TrashedNote } from '../../../core'
+import {
+  createClock,
+  createIdGenerator,
+  createNoteService,
+  type NoteSummary,
+  type TrashedNote,
+} from '../../../core'
 import { renderHook, unmountAll } from '../../../../tests/support/render-hook'
+import { tempSqliteAdapter } from '../../../../tests/support/sqlite-adapter'
 import type { Core } from '../core-client'
 import { NOTES_LOADED } from '../externalChanges'
+import { reportingNoteWrites } from '../noteWrites'
+import { fromWire, toWire } from '../storage/wire'
 import type { WireRelay } from '../noteRelay'
 import type { SearchResults } from '../useSearch'
 import { useLibraryLists, useNoteWindowChanges, type LibraryLists } from './useLibraryLists'
@@ -88,15 +97,75 @@ describe('useLibraryLists', () => {
     expect(shown.trash).toEqual([])
   })
 
-  it('dates a written note at once, but not while a reload is pending', async () => {
+  it('dates a written note at once, or once the pending reload is done', async () => {
     const { hook } = lists()
     await act(() => hook.current.refresh(fakeCore([note('a')])))
     act(() => hook.current.reloadStarted())
     act(() => hook.current.showWrites(new Map([['a', 5]])))
     expect(hook.current.notes[0]?.updatedAt).toBe(1)
     act(() => hook.current.reloadDone())
+    expect(hook.current.notes[0]?.updatedAt).toBe(5)
     act(() => hook.current.showWrites(new Map([['a', 9]])))
     expect(hook.current.notes[0]?.updatedAt).toBe(9)
+  })
+
+  it('dates a note saved after a reload read the notes but before it installed them', async () => {
+    const adapter = tempSqliteAdapter('devot-lists-')
+    const rerunSearch = vi.fn<() => void>()
+    const setResults = vi.fn<Dispatch<SetStateAction<SearchResults | undefined>>>()
+    let notesRead = () => {}
+    const hook = renderHook(useLibraryLists, {
+      props: {
+        rerunSearch,
+        setResults,
+        listLibrary: async () => {
+          const notes = await adapter.listNotes()
+          notesRead()
+          return { notes, templates: [] }
+        },
+      },
+    })
+    let clock = 1_000
+    const notes = createNoteService({
+      storage: fromWire(reportingNoteWrites(toWire(adapter), (w) => hook.current.showWrites(w))),
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      now: () => clock,
+      saveDelayMs: 5,
+    })
+    const id = await notes.create('A')
+    let holdingBooks = Promise.resolve()
+    const core = {
+      listBooks: async () => {
+        await holdingBooks
+        return adapter.listBooks()
+      },
+      listTags: () => adapter.listTags(),
+      listTrash: () => adapter.listTrash(),
+      listSavedSearches: () => adapter.listSavedSearches(),
+    } as unknown as Core
+    await act(() => hook.current.refresh(core))
+    expect(hook.current.notes.map((n) => [n.id, n.updatedAt])).toEqual([[id, 1_000]])
+
+    const readingNotes = new Promise<void>((resolve) => (notesRead = resolve))
+    let booksHeld!: () => void
+    holdingBooks = new Promise<void>((resolve) => (booksHeld = resolve))
+    act(() => hook.current.reloadStarted())
+    let reloading!: Promise<unknown>
+    act(() => void (reloading = hook.current.refresh(core)))
+    await readingNotes
+    clock = 2_000
+    await act(async () => {
+      await notes.setBody(id, 'typed')
+      await notes.flush()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      booksHeld()
+      await reloading
+    })
+    act(() => hook.current.reloadDone())
+    expect(hook.current.notes.map((n) => [n.id, n.updatedAt])).toEqual([[id, 2_000]])
   })
 
   it('keeps a reload pending until every change that started one is done', async () => {

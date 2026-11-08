@@ -117,6 +117,50 @@ test.describe('Settings > Licence', () => {
     await expect(panel).not.toContainText('buyer@example.com')
   })
 
+  test('runs one licence action at a time: Remove waits while a Replace activates', async ({
+    page,
+  }) => {
+    await fakeRust(page, held('valid', OTHER_ID))
+    await page.addInitScript(() => {
+      const w = window
+      const set = w.devotIpcMocks?.['licence_set'] as (args: { key: string }) => unknown
+      let release = () => {}
+      const activating = new Promise<void>((resolve) => (release = resolve))
+      w.devotReleaseLicenceSet = () => release()
+      w.devotIpcMocks = {
+        ...w.devotIpcMocks,
+        licence_set: async (args: { key: string }) => {
+          await activating
+          return set(args)
+        },
+      }
+    })
+    await openSettings(page, 'License')
+    const panel = page.getByRole('tabpanel')
+    const replace = panel.getByRole('button', { name: 'Replace License' })
+    const remove = panel.getByRole('button', { name: 'Remove License…' })
+    await panel.getByRole('textbox', { name: 'License Key' }).fill(KEY)
+    await replace.click()
+    await expect.poll(() => calls(page, 'licence_set')).toHaveLength(1)
+    await expect(remove).toBeDisabled()
+    await expect(replace).toBeDisabled()
+    await remove.click({ force: true })
+    await replace.click({ force: true })
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    expect(await calls(page, 'licence_set')).toHaveLength(1)
+
+    await page.evaluate(() => window.devotReleaseLicenceSet())
+    await expect(panel).toContainText(ID)
+    await expect(remove).toBeEnabled()
+    await remove.click()
+    await page
+      .getByRole('dialog', { name: 'Remove the license from this device?' })
+      .getByRole('button', { name: 'Remove License' })
+      .click()
+    expect(await calls(page, 'licence_remove')).toHaveLength(1)
+    await expect(panel).toContainText('No license is added.')
+  })
+
   test('refuses a key that does not verify, with the reason and the code', async ({ page }) => {
     await fakeRust(page, none())
     await openSettings(page, 'License')

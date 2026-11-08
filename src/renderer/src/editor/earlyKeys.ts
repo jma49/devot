@@ -59,6 +59,8 @@ interface Session<F> {
   noteId?: string
   field: F | undefined
   expiry: ReturnType<typeof setTimeout> | undefined
+  /** Replaced by a newer New Note before its note was made, with keys no field took back. */
+  orphaned?: boolean
 }
 
 /**
@@ -68,6 +70,10 @@ interface Session<F> {
  */
 export function earlyKeys<F>(env: EarlyKeysEnv<F>) {
   let session: Session<F> | undefined
+  const keptForNote = new Map<string, EarlyKey[]>()
+  const keep = (noteId: string, keys: EarlyKey[]) => {
+    if (keys.length > 0) keptForNote.set(noteId, keys)
+  }
 
   const stopListening = (s: Session<F>) => {
     clearTimeout(s.expiry)
@@ -94,7 +100,11 @@ export function earlyKeys<F>(env: EarlyKeysEnv<F>) {
       const before = session
       if (before) {
         expire(before)
-        if (session === before) session = undefined
+        if (session === before) {
+          session = undefined
+          if (before.noteId === undefined) before.orphaned = true
+          else keep(before.noteId, before.keys)
+        }
       }
       const s: Session<F> = {
         listening: collectEarlyKeys(env.target, env.isFree),
@@ -107,8 +117,13 @@ export function earlyKeys<F>(env: EarlyKeysEnv<F>) {
       return {
         claim: (noteId) => {
           if (session === s) s.noteId = noteId
+          else if (s.orphaned) {
+            s.orphaned = false
+            keep(noteId, s.keys)
+          }
         },
         fail: () => {
+          s.orphaned = false
           if (session !== s) return
           const keys = end(s)
           if (s.field !== undefined) env.giveBack(s.field, keys)
@@ -117,7 +132,10 @@ export function earlyKeys<F>(env: EarlyKeysEnv<F>) {
     },
 
     take(noteId: string): EarlyKey[] {
-      return session?.noteId === noteId ? end(session) : []
+      const kept = keptForNote.get(noteId) ?? []
+      keptForNote.delete(noteId)
+      const current = session?.noteId === noteId ? end(session) : []
+      return kept.length > 0 ? [...kept, ...current] : current
     },
 
     /** A New Note is still waiting for its editor. */

@@ -4,6 +4,7 @@
 // as one Yjs transaction, the AI service as an agent's write of the whole body.
 
 import { TEMPLATES_BOOK_ID } from './books'
+import { readFence, type Fence } from './fences'
 import { lineFeeds } from './text'
 
 export type AppendPosition = 'append' | 'prepend'
@@ -48,7 +49,6 @@ function* linesOf(body: string): Generator<Line> {
   }
 }
 
-const FENCE = /^ {0,3}(`{3,}|~{3,})/
 const ATX = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$/
 
 const headingKey = (text: string) =>
@@ -72,26 +72,14 @@ export function headingKeyOf(heading: string): string {
 
 const isBlank = (line: Line) => line.text.trim() === ''
 
-/** The lines of `body` with headings read, fenced code left as plain lines (CommonMark fences: a backtick fence's info string holds no backtick, a closing fence nothing but spaces). */
+/** The lines of `body` with headings read, fenced code left as plain lines. */
 function readLines(body: string): { line: Line; heading: Heading | undefined }[] {
   const out: { line: Line; heading: Heading | undefined }[] = []
-  let fence: string | undefined
+  let fence: Fence | undefined
   for (const line of linesOf(body)) {
-    const found = FENCE.exec(line.text)
-    const marks = found?.[1]
-    const rest = found ? line.text.slice(found[0].length) : ''
-    if (fence) {
-      const closes =
-        marks !== undefined &&
-        marks[0] === fence[0] &&
-        marks.length >= fence.length &&
-        rest.trim() === ''
-      if (closes) fence = undefined
-      out.push({ line, heading: undefined })
-      continue
-    }
-    if (marks !== undefined && (marks[0] === '~' || !rest.includes('`'))) fence = marks
-    out.push({ line, heading: fence ? undefined : headingOf(line.text) })
+    const read = readFence(line.text, fence)
+    fence = read.fence
+    out.push({ line, heading: read.code ? undefined : headingOf(line.text) })
   }
   return out
 }

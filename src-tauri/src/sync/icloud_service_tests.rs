@@ -460,6 +460,29 @@ fn uploads_again_after_the_zone_was_deleted() {
 }
 
 #[test]
+fn an_upload_again_whose_connect_failed_after_making_the_zone_still_renews_the_epoch() {
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    mac.service.use_icloud(None, 0).unwrap();
+    let before = epoch(mac.service.connect(false).unwrap());
+    let vault = Vault::load(mac.secrets.as_ref()).unwrap().unwrap();
+    let zone = vault_zone(&vault.id().to_string());
+    mac.service.disconnect();
+    kit.delete_zone(&zone);
+    assert_eq!(mac.service.connect(true).err(), Some(error::DELETED));
+
+    mac.service.icloud_upload_again().unwrap();
+    kit.fail_record(
+        &format!("meta-{}", vault.id()),
+        super::cloudkit::kit::CkError::of(error::code::NETWORK_FAILURE),
+    );
+    assert!(mac.service.connect(true).is_err());
+    assert!(kit.zone_exists(&zone));
+    let after = epoch(mac.service.connect(true).unwrap());
+    assert_ne!(after, before, "a new epoch, so everything is uploaded");
+}
+
+#[test]
 fn upload_again_needs_a_vault_on_icloud() {
     let kit = Arc::new(Fake::new());
     let mac = device(&kit);
@@ -863,6 +886,22 @@ fn an_expired_icloud_offer_is_refused_by_the_joining_device() {
     assert_eq!(mac.service.pairing_check().unwrap().state, "taken");
     mac.service
         .shift_clock(super::pairing::TTL_MS + super::pairing::GRACE_MS + 1);
+    assert_eq!(mac.service.pairing_check().unwrap().state, "unconfirmed");
+}
+
+#[test]
+fn an_icloud_offer_taken_while_the_showing_device_was_not_polling_ends_unconfirmed() {
+    use super::pairing::PairingChannel as _;
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    mac.service.use_icloud(None, 0).unwrap();
+    let shown = mac.service.pairing_open().unwrap();
+    mac.service.shift_clock(super::pairing::TTL_MS + 1);
+    let (pairing, _) = offer_record(&kit, &shown.code);
+    super::cloudkit::pairing::ICloudPairing::join(Arc::clone(&kit) as _)
+        .take(pairing.id())
+        .unwrap();
+    mac.service.shift_clock(super::pairing::GRACE_MS);
     assert_eq!(mac.service.pairing_check().unwrap().state, "unconfirmed");
 }
 

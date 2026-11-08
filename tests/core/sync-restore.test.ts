@@ -152,6 +152,65 @@ describe('turning sync on after a backup was restored', () => {
     expect((await a.note(id))?.bodyMd).toBe('Monday\nWednesday\n')
   })
 
+  it('carries Keep through a note a window saved while Keep ran', async () => {
+    const { a, b, id, book } = await restoredAfterAnEdit()
+    const storage = a.live.storage
+    const put = storage.putNote.bind(storage)
+    let saved = false
+    storage.putNote = async (note) => {
+      // The window's save moves the body on, so Keep's own write is refused as stale.
+      if (!saved && note.id === id) {
+        saved = true
+        await put(note)
+      }
+      return put(note)
+    }
+    await a.live.engine.afterRestore('keep')
+    await settle(a, b)
+    for (const d of [a, b]) {
+      expect(await d.note(id)).toMatchObject({ title: 'Plan', bodyMd: 'Monday\n' })
+      expect((await d.live.storage.listBooks()).find((x) => x.id === book)?.name).toBe('Work')
+    }
+    expect(a.live.engine.status()).toMatchObject({ state: 'idle', code: null })
+  })
+
+  it('reports a Keep that storage stopped, and carries it on instead of asking again', async () => {
+    const { a, b, id, book } = await restoredAfterAnEdit()
+    const storage = a.live.storage
+    const putBook = storage.putBook.bind(storage)
+    let failing = true
+    storage.putBook = async (record) => {
+      if (failing) throw new Error('E_STORAGE_WRITE_FAILED')
+      return putBook(record)
+    }
+    await expect(a.live.engine.afterRestore('keep')).rejects.toThrow('E_STORAGE_WRITE_FAILED')
+    expect(a.live.engine.status()).toMatchObject({
+      state: 'offline',
+      code: 'E_STORAGE_WRITE_FAILED',
+    })
+    failing = false
+    await a.live.engine.afterRestore('merge')
+    await settle(a, b)
+    for (const d of [a, b]) {
+      expect(await d.note(id)).toMatchObject({ title: 'Plan', bodyMd: 'Monday\n' })
+      expect((await d.live.storage.listBooks()).find((x) => x.id === book)?.name).toBe('Work')
+    }
+    expect((await a.live.storage.syncState())[RESTORED_AT] ?? '').toBe('')
+  })
+
+  it('merges as usual after a Keep that left its mark in the restored library', async () => {
+    const { a, b, id } = await restoredAfterAnEdit()
+    await a.live.storage.syncSetState('keepRestoredBefore', createClock('later').tick())
+    await a.live.engine.afterRestore('merge')
+    await settle(a, b)
+    for (const d of [a, b]) {
+      expect(await d.note(id)).toMatchObject({
+        title: 'Plan for the week',
+        bodyMd: 'Monday\nTuesday\n',
+      })
+    }
+  })
+
   it('brings the later changes back when asked to merge', async () => {
     const { a, b, id, book } = await restoredAfterAnEdit()
     await a.live.engine.afterRestore('merge')

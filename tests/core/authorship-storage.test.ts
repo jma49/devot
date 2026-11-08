@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import {
+  applyAgentEdit,
   attribute,
   BODY,
   createAiService,
@@ -14,7 +15,9 @@ import {
   createIdGenerator,
   createNoteService,
   newWriter,
+  readAllWrites,
   readWrites,
+  reverseWrites,
   WRITERS,
   WRITES,
   type AiService,
@@ -501,6 +504,51 @@ describe('the deleted-text cap', () => {
     expect(writes[1]!.deleted.length).toBeGreaterThan(0)
     const result = await s.notes.undoAgentWrites(id, { kind: 'mcp', names: ['Claude Code'] })
     expect(result).toMatchObject({ writes: 4, dropped: 1 })
+  })
+})
+
+describe('two devices changing one write before they sync', () => {
+  it('keeps the write undone and every range put back, through a save and a restart', async () => {
+    const s = await setup()
+    const { id } = await s.claude.ai.create({
+      title: 'Plan',
+      markdown: 'Keep. One two three four.\n',
+      notebook: s.shared,
+    })
+    await s.codex.ai.update({ id, body: { patches: [{ find: 'two ', replace: '' }] } })
+    await s.claude.ai.update({ id, body: { patches: [{ find: 'Keep. ', replace: '' }] } })
+    const base = await stored(s.storage, id)
+    const device = (client: number) => {
+      const doc = new Y.Doc()
+      doc.clientID = client
+      Y.applyUpdate(doc, Y.encodeStateAsUpdate(base))
+      return doc
+    }
+    // The higher client wins a concurrent set of one key, so b's sets would replace a's.
+    const [a, b] = [device(10), device(20)]
+    reverseWrites(a, { kind: 'mcp', names: ['Codex'] })
+    applyAgentEdit(b, {
+      writer: CODEX,
+      at: strictNow(),
+      markdown: 'One three four.\nMore.\n',
+      maxRemovedBytes: 0,
+    })
+    await s.notes.open(id)
+    await s.notes.applyUpdate(id, Y.encodeStateAsUpdate(a))
+    await s.notes.applyUpdate(id, Y.encodeStateAsUpdate(b))
+    await s.notes.flush()
+    s.notes.unhold(id)
+    for (const storage of open.splice(0)) storage.close()
+    const again = app(s.path)
+    const doc = docOf((await again.notes.open(id)).state)
+    const codexWrites = readAllWrites(doc).filter((w) => w.session === CODEX.session)
+    expect(codexWrites.map((w) => w.state)).toEqual(['reversed', 'live'])
+    expect(doc.getText(BODY).toString()).toBe('One two three four.\nMore.\n')
+    expect(agentText(doc).join('')).toBe('One two three four.\nMore.\n')
+    // What came back stays the text of Claude's first write, so its Undo All takes that out too.
+    await again.notes.undoAgentWrites(id, { kind: 'mcp', names: ['Claude Code'] })
+    await again.notes.flush()
+    expect((await stored(again.storage, id)).getText(BODY).toString()).toBe('More.\n')
   })
 })
 

@@ -12,12 +12,14 @@ export interface Day {
 export type DateField = 'created' | 'updated'
 
 /**
- * The date being chosen. A cleared hour or minute is null.
+ * The date being chosen. A cleared hour or minute is null; AM or PM outlives a cleared hour.
  * `from` is the date the picker opened on: its seconds and milliseconds are kept and never shown.
  */
 export interface Pending {
   day: Day
-  hour: number | null
+  /** 0 to 11: the hours since midnight, or since noon when `pm`. */
+  hourInHalf: number | null
+  pm: boolean
   minute: number | null
   from: number
 }
@@ -60,20 +62,38 @@ export function addMonths(d: Day, n: number): Day {
   return { year: first.getFullYear(), month: first.getMonth(), day: Math.min(d.day, last) }
 }
 
+/** The hour from 0 to 23; null while it is cleared. */
+export const hourOf = (pending: Pending) =>
+  pending.hourInHalf === null ? null : pending.hourInHalf + (pending.pm ? 12 : 0)
+
+const withHour = (pending: Pending, hour: number): Pending => ({
+  ...pending,
+  hourInHalf: hour % 12,
+  pm: hour >= 12,
+})
+
 export function pendingOf(at: number): Pending {
   const date = new Date(at)
-  return { day: dayFromDate(date), hour: date.getHours(), minute: date.getMinutes(), from: at }
+  const hour = date.getHours()
+  return {
+    day: dayFromDate(date),
+    hourInHalf: hour % 12,
+    pm: hour >= 12,
+    minute: date.getMinutes(),
+    from: at,
+  }
 }
 
 const sameFields = (a: Pending, b: Pending) =>
-  sameDay(a.day, b.day) && a.hour === b.hour && a.minute === b.minute
+  sameDay(a.day, b.day) && hourOf(a) === hourOf(b) && a.minute === b.minute
 
 /**
  * The time `pending` names in local time; null while its hour or minute is cleared, or when the
  * clocks skip it. Unchanged, it is `from` itself, even in the repeated hour when the clocks go back.
  */
 export function pendingAt(pending: Pending): number | null {
-  const { day, hour, minute, from } = pending
+  const { day, minute, from } = pending
+  const hour = hourOf(pending)
   if (hour === null || minute === null) return null
   if (sameFields(pending, pendingOf(from))) return from
   const kept = new Date(from)
@@ -169,7 +189,7 @@ export function pendingProblem(
   pending: Pending,
   info: Pick<NoteInfoData, 'createdAt' | 'updatedAt'>,
 ): MessageKey | undefined {
-  if (pending.hour === null || pending.minute === null) return 'noteInfo.dateIncomplete'
+  if (pending.hourInHalf === null || pending.minute === null) return 'noteInfo.dateIncomplete'
   const at = pendingAt(pending)
   if (at === null) return 'noteInfo.timeSkipped'
   if (at < 0) return 'noteInfo.dateIncomplete'
@@ -195,13 +215,9 @@ export function stepSegment(
   dayPeriod: boolean,
 ): Pending {
   if (segment === 'minute') return { ...pending, minute: wrap((pending.minute ?? 0) + by, 60) }
-  if (segment === 'dayPeriod') {
-    return pending.hour === null ? pending : { ...pending, hour: wrap(pending.hour + 12, 24) }
-  }
-  const hour = pending.hour ?? 0
-  if (!dayPeriod) return { ...pending, hour: wrap(hour + by, 24) }
-  const half = hour >= 12 ? 12 : 0
-  return { ...pending, hour: half + wrap(hour - half + by, 12) }
+  if (segment === 'dayPeriod') return { ...pending, pm: !pending.pm }
+  if (!dayPeriod) return withHour(pending, wrap((hourOf(pending) ?? 0) + by, 24))
+  return { ...pending, hourInHalf: wrap((pending.hourInHalf ?? 0) + by, 12) }
 }
 
 /**
@@ -220,15 +236,14 @@ export function typeSegment(
   if (next.length > 2 || Number(next) > high) next = digit
   const value = Number(next)
   const done = next.length === 2 || value * 10 > high
-  if (value < low) return { pending: { ...pending, [segment]: null }, typed: next, done }
+  const field = segment === 'minute' ? 'minute' : 'hourInHalf'
+  if (value < low) return { pending: { ...pending, [field]: null }, typed: next, done }
   if (segment === 'minute') return { pending: { ...pending, minute: value }, typed: next, done }
-  const pm = (pending.hour ?? 0) >= 12
-  const hour = dayPeriod ? (value % 12) + (pm ? 12 : 0) : value
-  return { pending: { ...pending, hour }, typed: next, done }
+  const typedHour = dayPeriod ? { ...pending, hourInHalf: value % 12 } : withHour(pending, value)
+  return { pending: typedHour, typed: next, done }
 }
 
-/** A or P typed into the AM/PM segment. */
+/** A or P typed into the AM/PM segment, with or without an hour. */
 export function setDayPeriod(pending: Pending, pm: boolean): Pending {
-  if (pending.hour === null || pending.hour >= 12 === pm) return pending
-  return { ...pending, hour: wrap(pending.hour + 12, 24) }
+  return pending.pm === pm ? pending : { ...pending, pm }
 }

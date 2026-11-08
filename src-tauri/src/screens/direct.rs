@@ -306,7 +306,7 @@ pub async fn run(services: &Services, op: Op) -> Result<Value, &'static str> {
     } = services;
     match op {
         Op::EditorSettingsGet(Empty {}) => {
-            value(editor_settings::editor_settings_get_inner(settings).await)
+            value(editor_settings::editor_settings_get_inner(settings, |next| announce(next)).await)
         }
         Op::EditorSettingsSet(EditorPatch { patch }) => value(
             editor_settings::editor_settings_set_inner(settings, patch, |next| announce(next))
@@ -653,7 +653,10 @@ mod tests {
         let store = &by_command.services.editor_settings;
         assert_eq!(
             direct(&by_direct, "direct.editorSettings.get", json!({})),
-            json(block_on(editor_settings::editor_settings_get_inner(store)))
+            json(block_on(editor_settings::editor_settings_get_inner(
+                store,
+                |_| {}
+            )))
         );
         let larger = json!({ "fontSize": 16 });
         let commanded = json(block_on(editor_settings::editor_settings_set_inner(
@@ -690,6 +693,22 @@ mod tests {
             json(refused)
         );
         assert_eq!(by_direct.announced.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn the_read_that_recovers_the_editor_settings_tells_every_window() {
+        let setup = setup();
+        let path = setup._dir.path().join(editor_settings::FILE);
+        std::fs::create_dir(&path).unwrap();
+        assert!(direct(&setup, "direct.editorSettings.get", json!({})).is_ok());
+        assert!(setup.announced.lock().unwrap().is_empty());
+        std::fs::remove_dir(&path).unwrap();
+        std::fs::write(&path, br#"{ "fontSize": 16 }"#).unwrap();
+        let recovered = direct(&setup, "direct.editorSettings.get", json!({}));
+        assert_eq!(recovered.as_ref().unwrap()["settings"]["fontSize"], 16);
+        let heard = setup.announced.lock().unwrap().clone();
+        assert_eq!(heard.len(), 1);
+        assert_eq!(json(Ok(heard[0].clone())), recovered);
     }
 
     #[test]

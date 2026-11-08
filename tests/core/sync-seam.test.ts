@@ -820,6 +820,24 @@ describe('a vault on iCloud', () => {
     expect(fa.pulls - pulls).toBeLessThanOrEqual(2)
   })
 
+  it('tries a record parked after repeated rejections again on the next fetch, with no notice', async () => {
+    const { vault, a } = fakePair({ via: 'icloud', pollMs: 30 })
+    a.transport.onEvent = () => {}
+    const id = await a.notes.create('Contested')
+    vault.refuse = (item) => {
+      if (item.id !== id) return undefined
+      const held = vault.records.get(id)
+      return { type: 'rejected', version: held?.version ?? 0, tag: held?.tag ?? '' }
+    }
+    await a.sync()
+    expect(vault.records.has(id)).toBe(false)
+    delete vault.refuse
+    await vi.waitFor(async () => {
+      expect(vault.records.has(id)).toBe(true)
+      expect(await a.storage.syncPendingCount()).toBe(0)
+    })
+  })
+
   it('connects afresh when the iCloud account changes', async () => {
     const { a, fa } = fakePair({ via: 'icloud' })
     await a.sync()

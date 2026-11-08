@@ -19,6 +19,7 @@ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 const shownEditors: { readOnly: boolean | undefined; noKeyboard: boolean | undefined }[] = []
 // Like NoteEditor, the stand-in takes its lock from props in an effect, after the render.
 let editorLocked = false
+let loadedText = ''
 const toggled: { at: number; locked: boolean }[] = []
 const handle = {
   toggleTask: vi.fn<(at: number) => void>((at) => {
@@ -43,7 +44,7 @@ vi.mock('../NoteEditor', () => ({
       if (loaded.current) return
       loaded.current = true
       props.handleRef.current = handle as unknown as EditorHandle
-      props.onLoaded('')
+      props.onLoaded(loadedText)
     })
     return <div className="cm-editor" />
   },
@@ -136,6 +137,7 @@ function Screen(props: { store: PhoneStore }) {
 }
 
 beforeEach(() => {
+  loadedText = ''
   writes = []
   refuse = null
   shownEditors.length = 0

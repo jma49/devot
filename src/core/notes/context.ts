@@ -15,6 +15,12 @@ export type HeldRecord = NoteMeta & {
   agentWrites?: never
 }
 
+/** Why a note left memory for good: calls that still hold it fail as they would once it is stored so. */
+export type Gone = 'trashed' | 'purged'
+
+export const goneError = (gone: Gone) =>
+  new Error(gone === 'trashed' ? 'E_NOTE_TRASHED' : 'E_NOTE_NOT_FOUND')
+
 export interface Live {
   record: HeldRecord
   saved: HeldRecord
@@ -40,6 +46,8 @@ export interface Live {
   rows: readonly AgentWriteRow[] | undefined
   failures: number
   retry: Timer | undefined
+  /** Set from the moment the note's move to the Trash is being stored, or when it is let go as purged; undefined while it can still be written. */
+  gone: Gone | undefined
   rev: {
     checked: boolean
     lastText: string | undefined

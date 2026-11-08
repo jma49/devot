@@ -12,6 +12,7 @@ const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).ge
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
 const nameField = (page: Page) => page.getByRole('textbox', { name: 'Notebook name' })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
+const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const workspace = (page: Page, name: string) =>
   sidebar(page).getByRole('group', { name: `Workspace ${name}` })
 const anyWorkspace = (page: Page) => sidebar(page).locator('.sidebar-workspace')
@@ -128,6 +129,28 @@ test('the palette opens a notebook as a workspace with Command+Return', async ({
   await page.keyboard.press('Meta+ArrowUp')
   await expect(anyWorkspace(page)).toHaveCount(0)
   await expect(book(page, 'Devot')).toHaveCount(1)
+})
+
+test('a workspace opened in focus mode leaves the keyboard in the editor when Cmd+/ comes much later', async ({
+  page,
+}) => {
+  await setUp(page)
+  await page.clock.install()
+  await page.keyboard.press('Meta+Shift+KeyD')
+  await expect(sidebar(page)).toBeHidden()
+  await page.keyboard.press('Meta+KeyK')
+  await paletteField(page).fill('b devot')
+  await expect(palette(page).getByRole('option', { name: /Devot/ })).toBeVisible()
+  await page.keyboard.press('Meta+Enter')
+  await expect(palette(page)).toBeHidden()
+  await page.clock.runFor(200)
+  await body(page).click()
+  await expect(body(page)).toBeFocused()
+  // The sidebar the workspace asked for never showed: its ask lapses after a second.
+  await page.clock.runFor(2000)
+  await page.keyboard.press('Meta+Slash')
+  await expect(workspace(page, 'Devot')).toBeVisible()
+  await expect(body(page)).toBeFocused()
 })
 
 test('the title goes up, and a parent in it opens as the workspace', async ({ page }) => {

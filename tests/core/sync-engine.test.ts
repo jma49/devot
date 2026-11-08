@@ -725,6 +725,23 @@ describe('sync between two devices', () => {
     expect(await a.note(id)).toBeNull()
   })
 
+  it('ends a pass with a stop the relay sent while the pass ran', async () => {
+    const { a, b } = await pair()
+    await a.notes.create('Before the stop')
+    await settle(a, b)
+    const lastSync = b.engine.status().lastSync
+    const pull = b.transport.pull.bind(b.transport)
+    b.transport.pull = async (...args) => {
+      const page = await pull(...args)
+      b.engine.received({ type: 'closed', code: 'E_SYNC_REVOKED' })
+      return page
+    }
+    await b.engine.syncNow()
+    await b.engine.idle()
+    await vi.waitFor(() => expect(b.engine.status().state).not.toBe('syncing'))
+    expect(b.engine.status()).toMatchObject({ state: 'stopped', code: 'E_SYNC_REVOKED', lastSync })
+  })
+
   it('keeps a record past the relay’s size limit on this device, with a notice', async () => {
     const { a, b } = await pair({ a: { transport: { chunkBytes: 64 } } })
     const small = await a.notes.create('S')

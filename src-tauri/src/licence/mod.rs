@@ -227,6 +227,15 @@ pub(crate) struct Licence {
     takes_keys: bool,
 }
 
+fn note_attempt(stored: &mut activation::Stored, licence_id: &str) {
+    if !stored.attempted.iter().any(|id| id == licence_id) {
+        stored.attempted.push(licence_id.to_owned());
+        if stored.attempted.len() > MAX_ATTEMPTED {
+            stored.attempted.remove(0);
+        }
+    }
+}
+
 /// Keeps every character a key can hold; spaces and line breaks a mail client wrapped it with go.
 fn cleaned(input: &str) -> Result<String, &'static str> {
     if input.len() > MAX_INPUT {
@@ -606,6 +615,22 @@ impl Licence {
         &self,
         f: impl FnOnce(&mut activation::Stored) -> T,
     ) -> Result<T, &'static str> {
+        self.access_activation_record(false, f)
+    }
+
+    /// The caller holds `keychain`, which the record's first read must not take again.
+    fn with_activation_record_held<T>(
+        &self,
+        f: impl FnOnce(&mut activation::Stored) -> T,
+    ) -> Result<T, &'static str> {
+        self.access_activation_record(true, f)
+    }
+
+    fn access_activation_record<T>(
+        &self,
+        keychain_held: bool,
+        f: impl FnOnce(&mut activation::Stored) -> T,
+    ) -> Result<T, &'static str> {
         let store = self
             .activation_store
             .as_deref()
@@ -619,7 +644,11 @@ impl Licence {
             .map_err(|_| "E_LICENCE_INTERNAL")?
             .is_none()
         {
-            let _keychain = self.keychain()?;
+            let _keychain = if keychain_held {
+                None
+            } else {
+                Some(self.keychain()?)
+            };
             if self
                 .activation
                 .lock()
@@ -660,6 +689,12 @@ impl Licence {
     }
 
     fn persist_activation(&self) -> Result<(), &'static str> {
+        let _keychain = self.keychain()?;
+        self.write_activation()
+    }
+
+    /// The caller holds `keychain`.
+    fn write_activation(&self) -> Result<(), &'static str> {
         let stored = self
             .activation
             .lock()
@@ -670,14 +705,22 @@ impl Licence {
             .activation_store
             .as_deref()
             .ok_or("E_LICENCE_INTERNAL")?;
-        let _keychain = self.keychain()?;
         activation::write(store, &stored)
     }
 
-    /// Takes or renews this device's seat; a failure leaves the lease kept and says why.
+    /// Takes or renews this device's seat; a failure leaves the lease kept and says why, and a
+    /// refusal from the Worker ends this licence's migration window.
     fn activate_now(&self, licence_id: &str, key: &str) -> Result<(), &'static str> {
         let device = self.device_id()?;
-        let reply = (self.activator)(key, &device, DEVICE_LABEL)?;
+        let reply = match (self.activator)(key, &device, DEVICE_LABEL) {
+            Ok(reply) => reply,
+            Err(code) => {
+                if !activation::offline(code) {
+                    self.end_migration(licence_id);
+                }
+                return Err(code);
+            }
+        };
         self.with_activation_record(|stored| {
             stored.lease = Some(reply.lease.clone());
             stored.used = reply.used;
@@ -691,14 +734,7 @@ impl Licence {
 
     /// Records that this device asked for this licence, so a refusal never turns into a window.
     fn mark_attempted(&self, licence_id: &str) {
-        let marked = self.with_activation_record(|stored| {
-            if !stored.attempted.iter().any(|id| id == licence_id) {
-                stored.attempted.push(licence_id.to_owned());
-                if stored.attempted.len() > MAX_ATTEMPTED {
-                    stored.attempted.remove(0);
-                }
-            }
-        });
+        let marked = self.with_activation_record(|stored| note_attempt(stored, licence_id));
         if marked.and_then(|()| self.persist_activation()).is_err() {
             log::warn!("W_LICENCE_ATTEMPT_WRITE_FAILED");
         }
@@ -729,6 +765,27 @@ impl Licence {
         }
     }
 
+    fn end_migration(&self, licence_id: &str) {
+        let ended = self.with_activation_record(|stored| {
+            let open = stored
+                .migration
+                .as_ref()
+                .is_some_and(|m| m.id == licence_id);
+            if open {
+                stored.migration = None;
+            }
+            open
+        });
+        let persisted = match ended {
+            Ok(true) => self.persist_activation(),
+            Ok(false) => Ok(()),
+            Err(code) => Err(code),
+        };
+        if persisted.is_err() {
+            log::warn!("W_LICENCE_MIGRATION_WRITE_FAILED");
+        }
+    }
+
     /// A seat item that does not parse can never be read again; re-pasting a key, removing the
     /// licence or Retry replaces it, so the device is not locked out for good.
     fn recover_seat(&self) {
@@ -755,8 +812,9 @@ impl Licence {
         activation::write(store, &activation::Stored::default())
     }
 
-    fn reset_seat_if_other(&self, licence_id: &str) {
-        let reset = self.with_activation_record(|stored| {
+    /// Drops another licence's seat and marks this one as tried. The caller holds `keychain`.
+    fn switch_seat_to(&self, licence_id: &str) {
+        let switched = self.with_activation_record_held(|stored| {
             let lease_id = stored
                 .lease
                 .as_deref()
@@ -771,10 +829,10 @@ impl Licence {
                 stored.limit = 0;
                 stored.migration = None;
             }
-            other
+            note_attempt(stored, licence_id);
         });
-        if reset == Ok(true) {
-            let _ = self.persist_activation();
+        if switched.and_then(|()| self.write_activation()).is_err() {
+            log::warn!("W_LICENCE_ATTEMPT_WRITE_FAILED");
         }
     }
 
@@ -1138,19 +1196,18 @@ impl Licence {
         })?;
         let id = payload.id.clone();
         let issued_at = payload.issued_at.clone();
-        let first_try = if self.managed() {
+        let first_try = self.managed() && {
             self.recover_seat();
-            self.reset_seat_if_other(&id);
-            let first_try = !self.attempted_for(&id);
-            // Marked before the key is kept, so a snapshot in between cannot open a window.
-            self.mark_attempted(&id);
-            first_try
-        } else {
-            false
+            !self.attempted_for(&id)
         };
         {
             let _keychain = self.keychain()?;
             self.store.set(&key)?;
+            // Only once the key is stored, so a refused write changes no seat; and before it is
+            // held, so a snapshot in between cannot open a window.
+            if self.managed() {
+                self.switch_seat_to(&id);
+            }
             self.put(Some((key.clone(), Ok(payload))))?;
         }
         if self.managed() {

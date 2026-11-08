@@ -364,7 +364,7 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 | `nav.back`                                         | page → Swift | the page left the note (it was trashed from Info): Swift pops its screen                                                |
 | `editor.prepare { noteId }`                        | Swift → page | a native row was pressed: the core opens and holds the note so its bytes are in memory                                  |
 | `editor.show { noteId }`                           | Swift → page | the web view is in the note's screen: the page swaps the note into its one editor and shows it                          |
-| `editor.focus`                                     | Swift → page | a new note's push has landed with the keyboard up: the page puts the caret in the body and answers `{ focused }`        |
+| `editor.focus { typed? }`                          | Swift → page | the push landed with the keyboard up: the page puts the caret in the body, types `typed` there, answers `{ focused }`   |
 | `editor.hide`                                      | Swift → page | the web view is back in a list: the page hides its editor and answers once the list is painted                          |
 | `editor.setMode { mode }`                          | Swift → page | the bar's toggle: `edit` or `preview`; Edit still goes through the write gate                                           |
 | `editor.ready { noteId }`                          | page → Swift | the note's first frame is painted                                                                                       |
@@ -436,6 +436,7 @@ It moves between superviews with `addSubview` alone, never `removeFromSuperview`
 4. The page swaps the note in under 16 ms and answers `editor.ready`.
 5. The cover fades over `motion.duration.phone-adjust` once `editor.ready` arrives, never before the push's first frame.
    Without `editor.ready` after 400 ms the cover fades anyway and the page shows its own loading state.
+   A note whose body cannot be opened never shows the body of the note before it: the editor is left empty and inert, the page says under the caption that the note could not be opened, and logs `W_NOTE_OPEN_FAILED` with the note's ID and the code.
 
 A note opens in Edit when it is empty and writes are allowed, and in Preview otherwise; while writes are locked every note opens in Preview and stays there.
 
@@ -464,6 +465,7 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
 3. Otherwise Swift pushes a new `EditorScreen` at once with no title on its cover, which holds without a timeout until the note exists, and sends `note.create { bookId }` in the same turn.
    Its reply `{ id, rev }` is followed by `editor.show { noteId, focus: "body" }` once the screen holds the web view; `focus` only lets the page take the caret.
 4. The keyboard follows spike S2: once the push has landed (`viewDidAppear`), a hidden 1 by 1 native field becomes first responder, then the web view does, then `editor.focus` asks the page to focus the body.
+   What the user typed into the hidden field before then (at most 1000 Unicode scalars, as Rust counts them) goes with `editor.focus` as `typed`, the field is cleared, and the page types it at the caret once it has the body.
    The page answers once the note has loaded, however long its open takes (over a second on a busy simulator), and gives up only after 5 s, for an open that failed.
    When the page answers anything but `{ focused: true }` (a note that opens in Preview), Swift ends editing and the keyboard goes down.
    WebKit reveals a body focused from code by the whole editable element, taller than the room above the keyboard, and scrolls the page off its top, so once the keyboard has shown Swift puts the web view's scroll back at its top, where a new note's caret is.
@@ -471,6 +473,7 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
    The user never sees a code.
 6. Swift marks a new note touched when a `notes.changed` with a later `rev` than its create names it.
    When a new note's screen is in no stack any more (its pop completed, before `editor.hide`, or the create answered after the screen had gone), Swift sends `note.discard` for an untouched one; a back swipe turned back keeps it.
+   A create that answers during a back swipe decides only once the swipe has ended, since the swipe takes the screen out of the stack until then.
    The page checks again that the note is still as made (no title, no body, no chip changed) before it purges it, so a missed `notes.changed` keeps an empty note rather than losing a word.
    A note an earlier launch made comes as `note.discard { noteId, made: { bookId } }`, with the notebook it was made in, and the page checks it against that (Restoration above).
 7. The list under the pushed editor is the page's list for the note, moved to under the list's still; native lists replace it in stage 2.
@@ -484,6 +487,7 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
   `tests/fixtures/licence-gate.json` holds both sides to the same table.
 - A tap while the surface is up shows no second one.
 - The intent runs only when the sheet's own action (a purchase, Restore Purchases or Try Again) unlocked writing while it was up, in the sheet's dismissal completion, through the gate again after a fresh read; it is dropped when the sheet goes without one, when the app leaves the foreground, and after 10 minutes.
+- A write the page's own Pro sheet holds for the editor screen is dropped, and the sheet closed, when that screen goes (`editor.hide`, or `editor.show` as another screen takes the page).
 - When a `licence.changed` read finds that writing is now allowed while the surface is up (Ask to Buy approved, an App Store retry that succeeded, a key added elsewhere), the surface closes on its own and the intent runs as after the sheet's own unlock.
 - Enter License Key and Open License Settings close the sheet, drop the intent and open License over the Settings root.
 - The debug launch argument `-DevotLicenceFixture A1|A2|A3|K1|K2|X1` (`Debug/LicenceFixture.swift`) fixes the snapshot for the UI tests; Rust, which does not gate a debug build, still takes every write.
@@ -583,6 +587,7 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 - A pairing on show keeps running across a tab switch and ends, cancelled in Rust, when the Sync page leaves the stack.
   It checks every 2 seconds on a relay and every 10 on iCloud, and at once on `sync.pairing`; a relay out of reach keeps it waiting, and any other failure ends it.
 - `SettingsRouter.open` sets the stack to the root and the page in one `setViewControllers`, so Back lands on the root; it animates only while the app is in front.
+- License runs one licence action at a time (`LicencePaneModel`): while Add or Replace, Remove or Retry waits on Rust, all three are disabled, and only that action's reply ends the wait and says how it went.
 - Enter License Key in the page's Pro sheet sends the `settings.open { pane: "licence", focusKey }` notice, and Swift opens License over the root with its key field focused once the push lands.
 
 | Message                            | From  | Meaning                                                                                                     |

@@ -3,10 +3,11 @@ import { MAX_SAVED_SEARCH_QUERY_CHARS } from '../../core/savedSearches'
 import { MAX_TAG_NAME_CHARS } from '../../core/tags'
 import { currentLocale, format, t } from './i18n'
 import { failureText } from './failure'
+import { LICENCE_REQUIRED } from './licence'
 
 const number = (n: number) => new Intl.NumberFormat(currentLocale()).format(n)
 
-/** What a refused change says: a name's rule for a refused name, a note that left the Trash, else that it failed. */
+/** What a refused change says: a name's rule for a refused name, a note that left the Trash, a change refused for want of a licence, else that it failed. */
 export function changeMessage(code: string): string {
   switch (code) {
     case 'E_TAG_NAME_TAKEN':
@@ -19,6 +20,8 @@ export function changeMessage(code: string): string {
       })
     case 'E_NOTE_NOT_TRASHED':
       return t('change.noteNotTrashed')
+    case LICENCE_REQUIRED:
+      return t('change.licenceRequired')
     case 'E_BOOK_NAME_INVALID':
       return format(t('change.bookNameInvalid'), { max: number(MAX_BOOK_NAME_CHARS) })
     default:

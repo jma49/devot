@@ -398,17 +398,70 @@ pub async fn clipboard_write_text(app: tauri::AppHandle, text: String) -> Result
 #[cfg(target_os = "macos")]
 const SECRET_CLIPBOARD_SECS: u64 = 90;
 
+/// The pasteboard change count of the last secret written, until its timer or the exit clears it:
+/// the timer dies with the process, so a quit before it fires would leave the secret behind.
+#[derive(Default)]
+pub struct PendingSecretClear(std::sync::Mutex<Option<isize>>);
+
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests write secrets")
+)]
+impl PendingSecretClear {
+    fn wrote(&self, count: isize) {
+        *self.slot() = Some(count);
+    }
+
+    /// `None` when the exit took it, or a newer secret replaced it and has its own timer.
+    fn take_for_timer(&self, count: isize) -> Option<isize> {
+        let mut slot = self.slot();
+        (*slot == Some(count)).then(|| slot.take()).flatten()
+    }
+
+    fn take_at_exit(&self) -> Option<isize> {
+        self.slot().take()
+    }
+
+    fn slot(&self) -> std::sync::MutexGuard<'_, Option<isize>> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// Clears a secret still on the clipboard when nothing was copied since. Main thread, at exit.
+pub fn clear_pending_secret_at_exit(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    let count = app
+        .try_state::<PendingSecretClear>()
+        .and_then(|pending| pending.take_at_exit());
+    #[cfg(target_os = "macos")]
+    if let Some(count) = count {
+        macos::clear_clipboard_if_unchanged(count);
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = count;
+}
+
 /// Puts a secret (the sync recovery key) on this Mac's clipboard only, marked so clipboard managers
-/// skip it, and clears it after a while unless something else was copied since.
+/// skip it, and clears it after a while, or when Devot quits first, unless something else was
+/// copied since.
 #[tauri::command]
 pub async fn clipboard_write_secret(app: tauri::AppHandle, text: String) -> Result<(), String> {
     let text = zeroize::Zeroizing::new(text);
     validate_clipboard_text(&text).map_err(String::from)?;
     #[cfg(target_os = "macos")]
     {
+        use tauri::Manager;
         let (reply, answer) = tokio::sync::oneshot::channel();
+        let writer = app.clone();
+        // Recorded and taken on the main thread, as the exit takes it, so no quit falls between.
         app.run_on_main_thread(move || {
-            let _ = reply.send(macos::write_secret_clipboard_text(&text));
+            let count = macos::write_secret_clipboard_text(&text);
+            if let Some(count) = count {
+                writer.state::<PendingSecretClear>().wrote(count);
+            }
+            let _ = reply.send(count);
         })
         .map_err(|_| String::from("E_NATIVE_MAIN_THREAD_UNAVAILABLE"))?;
         let Ok(Some(count)) = answer.await else {
@@ -416,8 +469,14 @@ pub async fn clipboard_write_secret(app: tauri::AppHandle, text: String) -> Resu
         };
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(SECRET_CLIPBOARD_SECS)).await;
+            let clearer = app.clone();
             if app
-                .run_on_main_thread(move || macos::clear_clipboard_if_unchanged(count))
+                .run_on_main_thread(move || {
+                    if let Some(count) = clearer.state::<PendingSecretClear>().take_for_timer(count)
+                    {
+                        macos::clear_clipboard_if_unchanged(count);
+                    }
+                })
                 .is_err()
             {
                 log::warn!("W_CLIPBOARD_SECRET_NOT_CLEARED");
@@ -1034,6 +1093,25 @@ mod tests {
             kit.delete_zones(&["devot".into()]).err().map(|e| e.code),
             Some(MISSING_ENTITLEMENT)
         );
+    }
+
+    #[test]
+    fn the_exit_clears_the_last_secret_unless_its_timer_already_did() {
+        let pending = PendingSecretClear::default();
+        assert_eq!(pending.take_at_exit(), None);
+
+        pending.wrote(7);
+        assert_eq!(pending.take_at_exit(), Some(7));
+        assert_eq!(pending.take_at_exit(), None);
+
+        pending.wrote(8);
+        assert_eq!(pending.take_for_timer(8), Some(8));
+        assert_eq!(pending.take_at_exit(), None);
+
+        pending.wrote(9);
+        pending.wrote(10);
+        assert_eq!(pending.take_for_timer(9), None);
+        assert_eq!(pending.take_at_exit(), Some(10));
     }
 
     #[test]

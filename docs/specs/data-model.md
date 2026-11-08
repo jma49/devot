@@ -11,7 +11,8 @@ Part of the [architecture overview](../architecture.md).
   `writes` maps each agent write to its session, its time, the Yjs item IDs it inserted into and deleted from `body` (varuint ranges), the text it deleted (at most 1 MiB per note, the oldest writes' dropped first), the metadata it changed and whether it made the note.
   A write and its record are one Yjs transaction.
   Text is attributed by item ID, so the records sync, merge and survive restarts and compaction with the body; a record that does not parse is skipped and kept.
-  Undo All for one writer (`reverseWrites`, `NoteService.undoAgentWrites`) puts back what it deleted where the deleted items sit and deletes what it inserted, keeping the owner's and other writers' text; Clear Authorship (`clearAuthorship`) empties both maps.
+  Undo All for one writer (`reverseWrites`, `NoteService.undoAgentWrites`) puts back what it deleted where the deleted items sit and deletes what it inserted, keeping the owner's and other writers' text; Clear Authorship (`clearAuthorship`) empties the maps.
+  Undo All marks each write it took back in a third root map, `undone`, and adds the text it put back to the writes that owned it in a fourth, `restored`, one key per change, so two devices that change one write before they sync merge both changes (ADR 0007, risk 7).
 - **Agent writes index** (schema v20 `agent_writes`): one row per write, derived from the maps as `body_md` is from the body and written with the note in the same transaction; never synced, rebuilt by the note's next write when missing.
   `seen` is this device's: a row starts unseen, an `aiEdit` one seen, and so does a duplicate's (the owner made the copy).
   The main window marks the writes its review notice showed seen when the owner leaves the note, dismisses the notice or closes the window (`NoteService.markWritesSeen`, which saves the note first).
@@ -24,12 +25,16 @@ Part of the [architecture overview](../architecture.md).
   After taking a stored copy in, the next save writes the fields alone only when that copy holds the whole document: the same text and the same Yjs snapshot (state vector and deletions), so a copy that lacks a deletion, or one put back from an older state, is written whole (`holdsMore` in `src/core/notes/records.ts`).
   The note service then takes the stored copy in, as when it hears of an outside write (`takeIn`: a Yjs merge, so neither side's text is lost, and the newer HLC of each metadata field), and writes again (`put` in `src/core/notes/saving.ts`), five times a write at most (`WRITE_TRIES`): a save the other keeps getting ahead of fails like any other, keeping its changes, and is tried again later (see Saving and quitting).
   A change written without loading the note and a restore from the Trash read the note again and write again the same way; moving a note to the Trash writes the body as its document holds it, with what it took in since its last write.
+  While that write is under way the note refuses every call that would change it (`E_NOTE_TRASHED`), and a change already holding it fails when it would save, so nothing reports done that the Trash never stored; a note let go as purged refuses them with `E_NOTE_NOT_FOUND` (`gone` on the note in memory, `src/core/notes/context.ts`); a failed write ends the refusal.
+  Saving every note (a flush, a purge, Empty Trash) passes over a note that refuses changes, and a note with nothing to save never refuses a save, so neither fails a call about another note.
   A write may be based on a whole number below 2^53 − 1 (`MAX_BODY_VERSION`), so the version it moves on to is still exact in JavaScript; `note_put` and `note_put_meta` refuse any other with `E_NOTE_VERSION_INVALID`, as every storage adapter does (`checkNote`, `checkNoteMeta`).
 - **Hand-set dates:** Note Info's Created and Updated rows set a note's created and updated dates (`noteInfo/NoteInfoCard.tsx`).
   A click on a row opens Devot's own date picker under it (`DatePicker.tsx`, its logic in `noteInfo/calendar.ts`): a month with the days of the weeks around it, the week starting on the locale's first day, and the hour and minute (with AM and PM where the locale writes them).
+  AM or PM is its own part of the time: clearing or retyping the hour keeps it, and A or P chooses it while the hour is cleared.
   The picker keeps the date's seconds and milliseconds and turns off the days the other date rules out: Created no later than Updated, Updated no earlier than Created.
   A date left unchanged is written back exactly as stored, even in the hour that comes twice when the clocks go back.
   Set is turned off while the time breaks that rule, is incomplete or is skipped when the clocks go forward, and says why; Return sets, Escape cancels, and a save that fails says so and keeps the picker open.
+  A save that answers after its picker was closed, or after another one was opened, changes nothing on screen and leaves the focus where it is.
   Both dates share one HLC (schema v17 `notes.dates_hlc`, `datesHlc` on a record, '' when never set): a write with a newer one sets both as written, any other keeps `created_at` and moves `updated_at` only forward, in every storage adapter alike.
   `NoteService.setDates` refuses a time that is not a whole, non-negative millisecond count, or a note updated before it was created (`E_NOTE_TIME_INVALID`, as `note_put` does).
   The next edit moves the update date on as usual.
@@ -57,6 +62,7 @@ Part of the [architecture overview](../architecture.md).
   A refused notebook or tag change is logged by code and shown in a notice that says the rule broken (or only that the change failed).
 - **Notebooks** nest through `parent_id` (no foreign key, so sync can deliver children first).
   Deleting a notebook deletes its sub-notebooks; their notes are kept and count as in no notebook (they keep `book_id`, so restoring the notebook brings them back).
+  The notebook and its sub-notebooks are deleted in one write (`putBooks`, one transaction), so a failed write deletes none of them.
   A missing parent makes a notebook top level, and a parent cycle from concurrent moves is broken at its smallest ID, the same way on every device.
   Selecting a notebook lists its notes and those of its sub-notebooks.
   Deleting a notebook (Delete Notebook, Backspace or Delete on its row) asks first, like deleting a tag: the question names the sub-notebooks that go with it and the notes that stay, Return confirms, Escape or Cancel keeps it and the keyboard returns to the row.
@@ -73,6 +79,7 @@ Part of the [architecture overview](../architecture.md).
 - **Markdown snapshot:** derived from the Yjs document on save (debounced).
   FTS5 search, export and MCP read the snapshot.
 - **Task progress:** a note's task items, how many are done and how many there are (`taskProgress` in `src/core/extract.ts`), are derived from the body when they are shown and never stored, synced, encrypted or written to the Markdown mirror.
+  They are the task items the preview shows as checkboxes: code blocks are read as CommonMark reads them (`readFence` in `src/core/fences.ts`; a fence in a quote ends with the quote).
   The note list's rows (`NoteService.rowDetails`), board cards and gallery captions (`NoteService.taskCounts`) ask the core for the notes they render, edits not saved yet included, and keep the answer until the note's update time moves.
   Every write of a body (the editor, import, sync, the MCP server and HTTP API, history, templates) is counted the same way, since the count reads the body itself.
   There is no stored column for it: a note summary comes from an index that never reads the note's row, and a window re-dates the notes it writes without listing them again, so a stored count would lag each edit until the next reload.
@@ -217,7 +224,10 @@ Part of the [architecture overview](../architecture.md).
   Each window saves its own changes: a relayed change is not a pending edit of the window it reaches, which also keeps no version or baseline of it (the window that made the change does).
   Saves merge into the stored state rather than replace it: two windows writing the same note are two writers on one body version, so the second write is refused (`E_NOTE_BODY_STALE`), takes the stored copy in and writes again (see Body versions), and what it takes in reaches its editor too.
   Each write is relayed as `saved` with its date, so the main window's lists move the note without a reload (a note made in a note window, through a `[[` link, reloads them).
-  A note trashed or purged is relayed as `gone` (`purged` when it was deleted for good), so its note window turns read-only and says why.
+  A write reported while a notebook change or a batch reloads the lists waits for the last such reload to finish and then dates its note, as the reloaded rows may have been read before it (`src/renderer/src/app/useLibraryLists.ts`).
+  A note trashed or purged is relayed as `gone` (`purged` when it was deleted for good), so its note window turns read-only and says why; a note put back from the Trash is relayed as `back`, and its note window turns editable again.
+  A note window's note is live, trashed or purged (`nextLife` in `src/renderer/src/noteWindow/noteLife.ts`): only `gone` and `back` move it, and a purge is final.
+  Empty Trash relays each note as soon as it is purged, so a purge that fails later in the run still leaves the windows of the notes before it told.
   A save changes a few notes in their places, so only those move in the sorted lists, and the sidebar's counts are taken again only when a note's notebook, status, tags or pin changed (`src/renderer/src/app/useListedNotes.ts`); a large library is not sorted again for each save.
   `tests/core/note-windows.property.test.ts` types into one note in two windows at random, with deliveries late and reordered and saves at any time, and checks that both windows and the stored note end with every edit either made; `tests/core/lineage.test.ts` checks that two windows' edits keep the note's lineage.
 - **The note relay** (`src-tauri/src/note_relay.rs`, `note_relay_send`): the page hands Rust what its core sends (Yjs data stays the base64 the worker coded, never decoded), and Rust checks it (a note ID, base64 within a Yjs state's limit, a title within the title limit, an HLC) and passes it to the windows that may show the note: every main window, and the note's own window; each page listens on its own window only.

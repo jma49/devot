@@ -47,9 +47,9 @@ export function usePanes({
   const [sidebarHidden, setSidebarHidden] = useState(() => sidebarStore.load())
   // A narrow window hides the sidebar until Show Sidebar asks; the request lasts until the window crosses the threshold again. Neither is stored.
   const narrow = useNarrowWindow()
-  const [askedIn, setAskedIn] = useState<boolean | null>(null)
-  if (!narrow && askedIn !== null) setAskedIn(null)
-  const sidebarOff = sidebarHidden || (narrow && askedIn !== narrow)
+  const [narrowRequest, setNarrowRequest] = useState<'none' | 'shown'>('none')
+  if (!narrow && narrowRequest !== 'none') setNarrowRequest('none')
+  const sidebarOff = narrow ? narrowRequest !== 'shown' : sidebarHidden
   const sidebarShown = !focus && !sidebarOff
   // Hide/show fades and slides the panes (paneMotion.ts): positions are measured before the change renders and played back after layout.
   // Panes are inert from the first frame of a hide, so the keyboard leaves them as it did when they vanished at once.
@@ -78,8 +78,7 @@ export function usePanes({
   const toggleSidebar = () => {
     if (sidebarShown) {
       const hadKeyboard = areaOf(document.activeElement) === 'sidebar'
-      // Shown on request in a narrow window: put away again, nothing stored.
-      if (narrow && !sidebarHidden) setAskedIn(null)
+      if (narrow) setNarrowRequest('none')
       else {
         sidebarStore.save(true)
         setSidebarHidden(true)
@@ -94,9 +93,11 @@ export function usePanes({
       focusStore.save(false)
       setFocus(false)
     }
-    sidebarStore.save(false)
-    setSidebarHidden(false)
-    setAskedIn(narrow)
+    if (narrow) setNarrowRequest('shown')
+    else {
+      sidebarStore.save(false)
+      setSidebarHidden(false)
+    }
   }
 
   return {

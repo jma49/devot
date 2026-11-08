@@ -2,6 +2,7 @@
 // read-only instead of writing into a note storage no longer takes (A037, A061).
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { StorageAdapter } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 import { windowsOn } from '../support/note-windows'
@@ -35,6 +36,20 @@ describe('a note that leaves the library', () => {
     expect(note.inbox).toEqual([])
   })
 
+  it('tells the other windows a note put back from the Trash is back', async () => {
+    const { windows, deliverAll } = twoWindows()
+    const [main, note] = windows as [(typeof windows)[number], (typeof windows)[number]]
+    const id = await main.notes.create('Second thoughts')
+    await note.notes.open(id)
+    await main.notes.trash(id)
+    note.inbox.length = 0
+
+    await main.notes.restore(id)
+    expect(note.inbox).toEqual([{ kind: 'back', noteId: id }])
+    await deliverAll()
+    expect(note.inbox).toEqual([])
+  })
+
   it('tells a window about each note Empty Trash purges', async () => {
     const { windows, deliverAll } = twoWindows()
     const [main, note] = windows as [(typeof windows)[number], (typeof windows)[number]]
@@ -52,6 +67,33 @@ describe('a note that leaves the library', () => {
       [first, second].sort(),
     )
     expect(gone.every((m) => m.kind === 'gone' && m.purged)).toBe(true)
+    await deliverAll()
+  })
+
+  it('tells a window about each note Empty Trash purged before a purge failed', async () => {
+    const sqlite = openSqliteAdapter(join(tempDir('devot-gone-'), 'devot.sqlite'))
+    open.push(sqlite)
+    const purged: string[] = []
+    const storage: StorageAdapter = Object.assign(Object.create(sqlite) as SqliteAdapter, {
+      async purgeNote(...args: Parameters<StorageAdapter['purgeNote']>) {
+        if (purged.length > 0) throw new Error('E_TEST_PURGE')
+        await sqlite.purgeNote(...args)
+        purged.push(args[0])
+      },
+    })
+    const { windows, deliverAll } = windowsOn(storage, ['main', 'note'])
+    const [main, note] = windows as [(typeof windows)[number], (typeof windows)[number]]
+    const first = await main.notes.create('One')
+    const second = await main.notes.create('Two')
+    await note.notes.open(first)
+    await note.notes.open(second)
+    await main.notes.trash(first)
+    await main.notes.trash(second)
+    note.inbox.length = 0
+
+    await expect(main.notes.emptyTrash()).rejects.toThrow('E_TEST_PURGE')
+    expect(purged).toHaveLength(1)
+    expect(note.inbox).toEqual([{ kind: 'gone', noteId: purged[0], purged: true }])
     await deliverAll()
   })
 })

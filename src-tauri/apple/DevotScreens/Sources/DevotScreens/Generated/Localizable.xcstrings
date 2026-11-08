@@ -2872,6 +2872,17 @@
         }
       }
     },
+    "change.licenceRequired" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes are read-only until you add a license, so the change was not made."
+          }
+        }
+      }
+    },
     "change.noteNotTrashed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14726,6 +14737,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next Note"
+          }
+        }
+      }
+    },
+    "phone.note.openFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This note could not be opened."
           }
         }
       }

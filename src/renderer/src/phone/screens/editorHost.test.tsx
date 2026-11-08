@@ -320,6 +320,28 @@ describe('the editor host under the native screens', () => {
     ).toBe(true)
   })
 
+  it('rests the hidden pane again when the note changes during a crossfade', async () => {
+    const first = await shell.notes.create('First', null)
+    const second = await shell.notes.create('Second', null)
+    editors.bodies.set(second, 'Read me')
+    await start()
+    await swift('editor.show', { noteId: first })
+    const finishes: (() => void)[] = []
+    vi.spyOn(Element.prototype, 'animate').mockImplementation(() => {
+      const finished = new Promise<void>((resolve) => finishes.push(resolve))
+      return { finished, cancel: () => {} } as unknown as Animation
+    })
+    await swift('editor.setMode', { mode: 'preview' })
+    expect(finishes.length).toBeGreaterThan(0)
+    await swift('editor.show', { noteId: second })
+    expect(notices('editor.mode').at(-1)).toMatchObject({ noteId: second, mode: 'preview' })
+    await act(async () => {
+      for (const finish of finishes) finish()
+    })
+    expect(layer('edit').dataset['resting']).toBe('true')
+    expect(editors.latest?.hidden).toBe(true)
+  })
+
   it('opens a locked note in Preview, read-only, and keeps it there', async () => {
     const id = await shell.notes.create('Plans', null)
     licence = ENDED
@@ -552,6 +574,24 @@ describe('the editor host under the native screens', () => {
     await start()
     await act(async () => haptic('selection'))
     expect(notices('editor.haptic')).toStrictEqual([{ notice: 'editor.haptic', kind: 'selection' }])
+  })
+
+  it('drops a format held by the gate once the screen it was asked on goes', async () => {
+    const id = await shell.notes.create('Plans', null)
+    const format = vi.fn<(id: string) => void>()
+    licence = ENDED
+    await readCurrentLicence()
+    await start()
+    await swift('editor.show', { noteId: id })
+    act(() => {
+      editors.latest!.handleRef!.current = { format } as unknown as EditorHandle
+    })
+    await swift('editor.format', { id: 'bold' })
+    await swift('editor.hide')
+    licence = PRO
+    await act(async () => void (await readCurrentLicence()))
+    await nextFrames()
+    expect(format).not.toHaveBeenCalled()
   })
 
   it('refuses a request without a note or with an unknown mode', async () => {

@@ -1,4 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 import type { TagColorValue, TagRecord } from '../../core/storage'
 import { isCustomTagColor, MAX_TAG_NAME_CHARS } from '../../core/tags'
 import { closingRef } from './closing'
@@ -15,6 +23,37 @@ import { tagDotClass } from './tagColorStyle'
 import type { TagRow } from './tagRows'
 
 const panelRef = closingRef('scale', 'quick-tag')
+
+/** What is typed for the next tag; `making` holds the text whose new tag is being made. */
+type Draft = { text: string; active: number; color: TagColorValue | null; making: string | null }
+type DraftEvent =
+  | { kind: 'type'; text: string }
+  | { kind: 'step'; active: number }
+  | { kind: 'color'; color: TagColorValue | null }
+  | { kind: 'applied' }
+  | { kind: 'making' }
+  | { kind: 'made'; ok: boolean }
+
+const EMPTY: Draft = { text: '', active: -1, color: null, making: null }
+
+/** A new tag clears what was typed only once it is made, so a refused one keeps it to try again. */
+function draftStep(draft: Draft, event: DraftEvent): Draft {
+  switch (event.kind) {
+    case 'type':
+      return { ...draft, text: event.text, active: event.text.trim() === '' ? -1 : 0 }
+    case 'step':
+      return { ...draft, active: event.active }
+    case 'color':
+      return { ...draft, color: event.color }
+    case 'applied':
+      return { ...EMPTY, making: draft.making }
+    case 'making':
+      return { ...draft, making: draft.text }
+    case 'made':
+      return event.ok && draft.text === draft.making ? EMPTY : { ...draft, making: null }
+  }
+}
+
 /**
  * Tags a note from one pop-up: a field, the matching tags with their counts, and a row that
  * creates a new one in a colour from the swatches. Return applies and stays open for the next
@@ -33,17 +72,14 @@ export function QuickTag(props: {
   const returnTo = useRef<Element | null>(document.activeElement)
   const onCloseRef = useRef(props.onClose)
   const listId = useId()
-  const [draft, setDraft] = useState('')
-  const [active, setActive] = useState(-1)
-  const [color, setColor] = useState<TagColorValue | null>(null)
+  const [{ text: draft, active, color, making }, send] = useReducer(draftStep, EMPTY)
+  const setActive = (next: number) => send({ kind: 'step', active: next })
+  const setColor = (next: TagColorValue | null) => send({ kind: 'color', color: next })
   const [picking, setPicking] = useState(false)
   const [recent, setRecent] = useState(() => readRecentTags(localStore()))
   const rows = quickTagRows(props.tags, props.onNote, draft, recent)
   const creating = rows.at(-1)?.kind === 'create'
-  const changeDraft = (next: string) => {
-    setDraft(next)
-    setActive(next.trim() === '' ? -1 : 0)
-  }
+  const changeDraft = (next: string) => send({ kind: 'type', text: next })
   const limit = useNameLimit(draft, MAX_TAG_NAME_CHARS, changeDraft)
 
   useEffect(() => {
@@ -74,14 +110,20 @@ export function QuickTag(props: {
     if (row.kind === 'tag') {
       props.onPut(row.tag.id, row.tag.name)
       remember(row.tag.id)
-    } else {
-      void props.onCreate(row.name, color).then((id) => {
-        if (id) remember(id)
-      })
+      send({ kind: 'applied' })
+    } else if (making === null) {
+      send({ kind: 'making' })
+      void props.onCreate(row.name, color).then(
+        (id) => {
+          if (id) remember(id)
+          send({ kind: 'made', ok: id !== undefined })
+        },
+        (error: unknown) => {
+          send({ kind: 'made', ok: false })
+          throw error
+        },
+      )
     }
-    setDraft('')
-    setActive(-1)
-    setColor(null)
     field.current?.focus()
   }
   const close = () => {

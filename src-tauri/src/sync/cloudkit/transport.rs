@@ -66,6 +66,10 @@ pub(crate) struct ICloudState {
     /// still has to delete; '' for none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub retired: String,
+    /// A connect made the vault zone again and has not finished: each connect renews the epoch and
+    /// subscribes until one does.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub remade: bool,
 }
 
 impl ICloudState {
@@ -177,13 +181,15 @@ impl ICloud {
     /// a vault zone this device saw before and finds gone stops sync (`E_SYNC_ICLOUD_DELETED`) and
     /// nothing is uploaded; without it the zone is made again, under a new epoch, but only while
     /// `current` names the vault. With zone `devot` gone the vault was left, or is being left, and
-    /// sync stops too.
+    /// sync stops too. `keep` stores the state before a vault zone is made again, so a connect
+    /// that fails after it still renews the epoch and subscribes at the next.
     pub(crate) fn connect(
         &self,
         state: &ICloudState,
         has_synced: bool,
         name: &str,
         now: i64,
+        keep: &dyn Fn(&ICloudState) -> Result<(), &'static str>,
     ) -> Result<(Welcome, ICloudState), &'static str> {
         let kit = self.kit.as_ref();
         if !kit.available() {
@@ -248,6 +254,11 @@ impl ICloud {
             .filter(|(_, there)| !**there)
             .map(|(zone, _)| zone.clone())
             .collect();
+        if vault_zone_gone && connected_before {
+            state.remade = true;
+            state.subscribed = false;
+            keep(&state)?;
+        }
         if !missing.is_empty() {
             kit.save_zones(&missing).map_err(failure)?;
         }
@@ -261,11 +272,12 @@ impl ICloud {
 
         // A zone made for the first time keeps an epoch another device saved meanwhile. A device
         // that connected before checks `zone_seen` above; "upload again" clears it to get here.
-        let epoch = epoch(kit, &state.vault, meta, vault_zone_gone && connected_before)?;
+        let epoch = epoch(kit, &state.vault, meta, state.remade)?;
         let time = self.clock(&state.device, now)?;
         self.offset.store(time - now, Ordering::Relaxed);
         self.device_row(&mut state, name, time);
         self.subscribe(&mut state);
+        state.remade = false;
         Ok((
             Welcome {
                 time,

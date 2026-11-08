@@ -7,8 +7,9 @@ struct EditorActions {
     let show: (_ noteId: String, _ focusBody: Bool) -> Void
     let setMode: (NoteMode) -> Void
     let appeared: (Tab) -> Void
-    /// A new note's screen is up and its note shown: the page may take the keyboard.
-    var focus: (EditorScreen) -> Void = { _ in }
+    /// A new note's screen is up and its note shown: the page may take the keyboard, and types
+    /// what the hidden field took before at the caret.
+    var focus: (EditorScreen, _ typed: String) -> Void = { _, _ in }
     /// The screen left its stack for good: a pop that finished, never one turned back.
     var left: (EditorScreen) -> Void = { _ in }
     /// What the bars and Note Info ask of the page: `editor.format`, `editor.ai`, `editor.find`,
@@ -55,6 +56,8 @@ final class EditorScreen: WebHolderScreen {
     private var appearedForTyping = false
     private var focusAsked = false
     private var keyboardShown: NSObjectProtocol?
+    /// What `editor.focus` carries at most (MAX_TYPED_CHARS in src-tauri/src/screens/message.rs).
+    static let maxTyped = 1_000
     /// What the page said last of the note, for the menu, the pickers and Note Info.
     private(set) var note: EditorNote?
     /// The note popped last off this screen, which Forward opens again.
@@ -271,8 +274,11 @@ final class EditorScreen: WebHolderScreen {
     private func askFocus() {
         guard appearedForTyping, shownForTyping, !focusAsked, host.holder === self else { return }
         focusAsked = true
+        // Rust counts Unicode scalars, not the characters Swift's prefix would.
+        let typed = String(String.UnicodeScalarView((keyField.text ?? "").unicodeScalars.prefix(Self.maxTyped)))
+        keyField.text = nil
         host.webView.becomeFirstResponder()
-        actions.focus(self)
+        actions.focus(self, typed)
         keepPageAtTop()
     }
 

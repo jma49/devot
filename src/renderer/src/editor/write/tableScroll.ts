@@ -67,7 +67,8 @@ class TableScroll {
   update(update: ViewUpdate) {
     if (update.docChanged && this.offsets.size > 0) {
       const mapped = new Map<number, number>()
-      for (const [from, x] of this.offsets) mapped.set(update.changes.mapPos(from), x)
+      // Text put in at a table's start goes before the table, so its key moves past it.
+      for (const [from, x] of this.offsets) mapped.set(update.changes.mapPos(from, 1), x)
       this.offsets = mapped
     }
     const reconfigured = update.transactions.some((tr) => tr.reconfigured)

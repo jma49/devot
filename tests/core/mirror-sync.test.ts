@@ -47,7 +47,7 @@ afterEach(() => {
   open.splice(0).forEach((a) => a.close())
 })
 
-function library(options: { root?: string; dbPath?: string } = {}) {
+function library(options: { root?: string; dbPath?: string; retryMs?: number } = {}) {
   const sqlite = openSqliteAdapter(options.dbPath ?? join(tempDir('devot-mirror-db-'), 'db.sqlite'))
   open.push(sqlite)
   const clock = createClock('mac1')
@@ -67,7 +67,7 @@ function library(options: { root?: string; dbPath?: string } = {}) {
     untitled: 'Untitled',
     delayMs: 5,
     maxWaitMs: 50,
-    retryMs: 20,
+    retryMs: options.retryMs ?? 20,
     onError: (code) => errors.push(code),
   })
   runners.push(runner)
@@ -873,6 +873,40 @@ describe('the folder going away', () => {
     lib.runner.wake()
     await until(() => lib.host.paused() === null && read(lib, 'Loose.md').includes('Read-only.'))
     expect(lib.errors).toContain('E_MIRROR_FOLDER_READ_ONLY')
+  })
+
+  const blockManifest = (lib: Library) => {
+    rmSync(join(lib.root, MANIFEST))
+    mkdirSync(join(lib.root, MANIFEST))
+  }
+  const unblockManifest = (lib: Library) => rmSync(join(lib.root, MANIFEST), { recursive: true })
+
+  it('a batch whose manifest cannot be saved pauses the mirror, which checks again on its own', async () => {
+    const lib = await sample()
+    await mirrorOn(lib)
+    blockManifest(lib)
+    await lib.notes.setBody(lib.ids.loose, 'Unsaved.\n')
+    await lib.notes.flush()
+    await until(() => lib.host.paused() === 'E_MIRROR_FOLDER_READ_ONLY')
+    expect(read(lib, 'Loose.md')).toBe('Unsaved.\n')
+    unblockManifest(lib)
+    await until(() => lib.host.paused() === null, 2000)
+    expect(read(lib, MANIFEST)).toContain(sha256Hex('Unsaved.\n'))
+  })
+
+  it('a batch whose manifest cannot be saved resumes when the window comes to the front', async () => {
+    const lib = library({ retryMs: 60_000 })
+    await lib.note('Loose', null, 'Loose.\n')
+    await mirrorOn(lib)
+    blockManifest(lib)
+    await lib.notes.setBody((await lib.sqlite.listNotes())[0]!.id, 'Unsaved.\n')
+    await lib.notes.flush()
+    await until(() => lib.errors.includes('E_MIRROR_FOLDER_READ_ONLY'), 2000)
+    await new Promise((r) => setTimeout(r, 0))
+    unblockManifest(lib)
+    lib.runner.wake()
+    await until(() => lib.host.paused() === null, 2000)
+    expect(read(lib, MANIFEST)).toContain(sha256Hex('Unsaved.\n'))
   })
 
   it('a locked folder inside it holds back only its own files', async (context) => {

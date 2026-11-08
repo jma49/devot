@@ -35,7 +35,7 @@ import type {
   TagRecord,
 } from '../storage'
 import { retargetSavedSearches } from '../savedSearches'
-import { isTagColor, isTagColorValue, sameName } from '../tags'
+import { inTagTurn, isTagColor, isTagColorValue, sameName } from '../tags'
 import {
   bodyPrint,
   decodeRecord,
@@ -59,6 +59,7 @@ import {
   type SyncEntry,
   type SyncFileMeta,
   type SyncLocal,
+  type SyncNoteRow,
   type SyncStore,
 } from './store'
 import { MOVED_ID, readMoved } from './moved'
@@ -108,6 +109,8 @@ interface PassOptions {
 }
 
 const MAX_PUSH_RETRIES = 5
+/** Keep's writes of one note that a window's save of it may refuse as stale. */
+const MAX_KEEP_ATTEMPTS = 3
 const MAX_CLOCK_SKEW_MS = 5 * 60_000
 const RETRY_BASE_MS = 250
 const RECONNECT_MIN_MS = 1_000
@@ -142,6 +145,8 @@ const UPLOAD_TOTAL = 'uploadTotal'
 const SKIPPED_BY = 'skippedBy'
 /** After Keep: the HLC of the choice, until the first full pull after it; '' otherwise. */
 const KEEP_BEFORE = 'keepRestoredBefore'
+/** Keep was chosen for the restore whose `RESTORED_AT` this holds: a Keep cut off part-way is carried on, not asked again. */
+const KEEPING = 'keepingRestored'
 /** The pull cursor, in `sync_state`. */
 const SINCE = 'since'
 /** '1' once a pull got past the start: a restore then asks first (ADR 0013). Kept through a new epoch. */
@@ -448,6 +453,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   let running = false
   let connected = false
+  /** Counts connects; a pass ends only on the connection it started on, so a stop or a drop reported meanwhile stands. */
+  let connection = 0
   let status: SyncStatus = {
     state: 'off',
     lastSync: null,
@@ -479,7 +486,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   const seenEdits = new Map<string, { edits: number; hlc: string }>()
   /** Record ID to the fingerprint the relay refused as too large; a changed record is tried again. */
   const tooLarge = new Map<string, string>()
-  /** Past the retry cap: left until the next `changed`. */
+  /** Past the retry cap: left until the next `changed`, or on iCloud the next poll or focus pass. */
   const parked = new Set<string>()
   /** Records this run skipped, by store name: a later pull that reads one takes it off the count. */
   const skippedIds = new Set<string>()
@@ -540,6 +547,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     passQueued = true
     void enqueue(async () => {
       passQueued = false
+      // A silent push may not come, so on iCloud this pass stands in for the `changed` that releases parked records.
+      if (via === 'icloud') parked.clear()
       // A failure before this pass (a stop, a drop) closed the connection it was queued on.
       if (connected) await syncAll()
     }).catch(() => undefined)
@@ -657,6 +666,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       reportUnsynced()
     }
     connected = true
+    connection += 1
     reconnectDelay = RECONNECT_MIN_MS
     await syncAll(pass)
   }
@@ -664,7 +674,12 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   /** A library that never synced has nothing later to bring back, so nobody is asked. */
   async function waitsForRestoreChoice() {
     const state = await sync.syncState()
-    if (!state[RESTORED_AT]) return false
+    const restoredAt = state[RESTORED_AT]
+    if (!restoredAt) return false
+    if (state[KEEPING] === restoredAt) {
+      await keepRestored()
+      return false
+    }
     if (state[HAS_SYNCED] !== '1') {
       await sync.syncSetState(RESTORED_AT, '')
       return false
@@ -673,24 +688,39 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     return true
   }
 
-  /** Every field of every live record gets a new HLC, so it wins each merge; bodies are put back as they are pulled (`keptBody`). */
+  /**
+   * Every field of every live record gets a new HLC, so it wins each merge; bodies are put back as they are pulled (`keptBody`).
+   * Run again from the start when cut off (`KEEPING`): a second stamp wins as the first would have.
+   */
   async function keepRestored() {
     const tick = () => clock.tick()
+    const keepNote = async (row: SyncNoteRow) => {
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          await storage.putNote({
+            ...row.note,
+            titleHlc: tick(),
+            bookHlc: tick(),
+            statusHlc: tick(),
+            pinnedHlc: tick(),
+            datesHlc: tick(),
+            deletedHlc: tick(),
+          })
+          break
+        } catch (error) {
+          // A window saved the note meanwhile.
+          if (errorCode(error) !== 'E_NOTE_BODY_STALE' || attempt >= MAX_KEEP_ATTEMPTS) throw error
+          const again = (await sync.syncRead([row.note.id]))[0]?.note
+          if (!again || again.purged) return
+          row = again
+        }
+      }
+      for (const tag of row.tags) await storage.putNoteTag({ ...tag, hlc: tick() })
+    }
     const notes = [...(await storage.listNotes()), ...(await storage.listTrash())].map((n) => n.id)
     for (let at = 0; at < notes.length; at += MAX_SYNC_IDS) {
       for (const row of await sync.syncRead(notes.slice(at, at + MAX_SYNC_IDS))) {
-        if (!row.note || row.note.purged) continue
-        const note = row.note.note
-        await storage.putNote({
-          ...note,
-          titleHlc: tick(),
-          bookHlc: tick(),
-          statusHlc: tick(),
-          pinnedHlc: tick(),
-          datesHlc: tick(),
-          deletedHlc: tick(),
-        })
-        for (const tag of row.note.tags) await storage.putNoteTag({ ...tag, hlc: tick() })
+        if (row.note && !row.note.purged) await keepNote(row.note)
       }
     }
     // A key never given stays unset (books.ts `unkeyed`).
@@ -718,6 +748,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       })
     }
     await sync.syncSetState(KEEP_BEFORE, tick())
+    await sync.syncSetState(RESTORED_AT, '')
+    await sync.syncSetState(KEEPING, '')
     if (notes.length > 0) options.onApplied?.(notes)
   }
 
@@ -748,13 +780,15 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   }
 
   async function syncAll(pass: PassOptions = {}) {
+    const on = connection
     set({ state: 'syncing' })
     await pullAll()
     await pushAll(pass)
-    await finishPass()
+    await finishPass(on)
   }
 
-  async function finishPass() {
+  async function finishPass(on: number) {
+    if (!connected || on !== connection) return
     if (heldBack) {
       set({ state: 'idle', code: null })
       return
@@ -933,17 +967,19 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
    */
   async function followRename(before: TagState, after: TagState) {
     if (after.deletedAt !== null || sameName(before.name, after.name)) return
-    const tags = await storage.listTags()
-    for (const search of await storage.listSavedSearches()) {
-      let rewritten: SavedSearchRecord[]
-      try {
-        rewritten = retargetSavedSearches([search], tags, before, after.name, clock, now())
-      } catch (error) {
-        console.warn('W_SYNC_SEARCH_NOT_RETARGETED', search.id, errorCode(error))
-        continue
+    await inTagTurn(storage, async () => {
+      const tags = await storage.listTags()
+      for (const search of await storage.listSavedSearches()) {
+        let rewritten: SavedSearchRecord[]
+        try {
+          rewritten = retargetSavedSearches([search], tags, before, after.name, clock, now())
+        } catch (error) {
+          console.warn('W_SYNC_SEARCH_NOT_RETARGETED', search.id, errorCode(error))
+          continue
+        }
+        for (const record of rewritten) await storage.putSavedSearch(record)
       }
-      for (const record of rewritten) await storage.putSavedSearch(record)
-    }
+    })
   }
 
   /** A body version taken in the last REVISION_EVERY_MS: changes that only came from other devices are kept no more often than typing here is (#216). */
@@ -1129,11 +1165,12 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       armPaced(pace?.until)
       return
     }
+    const on = connection
     set({ state: 'syncing' })
     await pushAll({ paced })
     // iCloud has no socket to say what changed meanwhile, and a silent push may not come.
     if (pull && via === 'icloud') await pullAll()
-    await finishPass()
+    await finishPass(on)
   }
 
   const kept = (id: string) => tooLarge.has(id) || unsynced.has(id) || parked.has(id)
@@ -1522,12 +1559,20 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     status: () => status,
     afterRestore: (choice) =>
       enqueue(async () => {
-        if (!(await sync.syncState())[RESTORED_AT]) return
-        if (choice === 'keep') await keepRestored()
-        await sync.syncSetState(RESTORED_AT, '')
-        set({ code: null })
+        const state = await sync.syncState()
+        const restoredAt = state[RESTORED_AT]
+        if (!restoredAt) return
+        // Out of the wait, so a failure is reported, and retried, as any other.
+        set({ state: 'connecting', code: null })
+        if (choice === 'keep' && state[KEEPING] !== restoredAt) {
+          await sync.syncSetState(KEEPING, restoredAt)
+        } else if (state[KEEPING] !== restoredAt) {
+          // The restored library may hold the mark of a Keep made before the backup.
+          await sync.syncSetState(KEEP_BEFORE, '')
+          await sync.syncSetState(RESTORED_AT, '')
+        }
         await connect(true)
-      }).catch(() => undefined),
+      }),
     focused() {
       if (!running) return
       // No timer means a connect is under way already.

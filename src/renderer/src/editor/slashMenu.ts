@@ -472,34 +472,42 @@ function pick(view: EditorView, id: SlashId, from: number, to: number) {
 const dismiss = StateEffect.define<number>()
 
 /**
- * The slash whose menu was closed without a pick (Escape, the editor losing
- * the focus, or a query that matches nothing), by position: that menu stays
- * closed while the slash is there, so typing on, or Backspace, keeps the
+ * The slashes whose menu was closed without a pick (Escape, the editor losing
+ * the focus, or a query that matches nothing), by position: each menu stays
+ * closed while its slash is there, so typing on, or Backspace, keeps the
  * text as typed.
  */
-const dismissed = StateField.define<number | null>({
-  create: () => null,
+const dismissed = StateField.define<readonly number[]>({
+  create: () => [],
   update(value, tr) {
-    let next = value === null ? null : tr.changes.mapPos(value, 1, MapMode.TrackAfter)
-    for (const effect of tr.effects) if (effect.is(dismiss)) next = effect.value
-    return next
+    const added = tr.effects.some((e) => e.is(dismiss))
+    if (!tr.docChanged && !added) return value
+    const next = new Set<number>()
+    for (const pos of value) {
+      const mapped = tr.changes.mapPos(pos, 1, MapMode.TrackAfter)
+      if (mapped !== null) next.add(mapped)
+    }
+    for (const effect of tr.effects) if (effect.is(dismiss)) next.add(effect.value)
+    return [...next]
   },
 })
+
+const isDismissed = (state: EditorState, slash: number) =>
+  state.field(dismissed, false)?.includes(slash) ?? false
 
 const dismissUnmatched = EditorState.transactionExtender.of((tr) => {
   if (!tr.docChanged) return null
   const typed = typedQuery(tr.newDoc, tr.newSelection)
   if (!typed || !matchesNothing(typed.query)) return null
-  const before = tr.startState.field(dismissed, false)
-  if (before !== undefined && before !== null && tr.changes.mapPos(before, 1) === typed.from)
-    return null
+  const before = tr.startState.field(dismissed, false) ?? []
+  if (before.some((pos) => tr.changes.mapPos(pos, 1) === typed.from)) return null
   return { effects: dismiss.of(typed.from) }
 })
 
 function noteDismissal(view: EditorView) {
   if (completionStatus(view.state) === null) return
   const typed = typedQuery(view.state.doc, view.state.selection)
-  if (typed && view.state.field(dismissed, false) !== typed.from)
+  if (typed && !isDismissed(view.state, typed.from))
     // The slash typed hid the selection toolbar; closing its menu hands it back.
     view.dispatch({ effects: [dismiss.of(typed.from), releaseToolbar.of(null)] })
 }
@@ -523,7 +531,7 @@ const optionSlash = new WeakMap<Completion, number>()
 export function slashSource(cx: CompletionContext): CompletionResult | null {
   if (cx.view?.composing) return null
   const trigger = slashTrigger(cx.state)
-  if (!trigger || cx.state.field(dismissed, false) === trigger.from) return null
+  if (!trigger || isDismissed(cx.state, trigger.from)) return null
   const items = slashItems(cx.state, trigger)
   if (items.length === 0) return null
   const matched = new Map<Completion, readonly number[]>()
@@ -582,8 +590,7 @@ function pickGreyedOut(view: EditorView): boolean {
   if (completionStatus(state) !== 'pending' || currentCompletions(state).length > 0) return false
   const slash = view.plugin(shownList)?.slash ?? null
   const trigger = slashTrigger(state)
-  if (slash === null || trigger?.from !== slash || state.field(dismissed, false) === slash)
-    return false
+  if (slash === null || trigger?.from !== slash || isDismissed(state, slash)) return false
   const [best] = slashItems(state, trigger)
   if (!best) return false
   pick(view, best.id, trigger.from, trigger.to)

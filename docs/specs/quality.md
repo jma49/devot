@@ -49,6 +49,8 @@ Losing or corrupting a note is the one failure that cannot be undone.
   A restore made with sync off sets `restoredAt` in `sync_state`.
   When sync is next turned on, the engine connects to nothing while that marker is there (`E_SYNC_RESTORE_CHOICE`, in Settings as advice) and the main window asks (`RestoreSyncChoice.tsx`, ADR 0013): **Merge**, the default (Return and Escape), syncs as usual, so the other devices' later changes come back; **Keep This Mac's Copy** gives every field of every live note, note tag, notebook, tag and saved search here a fresh HLC (`keepRestored` in `src/core/sync/engine.ts`) and, during the next full pull, edits a body another device changed before the choice back to this device's text on top of the merged state (`keptBody`), so every device ends with the restored notes.
   Either way the marker is cleared, and the dialog says that a note purged on another device cannot come back (a purge is final).
+  Merge also clears a Keep's mark (`keepRestoredBefore`) the restored library may hold, so it merges as usual.
+  Keep is recorded first (`keepingRestored`, holding the marker's value) and the marker is cleared only once every record is stamped: a Keep cut off part-way (a storage failure) is reported like any sync failure, and the next connect carries it on from the start instead of asking again; a note a window saved while Keep ran is read again and stamped.
   A restored library that never synced (no `hasSynced` in `sync_state`) is not asked about.
   Notes made elsewhere after the backup are not in it and stay.
   Restore has its own test.

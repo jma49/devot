@@ -8,6 +8,7 @@ import {
   dayAllowed,
   dayKeyMove,
   dayOf,
+  hourOf,
   monthGrid,
   pendingAt,
   pendingOf,
@@ -177,7 +178,7 @@ export function DatePicker(props: {
     else if (key === 'ArrowRight' && index < order.length - 1) focus(index + 1)
     else if ((key === 'Backspace' || key === 'Delete') && segment !== 'dayPeriod') {
       typed.current = ''
-      change({ ...pending, [segment]: null })
+      change({ ...pending, [segment === 'hour' ? 'hourInHalf' : 'minute']: null })
     } else if (/^\d$/.test(key) && segment !== 'dayPeriod') {
       const next = typeSegment(pending, segment, typed.current, key, dayPeriod)
       change(next.pending)
@@ -233,7 +234,8 @@ export function DatePicker(props: {
       {text}
     </span>
   )
-  const pm = (pending.hour ?? 0) >= 12
+  const pm = pending.pm
+  const hour = hourOf(pending)
 
   return (
     <div
@@ -322,8 +324,8 @@ export function DatePicker(props: {
         <span className="date-picker-clock" role="group" aria-labelledby={`${id}-time`}>
           {segment(
             'hour',
-            pending.hour === null ? '--' : pad(shownHour(pending.hour, dayPeriod)),
-            pending.hour === null ? null : shownHour(pending.hour, dayPeriod),
+            hour === null ? '--' : pad(shownHour(hour, dayPeriod)),
+            hour === null ? null : shownHour(hour, dayPeriod),
             dayPeriod ? [1, 12] : [0, 23],
           )}
           <span className="date-picker-colon" aria-hidden="true">

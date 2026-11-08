@@ -46,6 +46,7 @@ import { useOutlineRoom } from '../outline/useOutlineRoom'
 import type { ScrollPane } from '../preview/scrollSync'
 import { ActivationBar, TrialEndedBar } from '../TrialNotices'
 import { failureText } from '../failure'
+import { nextLife, type NoteLife } from './noteLife'
 
 /** Hears what Rust asks of this window: the global quit, by its round, and the close of this window alone. */
 function listenAsked(onClose: () => void, onQuit: (round: number) => void): () => void {
@@ -104,8 +105,8 @@ export function NoteWindow() {
   const outlineShown = outlineSetting && outlineRoom
   const [viewing, setViewing] = useState<ViewedImage | null>(null)
   const [held, setHeld] = useState<'quit' | 'close' | undefined>()
-  // The note went to the Trash, or was purged, while this window showed it: read-only from then on.
-  const [gone, setGone] = useState<'trashed' | 'purged'>()
+  // Read-only while the note is in the Trash or once it is purged (see nextLife).
+  const [life, setLife] = useState<NoteLife>('live')
   const editing = useEditing()
   useEffect(() => startLicence(), [])
   useSaveAtTrialEnd(editing, core)
@@ -144,9 +145,9 @@ export function NoteWindow() {
       const c = started
       if (!alive) return stopCore(c)
       const listening = link.listen((message) => {
-        // A note trashed or purged in another window: this one keeps its text, read-only, and says why.
-        if (message.kind === 'gone') {
-          setGone(message.purged ? 'purged' : 'trashed')
+        // A note trashed, purged or put back in another window: this one keeps its text and says why it is read-only.
+        if (message.kind === 'gone' || message.kind === 'back') {
+          setLife((was) => nextLife(was, message))
           return
         }
         void c.relayIn(message).catch((e: unknown) => {
@@ -273,7 +274,7 @@ export function NoteWindow() {
               aria-label={t('note.titleLabel')}
               placeholder={t('note.untitled')}
               value={title}
-              readOnly={!editing || gone !== undefined}
+              readOnly={!editing || life !== 'live'}
               onChange={(e) => rename(e.target.value)}
               onKeyDown={(e) => {
                 // Return and Down Arrow go on to the body, as in the main window.
@@ -308,7 +309,7 @@ export function NoteWindow() {
                 onOpenImage={setViewing}
                 showImageMenu={showImageMenu}
                 onOpenNote={openNote}
-                readOnly={!editing || gone !== undefined}
+                readOnly={!editing || life !== 'live'}
               />
               {editorOnly(mode) ? null : (
                 <LivePreview
@@ -351,10 +352,10 @@ export function NoteWindow() {
       <Notices>
         <ActivationBar />
         <TrialEndedBar />
-        {gone ? (
+        {life !== 'live' ? (
           <div role="alert" className="notice" data-devot-part="notice">
             <span className="notice-text">
-              {t(gone === 'purged' ? 'noteWindow.purged' : 'noteWindow.trashed')}
+              {t(life === 'purged' ? 'noteWindow.purged' : 'noteWindow.trashed')}
             </span>
           </div>
         ) : null}

@@ -237,7 +237,8 @@ fn file_font(bytes: &[u8], size: f64, weight: f64, italic: bool) -> Option<Retai
 }
 
 /// `text`, the selection the page sends, is spoken by a speech synthesizer; without it the web view
-/// speaks its own selection (the system's Speech action). Stopping stops both.
+/// speaks its own selection (the system's Speech action). A start stops the other voice first;
+/// stopping stops both.
 pub fn speak(
     webview: &tauri::webview::PlatformWebview,
     start: bool,
@@ -262,42 +263,55 @@ unsafe fn speak_in(
     // SAFETY: `web_view` is null or live (caller contract).
     let services = unsafe { text_services(web_view) };
     let nothing: *const AnyObject = std::ptr::null();
-    if !start {
-        if services.stop_speaking {
-            // SAFETY: the selector was checked; a nil sender is allowed.
-            unsafe {
-                let _: () = msg_send![web_view, stopSpeaking: nothing];
+    for step in speech_steps(start, text, services)? {
+        match step {
+            SpeechStep::StopWebView => {
+                // SAFETY: `speech_steps` names this step only when the
+                // selector was checked; a nil sender is allowed.
+                unsafe {
+                    let _: () = msg_send![web_view, stopSpeaking: nothing];
+                }
             }
-        }
-        stop_synthesizer();
-        return Ok(());
-    }
-    match speech_source(text, services.start_speaking) {
-        Some(SpeechSource::Text(text)) => speak_with_synthesizer(text),
-        Some(SpeechSource::WebView) => {
-            // SAFETY: the selector was checked; a nil sender is allowed.
-            unsafe {
-                let _: () = msg_send![web_view, startSpeaking: nothing];
+            SpeechStep::StartWebView => {
+                // SAFETY: `speech_steps` names this step only when the
+                // selector was checked; a nil sender is allowed.
+                unsafe {
+                    let _: () = msg_send![web_view, startSpeaking: nothing];
+                }
             }
-            Ok(())
+            SpeechStep::StopSynthesizer => stop_synthesizer(),
+            SpeechStep::Synthesize(text) => speak_with_synthesizer(text)?,
         }
-        None => Err("E_SPEECH_NOTHING_TO_SAY"),
     }
+    Ok(())
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum SpeechSource<'a> {
-    Text(&'a str),
-    WebView,
+enum SpeechStep<'a> {
+    StopWebView,
+    StopSynthesizer,
+    StartWebView,
+    Synthesize(&'a str),
 }
 
-/// The page's text first: the editor draws only the lines near the view, so the web view's own
-/// selection can hold a fraction of a long one.
-fn speech_source(text: Option<&str>, web_view_speaks: bool) -> Option<SpeechSource<'_>> {
-    match text {
-        Some(text) => Some(SpeechSource::Text(text)),
-        None => web_view_speaks.then_some(SpeechSource::WebView),
-    }
+/// Every start first stops the other voice, so only one speaks at a time. The page's text comes
+/// first: the editor draws only the lines near the view, so the web view's own selection can hold
+/// a fraction of a long one.
+fn speech_steps(
+    start: bool,
+    text: Option<&str>,
+    services: TextServices,
+) -> Result<Vec<SpeechStep<'_>>, &'static str> {
+    let stop_web_view = services.stop_speaking.then_some(SpeechStep::StopWebView);
+    let then = match (start, text) {
+        (false, _) => SpeechStep::StopSynthesizer,
+        (true, Some(text)) => SpeechStep::Synthesize(text),
+        (true, None) if services.start_speaking => {
+            return Ok(vec![SpeechStep::StopSynthesizer, SpeechStep::StartWebView]);
+        }
+        (true, None) => return Err("E_SPEECH_NOTHING_TO_SAY"),
+    };
+    Ok(stop_web_view.into_iter().chain([then]).collect())
 }
 
 fn stop_synthesizer() {
@@ -474,17 +488,49 @@ pub fn self_test_look_up_fonts() -> Result<(), &'static str> {
 mod tests {
     use super::*;
 
+    const ALL: TextServices = TextServices {
+        look_up: true,
+        start_speaking: true,
+        stop_speaking: true,
+    };
+
     #[test]
     fn speaks_the_text_the_page_sends_and_the_web_views_selection_only_without_it() {
+        let no_web_speech = TextServices {
+            start_speaking: false,
+            stop_speaking: false,
+            ..ALL
+        };
         assert_eq!(
-            speech_source(Some("a long selection"), true),
-            Some(SpeechSource::Text("a long selection"))
+            speech_steps(true, Some("a"), no_web_speech),
+            Ok(vec![SpeechStep::Synthesize("a")])
         );
         assert_eq!(
-            speech_source(Some("a"), false),
-            Some(SpeechSource::Text("a"))
+            speech_steps(true, None, no_web_speech),
+            Err("E_SPEECH_NOTHING_TO_SAY")
         );
-        assert_eq!(speech_source(None, true), Some(SpeechSource::WebView));
-        assert_eq!(speech_source(None, false), None);
+    }
+
+    #[test]
+    fn a_start_stops_the_other_voice_first() {
+        assert_eq!(
+            speech_steps(true, Some("a long selection"), ALL),
+            Ok(vec![
+                SpeechStep::StopWebView,
+                SpeechStep::Synthesize("a long selection")
+            ])
+        );
+        assert_eq!(
+            speech_steps(true, None, ALL),
+            Ok(vec![SpeechStep::StopSynthesizer, SpeechStep::StartWebView])
+        );
+    }
+
+    #[test]
+    fn stopping_stops_both_voices() {
+        assert_eq!(
+            speech_steps(false, None, ALL),
+            Ok(vec![SpeechStep::StopWebView, SpeechStep::StopSynthesizer])
+        );
     }
 }

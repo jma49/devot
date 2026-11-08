@@ -45,7 +45,7 @@ interface Found {
 }
 
 interface Index {
-  /** The reading's state at the start of each line, by line number; see `reader`. */
+  /** The reading's state at the start of each line, by line number, packed from a `Reading`. */
   states: Int32Array
   /** The lines that add something, in order. */
   found: Found[]
@@ -55,20 +55,16 @@ interface Index {
 
 const cache = new WeakMap<Text, Index>()
 
+// The bits of a packed `Reading`, as the cache keeps it.
 const BLANK_BEFORE = 1
-const IN_CODE = 2
+const DEFINITION_PENDING = 2
 const IN_LIST = 4
 const IN_DEFINITION = 8
 const TILDE = 16
-/** The line before is paragraph text, which a line continues unless it starts a block. */
 const IN_PARAGRAPH = 32
-/** The quote depth of the open paragraph or link definition, in three bits from here. */
 const QUOTE_SHIFT = 6
-/** The open link definition's stage, in three bits from here. */
 const LINK_SHIFT = 9
-/** A fence's length is kept from this bit up; none while outside a fence. */
 const FENCE_SHIFT = 12
-const OPEN = IN_PARAGRAPH | (7 << QUOTE_SHIFT) | (7 << LINK_SHIFT)
 
 // A link definition's stage at the end of a line: as CommonMark reads one, its destination may
 // come on the line after its label, and its title on the line after that, running over lines.
@@ -82,6 +78,61 @@ const IN_TITLE = 3
 const NO_DEFINITION = -1
 const TITLE_OPENS = ['"', "'", '(']
 const TITLE_CLOSES = ['"', "'", ')']
+
+/** The paragraph or link definition open at a line's end. */
+interface Open {
+  /** The line is paragraph text, which the next continues unless it starts a block. */
+  paragraph: boolean
+  /** The quote depth of the open paragraph or link definition, at most 7. */
+  quotes: number
+  /** The open link definition's stage. */
+  link: number
+}
+
+/** The reading's state at the start of a line. */
+interface Reading extends Open {
+  blankBefore: boolean
+  list: boolean
+  /** A footnote definition is open, or pending after a blank line, where an indented line continues it. */
+  definition: 'none' | 'open' | 'pending'
+  fence: { mark: string; length: number } | null
+}
+
+const CLOSED: Open = { paragraph: false, quotes: 0, link: COMPLETE }
+const START: Reading = {
+  ...CLOSED,
+  blankBefore: true,
+  list: false,
+  definition: 'none',
+  fence: null,
+}
+
+function pack(r: Reading): number {
+  return (
+    (r.blankBefore ? BLANK_BEFORE : 0) |
+    (r.definition === 'pending' ? DEFINITION_PENDING : 0) |
+    (r.list ? IN_LIST : 0) |
+    (r.definition === 'open' ? IN_DEFINITION : 0) |
+    (r.fence?.mark === '~' ? TILDE : 0) |
+    (r.paragraph ? IN_PARAGRAPH : 0) |
+    (r.quotes << QUOTE_SHIFT) |
+    (r.link << LINK_SHIFT) |
+    ((r.fence?.length ?? 0) << FENCE_SHIFT)
+  )
+}
+
+function unpack(state: number): Reading {
+  const fence = state >> FENCE_SHIFT
+  return {
+    blankBefore: (state & BLANK_BEFORE) !== 0,
+    list: (state & IN_LIST) !== 0,
+    definition: state & IN_DEFINITION ? 'open' : state & DEFINITION_PENDING ? 'pending' : 'none',
+    fence: fence > 0 ? { mark: state & TILDE ? '~' : '`', length: fence } : null,
+    paragraph: (state & IN_PARAGRAPH) !== 0,
+    quotes: (state >> QUOTE_SHIFT) & 7,
+    link: (state >> LINK_SHIFT) & 7,
+  }
+}
 
 /** Whether the character at `at` is escaped by an odd run of backslashes before it. */
 function escaped(text: string, at: number): boolean {
@@ -166,90 +217,102 @@ function definitionOn(text: string): { label: string; stage: number } | null {
 }
 
 /**
- * What a line's `text`, after its `containers`, does to the paragraph or link definition open in
- * `state`: the open bits after it. A link definition's line notes it in `adds`.
+ * What a line's `text`, after its `containers`, does to the paragraph or link definition `open`
+ * before it: what is open after it. A link definition's line notes it in `adds`. A line that
+ * continues a footnote definition without its indent is `lazy`.
  */
-function readBlock(text: string, containers: string, state: number, adds: Found): number {
-  if (text === '' || HEADING.test(text) || RULE.test(text)) return 0
+function readBlock(text: string, containers: string, open: Open, adds: Found, lazy: boolean): Open {
+  if (text === '' || HEADING.test(text) || RULE.test(text)) return CLOSED
   const quotes = Math.min(containers.split('>').length - 1, 7)
-  const stage = (state >> LINK_SHIFT) & 7
-  const outer = (state >> QUOTE_SHIFT) & 7
+  const { link: stage, quotes: outer } = open
   // A line that opens a quote or a list item starts anew; any other continues what is open, lazily or not.
   const continues =
-    ((state & IN_PARAGRAPH) !== 0 || stage !== COMPLETE) &&
-    quotes <= outer &&
-    !ITEM_MARK.test(containers)
+    (open.paragraph || stage !== COMPLETE) && quotes <= outer && !ITEM_MARK.test(containers)
   if (continues) {
-    const kept = outer << QUOTE_SHIFT
-    if (stage !== MAY_TAKE_TITLE && UNDERLINE.test(text)) return 0
-    if (stage === COMPLETE) return IN_PARAGRAPH | kept
+    const paragraph = { paragraph: true, quotes: outer, link: COMPLETE }
+    // A lazy line is never a heading's underline, so it stays paragraph text.
+    const underlines = !lazy && quotes === outer && stage !== MAY_TAKE_TITLE
+    if (underlines && UNDERLINE.test(text)) return CLOSED
+    if (stage === COMPLETE) return paragraph
     const after = readDefinition(text, 0, stage)
     if (after === COMPLETE || after === MAY_TAKE_TITLE) adds.closesLink = true
-    if (after !== NO_DEFINITION) return after === COMPLETE ? 0 : (after << LINK_SHIFT) | kept
-    if (stage !== MAY_TAKE_TITLE) return IN_PARAGRAPH | kept
+    if (after === COMPLETE) return CLOSED
+    if (after !== NO_DEFINITION) return { paragraph: false, quotes: outer, link: after }
+    if (stage !== MAY_TAKE_TITLE) return paragraph
   }
   const definition = definitionOn(text)
   if (definition) {
     adds.link = definition.label
     if (definition.stage > MAY_TAKE_TITLE) adds.linkOpen = true
-    if (definition.stage === COMPLETE) return 0
-    return (definition.stage << LINK_SHIFT) | (quotes << QUOTE_SHIFT)
+    if (definition.stage === COMPLETE) return CLOSED
+    return { paragraph: false, quotes, link: definition.stage }
   }
   const note = FOOTNOTE_DEFINITION.exec(text)
-  if (note && text.slice(note[0].length).trim() === '') return 0
-  return IN_PARAGRAPH | (quotes << QUOTE_SHIFT)
+  if (note && text.slice(note[0].length).trim() === '') return CLOSED
+  return { paragraph: true, quotes, link: COMPLETE }
 }
 
-/** Reads one line in state `state`, returns the state after it and adds what the line adds to `found`. */
-function readLine(line: string, number: number, state: number, found: Found[]): number {
-  const fence = state >> FENCE_SHIFT
+/** Reads one line in `state`, returns the state after it and adds what the line adds to `found`. */
+function next(state: Reading, line: string, number: number, found: Found[]): Reading {
   const marker = FENCE.exec(line)?.[1]
-  if (fence > 0) {
-    const kind = state & TILDE ? '~' : '`'
-    const flags = (1 << FENCE_SHIFT) - 1
-    return marker && marker[0] === kind && marker.length >= fence ? state & ~TILDE & flags : state
+  if (state.fence) {
+    const { mark, length } = state.fence
+    return marker && marker[0] === mark && marker.length >= length
+      ? { ...state, fence: null }
+      : state
   }
-  if (line.trim() === '') return (state | BLANK_BEFORE) & ~(IN_DEFINITION | OPEN)
-  if (marker) {
-    return (
-      (state & ~(BLANK_BEFORE | OPEN)) |
-      (marker[0] === '~' ? TILDE : 0) |
-      (marker.length << FENCE_SHIFT)
-    )
+  if (line.trim() === '') {
+    const definition = state.definition === 'none' ? 'none' : 'pending'
+    return { ...state, ...CLOSED, blankBefore: true, definition }
   }
-  const blankBefore = (state & BLANK_BEFORE) !== 0
-  let inList = (state & IN_LIST) !== 0
-  if (LIST_ITEM.test(line)) inList = true
-  else if (!INDENTED.test(line) && blankBefore) inList = false
-  const inCode = INDENTED.test(line) && !inList && (blankBefore || (state & IN_CODE) !== 0)
-  let inDefinition = (state & IN_DEFINITION) !== 0
-  let open = 0
-  const next = () =>
-    (inCode ? IN_CODE : 0) | (inList ? IN_LIST : 0) | (inDefinition ? IN_DEFINITION : 0) | open
-  if (inCode) return next()
+  const indented = INDENTED.test(line)
+  const lead = line.trimStart()
+  const startsBlock =
+    !indented &&
+    (marker !== undefined ||
+      HEADING.test(lead) ||
+      RULE.test(lead) ||
+      lead.startsWith('>') ||
+      LIST_ITEM.test(line))
+  let list = state.list
+  if (LIST_ITEM.test(line) && !RULE.test(lead)) list = true
+  else if (!indented && (state.blankBefore || (startsBlock && line === lead))) list = false
+  let definition = state.definition
+  if (definition !== 'none' && !indented) {
+    // Only paragraph text continues a footnote definition lazily, without its indent.
+    if (definition === 'pending' || startsBlock || !state.paragraph) definition = 'none'
+  } else if (definition === 'pending') definition = 'open'
+  const body = definition !== 'none' && indented ? line.replace(INDENTED, '') : line
+  const opened = state.paragraph || state.link !== COMPLETE
+  const after: Reading = { ...CLOSED, blankBefore: false, list, definition, fence: null }
+  if (INDENTED.test(body) && !list && !opened) return after
+  if (marker) return { ...after, fence: { mark: marker[0] as string, length: marker.length } }
   const prefix = CONTAINERS.exec(line)?.[0].length ?? 0
   const text = line.slice(prefix)
   const adds: Found = { line: number, defined: [], inText: [], inDefinitions: [] }
-  open = readBlock(text, line.slice(0, prefix), state, adds)
+  const lazy = definition === 'open' && !indented
+  const open = readBlock(text, line.slice(0, prefix), state, adds, lazy)
   // A line that completes a link definition holds no references; one of a definition still open may yet be text.
   const defines = adds.closesLink === true || (adds.link !== undefined && !adds.linkOpen)
   if (!defines && line.includes('[^')) {
-    const definition = FOOTNOTE_DEFINITION.exec(text)
+    const note = FOOTNOTE_DEFINITION.exec(text)
     let from = prefix
-    if (definition && !escaped(line, prefix)) {
-      adds.defined.push(footnoteKey(definition[1] as string))
-      inDefinition = true
-      from = prefix + definition[0].length
+    if (note && !escaped(line, prefix)) {
+      adds.defined.push(footnoteKey(note[1] as string))
+      after.definition = 'open'
+      from = prefix + note[0].length
     }
     const rest = line.slice(from).replace(CODE_SPAN, (m) => ' '.repeat(m.length))
     for (const match of rest.matchAll(REFERENCE)) {
       if (escaped(line, from + match.index)) continue
-      ;(inDefinition ? adds.inDefinitions : adds.inText).push(footnoteKey(match[1] as string))
+      ;(after.definition !== 'none' ? adds.inDefinitions : adds.inText).push(
+        footnoteKey(match[1] as string),
+      )
     }
   }
   const labels = adds.defined.length + adds.inText.length + adds.inDefinitions.length
   if (labels > 0 || adds.link !== undefined || adds.closesLink) found.push(adds)
-  return next()
+  return { ...after, ...open }
 }
 
 /**
@@ -270,7 +333,7 @@ function readLines(
   for (const lines = doc.iterLines(first); !lines.next().done; number++) {
     if (number > last && settled(number, state)) return number
     states[number] = state
-    state = readLine(lines.value, number, state, found)
+    state = pack(next(unpack(state), lines.value, number, found))
   }
   states[number] = state
   return number
@@ -305,7 +368,7 @@ function indexOf(doc: Text): Index {
   if (known) return known
   const states = new Int32Array(doc.lines + 2)
   const found: Found[] = []
-  readLines(doc, 1, BLANK_BEFORE, states, found, Infinity, () => false)
+  readLines(doc, 1, pack(START), states, found, Infinity, () => false)
   const index = { states, found, numbers: numbered(found), links: linked(found) }
   cache.set(doc, index)
   return index

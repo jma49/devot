@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use super::super::Vault;
 use super::super::client::{self, Connection, Event, RelayUrl, Welcome};
-use super::super::cloudkit::{self, ICloud};
+use super::super::cloudkit::{self, ICloud, ICloudState};
 use super::super::settings::DeviceCredentials;
 use super::{
     Connected, DEVICE_LABEL, Live, LiveRef, PAIRING_EVENT, REVOKED, SOCKET_EVENT, SyncService,
@@ -163,8 +163,9 @@ impl SyncService {
             Arc::clone(&vault),
             Arc::clone(&self.staging),
         );
+        let keep = |kept: &ICloudState| self.keep_icloud_state(kept);
         let (welcome, kept) = icloud
-            .connect(state, has_synced, DEVICE_LABEL, self.now())
+            .connect(state, has_synced, DEVICE_LABEL, self.now(), &keep)
             .map_err(|code| {
                 log::info!("I_SYNC_ICLOUD_REFUSED {code}");
                 if code == cloudkit::error::ACCOUNT_CHANGED {
@@ -174,17 +175,7 @@ impl SyncService {
             })?;
         let failed = |code| (code, Arc::clone(&vault));
         if kept != *state {
-            self.settings
-                .update(|settings| {
-                    if settings
-                        .icloud
-                        .as_ref()
-                        .is_some_and(|s| s.vault == kept.vault)
-                    {
-                        settings.icloud = Some(kept);
-                    }
-                })
-                .map_err(failed)?;
+            self.keep_icloud_state(&kept).map_err(failed)?;
         }
         log::info!(
             "I_SYNC_ICLOUD_CONNECTED vault={} device={}",
@@ -196,6 +187,19 @@ impl SyncService {
         *self.live.lock().map_err(|_| failed("E_SYNC_INTERNAL"))? =
             Some(Live::ICloud(Arc::new(icloud)));
         Ok(welcome)
+    }
+
+    /// Keeps `kept` as the iCloud state, unless the vault on iCloud changed meanwhile.
+    fn keep_icloud_state(&self, kept: &ICloudState) -> Result<(), &'static str> {
+        self.settings.update(|settings| {
+            if settings
+                .icloud
+                .as_ref()
+                .is_some_and(|s| s.vault == kept.vault)
+            {
+                settings.icloud = Some(kept.clone());
+            }
+        })
     }
 
     fn open(

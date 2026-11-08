@@ -12,6 +12,7 @@ import {
 import { createPortal } from 'react-dom'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
+import { restoreScroll, scrollOffsets } from '../closing'
 import { isImeKey } from '../ime'
 import { motionMs } from '../motionTiming'
 import { watchDragEnd, type DragEnd } from './dragEnd'
@@ -19,6 +20,40 @@ import { holdModal, isTopModal } from './modal'
 
 const DISMISS_TRAVEL = 120
 const DISMISS_SPEED = 0.5
+const CLOSING = 'phone-sheet'
+
+const closingCopies = (host: Element): Element[] =>
+  Array.from(host.children).filter(
+    (child) => child instanceof HTMLElement && child.dataset['closing'] === CLOSING,
+  )
+
+/**
+ * Leaves an inert copy of a closing sheet's `layer` in its place, sliding away, so the sheet itself
+ * goes at once: its parent hears the dismissal in the same turn and may show it again.
+ */
+function leaveClosingCopy(layer: HTMLElement): void {
+  const parent = layer.parentElement
+  if (!parent) return
+  const offsets = scrollOffsets(layer)
+  const copy = layer.cloneNode(true) as HTMLElement
+  for (const node of [copy, ...Array.from(copy.querySelectorAll('*'))]) {
+    for (const name of ['id', 'role', 'aria-modal', 'aria-live']) node.removeAttribute(name)
+  }
+  copy.dataset['closing'] = CLOSING
+  copy.setAttribute('aria-hidden', 'true')
+  copy.inert = true
+  parent.insertBefore(copy, layer.nextSibling)
+  restoreScroll(copy, offsets)
+  const parts = Array.from(copy.children) as HTMLElement[]
+  for (const part of parts) part.removeAttribute('data-dragging')
+  // Styles read before the change, so the exit starts from where the sheet was, a drag included.
+  for (const part of parts) void getComputedStyle(part).transform
+  for (const part of parts) {
+    part.removeAttribute('data-shown')
+    part.style.removeProperty('transform')
+  }
+  setTimeout(() => copy.remove(), motionMs('motion.duration.phone-push'))
+}
 
 /** Whether letting go of a sheet dragged down by `travel` at `speed` (points a millisecond) closes it. */
 const sheetCloses = (travel: number, speed: number): boolean =>
@@ -71,6 +106,7 @@ export function PhoneSheet({
     const sheet = dialog.current
     if (!own || !sheet) return
     const trigger = document.activeElement
+    if (own.parentElement) for (const copy of closingCopies(own.parentElement)) copy.remove()
     const release = holdModal(own)
     sheet.focus({ preventScroll: true })
     // A control that goes away with the focus (the tag sheet swapping in its colour picker)
@@ -92,9 +128,10 @@ export function PhoneSheet({
   const close = () => {
     if (closing.current) return
     closing.current = true
+    if (layer.current) leaveClosingCopy(layer.current)
     setShown(false)
     setDrag(null)
-    setTimeout(props.onClose, motionMs('motion.duration.phone-push'))
+    props.onClose()
   }
   const move = (event: PointerEvent) => {
     const s = start.current

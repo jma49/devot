@@ -11,7 +11,7 @@ use serde_json::json;
 use super::client::{self, Connection};
 use super::relay_tests::{NodeRelay, RECORD, SECRET, Secrets};
 use super::service::{PushDto, SettingsPatch, SyncService};
-use super::settings::{DeviceCredentials, FILE, SettingsStore};
+use super::settings::{DeviceCredentials, FILE, RetiredTokens, SettingsStore};
 use super::{SecretStore, Vault};
 use crate::licence::Gate;
 
@@ -338,6 +338,47 @@ fn a_rotation_that_never_reached_the_relay_is_dropped_and_the_vault_syncs_on() {
         mac.service.push(RECORD, 0, &data(), "record", ""),
         Ok(PushDto::Pushed { .. })
     ));
+    mac.service.disconnect();
+}
+
+#[test]
+fn a_connect_during_a_rotation_waits_for_it_and_the_old_token_is_kept() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let _phone = Device::paired(&relay, &mac);
+    let (old_id, old_token) = (mac.vault().id().to_string(), mac.token());
+
+    let (paused, go) = mac.service.pause_next_rotation();
+    let service = &mac.service;
+    std::thread::scope(|scope| {
+        let rotation = scope.spawn(|| service.rotate_vault(SECRET));
+        paused.recv().unwrap();
+        let (connected, on_connected) = std::sync::mpsc::channel();
+        let connect = scope.spawn(move || {
+            let result = service.connect(false).map(|_| ());
+            connected.send(()).unwrap();
+            result
+        });
+        let waited = on_connected
+            .recv_timeout(std::time::Duration::from_millis(500))
+            .is_err();
+        go.send(()).unwrap();
+        rotation.join().unwrap().unwrap();
+        assert_eq!(connect.join().unwrap(), Ok(()));
+        assert!(waited, "the connect waits for the rotation under way");
+    });
+
+    let next_id = mac.vault().id().to_string();
+    assert_ne!(next_id, old_id);
+    assert!(!mac.holds("vault-next") && !mac.holds("device-next"));
+    let retired = RetiredTokens::load(mac.secrets.as_ref()).unwrap().unwrap();
+    assert_eq!(retired.successor, next_id);
+    assert!(
+        retired
+            .tokens
+            .iter()
+            .any(|kept| kept.vault == old_id && kept.token == old_token)
+    );
     mac.service.disconnect();
 }
 

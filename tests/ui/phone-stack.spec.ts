@@ -84,3 +84,43 @@ test('Back pressed mid-swipe leaves the screen below where it belongs', async ({
   await expect.poll(async () => (await topLayer(page).boundingBox())?.x).toBe(0)
   await expect(topLayer(page)).not.toHaveAttribute('data-dragging')
 })
+
+test('Back slides the popped screen out, keeping its own screen', async ({ page }) => {
+  // Opening a note can hold frames for seconds, and a pop from a push not yet begun has no way to slide.
+  await expect
+    .poll(() =>
+      topLayer(page).evaluate(
+        (layer) =>
+          layer.getAnimations().length === 0 &&
+          new DOMMatrix(getComputedStyle(layer).transform).m41 === 0,
+      ),
+    )
+    .toBe(true)
+  // Slowed five times (the UI tests' build reads it on each motion), so a busy frame cannot skip the slide.
+  await page.evaluate(() => {
+    localStorage.setItem('devot.motionScale', '5')
+    document.documentElement.style.setProperty('--motion-duration-phone-push', '2500ms')
+  })
+  const pop = await back(page).evaluate(async (button) => {
+    const layer = button.closest('.phone-layer') as HTMLElement
+    const screen = layer.querySelector('section.phone-screen')!
+    const xs: number[] = []
+    const screens = new Set<Element>([screen])
+    let kept = true
+    ;(button as HTMLElement).click()
+    const until = performance.now() + 4000
+    while (performance.now() < until) {
+      await new Promise(requestAnimationFrame)
+      for (const each of document.querySelectorAll('section.phone-screen:has(.phone-note-scroll)'))
+        screens.add(each)
+      if (!layer.isConnected) continue
+      kept &&= screen.isConnected
+      xs.push(new DOMMatrix(getComputedStyle(layer).transform).m41)
+    }
+    return { xs, screens: screens.size, kept, width: window.innerWidth }
+  })
+  expect(pop.xs.some((x) => x > 0 && x < pop.width)).toBe(true)
+  expect(pop.screens).toBe(1)
+  expect(pop.kept).toBe(true)
+  await expect(note(page)).toHaveCount(0)
+})

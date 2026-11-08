@@ -76,12 +76,13 @@ export const customTagColorProperties = (color: TagColorValue | null | undefined
 
 const tagStamps = (t: TagRecord) => [t.nameHlc, t.colorHlc, t.deletedHlc]
 
-// Tags are made and renamed one at a time on each storage, whichever tag service asks: each reads
-// the tags (a rename also the saved searches) before it writes, so two at once could both make a
-// tag of one name, or one write its rewrite of a search over the other's.
+// Tags are made and renamed one at a time on each storage, whichever tag service (or sync, following
+// a pulled rename) asks: each reads the tags (a rename also the saved searches) before it writes, so
+// two at once could both make a tag of one name, or one write its rewrite of a search over the other's.
 const turns = new WeakMap<StorageAdapter, Promise<unknown>>()
 
-function inTurn<T>(storage: StorageAdapter, work: () => Promise<T>): Promise<T> {
+/** Runs `work` once no other tag write on `storage` is under way, and holds the others until it ends. */
+export function inTagTurn<T>(storage: StorageAdapter, work: () => Promise<T>): Promise<T> {
   const done = (turns.get(storage) ?? Promise.resolve()).then(work)
   turns.set(
     storage,
@@ -171,7 +172,7 @@ export function createTagService(options: TagServiceOptions): TagService {
 
     async ensure(name) {
       const clean = cleanTagName(name)
-      return inTurn(storage, () => ensureNow(clean))
+      return inTagTurn(storage, () => ensureNow(clean))
     },
 
     async removeFromNote(noteId, tagId) {
@@ -181,7 +182,7 @@ export function createTagService(options: TagServiceOptions): TagService {
 
     async rename(id, name) {
       const clean = cleanTagName(name)
-      return inTurn(storage, () => renameNow(id, clean))
+      return inTagTurn(storage, () => renameNow(id, clean))
     },
 
     async setColor(id, color) {

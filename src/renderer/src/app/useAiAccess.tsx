@@ -5,6 +5,7 @@ import { AiAccessDialog } from '../AiAccessDialog'
 import { AiAccessNotice } from '../AiAccessNotice'
 import { errorCode } from '../backups'
 import type { Core } from '../core-client'
+import { LICENCE_REQUIRED } from '../licence'
 import { saveEdits } from '../saveGuards'
 import { useStable } from '../stable'
 
@@ -37,7 +38,12 @@ export function useAiAccess({
   // notebook that fails does not stop the rest, and the notice offers Undo.
   const applyAiAccess = useStable((changes: readonly AiAccessChange[]) => {
     setAiAccessPicker(false)
-    if (!core || !editing || changes.length === 0) return
+    if (!core || changes.length === 0) return
+    // The trial can end while the picker is open.
+    if (!editing) {
+      setChangeNotice(LICENCE_REQUIRED)
+      return
+    }
     const failed: AiAccessChange[] = []
     void (async () => {
       setChangeNotice(undefined)
@@ -71,18 +77,19 @@ export function useAiAccess({
 
   // Settings > Integrations leaves a flag in the storage both windows share,
   // then focuses the main window (opening one if needed): the picker opens here.
+  const check = useStable(() => {
+    try {
+      if (localStorage.getItem(CHOOSE_AI_ACCESS) === null) return
+      localStorage.removeItem(CHOOSE_AI_ACCESS)
+    } catch {
+      return
+    }
+    if (editing) setAiAccessPicker(true)
+    else setChangeNotice(LICENCE_REQUIRED)
+  })
   useEffect(() => {
     // Before the core is ready there is no notebook tree to pick from.
     if (!core) return
-    const check = () => {
-      try {
-        if (localStorage.getItem(CHOOSE_AI_ACCESS) === null) return
-        localStorage.removeItem(CHOOSE_AI_ACCESS)
-      } catch {
-        return
-      }
-      setAiAccessPicker(true)
-    }
     check()
     window.addEventListener('focus', check)
     document.addEventListener('visibilitychange', check)
@@ -90,7 +97,7 @@ export function useAiAccess({
       window.removeEventListener('focus', check)
       document.removeEventListener('visibilitychange', check)
     }
-  }, [core])
+  }, [core, check])
   const notice = aiAccessResult ? (
     <AiAccessNotice
       changes={aiAccessResult.changes}

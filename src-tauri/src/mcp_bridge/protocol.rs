@@ -1,5 +1,6 @@
 //! MCP over stdio: JSON-RPC 2.0 messages, one a line. A tool call may wait for Devot to start, so it
-//! runs on a thread of its own, one at a time, and `ping` is answered meanwhile.
+//! runs on a thread of its own, one at a time, and `ping` is answered meanwhile. A call the client
+//! cancels while it waits never runs; one already running finishes, as MCP allows.
 
 use std::io::{BufRead, Read, Write};
 use std::sync::mpsc::channel;
@@ -123,10 +124,22 @@ pub fn serve<R, W>(
     let output = Mutex::new(output);
     let tool_list = tools.list();
     let (calls, queue) = channel::<(Value, String, Value)>();
+    // The ids of the calls in `queue`, in their JSON form, as `Value` cannot be hashed.
+    let waiting = Mutex::new(Vec::<String>::new());
     std::thread::scope(|scope| {
         let output = &output;
+        let waiting = &waiting;
         scope.spawn(move || {
             for (id, name, args) in queue {
+                let key = id.to_string();
+                let Ok(mut ids) = waiting.lock() else {
+                    return;
+                };
+                let Some(at) = ids.iter().position(|waiting| *waiting == key) else {
+                    continue;
+                };
+                ids.remove(at);
+                drop(ids);
                 let answer = tools.call(&name, args, log);
                 send(output, &result(&id, answer));
             }
@@ -153,6 +166,15 @@ pub fn serve<R, W>(
                 );
                 continue;
             };
+            if request.get("method").and_then(Value::as_str) == Some("notifications/cancelled") {
+                if let (Some(cancelled), Ok(mut ids)) =
+                    (message.pointer("/params/requestId"), waiting.lock())
+                {
+                    let key = cancelled.to_string();
+                    ids.retain(|waiting| *waiting != key);
+                }
+                continue;
+            }
             // A notification, or an answer to something this server never asks.
             let (Some(id), Some(method)) = (
                 request.get("id"),
@@ -186,6 +208,9 @@ pub fn serve<R, W>(
                         .get("arguments")
                         .cloned()
                         .unwrap_or_else(|| json!({}));
+                    if let Ok(mut ids) = waiting.lock() {
+                        ids.push(id.to_string());
+                    }
                     if calls.send((id.clone(), name.to_owned(), args)).is_err() {
                         return;
                     }
@@ -284,6 +309,78 @@ mod tests {
         let text = answers[2]["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("\"notebooks\""));
         assert_eq!(answers[2]["result"].get("isError"), None);
+    }
+
+    struct Held {
+        release: Mutex<Option<std::sync::mpsc::Receiver<()>>>,
+        calls: Arc<Mutex<usize>>,
+    }
+
+    impl Api for Held {
+        fn call(&self, _: &ApiRequest) -> Result<Value, String> {
+            if let Some(release) = self.release.lock().unwrap().take() {
+                let _ = release.recv();
+            }
+            *self.calls.lock().unwrap() += 1;
+            Ok(json!({ "notebooks": [{ "id": "b", "name": "N", "notes": 1 }] }))
+        }
+    }
+
+    /// Releases the held call once every line has been read, so the queue is settled first.
+    struct ReleasedAtEnd {
+        lines: Cursor<Vec<u8>>,
+        release: Option<std::sync::mpsc::Sender<()>>,
+    }
+
+    impl Read for ReleasedAtEnd {
+        fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+            let read = self.lines.read(bytes)?;
+            if read == 0
+                && let Some(release) = self.release.take()
+            {
+                let _ = release.send(());
+            }
+            Ok(read)
+        }
+    }
+
+    #[test]
+    fn a_call_cancelled_while_it_waited_never_runs() {
+        let (release, held) = channel();
+        let calls = Arc::new(Mutex::new(0));
+        let sink = Sink::default();
+        let call = |id: u32| {
+            format!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"method\":\"tools/call\",\"params\":{{\"name\":\"list_notebooks\"}}}}\n"
+            )
+        };
+        let lines = format!(
+            "{}{}{{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{{\"requestId\":2}}}}\n{}",
+            call(1),
+            call(2),
+            call(3)
+        );
+        serve(
+            std::io::BufReader::new(ReleasedAtEnd {
+                lines: Cursor::new(lines.into_bytes()),
+                release: Some(release),
+            }),
+            sink.clone(),
+            Tools::new(Box::new(Held {
+                release: Mutex::new(Some(held)),
+                calls: Arc::clone(&calls),
+            })),
+            Arc::new(Mutex::new(String::new())),
+            "1.2.3",
+            &|_: &str| {},
+        );
+        let text = String::from_utf8(sink.0.lock().unwrap().clone()).unwrap();
+        let ids: Vec<Value> = text
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap()["id"].clone())
+            .collect();
+        assert_eq!(ids, [json!(1), json!(3)]);
+        assert_eq!(*calls.lock().unwrap(), 2);
     }
 
     #[test]

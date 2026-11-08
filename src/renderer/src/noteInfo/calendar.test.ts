@@ -4,6 +4,7 @@ import {
   boundsFor,
   dayAllowed,
   dayKeyMove,
+  hourOf,
   monthGrid,
   pendingAt,
   pendingOf,
@@ -100,25 +101,27 @@ describe('the grid’s keys', () => {
 describe('the time segments', () => {
   const pending = (hour: number | null, minute: number | null = 5): Pending => ({
     day: day(2026, 10, 2),
-    hour,
+    hourInHalf: hour === null ? null : hour % 12,
+    pm: hour !== null && hour >= 12,
     minute,
     from: at(2026, 10, 2, 9, 5, 42),
   })
+  const cleared = (hour: number) => ({ ...pending(hour), hourInHalf: null })
 
   it('steps and wraps the hour and the minute', () => {
-    expect(stepSegment(pending(23), 'hour', 1, false).hour).toBe(0)
-    expect(stepSegment(pending(0), 'hour', -1, false).hour).toBe(23)
+    expect(hourOf(stepSegment(pending(23), 'hour', 1, false))).toBe(0)
+    expect(hourOf(stepSegment(pending(0), 'hour', -1, false))).toBe(23)
     expect(stepSegment(pending(1, 59), 'minute', 1, false).minute).toBe(0)
     expect(stepSegment(pending(1, 0), 'minute', -1, false).minute).toBe(59)
   })
 
   it('keeps AM or PM while stepping a 12-hour clock, and flips it on its own segment', () => {
-    expect(stepSegment(pending(11), 'hour', 1, true).hour).toBe(0)
-    expect(stepSegment(pending(23), 'hour', 1, true).hour).toBe(12)
-    expect(stepSegment(pending(12), 'hour', -1, true).hour).toBe(23)
-    expect(stepSegment(pending(9), 'dayPeriod', 1, true).hour).toBe(21)
-    expect(setDayPeriod(pending(21), false).hour).toBe(9)
-    expect(setDayPeriod(pending(9), false).hour).toBe(9)
+    expect(hourOf(stepSegment(pending(11), 'hour', 1, true))).toBe(0)
+    expect(hourOf(stepSegment(pending(23), 'hour', 1, true))).toBe(12)
+    expect(hourOf(stepSegment(pending(12), 'hour', -1, true))).toBe(23)
+    expect(hourOf(stepSegment(pending(9), 'dayPeriod', 1, true))).toBe(21)
+    expect(hourOf(setDayPeriod(pending(21), false))).toBe(9)
+    expect(hourOf(setDayPeriod(pending(9), false))).toBe(9)
     expect([0, 9, 12, 21].map((h) => shownHour(h, true))).toEqual([12, 9, 12, 9])
     expect(shownHour(21, false)).toBe(21)
   })
@@ -133,15 +136,23 @@ describe('the time segments', () => {
       pending: { minute: 1 },
       typed: '1',
     })
-    expect(typeSegment(pending(9), 'hour', '2', '3', false).pending.hour).toBe(23)
-    expect(typeSegment(pending(9), 'hour', '2', '5', false).pending.hour).toBe(5)
+    expect(hourOf(typeSegment(pending(9), 'hour', '2', '3', false).pending)).toBe(23)
+    expect(hourOf(typeSegment(pending(9), 'hour', '2', '5', false).pending)).toBe(5)
   })
 
   it('types a 12-hour clock’s hour in its own half of the day', () => {
-    expect(typeSegment(pending(15), 'hour', '', '4', true).pending.hour).toBe(16)
-    expect(typeSegment(pending(15), 'hour', '1', '2', true).pending.hour).toBe(12)
-    expect(typeSegment(pending(3), 'hour', '1', '2', true).pending.hour).toBe(0)
-    expect(typeSegment(pending(3), 'hour', '', '0', true).pending.hour).toBeNull()
+    expect(hourOf(typeSegment(pending(15), 'hour', '', '4', true).pending)).toBe(16)
+    expect(hourOf(typeSegment(pending(15), 'hour', '1', '2', true).pending)).toBe(12)
+    expect(hourOf(typeSegment(pending(3), 'hour', '1', '2', true).pending)).toBe(0)
+    expect(hourOf(typeSegment(pending(3), 'hour', '', '0', true).pending)).toBeNull()
+  })
+
+  it('keeps PM while the hour of a 12-hour clock is cleared or retyped', () => {
+    expect(hourOf(typeSegment(cleared(15), 'hour', '', '3', true).pending)).toBe(15)
+    const zero = typeSegment(pending(15), 'hour', '', '0', true)
+    expect(hourOf(typeSegment(zero.pending, 'hour', zero.typed, '5', true).pending)).toBe(17)
+    const chosen = setDayPeriod(cleared(3), true)
+    expect(hourOf(typeSegment(chosen, 'hour', '', '3', true).pending)).toBe(15)
   })
 
   it('keeps the seconds and milliseconds it never shows', () => {
@@ -196,7 +207,7 @@ describe('the clock changes', () => {
 
   it('refuses a time the clocks skip', () => {
     // On 8 March 2026 New York's clocks go from 02:00 to 03:00.
-    const skipped: Pending = { ...pendingOf(at(2026, 2, 8, 1, 30)), hour: 2, minute: 30 }
+    const skipped: Pending = { ...pendingOf(at(2026, 2, 8, 1, 30)), hourInHalf: 2, minute: 30 }
     expect(pendingAt(skipped)).toBeNull()
     expect(pendingProblem('updated', skipped, { createdAt: 0, updatedAt: 0 })).toBe(
       'noteInfo.timeSkipped',
