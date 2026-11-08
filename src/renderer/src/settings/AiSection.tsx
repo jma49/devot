@@ -40,6 +40,11 @@ export function AiSection() {
   const storedView = useRef<AiSettingsView>(undefined)
   const typed = useRef<Drafts>(undefined)
   const asked = useRef<Choices>(undefined)
+  const [shownChoices, setShownChoices] = useState<Choices>()
+  const setAsked = (next: Choices) => {
+    asked.current = next
+    setShownChoices(next)
+  }
   const saving = useRef<Promise<void>>(Promise.resolve())
   const setView = (next: AiSettingsView) => {
     storedView.current = next
@@ -70,6 +75,7 @@ export function AiSection() {
         typed.current = draftsOf(loaded)
         setShownDrafts(typed.current)
         asked.current = { active: loaded.active, suggestOnIdle: loaded.suggestOnIdle }
+        setShownChoices(asked.current)
       },
       (e: unknown) => {
         if (live) setLoadError(logFailure(errorCode(e), 'W_AI_SETTINGS_FAILED'))
@@ -115,15 +121,19 @@ export function AiSection() {
     } catch (e: unknown) {
       setSaveError(logFailure(errorCode(e), 'W_AI_SETTINGS_FAILED'))
     }
-    // What Rust keeps is what the fields show again, unless another change came meanwhile.
+    // What Rust keeps is what the pane shows again, except what was changed meanwhile.
     settle(sent, kept)
-    if (asked.current === choices)
-      asked.current = { active: kept.active, suggestOnIdle: kept.suggestOnIdle }
+    const now = asked.current ?? choices
+    setAsked({
+      active: now.active === choices.active ? kept.active : now.active,
+      suggestOnIdle:
+        now.suggestOnIdle === choices.suggestOnIdle ? kept.suggestOnIdle : now.suggestOnIdle,
+    })
   }
 
   const save = (choices: Partial<Choices> = {}) => {
     if (!asked.current) return
-    asked.current = { ...asked.current, ...choices }
+    setAsked({ ...asked.current, ...choices })
     saving.current = saving.current.then(send)
   }
 
@@ -319,7 +329,7 @@ export function AiSection() {
           </Setting>
         </SettingsSection>
       )}
-      {view && drafts ? (
+      {view && drafts && shownChoices ? (
         <>
           <SettingsSection title="aiSettings.activeTitle">
             <Setting
@@ -330,7 +340,7 @@ export function AiSection() {
             >
               <Select
                 id={id('active')}
-                value={view.active}
+                value={shownChoices.active}
                 aria-describedby={id('active-hint')}
                 onChange={(e) => commit(e.currentTarget.value as AiProviderId)}
               >
@@ -350,7 +360,7 @@ export function AiSection() {
                 before: SUGGEST_BEFORE_CHARS.toLocaleString(currentLocale()),
                 after: SUGGEST_AFTER_CHARS.toLocaleString(currentLocale()),
               }}
-              checked={view.suggestOnIdle}
+              checked={shownChoices.suggestOnIdle}
               onChange={setSuggestOnIdle}
             />
           </SettingsSection>
