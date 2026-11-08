@@ -1,4 +1,3 @@
-import SwiftUI
 import UIKit
 
 /// The Activity tab's root (docs/specs/iphone-screens.md, Activity): the last weeks' writing as a
@@ -43,18 +42,13 @@ final class ActivityScreen: ListScreen, UICollectionViewDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         collection.accessibilityIdentifier = "activity.list"
-        let heatmap = UICollectionView.CellRegistration<UICollectionViewListCell, Item> { [weak self] cell, _, _ in
-            cell.contentConfiguration = UIHostingConfiguration {
-                HeatmapView(writing: self?.writing)
-            }
+        let heatmap = UICollectionView.CellRegistration<HeatmapCell, Item> { [weak self] cell, _, _ in
+            cell.show(self?.writing)
         }
-        let figures = UICollectionView.CellRegistration<UICollectionViewListCell, Item> { [weak self] cell, _, _ in
+        let figures = UICollectionView.CellRegistration<FiguresCell, Item> { [weak self] cell, _, _ in
             guard let self else { return }
-            cell.contentConfiguration = UIHostingConfiguration {
-                FiguresView(week: self.writing?.week(self.period), period: self.period) { [weak self] next in
-                    self?.choose(next)
-                }
-            }
+            cell.show(writing?.week(period), period: period)
+            cell.choose = { [weak self] next in self?.choose(next) }
         }
         let note = UICollectionView.CellRegistration<UICollectionViewListCell, Item> { cell, _, item in
             guard case .note(let ranked, let place) = item else { return }
@@ -63,8 +57,11 @@ final class ActivityScreen: ListScreen, UICollectionViewDelegate {
             content.imageProperties.tintColor = Tokens.Color.phoneTextSecondary
             content.text = ranked.title.isEmpty ? L10n.noteUntitled() : ranked.title
             content.secondaryText = "+" + ranked.words.formatted()
-            content.secondaryTextProperties.font = .monospacedDigitSystemFont(
-                ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize, weight: .regular)
+            content.secondaryTextProperties.font = UIFontMetrics(forTextStyle: .body).scaledFont(
+                for: .monospacedDigitSystemFont(
+                    ofSize: UIFont.preferredFont(forTextStyle: .body, compatibleWith: .init(preferredContentSizeCategory: .large)).pointSize,
+                    weight: .regular))
+            content.secondaryTextProperties.adjustsFontForContentSizeCategory = true
             cell.contentConfiguration = content
             cell.accessories = [.disclosureIndicator()]
         }
@@ -172,122 +169,5 @@ final class ActivityScreen: ListScreen, UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt path: IndexPath) {
         guard case .note(let ranked, _) = data.itemIdentifier(for: path) else { return }
         context.open(ranked.id, ranked.title)
-    }
-}
-
-/// Fifteen weeks of writing, a column a week and a row a weekday, shaded by the words written.
-struct HeatmapView: View {
-    let writing: ActivityWriting?
-    @ScaledMetric(relativeTo: .caption2) private var cell = Tokens.Size.phoneHeatCell
-    @ScaledMetric(relativeTo: .caption2) private var gap = Tokens.Size.phoneHeatGap
-
-    private static func shade(_ level: Int) -> Color {
-        let colors = [
-            Tokens.Color.activityLevel0, Tokens.Color.activityLevel1, Tokens.Color.activityLevel2,
-            Tokens.Color.activityLevel3, Tokens.Color.activityLevel4,
-        ]
-        return Color(colors[min(max(level, 0), colors.count - 1)])
-    }
-
-    private var summary: String {
-        L10n.phoneActivitySummary(
-            weeks: String(ActivityWriting.weeks), words: (writing?.totalWords ?? 0).formatted(),
-            days: (writing?.activeDays ?? 0).formatted())
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.space4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(L10n.phoneActivityWriting()).font(.headline)
-                Spacer()
-                Text(L10n.phoneActivitySpan(weeks: String(ActivityWriting.weeks)))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color(Tokens.Color.phoneTextSecondary))
-            }
-            if let writing {
-                let labels = ActivityWriting.monthLabels(first: writing.first, weeks: ActivityWriting.weeks)
-                let columns = writing.grid
-                VStack(alignment: .leading, spacing: gap) {
-                    HStack(spacing: gap) {
-                        ForEach(labels.indices, id: \.self) { week in
-                            Text(labels[week])
-                                .font(.caption2)
-                                .foregroundStyle(Color(Tokens.Color.phoneTextSecondary))
-                                .fixedSize()
-                                .frame(width: cell, alignment: .leading)
-                        }
-                    }
-                    .accessibilityHidden(true)
-                    HStack(alignment: .top, spacing: gap) {
-                        ForEach(columns.indices, id: \.self) { week in
-                            VStack(spacing: gap) {
-                                ForEach(0..<7, id: \.self) { row in
-                                    RoundedRectangle(cornerRadius: Tokens.Radius.phoneHeatCell)
-                                        .fill(columns[week][row].map(Self.shade) ?? .clear)
-                                        .frame(width: cell, height: cell)
-                                }
-                            }
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement()
-                .accessibilityLabel(summary)
-                .accessibilityAddTraits(.isImage)
-            }
-            HStack(spacing: gap) {
-                Text(L10n.phoneActivityLess())
-                ForEach(0...ActivityWriting.levels, id: \.self) { level in
-                    RoundedRectangle(cornerRadius: Tokens.Radius.phoneHeatCell)
-                        .fill(Self.shade(level))
-                        .frame(width: Tokens.Size.phoneHeatLegend, height: Tokens.Size.phoneHeatLegend)
-                }
-                Text(L10n.phoneActivityMore())
-            }
-            .font(.caption2)
-            .foregroundStyle(Color(Tokens.Color.phoneTextSecondary))
-            .accessibilityHidden(true)
-        }
-        .padding(.vertical, Tokens.Space.space4)
-    }
-}
-
-/// The week's choice and its three figures; a choice replaces the figures at once.
-struct FiguresView: View {
-    let week: ActivityWriting.Week?
-    let period: ActivityWriting.Period
-    let choose: (ActivityWriting.Period) -> Void
-
-    private var figures: [(value: Int, label: String)] {
-        [
-            (week?.words ?? 0, period == .last ? L10n.phoneActivityWordsLast() : L10n.phoneActivityWordsThis()),
-            (week?.streak ?? 0, L10n.phoneActivityStreak()),
-            (week?.notesEdited ?? 0, L10n.phoneActivityEdited()),
-        ]
-    }
-
-    var body: some View {
-        VStack(spacing: Tokens.Space.space6) {
-            Picker(L10n.phoneActivityPeriod(), selection: Binding(get: { period }, set: { choose($0) })) {
-                Text(L10n.phoneActivityWeekThis()).tag(ActivityWriting.Period.this)
-                Text(L10n.phoneActivityWeekLast()).tag(ActivityWriting.Period.last)
-            }
-            .pickerStyle(.segmented)
-            HStack(alignment: .top) {
-                ForEach(figures, id: \.label) { figure in
-                    VStack(spacing: Tokens.Space.space2) {
-                        Text(figure.value.formatted()).font(.title2.monospacedDigit()).fontWeight(.semibold)
-                        Text(figure.label)
-                            .font(.caption)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(Color(Tokens.Color.phoneTextSecondary))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .accessibilityElement(children: .combine)
-                }
-            }
-            .transaction { $0.animation = nil }
-        }
-        .padding(.vertical, Tokens.Space.space4)
     }
 }

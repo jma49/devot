@@ -263,6 +263,7 @@ The Activity tab's root, `ActivityScreen` (`DevotScreens/UI/Activity/`), is an i
 - `ActivityWriting` (`Model/ActivityModel.swift`) refuses an answer whose span passes fifteen weeks, whose day falls outside it or whose level passes the darkest shade, and logs it as `W_PHONE_ACTIVITY_READ_FAILED code=E_SCREENS_MESSAGE_INVALID`.
 - The heatmap is fifteen columns of seven days from Monday, shaded by the `color.activity.level-*` tokens, with the month names `monthLabels` gives on the Mac; days after today are left blank, and VoiceOver reads one summary of the words and active days.
 - A segmented control chooses This Week or Last Week, and the figures and the ranked notes replace at once from the same answer, with no new request.
+- Every row is UIKit: the grid and its month names are drawn as one picture, the other text follows Dynamic Type from caption 1 up (caption 2 keeps one size below the default), and the segmented control keeps the system's own size and fonts, which the accessibility audit (`ActivityTests`) accepts.
 - A ranked note opens its `EditorScreen` on the Activity tab, as a list's row does.
 - The screen reads when it appears after a `notes.changed` notice, and at once while it is shown; reads are one at a time, and a failed one is logged as `W_PHONE_ACTIVITY_READ_FAILED code=…` and tried again when the screen next appears.
 - The web fallback keeps its own Activity.

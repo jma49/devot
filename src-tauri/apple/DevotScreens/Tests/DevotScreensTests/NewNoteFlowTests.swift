@@ -112,8 +112,8 @@ final class NewNoteFlowTests: XCTestCase {
         XCTAssertNil(screen.noteId)
         settle()
         XCTAssertTrue(screen.cover.waiting, "until the note exists, the cover holds")
-        let create = try XCTUnwrap(try requests().last)
-        XCTAssertEqual(create.op, .noteCreate)
+        // The Settings start's own requests may follow in a later turn.
+        let create = try XCTUnwrap(try requests().last { $0.op == .noteCreate })
         XCTAssertEqual(create.args, ["bookId": .string(book)])
 
         try answer(.noteCreate, .ok(.object(["id": .string(made), "rev": .number(3)])))

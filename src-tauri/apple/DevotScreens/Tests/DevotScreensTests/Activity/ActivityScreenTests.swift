@@ -77,6 +77,73 @@ final class ActivityScreenTests: XCTestCase {
         XCTAssertTrue(bridge.sent.isEmpty, "the week's figures came with the first reading")
     }
 
+    private func cell<Cell: UICollectionViewCell>(_ section: ActivityScreen.Section) -> (ActivityScreen) -> Cell? {
+        { screen in
+            screen.collection.layoutIfNeeded()
+            return screen.collection.cellForItem(at: IndexPath(item: 0, section: section.rawValue)) as? Cell
+        }
+    }
+
+    func testTheFiguresFollowTheChosenWeekAndTheHeatmapReadsAsOneSummary() throws {
+        let screen = shown()
+        bridge.answer(Op.activityWriting.rawValue, answer(this: [("a", "Plan", 30)]))
+        let figures: FiguresCell = try XCTUnwrap(cell(.figures)(screen))
+        XCTAssertEqual(figures.period.selectedSegmentIndex, 0)
+        XCTAssertEqual(figures.values.map(\.text), ["12", "1", "1"])
+        XCTAssertEqual(figures.captions.first?.text, L10n.phoneActivityWordsThis())
+        XCTAssertTrue(figures.values.allSatisfy(\.adjustsFontForContentSizeCategory))
+        figures.period.selectedSegmentIndex = 1
+        figures.period.sendActions(for: .valueChanged)
+        XCTAssertEqual(screen.period, .last)
+        let shownAfter: FiguresCell = try XCTUnwrap(cell(.figures)(screen))
+        XCTAssertEqual(shownAfter.values.map(\.text), ["12", "1", "0"])
+        XCTAssertEqual(shownAfter.captions.first?.text, L10n.phoneActivityWordsLast())
+        let heatmap: HeatmapCell = try XCTUnwrap(cell(.heatmap)(screen))
+        XCTAssertTrue(heatmap.grid.isAccessibilityElement)
+        XCTAssertEqual(
+            heatmap.grid.accessibilityLabel,
+            L10n.phoneActivitySummary(weeks: "15", words: "0", days: "0"))
+    }
+
+    /// The labels Devot sizes; the system's segmented control keeps its own size, as the accessibility audit expects.
+    private func labels(in view: UIView) -> [UILabel] {
+        view.subviews.flatMap { subview -> [UILabel] in
+            if subview is UISegmentedControl { return [] }
+            return (subview as? UILabel).map { [$0] } ?? labels(in: subview)
+        }
+    }
+
+    func testEveryLineGrowsWithTheTextSizeAndKeepsItsRoom() throws {
+        let screen = shown()
+        bridge.answer(Op.activityWriting.rawValue, answer(this: [("a", "Plan", 30)]))
+        let before: [String: CGFloat] = try [ActivityScreen.Section.heatmap, .figures].reduce(into: [:]) { sizes, section in
+            let shown: UICollectionViewCell = try XCTUnwrap(cell(section)(screen))
+            for label in labels(in: shown.contentView) where label.text?.isEmpty == false {
+                sizes[label.text ?? ""] = label.font.pointSize
+            }
+        }
+        screen.navigationController?.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
+        screen.navigationController?.view.layoutIfNeeded()
+        screen.collection.layoutIfNeeded()
+        for section in [ActivityScreen.Section.heatmap, .figures] {
+            let shown: UICollectionViewCell = try XCTUnwrap(cell(section)(screen))
+            for label in labels(in: shown.contentView) where label.text?.isEmpty == false && !label.isHidden {
+                let text = label.text ?? ""
+                XCTAssertGreaterThan(label.font.pointSize, before[text] ?? .infinity, text)
+                XCTAssertGreaterThanOrEqual(label.bounds.height + 0.5, label.font.lineHeight, text)
+                if [L10n.phoneActivityLess(), L10n.phoneActivityMore()].contains(text) {
+                    XCTAssertLessThan(label.bounds.height, 1.5 * label.font.lineHeight, "\(text) keeps to one line")
+                }
+                let frame = label.convert(label.bounds, to: shown)
+                XCTAssertTrue(shown.bounds.insetBy(dx: -0.5, dy: -0.5).contains(frame), "\(text) \(frame) in \(shown.bounds)")
+            }
+        }
+        let grid = try XCTUnwrap((cell(.heatmap)(screen) as HeatmapCell?)?.grid)
+        let months = grid.monthFrames.filter { !$0.isNull }
+        XCTAssertFalse(months.isEmpty)
+        XCTAssertTrue(months.allSatisfy { grid.bounds.insetBy(dx: -0.5, dy: -0.5).contains($0) }, "\(months) in \(grid.bounds)")
+    }
+
     func testARankedNoteOpensAndTheEmptyRowDoesNot() {
         let screen = shown()
         bridge.answer(Op.activityWriting.rawValue, answer(this: [("a", "Plan", 30)]))
