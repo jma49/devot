@@ -58,6 +58,23 @@ final class ThemeSwatchTests: XCTestCase {
         assertColor(background.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)), 0xfcedf3)
     }
 
+    func testAColourSetBeforeAThemeChangeTakesTheNewThemeInTheWindow() throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.overrideUserInterfaceStyle = .light
+        let view = UIView()
+        window.addSubview(view)
+        window.isHidden = false
+        defer { window.isHidden = true }
+        view.backgroundColor = Tokens.Color.phoneBackground
+        let store = ThemeStore(windows: { [window] })
+        store.adopt(["lightTheme": .string("dawn"), "appearance": .string("light")])
+        window.layoutIfNeeded()
+        let shown = try XCTUnwrap(view.layer.backgroundColor)
+        assertColor(UIColor(cgColor: shown), 0xfcedf3)
+        assertColor(try XCTUnwrap(view.backgroundColor).resolvedColor(with: view.traitCollection), 0xfcedf3)
+    }
+
     func testAnUnknownThemeKeepsTheDefault() {
         let store = ThemeStore(windows: { [] })
         store.adopt(["lightTheme": .string("neon")])

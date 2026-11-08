@@ -3125,11 +3125,13 @@ public enum Tokens {
       set { ThemeState.shared.theme = newValue }
     }
 
+    /// Drawn in the theme of the window it shows in (`ThemeTrait`), so a colour set before a theme
+    /// change takes the new theme; out of a window, in this theme.
     public func color(_ name: ColorName) -> UIColor {
-      let light = light.rgba(name)
-      let dark = dark.rgba(name)
+      let fallback = self
       return UIColor(dynamicProvider: { traits in
-        (traits.userInterfaceStyle == .dark ? dark : light).uiColor
+        let theme = traits[ThemeTrait.self] ?? fallback
+        return (traits.userInterfaceStyle == .dark ? theme.dark : theme.light).rgba(name).uiColor
       })
     }
 
@@ -3140,6 +3142,12 @@ public enum Tokens {
     public static let sage: Theme = Theme(id: "sage", light: .sageLight, dark: .sageDark, backdrop: Backdrop(angle: 160, light: [GradientStop(color: RGBA(0xc9e6d2, 0.7), location: 0), GradientStop(color: RGBA(0xdcecd6, 0.7), location: 0.5), GradientStop(color: RGBA(0xdae9bf, 0.7), location: 1)], dark: [GradientStop(color: RGBA(0x1e3a2a, 0.6), location: 0), GradientStop(color: RGBA(0x1d2a22, 0.6), location: 0.5), GradientStop(color: RGBA(0x2f3720, 0.6), location: 1)]), glow: Glow(light: [RGBA(0xc9e6d2, 0.9), RGBA(0xdae9bf, 0.9)], dark: [RGBA(0x1e3a2a, 0.8), RGBA(0x2f3720, 0.75)]))
     public static let ember: Theme = Theme(id: "ember", light: .emberLight, dark: .emberDark, backdrop: Backdrop(angle: 160, light: [GradientStop(color: RGBA(0xf9da95, 0.7), location: 0), GradientStop(color: RGBA(0xfcd3aa, 0.7), location: 0.5), GradientStop(color: RGBA(0xffc6a0, 0.7), location: 1)], dark: [GradientStop(color: RGBA(0x4f3b0e, 0.6), location: 0), GradientStop(color: RGBA(0x4a2c14, 0.6), location: 0.5), GradientStop(color: RGBA(0x632419, 0.6), location: 1)]), glow: Glow(light: [RGBA(0xf9da95, 0.9), RGBA(0xffc6a0, 0.9)], dark: [RGBA(0x4f3b0e, 0.8), RGBA(0x632419, 0.66)]))
     public static let all: [Theme] = [.default, .ivory, .dawn, .tide, .sage, .ember]
+  }
+
+  /// The theme a window draws in; a change makes UIKit draw its colours again.
+  public struct ThemeTrait: UITraitDefinition {
+    public static let defaultValue: Theme? = nil
+    public static let affectsColorAppearance = true
   }
 
   @MainActor @Observable public final class ThemeState {

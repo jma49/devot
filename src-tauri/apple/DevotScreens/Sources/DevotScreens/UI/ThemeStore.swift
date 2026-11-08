@@ -2,7 +2,7 @@ import Observation
 import UIKit
 
 /// The theme in effect: the light theme's colours in light, the dark theme's in dark, and the
-/// colour scheme on every window. It changes before Rust hears of a change, so a pick shows in
+/// theme and colour scheme on every window. It changes before Rust hears of a change, so a pick shows in
 /// the next frame.
 @MainActor
 @Observable
@@ -38,6 +38,9 @@ final class ThemeStore {
             self.light = light
             self.dark = dark
             Tokens.Theme.current = Self.composite(light: light, dark: dark)
+        }
+        for window in windows() where window.traitCollection[Tokens.ThemeTrait.self] != Tokens.Theme.current {
+            window.traitOverrides[Tokens.ThemeTrait.self] = Tokens.Theme.current
         }
         if strength != gradientStrength { gradientStrength = strength }
     }
