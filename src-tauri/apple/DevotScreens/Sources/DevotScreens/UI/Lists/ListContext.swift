@@ -15,6 +15,7 @@ final class ListContext {
         }
     }
     var gate = ProGate { nil }
+    var haptics = Haptics()
     let excerpts = ExcerptCache(bridge: nil)
     private(set) var library: LibraryContents?
     /// Pushes a note's editor on the shown tab.
@@ -111,6 +112,21 @@ final class ListContext {
                 readLibrary()
             }
         }
+    }
+
+    /// A write the user picked from a menu or the selection bar: it feels once the gate lets it through.
+    /// A swipe action goes to the gate directly, as the system plays its own haptic for it.
+    func ask(_ intent: WriteIntent) {
+        if case .batch(_, let change) = intent, let event = HapticEvent(change), !gate.locked() {
+            haptics.play(event)
+        }
+        gate.require(intent)
+    }
+
+    /// A menu is about to open, or the selection bar to show: bar items give no touch-down to prepare on.
+    func prepareHaptics() {
+        haptics.prepare(.listAction)
+        haptics.prepare(.statusChange)
     }
 
     /// A list write the gate let through; false for one this context does not run.

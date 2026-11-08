@@ -261,6 +261,7 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
     ) -> UIContextMenuConfiguration? {
         guard paths.count == 1, !collectionView.isEditing, let path = paths.first, let note = row(path) else { return nil }
         let context = context
+        context.prepareHaptics()
         let width = collectionView.bounds.width - 2 * Tokens.Size.phoneListEdge
         return UIContextMenuConfiguration(
             identifier: note.id as NSString,
@@ -276,10 +277,10 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
     }
 
     private func menu(_ note: NoteRow) -> UIMenu {
-        let gate = context.gate
+        let context = context
         return ListMenus.row(
             note, library: { [weak self] in self?.library($0) },
-            write: { [weak self] intent in self?.afterMenu = { gate.require(intent) } },
+            write: { [weak self] intent in self?.afterMenu = { context.ask(intent) } },
             share: { [weak self] in self?.afterMenu = { self?.share(note) } })
     }
 
@@ -378,6 +379,7 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
     }
 
     private func filter(_ status: StatusFilter) {
+        if status != source.status { context.haptics.play(.pickerChoice) }
         source.filter(status)
         setBarItems()
     }
@@ -395,6 +397,7 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
 
     private func select(_ on: Bool) {
         collection.isEditing = on
+        if on { context.prepareHaptics() }
         if !on {
             for path in collection.indexPathsForSelectedItems ?? [] { collection.deselectItem(at: path, animated: true) }
         }
@@ -412,20 +415,20 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
 
     private func setBatchBar() {
         let ids = selectedIds
-        let gate = context.gate
+        let context = context
         let some = !ids.isEmpty
         let pinned = ids.allSatisfy { source.row($0)?.pinned ?? false }
         let pin = UIBarButtonItem(
             title: pinned ? L10n.batchUnpin() : L10n.batchPin(), image: UIImage(systemName: pinned ? "pin.slash" : "pin"),
             primaryAction: UIAction { [weak self] _ in
-                gate.require(.batch(ids: ids, change: .pinned(!pinned)))
+                context.ask(.batch(ids: ids, change: .pinned(!pinned)))
                 self?.select(false)
             })
         let move = UIBarButtonItem(
             title: L10n.batchMove(), image: UIImage(systemName: "folder"),
             menu: UIMenu(children: [
                 ListMenus.notebooks(selected: nil, library: { [weak self] in self?.library($0) }) { [weak self] book in
-                    gate.require(.batch(ids: ids, change: .book(book)))
+                    context.ask(.batch(ids: ids, change: .book(book)))
                     self?.select(false)
                 }
             ]))
@@ -433,14 +436,14 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
             title: L10n.phoneSetStatus(), image: UIImage(systemName: "circle.dashed"),
             menu: UIMenu(children: NoteStatus.allCases.map { status in
                 UIAction(title: status.name, image: UIImage(systemName: status.symbol)) { [weak self] _ in
-                    gate.require(.batch(ids: ids, change: .status(status)))
+                    context.ask(.batch(ids: ids, change: .status(status)))
                     self?.select(false)
                 }
             }))
         let trash = UIBarButtonItem(
             title: L10n.batchTrash(), image: UIImage(systemName: "trash"),
             primaryAction: UIAction(attributes: .destructive) { [weak self] _ in
-                gate.require(.batch(ids: ids, change: .trash))
+                context.ask(.batch(ids: ids, change: .trash))
                 self?.select(false)
             })
         for item in [pin, move, status, trash] { item.isEnabled = some }

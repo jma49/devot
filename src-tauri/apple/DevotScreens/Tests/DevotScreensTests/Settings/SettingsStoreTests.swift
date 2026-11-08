@@ -142,4 +142,31 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.syncOn)
         XCTAssertFalse(store.syncNeedsOwner)
     }
+
+    private func runWithHaptics(_ op: DirectOp, _ outcome: Outcome) -> [String] {
+        let (store, bridge) = store()
+        let recorder = HapticRecorder()
+        store.haptics = Haptics(make: recorder.make)
+        store.run(op, [:]) { _ in }
+        bridge.answer(op.rawValue, outcome)
+        return recorder.log
+    }
+
+    private func licence(_ state: String) -> Outcome {
+        .ok(.object(["gated": .bool(true), "state": .string(state), "id": .string("lic_1")]))
+    }
+
+    func testARestoreThatUnlockedFeelsSuccessAndOneThatFoundNothingFeelsNothing() {
+        XCTAssertEqual(runWithHaptics(.storeRestore, licence("valid")), ["success.prepare", "success.occurred"])
+        XCTAssertEqual(runWithHaptics(.storeRestore, licence("none")), [])
+    }
+
+    func testAFailedRestoreOrPurchaseFeelsAnErrorAndACompletedOrPendingPurchaseNothing() {
+        let error = ["error.prepare", "error.occurred"]
+        XCTAssertEqual(runWithHaptics(.storeRestore, .failed("E_STORE_UNAVAILABLE")), error)
+        XCTAssertEqual(runWithHaptics(.storePurchase, .failed("E_STORE_UNAVAILABLE")), error)
+        XCTAssertEqual(runWithHaptics(.storePurchase, .ok(.string("purchased"))), [])
+        XCTAssertEqual(runWithHaptics(.storePurchase, .ok(.string("pending"))), [])
+        XCTAssertEqual(runWithHaptics(.licenceGet, .failed("E_STORE_UNAVAILABLE")), [])
+    }
 }

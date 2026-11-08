@@ -30,9 +30,8 @@ final class Screens: SettingsBridge {
     private var tabModel = TabModel()
     /// Whether the page shows a note in its editor host, so a list taking the web view back asks it to let go.
     private var editorShown = false
-    let selectionFeedback: UISelectionFeedbackGenerator
+    let haptics: Haptics
     let gate: ProGate
-    private let lockFeedback: UINotificationFeedbackGenerator
     /// New Note's notes, until their screen has gone: whether a change came after the one that made them.
     private var fresh: [String: FreshNote] = [:]
     private var background: NSObjectProtocol?
@@ -47,24 +46,23 @@ final class Screens: SettingsBridge {
         self.rust = rust
         let root = ScreensRootController(webView: webView)
         self.root = root
-        selectionFeedback = UISelectionFeedbackGenerator(view: root.tabs.view)
-        lockFeedback = UINotificationFeedbackGenerator(view: root.tabs.view)
+        let haptics = Haptics(view: root.tabs.view)
+        root.tabs.lists.haptics = haptics
+        root.tabs.settings.store.haptics = haptics
+        self.haptics = haptics
         let licences = root.tabs.settings.store.licences
         gate = ProGate { [licences] in licences.licence }
         root.log = { [rust] in rust.log($0, $1) }
         root.tabs.onAppear = { [weak self] tab in
             guard let self else { return }
             // A bar item gives no touch-down, so the warning is made ready while a list shows locked.
-            if gate.locked() { lockFeedback.prepare() }
+            if gate.locked() { haptics.prepare(.gateSheet) }
             run(tabModel.appeared(tab))
         }
         root.tabs.onReselect = { [weak self] tab in
             guard let self else { return }
             let effects = tabModel.reselected(tab)
-            if !effects.isEmpty {
-                selectionFeedback.prepare()
-                selectionFeedback.selectionChanged()
-            }
+            if !effects.isEmpty { haptics.play(.tabReselect) }
             run(effects)
         }
         root.tabs.settings.bridge = self
@@ -386,7 +384,7 @@ final class Screens: SettingsBridge {
         sheet.onDismiss = { [weak self] in self?.gate.dismissed() }
         sheet.view.accessibilityViewIsModal = true
         let presenter = root.tabs.presentedViewController ?? root.tabs
-        lockFeedback.notificationOccurred(.warning)
+        haptics.play(.gateSheet)
         presenter.present(sheet, animated: true)
     }
 

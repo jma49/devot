@@ -187,6 +187,13 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Status mark** (the native screens): rule 4.
   A row whose status changes in place scales its mark to `motion.scale.phone-bump` and back with `bouncy`; its colour does not animate.
   Under Reduce Motion it does not scale.
+- **Haptics** (the native screens): Devot's own are played from Swift, held for the session and made ready before the touch that may fire them, with no round trip to the page.
+  `selection` marks a status change, a filter choice and a tab tapped again; a `light` impact marks a pin toggled, a list action from a menu or the selection bar (Move, Tags, Restore) and a Trash that can be undone; `warning` marks the sheet that says Devot Pro is not active, `success` a purchase restored and `error` a purchase or restore that failed.
+  The system's controls play their own and Devot adds none on top: a swipe action and its full swipe, a context menu, a switch, a slider's steps, the tab bar and a sheet's detents.
+  A push, a pop, a tab switch and any other sheet's rise have none.
+  A bar button gives no touch-down, so the generators are made ready when a context menu opens or the selection bar shows, and the warning's while a locked list shows.
+  A write Devot Pro does not allow feels only the warning.
+  The editor's haptics stay the page's `haptic` command until the editor's bars are native.
 - **Filter and week menus** (the native screens): the system's menu from its bar button, with the system's motion.
   The filtered rows change at once (rule 2).
   Activity's week menu stays the page's.
@@ -239,7 +246,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A pane pushes and pops with the system's navigation transition and its back swipe (rule 3), the large title folding into the bar as the list scrolls.
   A page opened from elsewhere (Enter License Key in the Pro sheet) lands over the Settings root, so Back returns there; set while the app is in the background, the stack changes without motion.
   The search field is the system's, under the large title, hidden as the list scrolls; results replace the groups as you type, with no motion of their own (rule 2), and No matching settings is the system's empty view.
-  A switch is the system's toggle (rule 4); a value row pushes its own page of choices, and a choice moves the checkmark at once with the `selection` haptic (rule 4); nothing else in Settings has a haptic.
+  A switch is the system's toggle (rule 4); a value row pushes its own page of choices, and a choice moves the checkmark at once with the `selection` haptic (rule 4); Restore Purchases and the purchase sheet play `success` or `error` (Haptics); nothing else in Settings has a haptic.
   A setting changes before it is saved; a refused save puts the old value back at once and raises the system's alert (rule 2).
   An action row's value changes in place (rule 2), as on the web shell's Restore Purchases and Request a Refund rows.
   The Trial, Mac licence key and purchase sheets are one content-sized system sheet with its grabber, rising and following a drag with the system's motion (rule 3); when their content grows the sheet's height follows in one system animation, and content taller than the sheet scrolls inside it.
