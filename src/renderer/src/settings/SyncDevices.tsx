@@ -153,6 +153,8 @@ export function PairingRow(props: {
   useEffect(() => {
     if (!shown) return
     let stopped = false
+    // One check at a time: its answer sets the next timer, so a push while one is out adds no loop.
+    let inFlight = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const end = (message?: MessageKey) => {
       stopped = true
@@ -168,8 +170,11 @@ export function PairingRow(props: {
       if (message) onAnnounce(t(message))
     }
     const check = () => {
+      if (stopped || inFlight) return
+      inFlight = true
       checkPairing().then(
         (state) => {
+          inFlight = false
           if (stopped) return
           setUnreachable(false)
           if (state.state === 'paired') {
@@ -187,6 +192,7 @@ export function PairingRow(props: {
           }
         },
         (e: unknown) => {
+          inFlight = false
           if (stopped) return
           if (TRANSIENT.has(errorCode(e))) {
             setUnreachable(true)
@@ -208,7 +214,7 @@ export function PairingRow(props: {
       void import('@tauri-apps/api/event')
         .then(({ listen }) =>
           listen(PAIRING_EVENT, () => {
-            if (stopped) return
+            if (stopped || inFlight) return
             clearTimeout(timer)
             check()
           }),
