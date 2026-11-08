@@ -69,7 +69,8 @@ final class SearchModel {
         searchAfterPause()
     }
 
-    func run(_ text: String) {
+    func run(_ text: String, scope: Scope? = nil) {
+        if let scope { self.scope = scope }
         query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return clear() }
         search()

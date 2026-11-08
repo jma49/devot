@@ -27,6 +27,7 @@ final class TabBarTests: XCTestCase {
         let search = try XCTUnwrap(items.last as? UISearchTab)
         XCTAssertTrue(search === tabs.searchTab)
         XCTAssertTrue(search.automaticallyActivatesSearch)
+        XCTAssertEqual(search.accessibilityLabel, L10n.phoneTabSearch())
         XCTAssertEqual(tabs.selected, .library)
     }
 
@@ -155,10 +156,14 @@ final class TabBarTests: XCTestCase {
         XCTAssertEqual(tabs.selected, .search)
         XCTAssertEqual(tabs.search.search.searchBar.text, "tag:work")
         XCTAssertFalse(tabs.searchTab.automaticallyActivatesSearch)
-        let restored = expectation(description: "restored")
-        DispatchQueue.main.async { restored.fulfill() }
-        wait(for: [restored], timeout: 1)
-        XCTAssertTrue(tabs.searchTab.automaticallyActivatesSearch)
+        let later = expectation(description: "a run-loop turn")
+        DispatchQueue.main.async { later.fulfill() }
+        wait(for: [later], timeout: 1)
+        XCTAssertFalse(tabs.searchTab.automaticallyActivatesSearch, "the keyboard stays down after the switch")
+        tabs.select(.notes)
+        XCTAssertFalse(tabs.searchTab.automaticallyActivatesSearch)
+        XCTAssertTrue(tabs.tabBarController(tabs, shouldSelectTab: tabs.searchTab))
+        XCTAssertTrue(tabs.searchTab.automaticallyActivatesSearch, "choosing Search raises the keyboard again")
     }
 
     func testSettingsShowsTheMarkAndSaysWhyWhenTheLicenceNeedsAttention() throws {

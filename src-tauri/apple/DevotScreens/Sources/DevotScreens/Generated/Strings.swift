@@ -5466,6 +5466,26 @@ public enum L10n {
     text("phone.search.scopeTitles", "Titles")
   }
 
+  public static func phoneSearchCountCapped(count p0: String) -> String {
+    fill(text("phone.search.countCapped", "{count}+"), ["count": p0])
+  }
+
+  public static func phoneSearchFoundOne(count p0: String) -> String {
+    fill(text("phone.search.foundOne", "{count} note found"), ["count": p0])
+  }
+
+  public static func phoneSearchFoundOther(count p0: String) -> String {
+    fill(text("phone.search.foundOther", "{count} notes found"), ["count": p0])
+  }
+
+  public static func phoneSearchFoundCapped(count p0: String) -> String {
+    fill(text("phone.search.foundCapped", "More than {count} notes found"), ["count": p0])
+  }
+
+  public static func phoneSearchSuggestionHint() -> String {
+    text("phone.search.suggestionHint", "Searches for it")
+  }
+
   public static func phoneToastTrashed() -> String {
     text("phone.toast.trashed", "Moved to Trash")
   }

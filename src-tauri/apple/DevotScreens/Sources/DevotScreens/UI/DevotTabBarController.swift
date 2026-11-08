@@ -36,6 +36,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
         let searchNavigation = navigations[.search]!
         searchTab = UISearchTab { _ in searchNavigation }
         searchTab.automaticallyActivatesSearch = true
+        searchTab.accessibilityLabel = Self.name(.search)
         searchTab.accessibilityIdentifier = Tab.search.rawValue
         items[.search] = searchTab
         shown.append(searchTab)
@@ -135,12 +136,12 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     }
 
     /// A saved search from the Library: the Search tab at its root, run without raising the keyboard.
+    /// The keyboard stays down until the person next chooses the Search tab themselves.
     func openSearch(_ query: String) {
         searchTab.automaticallyActivatesSearch = false
         navigations[.search]?.popToRootViewController(animated: false)
         select(.search)
         search.show(query: query)
-        DispatchQueue.main.async { [weak self] in self?.searchTab.automaticallyActivatesSearch = true }
     }
 
     func setAttention(_ on: Bool) {
@@ -150,6 +151,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     }
 
     func tabBarController(_ tabBarController: UITabBarController, shouldSelectTab tab: UITab) -> Bool {
+        if tab === searchTab { searchTab.automaticallyActivatesSearch = true }
         if tab === selectedTab, let shown = self.tab(of: tab) { onReselect?(shown) }
         return true
     }

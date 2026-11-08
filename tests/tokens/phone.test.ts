@@ -16,6 +16,7 @@ describe('the phone layout tokens', () => {
     ['size.phone-row-icon', 28],
     ['size.icon-phone-row', 21],
     ['size.icon-phone-status', 20],
+    ['size.icon-phone-tag-dot', 10],
     ['size.phone-swipe-action', 52],
     ['size.phone-swipe-action-height', 34],
     ['size.phone-swipe-surface-inset', 3],

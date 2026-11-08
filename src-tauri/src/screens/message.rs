@@ -47,7 +47,7 @@ pub struct Search {
     pub scope: Scope,
 }
 
-/// A tab of the native tab bar; Search joins when it has a screen of its own.
+/// A tab the page has; the native Search tab is not one, so `tabs.*` naming it is refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Tab {

@@ -87,6 +87,7 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
         ) { [weak self] header, _, path in
             guard let self, let section = data.sectionIdentifier(for: path.section) else { return }
             header.contentConfiguration = heading(section)
+            header.accessibilityLabel = headingLabel(section)
         }
         data.supplementaryViewProvider = { collection, _, path in
             collection.dequeueConfiguredReusableSupplementary(using: headers, for: path)
@@ -96,11 +97,13 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
         context.readLibrary()
     }
 
-    /// A saved search from the Library: shown and run without raising the keyboard.
+    /// A saved search from the Library: shown and run under All, as it was saved, without raising
+    /// the keyboard.
     func show(query: String) {
         loadViewIfNeeded()
         search.searchBar.text = query
-        model.run(query)
+        search.searchBar.selectedScopeButtonIndex = SearchModel.Scope.allCases.firstIndex(of: .all) ?? 0
+        model.run(query, scope: .all)
     }
 
     func updateSearchResults(for searchController: UISearchController) {
@@ -174,6 +177,11 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
         return empty
     }
 
+    private func headingLabel(_ section: Section) -> String? {
+        guard section == .found, let results = model.results else { return nil }
+        return Self.foundCount(count: results.hits.count, capped: results.capped).label
+    }
+
     private func heading(_ section: Section) -> UIListContentConfiguration {
         var content = UIListContentConfiguration.plainHeader()
         content.textProperties.color = Tokens.Color.phoneTextSecondary
@@ -185,12 +193,20 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
         case .found:
             content.text = L10n.phoneTabNotes()
             if let results = model.results {
-                content.secondaryText = results.capped ? "\(results.hits.count)+" : String(results.hits.count)
+                content.secondaryText = Self.foundCount(count: results.hits.count, capped: results.capped).text
                 content.secondaryTextProperties.color = Tokens.Color.phoneTextFaint
                 content.prefersSideBySideTextAndSecondaryText = true
             }
         }
         return content
+    }
+
+    /// The Notes head's count, and what VoiceOver reads for it.
+    static func foundCount(count: Int, capped: Bool) -> (text: String, label: String) {
+        let number = count.formatted()
+        if capped { return (L10n.phoneSearchCountCapped(count: number), L10n.phoneSearchFoundCapped(count: number)) }
+        let label = count == 1 ? L10n.phoneSearchFoundOne(count: number) : L10n.phoneSearchFoundOther(count: number)
+        return (number, label)
     }
 
     private func row(_ hit: SearchModel.Hit) -> NoteCell.Row {
@@ -221,11 +237,14 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
             content.text = tag.map { "#\($0.name)" }
             content.image = UIImage(systemName: "circle.fill")
             content.imageProperties.tintColor = LibraryScreen.tagColor(tag?.color)
-            content.imageProperties.maximumSize = CGSize(width: 10, height: 10)
+            content.imageProperties.maximumSize = CGSize(
+                width: Tokens.Size.iconPhoneTagDot, height: Tokens.Size.iconPhoneTagDot)
         case .note:
             break
         }
         cell.contentConfiguration = content
+        cell.accessibilityHint = L10n.phoneSearchSuggestionHint()
+        cell.accessibilityTraits.insert(.button)
         var background = UIBackgroundConfiguration.listCell()
         background.backgroundColor = Tokens.Color.phoneBackground
         cell.backgroundConfiguration = background

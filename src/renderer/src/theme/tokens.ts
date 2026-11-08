@@ -258,6 +258,7 @@ export const sizes = {
   "size.icon-phone-status": "20px",
   "size.icon-phone-row": "21px",
   "size.phone-row-icon": "28px",
+  "size.icon-phone-tag-dot": "10px",
   "size.icon-sm": "14px",
   "size.icon-md": "17px",
   "size.icon-lg": "22px",

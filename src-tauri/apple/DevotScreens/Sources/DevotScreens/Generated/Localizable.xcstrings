@@ -15203,6 +15203,50 @@
         }
       }
     },
+    "phone.search.countCapped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count}+"
+          }
+        }
+      }
+    },
+    "phone.search.foundCapped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More than {count} notes found"
+          }
+        }
+      }
+    },
+    "phone.search.foundOne" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} note found"
+          }
+        }
+      }
+    },
+    "phone.search.foundOther" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} notes found"
+          }
+        }
+      }
+    },
     "phone.search.hint" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15265,6 +15309,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Titles"
+          }
+        }
+      }
+    },
+    "phone.search.suggestionHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Searches for it"
           }
         }
       }

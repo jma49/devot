@@ -1773,6 +1773,7 @@ public enum Tokens {
     public static let iconPhoneStatus: CGFloat = 20
     public static let iconPhoneRow: CGFloat = 21
     public static let phoneRowIcon: CGFloat = 28
+    public static let iconPhoneTagDot: CGFloat = 10
     public static let iconSm: CGFloat = 14
     public static let iconMd: CGFloat = 17
     public static let iconLg: CGFloat = 22

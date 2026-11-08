@@ -138,6 +138,40 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(model.results?.hits.map(\.note.id), [noteRow(2, updated: 1).id])
     }
 
+    func testAScopeChosenWhileASearchRunsDropsTheAnswerUnderTheOldScope() {
+        let model = model()
+        model.type("plan")
+        fire()
+        model.choose(.titles)
+        bridge.answer(Op.search.rawValue, found([noteRow(1, updated: 1)]))
+        XCTAssertNil(model.results)
+        XCTAssertEqual(shown, 0)
+        bridge.answer(Op.search.rawValue, found([noteRow(2, updated: 1)]))
+        XCTAssertEqual(model.results?.hits.map(\.note.id), [noteRow(2, updated: 1).id])
+    }
+
+    func testAQueryRunWhileATypedSearchRunsDropsTheTypedAnswer() {
+        let model = model()
+        model.type("pla")
+        fire()
+        model.run("in:Work")
+        bridge.answer(Op.search.rawValue, found([noteRow(1, updated: 1)]))
+        XCTAssertNil(model.results)
+        bridge.answer(Op.search.rawValue, found([noteRow(2, updated: 1)]))
+        XCTAssertEqual(model.results?.query, "in:Work")
+    }
+
+    func testAQueryRunUnderAScopeSearchesOnceUnderIt() {
+        let model = model()
+        model.type("plan")
+        model.choose(.titles)
+        model.run("tag:work", scope: .all)
+        XCTAssertEqual(bridge.sent.count, 2)
+        XCTAssertEqual(asked(1).query, "tag:work")
+        XCTAssertEqual(asked(1).scope, "all")
+        XCTAssertEqual(model.scope, .all)
+    }
+
     func testClearingTheFieldShowsTheStartAtOnceAndDropsWhatIsOnItsWay() {
         let model = model()
         model.type("a")

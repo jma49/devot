@@ -1,8 +1,8 @@
 import DevotScreens
 import XCTest
 
-/// The native Search tab in the installed app: the search circle, a query, a result opened and Back
-/// to Search as it was.
+/// The native Search tab in the installed app: the search circle, a query, the Titles scope, a result
+/// opened and Back to Search as it was.
 @MainActor
 final class SearchTests: XCTestCase {
     private var app: XCUIApplication!
@@ -40,6 +40,12 @@ final class SearchTests: XCTestCase {
         let row = app.collectionViews.cells.matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "the welcome example is found")
         keepScreen("found")
+        let titles = app.buttons[L10n.phoneSearchScopeTitles()]
+        XCTAssertTrue(titles.waitForExistence(timeout: 5), "the field offers the Titles scope")
+        titles.tap()
+        XCTAssertTrue(waitUntil { titles.isSelected }, "Titles is chosen")
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "the welcome example is found by its title")
+        keepScreen("found by title")
         XCTAssertTrue(waitUntil { row.isHittable })
         row.tap()
         let noteBar = app.navigationBars.firstMatch

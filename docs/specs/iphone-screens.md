@@ -97,7 +97,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - Rust validates every message before it forwards it:
   - `op` and `notice` come from closed enums, and unknown fields are refused;
   - note IDs pass `valid_note_id` (`src-tauri/src/commands/notes.rs`);
-  - a title is at most `MAX_TITLE_CHARS`, a tag name at most the tag limit, and a search query at most 10 clauses of 100 characters a term;
+  - a title is at most `MAX_TITLE_CHARS`, a tag name at most the tag limit, and a search query at most as long as 10 clauses of 100 characters a term (the core reads no further, so Rust checks only that length, not the clauses);
   - a message is at most 4 MiB, the store bridge's limit.
 - A code is for logs and for choosing what to show, never shown to the user.
 - Logs carry the operation, the `id` and codes only (`W_SCREENS_OP_FAILED op=note.create code=…`).
@@ -242,7 +242,7 @@ The Search tab is a navigation stack under a large title whose root, `SearchScre
 - Before a query the list shows this iPhone's recent searches, then the notebooks, statuses and tags, each filling the field with its clause (by name where quoting holds the name, else `bookId:` or `tagId:`) and searching.
 - Recent searches are the six newest queries whose result was opened, kept in `UserDefaults` and never synced or logged.
 - A result opens its `EditorScreen` on the Search tab, so Back lands in Search with the query and results as they were.
-- A saved search in the Library opens the Search tab at its root and runs its query without raising the keyboard.
+- A saved search in the Library opens the Search tab at its root and runs its query under All without raising the keyboard, which rises again the next time the Search tab is chosen.
 
 ### Tabs
 

@@ -2187,6 +2187,11 @@
       "$value": { "value": 28, "unit": "px" },
       "$description": "The column a grouped row's icon or dot is centred in."
     },
+    "icon-phone-tag-dot": {
+      "$type": "dimension",
+      "$value": { "value": 10, "unit": "px" },
+      "$description": "A tag's colour dot in a phone Library or Search row."
+    },
     "icon-sm": {
       "$type": "dimension",
       "$value": {

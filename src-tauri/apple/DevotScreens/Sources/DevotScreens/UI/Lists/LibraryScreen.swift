@@ -192,7 +192,8 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
             content.text = tag?.name
             content.image = UIImage(systemName: "circle.fill")
             content.imageProperties.tintColor = Self.tagColor(tag?.color)
-            content.imageProperties.maximumSize = CGSize(width: 10, height: 10)
+            content.imageProperties.maximumSize = CGSize(
+                width: Tokens.Size.iconPhoneTagDot, height: Tokens.Size.iconPhoneTagDot)
             content.imageProperties.reservedLayoutSize = CGSize(width: Tokens.Size.phoneRowIcon, height: 0)
             content.secondaryText = tag.map { String($0.count) }
             accessories = [.disclosureIndicator()]
