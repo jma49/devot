@@ -225,12 +225,14 @@ export function useQuitAndClose({
         // fails here keeps it running, without the notice a quit's own failure would bring up.
         const stopIdle = await listen('devot://background-idle-check', async () => {
           const ready = coreRef.current
-          if (!ready) return
-          saveNow()
-          const saved = await ready.flush({ versions: true }).then(
-            () => true,
-            () => false,
-          )
+          // A window whose core is still starting or failed to start holds nothing unsaved.
+          if (ready) saveNow()
+          const saved = ready
+            ? await ready.flush({ versions: true }).then(
+                () => true,
+                () => false,
+              )
+            : true
           await invoke('background_idle_answer', { saved })
         })
         if (stopped) stopIdle()

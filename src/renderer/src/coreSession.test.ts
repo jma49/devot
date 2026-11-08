@@ -140,6 +140,22 @@ describe('useQuitAndClose', () => {
     expect(props.markShownSeen).not.toHaveBeenCalled()
   })
 
+  it('answers an idle check with nothing unsaved while the window has no core', async () => {
+    const answers: unknown[] = []
+    tauri = mockTauri((cmd, args) => {
+      if (cmd === 'background_idle_answer') answers.push(args['saved'])
+      return null
+    })
+    const { props } = setup()
+    renderHook(useQuitAndClose, {
+      props: { ...props, core: undefined, coreRef: { current: undefined } },
+    })
+    await settle()
+    tauri.emit('devot://background-idle-check')
+    await settle()
+    expect(answers).toEqual([true])
+  })
+
   it('saves with the core the window adopted after it began to listen', async () => {
     tauri = mockTauri()
     const { core, props } = setup()

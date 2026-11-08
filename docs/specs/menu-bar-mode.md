@@ -39,4 +39,5 @@ A second launch with the flag, one that lost a race to start, is ignored by the 
   Records waiting to sync delay it for up to 10 minutes more.
   Any window shown ends this for good, and the item stays until the owner quits.
 - **The rest is as ever:** the data folder's lock, the licence, sync (the hidden main window runs the engine), backups.
-  A launch that cannot open its notes logs its code and exits with no alert; opening Devot shows why.
+  A launch that cannot open its notes logs its code and shows no alert; opening Devot shows why.
+  Its main window, with no core, answers the idle check with nothing unsaved, so it quits by itself as any other background launch does.
