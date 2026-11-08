@@ -101,7 +101,7 @@ function watch() {
   if (watching) return
   watching = true
   subscribeLicence(() => {
-    if (pending && surface && editingAllowed()) gateUnlocked()
+    if (surface && editingAllowed()) gateUnlocked()
   })
   subscribePurchase(() => {
     if (surface === 'purchase' && !purchaseOpen()) {

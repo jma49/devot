@@ -6,31 +6,28 @@ import UIKit
 /// goes to Rust, which checks it, and never comes back.
 struct LicencePane: View {
     let store: SettingsStore
+    @State var model: LicencePaneModel
     let entry: LicenceEntry
     let buy: () -> Void
-    @State private var key = ""
-    @State private var busy = false
-    @State private var problem: String?
-    @State private var announcement: String?
     @State private var confirming = false
     @FocusState private var keyFocused: Bool
 
     var body: some View {
         Form {
-            if let problem { ProblemRow(text: problem) }
+            if let problem = model.problem { ProblemRow(text: problem) }
             if let licence = store.licence {
                 rows(licence)
             }
         }
         .settingsPage(store)
         .alert(L10n.licenceSettingsRemoveConfirm(), isPresented: $confirming) {
-            Button(L10n.licenceSettingsRemove(), role: .destructive, action: remove)
+            Button(L10n.licenceSettingsRemove(), role: .destructive, action: model.remove)
             Button(L10n.dialogCancel(), role: .cancel) {}
         } message: {
             Text(L10n.licenceSettingsRemoveDetail())
         }
         .onAppear {
-            if case .prefill(let value) = entry { key = value }
+            if case .prefill(let value) = entry { model.key = value }
         }
         .task {
             // The key field takes focus once the push has landed, so the keyboard rises over the page.
@@ -56,7 +53,7 @@ struct LicencePane: View {
             if let seat = licence.activation {
                 RowText(title: L10n.licenceSettingsDevices(), detail: LicenceText.seat(licence)).settingsRow(described: true)
                 if seat.state != "active" || ["E_LICENCE_DEVICE_LIMIT", "E_LICENCE_ACTIVATION_REQUIRED"].contains(licence.code ?? "") {
-                    ActionRow(title: L10n.licenceSettingsDevicesRetry(), busy: busy, action: retry)
+                    ActionRow(title: L10n.licenceSettingsDevicesRetry(), busy: model.busy, action: model.retry)
                 }
                 ActionRow(title: L10n.licenceSettingsDevicesManage()) {
                     UIApplication.shared.open(Licence.devicesURL)
@@ -78,68 +75,28 @@ struct LicencePane: View {
                     RowText(
                         title: L10n.licenceSettingsKey(),
                         detail: licence.held ? L10n.licenceSettingsReplaceHint() : L10n.licenceSettingsKeyHint())
-                    TextField(L10n.licenceSettingsKey(), text: $key)
+                    TextField(L10n.licenceSettingsKey(), text: $model.key)
                         .focused($keyFocused)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .submitLabel(.done)
-                        .onSubmit(add)
+                        .onSubmit(model.add)
                         .accessibilityIdentifier("licence-key")
-                    if let announcement { Text(announcement).settingsDetail() }
+                    if let announcement = model.announcement { Text(announcement).settingsDetail() }
                 }
                 .settingsRow(described: true)
                 ActionRow(
-                    title: licence.held ? L10n.licenceSettingsReplace() : L10n.licenceSettingsAdd(), busy: busy, action: add
+                    title: licence.held ? L10n.licenceSettingsReplace() : L10n.licenceSettingsAdd(), busy: model.busy,
+                    action: model.add
                 )
-                .disabled(key.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(model.key.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             if licence.held {
                 Section {
-                    ActionRow(title: L10n.licenceSettingsRemoveAsk(), destructive: true) { confirming = true }
+                    ActionRow(title: L10n.licenceSettingsRemoveAsk(), destructive: true, busy: model.busy) {
+                        confirming = true
+                    }
                 }
-            }
-        }
-    }
-
-    private func add() {
-        guard !key.trimmingCharacters(in: .whitespaces).isEmpty, !busy else { return }
-        act(.licenceSet, ["key": .string(key)], done: L10n.licenceSettingsAdded()) {
-            key = ""
-        } failed: {
-            L10n.licenceSettingsAddFailed(problem: LicenceText.problem($0))
-        }
-    }
-
-    private func remove() {
-        act(.licenceRemove, done: L10n.licenceSettingsRemoved()) {} failed: {
-            LicenceText.failure(L10n.licenceSettingsRemoveFailed(), $0)
-        }
-    }
-
-    private func retry() {
-        guard !busy else { return }
-        act(.licenceRefresh, done: L10n.licenceSettingsDevicesRefreshed()) {} failed: {
-            L10n.licenceSettingsDevicesRefreshFailed(problem: LicenceText.problem($0))
-        }
-    }
-
-    private func act(
-        _ op: DirectOp, _ args: [String: JSONValue] = [:], done: String, then: @escaping () -> Void,
-        failed: @escaping (String) -> String
-    ) {
-        busy = true
-        store.run(op, args) { result in
-            busy = false
-            switch result {
-            case .success(let snapshot):
-                store.adoptLicence(snapshot)
-                problem = nil
-                announcement = done
-                then()
-            case .failure(let failure):
-                store.log("W_LICENCE_SETTINGS_FAILED op=\(op.rawValue) code=\(failure.code)")
-                announcement = nil
-                problem = failed(failure.code)
             }
         }
     }

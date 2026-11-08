@@ -5514,6 +5514,10 @@ public enum L10n {
     text("phone.note.preview", "Preview")
   }
 
+  public static func phoneNoteOpenFailed() -> String {
+    text("phone.note.openFailed", "This note could not be opened.")
+  }
+
   public static func phoneNoteFind() -> String {
     text("phone.note.find", "Find in Note")
   }

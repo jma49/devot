@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { NoteSummary } from '../../../../core/storage'
 import { PhoneNote, type NativeNoteChrome, type NoteCommands } from '../PhoneNote'
+import { closeGate } from '../requireEditing'
 import type { PhoneStore } from '../usePhoneData'
 import type { NativeEditor } from './editor'
 import type { ScreensNotice } from './message'
@@ -29,6 +30,7 @@ const FOCUS_WAIT_MS = 5000
 
 interface Focusing {
   readonly noteId: string
+  readonly typed: string
   readonly settle: (focused: boolean) => void
 }
 
@@ -82,6 +84,8 @@ export function EditorHost(props: {
       show: (noteId, focusBody) => {
         typedIn.current = focusBody ? noteId : null
         focusing.current?.settle(false)
+        // A screen took the page, so the one a held write was asked on has gone.
+        closeGate()
         setShown((before) => ({ noteId, turn: (before?.turn ?? 0) + 1 }))
         setVisible(true)
       },
@@ -89,12 +93,14 @@ export function EditorHost(props: {
         typedIn.current = null
         focusing.current?.settle(false)
         commands.current?.leave()
+        // A write held for the screen being left must not run on an unlock after it has gone.
+        closeGate()
         setVisible(false)
         return new Promise<void>((resolve) => afterPaint(resolve))
       },
       setMode: (mode) => commands.current?.setMode(mode),
       info: () => commands.current?.info(),
-      focus: () =>
+      focus: (typed) =>
         new Promise<boolean>((resolve) => {
           const noteId = typedIn.current
           if (noteId === null) return resolve(false)
@@ -102,6 +108,7 @@ export function EditorHost(props: {
           const timer = setTimeout(() => asked.settle(false), FOCUS_WAIT_MS)
           const asked: Focusing = {
             noteId,
+            typed,
             settle: (focused) => {
               if (focusing.current !== asked) return
               focusing.current = null
@@ -121,7 +128,7 @@ export function EditorHost(props: {
     const { noteId } = asking
     if (shown?.noteId !== noteId || loadedId !== noteId) return
     if (shownMode?.noteId !== noteId || shownMode.mode !== 'edit') return
-    asking.settle(commands.current?.focusBody() ?? false)
+    asking.settle(commands.current?.focusBody(asking.typed) ?? false)
   }, [asking, visible, shown, loadedId, shownMode])
 
   const readyTurn = useRef(0)

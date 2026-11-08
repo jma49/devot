@@ -22,6 +22,8 @@ const MAX_BATCH_IDS: usize = 10_000;
 /// and a space; it never reads a longer query further.
 const MAX_QUERY_CHARS: usize = 10 * (100 + 16);
 const MAX_CODE_CHARS: usize = 64;
+/// What a new note's hidden field took before the page put the caret in its body: a few words.
+const MAX_TYPED_CHARS: usize = 1_000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -93,6 +95,14 @@ pub struct NoteArgs {
 #[serde(rename_all = "lowercase")]
 pub enum Focus {
     Body,
+}
+
+/// `typed`: what the user typed into the native field before the page could take the caret.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FocusArgs {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub typed: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -223,7 +233,7 @@ pub enum Op {
     #[serde(rename = "glass.set")]
     GlassSet(GlassSet),
     #[serde(rename = "editor.focus")]
-    EditorFocus(Empty),
+    EditorFocus(FocusArgs),
     #[serde(rename = "notes.batch")]
     NotesBatch(Batch),
     #[serde(rename = "trash.empty")]
@@ -689,6 +699,15 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             note_ids(std::slice::from_ref(&apply.template_id), 1)?;
             book(apply.book_id.as_ref())
         }
+        Op::EditorFocus(FocusArgs { typed }) => {
+            if typed
+                .as_ref()
+                .is_some_and(|t| t.chars().count() > MAX_TYPED_CHARS)
+            {
+                return Err("E_SCREENS_TYPED_TOO_LONG");
+            }
+            Ok(())
+        }
         Op::GlassSet(GlassSet { transparency }) => {
             if !(-GLASS_TRANSPARENCY_MAX..=GLASS_TRANSPARENCY_MAX).contains(transparency)
                 || transparency % GLASS_TRANSPARENCY_STEP != 0
@@ -704,7 +723,6 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
         | Op::EditorInfo(_)
-        | Op::EditorFocus(_)
         | Op::TrashEmpty(_)
         | Op::BookCreate(_)
         | Op::TemplateCreate(_) => Ok(()),
@@ -947,6 +965,18 @@ mod tests {
         assert_eq!(
             from_swift(1, &search(&longer)),
             Err("E_SCREENS_QUERY_TOO_LONG")
+        );
+    }
+
+    #[test]
+    fn hands_the_page_what_was_typed_before_its_caret_up_to_a_limit() {
+        let focus = |typed: &str| {
+            bytes(&json!({ "v": 1, "id": 1, "op": "editor.focus", "args": { "typed": typed } }))
+        };
+        assert!(from_swift(1, &focus(&"b".repeat(MAX_TYPED_CHARS))).is_ok());
+        assert_eq!(
+            from_swift(1, &focus(&"b".repeat(MAX_TYPED_CHARS + 1))),
+            Err("E_SCREENS_TYPED_TOO_LONG")
         );
     }
 

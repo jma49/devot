@@ -318,6 +318,28 @@ describe('a write while editing is locked', () => {
     expect(dialog()).toBeNull()
   })
 
+  it('writes nothing when Not Now comes before the Try Again check answers that writing is allowed', async () => {
+    await lockedAs(LOCKED.X1)
+    const write = asked()
+    await write.tap()
+    await vi.waitFor(() => expect(button('Try Again')).toBeDefined())
+    let read: (licence: unknown) => void = () => {}
+    answers['licence_get'] = () => new Promise((resolve) => (read = resolve))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      await press('Try Again')
+      await press('Not Now')
+      delete answers['licence_get']
+      current = RUNNING
+      await act(async () => read(RUNNING))
+      await act(async () => void vi.advanceTimersByTime(1000))
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(write.runs.count).toBe(0)
+    expect(dialog()).toBeNull()
+  })
+
   it('says so under Try Again when the license could not be read', async () => {
     await lockedAs(LOCKED.X1)
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -409,6 +431,18 @@ describe('a write while editing is locked', () => {
     expect(runs.count).toBe(1)
     expect(dialogs()).toBeLessThanOrEqual(1)
     expect(haptics()).toEqual([{ kind: 'warning' }])
+  })
+
+  it('closes the sheet for a refused write on its own once a licence change allows writing', async () => {
+    await lockedAs(RUNNING)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    current = LOCKED.K1
+    await act(async () =>
+      watchWrite('newNotebook', Promise.reject(new Error('E_LICENCE_REQUIRED'))),
+    )
+    await vi.waitFor(() => expect(dialog()).not.toBeNull())
+    await unlock()
+    expect(dialog()).toBeNull()
   })
 
   it('logs any other failure of a write without a sheet', async () => {

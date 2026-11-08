@@ -43,12 +43,12 @@ export function LicenceSection() {
   const id = (name: string) => `${ids}-${name}`
   const licence = useLicence()
   const [key, setKey] = useState('')
-  const [adding, setAdding] = useState(false)
+  // One licence write at a time: a remove during a replace's seat activation would race it in Rust.
+  const [running, setRunning] = useState<'add' | 'remove' | 'refresh'>()
   const [error, setError] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
   const [confirming, setConfirming] = useState(false)
   const now = useMinutes()
-  const [refreshing, setRefreshing] = useState(false)
   const trial = trialSentence(licence, now, currentLocale())
 
   useEffect(() => startLicence(), [])
@@ -57,8 +57,8 @@ export function LicenceSection() {
   const takesKeys = licence.appStore?.takesKeys ?? true
   const unlocked = licence.state === 'valid' || licence.appStore?.pro === true
   const add = () => {
-    if (key.trim() === '' || adding) return
-    setAdding(true)
+    if (key.trim() === '' || running) return
+    setRunning('add')
     void addLicence(key)
       .then(
         () => {
@@ -75,30 +75,34 @@ export function LicenceSection() {
           )
         },
       )
-      .finally(() => setAdding(false))
+      .finally(() => setRunning(undefined))
   }
 
   const remove = () => {
     setConfirming(false)
-    void removeLicence().then(
-      () => {
-        setError(undefined)
-        setAnnouncement(t('licenceSettings.removed'))
-      },
-      (e: unknown) => {
-        setAnnouncement('')
-        setError(
-          failureText(
-            'licenceSettings.removeFailed',
-            logFailure(errorCode(e), 'W_LICENCE_SETTINGS_FAILED'),
-          ),
-        )
-      },
-    )
+    if (running) return
+    setRunning('remove')
+    void removeLicence()
+      .then(
+        () => {
+          setError(undefined)
+          setAnnouncement(t('licenceSettings.removed'))
+        },
+        (e: unknown) => {
+          setAnnouncement('')
+          setError(
+            failureText(
+              'licenceSettings.removeFailed',
+              logFailure(errorCode(e), 'W_LICENCE_SETTINGS_FAILED'),
+            ),
+          )
+        },
+      )
+      .finally(() => setRunning(undefined))
   }
   const retry = () => {
-    if (refreshing) return
-    setRefreshing(true)
+    if (running) return
+    setRunning('refresh')
     void refreshLicence()
       .then(
         () => {
@@ -114,7 +118,7 @@ export function LicenceSection() {
           )
         },
       )
-      .finally(() => setRefreshing(false))
+      .finally(() => setRunning(undefined))
   }
 
   return (
@@ -154,7 +158,12 @@ export function LicenceSection() {
               !['E_LICENCE_DEVICE_LIMIT', 'E_LICENCE_ACTIVATION_REQUIRED'].includes(
                 licence.code ?? '',
               ) ? null : (
-                <button type="button" className="button" aria-disabled={refreshing} onClick={retry}>
+                <button
+                  type="button"
+                  className="button"
+                  aria-disabled={running !== undefined}
+                  onClick={retry}
+                >
                   {t('licenceSettings.devices.retry')}
                 </button>
               )}
@@ -201,7 +210,7 @@ export function LicenceSection() {
               <button
                 type="button"
                 className="button"
-                aria-disabled={key.trim() === '' || adding}
+                aria-disabled={key.trim() === '' || running !== undefined}
                 onClick={add}
               >
                 {t(held ? 'licenceSettings.replace' : 'licenceSettings.add')}
@@ -210,9 +219,9 @@ export function LicenceSection() {
                 type="button"
                 className="button"
                 data-destructive
-                aria-disabled={!held}
+                aria-disabled={!held || running !== undefined}
                 onClick={() => {
-                  if (held) setConfirming(true)
+                  if (held && !running) setConfirming(true)
                 }}
               >
                 {t('licenceSettings.removeAsk')}

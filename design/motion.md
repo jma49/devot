@@ -205,6 +205,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Title under the bar** (the native screens): rule 2.
   Once the note's own title has scrolled under the system bar, the bar shows it; it goes when the title comes back.
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes. Under Reduce Motion it crossfades in place, and still follows a drag.
+  A closing sheet goes at once for focus, keys and what it was asked for, and an inert copy of it slides away from where it was; a sheet raised while that copy slides takes its place at once.
 - **New Note** (the native screens): rule 3.
   The compose button in the list's bar presses as any bar button.
   The tap pushes the new note's screen in the same turn with the system's push, before the note exists; its cover holds, with no title, until the note exists and the page has painted it, then fades as any note's cover does.

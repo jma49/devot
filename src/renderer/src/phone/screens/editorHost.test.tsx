@@ -293,6 +293,28 @@ describe('the editor host under the native screens', () => {
     ).toBe(true)
   })
 
+  it('rests the hidden pane again when the note changes during a crossfade', async () => {
+    const first = await shell.notes.create('First', null)
+    const second = await shell.notes.create('Second', null)
+    editors.bodies.set(second, 'Read me')
+    await start()
+    await swift('editor.show', { noteId: first })
+    const finishes: (() => void)[] = []
+    vi.spyOn(Element.prototype, 'animate').mockImplementation(() => {
+      const finished = new Promise<void>((resolve) => finishes.push(resolve))
+      return { finished, cancel: () => {} } as unknown as Animation
+    })
+    await swift('editor.setMode', { mode: 'preview' })
+    expect(finishes.length).toBeGreaterThan(0)
+    await swift('editor.show', { noteId: second })
+    expect(notices('editor.mode').at(-1)).toMatchObject({ noteId: second, mode: 'preview' })
+    await act(async () => {
+      for (const finish of finishes) finish()
+    })
+    expect(layer('edit').dataset['resting']).toBe('true')
+    expect(editors.latest?.hidden).toBe(true)
+  })
+
   it('opens a locked note in Preview, read-only, and keeps it there', async () => {
     const id = await shell.notes.create('Plans', null)
     licence = ENDED
@@ -328,6 +350,70 @@ describe('the editor host under the native screens', () => {
     expect(document.querySelector('.phone-sheet-layer [role="dialog"]')).not.toBeNull()
     await swift('editor.hide')
     expect(document.querySelector('.phone-sheet-layer [role="dialog"]')).toBeNull()
+  })
+
+  it('keeps Note Info shown when Swift asks for it again while it slides away', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await swift('editor.show', { noteId: id })
+    await swift('editor.info')
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      await act(async () => document.querySelector<HTMLElement>('.phone-sheet-dim')!.click())
+      await swift('editor.info')
+      await act(async () => void vi.advanceTimersByTime(1000))
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(document.querySelectorAll('.phone-sheet-layer [role="dialog"]')).toHaveLength(1)
+  })
+
+  it('drops the trash held by the Pro sheet once the screen it was asked on goes', async () => {
+    const id = await shell.notes.create('Plans', null)
+    licence = ENDED
+    await readCurrentLicence()
+    await start()
+    await swift('editor.show', { noteId: id })
+    await swift('editor.info')
+    const trashRow = [...document.querySelectorAll<HTMLElement>('.phone-sheet-layer button')].find(
+      (b) => b.textContent === 'Move to Trash',
+    )!
+    await act(async () => trashRow.click())
+    await vi.waitFor(() =>
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Not Now'),
+    )
+    await swift('editor.hide')
+    licence = PRO
+    await act(async () => void (await readCurrentLicence()))
+    await nextFrames()
+    expect(notices('nav.back')).toStrictEqual([])
+    expect((await shell.notes.list()).map((n) => n.id)).toContain(id)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('drops the trash held by the Pro sheet once another screen takes the page', async () => {
+    const first = await shell.notes.create('Plans', null)
+    const second = await shell.notes.create('Ideas', null)
+    licence = ENDED
+    await readCurrentLicence()
+    await start()
+    await swift('editor.show', { noteId: first })
+    await swift('editor.show', { noteId: second })
+    await swift('editor.info')
+    const trashRow = [...document.querySelectorAll<HTMLElement>('.phone-sheet-layer button')].find(
+      (b) => b.textContent === 'Move to Trash',
+    )!
+    await act(async () => trashRow.click())
+    await vi.waitFor(() =>
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Not Now'),
+    )
+    await swift('editor.show', { noteId: first })
+    licence = PRO
+    await act(async () => void (await readCurrentLicence()))
+    await nextFrames()
+    expect(notices('nav.back')).toStrictEqual([])
+    expect((await shell.notes.list()).map((n) => n.id)).toContain(second)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
   it('refuses a request without a note or with an unknown mode', async () => {

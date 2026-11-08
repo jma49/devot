@@ -97,6 +97,25 @@ function leavingDuration(): number {
     : motionMs('motion.duration.phone-push')
 }
 
+interface StackEntry {
+  route: PhoneRoute
+  phase: 'rest' | 'leaving'
+}
+
+// The popped route stays in the same keyed list as the others, so its screen keeps its element while it slides out.
+function stackEntries(
+  routes: readonly PhoneRoute[],
+  before: readonly PhoneRoute[],
+  shown: readonly StackEntry[],
+): StackEntry[] {
+  const entries: StackEntry[] = routes.map((route) => ({ route, phase: 'rest' }))
+  const popped = routes.length < before.length ? before[before.length - 1] : undefined
+  const leaving = popped ?? shown.find((entry) => entry.phase === 'leaving')?.route
+  if (leaving && !routes.some((route) => route.id === leaving.id))
+    entries.push({ route: leaving, phase: 'leaving' })
+  return entries
+}
+
 function Stack(props: {
   routes: readonly PhoneRoute[]
   active: boolean
@@ -105,49 +124,49 @@ function Stack(props: {
   dragging: boolean
   render: (route: PhoneRoute) => ReactNode
 }) {
-  const [leaving, setLeaving] = useState<{ route: PhoneRoute; index: number } | null>(null)
-  const previous = useRef(props.routes)
-  useLayoutEffect(() => {
-    const before = previous.current
-    previous.current = props.routes
-    if (props.routes.length >= before.length) return
-    const index = before.length - 1
-    setLeaving({ route: before[index]!, index })
-    const timer = setTimeout(() => setLeaving(null), leavingDuration())
+  const [shown, setShown] = useState<{ routes: readonly PhoneRoute[]; entries: StackEntry[] }>(
+    () => ({ routes: props.routes, entries: stackEntries(props.routes, props.routes, []) }),
+  )
+  let entries = shown.entries
+  if (shown.routes !== props.routes) {
+    entries = stackEntries(props.routes, shown.routes, shown.entries)
+    setShown({ routes: props.routes, entries })
+  }
+  const leaving = entries.find((entry) => entry.phase === 'leaving')?.route
+  useEffect(() => {
+    if (!leaving) return
+    const timer = setTimeout(
+      () =>
+        setShown((now) => ({
+          routes: now.routes,
+          entries: now.entries.filter((entry) => entry.route !== leaving),
+        })),
+      leavingDuration(),
+    )
     return () => clearTimeout(timer)
-  }, [props.routes])
+  }, [leaving])
   const top = props.routes.length - 1
   return (
     <div className="phone-stack" hidden={!props.active}>
-      {props.routes.map((route, index) => {
-        const { x, dim } = layerPlacement(index, top, props.drag, props.width)
+      {entries.map(({ route, phase }, index) => {
+        const { x, dim } =
+          phase === 'leaving'
+            ? { x: '0px', dim: 0 }
+            : layerPlacement(index, top, props.drag, props.width)
         return (
           <Layer
             key={route.id}
             index={index}
             x={x}
             dim={dim}
-            phase="rest"
+            phase={phase}
             covered={index !== top}
-            dragging={props.dragging}
+            dragging={phase === 'rest' && props.dragging}
           >
             {props.render(route)}
           </Layer>
         )
       })}
-      {leaving && !props.routes.some((route) => route.id === leaving.route.id) && (
-        <Layer
-          key={leaving.route.id}
-          index={leaving.index}
-          x="0px"
-          dim={0}
-          phase="leaving"
-          covered
-          dragging={false}
-        >
-          {props.render(leaving.route)}
-        </Layer>
-      )}
     </div>
   )
 }

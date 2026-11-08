@@ -14752,6 +14752,17 @@
         }
       }
     },
+    "phone.note.openFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This note could not be opened."
+          }
+        }
+      }
+    },
     "phone.note.preview" : {
       "extractionState" : "manual",
       "localizations" : {
