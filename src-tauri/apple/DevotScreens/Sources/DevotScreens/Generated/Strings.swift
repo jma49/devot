@@ -5246,10 +5246,6 @@ public enum L10n {
     text("noteMenu.clearAuthorship", "Clear Authorship…")
   }
 
-  public static func phoneTabs() -> String {
-    text("phone.tabs", "Tabs")
-  }
-
   public static func phoneTabNotes() -> String {
     text("phone.tab.notes", "Notes")
   }
@@ -5342,18 +5338,6 @@ public enum L10n {
     text("phone.badge.attention", "Needs attention")
   }
 
-  public static func phoneLibraryDone() -> String {
-    text("phone.library.done", "Done")
-  }
-
-  public static func phoneLibrarySmart() -> String {
-    text("phone.library.smart", "Smart lists")
-  }
-
-  public static func phoneLibrarySavedSearches() -> String {
-    text("phone.library.savedSearches", "Saved Searches")
-  }
-
   public static func phoneLibraryExpand(name p0: String) -> String {
     fill(text("phone.library.expand", "Show notebooks in {name}"), ["name": p0])
   }
@@ -5364,10 +5348,6 @@ public enum L10n {
 
   public static func phoneLibraryNoteCount(count p0: String) -> String {
     fill(text("phone.library.noteCount", "{count} notes"), ["count": p0])
-  }
-
-  public static func phoneLibraryBackedUpAt(time p0: String) -> String {
-    fill(text("phone.library.backedUpAt", "backed up {time}"), ["time": p0])
   }
 
   public static func phoneClose() -> String {
@@ -5500,10 +5480,6 @@ public enum L10n {
 
   public static func phoneListRecent() -> String {
     text("phone.list.recent", "Recent")
-  }
-
-  public static func phoneListShowMore(count p0: String) -> String {
-    fill(text("phone.list.showMore", "Show more ({count} completed hidden)"), ["count": p0])
   }
 
   public static func phoneNoteTitle() -> String {

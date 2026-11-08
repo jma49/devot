@@ -393,31 +393,9 @@ button.phone-grouped-open:active:not(:disabled) {
   background: var(--color-phone-pressed);
 }
 
-/* Each further level moves in by what one level moves past the row's padding, down to a depth that still
-   leaves the name room to read; deeper levels line up there. */
-.phone-grouped-row[data-child] {
-  --phone-child-step: calc(var(--size-phone-child-indent) - var(--size-phone-row-pad));
-  --phone-row-indent: min(var(--phone-row-depth, 0), var(--phone-row-depth-shown, 3));
-}
-
-.phone-app[data-text-size='accessibility'] .phone-grouped-row[data-child] {
-  --phone-row-depth-shown: 1;
-}
-
-.phone-grouped-row[data-child] > .phone-grouped-open {
-  padding-left: calc(
-    var(--size-phone-child-indent) + var(--phone-child-step) * var(--phone-row-indent)
-  );
-}
-
 .phone-row-icon {
   width: var(--size-phone-row-icon);
   height: var(--size-phone-row-icon);
-}
-
-.phone-row-icon > .phone-tag-dot {
-  width: 10px;
-  height: 10px;
 }
 
 .phone-grouped-label {
@@ -1298,13 +1276,6 @@ button.phone-grouped-open:active:not(:disabled) {
   gap: 28px;
 }
 
-.phone-settings-head {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
 .phone-app-icon {
   width: var(--size-phone-app-icon);
   height: var(--size-phone-app-icon);
@@ -1317,11 +1288,6 @@ button.phone-grouped-open:active:not(:disabled) {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.phone-dove-large {
-  width: 58px;
-  height: 51px;
 }
 
 .phone-settings-name {
@@ -2321,14 +2287,6 @@ button.phone-grouped-open:active:not(:disabled) {
 .phone-settings-pane .phone-theme-row .choice:has(input:checked) .choice-name {
   font-weight: inherit;
   color: var(--color-phone-text);
-}
-
-.phone-action-row {
-  width: 100%;
-  min-height: var(--size-phone-grouped-row);
-  display: flex;
-  align-items: center;
-  color: var(--color-accent-text);
 }
 
 .phone-action-destructive {

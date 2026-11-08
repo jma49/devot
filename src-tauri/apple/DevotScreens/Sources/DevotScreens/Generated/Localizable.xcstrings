@@ -14444,17 +14444,6 @@
         }
       }
     },
-    "phone.library.backedUpAt" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "backed up {time}"
-          }
-        }
-      }
-    },
     "phone.library.collapse" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14462,17 +14451,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hide notebooks in {name}"
-          }
-        }
-      }
-    },
-    "phone.library.done" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Done"
           }
         }
       }
@@ -14495,28 +14473,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "{count} notes"
-          }
-        }
-      }
-    },
-    "phone.library.savedSearches" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saved Searches"
-          }
-        }
-      }
-    },
-    "phone.library.smart" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Smart lists"
           }
         }
       }
@@ -14583,17 +14539,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Select"
-          }
-        }
-      }
-    },
-    "phone.list.showMore" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show more ({count} completed hidden)"
           }
         }
       }
@@ -15826,17 +15771,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Settings"
-          }
-        }
-      }
-    },
-    "phone.tabs" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tabs"
           }
         }
       }

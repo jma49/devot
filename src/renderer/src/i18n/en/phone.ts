@@ -1,7 +1,6 @@
 export const prefixes = ['phone']
 
 export const messages = {
-  'phone.tabs': 'Tabs',
   'phone.tab.notes': 'Notes',
   'phone.tab.library': 'Library',
   'phone.tab.activity': 'Activity',
@@ -26,13 +25,9 @@ export const messages = {
   'phone.back': 'Back',
   'phone.note': 'Note',
   'phone.badge.attention': 'Needs attention',
-  'phone.library.done': 'Done',
-  'phone.library.smart': 'Smart lists',
-  'phone.library.savedSearches': 'Saved Searches',
   'phone.library.expand': 'Show notebooks in {name}',
   'phone.library.collapse': 'Hide notebooks in {name}',
   'phone.library.noteCount': '{count} notes',
-  'phone.library.backedUpAt': 'backed up {time}',
   'phone.close': 'Close',
   'phone.note.previous': 'Previous Note',
   'phone.note.next': 'Next Note',
@@ -66,7 +61,6 @@ export const messages = {
   'phone.toast.completed': 'Marked completed',
   'phone.toast.undo': 'Undo',
   'phone.list.recent': 'Recent',
-  'phone.list.showMore': 'Show more ({count} completed hidden)',
   'phone.note.title': 'Title',
   'phone.note.tag': 'Tag',
   'phone.note.caption': 'Edited {time} · {count} words',
