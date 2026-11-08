@@ -13883,6 +13883,17 @@
         }
       }
     },
+    "phone.action.complete" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complete"
+          }
+        }
+      }
+    },
     "phone.action.pin" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13890,6 +13901,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pin"
+          }
+        }
+      }
+    },
+    "phone.action.share" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share"
           }
         }
       }
@@ -14499,6 +14521,17 @@
         }
       }
     },
+    "phone.list.done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
     "phone.list.empty" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14506,6 +14539,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No notes here"
+          }
+        }
+      }
+    },
+    "phone.list.fromTemplate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From Template…"
+          }
+        }
+      }
+    },
+    "phone.list.newNoteIn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Note in…"
           }
         }
       }
@@ -14521,6 +14576,17 @@
         }
       }
     },
+    "phone.list.select" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select"
+          }
+        }
+      }
+    },
     "phone.list.showMore" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14528,6 +14594,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show more ({count} completed hidden)"
+          }
+        }
+      }
+    },
+    "phone.list.tags" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags"
           }
         }
       }

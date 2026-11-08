@@ -3039,7 +3039,7 @@
     "scale": {
       "$type": "number",
       "phone-bump": {
-        "$value": 1.6,
+        "$value": 1.25,
         "$description": "A status badge at the top of its bump when the status changes."
       },
       "phone-icon-dip": {

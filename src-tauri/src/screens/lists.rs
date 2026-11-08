@@ -604,6 +604,50 @@ mod tests {
         );
     }
 
+    /// Every object's fields, at every depth, as `fixture` holds them; an empty list or a value
+    /// matches anything.
+    fn same_shape(fixture: &serde_json::Value, reply: &serde_json::Value, at: &str) {
+        use serde_json::Value;
+        match (fixture, reply) {
+            (Value::Object(want), Value::Object(got)) => {
+                let mut want_keys: Vec<&String> = want.keys().collect();
+                let mut got_keys: Vec<&String> = got.keys().collect();
+                want_keys.sort();
+                got_keys.sort();
+                assert_eq!(want_keys, got_keys, "fields at {at}");
+                for (key, value) in want {
+                    same_shape(value, &got[key], &format!("{at}.{key}"));
+                }
+            }
+            (Value::Array(want), Value::Array(got)) => {
+                if let (Some(want), Some(got)) = (want.first(), got.first()) {
+                    same_shape(want, got, &format!("{at}[0]"));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn the_replies_have_the_shape_of_the_rows_fixture_swift_decodes() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../tests/fixtures/screens/rows.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).expect("E_TEST_FIXTURES"))
+                .expect("E_TEST_FIXTURES");
+        let library = library();
+        let notes = block_on(
+            library
+                .reads
+                .notes(page(json!({ "view": { "kind": "all" } }))),
+        );
+        let shown = block_on(library.reads.library()).unwrap();
+        let trash = block_on(library.reads.trash()).unwrap();
+        same_shape(&fixture["notes"], &json!(notes.unwrap()), "notes");
+        same_shape(&fixture["library"], &json!(shown), "library");
+        same_shape(&fixture["trash"], &json!(trash), "trash");
+    }
+
     #[test]
     fn the_trash_lists_the_trashed_note() {
         let library = library();

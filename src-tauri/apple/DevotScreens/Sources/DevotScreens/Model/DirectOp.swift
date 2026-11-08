@@ -42,4 +42,7 @@ public enum DirectOp: String, CaseIterable, Sendable {
     case syncIcloudRotate = "direct.sync.icloudRotate"
     case syncIcloudLeave = "direct.sync.icloudLeave"
     case syncIcloudStorage = "direct.sync.icloudStorage"
+    case listsNotes = "direct.lists.notes"
+    case listsLibrary = "direct.lists.library"
+    case listsTrash = "direct.lists.trash"
 }

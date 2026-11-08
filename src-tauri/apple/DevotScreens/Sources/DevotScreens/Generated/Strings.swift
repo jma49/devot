@@ -5414,6 +5414,34 @@ public enum L10n {
     text("phone.action.trash", "Trash")
   }
 
+  public static func phoneActionComplete() -> String {
+    text("phone.action.complete", "Complete")
+  }
+
+  public static func phoneActionShare() -> String {
+    text("phone.action.share", "Share")
+  }
+
+  public static func phoneListSelect() -> String {
+    text("phone.list.select", "Select")
+  }
+
+  public static func phoneListDone() -> String {
+    text("phone.list.done", "Done")
+  }
+
+  public static func phoneListNewNoteIn() -> String {
+    text("phone.list.newNoteIn", "New Note in…")
+  }
+
+  public static func phoneListFromTemplate() -> String {
+    text("phone.list.fromTemplate", "From Template…")
+  }
+
+  public static func phoneListTags() -> String {
+    text("phone.list.tags", "Tags")
+  }
+
   public static func phoneFilterAll() -> String {
     text("phone.filter.all", "All")
   }
