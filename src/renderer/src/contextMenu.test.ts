@@ -324,6 +324,18 @@ describe('createContextMenu', () => {
     ])
   })
 
+  it('drops a waiting popup when the menu is closed', async () => {
+    const fake = fakeApi({ slow: true })
+    const menu = await createContextMenu('test', GROUPS, () => {}, fake.api, target())
+    const first = menu.popup(target({ name: 'A' }))
+    await vi.waitFor(() => expect(fake.calls).toContain('popup'))
+    const second = menu.popup(target({ name: 'B', nested: true }))
+    await menu.close()
+    fake.close()
+    await Promise.all([first, second])
+    expect(fake.calls.filter((c) => c === 'popup')).toHaveLength(1)
+  })
+
   it('adds system items as they are and never relabels them', async () => {
     const fake = fakeApi()
     const groups: MenuGroups<Action, Target> = [

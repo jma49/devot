@@ -116,7 +116,7 @@ export interface ContextMenu<T> {
 
 /**
  * Builds a context menu once with every item it can show; `onPick` gets the clicked item's action and the target the open menu was laid out for.
- * One popup runs at a time: a popup waits for the one before it to close, and one still waiting or being laid out is dropped when a newer one comes.
+ * One popup runs at a time: a popup waits for the one before it to close, and one still waiting or being laid out is dropped when a newer one comes or the menu is closed.
  * Item IDs are `devot.<name>.<action>`.
  */
 export async function createContextMenu<A extends string, T>(
@@ -222,7 +222,10 @@ export async function createContextMenu<A extends string, T>(
       queue = done.catch(() => {})
       return done
     },
-    close: () => menu.close(),
+    close() {
+      latest++
+      return menu.close()
+    },
   }
 }
 
