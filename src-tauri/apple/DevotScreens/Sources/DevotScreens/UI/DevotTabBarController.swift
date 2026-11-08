@@ -16,7 +16,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     private(set) var items: [Tab: UITab] = [:]
 
     init(host: WebViewHost) {
-        settings = SettingsScreens(host: host)
+        settings = SettingsScreens()
         super.init(nibName: nil, bundle: nil)
         for tab in TabModel.tabs + [.search] { navigations[tab] = navigation(tab, host: host) }
         var shown: [UITab] = TabModel.tabs.map { tab in
@@ -45,7 +45,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
         selectedTab = items[.library]
         delegate = self
         tabBarMinimizeBehavior = .never
-        tabBar.tintColor = Tokens.Color.accentText
+        followTheme { [weak self] in self?.tabBar.tintColor = Tokens.Color.accentText }
     }
 
     required init?(coder: NSCoder) { nil }

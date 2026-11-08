@@ -1,0 +1,7 @@
+{
+  "from": "rust",
+  "message": {
+    "v": 1,
+    "notice": "sync.pairing"
+  }
+}

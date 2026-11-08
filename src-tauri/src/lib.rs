@@ -430,6 +430,10 @@ fn sync_emitter(app: tauri::AppHandle) -> sync::service::Emit {
         if sent.is_err() {
             log::warn!("W_SYNC_EMIT_FAILED");
         }
+        #[cfg(target_os = "ios")]
+        if let Some(notice) = screens::message::FromRust::after(event) {
+            native::ios::screens_tell(notice);
+        }
     })
 }
 
@@ -441,7 +445,7 @@ fn licence_emitter(app: tauri::AppHandle) -> licence::Emit {
             log::warn!("W_LICENCE_EMIT_FAILED");
         }
         #[cfg(target_os = "ios")]
-        crate::native::ios::screens_licence_changed();
+        crate::native::ios::screens_tell(screens::message::FromRust::LicenceChanged);
         #[cfg(desktop)]
         {
             let handle = app.clone();

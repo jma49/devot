@@ -1,0 +1,762 @@
+{
+  "$description": "The iPhone's theme treatment (design/phone.md, Themes): each gradient theme tints the phone's surfaces, text and accent toward its hue and paints a glow at the top of each root screen; Ivory takes only a faint paper glow. iPhone-local: the Mac's themes do not read these.",
+  "phone-theme": {
+    "$type": "color",
+    "dawn": {
+      "light": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9608, 0.7686, 0.8471],
+            "hex": "#f5c4d8",
+            "alpha": 0.9
+          },
+          "$description": "The glow at a root screen's top left, fading over its first 360 points; its hue is the backdrop gradient's first stop."
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9922, 0.9333, 0.8627],
+            "hex": "#fdeedc",
+            "alpha": 0.9
+          },
+          "$description": "The glow at a root screen's top right; its hue is the backdrop gradient's last stop."
+        },
+        "background": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9882, 0.9294, 0.9529],
+            "hex": "#fcedf3"
+          },
+          "$description": "The solid base under every row, in place of color.phone.background."
+        },
+        "card": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff",
+            "alpha": 0.3
+          },
+          "$description": "A grouped card: translucent, so the glow shows through it without a band."
+        },
+        "separator": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.4706, 0.1569, 0.2941],
+            "hex": "#78284b",
+            "alpha": 0.13
+          },
+          "$description": "Hairlines, tinted toward the theme."
+        },
+        "text-secondary": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3725, 0.2745, 0.3176],
+            "hex": "#5f4651"
+          },
+          "$description": "Secondary text, tinted toward the theme; 4.5:1 on the glow and the base."
+        },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.4157, 0.3098, 0.3569],
+            "hex": "#6a4f5b"
+          },
+          "$description": "Faint text such as the build version, tinted toward the theme, in place of color.phone.text-faint; 4.5:1 on the base."
+        },
+        "accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7216, 0.2275, 0.4078],
+            "hex": "#b83a68"
+          },
+          "$description": "The accent fill: toggles, rings, the slider and selection."
+        },
+        "accent-mark": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6039, 0.1686, 0.3333],
+            "hex": "#9a2b55"
+          },
+          "$description": "The accent as text and marks: links, checkmarks and the selected tab; 4.5:1 on the base."
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff"
+          },
+          "$description": "A label or symbol on the accent fill, in place of color.accent.on-fill; 4.5:1 on the accent."
+        },
+        "glass-tint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9922, 0.949, 0.9647],
+            "hex": "#fdf2f6"
+          },
+          "$description": "Devot's own glass at its most solid, in place of color.phone.glass-opaque."
+        }
+      },
+      "dark": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2902, 0.1333, 0.2118],
+            "hex": "#4a2236",
+            "alpha": 0.75
+          }
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2392, 0.1725, 0.1451],
+            "hex": "#3d2c25",
+            "alpha": 0.7
+          }
+        },
+        "background": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1176, 0.0706, 0.098],
+            "hex": "#1e1219"
+          }
+        },
+        "card": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.498, 0.651],
+            "hex": "#ee7fa6",
+            "alpha": 0.08
+          }
+        },
+        "separator": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 0.8235, 0.902],
+            "hex": "#ffd2e6",
+            "alpha": 0.12
+          }
+        },
+        "text-secondary": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7882, 0.6784, 0.7294],
+            "hex": "#c9adba"
+          }
+        },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7333, 0.6235, 0.6784],
+            "hex": "#bb9fad"
+          }
+        },
+        "accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.498, 0.651],
+            "hex": "#ee7fa6"
+          }
+        },
+        "accent-mark": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9608, 0.6392, 0.7529],
+            "hex": "#f5a3c0"
+          }
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1176, 0.0706, 0.098],
+            "hex": "#1e1219"
+          }
+        },
+        "glass-tint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1961, 0.149, 0.1765],
+            "hex": "#32262d"
+          }
+        }
+      }
+    },
+    "tide": {
+      "light": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7686, 0.8471, 0.9686],
+            "hex": "#c4d8f7",
+            "alpha": 0.9
+          },
+          "$description": "The glow at a root screen's top left, fading over its first 360 points; its hue is the backdrop gradient's first stop."
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7765, 0.898, 0.949],
+            "hex": "#c6e5f2",
+            "alpha": 0.9
+          },
+          "$description": "The glow at a root screen's top right; its hue is the backdrop gradient's last stop."
+        },
+        "background": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.949, 0.9922],
+            "hex": "#eef2fd"
+          },
+          "$description": "The solid base under every row, in place of color.phone.background."
+        },
+        "card": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff",
+            "alpha": 0.3
+          },
+          "$description": "A grouped card: translucent, so the glow shows through it without a band."
+        },
+        "separator": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1569, 0.2353, 0.5098],
+            "hex": "#283c82",
+            "alpha": 0.13
+          },
+          "$description": "Hairlines, tinted toward the theme."
+        },
+        "text-secondary": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2824, 0.3137, 0.4118],
+            "hex": "#485069"
+          },
+          "$description": "Secondary text, tinted toward the theme; 4.5:1 on the glow and the base."
+        },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3098, 0.3412, 0.4392],
+            "hex": "#4f5770"
+          },
+          "$description": "Faint text such as the build version, tinted toward the theme, in place of color.phone.text-faint; 4.5:1 on the base."
+        },
+        "accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2706, 0.3255, 0.7882],
+            "hex": "#4553c9"
+          },
+          "$description": "The accent fill: toggles, rings, the slider and selection."
+        },
+        "accent-mark": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2275, 0.2784, 0.7098],
+            "hex": "#3a47b5"
+          },
+          "$description": "The accent as text and marks: links, checkmarks and the selected tab; 4.5:1 on the base."
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff"
+          },
+          "$description": "A label or symbol on the accent fill, in place of color.accent.on-fill; 4.5:1 on the accent."
+        },
+        "glass-tint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.949, 0.9608, 0.9961],
+            "hex": "#f2f5fe"
+          },
+          "$description": "Devot's own glass at its most solid, in place of color.phone.glass-opaque."
+        }
+      },
+      "dark": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1176, 0.1843, 0.3137],
+            "hex": "#1e2f50",
+            "alpha": 0.8
+          }
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.0863, 0.2275, 0.2667],
+            "hex": "#163a44",
+            "alpha": 0.75
+          }
+        },
+        "background": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.0667, 0.0784, 0.1137],
+            "hex": "#11141d"
+          }
+        },
+        "card": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6471, 0.5765, 0.9608],
+            "hex": "#a593f5",
+            "alpha": 0.08
+          }
+        },
+        "separator": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7843, 0.8431, 1],
+            "hex": "#c8d7ff",
+            "alpha": 0.12
+          }
+        },
+        "text-secondary": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6627, 0.6941, 0.7961],
+            "hex": "#a9b1cb"
+          }
+        },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6196, 0.6549, 0.7608],
+            "hex": "#9ea7c2"
+          }
+        },
+        "accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6471, 0.5765, 0.9608],
+            "hex": "#a593f5"
+          }
+        },
+        "accent-mark": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7373, 0.7098, 1],
+            "hex": "#bcb5ff"
+          }
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.0667, 0.0784, 0.1137],
+            "hex": "#11141d"
+          }
+        },
+        "glass-tint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1333, 0.1529, 0.2196],
+            "hex": "#222738"
+          }
+        }
+      }
+    },
+    "sage": {
+      "light": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7882, 0.902, 0.8235],
+            "hex": "#c9e6d2",
+            "alpha": 0.9
+          },
+          "$description": "The glow at a root screen's top left, fading over its first 360 points; its hue is the backdrop gradient's first stop."
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.8549, 0.9137, 0.749],
+            "hex": "#dae9bf",
+            "alpha": 0.9
+          },
+          "$description": "The glow at a root screen's top right; its hue is the backdrop gradient's last stop."
+        },
+        "background": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9294, 0.9608, 0.9176],
+            "hex": "#edf5ea"
+          },
+          "$description": "The solid base under every row, in place of color.phone.background."
+        },
+        "card": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff",
+            "alpha": 0.3
+          },
+          "$description": "A grouped card: translucent, so the glow shows through it without a band."
+        },
+        "separator": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1569, 0.3529, 0.2157],
+            "hex": "#285a37",
+            "alpha": 0.14
+          },
+          "$description": "Hairlines, tinted toward the theme."
+        },
+        "text-secondary": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.298, 0.3608, 0.3176],
+            "hex": "#4c5c51"
+          },
+          "$description": "Secondary text, tinted toward the theme; 4.5:1 on the glow and the base."
+        },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3137, 0.3765, 0.3333],
+            "hex": "#506055"
+          },
+          "$description": "Faint text such as the build version, tinted toward the theme, in place of color.phone.text-faint; 4.5:1 on the base."
+        },
+        "accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1216, 0.4549, 0.4078],
+            "hex": "#1f7468"
+          },
+          "$description": "The accent fill: toggles, rings, the slider and selection."
+        },
+        "accent-mark": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.102, 0.3882, 0.349],
+            "hex": "#1a6359"
+          },
+          "$description": "The accent as text and marks: links, checkmarks and the selected tab; 4.5:1 on the base."
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff"
+          },
+          "$description": "A label or symbol on the accent fill, in place of color.accent.on-fill; 4.5:1 on the accent."
+        },
+        "glass-tint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.949, 0.9725, 0.9373],
+            "hex": "#f2f8ef"
+          },
+          "$description": "Devot's own glass at its most solid, in place of color.phone.glass-opaque."
+        }
+      },
+      "dark": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1176, 0.2275, 0.1647],
+            "hex": "#1e3a2a",
+            "alpha": 0.8
+          }
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1843, 0.2157, 0.1255],
+            "hex": "#2f3720",
+            "alpha": 0.75
+          }
+        },
+        "background": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.0667, 0.0902, 0.0706],
+            "hex": "#111712"
+          }
+        },
+        "card": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3608, 0.7529, 0.6902],
+            "hex": "#5cc0b0",
+            "alpha": 0.08
+          }
+        },
+        "separator": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.8235, 0.9412, 0.8627],
+            "hex": "#d2f0dc",
+            "alpha": 0.12
+          }
+        },
+        "text-secondary": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6588, 0.7255, 0.6784],
+            "hex": "#a8b9ad"
+          }
+        },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6118, 0.6824, 0.6314],
+            "hex": "#9caea1"
+          }
+        },
+        "accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3608, 0.7529, 0.6902],
+            "hex": "#5cc0b0"
+          }
+        },
+        "accent-mark": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.5255, 0.8471, 0.7922],
+            "hex": "#86d8ca"
+          }
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.0588, 0.0902, 0.0667],
+            "hex": "#0f1711"
+          }
+        },
+        "glass-tint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1255, 0.1647, 0.1373],
+            "hex": "#202a23"
+          }
+        }
+      }
+    },
+    "ember": {
+      "light": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9765, 0.8549, 0.5843],
+            "hex": "#f9da95",
+            "alpha": 0.9
+          },
+          "$description": "The glow at a root screen's top left, fading over its first 360 points; its hue is the backdrop gradient's first stop."
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 0.7765, 0.6275],
+            "hex": "#ffc6a0",
+            "alpha": 0.9
+          },
+          "$description": "The glow at a root screen's top right; its hue is the backdrop gradient's last stop."
+        },
+        "background": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9882, 0.9373, 0.8941],
+            "hex": "#fcefe4"
+          },
+          "$description": "The solid base under every row, in place of color.phone.background."
+        },
+        "card": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff",
+            "alpha": 0.3
+          },
+          "$description": "A grouped card: translucent, so the glow shows through it without a band."
+        },
+        "separator": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.4706, 0.2353, 0.1176],
+            "hex": "#783c1e",
+            "alpha": 0.13
+          },
+          "$description": "Hairlines, tinted toward the theme."
+        },
+        "text-secondary": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3686, 0.298, 0.2627],
+            "hex": "#5e4c43"
+          },
+          "$description": "Secondary text, tinted toward the theme; 4.5:1 on the glow and the base."
+        },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.4, 0.3255, 0.2863],
+            "hex": "#665349"
+          },
+          "$description": "Faint text such as the build version, tinted toward the theme, in place of color.phone.text-faint; 4.5:1 on the base."
+        },
+        "accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6588, 0.3373, 0.0588],
+            "hex": "#a8560f"
+          },
+          "$description": "The accent fill: toggles, rings, the slider and selection."
+        },
+        "accent-mark": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.5412, 0.2706, 0.0314],
+            "hex": "#8a4508"
+          },
+          "$description": "The accent as text and marks: links, checkmarks and the selected tab; 4.5:1 on the base."
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff"
+          },
+          "$description": "A label or symbol on the accent fill, in place of color.accent.on-fill; 4.5:1 on the accent."
+        },
+        "glass-tint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9922, 0.9529, 0.9216],
+            "hex": "#fdf3eb"
+          },
+          "$description": "Devot's own glass at its most solid, in place of color.phone.glass-opaque."
+        }
+      },
+      "dark": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3098, 0.2314, 0.0549],
+            "hex": "#4f3b0e",
+            "alpha": 0.8
+          }
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3882, 0.1412, 0.098],
+            "hex": "#632419",
+            "alpha": 0.66
+          }
+        },
+        "background": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1137, 0.0784, 0.0471],
+            "hex": "#1d140c"
+          }
+        },
+        "card": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9529, 0.6039, 0.3216],
+            "hex": "#f39a52",
+            "alpha": 0.08
+          }
+        },
+        "separator": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 0.8824, 0.8039],
+            "hex": "#ffe1cd",
+            "alpha": 0.12
+          }
+        },
+        "text-secondary": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7725, 0.6902, 0.651],
+            "hex": "#c5b0a6"
+          }
+        },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7294, 0.6431, 0.6],
+            "hex": "#baa499"
+          }
+        },
+        "accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9529, 0.6039, 0.3216],
+            "hex": "#f39a52"
+          }
+        },
+        "accent-mark": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 0.7059, 0.4863],
+            "hex": "#ffb47c"
+          }
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1137, 0.0784, 0.0471],
+            "hex": "#1d140c"
+          }
+        },
+        "glass-tint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1922, 0.1569, 0.1255],
+            "hex": "#312820"
+          }
+        }
+      }
+    },
+    "ivory": {
+      "light": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9373, 0.902, 0.8235],
+            "hex": "#efe6d2",
+            "alpha": 0.6
+          },
+          "$description": "The glow at a root screen's top left, fading over its first 360 points; its hue is the backdrop gradient's first stop."
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9255, 0.8902, 0.8118],
+            "hex": "#ece3cf",
+            "alpha": 0.5
+          },
+          "$description": "The glow at a root screen's top right; its hue is the backdrop gradient's last stop."
+        }
+      },
+      "dark": {
+        "glow-start": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2392, 0.2196, 0.1882],
+            "hex": "#3d3830",
+            "alpha": 0.6
+          }
+        },
+        "glow-end": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2275, 0.2078, 0.1725],
+            "hex": "#3a352c",
+            "alpha": 0.5
+          }
+        }
+      }
+    }
+  }
+}

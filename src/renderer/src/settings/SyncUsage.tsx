@@ -5,7 +5,6 @@ import { currentLocale, format, t } from '../i18n'
 import { STORAGE_FULL, type SyncSnapshot } from '../sync'
 import { USAGE_NOTICE_TEXT, useRelayUsage, type UsageReading } from '../syncUsage'
 import { Setting, SettingsNote } from './controls'
-import { useOnPhone } from './onPhone'
 import { failureText } from '../failure'
 
 // What the relay holds and may hold (docs/sync-relay.md, Quota), in plain words, in Settings > Sync.
@@ -83,7 +82,6 @@ function Unavailable({ reading, retry }: { reading: UsageReading | null; retry: 
 /** Notes, images, the total and the room left; for a device in a vault. */
 export function UsageRows({ snapshot }: { snapshot: SyncSnapshot }) {
   const [retried, setRetried] = useState(0)
-  const onPhone = useOnPhone()
   const { relayUrl, status, enrolled } = snapshot
   const reading = useRelayUsage(
     enrolled,
@@ -97,8 +95,7 @@ export function UsageRows({ snapshot }: { snapshot: SyncSnapshot }) {
   const { view } = reading
   const shown = figures(view, locale)
   const warn = warning(view, snapshot)
-  // A phone keeps one footnote: the warning when there is one, as it is what to act on.
-  const note = onPhone && warn ? undefined : capNote(view, locale)
+  const note = capNote(view, locale)
   return (
     <>
       <Setting label="syncSettings.usage.records" description={shown.records}>

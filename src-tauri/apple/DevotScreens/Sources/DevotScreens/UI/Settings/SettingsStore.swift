@@ -10,6 +10,12 @@ protocol SettingsBridge: AnyObject {
     func log(_ level: LogLevel, _ line: String)
 }
 
+/// A font file the user imported, by its stored file name and its display name.
+struct FontFile: Equatable {
+    let id: String
+    let name: String
+}
+
 struct NotebookChoice: Hashable, Identifiable {
     let id: String
     let name: String
@@ -86,14 +92,24 @@ final class SettingsStore {
     }
     /// The snapshot the gate decides from too.
     let licences: LicenceSnapshotStore
-    private(set) var editor: [String: JSONValue] = [:]
+    private(set) var editor: [String: JSONValue] = [:] {
+        didSet { onEditor?(editor) }
+    }
+    /// Told every editor snapshot the panes show, the moment they show it: before Rust hears of a change.
+    @ObservationIgnored var onEditor: (([String: JSONValue]) -> Void)?
     @ObservationIgnored private var revision = -1.0
     @ObservationIgnored var haptics = Haptics()
     private(set) var crashReports: CrashReports?
     var licence: Licence? { licences.licence }
     var ai: AiView?
-    private(set) var sync: JSONValue?
+    private(set) var sync: SyncSnapshot?
+    private(set) var icloud = ICloudStatus.none
+    /// Counts `sync.pairing` notices: the Sync pane checks its pairing at once on each.
+    private(set) var pairingNudges = 0
+    @ObservationIgnored private var syncReading = false
+    @ObservationIgnored private var syncAgain = false
     private(set) var notebooks: [NotebookChoice] = []
+    private(set) var fontFiles: [FontFile] = []
     private(set) var products: [StoreProduct] = []
     var failure: String?
     /// The time the licence rows are shown for: read again on coming back to the foreground and
@@ -127,9 +143,13 @@ final class SettingsStore {
         }
     }
 
+    func loadEditor() {
+        read(.editorSettingsGet) { [weak self] in self?.adoptEditor($0) }
+    }
+
     func load() {
         now = Date()
-        read(.editorSettingsGet) { [weak self] in self?.adoptEditor($0) }
+        loadEditor()
         read(.crashReportsGet) { [weak self] value in
             guard let available = value["available"]?.bool, let on = value["on"]?.bool else { return }
             self?.crashReports = CrashReports(available: available, on: on)
@@ -140,7 +160,7 @@ final class SettingsStore {
             if licence?.soldOnAppStore == true, products.isEmpty { loadProducts() }
         }
         read(.aiGet) { [weak self] in self?.ai = AiView($0) }
-        read(.syncGet) { [weak self] in self?.sync = $0 }
+        readSync()
         bridge?.request(.settingsNotebooks, [:]) { [weak self] outcome in
             guard case .ok(let value) = outcome, let list = value["notebooks"]?.array else { return }
             self?.notebooks = list.compactMap { item in
@@ -148,6 +168,34 @@ final class SettingsStore {
                 return NotebookChoice(id: id, name: name, depth: Int(item["depth"]?.number ?? 0))
             }
         }
+    }
+
+    func loadFonts() {
+        read(.fontsList) { [weak self] value in
+            self?.fontFiles = (value.array ?? []).compactMap(Self.fontFile)
+        }
+    }
+
+    /// Imports the picker's copy of a font file, removes the copy, and makes the font the Note Font.
+    func importFont(_ copy: URL) {
+        bridge?.direct(.fontsImport, ["path": .string(copy.path)]) { [weak self] outcome in
+            try? FileManager.default.removeItem(at: copy)
+            guard let self else { return }
+            switch outcome {
+            case .ok(let value):
+                guard let file = Self.fontFile(value) else { return }
+                if !fontFiles.contains(file) { fontFiles.append(file) }
+                setEditor(["fontFamily": .string("imported"), "importedFont": .string(file.id)])
+            case .failed(let code):
+                failure = catalog("editorSettings.importFontFailed")
+                bridge?.log(.warn, "W_PHONE_FONT_IMPORT_FAILED code=\(code)")
+            }
+        }
+    }
+
+    private static func fontFile(_ value: JSONValue) -> FontFile? {
+        guard let id = value["id"]?.string, let name = value["name"]?.string else { return nil }
+        return FontFile(id: id, name: name)
     }
 
     /// Without StoreKit's price Buy still works: StoreKit's own sheet shows it.
@@ -162,21 +210,76 @@ final class SettingsStore {
         }
     }
 
-    var syncOn: Bool { sync?["enabled"]?.bool ?? false }
-    var syncNeedsOwner: Bool { sync.map(SyncAttention.needsOwner) ?? false }
+    var syncOn: Bool { sync?.enabled ?? false }
+    var syncNeedsOwner: Bool { sync.flatMap(ICloudAttention.of)?.needsOwner ?? false }
+
+    func heard(_ notice: NoticeKind) {
+        switch notice {
+        case .syncChanged: readSync()
+        case .syncPairing: pairingNudges += 1
+        default: break
+        }
+    }
+
+    /// One read at a time: a change heard during it reads once more after it.
+    func readSync() {
+        guard let bridge else { return }
+        guard !syncReading else {
+            syncAgain = true
+            return
+        }
+        syncReading = true
+        bridge.direct(.syncGet, [:]) { [weak self] outcome in
+            guard let self else { return }
+            syncReading = false
+            switch outcome {
+            case .ok(let value): adoptSync(value)
+            case .failed(let code): log("W_PHONE_SETTINGS_READ_FAILED op=\(DirectOp.syncGet.rawValue) code=\(code)")
+            }
+            if syncAgain {
+                syncAgain = false
+                readSync()
+            }
+        }
+    }
+
+    /// iCloud's state is read again whenever what it depends on changes (`useICloudStatus`).
+    func adoptSync(_ value: JSONValue) {
+        guard let next = SyncSnapshot(value) else { return }
+        let before = sync.map(Self.icloudInputs)
+        sync = next
+        if before != Self.icloudInputs(next) { readICloud() }
+    }
+
+    private static func icloudInputs(_ sync: SyncSnapshot) -> [String] {
+        ["\(sync.vault)", sync.transport, "\(sync.enabled)", sync.status.code ?? "", sync.icloudJoin?.state ?? ""]
+    }
+
+    private func readICloud() {
+        bridge?.direct(.syncIcloudStatus, [:]) { [weak self] outcome in
+            if case .ok(let value) = outcome { self?.icloud = ICloudStatus(value) } else { self?.icloud = .none }
+        }
+    }
 
     func flag(_ key: String) -> Bool { editor[key]?.bool ?? false }
 
     func setEditor(_ key: String, _ value: JSONValue) {
-        let old = editor[key]
-        editor[key] = value
-        bridge?.direct(.editorSettingsSet, ["patch": .object([key: value])]) { [weak self] outcome in
+        setEditor([key: value])
+    }
+
+    /// Keys that change together, such as a theme card's light and dark, go to Rust as one patch.
+    func setEditor(_ patch: [String: JSONValue]) {
+        let old = patch.keys.map { ($0, editor[$0]) }
+        editor.merge(patch) { $1 }
+        bridge?.direct(.editorSettingsSet, ["patch": .object(patch)]) { [weak self] outcome in
             guard let self else { return }
             switch outcome {
             case .ok(let snapshot): adoptEditor(snapshot)
             case .failed(let code):
-                if editor[key] == value { editor[key] = old }
-                refused(key: key, code: code)
+                var restored = editor
+                for (key, value) in old where editor[key] == patch[key] { restored[key] = value }
+                editor = restored
+                refused(key: patch.keys.sorted().joined(separator: ","), code: code)
             }
         }
     }

@@ -97,7 +97,7 @@ async function start() {
   await act(async () => {})
 }
 
-async function swift(op: 'tabs.show' | 'tabs.popToRoot' | 'settings.showPane', args: object) {
+async function swift(op: 'tabs.show', args: object) {
   await act(async () => {
     await bridge.handlers[op]!({ ...args })
   })
@@ -136,25 +136,25 @@ describe('the page under the native tab bar', () => {
 
   it('shows the tab Swift asks for, keeping every stack mounted', async () => {
     await start()
-    await swift('tabs.show', { tab: 'settings' })
-    const settings = shownStack().querySelector('section')!
-    expect(screens()).toEqual(['Settings'])
     await swift('tabs.show', { tab: 'activity' })
+    const activity = shownStack().querySelector('section')!
     expect(screens()).toEqual(['Activity'])
-    expect(settings.isConnected).toBe(true)
     await swift('tabs.show', { tab: 'settings' })
-    expect(shownStack().querySelector('section')).toBe(settings)
-    expect(lastNotice()).toMatchObject({ tab: 'settings' })
+    expect(shownStack().querySelector('section')).toBeNull()
+    expect(activity.isConnected).toBe(true)
+    await swift('tabs.show', { tab: 'activity' })
+    expect(shownStack().querySelector('section')).toBe(activity)
+    expect(lastNotice()).toMatchObject({ tab: 'activity' })
   })
 
-  it('never pops a stack when Swift shows the tab already shown', async () => {
+  it('keeps the shown stack when Swift shows the tab already shown', async () => {
     await start()
-    await swift('settings.showPane', { pane: 'sync' })
-    expect(screens()).toHaveLength(2)
-    await swift('tabs.show', { tab: 'settings' })
-    expect(screens()).toHaveLength(2)
-    await swift('tabs.popToRoot', { tab: 'settings' })
-    expect(screens()).toEqual(['Settings'])
+    await swift('tabs.show', { tab: 'activity' })
+    const activity = shownStack().querySelector('section')!
+    const notices = bridge.notices.length
+    await swift('tabs.show', { tab: 'activity' })
+    expect(shownStack().querySelector('section')).toBe(activity)
+    expect(bridge.notices).toHaveLength(notices)
   })
 })
 
@@ -173,7 +173,7 @@ describe('the tab operations', () => {
     expect(shown).toStrictEqual(['show activity', 'root notes'])
   })
 
-  it('hide the bar over a note or a cover, and keep it over a pushed list or pane', () => {
+  it('hide the bar over a note or a cover, and keep it over a pushed list', () => {
     const first = initialNavigation()
     expect(tabsState(first, false, true)).toStrictEqual({
       tab: 'library',
@@ -185,8 +185,5 @@ describe('the tab operations', () => {
     expect(tabsState(list, true, false).barHidden).toBe(true)
     const note = navigate(list, { type: 'push', screen: 'note', noteId: 'n1' })
     expect(tabsState(note, false, false).barHidden).toBe(true)
-    const settings = navigate(first, { type: 'selectTab', tab: 'settings' })
-    const pane = navigate(settings, { type: 'push', screen: 'pane', pane: 'sync' })
-    expect(tabsState(pane, false, false)).toMatchObject({ tab: 'settings', barHidden: false })
   })
 })

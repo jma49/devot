@@ -15,7 +15,6 @@ import {
 } from '../notebookChoices'
 import { checkForUpdates, startUpdateStatus, updateStatusText, useUpdateStatus } from '../updates'
 import { cliToolFailure } from './cliTool'
-import { useOnPhone } from './onPhone'
 import { Select, Setting, SettingsSection, SettingToggle, useSettingsChange } from './controls'
 import {
   cliToolStatus,
@@ -51,12 +50,9 @@ export function GeneralSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string }>()
   const [saveError, change] = useSettingsChange()
   const ids = useId()
-  // The iPhone layout has no board, activity strip, menu bar, updater, command line tool, daily notes or folders to open.
-  const onPhone = useOnPhone()
   const [cliTool, setCliTool] = useState<CliToolStatus>()
   const [cliBusy, setCliBusy] = useState(false)
   useEffect(() => {
-    if (onPhone) return
     let live = true
     cliToolStatus().then(
       (status) => live && setCliTool(status),
@@ -65,7 +61,7 @@ export function GeneralSection() {
     return () => {
       live = false
     }
-  }, [onPhone])
+  }, [])
   const [reports, setReports] = useState<CrashReports | null>(null)
   useEffect(() => {
     let live = true
@@ -96,7 +92,7 @@ export function GeneralSection() {
   const activityStrip = useEditorSetting('activityStrip')
   const autoDownload = useEditorSetting('autoDownloadUpdates')
   const menuBar = useEditorSetting('menuBar')
-  useEffect(() => (onPhone ? undefined : startUpdateStatus()), [onPhone])
+  useEffect(() => startUpdateStatus(), [])
   const update = useUpdateStatus()
   const busy = update.state === 'checking' || update.state === 'downloading'
   const notebooks = JSON.parse(
@@ -161,214 +157,206 @@ export function GeneralSection() {
             ))}
           </Select>
         </Setting>
-        {onPhone ? null : (
-          <>
-            <Setting
-              label="generalSettings.listDates"
-              description={t('generalSettings.listDatesHint')}
-              htmlFor={`${ids}-dates`}
-              descriptionId={`${ids}-dates-hint`}
+
+        <>
+          <Setting
+            label="generalSettings.listDates"
+            description={t('generalSettings.listDatesHint')}
+            htmlFor={`${ids}-dates`}
+            descriptionId={`${ids}-dates-hint`}
+          >
+            <Select
+              id={`${ids}-dates`}
+              value={listDates}
+              aria-describedby={`${ids}-dates-hint`}
+              onChange={(e) => change({ listDates: e.currentTarget.value as ListDatesStyle })}
             >
-              <Select
-                id={`${ids}-dates`}
-                value={listDates}
-                aria-describedby={`${ids}-dates-hint`}
-                onChange={(e) => change({ listDates: e.currentTarget.value as ListDatesStyle })}
-              >
-                <option value="relative">{t('generalSettings.listDates.relative')}</option>
-                <option value="absolute">{t('generalSettings.listDates.absolute')}</option>
-              </Select>
-            </Setting>
-            <SettingToggle
-              label="generalSettings.boardDropped"
-              description="generalSettings.boardDroppedHint"
-              checked={boardDropped}
-              onChange={(on) => change({ boardDropped: on })}
-            />
-            <SettingToggle
-              label="generalSettings.activityStrip"
-              description="generalSettings.activityStripHint"
-              checked={activityStrip}
-              onChange={(on) => change({ activityStrip: on })}
-            />
-          </>
-        )}
+              <option value="relative">{t('generalSettings.listDates.relative')}</option>
+              <option value="absolute">{t('generalSettings.listDates.absolute')}</option>
+            </Select>
+          </Setting>
+          <SettingToggle
+            label="generalSettings.boardDropped"
+            description="generalSettings.boardDroppedHint"
+            checked={boardDropped}
+            onChange={(on) => change({ boardDropped: on })}
+          />
+          <SettingToggle
+            label="generalSettings.activityStrip"
+            description="generalSettings.activityStripHint"
+            checked={activityStrip}
+            onChange={(on) => change({ activityStrip: on })}
+          />
+        </>
       </SettingsSection>
-      {onPhone ? null : (
-        <>
-          <SettingsSection title="generalSettings.dailyNotes">
-            <Setting
-              label="generalSettings.dailyNotebook"
-              description={t('generalSettings.dailyNotebookHint')}
-              htmlFor={`${ids}-daily-notebook`}
-              descriptionId={`${ids}-daily-notebook-hint`}
+
+      <>
+        <SettingsSection title="generalSettings.dailyNotes">
+          <Setting
+            label="generalSettings.dailyNotebook"
+            description={t('generalSettings.dailyNotebookHint')}
+            htmlFor={`${ids}-daily-notebook`}
+            descriptionId={`${ids}-daily-notebook-hint`}
+          >
+            <Select
+              id={`${ids}-daily-notebook`}
+              value={dailyBookShown ?? ''}
+              aria-describedby={`${ids}-daily-notebook-hint`}
+              onChange={(e) => change({ dailyNotebook: e.currentTarget.value || null })}
             >
-              <Select
-                id={`${ids}-daily-notebook`}
-                value={dailyBookShown ?? ''}
-                aria-describedby={`${ids}-daily-notebook-hint`}
-                onChange={(e) => change({ dailyNotebook: e.currentTarget.value || null })}
-              >
-                <option value="">{t('generalSettings.noNotebook')}</option>
-                {notebooks.map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {indented(n.name, n.depth)}
-                  </option>
-                ))}
-              </Select>
-            </Setting>
-            <Setting
-              label="generalSettings.dailyTemplate"
-              description={t('generalSettings.dailyTemplateHint')}
-              htmlFor={`${ids}-daily-template`}
-              descriptionId={`${ids}-daily-template-hint`}
+              <option value="">{t('generalSettings.noNotebook')}</option>
+              {notebooks.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {indented(n.name, n.depth)}
+                </option>
+              ))}
+            </Select>
+          </Setting>
+          <Setting
+            label="generalSettings.dailyTemplate"
+            description={t('generalSettings.dailyTemplateHint')}
+            htmlFor={`${ids}-daily-template`}
+            descriptionId={`${ids}-daily-template-hint`}
+          >
+            <Select
+              id={`${ids}-daily-template`}
+              value={dailyTemplateShown ?? ''}
+              aria-describedby={`${ids}-daily-template-hint`}
+              onChange={(e) => change({ dailyTemplate: e.currentTarget.value || null })}
             >
-              <Select
-                id={`${ids}-daily-template`}
-                value={dailyTemplateShown ?? ''}
-                aria-describedby={`${ids}-daily-template-hint`}
-                onChange={(e) => change({ dailyTemplate: e.currentTarget.value || null })}
-              >
-                <option value="">{t('generalSettings.noTemplate')}</option>
-                {templates.map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {n.title || t('note.untitled')}
-                  </option>
-                ))}
-              </Select>
-            </Setting>
-            <Setting
-              label="generalSettings.dailyTitleFormat"
-              description={t('generalSettings.dailyTitleFormatHint')}
-              htmlFor={`${ids}-daily-title`}
-              descriptionId={`${ids}-daily-title-hint`}
-            >
-              <Select
-                id={`${ids}-daily-title`}
-                value={dailyTitleFormat}
-                aria-describedby={`${ids}-daily-title-hint`}
-                onChange={(e) =>
-                  change({ dailyTitleFormat: e.currentTarget.value as DailyTitleFormat })
-                }
-              >
-                {DAILY_TITLE_FORMATS.map((f) => (
-                  <option key={f} value={f}>
-                    {dailyTitle(f, today)}
-                  </option>
-                ))}
-              </Select>
-            </Setting>
-          </SettingsSection>
-        </>
-      )}
-      {onPhone && !reports?.available ? null : (
-        <SettingsSection title="generalSettings.data">
-          {onPhone ? null : (
-            <>
-              <Setting
-                label="generalSettings.dataFolder"
-                description={t('generalSettings.dataFolderHint')}
-                descriptionId={`${ids}-data`}
-              >
-                <button
-                  type="button"
-                  className="button"
-                  aria-describedby={`${ids}-data`}
-                  onClick={() => run(openDataFolder, 'generalSettings.openFailed')}
-                >
-                  {t('generalSettings.openDataFolder')}
-                </button>
-              </Setting>
-              <Setting
-                label="generalSettings.backups"
-                description={t('backups.detail')}
-                descriptionId={`${ids}-backups`}
-              >
-                <button
-                  type="button"
-                  className="button"
-                  aria-describedby={`${ids}-backups`}
-                  onClick={() => run(showBackups, 'generalSettings.backupsFailed')}
-                >
-                  {t('generalSettings.showBackups')}
-                </button>
-              </Setting>
-            </>
-          )}
-          {reports?.available ? (
-            <SettingToggle
-              label="generalSettings.crashReports"
-              description="generalSettings.crashReportsHint"
-              checked={reports.on}
-              onChange={(on) =>
-                run(
-                  () => setCrashReports(on).then(setReports),
-                  'generalSettings.crashReportsFailed',
-                )
+              <option value="">{t('generalSettings.noTemplate')}</option>
+              {templates.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.title || t('note.untitled')}
+                </option>
+              ))}
+            </Select>
+          </Setting>
+          <Setting
+            label="generalSettings.dailyTitleFormat"
+            description={t('generalSettings.dailyTitleFormatHint')}
+            htmlFor={`${ids}-daily-title`}
+            descriptionId={`${ids}-daily-title-hint`}
+          >
+            <Select
+              id={`${ids}-daily-title`}
+              value={dailyTitleFormat}
+              aria-describedby={`${ids}-daily-title-hint`}
+              onChange={(e) =>
+                change({ dailyTitleFormat: e.currentTarget.value as DailyTitleFormat })
               }
-            />
-          ) : null}
+            >
+              {DAILY_TITLE_FORMATS.map((f) => (
+                <option key={f} value={f}>
+                  {dailyTitle(f, today)}
+                </option>
+              ))}
+            </Select>
+          </Setting>
         </SettingsSection>
-      )}
-      {onPhone ? null : (
+      </>
+
+      <SettingsSection title="generalSettings.data">
         <>
-          <SettingsSection title="generalSettings.commandLine">
-            <Setting
-              label="generalSettings.commandLineTool"
-              description={format(t(CLI_TOOL_TEXT[cliTool?.state ?? 'absent']), {
-                path: cliTool?.path ?? CLI_TOOL_PATH,
-              })}
-              descriptionId={`${ids}-cli`}
+          <Setting
+            label="generalSettings.dataFolder"
+            description={t('generalSettings.dataFolderHint')}
+            descriptionId={`${ids}-data`}
+          >
+            <button
+              type="button"
+              className="button"
+              aria-describedby={`${ids}-data`}
+              onClick={() => run(openDataFolder, 'generalSettings.openFailed')}
             >
-              <button
-                type="button"
-                className="button"
-                disabled={!cliTool || cliTool.state === 'unavailable' || cliBusy}
-                aria-describedby={`${ids}-cli`}
-                onClick={changeCliTool}
-              >
-                {t(
-                  cliTool?.state === 'installed'
-                    ? 'generalSettings.uninstall'
-                    : 'generalSettings.install',
-                )}
-              </button>
-            </Setting>
-          </SettingsSection>
-          <SettingsSection title="generalSettings.menuBar">
-            <SettingToggle
-              label="generalSettings.keepInMenuBar"
-              description="generalSettings.keepInMenuBarHint"
-              values={{ shortcut: shortcutLabel(QUICK_CAPTURE_KEY) }}
-              checked={menuBar}
-              onChange={(on) => change({ menuBar: on })}
-            />
-          </SettingsSection>
-          <SettingsSection title="generalSettings.updates">
-            <SettingToggle
-              label="generalSettings.autoDownloadUpdates"
-              description="generalSettings.autoDownloadUpdatesHint"
-              checked={autoDownload}
-              onChange={(on) => change({ autoDownloadUpdates: on })}
-            />
-            <Setting
-              label="generalSettings.checkForUpdates"
-              description={updateStatusText(update)}
-              descriptionId={`${ids}-updates`}
+              {t('generalSettings.openDataFolder')}
+            </button>
+          </Setting>
+          <Setting
+            label="generalSettings.backups"
+            description={t('backups.detail')}
+            descriptionId={`${ids}-backups`}
+          >
+            <button
+              type="button"
+              className="button"
+              aria-describedby={`${ids}-backups`}
+              onClick={() => run(showBackups, 'generalSettings.backupsFailed')}
             >
-              <button
-                type="button"
-                className="button"
-                disabled={busy}
-                aria-describedby={`${ids}-updates`}
-                onClick={() => void checkForUpdates()}
-              >
-                {t('generalSettings.checkNow')}
-              </button>
-            </Setting>
-          </SettingsSection>
+              {t('generalSettings.showBackups')}
+            </button>
+          </Setting>
         </>
-      )}
+
+        {reports?.available ? (
+          <SettingToggle
+            label="generalSettings.crashReports"
+            description="generalSettings.crashReportsHint"
+            checked={reports.on}
+            onChange={(on) =>
+              run(() => setCrashReports(on).then(setReports), 'generalSettings.crashReportsFailed')
+            }
+          />
+        ) : null}
+      </SettingsSection>
+
+      <>
+        <SettingsSection title="generalSettings.commandLine">
+          <Setting
+            label="generalSettings.commandLineTool"
+            description={format(t(CLI_TOOL_TEXT[cliTool?.state ?? 'absent']), {
+              path: cliTool?.path ?? CLI_TOOL_PATH,
+            })}
+            descriptionId={`${ids}-cli`}
+          >
+            <button
+              type="button"
+              className="button"
+              disabled={!cliTool || cliTool.state === 'unavailable' || cliBusy}
+              aria-describedby={`${ids}-cli`}
+              onClick={changeCliTool}
+            >
+              {t(
+                cliTool?.state === 'installed'
+                  ? 'generalSettings.uninstall'
+                  : 'generalSettings.install',
+              )}
+            </button>
+          </Setting>
+        </SettingsSection>
+        <SettingsSection title="generalSettings.menuBar">
+          <SettingToggle
+            label="generalSettings.keepInMenuBar"
+            description="generalSettings.keepInMenuBarHint"
+            values={{ shortcut: shortcutLabel(QUICK_CAPTURE_KEY) }}
+            checked={menuBar}
+            onChange={(on) => change({ menuBar: on })}
+          />
+        </SettingsSection>
+        <SettingsSection title="generalSettings.updates">
+          <SettingToggle
+            label="generalSettings.autoDownloadUpdates"
+            description="generalSettings.autoDownloadUpdatesHint"
+            checked={autoDownload}
+            onChange={(on) => change({ autoDownloadUpdates: on })}
+          />
+          <Setting
+            label="generalSettings.checkForUpdates"
+            description={updateStatusText(update)}
+            descriptionId={`${ids}-updates`}
+          >
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              aria-describedby={`${ids}-updates`}
+              onClick={() => void checkForUpdates()}
+            >
+              {t('generalSettings.checkNow')}
+            </button>
+          </Setting>
+        </SettingsSection>
+      </>
     </section>
   )
 }

@@ -2,6 +2,8 @@
 import {
   BACKDROP_DEGREES,
   flatten,
+  PHONE_THEME_COLOURS,
+  phoneThemes,
   resolve,
   type ColorValue,
   type FlatToken,
@@ -205,6 +207,12 @@ const TYPES = `  public struct RGBA: Sendable, Equatable {
     public let light: [GradientStop]
     public let dark: [GradientStop]
   }
+
+  /// The glow at the top of the iPhone's root screens: its top-left colour, then its top-right one.
+  public struct Glow: Sendable, Equatable {
+    public let light: [RGBA]
+    public let dark: [RGBA]
+  }
 `
 
 /**
@@ -217,6 +225,7 @@ export function compileSwift(
   dark: TokenTree,
   themes: readonly ThemeTokens[] = [],
   backdrops: TokenTree = {},
+  phone: TokenTree = {},
 ): string {
   const baseFlat = flatten(base)
   const colours = (tree: TokenTree) =>
@@ -229,6 +238,35 @@ export function compileSwift(
       { name: `${theme.id}Dark`, tokens: colours(theme.dark) },
     ]),
   ]
+  const backdropIds = [...new Set(flatten(backdrops).map((t) => t.path.split('.')[1]!))]
+  const phoneSlots = phoneThemes(phone, [...themes.map((t) => t.id), ...backdropIds])
+  // A gradient theme draws the default palette under its own phone colours.
+  const replaced = (tokens: readonly FlatToken[], slots: Map<string, ColorValue>) => {
+    const by = new Map(
+      [...slots].flatMap(([slot, colour]) =>
+        PHONE_THEME_COLOURS[slot] ? [[PHONE_THEME_COLOURS[slot]!, colour] as const] : [],
+      ),
+    )
+    return tokens.map((t) => (by.has(t.path) ? { ...t, value: by.get(t.path) } : t))
+  }
+  const ownPalettes = phoneSlots.filter((p) => backdropIds.includes(p.id))
+  palettes.push(
+    ...ownPalettes.flatMap((p) => [
+      { name: `${p.id}Light`, tokens: replaced(palettes[0]!.tokens, p.light) },
+      { name: `${p.id}Dark`, tokens: replaced(palettes[1]!.tokens, p.dark) },
+    ]),
+  )
+  const glow = (id: string) => {
+    const own = phoneSlots.find((p) => p.id === id)
+    const ends = (slots: Map<string, ColorValue>) =>
+      ['glow-start', 'glow-end'].map((slot) => {
+        const colour = slots.get(slot)
+        if (!colour) throw new Error(`E_TOKEN_PHONE_GLOW ${id}`)
+        return rgba(colour, `phone-theme.${id}.${slot}`)
+      })
+    if (!own || (!own.light.has('glow-start') && !own.dark.has('glow-start'))) return 'nil'
+    return `Glow(light: [${ends(own.light).join(', ')}], dark: [${ends(own.dark).join(', ')}])`
+  }
   const order = palettes[0]!.tokens.map((t) => t.path)
   const names = new Map<string, string>()
   for (const path of order) {
@@ -247,34 +285,43 @@ export function compileSwift(
     }
   }
 
-  const backdropThemes = [...new Set(flatten(backdrops).map((t) => t.path.split('.')[1]!))].map(
-    (id) => {
-      const stops = (appearance: 'light' | 'dark') => {
-        const token = flatten(backdrops).find((t) => t.path === `backdrop.${id}.${appearance}`)
-        if (token?.type !== 'gradient') throw new Error(`E_TOKEN_BACKDROP ${id} ${appearance}`)
-        const list = (token.value as { color: ColorValue; position: number }[]).map(
-          (stop) =>
-            `GradientStop(color: ${rgba(stop.color, token.path)}, location: ${num(stop.position)})`,
-        )
-        return `[${list.join(', ')}]`
-      }
-      return {
-        id,
-        backdrop: `Backdrop(angle: ${BACKDROP_DEGREES}, light: ${stops('light')}, dark: ${stops('dark')})`,
-      }
-    },
-  )
+  const backdropThemes = backdropIds.map((id) => {
+    const stops = (appearance: 'light' | 'dark') => {
+      const token = flatten(backdrops).find((t) => t.path === `backdrop.${id}.${appearance}`)
+      if (token?.type !== 'gradient') throw new Error(`E_TOKEN_BACKDROP ${id} ${appearance}`)
+      const list = (token.value as { color: ColorValue; position: number }[]).map(
+        (stop) =>
+          `GradientStop(color: ${rgba(stop.color, token.path)}, location: ${num(stop.position)})`,
+      )
+      return `[${list.join(', ')}]`
+    }
+    return {
+      id,
+      backdrop: `Backdrop(angle: ${BACKDROP_DEGREES}, light: ${stops('light')}, dark: ${stops('dark')})`,
+    }
+  })
   const themeList = [
     { id: 'default', palette: 'default', backdrop: 'nil' },
     ...themes.map((theme) => ({ id: theme.id, palette: theme.id, backdrop: 'nil' })),
-    ...backdropThemes.map((theme) => ({ ...theme, palette: 'default' })),
-  ]
+    ...backdropThemes.map((theme) => ({
+      ...theme,
+      palette: ownPalettes.some((p) => p.id === theme.id) ? theme.id : 'default',
+    })),
+  ].map((theme) => ({ ...theme, glow: glow(theme.id) }))
   // A theme's id is both its Swift member name and the `theme` setting's value.
   for (const { id } of themeList) {
     if (!/^[A-Za-z][A-Za-z0-9]*$/.test(id)) throw new Error(`E_TOKEN_SWIFT_THEME ${id}`)
   }
 
-  const lines: string[] = [HEADER, '', 'import UIKit', '', 'public enum Tokens {', TYPES]
+  const lines: string[] = [
+    HEADER,
+    '',
+    'import Observation',
+    'import UIKit',
+    '',
+    'public enum Tokens {',
+    TYPES,
+  ]
 
   lines.push('  public enum ColorName: String, CaseIterable, Sendable {')
   for (const path of order) lines.push(`    case ${names.get(path)} = "${path}"`)
@@ -308,12 +355,14 @@ export function compileSwift(
     '    public let light: Palette',
     '    public let dark: Palette',
     '    public let backdrop: Backdrop?',
+    '    public let glow: Glow?',
     '',
-    '    init(id: String, light: Palette, dark: Palette, backdrop: Backdrop?) {',
+    '    init(id: String, light: Palette, dark: Palette, backdrop: Backdrop?, glow: Glow?) {',
     '      self.id = id',
     '      self.light = light',
     '      self.dark = dark',
     '      self.backdrop = backdrop',
+    '      self.glow = glow',
     '    }',
     '',
     '    /// The theme with the id the `theme` editor setting stores, if there is one.',
@@ -322,8 +371,11 @@ export function compileSwift(
     '      self = theme',
     '    }',
     '',
-    '    /// The theme `Tokens.Color` draws in.',
-    '    @MainActor public static var current: Theme = .default',
+    '    /// The theme `Tokens.Color` draws in; SwiftUI views that read a colour follow it.',
+    '    @MainActor public static var current: Theme {',
+    '      get { ThemeState.shared.theme }',
+    '      set { ThemeState.shared.theme = newValue }',
+    '    }',
     '',
     '    public func color(_ name: ColorName) -> UIColor {',
     '      let light = light.rgba(name)',
@@ -337,11 +389,16 @@ export function compileSwift(
   for (const theme of themeList) {
     lines.push(
       `    public static let ${escapeKeyword(theme.id)}: Theme = Theme(id: "${theme.id}", ` +
-        `light: .${theme.palette}Light, dark: .${theme.palette}Dark, backdrop: ${theme.backdrop})`,
+        `light: .${theme.palette}Light, dark: .${theme.palette}Dark, backdrop: ${theme.backdrop}, glow: ${theme.glow})`,
     )
   }
   lines.push(
     `    public static let all: [Theme] = [${themeList.map((t) => `.${t.id}`).join(', ')}]`,
+    '  }',
+    '',
+    '  @MainActor @Observable public final class ThemeState {',
+    '    public static let shared: ThemeState = ThemeState()',
+    '    public var theme: Theme = .default',
     '  }',
     '',
   )

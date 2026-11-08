@@ -230,10 +230,6 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Otherwise it settles back on `phone-settle` from the finger's speed, without passing its place.
   A second action replaces its words in place with a crossfade of `motion.duration.phone-adjust`.
   Under Reduce Motion it crossfades in place over `motion.duration.phone-crossfade` and still follows a drag.
-- **Pane switch:** rule 4. The knob moves with `bouncy` and the track's colour fades, without bouncing. Under Reduce Motion the knob crossfades into place.
-- **Pane segmented control:** rule 4. The pill slides with `bouncy` to the chosen segment, with the `selection` haptic. Under Reduce Motion it moves at once with no spring.
-- **Pane slider:** rule 1. The thumb and fill follow the finger, and the glass or text changes as it goes.
-- **Pane rows:** rule 2. A select, action or stepper row fills with `color.phone.pressed` at once while pressed, and the fill goes at once on release. A select's whole row opens the picker. A disabled row is dimmed at rest and never animates.
 - **Detail sheet:** rule 3. It grows in with `gentle` like any sheet; Done and a drag down close it the same way.
 - **Purchase sheet** (App Store builds): rule 3, as the detail sheet. It rises at launch before the trial or once it has ended, and from Buy Devot Pro; the close circle in its head, Escape and a drag down close it the same way. StoreKit's own sheets cover it while a purchase or Restore Purchases runs, with Apple's motion. A completed purchase or restore takes it away at once, as StoreKit's sheet comes down over it. Its filled action and text buttons have no press state, and the close circle presses as a glass control; the price, a pending note or a failure appear in place with no motion (rule 2). A trial that ends while it is open swaps Try Free and Buy Once for the filled Buy at once, and the title with them (rule 2).
 - **Devot Pro not active** (a write while editing is locked): rule 3.
@@ -259,9 +255,19 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A setting changes before it is saved; a refused save puts the old value back at once and raises the system's alert (rule 2).
   An action row's value changes in place (rule 2), as on the web shell's Restore Purchases and Request a Refund rows.
   The Trial, Mac licence key and purchase sheets are one content-sized system sheet with its grabber, rising and following a drag with the system's motion (rule 3); when their content grows the sheet's height follows in one system animation, and content taller than the sheet scrolls inside it.
-  A pane the page still draws (Appearance, Sync) shows the screen's background during the push until the page has the pane, then the pane at once (rule 2); Pair a Device lands on Sync's pairing without a scroll animation.
+  Sync's rows change at once as its snapshot changes, with no motion of their own (rule 2), and Pair a Device lands on its pairing group without a scroll animation.
+  Showing a pairing swaps the row for its QR code, code, progress and countdown at once (rule 2); the countdown ticks each second with monospaced digits, and the progress line changes in place.
+  Leave, Remove, Move to iCloud, Upload Again and Move to This Account ask first in the system's alert, with Leave and Remove in the destructive style; Leave iCloud's Vault swaps its row for the recovery key field at once instead, as on the page.
   Removing a licence asks first in the system's alert, with Remove in the destructive style.
   Under Reduce Motion the system crossfades its pushes and sheets.
+- **Appearance cards** (the native Appearance pane): rule 4, then rule 2.
+  A colour scheme card, a theme card and a theme swatch scale to `PressableCardStyle`'s 0.97 (a swatch 0.94) over `motion.duration.quick` while pressed, and settle back on `motion.spring.phone-settle-*` on release; a theme card scales with its swatches on it.
+  The choice then shows in the next frame: the scheme ring and the swatch rings and badges appear at once, with no travel and no fade, and a pick plays the `selection` haptic.
+  Under Reduce Motion, or with Animations set to Off, nothing scales.
+- **Glass Transparency, Gradient, Text Size and Preview Font Size** (the native Appearance pane): rule 1.
+  The system slider follows the finger with a `selection` haptic per step; the glass of Devot's own views, the sample, the bars' edge, the glow or the text sample change with it, with no motion of their own.
+  The value is stored when the finger lifts, or, for a step VoiceOver or Switch Control makes without a drag, once the steps settle for 400 ms.
+  A value SwiftUI hands over within 400 ms after the lift is the drag's last one and is stored at once.
 - **Note mode toggle** (the web shell): rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. The panes crossfade as Edit and Preview says.
 - **Note bottom bar and formatting bar:** rule 2. As the keyboard rises the bottom bar fades and drops 20 pt with `gentle`, and the formatting bar fades in on the keyboard. Under Reduce Motion both only crossfade. The system's bar of previous, next and a check mark is not shown above the keyboard, so the formatting bar sits on the keyboard itself, and Hide keyboard lowers the keyboard with the system's motion.
 - **Find bar:** rule 2. It appears at once on the keyboard, in the bottom bar's place, and matches change as you type.
@@ -273,4 +279,4 @@ PlantUML and Markmap drawings replace their previous SVG at once (rule 2), as Me
 
 ## Stays instant
 
-Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); text folding (it would animate height inside CodeMirror's measured layout).
+Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); on the iPhone, a theme, a colour scheme or a Glass Transparency change in the native screens; text folding (it would animate height inside CodeMirror's measured layout).

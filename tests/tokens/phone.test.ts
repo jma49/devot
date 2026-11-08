@@ -34,10 +34,6 @@ describe('the phone layout tokens', () => {
     ['size.phone-card-inset', 4],
     ['size.phone-row-pad', 12],
     ['size.phone-group-gap', 20],
-    ['size.phone-stepper-height', 32],
-    ['size.phone-stepper-button', 44],
-    ['size.phone-theme-thumb-width', 44],
-    ['size.phone-theme-thumb-height', 56],
     ['size.phone-group-title', 10],
     ['size.phone-topbar-top', 12],
     ['size.phone-topbar-band', 68],
@@ -57,11 +53,33 @@ describe('the phone layout tokens', () => {
     ['radius.phone-heat-legend', 3],
     ['radius.phone-card', 22],
     ['radius.phone-row-press', 16],
-    ['radius.phone-theme-thumb', 10],
     ['radius.phone-sheet', 34],
     ['radius.phone-menu-row', 20],
+    ['size.phone-scheme-card', 150],
+    ['size.phone-scheme-mini-width', 56],
+    ['size.phone-scheme-mini-height', 96],
+    ['radius.phone-scheme-mini', 16],
+    ['size.phone-swatch', 56],
+    ['size.phone-swatch-box', 66],
+    ['size.phone-swatch-ring', 3],
+    ['size.phone-swatch-badge', 20],
+    ['size.phone-glass-sample', 120],
+    ['radius.phone-glass-sample', 16],
   ] as const)('%s is %i', (token, value) => {
     expect(px(token)).toBe(value)
+  })
+
+  it('keeps the Appearance cards concentric: what sits 8 inside a card is 8 rounder less', () => {
+    const inner = px('radius.phone-grouped-card') - 8
+    expect(px('radius.phone-scheme-mini')).toBe(inner)
+    expect(px('radius.phone-glass-sample')).toBe(inner)
+  })
+
+  it('rings a swatch inside its box: swatch, gap and ring', () => {
+    expect(
+      px('size.phone-swatch') +
+        2 * (px('size.phone-theme-ring-gap') + px('size.phone-swatch-ring')),
+    ).toBeLessThanOrEqual(px('size.phone-swatch-box'))
   })
 
   it('fits the tab bar and the compose circle on a 390 screen', () => {
@@ -128,6 +146,13 @@ describe('the phone motion tokens', () => {
   it('has no tokens left for the capture sheet New Note replaced', () => {
     const names = Object.keys(sizes)
     expect(names.filter((name) => /phone-(capture|arrive|dim-capture)/.test(name))).toEqual([])
+  })
+
+  it('has no tokens left for the web Settings panes the native ones replaced', () => {
+    const names = Object.keys(sizes)
+    expect(
+      names.filter((name) => /phone-(stepper|slider|switch|pane-segmented|theme-thumb)/.test(name)),
+    ).toEqual([])
   })
 
   it('draws the glass rim from tokens', () => {

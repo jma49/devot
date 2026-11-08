@@ -1,0 +1,12 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_ARGS_INVALID",
+  "message": {
+    "v": 1,
+    "id": 27,
+    "op": "glass.set",
+    "args": {
+      "transparency": -2147483648
+    }
+  }
+}
