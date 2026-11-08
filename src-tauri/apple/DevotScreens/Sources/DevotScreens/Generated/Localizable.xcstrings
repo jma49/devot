@@ -14125,17 +14125,6 @@
         }
       }
     },
-    "phone.appearance.editor" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Editor"
-          }
-        }
-      }
-    },
     "phone.appearance.gradientFull" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14165,17 +14154,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Text Size"
-          }
-        }
-      }
-    },
-    "phone.appearance.textSizeSmall" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A"
           }
         }
       }
@@ -15463,17 +15441,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Devot {version}"
-          }
-        }
-      }
-    },
-    "phone.settings.closeSearch" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Close search"
           }
         }
       }

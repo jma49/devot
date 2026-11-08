@@ -9,7 +9,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     private var screens: [Tab: WebTabScreen] = [:]
 
     init(host: WebViewHost) {
-        settings = SettingsScreens(host: host)
+        settings = SettingsScreens()
         super.init(nibName: nil, bundle: nil)
         viewControllers = TabModel.tabs.map { tab in
             let navigation: UINavigationController

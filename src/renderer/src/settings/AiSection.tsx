@@ -12,9 +12,7 @@ import { LicenceButton } from '../LicenceLocked'
 import { lockedSentence } from '../licenceView'
 import { loadAiSettings, removeAiKey, saveAiKey, saveAiSettings } from './aiProviders'
 import { SUGGEST_AFTER_CHARS, SUGGEST_BEFORE_CHARS } from '../../../core/aiSuggest'
-import { PhoneGroup, PhoneSegmented } from '../phone/PhoneControls'
 import { Select, Setting, SettingsSection, SettingToggle } from './controls'
-import { useOnPhone } from './onPhone'
 import { failureText, logFailure } from '../failure'
 
 const NAMES: Record<AiProviderId, MessageKey> = {
@@ -39,7 +37,6 @@ const draftsOf = (view: AiSettingsView): Drafts => ({
 export function AiSection() {
   const ids = useId()
   const id = (name: string) => `${ids}-${name}`
-  const onPhone = useOnPhone()
   const [view, setView] = useState<AiSettingsView>()
   const [drafts, setDrafts] = useState<Drafts>()
   const [keys, setKeys] = useState<Record<AiProviderId, string>>({ anthropic: '', openai: '' })
@@ -218,11 +215,7 @@ export function AiSection() {
         </Setting>
         <Setting
           label="aiSettings.key"
-          description={
-            onPhone
-              ? t('phone.ai.keyHint')
-              : `${t(KEY_STATES[shown.key])} ${t('aiSettings.keyHint')}`
-          }
+          description={`${t(KEY_STATES[shown.key])} ${t('aiSettings.keyHint')}`}
           htmlFor={field('key')}
           descriptionId={field('key-hint')}
         >
@@ -244,7 +237,6 @@ export function AiSection() {
               if (ownKeyError) setKeyError(undefined)
             }}
           />
-          {onPhone ? <p className="settings-hint">{t(KEY_STATES[shown.key])}</p> : null}
           {/* The refused key is reported beside the field it belongs to, not only above the pane. */}
           {ownKeyError ? (
             <p id={field('key-error')} role="alert" className="settings-error">
@@ -283,60 +275,6 @@ export function AiSection() {
           </div>
         </Setting>
       </>
-    )
-  }
-
-  if (onPhone) {
-    return (
-      <section className="settings-section" aria-labelledby="ai-title">
-        <h2 id="ai-title" className="visually-hidden">
-          {t('aiSettings.title')}
-        </h2>
-        <div ref={errorsRef}>
-          {errors.map((text) => (
-            <p key={text} role="alert" className="settings-error">
-              {text}
-            </p>
-          ))}
-        </div>
-        <p className="visually-hidden" role="status" aria-live="polite">
-          {announcement}
-        </p>
-        {licenceEntitlements.has('aiProviders') ? null : (
-          <PhoneGroup>
-            <Setting
-              label="licenceSettings.title"
-              description={lockedSentence('ai', licence, trialEnded)}
-            >
-              <div className="settings-buttons">
-                <LicenceButton />
-              </div>
-            </Setting>
-          </PhoneGroup>
-        )}
-        {view && drafts ? (
-          <>
-            <PhoneGroup title={t('phone.ai.provider')} footnote={t('aiSettings.detail')}>
-              <PhoneSegmented
-                label={t('phone.ai.provider')}
-                labelHidden
-                value={view.active}
-                options={AI_PROVIDERS.map((p) => ({ value: p, label: t(NAMES[p]) }))}
-                onChange={(active) => commit(active)}
-              />
-              {providerRows(view.active)}
-            </PhoneGroup>
-            <PhoneGroup title={t('phone.ai.features')}>
-              <SettingToggle
-                label="aiSettings.suggestOnIdle"
-                description="phone.ai.suggestHint"
-                checked={view.suggestOnIdle}
-                onChange={setSuggestOnIdle}
-              />
-            </PhoneGroup>
-          </>
-        ) : null}
-      </section>
     )
   }
 

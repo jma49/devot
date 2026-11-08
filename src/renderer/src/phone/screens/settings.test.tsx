@@ -93,10 +93,7 @@ async function start() {
   await act(async () => {})
 }
 
-async function swift(
-  op: 'tabs.show' | 'tabs.popToRoot' | 'settings.showPane' | 'settings.notebooks',
-  args = {},
-) {
+async function swift(op: 'tabs.show' | 'settings.notebooks', args = {}) {
   let result: unknown
   await act(async () => {
     result = await bridge.handlers[op]!(args)
@@ -105,35 +102,13 @@ async function swift(
 }
 
 describe('the page under the native Settings', () => {
-  it('shows a pane Swift asks for over the Settings root, under the native bar', async () => {
+  it('draws no Settings of its own and takes no pane from Swift', async () => {
     await start()
     await swift('tabs.show', { tab: 'settings' })
-    await swift('settings.showPane', { pane: 'appearance' })
-    await vi.waitFor(() => expect(screens()).toEqual(['Settings', 'Appearance']))
-    const pane = shownStack().querySelector('section[aria-label="Appearance"]')!
-    expect(pane.querySelector('.phone-topbar')).toBeNull()
-    expect(pane.querySelector('.phone-scroll')?.hasAttribute('data-native-bar')).toBe(true)
-  })
-
-  it('keeps the pane it shows when Swift asks again, so a tab switch loses nothing in it', async () => {
-    await start()
-    await swift('tabs.show', { tab: 'settings' })
-    await swift('settings.showPane', { pane: 'appearance' })
-    await vi.waitFor(() => expect(screens()).toEqual(['Settings', 'Appearance']))
-    const pane = shownStack().querySelector('section[aria-label="Appearance"]')
-    await swift('tabs.show', { tab: 'library' })
-    await swift('settings.showPane', { pane: 'appearance' })
-    expect(screens()).toEqual(['Settings', 'Appearance'])
-    expect(shownStack().querySelector('section[aria-label="Appearance"]')).toBe(pane)
-  })
-
-  it('lets the pane go when Swift pops back to the Settings root', async () => {
-    await start()
-    await swift('tabs.show', { tab: 'settings' })
-    await swift('settings.showPane', { pane: 'appearance' })
-    await vi.waitFor(() => expect(screens()).toEqual(['Settings', 'Appearance']))
-    await swift('tabs.popToRoot', { tab: 'settings' })
-    await vi.waitFor(() => expect(screens()).toEqual(['Settings']))
+    expect(shownStack().querySelector('.phone-layer section')).toBeNull()
+    expect(Object.keys(bridge.handlers).filter((op) => op.startsWith('settings.'))).toStrictEqual([
+      'settings.notebooks',
+    ])
   })
 
   it('lists the notebooks in Library order for Default Notebook', async () => {
@@ -173,20 +148,8 @@ describe('the page under the native Settings', () => {
 })
 
 describe('the Settings operations', () => {
-  it('take only the panes the page still draws', async () => {
-    const shown: string[] = []
-    const handlers = settingsHandlers({
-      showPane: (pane) => shown.push(pane),
-      notebooks: () => [],
-    })
-    await expect(handlers['settings.showPane']!({ pane: 'appearance' })).resolves.toStrictEqual({})
-    for (const args of [
-      { pane: 'sync' },
-      { pane: 'licence' },
-      { pane: 'appearance', anchor: 'pairing' },
-    ])
-      await expect(handlers['settings.showPane']!(args)).rejects.toThrow('E_SCREENS_ARGS_INVALID')
+  it('list the notebooks and nothing of a note', async () => {
+    const handlers = settingsHandlers({ notebooks: () => [] })
     await expect(handlers['settings.notebooks']!({})).resolves.toStrictEqual({ notebooks: [] })
-    expect(shown).toStrictEqual(['appearance'])
   })
 })

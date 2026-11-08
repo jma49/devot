@@ -22,21 +22,17 @@ final class SettingsScreens {
     let router: SettingsRouter
     let navigation: SettingsNavigationController
     private(set) var root: SettingsRootScreen!
-    private let host: WebViewHost
     private var fontPicker: FontPicker?
     private var started = false
     /// The tab shows, whatever page is on top.
     var onTabAppear: () -> Void = {}
-    /// Lets a note the page shows go and calls back once it has, so a web pane never shows the note.
-    var hideEditor: (@escaping () -> Void) -> Void = { $0() }
 
     var bridge: (any SettingsBridge)? {
         get { store.bridge }
         set { store.bridge = newValue }
     }
 
-    init(host: WebViewHost, glass: GlassStyleStore = .shared) {
-        self.host = host
+    init(glass: GlassStyleStore = .shared) {
         self.glass = glass
         router = SettingsRouter { _ in UIViewController() }
         navigation = SettingsNavigationController()
@@ -131,28 +127,6 @@ final class SettingsScreens {
             SyncPane(store: store, model: model, anchor: anchor) { [weak self] in self?.buy() })
         screen.left = { model.left() }
         return screen
-    }
-
-    private func web(_ pane: String, _ title: String) -> UIViewController {
-        WebPaneScreen(
-            pane: pane, title: title, host: host,
-            show: { [weak self] pane, shown in
-                self?.hideEditor { [weak self] in
-                    self?.store.bridge?.request(.settingsShowPane, ["pane": .string(pane)]) { outcome in
-                        if case .failed(let code) = outcome {
-                            self?.store.log("W_PHONE_SETTINGS_PANE_FAILED pane=\(pane) code=\(code)")
-                        }
-                        shown()
-                    }
-                }
-            },
-            left: { [weak self] in
-                self?.store.bridge?.request(.tabsPopToRoot, ["tab": .string(Tab.settings.rawValue)]) { outcome in
-                    if case .failed(let code) = outcome {
-                        self?.store.log("W_PHONE_SETTINGS_PANE_LEAVE_FAILED pane=\(pane) code=\(code)")
-                    }
-                }
-            })
     }
 
     /// The App Store build buys in the purchase sheet; a direct build at the licence site.

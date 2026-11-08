@@ -5,7 +5,6 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '../ipc'
 import { AiSection } from './AiSection'
-import { OnPhone } from './onPhone'
 
 vi.mock('../ipc', () => ({ invoke: vi.fn<() => Promise<unknown>>() }))
 vi.stubGlobal('DEVOT_UI_TEST', true)
@@ -42,14 +41,8 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'visibilityState')
 })
 
-async function pane(onPhone: boolean) {
-  await act(async () =>
-    root.render(
-      <OnPhone.Provider value={onPhone}>
-        <AiSection />
-      </OnPhone.Provider>,
-    ),
-  )
+async function pane() {
+  await act(async () => root.render(<AiSection />))
 }
 
 const field = (part: 'endpoint' | 'model') =>
@@ -77,13 +70,13 @@ const saved = () =>
 
 describe('the AI pane', () => {
   it('saves nothing while a field is typed into', async () => {
-    await pane(true)
+    await pane()
     type('endpoint', 'http://localhost:11434')
     expect(saved()).toEqual([])
   })
 
-  it.each([true, false])('keeps a typed field when it is closed (iPhone: %s)', async (onPhone) => {
-    await pane(onPhone)
+  it('keeps a typed field when it is closed', async () => {
+    await pane()
     type('endpoint', 'http://localhost:11434')
     type('model', 'llama3')
     await act(async () => root.render(<></>))
@@ -91,7 +84,7 @@ describe('the AI pane', () => {
   })
 
   it('keeps a typed field when the app goes to the background', async () => {
-    await pane(true)
+    await pane()
     type('model', 'llama3')
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
     await act(async () => document.dispatchEvent(new Event('visibilitychange')))
@@ -99,7 +92,7 @@ describe('the AI pane', () => {
   })
 
   it('saves an unchanged pane never', async () => {
-    await pane(true)
+    await pane()
     await act(async () => root.render(<></>))
     expect(saved()).toEqual([])
   })

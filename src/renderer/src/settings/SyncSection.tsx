@@ -20,9 +20,7 @@ import {
   type SyncStateName,
 } from '../sync'
 import { icloudAttention, icloudLine, icloudWordsCode, useICloudStatus } from '../syncICloud'
-import { PhoneGroup } from '../phone/PhoneControls'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
-import { useOnPhone } from './onPhone'
 import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevices'
 import { LeaveVaultRow } from './SyncLeave'
 import { ICloudRotateKeyRow, RotateKeyRow } from './SyncRotate'
@@ -131,7 +129,6 @@ function rotatedMessage(onICloud: boolean, madeHere: boolean): MessageKey {
 export function SyncSection() {
   const ids = useId()
   const id = (name: string) => `${ids}-${name}`
-  const onPhone = useOnPhone()
   const snapshot = useSyncSnapshot()
   const pauseOver = usePauseOver(snapshot.status.pausedUntil)
   const [url, setUrl] = useState<string>()
@@ -591,87 +588,6 @@ export function SyncSection() {
       ) : null}
     </>
   )
-
-  if (onPhone) {
-    const shown = snapshot.enabled ? snapshot.status.state : 'off'
-    const footnote = !snapshot.enabled
-      ? t('phone.sync.notesStay')
-      : snapshot.status.lastSync === null
-        ? t('syncSettings.neverSynced')
-        : format(t('phone.sync.lastSynced'), {
-            time: new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(
-              snapshot.status.lastSync,
-            ),
-          })
-    const pairingRow = (
-      <PairingRow
-        icloud={onICloud}
-        locked={locked}
-        focusRequest={focusPairing}
-        onDevicesChanged={devicesChanged}
-        onAnnounce={announce}
-        failed={failed}
-      />
-    )
-    return (
-      <section ref={root} className="settings-section" aria-labelledby="sync-title">
-        {header}
-        <PhoneGroup footnote={footnote}>
-          {lockedRow}
-          {joinedNote}
-          <SettingToggle
-            label="syncSettings.enabled"
-            description="phone.sync.hint"
-            checked={snapshot.enabled}
-            disabled={toggleOff}
-            onChange={(on) =>
-              void changeSync({ enabled: on }).then(
-                () => setError(undefined),
-                failed('syncSettings.changeFailed'),
-              )
-            }
-          />
-          {showsTransport ? <TransportRow snapshot={snapshot} /> : null}
-          {(snapshot.enrolled || held) && !onICloud ? relayRow(t('phone.sync.relayHint')) : null}
-          {statusLine || !(shown === 'idle' || shown === 'off') ? (
-            <Setting label="syncSettings.status" description={statusDescription}>
-              {statusActions}
-            </Setting>
-          ) : null}
-          {stateNotes}
-        </PhoneGroup>
-        {onICloud ? (
-          <PhoneGroup footnote={t('syncSettings.icloudStorageManaged')}>
-            <ICloudStorageRows snapshot={snapshot} />
-          </PhoneGroup>
-        ) : snapshot.enrolled ? (
-          <PhoneGroup>
-            <UsageRows snapshot={snapshot} />
-          </PhoneGroup>
-        ) : null}
-        {offersICloud ? (
-          <PhoneGroup>
-            <MoveToICloudRow locked={locked} failed={failed} cleared={cleared} />
-          </PhoneGroup>
-        ) : null}
-        {recoveryKey ? <PhoneGroup>{recoveryPanel}</PhoneGroup> : null}
-        {inVault ? null : <PhoneGroup>{setupRows}</PhoneGroup>}
-        {inVault ? (
-          <PhoneGroup>
-            <DevicesRow
-              icloud={onICloud}
-              refresh={devicesVersion}
-              onAnnounce={announce}
-              failed={failed}
-            />
-          </PhoneGroup>
-        ) : null}
-        {rotatedRows ? <PhoneGroup>{rotatedRows}</PhoneGroup> : null}
-        {inVault && !rotatedAway ? <PhoneGroup>{pairingRow}</PhoneGroup> : null}
-        {leaveRow ? <PhoneGroup>{leaveRow}</PhoneGroup> : null}
-      </section>
-    )
-  }
 
   return (
     <section ref={root} className="settings-section" aria-labelledby="sync-title">

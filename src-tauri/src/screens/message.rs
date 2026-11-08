@@ -69,13 +69,6 @@ pub struct NoteCreate {
     pub title: Option<String>,
 }
 
-/// A Settings pane the page still draws under the native Settings, until its native pane lands.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum WebPane {
-    Appearance,
-}
-
 /// The iPhone's Glass Transparency: -100 is solid, 0 the design, 100 the clearest, in steps of 5.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -85,12 +78,6 @@ pub struct GlassSet {
 
 pub const GLASS_TRANSPARENCY_MAX: i32 = 100;
 pub const GLASS_TRANSPARENCY_STEP: i32 = 5;
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ShowPane {
-    pub pane: WebPane,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -129,8 +116,6 @@ pub enum Op {
     TabsShow(TabArgs),
     #[serde(rename = "tabs.popToRoot")]
     TabsPopToRoot(TabArgs),
-    #[serde(rename = "settings.showPane")]
-    SettingsShowPane(ShowPane),
     #[serde(rename = "settings.notebooks")]
     SettingsNotebooks(Empty),
     #[serde(rename = "editor.show")]
@@ -154,7 +139,6 @@ pub const OPS: &[&str] = &[
     "note.create",
     "tabs.show",
     "tabs.popToRoot",
-    "settings.showPane",
     "settings.notebooks",
     "editor.show",
     "editor.hide",
@@ -542,7 +526,6 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
         }
         Op::TabsShow(_)
         | Op::TabsPopToRoot(_)
-        | Op::SettingsShowPane(_)
         | Op::SettingsNotebooks(_)
         | Op::GlassGet(_)
         | Op::EditorHide(_)

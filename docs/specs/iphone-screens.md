@@ -306,15 +306,15 @@ Glass is the system's, on the navigation layer only; content is never glass.
 - Glass Transparency runs from −100 to 100 in steps of 5 and is this iPhone's own setting, never synced:
   - on Devot's two glass views, −100 is a solid `color.phone.glass-opaque`, values below 0 tint regular glass with it at −t/100, 0 is plain regular glass, and values above 0 are clear glass tinted at the larger of 0 and 0.25 − t/400;
   - on the system bars, whose glass has no public opacity, only values below 0 act: every scroll view under them, the web view's and the panes', takes the hard scroll edge effect, and from 0 up the automatic one;
-  - a change applies on every move of the slider and is saved when the finger lifts, or 400 ms after the last step of an adjustment without a drag (VoiceOver, Switch Control).
+  - a change applies on every move of the slider and is saved when the finger lifts, or 400 ms after the last step of an adjustment without a drag (VoiceOver, Switch Control);
+  - a value that arrives within 400 ms after the lift is the drag's last one, which SwiftUI may hand over after it reports the lift, and is saved at once, so an app closed straight after a drag keeps it.
 - Reduce Transparency and Increase Contrast win over Glass Transparency: the system frosts its glass, Devot's glass views follow with a solid fill, and the slider shows disabled with a footer that says why.
 
 ## Settings tree
 
 Every pane is a SwiftUI form in a hosting controller pushed on the Settings tab's own navigation controller, so push, pop and the edge swipe are UIKit's.
 The root's rows are buttons that push through `SettingsRouter`, never SwiftUI navigation links, since no SwiftUI navigation container holds them.
-The web view keeps its size there; its safe area takes in the bar, so the page's top inset clears it.
-The page keeps a pane it still shows when asked again, so a tab switch loses nothing typed in it; once the `WebPaneScreen` leaves the stack, Swift sends `tabs.popToRoot { tab: "settings" }` and the page lets the pane go, as its own Back did.
+The page draws no Settings page: under every one the web view rests on the stage at its size, hidden from VoiceOver.
 Rows have a label, at most one short description and one trailing edge (a value with a chevron, a switch, or nothing), with no info buttons.
 A choice of three or fewer sits inline as checkmark rows, and a longer one pushes a checkmark page.
 Every choice applies in the next frame with no transition, before it is saved.
@@ -362,7 +362,6 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 
 | Message                            | From  | Meaning                                                                                                     |
 | ---------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------- |
-| `settings.showPane { pane }`       | Swift | the page shows `appearance` in the web view, without its own bar                                            |
 | `glass.get`                        | Swift | the page answers its stored Glass Transparency, or null, once, when this iPhone has no value of its own yet |
 | `glass.set { transparency }`       | Swift | the page paints its glass at this value and keeps a copy, so it paints right at the next launch             |
 | `settings.notebooks`               | Swift | the page answers the notebooks, each with `id`, `name` and `depth`, in order                                |

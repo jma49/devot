@@ -7,9 +7,6 @@ import { invoke } from '../ipc'
 import { readCurrentLicence, type StoreProductView } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
 import { openPurchase, purchaseOpen } from '../purchaseSheet'
-import { LicenceSection } from '../settings/LicenceSection'
-import { OnPhone } from '../settings/onPhone'
-import { PhoneSettings } from './PhoneSettings'
 import { PhonePurchaseSheet, PurchaseOffer } from './PhonePurchase'
 import { PhoneGate } from './PhoneProSheet'
 import { closeGate, requireEditing } from './requireEditing'
@@ -77,14 +74,6 @@ describe('an App Store build on the phone', () => {
       it(`shows no outside purchase or price with the trial ${trial}${pro ? ' and Devot Pro' : ''}`, async () => {
         vi.mocked(invoke).mockResolvedValueOnce(appStore(trial, pro))
         const licence = await readCurrentLicence()
-        noOutsidePurchase(rendered(<PhoneSettings onOpenPane={() => {}} />))
-        noOutsidePurchase(
-          rendered(
-            <OnPhone.Provider value={true}>
-              <LicenceSection />
-            </OnPhone.Provider>,
-          ),
-        )
         noOutsidePurchase(rendered(<LicenceButton />))
         const sheet = rendered(
           <PurchaseOffer
@@ -337,63 +326,14 @@ describe('the short Pro sheet in an App Store build', () => {
   })
 })
 
-describe('Settings in an App Store build', () => {
-  it('has Restore Purchases, and shows Pro for a Devot Pro purchase', async () => {
-    vi.mocked(invoke).mockResolvedValueOnce(appStore('ended', true))
-    await readCurrentLicence()
-    const settings = rendered(<PhoneSettings onOpenPane={() => {}} />)
-    expect(settings).toContain('>Restore Purchases<')
-    expect(settings).toContain('>Pro<')
-  })
-
-  it('hides the key field in a build that takes no key, and offers Devot Pro for a lock', async () => {
-    const value = appStore('ended')
-    vi.mocked(invoke).mockResolvedValueOnce({
-      ...value,
-      appStore: { ...value.appStore, takesKeys: false },
-    })
-    await readCurrentLicence()
-    const pane = rendered(
-      <OnPhone.Provider value={true}>
-        <LicenceSection />
-      </OnPhone.Provider>,
-    )
-    expect(pane).not.toContain('License Key')
-    expect(pane).toContain('Buy Devot Pro')
-  })
-
-  it('says why Restore Purchases failed in a sentence', async () => {
-    vi.mocked(invoke).mockResolvedValueOnce(appStore('ended'))
-    await readCurrentLicence()
-    vi.mocked(invoke).mockImplementation(async (command) => {
-      if (command === 'store_restore') throw new Error('E_APP_STORE_NO_REPLY')
-      return undefined
-    })
-    const host = document.createElement('div')
-    document.body.append(host)
-    const root = createRoot(host)
-    act(() => root.render(<PhoneSettings onOpenPane={() => {}} />))
-    const restore = [...host.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Restore Purchases'),
-    )
-    await act(async () => restore?.click())
-    expect(host.textContent).toContain('The App Store did not reply.')
-    expect(host.textContent).not.toContain('E_APP_STORE_NO_REPLY')
-    act(() => root.unmount())
-    host.remove()
-    vi.mocked(invoke).mockReset()
-    vi.mocked(invoke).mockResolvedValue(undefined)
-  })
-
-  it('leaves a build sold elsewhere without Restore Purchases', async () => {
+describe('a build sold elsewhere', () => {
+  it('buys a license rather than Devot Pro', async () => {
     const { appStore: _, ...direct } = appStore('ended')
     vi.mocked(invoke).mockResolvedValueOnce({
       ...direct,
       trial: { ...direct.trial, source: 'keychain' },
     })
     await readCurrentLicence()
-    const settings = rendered(<PhoneSettings onOpenPane={() => {}} />)
-    expect(settings).not.toContain('Restore Purchases')
     expect(rendered(<LicenceButton />)).toContain('Buy a License')
   })
 })

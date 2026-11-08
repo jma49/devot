@@ -50,8 +50,6 @@ struct SettingsRootView: View {
             }
         }
         .listStyle(.insetGrouped)
-        // The tab bar's scroll edge effect would otherwise fade the build footer even at the foot.
-        .contentMargins(.bottom, Tokens.Size.phoneTabEdge, for: .scrollContent)
         .settingsPage(store, glow: true)
         .overlay {
             if !query.text.trimmingCharacters(in: .whitespaces).isEmpty, sections.isEmpty {
@@ -85,17 +83,22 @@ struct SettingsRootView: View {
         }
         Section {
             pane("licence", value: row?.label, badge: row?.attention ?? false)
-            if licence?.soldOnAppStore == true {
-                ActionRow(title: L10n.phoneSettingsRestore(), value: restoring?.text, busy: restoring == .running, action: restore)
-                if licence?.appStore?.pro == true {
-                    NavigationRow(title: L10n.phoneSettingsMacKey(), action: actions.showMacKey)
-                    ActionRow(title: L10n.phoneSettingsRefund(), value: refunding?.text, busy: refunding == .running, action: refund)
-                }
-            }
+            ForEach(StoreRow.shown(licence), id: \.self) { storeRow($0) }
         } footer: {
             if let version = store.version {
                 BuildFooter(text: L10n.phoneSettingsBuild(version: version))
             }
+        }
+    }
+
+    @ViewBuilder private func storeRow(_ row: StoreRow) -> some View {
+        switch row {
+        case .restore:
+            ActionRow(title: L10n.phoneSettingsRestore(), value: restoring?.text, busy: restoring == .running, action: restore)
+        case .macKey:
+            NavigationRow(title: L10n.phoneSettingsMacKey(), action: actions.showMacKey)
+        case .refund:
+            ActionRow(title: L10n.phoneSettingsRefund(), value: refunding?.text, busy: refunding == .running, action: refund)
         }
     }
 
@@ -176,6 +179,17 @@ private struct BuildFooter: View {
 
     var body: some View {
         Text(text).settingsDetail().monospacedDigit().frame(maxWidth: .infinity).padding(.top, gap)
+    }
+}
+
+/// The rows under License in an App Store build: Restore Purchases, then the Mac key and the
+/// refund once Devot Pro is bought. A build sold elsewhere has none.
+enum StoreRow: Hashable {
+    case restore, macKey, refund
+
+    static func shown(_ licence: Licence?) -> [StoreRow] {
+        guard let licence, licence.soldOnAppStore else { return [] }
+        return licence.appStore?.pro == true ? [.restore, .macKey, .refund] : [.restore]
     }
 }
 

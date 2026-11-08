@@ -13,7 +13,6 @@ export const SCREENS_OPS = [
   'note.create',
   'tabs.show',
   'tabs.popToRoot',
-  'settings.showPane',
   'settings.notebooks',
   'editor.show',
   'editor.hide',

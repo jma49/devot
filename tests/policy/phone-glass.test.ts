@@ -33,12 +33,10 @@ it('makes menus and the compose circle glass', () => {
   expect(app).toContain('className="phone-glass phone-compose"')
 })
 
-it('puts no coloured tile behind a Settings or Library row icon', () => {
-  for (const file of ['PhoneSettings.tsx', 'PhoneLibrary.tsx']) {
-    const source = readFileSync(`src/renderer/src/phone/${file}`, 'utf8')
-    expect(source).not.toMatch(/PANE_TILES|phone-row-tile|tileColor/)
-    expect(source).not.toContain('phone-row-icon" style')
-  }
+it('puts no coloured tile behind a Library row icon', () => {
+  const source = readFileSync('src/renderer/src/phone/PhoneLibrary.tsx', 'utf8')
+  expect(source).not.toMatch(/PANE_TILES|phone-row-tile|tileColor/)
+  expect(source).not.toContain('phone-row-icon" style')
 })
 
 it('lets the iPhone lay out edge to edge', () => {

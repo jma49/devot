@@ -21,7 +21,7 @@ final class GlassMigrationTests: XCTestCase {
 
     private func started() -> (SettingsScreens, GlassStyleStore, FakeBridge) {
         let glass = GlassStyleStore(defaults: defaults, reduced: { false })
-        let screens = SettingsScreens(host: WebViewHost(webView: WKWebView()), glass: glass)
+        let screens = SettingsScreens(glass: glass)
         let bridge = FakeBridge()
         screens.bridge = bridge
         screens.start()

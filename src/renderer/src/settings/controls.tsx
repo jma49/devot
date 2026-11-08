@@ -1,7 +1,6 @@
 import {
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type ComponentProps,
@@ -14,7 +13,6 @@ import { errorCode } from '../backups'
 import { logFailure } from '../failure'
 import { changeEditorSettings } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
-import { useOnPhone } from './onPhone'
 
 /**
  * Stores a change to the settings (see editorSettings.ts); returns the error
@@ -51,65 +49,38 @@ export function SettingsSection({
   children: ReactNode
 }) {
   const id = useId()
-  const onPhone = useOnPhone()
   const footnotes =
     footnote === undefined ? [] : typeof footnote === 'string' ? [footnote] : footnote
-  const heading = titleHidden ? null : (
-    <h3 id={id} className="settings-block-title">
-      {t(title)}
-      {titleSuffix ? <span className="settings-block-suffix"> {titleSuffix}</span> : null}
-    </h3>
-  )
   return (
     <section
       className="settings-block"
       {...(titleHidden ? { 'aria-label': t(title) } : { 'aria-labelledby': id })}
     >
-      {heading}
-      <div className="settings-card">{children}</div>
-      {footnotes.map((text) =>
-        onPhone ? (
-          <p key={text} className="phone-footnote">
-            {text}
-          </p>
-        ) : (
-          <p key={text} className="settings-footnote">
-            <Icon name="settings.note" size="sm" />
-            <span>{text}</span>
-          </p>
-        ),
+      {titleHidden ? null : (
+        <h3 id={id} className="settings-block-title">
+          {t(title)}
+          {titleSuffix ? <span className="settings-block-suffix"> {titleSuffix}</span> : null}
+        </h3>
       )}
+      <div className="settings-card">{children}</div>
+      {footnotes.map((text) => (
+        <p key={text} className="settings-footnote">
+          <Icon name="settings.note" size="sm" />
+          <span>{text}</span>
+        </p>
+      ))}
     </section>
   )
 }
 
 /** A pop-up as a capsule: the value, then a round button with the up and down chevron. */
 export function Select(props: ComponentProps<'select'>) {
-  const onPhone = useOnPhone()
-  const select = useRef<HTMLSelectElement>(null)
-  const [shown, setShown] = useState('')
-  // A select is as wide as its widest option; a phone row shows the chosen one's text at its own width, under the invisible native control.
-  useLayoutEffect(() => {
-    if (onPhone) setShown(select.current?.selectedOptions[0]?.text ?? '')
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A new value or new options change the chosen option's text.
-  }, [onPhone, props.value, props.children])
   return (
     <span className="select">
-      <select ref={select} {...props} />
-      {onPhone ? (
-        <>
-          <span className="select-value" aria-hidden="true">
-            {shown}
-          </span>
-          <span className="phone-chevron" aria-hidden="true">
-            <Icon name="phone.disclosure" size="xs" weight="medium" />
-          </span>
-        </>
-      ) : (
-        <span className="select-chevron" aria-hidden="true">
-          <Icon name="popup" size="sm" />
-        </span>
-      )}
+      <select {...props} />
+      <span className="select-chevron" aria-hidden="true">
+        <Icon name="popup" size="sm" />
+      </span>
     </span>
   )
 }
@@ -237,7 +208,6 @@ export function NumberStepper({
     onType(String(Math.min(max, Math.max(min, current + delta))))
     onLeave()
   }
-  const onPhone = useOnPhone()
   const less = (
     <button
       type="button"
@@ -263,11 +233,10 @@ export function NumberStepper({
       onBlur={onLeave}
     />
   )
-  // On iPhone the number reads before the pair, so it comes first in tab order too.
   return (
     <div className="stepper">
-      {onPhone ? field : less}
-      {onPhone ? less : field}
+      {less}
+      {field}
       <button
         type="button"
         className="stepper-button"

@@ -52,7 +52,6 @@ final class Screens: SettingsBridge {
             run(effects)
         }
         root.tabs.settings.bridge = self
-        root.tabs.settings.hideEditor = { [weak self] done in self?.hideEditor(done) }
         for tab in TabModel.tabs {
             root.tabs.screen(tab)?.hideEditor = { [weak self] done in self?.hideEditor(done) }
         }

@@ -84,7 +84,6 @@ public enum Op: String, CaseIterable, Sendable {
     case noteCreate = "note.create"
     case tabsShow = "tabs.show"
     case tabsPopToRoot = "tabs.popToRoot"
-    case settingsShowPane = "settings.showPane"
     case settingsNotebooks = "settings.notebooks"
     case editorShow = "editor.show"
     case editorHide = "editor.hide"

@@ -74,7 +74,6 @@ import { PhoneNote } from './PhoneNote'
 import { PhoneNoteList } from './PhoneNoteList'
 import { PhoneSearch } from './PhoneSearch'
 import { PhoneToast, useUndoToast } from './PhoneToast'
-import { PhoneSettings, PhoneSettingsPane } from './PhoneSettings'
 import { PhoneTabBar } from './PhoneTabBar'
 import { useLicenceClock } from './licenceClock'
 import './phone.css'
@@ -340,7 +339,6 @@ export function PhoneApp() {
         popToRoot: (tab) => nativeTabs.current?.popToRoot(tab),
       }),
       ...settingsHandlers({
-        showPane: (pane) => nativeSettings.current?.showPane(pane),
         notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
       ...editorHandlers(() => nativeEditor.current),
@@ -502,19 +500,6 @@ export function PhoneApp() {
       },
     }
     nativeSettings.current = {
-      showPane: (pane) => {
-        const settings = latest.current.stacks.settings
-        const above = settings[settings.length - 1]
-        // Swift asks each time the pane shows: one still drawn keeps what the owner was doing in it.
-        const shown = settings.length === 2 && above?.screen === 'pane' && above.pane === pane
-        if (latest.current.tab !== 'settings') {
-          leaveTab()
-          go({ type: 'selectTab', tab: 'settings' })
-        }
-        if (shown) return
-        go({ type: 'selectTab', tab: 'settings' })
-        go({ type: 'push', screen: 'pane', pane })
-      },
       notebooks: () => choicesFromTree(buildBookTree(store.books)),
     }
   })
@@ -577,15 +562,6 @@ export function PhoneApp() {
         />
       )
     }
-    if (route.screen === 'pane' && route.pane)
-      return (
-        <PhoneSettingsPane
-          pane={route.pane}
-          focusKey={route.focusKey === true}
-          nativeBar={native === true}
-          onBack={pop}
-        />
-      )
     if (tab === 'library' && route.screen === 'root')
       return (
         <PhoneLibrary
@@ -609,8 +585,8 @@ export function PhoneApp() {
         />
       )
     if (tab === 'activity') return <PhoneActivity data={store} onOpenNote={openNote} />
-    if (tab === 'settings')
-      return <PhoneSettings onOpenPane={(pane) => go({ type: 'push', screen: 'pane', pane })} />
+    // Settings is native; the web shell left as a fallback has no Settings of its own.
+    if (tab === 'settings') return null
     const view =
       route.screen === 'root' ? state.notes.view : (route.view ?? { kind: 'all' as const })
     return (
@@ -719,12 +695,7 @@ export function PhoneApp() {
         licence={licence}
         onOpenLicence={(focusKey) => {
           setSearching(false)
-          if (native) {
-            bridge.current?.notify({ notice: 'settings.open', pane: 'licence', focusKey })
-            return
-          }
-          go({ type: 'selectTab', tab: 'settings' })
-          go({ type: 'push', screen: 'pane', pane: 'licence', focusKey })
+          bridge.current?.notify({ notice: 'settings.open', pane: 'licence', focusKey })
         }}
       />
       <PhoneSearch

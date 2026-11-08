@@ -514,78 +514,16 @@ test.describe('with motion', () => {
   })
 })
 
-test('Settings lists its sections and opens a pane', async ({ page }) => {
-  await tabs(page).getByRole('button', { name: 'Settings' }).click()
-  const settings = page.getByRole('region', { name: 'Settings' })
-  await expect(settings.getByRole('button', { name: /Editing/ })).toBeVisible()
-  await settings.getByRole('button', { name: /Appearance/ }).click()
-  await expect(page.locator('section.phone-screen[aria-label="Appearance"]')).toBeVisible()
-})
-
-async function openPane(page: Page, name: string) {
-  await tabs(page).getByRole('button', { name: 'Settings' }).click()
-  await page
-    .getByRole('region', { name: 'Settings' })
-    .getByRole('button', { name: new RegExp(`^${name}`) })
-    .click()
-  const pane = page.locator(`section.phone-screen[aria-label="${name}"]`)
-  await expect(pane.locator('.settings-section')).toBeAttached()
-  return pane
-}
-
-test('Appearance on a phone has a colour scheme and no system accent', async ({ page }) => {
-  const pane = await openPane(page, 'Appearance')
-  await expect(pane.getByText('Color Scheme')).toBeVisible()
-  await expect(pane.getByText('Use the System Accent Color')).toHaveCount(0)
-})
-
-test('General on a phone leaves out the menu bar, updates and command line tool', async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    window.devotIpcMocks = {
-      ...window.devotIpcMocks,
-      crash_reports_get: { available: true, on: false },
-    }
-  })
-  await page.reload()
-  const pane = await openPane(page, 'General')
-  for (const title of ['Menu Bar', 'Updates', 'Command Line']) {
-    await expect(pane.getByRole('heading', { name: title })).toHaveCount(0)
-  }
-})
-
-test('a phone Settings row shows its select value beside its label, in iPhone words', async ({
-  page,
-}) => {
-  const pane = await openPane(page, 'Editing')
-  const field = pane.getByRole('combobox', { name: 'Unordered List Bullet' })
-  const label = pane.getByText('Unordered List Bullet', { exact: true })
-  await expect(field).toBeVisible()
-  const value = field.locator('xpath=..').locator('.select-value')
-  const [fieldBox, labelBox, valueBox] = await Promise.all([
-    field.boundingBox(),
-    label.boundingBox(),
-    value.boundingBox(),
-  ])
-  expect(valueBox!.x).toBeGreaterThan(labelBox!.x + labelBox!.width)
-  expect(valueBox!.y).toBeLessThan(labelBox!.y + labelBox!.height)
-  expect(fieldBox!.height).toBeGreaterThanOrEqual(44)
-  await expect(pane.getByText('These settings apply only on this iPhone.')).toBeVisible()
-})
-
-test('no Settings or Library card clips its rows', async ({ page }) => {
-  for (const tab of ['Settings', 'Library']) {
-    await tabs(page).getByRole('button', { name: tab }).click()
-    const cards = page.getByRole('region', { name: tab }).locator('.phone-card')
-    await expect(cards.first()).toBeVisible()
-    for (const card of await cards.all()) {
-      const { client, content } = await card.evaluate((el) => ({
-        client: el.clientHeight,
-        content: el.scrollHeight,
-      }))
-      expect(content, tab).toBeLessThanOrEqual(client)
-    }
+test('no Library card clips its rows', async ({ page }) => {
+  await tabs(page).getByRole('button', { name: 'Library' }).click()
+  const cards = page.getByRole('region', { name: 'Library' }).locator('.phone-card')
+  await expect(cards.first()).toBeVisible()
+  for (const card of await cards.all()) {
+    const { client, content } = await card.evaluate((el) => ({
+      client: el.clientHeight,
+      content: el.scrollHeight,
+    }))
+    expect(content).toBeLessThanOrEqual(client)
   }
 })
 

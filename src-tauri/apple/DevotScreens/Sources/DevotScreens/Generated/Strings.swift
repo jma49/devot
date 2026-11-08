@@ -5630,10 +5630,6 @@ public enum L10n {
     text("phone.settings.noResults", "No matching settings")
   }
 
-  public static func phoneSettingsCloseSearch() -> String {
-    text("phone.settings.closeSearch", "Close search")
-  }
-
   public static func phoneSettingsAlertOk() -> String {
     text("phone.settings.alertOk", "OK")
   }
@@ -5950,16 +5946,8 @@ public enum L10n {
     text("phone.appearance.gradientFull", "Full")
   }
 
-  public static func phoneAppearanceEditor() -> String {
-    text("phone.appearance.editor", "Editor")
-  }
-
   public static func phoneAppearanceTextSize() -> String {
     text("phone.appearance.textSize", "Text Size")
-  }
-
-  public static func phoneAppearanceTextSizeSmall() -> String {
-    text("phone.appearance.textSizeSmall", "A")
   }
 
   public static func phoneSyncHint() -> String {
