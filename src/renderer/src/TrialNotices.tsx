@@ -25,11 +25,11 @@ function remindedFor(): number | null {
   }
 }
 
-// Still hides it in this window when storage refuses the write.
+// Hides it in this window when storage refuses the write; storage, which every window shares, comes first.
 let remindedHere: number | null = null
 const remindedListeners = new Set<() => void>()
 
-const dismissedFor = () => remindedHere ?? remindedFor()
+const dismissedFor = () => remindedFor() ?? remindedHere
 
 // Every main window shows the reminder, so a dismissal in one reaches the others by the storage event.
 function subscribeReminded(notify: () => void): () => void {
@@ -183,13 +183,7 @@ export function TrialReminder() {
     <div role="alert" className="notice" data-devot-part="notice" data-devot-trial-reminder>
       <span className="notice-text">{reminderText(endsAt, now, currentLocale())}</span>
       <TrialButtons />
-      <button
-        type="button"
-        className="button"
-        onClick={() => {
-          remember(endsAt)
-        }}
-      >
+      <button type="button" className="button" onClick={() => remember(endsAt)}>
         {t('notice.dismiss')}
       </button>
     </div>
