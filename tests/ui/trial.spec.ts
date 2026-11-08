@@ -60,6 +60,30 @@ const changeLicence = (page: Page, licence: Licence) =>
 const bar = (page: Page) => page.locator('[data-devot-trial-ended]')
 const savedNotes = () => localStorage.getItem('devot.test.notes') ?? ''
 
+const LOCKED_CHANGE = 'Notes are read-only until you add a license, so the change was not made.'
+const bookRow = (page: Page, name: string) =>
+  page
+    .getByRole('tree', { name: 'Notebooks' })
+    .getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
+    .locator('> .book-row')
+const aiBadge = (page: Page, name: string) =>
+  bookRow(page, name).getByRole('img', { name: 'AI access on' })
+
+async function createBook(page: Page, name: string) {
+  await page.getByRole('button', { name: 'New Notebook' }).click()
+  const field = page.getByRole('textbox', { name: 'Notebook name' })
+  await field.fill(name)
+  await field.press('Enter')
+  await expect(bookRow(page, name)).toBeVisible()
+}
+
+/** What Settings > Integrations' Choose… leaves for the main window before focusing it. */
+const askForAiAccessPicker = (page: Page) =>
+  page.evaluate(() => {
+    localStorage.setItem('devot:choose-ai-access', '1')
+    window.dispatchEvent(new Event('focus'))
+  })
+
 async function writeNote(page: Page, text: string) {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   const body = page.getByRole('textbox', { name: 'Note body' })
@@ -223,6 +247,37 @@ test.describe('once the trial is over', () => {
     })
     await expect(bar(page)).toHaveCount(0)
     await writeNote(page, 'Licensed now')
+  })
+
+  test('Choose Notebooks from Settings says AI access is locked and opens no picker', async ({
+    page,
+  }) => {
+    await fakeTrial(page, 50 * HOUR)
+    await openApp(page)
+    await createBook(page, 'Work')
+    await changeLicence(page, ended())
+    await expect(bar(page)).toBeVisible()
+
+    await askForAiAccessPicker(page)
+    await expect(page.getByRole('alert').filter({ hasText: LOCKED_CHANGE })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Allow AI Access' })).toHaveCount(0)
+    await expect(aiBadge(page, 'Work')).toHaveCount(0)
+  })
+
+  test('a picker left open as the trial ends applies nothing and says why', async ({ page }) => {
+    await fakeTrial(page, 50 * HOUR)
+    await openApp(page)
+    await createBook(page, 'Work')
+    await askForAiAccessPicker(page)
+    const picker = page.getByRole('dialog', { name: 'Allow AI Access' })
+    await expect(picker).toBeVisible()
+
+    await changeLicence(page, ended())
+    await picker.getByRole('checkbox', { name: /^Work\b/ }).check()
+    await picker.getByRole('button', { name: 'Apply' }).click()
+    await expect(picker).toHaveCount(0)
+    await expect(page.getByRole('alert').filter({ hasText: LOCKED_CHANGE })).toBeVisible()
+    await expect(aiBadge(page, 'Work')).toHaveCount(0)
   })
 
   test('quick capture keeps its text and saves nothing', async ({ page }) => {

@@ -4,7 +4,7 @@ import { LICENCE_REQUIRED } from './licence'
 import { LicenceButton } from './LicenceLocked'
 import { usePauseOver, type SyncSnapshot } from './sync'
 import { syncNoticeMessages } from './syncNoticeText'
-import { useUsageNotice } from './syncUsage'
+import { dismissUsageNotice, useUsageNotice } from './syncUsage'
 
 /** Sync stopped until the user acts, paused by the relay's quota or by iCloud, a relay near its storage cap, or records that stay on this device; dismissed until it says something else. */
 export function SyncNotice(props: { snapshot: SyncSnapshot }) {
@@ -28,7 +28,14 @@ export function SyncNotice(props: { snapshot: SyncSnapshot }) {
     <div role="alert" className="notice" data-devot-part="notice">
       <span className="notice-text">{text}</span>
       {state === 'stopped' && code === LICENCE_REQUIRED ? <LicenceButton /> : null}
-      <button type="button" className="button" onClick={() => setDismissed(all)}>
+      <button
+        type="button"
+        className="button"
+        onClick={() => {
+          setDismissed(all)
+          dismissUsageNotice()
+        }}
+      >
         {t('notice.dismiss')}
       </button>
     </div>

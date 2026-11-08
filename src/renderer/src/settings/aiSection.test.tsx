@@ -96,4 +96,79 @@ describe('the AI pane', () => {
     await act(async () => root.render(<></>))
     expect(saved()).toEqual([])
   })
+
+  it('sends a save only once the one before answered, with what is asked then', async () => {
+    const answers: Array<() => void> = []
+    const events: string[] = []
+    const respond = vi.mocked(invoke).getMockImplementation()!
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command !== 'ai_settings_set') return respond(command, args)
+      const { settings } = args as { settings: typeof stored }
+      events.push(`sent ${settings.active}`)
+      return new Promise((resolve) => {
+        answers.push(() => {
+          events.push(`answered ${settings.active}`)
+          resolve(respond(command, args))
+        })
+      })
+    })
+    await pane()
+    type('endpoint', 'http://192.168.1.4:11434')
+    await act(async () => field('endpoint').blur())
+    expect(events).toEqual(['sent openai'])
+    const active = host.querySelector<HTMLSelectElement>('select[id$="active"]')!
+    act(() => {
+      active.value = 'anthropic'
+      active.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    await act(async () => {
+      for (const answer of answers.splice(0).reverse()) answer()
+    })
+    await act(async () => {
+      for (const answer of answers.splice(0)) answer()
+    })
+    expect(events).toEqual([
+      'sent openai',
+      'answered openai',
+      'sent anthropic',
+      'answered anthropic',
+    ])
+    expect(saved().at(-1)).toEqual({
+      endpoint: 'http://192.168.1.4:11434',
+      model: '',
+    })
+    expect(active.value).toBe('anthropic')
+  })
+
+  it('shows a choice made while a save runs, and a second tap undoes it', async () => {
+    const answers: Array<() => void> = []
+    const respond = vi.mocked(invoke).getMockImplementation()!
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command !== 'ai_settings_set') return respond(command, args)
+      return new Promise((resolve) => answers.push(() => resolve(respond(command, args))))
+    })
+    await pane()
+    type('endpoint', 'http://192.168.1.4:11434')
+    await act(async () => field('endpoint').blur())
+    const active = host.querySelector<HTMLSelectElement>('select[id$="active"]')!
+    act(() => {
+      active.value = 'anthropic'
+      active.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(active.value).toBe('anthropic')
+    const toggle = host.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+    act(() => toggle.click())
+    expect(toggle.checked).toBe(true)
+    act(() => toggle.click())
+    expect(toggle.checked).toBe(false)
+    while (answers.length > 0) await act(async () => answers.shift()!())
+    const sent = vi
+      .mocked(invoke)
+      .mock.calls.filter(([command]) => command === 'ai_settings_set')
+      .map(([, args]) => (args as { settings: typeof stored }).settings)
+      .map((settings) => ({ active: settings.active, suggestOnIdle: settings.suggestOnIdle }))
+    expect(sent.at(-1)).toEqual({ active: 'anthropic', suggestOnIdle: false })
+    expect(active.value).toBe('anthropic')
+    expect(toggle.checked).toBe(false)
+  })
 })

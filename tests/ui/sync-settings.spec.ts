@@ -1403,6 +1403,29 @@ test.describe('storage', () => {
     )
   })
 
+  test('the main window keeps a storage warning through later readings until it is dismissed', async ({
+    page,
+  }) => {
+    await fakeRust(page, { ...ENROLLED, status: IDLE })
+    await fakeUsage(page, { storedBytes: 3.3 * GB, fileBytes: 0, caps: CAPS })
+    await openApp(page)
+    const notice = page.getByRole('alert').filter({ hasText: 'more than 80% full' })
+    await expect(notice).toHaveCount(1)
+    const before = (await calls(page, 'sync_usage')).length
+    await settle(page, 'E_SYNC_OFFLINE')
+    await expect.poll(async () => (await calls(page, 'sync_usage')).length).toBeGreaterThan(before)
+    await expect(notice).toHaveCount(1)
+
+    await notice.getByRole('button', { name: 'Dismiss' }).click()
+    await expect(notice).toHaveCount(0)
+    const dismissed = (await calls(page, 'sync_usage')).length
+    await settle(page, 'E_SYNC_PROTOCOL')
+    await expect
+      .poll(async () => (await calls(page, 'sync_usage')).length)
+      .toBeGreaterThan(dismissed)
+    await expect(notice).toHaveCount(0)
+  })
+
   test('the main window names images when only their share is used up', async ({ page }) => {
     await fakeRust(page, { ...ENROLLED, status: IDLE })
     await fakeUsage(page, { storedBytes: 3.1 * GB, fileBytes: 3 * GB, caps: CAPS })

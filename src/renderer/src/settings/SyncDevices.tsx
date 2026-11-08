@@ -69,16 +69,17 @@ export function RecoveryKeyPanel(props: {
   recoveryKey: string
   /** The vault syncs through iCloud, so the key alone restores it. */
   icloud?: boolean
-  focus: boolean
+  /** Moves focus to the key each time it grows. */
+  focusRequest: number
   onDone: () => void
   onAnnounce: (text: string) => void
   failed: Failure
 }) {
   const key = useRef<HTMLPreElement>(null)
-  const { focus } = props
+  const { focusRequest } = props
   useEffect(() => {
-    if (focus) key.current?.focus()
-  }, [focus])
+    if (focusRequest > 0) key.current?.focus()
+  }, [focusRequest])
   const copy = () =>
     void writeClipboardSecret(props.recoveryKey).then(
       () => props.onAnnounce(t('syncSettings.recoveryCopied')),
@@ -152,6 +153,10 @@ export function PairingRow(props: {
   useEffect(() => {
     if (!shown) return
     let stopped = false
+    // One check at a time: its answer sets the next timer, so a push while one is out adds no loop.
+    let inFlight = false
+    // A push while a check is out may have come after that check read the zone.
+    let pushedDuring = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const end = (message?: MessageKey) => {
       stopped = true
@@ -167,8 +172,12 @@ export function PairingRow(props: {
       if (message) onAnnounce(t(message))
     }
     const check = () => {
+      if (stopped || inFlight) return
+      inFlight = true
+      pushedDuring = false
       checkPairing().then(
         (state) => {
+          inFlight = false
           if (stopped) return
           setUnreachable(false)
           if (state.state === 'paired') {
@@ -182,14 +191,15 @@ export function PairingRow(props: {
             onDevicesChanged()
           } else {
             setProgress(state.state)
-            timer = setTimeout(check, pollMs)
+            timer = setTimeout(check, pushedDuring ? 0 : pollMs)
           }
         },
         (e: unknown) => {
+          inFlight = false
           if (stopped) return
           if (TRANSIENT.has(errorCode(e))) {
             setUnreachable(true)
-            timer = setTimeout(check, pollMs)
+            timer = setTimeout(check, pushedDuring ? 0 : pollMs)
             return
           }
           end()
@@ -208,6 +218,10 @@ export function PairingRow(props: {
         .then(({ listen }) =>
           listen(PAIRING_EVENT, () => {
             if (stopped) return
+            if (inFlight) {
+              pushedDuring = true
+              return
+            }
             clearTimeout(timer)
             check()
           }),

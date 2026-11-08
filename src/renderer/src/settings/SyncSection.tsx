@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react'
 import { errorCode } from '../backups'
 import { QUOTA } from '../../../core/sync/transport'
 import { countOf, untilTime, uploadCounts } from '../format'
@@ -119,6 +119,50 @@ function rotatedMessage(onICloud: boolean, madeHere: boolean): MessageKey {
   return madeHere ? 'syncSettings.rotatedIcloud' : 'syncSettings.rotatedIcloudFollowed'
 }
 
+type SetupPath = 'first' | 'another'
+
+/** The setup a device not in a vault goes through, and the recovery key on offer in one. */
+interface Setup {
+  inVault: boolean
+  path: SetupPath | undefined
+  relayChosen: boolean | undefined
+  recoveryKey: string | undefined
+  /** Grows with each key offered here, so each takes focus; 0 for one the pane found on offer. */
+  keyFocus: number
+}
+
+type SetupChange =
+  | { kind: 'membership'; inVault: boolean }
+  | { kind: 'path'; path: SetupPath | undefined }
+  | { kind: 'relay'; chosen: boolean }
+  | { kind: 'recoveryKey'; key: string | undefined; focus: boolean }
+
+// Leaving a vault forgets its key in Rust, so its offer goes and the setup starts again.
+function setupReducer(setup: Setup, change: SetupChange): Setup {
+  switch (change.kind) {
+    case 'membership':
+      if (change.inVault === setup.inVault) return setup
+      if (change.inVault) return { ...setup, inVault: true }
+      return {
+        inVault: false,
+        path: undefined,
+        relayChosen: undefined,
+        recoveryKey: undefined,
+        keyFocus: 0,
+      }
+    case 'path':
+      return { ...setup, path: change.path }
+    case 'relay':
+      return { ...setup, relayChosen: change.chosen }
+    case 'recoveryKey':
+      return {
+        ...setup,
+        recoveryKey: change.key,
+        keyFocus: change.focus ? setup.keyFocus + 1 : 0,
+      }
+  }
+}
+
 /**
  * Settings > Sync: iCloud or a relay first (a build without the container offers only the relay).
  * For a vault on iCloud: its state and what to do about it, storage and devices. For a relay: the
@@ -136,10 +180,6 @@ export function SyncSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string; n: number }>()
   const [creating, setCreating] = useState(false)
   const [announcement, setAnnouncement] = useState('')
-  const [recoveryKey, setRecoveryKey] = useState<string>()
-  const [keyFocus, setKeyFocus] = useState(false)
-  const [path, setPath] = useState<'first' | 'another'>()
-  const [relayChosen, setRelayChosen] = useState<boolean>()
   const [chosen, setChosen] = useState(0)
   const [backedOut, setBackedOut] = useState(0)
   const [focusPairing, setFocusPairing] = useState(0)
@@ -160,6 +200,19 @@ export function SyncSection() {
   const icloud = useICloudStatus(snapshot)
   const onICloud = snapshot.vault && snapshot.transport === 'icloud'
   const inVault = snapshot.enrolled || onICloud
+  const [setup, change] = useReducer(setupReducer, {
+    inVault,
+    path: undefined,
+    relayChosen: undefined,
+    recoveryKey: undefined,
+    keyFocus: 0,
+  })
+  const { path, relayChosen, recoveryKey, keyFocus } = setup
+  const offerKey = (key: string | undefined, focus: boolean) =>
+    change({ kind: 'recoveryKey', key, focus })
+  const setPath = (next: SetupPath | undefined) => change({ kind: 'path', path: next })
+  const setRelayChosen = (relay: boolean) => change({ kind: 'relay', chosen: relay })
+  useEffect(() => change({ kind: 'membership', inVault }), [inVault])
   // Another device changed the key: only its successor can be joined, and no code is shown.
   const rotatedAway = snapshot.rotated || snapshot.status.code === 'E_SYNC_VAULT_ROTATED'
   const attention = icloudAttention(snapshot)
@@ -211,7 +264,7 @@ export function SyncSection() {
     let current = true
     pendingRecoveryKey().then(
       (key) => {
-        if (current && key) setRecoveryKey(key)
+        if (current && key) change({ kind: 'recoveryKey', key, focus: false })
       },
       () => undefined,
     )
@@ -233,7 +286,7 @@ export function SyncSection() {
     if (backedOut > 0) firstButton.current?.focus()
   }, [backedOut])
 
-  const choose = (next: 'first' | 'another') => {
+  const choose = (next: SetupPath) => {
     setPath(next)
     setChosen((n) => n + 1)
   }
@@ -246,7 +299,7 @@ export function SyncSection() {
 
   const saved = () =>
     void recoverySaved().then(() => {
-      setRecoveryKey(undefined)
+      offerKey(undefined, false)
       setFocusPairing((n) => n + 1)
     }, failed('syncSettings.recoverySaveFailed'))
 
@@ -270,10 +323,7 @@ export function SyncSection() {
         setError(undefined)
         setSecret('')
         setPath(undefined)
-        if (created.recoveryKey) {
-          setRecoveryKey(created.recoveryKey)
-          setKeyFocus(true)
-        }
+        if (created.recoveryKey) offerKey(created.recoveryKey, true)
         say(t('syncSettings.vaultReady'))
       }, failed('syncSettings.vaultFailed'))
       .finally(() => setCreating(false))
@@ -324,7 +374,7 @@ export function SyncSection() {
         <RecoveryKeyPanel
           recoveryKey={recoveryKey}
           icloud={onICloud}
-          focus={keyFocus}
+          focusRequest={keyFocus}
           onDone={saved}
           onAnnounce={announce}
           failed={failed}
@@ -416,10 +466,7 @@ export function SyncSection() {
     </>
   )
   const rotated = (key: string | null) => {
-    if (key) {
-      setRecoveryKey(key)
-      setKeyFocus(true)
-    }
+    if (key) offerKey(key, true)
     announce(t(rotatedMessage(onICloud, key !== null)))
   }
   const pathRow = (hint: MessageKey) => (

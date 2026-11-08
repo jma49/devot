@@ -16,7 +16,7 @@ final class NewNoteTests: XCTestCase {
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 120))
         let notes = app.tabBars.firstMatch.buttons[L10n.phoneTabNotes()]
         XCTAssertTrue(notes.waitForExistence(timeout: 10))
-        notes.tap()
+        notes.tapOnceHittable()
     }
 
     /// The note's own bar, told from a list's by its Info button.

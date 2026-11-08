@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { UsageNotice } from '../../src/core/sync/usage'
 import { SYNC_OFF, type SyncSnapshot } from '../../src/renderer/src/sync'
 import {
+  dismissUsageNotice,
   readingFailure,
   readUsage,
   readRelayUsage,
@@ -177,4 +178,29 @@ it('keeps the bands told for each relay apart', async () => {
 
   resetUsageWatch()
   expect(await watch(snapshot(), 2)).toBeNull()
+})
+
+it('keeps a shown notice through later readings of the same band until it is dismissed', async () => {
+  answers.next = { storedBytes: 3.3 * GB, fileBytes: 0, caps: CAPS }
+  expect(await watch(snapshot(), 0)).toBe('storageWarn')
+  expect(await watch(snapshot({ state: 'paused', code: 'E_SYNC_QUOTA' }), 1)).toBe('storageWarn')
+  expect(await watch(snapshot(), USAGE_RECHECK_MS + 2)).toBe('storageWarn')
+
+  answers.next = { storedBytes: 4 * GB, fileBytes: 0, caps: CAPS }
+  expect(await watch(snapshot({ state: 'paused', code: 'E_SYNC_STORAGE_FULL' }), 3)).toBe(
+    'storageFull',
+  )
+
+  dismissUsageNotice()
+  expect(shownUsageNotice()).toBeNull()
+  expect(await watch(snapshot(), 2 * USAGE_RECHECK_MS + 4)).toBeNull()
+})
+
+it('does not let a cap that only nears its limit replace a notice of one at it', async () => {
+  answers.next = { storedBytes: 4 * GB, fileBytes: 0, caps: CAPS }
+  expect(await watch(snapshot(), 0)).toBe('storageFull')
+  answers.next = { storedBytes: 4 * GB, fileBytes: 2.5 * GB, caps: CAPS }
+  expect(await watch(snapshot(), USAGE_RECHECK_MS + 1)).toBe('storageFull')
+  answers.next = { storedBytes: 4 * GB, fileBytes: 3 * GB, caps: CAPS }
+  expect(await watch(snapshot(), 2 * USAGE_RECHECK_MS + 2)).toBe('imagesFull')
 })

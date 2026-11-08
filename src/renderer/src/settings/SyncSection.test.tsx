@@ -18,6 +18,8 @@ interface Answers {
   useFails?: string | undefined
   leaveFails?: string | undefined
   rotatedKey?: string | null | undefined
+  pendingKey?: string | undefined
+  joined?: Record<string, unknown> | undefined
 }
 
 const DEVICES = [
@@ -50,7 +52,12 @@ vi.mock('../ipc', () => ({
         if (answers.icloud instanceof Error) throw answers.icloud
         return answers.icloud
       case 'sync_recovery_key':
-        return null
+        return answers.pendingKey ?? null
+      case 'sync_join_code':
+        return answers.joined
+      case 'sync_vault_create':
+        answers.snapshot = snapshot({ transport: 'relay', enrolled: true })
+        return { snapshot: answers.snapshot, recoveryKey: 'VWXYZ-23456-789AB' }
       case 'sync_vault_rotate':
         if ((args as { relaySecret?: string }).relaySecret !== 'relay-secret')
           throw new Error('E_SYNC_RELAY_SECRET')
@@ -126,6 +133,8 @@ afterEach(() => {
   answers.useFails = undefined
   answers.leaveFails = undefined
   answers.rotatedKey = undefined
+  answers.pendingKey = undefined
+  answers.joined = undefined
   vi.restoreAllMocks()
 })
 
@@ -623,6 +632,40 @@ describe('Settings > Sync on the Mac', () => {
     expect(button(el, 'Leave This Vault…')).toBeUndefined()
   })
 
+  it('drops the recovery key on offer once the vault is left, and asks the first question again', async () => {
+    answers.pendingKey = 'ABCDE-FGHIJ-KLMNO'
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER)
+    expect(el.textContent).toContain('ABCDE-FGHIJ-KLMNO')
+    answers.pendingKey = undefined
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    await act(async () => button(el, 'Leave')?.click())
+    await settle()
+    expect(el.textContent).not.toContain('ABCDE-FGHIJ-KLMNO')
+    expect(button(el, 'I Saved It')).toBeUndefined()
+    expect(button(el, 'This Is My First Device')).toBeDefined()
+    expect(button(el, 'I’m Adding Another Device')).toBeDefined()
+  })
+
+  it('asks the first question again when a device that joined with a code leaves', async () => {
+    const away = { ...snapshot({ transport: 'relay', vault: false, enabled: false }) }
+    const el = await show({ ...away, relayUrl: 'https://relay.example.test' }, NO_CONTAINER)
+    await act(async () => button(el, 'I’m Adding Another Device')?.click())
+    const code = el.querySelector<HTMLInputElement>('input[type=text]')
+    if (!code) throw new Error('no code field')
+    type(code, 'ABCD-EFGH')
+    answers.joined = snapshot({ transport: 'relay', enrolled: true })
+    const join = el.querySelector<HTMLButtonElement>('button[aria-label="Join With a Code"]')
+    await act(async () => join?.click())
+    await settle()
+    expect(button(el, 'Leave This Vault…')).toBeDefined()
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    await act(async () => button(el, 'Leave')?.click())
+    await settle()
+    expect(button(el, 'This Is My First Device')).toBeDefined()
+    expect(button(el, 'I’m Adding Another Device')).toBeDefined()
+    expect(el.querySelector('button[aria-label="Join With a Code"]')).toBeNull()
+  })
+
   it('offers a stuck relay device the way out beside the joins', async () => {
     for (const shown of [
       snapshot({ transport: 'relay', enrolled: false, enabled: false }),
@@ -671,6 +714,30 @@ describe('Change Vault Key', () => {
     expect(el.textContent).toContain('ABCDE-FGHIJ-KLMNO')
     expect(el.querySelector('input[type=password]')).toBeNull()
     expect(button(el, 'Change Vault Key…')).toBeDefined()
+  })
+
+  it('moves focus to the new recovery key when it replaces one still on offer', async () => {
+    const away = snapshot({ transport: 'relay', vault: false, enabled: false })
+    const el = await show({ ...away, relayUrl: 'https://relay.example.test' }, NO_CONTAINER)
+    await act(async () => button(el, 'This Is My First Device')?.click())
+    const secret = el.querySelector<HTMLInputElement>('input[type=password]')
+    if (!secret) throw new Error('no secret field')
+    type(secret, 'relay-secret')
+    await act(async () => button(el, 'Create Vault')?.click())
+    await settle()
+    const key = () => el.querySelector('.recovery-key pre')
+    expect(key()?.textContent).toBe('VWXYZ-23456-789AB')
+    expect(document.activeElement).toBe(key())
+    await act(async () => button(el, 'Change Vault Key…')?.click())
+    const field = el.querySelector<HTMLInputElement>('input[type=password]')
+    if (!field) throw new Error('no secret field')
+    type(field, 'relay-secret')
+    await act(async () =>
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    )
+    await settle()
+    expect(key()?.textContent).toBe('ABCDE-FGHIJ-KLMNO')
+    expect(document.activeElement).toBe(key())
   })
 
   it('cancels without a word to Rust', async () => {

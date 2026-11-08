@@ -23,6 +23,7 @@ Part of the [architecture overview](../architecture.md).
   Reading the file is lenient: a missing, out-of-range or damaged value takes its default and the rest are kept; the file holds only the values the user set, merged with each change.
   A key this version does not know (one an older Devot wrote, such as `sidebarMaterial`) is left out on reading, so the next change writes the file without it; the TypeScript reader ignores it too, and a change that names it is refused like any unknown key.
   A file that cannot be read (anything but a missing one, such as a permission or I/O error) is never written over, since a change would drop the values it holds: the defaults show, a change is refused with `E_EDITOR_SETTINGS_READ_FAILED`, and the file is read again on the next read or change.
+  Once a read works again its settings take a newer revision, and the next `editor_settings_get` (or `direct.editorSettings.get`) announces them as a change does, so every window, the menus and the window theme leave the defaults.
   A damaged file (not a JSON object) is copied to `editor-settings.json.damaged` before the next change replaces it.
   Every settings file kept on this device (keyboard shortcuts, the mirror, AI, the HTTP API and sync) follows the same rule through one store (`src-tauri/src/settings_file.rs`), each with its own codes: a change is refused with its `E_*_READ_FAILED` while its file cannot be read.
   `src/core/editorSettings.ts` holds the same lists, ranges and defaults for the UI.
