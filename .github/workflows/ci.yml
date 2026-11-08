@@ -41,6 +41,13 @@ concurrency:
 permissions:
   contents: read
 
+# The iPhone jobs build with this Xcode and test on this iOS simulator runtime, both on the
+# `xcode-27` runner image (scripts/ci/xcode.sh and scripts/ci/iphone-simulator.ts fail the job when
+# the image lacks them); app-store.yml pins the same Xcode for the shipped build.
+env:
+  DEVOT_XCODE: /Applications/Xcode_27.2.app
+  DEVOT_IOS: '27.2'
+
 jobs:
   # Decides which jobs a pull request needs.
   changes:
@@ -356,13 +363,14 @@ jobs:
     name: macOS and iOS compile
     needs: changes
     if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
     defaults:
       run:
         working-directory: src-tauri
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: sh ../scripts/ci/xcode.sh
       # The generated Swift tokens and strings on their own; ios-app compiles the whole package.
       - run: xcrun --sdk iphonesimulator swiftc -typecheck -swift-version 6 -warnings-as-errors -target arm64-apple-ios26.0-simulator apple/DevotScreens/Sources/DevotScreens/Generated/*.swift
       # The typecheck never runs L10n's placeholder filling; this checks it against the page's cases.
@@ -382,68 +390,114 @@ jobs:
 
   # The Swift packages (src-tauri/apple/DevotStore and DevotScreens): their tests in host apps on an
   # iPhone simulator, as StoreKit Test and UIKit need, then the iPhone app built for the simulator,
-  # which is the only build that links the packages and Rust's calls into them.
+  # the only build that links the packages and Rust's calls into them. When iphone-ui runs, it
+  # builds the app instead, so the build runs once per run.
   ios-app:
     name: iPhone app and StoreKit tests
     needs: changes
     if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: sh scripts/ci/xcode.sh
       - run: brew install xcodegen
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: pnpm
+      # A cold boot takes a minute or more: it runs in the background while the job builds, and
+      # each test script waits for it. The StoreKit tests need an iOS version whose StoreKit Test
+      # works under xcodebuild (scripts/ci/iphone-simulator.ts), so they may get a phone of their own.
+      - name: Boot the iPhone simulators
+        run: |
+          devices=$(xcrun simctl list devices available --json)
+          screens=$(printf '%s' "$devices" | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
+          store=$(printf '%s' "$devices" | node scripts/ci/iphone-simulator.ts --storekit)
+          echo "DEVOT_SIMULATOR=$screens" >> "$GITHUB_ENV"
+          echo "DEVOT_STORE_SIMULATOR=$store" >> "$GITHUB_ENV"
+          for device in $(printf '%s\n' "$store" "$screens" | sort -u); do
+            nohup xcrun simctl boot "$device" >>"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
+          done
       - run: pnpm install --frozen-lockfile
       - run: sh scripts/ci/devot-store-tests.sh
+      # Frees the runner's memory for the screens tests when the StoreKit tests had a phone of their own.
+      - run: '[ "$DEVOT_STORE_SIMULATOR" = "$DEVOT_SIMULATOR" ] || xcrun simctl shutdown "$DEVOT_STORE_SIMULATOR"'
       - run: sh scripts/ci/devot-screens-tests.sh
       # The spike harness is built into a debug app only (docs/specs/iphone-screens.md, Spikes).
       - run: sh scripts/ci/devot-screens-release-check.sh
       # A placeholder for the UI, as in rust-check.
-      - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
-      - run: rustup toolchain install
+      - if: needs.changes.outputs.iphone_ui == 'false'
+        run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
+      - if: needs.changes.outputs.iphone_ui == 'false'
+        run: rustup toolchain install
         working-directory: src-tauri
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - if: needs.changes.outputs.iphone_ui == 'false'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: pnpm tauri ios build --debug --target aarch64-sim --config '{"build":{"beforeBuildCommand":""}}'
+          # The same dependencies as iphone-ui's build, which saves them from main.
+          shared-key: iphone-sim
+          save-if: false
+      - if: needs.changes.outputs.iphone_ui == 'false'
+        run: pnpm tauri ios build --debug --target aarch64-sim --config '{"build":{"beforeBuildCommand":""}}'
 
   # The shipping iPhone app, with the release UI build, launched in a simulator: an XCUITest
   # (src-tauri/apple/DevotUITests) switches every tab of the native tab bar and runs the system's
   # accessibility audit on it. It runs for the native screens, the phone page and the app project
-  # (scripts/ci/changed-code.sh).
+  # (scripts/ci/changed-code.sh). Two jobs share the test classes, each building the app: handing
+  # one build over as an artifact would put its upload and download in series.
   iphone-ui:
-    name: iPhone UI test
+    name: iPhone UI test (${{ matrix.part }})
     needs: changes
     if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.docs_only != 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The Settings tests take about as long as all the others together; a new class joins
+          # the others.
+          - part: settings
+            tests: -only-testing:DevotUITests/SettingsTests
+          - part: others
+            tests: -skip-testing:DevotUITests/SettingsTests
+    env:
+      DEVOT_UI_TESTS: ${{ matrix.tests }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: sh scripts/ci/xcode.sh
       - run: brew install xcodegen
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: pnpm
+      # A cold boot takes a minute or more: it runs in the background while the job builds, and
+      # each test script waits for it.
+      - name: Boot the iPhone simulator
+        run: |
+          device=$(xcrun simctl list devices available --json | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
+          echo "DEVOT_SIMULATOR=$device" >> "$GITHUB_ENV"
+          nohup xcrun simctl boot "$device" >"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
       - run: pnpm install --frozen-lockfile
       - run: rustup toolchain install
         working-directory: src-tauri
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          shared-key: iphone-sim
+          # One save per main run: the other part's would find the key taken.
+          save-if: ${{ github.ref == 'refs/heads/main' && matrix.part == 'others' }}
       # Tauri's beforeBuildCommand builds the release UI, which the app embeds.
       - run: pnpm tauri ios build --debug --target aarch64-sim
       - run: sh scripts/ci/iphone-ui-tests.sh
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: iphone-ui-xcresult
+          name: iphone-ui-xcresult-${{ matrix.part }}
           path: test-results/iphone-ui.xcresult/
           if-no-files-found: ignore
           retention-days: 7

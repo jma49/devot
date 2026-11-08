@@ -11,8 +11,8 @@ name: App Store
 # stays the owner's step.
 #
 # As in release.yml, `build` runs the dependencies' code with a read-only token and no Apple
-# secret; `export` holds the Apple credentials and runs only Apple's tools and
-# scripts/release/ios-*.sh.
+# secret; `export` holds the Apple credentials and runs only Apple's tools,
+# scripts/release/ios-*.sh and scripts/ci/xcode.sh.
 #
 # Needs, in the `release` environment (deployments limited to v* tags):
 #   secrets.APPLE_DISTRIBUTION_CERTIFICATE           base64 of the Apple Distribution .p12
@@ -30,11 +30,16 @@ on:
     paths:
       - .github/workflows/app-store.yml
       - scripts/release/app-store.ts
+      - scripts/ci/xcode.sh
       - scripts/release/ios-*.sh
       - src-tauri/gen/apple/**
 
 permissions:
   contents: read
+
+# The Xcode CI's iPhone jobs build and test with (ci.yml), so the shipped app has the tested SDK.
+env:
+  DEVOT_XCODE: /Applications/Xcode_27.2.app
 
 concurrency:
   group: app-store-${{ github.ref }}
@@ -98,7 +103,7 @@ jobs:
   # Runs the dependencies' code (pnpm install, build scripts, build.rs) with a read-only token and
   # no secret but Sentry's DSN, which ships in the app anyway. The archive it hands over is unsigned.
   build:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     outputs:
       short: ${{ steps.version.outputs.short }}
@@ -109,6 +114,7 @@ jobs:
           # main's history, to check that the tag is on it.
           fetch-depth: 0
           persist-credentials: false
+      - run: sh scripts/ci/xcode.sh
       - name: Check the tag is on main
         if: github.ref_type == 'tag'
         env:
@@ -204,12 +210,13 @@ jobs:
     needs: [verify, build]
     if: github.ref_type == 'tag'
     environment: release
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
+      - run: sh scripts/ci/xcode.sh
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: archive
