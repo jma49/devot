@@ -43,7 +43,7 @@ function fakeCore(features: WarmFeatures, pieces: () => Promise<unknown[]> = asy
   }
   const core = {
     warmFeatures: calls.features,
-    renderPreviewPieces: calls.pieces,
+    warmPreviewPieces: calls.pieces,
   } as unknown as Core
   return { core, calls }
 }

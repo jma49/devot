@@ -440,6 +440,9 @@ const coreApi = {
     pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
   /** The preview closed, so the pieces it showed are kept no longer than a note left. */
   forgetShownPieces: () => pieces.forgetShown(),
+  /** A preview render the page does not show, which leaves the open note's pieces cached. */
+  warmPreviewPieces: (markdown: string, options: PreviewOptions) =>
+    pieces.sample(markdown, { ...options, pluginRenderers: pluginRevision }),
   /** The code languages, math and emoji the open note and the first `listed` notes use. */
   warmFeatures: (openText: string, listed: string[]) => {
     const parts = coreParts
