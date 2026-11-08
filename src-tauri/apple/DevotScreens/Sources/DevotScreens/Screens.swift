@@ -305,7 +305,7 @@ final class Screens: SettingsBridge {
                 if let stack = screen.navigationController?.viewControllers, let at = stack.firstIndex(of: screen), at > 0 {
                     (stack[at - 1] as? NoteListScreen)?.created(id)
                 }
-                discardLeftNewNotes()
+                discardLeftNewNotesOnceSettled(navigation)
             case .failed(let code):
                 refusedCreate(screen, code: code)
             }
@@ -348,6 +348,18 @@ final class Screens: SettingsBridge {
                 if case .failed(let code) = outcome { self?.rust.log(.warn, "W_PHONE_DISCARD_FAILED code=\(code)") }
             }
         }
+    }
+
+    /// A back swipe under way has taken its screen out of the stack until it ends: the discard waits
+    /// for it, and a swipe turned back keeps the screen and its note.
+    private func discardLeftNewNotesOnceSettled(_ navigation: UINavigationController) {
+        guard let coordinator = navigation.transitionCoordinator,
+            coordinator.animate(
+                alongsideTransition: nil,
+                completion: { [weak self] context in
+                    if !context.isCancelled { self?.discardLeftNewNotes() }
+                })
+        else { return discardLeftNewNotes() }
     }
 
     /// The new notes a native list drops before the pop that leaves them draws a frame; the page

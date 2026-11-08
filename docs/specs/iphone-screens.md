@@ -363,6 +363,7 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
    The user never sees a code.
 6. Swift marks a new note touched when a `notes.changed` with a later `rev` than its create names it.
    When a new note's screen is in no stack any more (its pop completed, before `editor.hide`, or the create answered after the screen had gone), Swift sends `note.discard` for an untouched one; a back swipe turned back keeps it.
+   A create that answers during a back swipe decides only once the swipe has ended, since the swipe takes the screen out of the stack until then.
    The page checks again that the note is still as made (no title, no body, no chip changed) before it purges it, so a missed `notes.changed` keeps an empty note rather than losing a word.
 7. The list under the pushed editor is the page's list for the note, moved to under the list's still; native lists replace it in stage 2.
 

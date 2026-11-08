@@ -237,6 +237,25 @@ final class NewNoteFlowTests: XCTestCase {
         XCTAssertEqual(try discards, [])
     }
 
+    func testABackSwipeTurnedBackWhileTheCreateAnswersKeepsTheNewNote() throws {
+        deliver(#"{"v":1,"notice":"note.new"}"#)
+        let screen = try XCTUnwrap(navigation.topViewController as? EditorScreen)
+        settle(1)
+        let swipe = HeldPop()
+        navigation.delegate = swipe
+        navigation.popViewController(animated: true)
+        settle()
+        swipe.interaction.update(0.5)
+        settle()
+        try answer(.noteCreate, .ok(.object(["id": .string(made), "rev": .number(3)])))
+        settle()
+        swipe.interaction.cancel()
+        settle(1)
+        navigation.delegate = nil
+        XCTAssertTrue(navigation.topViewController === screen)
+        XCTAssertEqual(try discards, [])
+    }
+
     func testANoteMadeAfterItsScreenWentIsDiscardedAtOnce() throws {
         deliver(#"{"v":1,"notice":"note.new"}"#)
         settle(1)
