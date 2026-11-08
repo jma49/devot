@@ -34,6 +34,7 @@ Part of the [architecture overview](../architecture.md).
   The picker keeps the date's seconds and milliseconds and turns off the days the other date rules out: Created no later than Updated, Updated no earlier than Created.
   A date left unchanged is written back exactly as stored, even in the hour that comes twice when the clocks go back.
   Set is turned off while the time breaks that rule, is incomplete or is skipped when the clocks go forward, and says why; Return sets, Escape cancels, and a save that fails says so and keeps the picker open.
+  A save that answers after its picker was closed, or after another one was opened, changes nothing on screen and leaves the focus where it is.
   Both dates share one HLC (schema v17 `notes.dates_hlc`, `datesHlc` on a record, '' when never set): a write with a newer one sets both as written, any other keeps `created_at` and moves `updated_at` only forward, in every storage adapter alike.
   `NoteService.setDates` refuses a time that is not a whole, non-negative millisecond count, or a note updated before it was created (`E_NOTE_TIME_INVALID`, as `note_put` does).
   The next edit moves the update date on as usual.

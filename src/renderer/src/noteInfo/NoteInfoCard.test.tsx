@@ -245,6 +245,50 @@ describe('the date picker', () => {
     expect(row.getAttribute('aria-expanded')).toBe('false')
   })
 
+  it('leaves the picker opened while an earlier save ran when that save answers', async () => {
+    let answer = () => {}
+    const dates = vi.fn<() => Promise<void>>(
+      () =>
+        new Promise<void>((resolve) => {
+          answer = resolve
+        }),
+    )
+    show({ onSetDates: dates })
+    click(button(/^Created:/))
+    press('ArrowLeft')
+    press('Enter')
+    expect(dates).toHaveBeenCalledOnce()
+    const updated = button(/^Updated:/)!
+    act(() => updated.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+    click(updated)
+    act(() => updated.focus())
+    answer()
+    await settle()
+    expect(document.querySelector('.date-picker')?.getAttribute('aria-label')).toMatch(/Updated/)
+    expect(updated.getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement?.getAttribute('aria-label')).not.toMatch(/^Created:/)
+  })
+
+  it('takes no focus when a save answers after a click outside closed its picker', async () => {
+    let answer = () => {}
+    show({
+      onSetDates: () =>
+        new Promise<void>((resolve) => {
+          answer = resolve
+        }),
+    })
+    click(button(/^Created:/))
+    press('ArrowLeft')
+    press('Enter')
+    const elsewhere = document.createElement('button')
+    document.body.append(elsewhere)
+    act(() => elsewhere.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+    act(() => elsewhere.focus())
+    answer()
+    await settle()
+    expect(document.activeElement).toBe(elsewhere)
+  })
+
   it('takes typed minutes and says when the date could not be saved', async () => {
     show({ onSetDates: vi.fn<() => Promise<void>>(() => Promise.reject(new Error('E_X'))) })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
