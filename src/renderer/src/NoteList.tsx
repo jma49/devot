@@ -616,7 +616,20 @@ export const NoteList = memo(function NoteList(props: Props) {
   // The row a press began on: pressing a row can reorder the list under the
   // pointer (the title field it leaves saves the open note's new title),
   // and the release then lands elsewhere; the press still opens its row.
+  // Any other end of the press (a drag, a release outside the list, a cancel)
+  // ends it: the window hears a release after the list does.
   const pressed = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    const end = () => {
+      pressed.current = undefined
+    }
+    window.addEventListener('mouseup', end)
+    window.addEventListener('pointercancel', end)
+    return () => {
+      window.removeEventListener('mouseup', end)
+      window.removeEventListener('pointercancel', end)
+    }
+  }, [])
   const mouseDown = useStable((e: MouseEvent<HTMLLIElement>) => {
     pressed.current = e.button === 0 ? e.currentTarget.dataset['noteId'] : undefined
     if (onSelection && e.shiftKey) e.preventDefault()
@@ -631,6 +644,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     changeSelection(gesture(current.selection, current.selected, id, order))
   })
   const dragStart = useStable((id: string, e: DragEvent<HTMLLIElement>) => {
+    pressed.current = undefined
     const ids = chosen?.has(id) ? (selection?.ids ?? [id]) : [id]
     const byId = new Map(notes.map((n) => [n.id, n]))
     const picked = ids.map((noteId) => ({
