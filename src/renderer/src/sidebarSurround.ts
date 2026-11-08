@@ -13,6 +13,7 @@ export interface SidebarBox {
 }
 
 const RADIUS = Number.parseFloat(sizes['radius.sidebar'])
+const CLIP = '--sidebar-surround-clip'
 
 export function sidebarSurround(
   frame: SidebarBox,
@@ -48,15 +49,15 @@ export function surroundFrame(
   }
 }
 
-function measure(doc: Document): SidebarBox | null {
+function measure(doc: Document): { sheet: HTMLElement | null; frame: SidebarBox | null } {
   const sidebar = doc.querySelector<HTMLElement>('.window > .sidebar, .settings > .settings-nav')
-  const win = sidebar?.parentElement
+  const sheet = sidebar?.parentElement ?? null
   const visible =
     !!sidebar &&
-    !win?.hasAttribute('data-sidebar-hidden') &&
-    !win?.hasAttribute('data-focus') &&
+    !sheet?.hasAttribute('data-sidebar-hidden') &&
+    !sheet?.hasAttribute('data-focus') &&
     getComputedStyle(sidebar).visibility !== 'hidden'
-  return surroundFrame(sidebar?.getBoundingClientRect(), { visible })
+  return { sheet, frame: surroundFrame(sidebar?.getBoundingClientRect(), { visible }) }
 }
 
 let started = false
@@ -69,17 +70,22 @@ export function startSidebarSurround(doc: Document = document): void {
   const media = (query: string) => doc.defaultView?.matchMedia(query)
   const plain = [media('(prefers-reduced-transparency: reduce)'), media('(prefers-contrast: more)')]
   let queued = 0
-  let sent: string | null = null
+  let sent: { sheet: HTMLElement; clip: string } | null = null
 
+  // On the sheet, whose children reset it (app.css), not the root: the cutout changes with every
+  // resize, and inherited from the root it restyled every block of the note (issue 786).
   const send = () => {
-    const frame = plain.some((query) => query?.matches) ? null : measure(doc)
+    const { sheet, frame } = plain.some((query) => query?.matches)
+      ? { sheet: null, frame: null }
+      : measure(doc)
     const clip = frame
       ? sidebarSurround(frame, { width: root.clientWidth, height: root.clientHeight })
       : null
-    if (clip === sent) return
-    sent = clip
-    if (clip) root.style.setProperty('--sidebar-surround-clip', clip)
-    else root.style.removeProperty('--sidebar-surround-clip')
+    const next = sheet && clip ? { sheet, clip } : null
+    if (next?.sheet === sent?.sheet && next?.clip === sent?.clip) return
+    if (sent && sent.sheet !== next?.sheet) sent.sheet.style.removeProperty(CLIP)
+    if (next) next.sheet.style.setProperty(CLIP, next.clip)
+    sent = next
   }
 
   const schedule = () => {

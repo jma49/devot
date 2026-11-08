@@ -109,6 +109,7 @@
   "tests/ui/preview-front-matter.spec.ts": 10274,
   "tests/ui/preview-keys.spec.ts": 58482,
   "tests/ui/preview-menu.spec.ts": 15657,
+  "tests/ui/preview-resize.spec.ts": 30000,
   "tests/ui/preview.spec.ts": 217399,
   "tests/ui/quick-capture.spec.ts": 13706,
   "tests/ui/quick-tag.spec.ts": 42651,
