@@ -360,6 +360,9 @@ pub enum Op {
     /// Today's note, found or made as `devot://today` does; the answer is its `id`.
     #[serde(rename = "note.today")]
     NoteToday(Empty),
+    /// The Activity tab's figures: the last weeks' writing and the most edited notes.
+    #[serde(rename = "activity.writing")]
+    ActivityWriting(Empty),
 }
 
 pub const OPS: &[&str] = &[
@@ -395,6 +398,7 @@ pub const OPS: &[&str] = &[
     "note.setDates",
     "note.addTag",
     "note.today",
+    "activity.writing",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -927,7 +931,8 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
         | Op::TrashEmpty(_)
         | Op::BookCreate(_)
         | Op::TemplateCreate(_)
-        | Op::NoteToday(_) => Ok(()),
+        | Op::NoteToday(_)
+        | Op::ActivityWriting(_) => Ok(()),
     }
 }
 

@@ -163,8 +163,11 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A sheet over the tabs goes with the system's motion; the gate's own sheet stays.
 - **Restoring the last screens** (the native screens): rule 2.
   The stacks are rebuilt before the first frame with no motion, and the launch screen draws that frame's background, empty large-title bar and the tab bar's place; a title fills in at once when Rust has read it, and an editor whose note has gone leaves its stack at once.
-- **Activity's section head** (the page's screens): rule 3. The chevron turns over `motion.duration.phone-chevron` on `motion.easing.phone-push`; the ranked notes fold away or open with `gentle` while fading over `motion.duration.ring`. Under Reduce Motion the rows crossfade and the chevron is simply turned.
-- **Activity week menu:** a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The stats and ranking change at once (rule 2).
+- **Activity's section head** (the web fallback): rule 3. The chevron turns over `motion.duration.phone-chevron` on `motion.easing.phone-push`; the ranked notes fold away or open with `gentle` while fading over `motion.duration.ring`. Under Reduce Motion the rows crossfade and the chevron is simply turned.
+- **Activity week menu** (the web fallback): a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The stats and ranking change at once (rule 2).
+- **Activity** (the native screens): rule 2.
+  The segmented control is the system's, and a choice of week replaces the figures, the ranked notes and their section's head at once, with the `selection` haptic.
+  A new reading after a change is drawn at once too, and a ranked note opens with the system's push (rule 3).
 - **Note list rows** (the native screens): rule 2.
   A change the page reports redraws only its rows: a changed row is drawn again in place, a row whose place changed moves there with the system's list animation (rule 3), and a row that leaves fades with it.
   The first page, and a read after a missed change, are drawn at once.
@@ -199,7 +202,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The page's haptics are Swift's too: the page sends `editor.haptic` and has no haptic command of its own, so the web fallback plays none, and a picker's choice plays `selection`.
 - **Filter and week menus** (the native screens): the system's menu from its bar button, with the system's motion.
   The filtered rows change at once (rule 2).
-  Activity's week menu stays the page's.
+  Activity's week menu stays the web fallback's.
 - **Edit and Preview:** rule 3.
   Both panes stay drawn, the hidden one laid out but not shown, so a diagram in Preview is ready before the toggle.
   The one coming fades in over `motion.duration.phone-enter` on `motion.easing.standard` while it rises 8 pt on `motion.easing.phone-enter`; the one going fades out over the same time while it drops 8 pt on `motion.easing.phone-pair`.

@@ -15,7 +15,7 @@ final class ScreensRootController: UIViewController {
 
     init(webView: WKWebView) {
         host = WebViewHost(webView: webView)
-        tabs = DevotTabBarController(host: host)
+        tabs = DevotTabBarController()
         super.init(nibName: nil, bundle: nil)
     }
 

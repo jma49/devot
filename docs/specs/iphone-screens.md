@@ -18,7 +18,7 @@ UIApplication (tao's app delegate, unchanged)
             └─ UITabBarController (the system tab bar)
                ├─ Notes     UINavigationController → note list → EditorScreen
                ├─ Library   UINavigationController → Library → note list → EditorScreen
-               ├─ Activity  UINavigationController → Activity (in the page until stage 4)
+               ├─ Activity  UINavigationController → Activity → EditorScreen
                ├─ Settings  UINavigationController → Settings root → panes
                └─ Search    UISearchTab → UINavigationController → Search (scopes All and Titles) → EditorScreen
             sheets: the system's sheet presentation   menus: UIMenu and context menus
@@ -131,6 +131,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 | Notebooks: create, rename, move, icon, AI access, remove                    | core                                  | the core's book calls and `setBookAiAccess`                                     |
 | Trash, restore, purge, empty                                                | core                                  | `trash`, `restore`, `purge`, `emptyTrash`                                       |
 | Several notes at once                                                       | core                                  | `batch(ids, change)`                                                            |
+| Activity's heatmap, week figures and most edited notes                      | core                                  | `writing(now)`, which also builds the Mac's Activity                            |
 | History, AI edits, import, export                                           | core, drawn in the page until stage 4 | as today                                                                        |
 | Licence state and the gate                                                  | Rust-direct                           | `direct.licence.*`, the bodies of the `licence_*` commands                      |
 | Purchases, restoring them, the Mac key                                      | Rust-direct                           | `direct.store.*`; StoreKit's own sheet takes the payment                        |
@@ -193,7 +194,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 
 ### Lists
 
-The Notes and Library tabs' roots and every list they push are native (`DevotScreens/UI/Lists/`); Activity stays a `WebTabScreen`.
+The Notes and Library tabs' roots and every list they push are native (`DevotScreens/UI/Lists/`).
 
 | Message                                  | From  | Meaning                                                                                      |
 | ---------------------------------------- | ----- | -------------------------------------------------------------------------------------------- |
@@ -249,11 +250,28 @@ The Search tab is a navigation stack under a large title whose root, `SearchScre
 - A result opens its `EditorScreen` on the Search tab, so Back lands in Search with the query and results as they were.
 - A saved search in the Library opens the Search tab at its root and runs its query under All without raising the keyboard, which rises again the next time the Search tab is chosen.
 
+### Activity
+
+The Activity tab's root, `ActivityScreen` (`DevotScreens/UI/Activity/`), is an inset grouped list of three sections: the heatmap, the chosen week's figures and that week's most edited notes.
+
+| Message            | From  | Meaning                                                                            |
+| ------------------ | ----- | ---------------------------------------------------------------------------------- |
+| `activity.writing` | Swift | the core's `writing(now)`; answers `{ first, today, days, weeks: { this, last } }` |
+
+- `days` lists the days with writing, each `{ day, words, level }`, numbered as whole days since 1970 on the person's own calendar; `first` is the Monday fourteen weeks before this week's.
+- Each week is `{ words, streak, notesEdited, ranked }`, and `ranked` holds at most four `{ id, title, words }`, the page's display title, leaving out notes the page no longer lists.
+- `ActivityWriting` (`Model/ActivityModel.swift`) refuses an answer whose span passes fifteen weeks, whose day falls outside it or whose level passes the darkest shade, and logs it as `W_PHONE_ACTIVITY_READ_FAILED code=E_SCREENS_MESSAGE_INVALID`.
+- The heatmap is fifteen columns of seven days from Monday, shaded by the `color.activity.level-*` tokens, with the month names `monthLabels` gives on the Mac; days after today are left blank, and VoiceOver reads one summary of the words and active days.
+- A segmented control chooses This Week or Last Week, and the figures and the ranked notes replace at once from the same answer, with no new request.
+- A ranked note opens its `EditorScreen` on the Activity tab, as a list's row does.
+- The screen reads when it appears after a `notes.changed` notice, and at once while it is shown; reads are one at a time, and a failed one is logged as `W_PHONE_ACTIVITY_READ_FAILED code=…` and tried again when the screen next appears.
+- The web fallback keeps its own Activity.
+
 ### Tabs
 
 The Notes and Library tabs are navigation stacks with the system bar and large titles over native lists (Lists above).
-The Activity tab is a navigation stack with a hidden bar whose root, `WebTabScreen`, holds the web view while its tab is shown, and the page draws that tab's stack.
-A list that appears asks the page to let the shown note go, as a web tab does when it takes the web view.
+The Activity tab is a navigation stack under a large title over the native Activity (below).
+A list that appears asks the page to let the shown note go.
 The Settings tab is native (Settings tree below); the page still follows it with `tabs.show`, sent whenever the tab appears, whatever page is on its top.
 The tab bar is the system's in tab mode (`UITab`), icon-only: each tab's image is the web tab bar's symbol and its filled variant when selected (iOS 26.1 and later), its title is empty, and its name is its VoiceOver label.
 The system's search tab (`UISearchTab`) follows the four, drawn as the system's search circle, and raises the keyboard when it is chosen.
@@ -331,7 +349,7 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 - A New Note screen whose note is untouched is not rebuilt: its stack ends below it, and the record lists the note with the notebook it was made in.
   The next launch sends `note.discard { noteId, made: { bookId } }` for each, and the page purges the note only if it is still as made.
 - A restored list scrolls its first visible note back to the top once its rows arrive; a notebook or tag list takes its name when the Library has been read, and follows a rename.
-- Activity and Search start at their roots: Activity is the page's own stack, and a search's query is text.
+- Activity and Search start at their roots: Activity reads its figures again, and a search's query is text.
 - The host-app XCTests (`RestorationCodecTests`, `RestoreFlowTests`) cover the codec and the rebuild; the `iphone-ui` XCUITest sends the app to the background, relaunches it and finds the note on top again.
 - `LaunchScreen.storyboard` draws the first frame's shape: the phone background of the default theme (the `LaunchBackground` colour, which `pnpm tokens` writes from `color.phone.background`), an empty large-title bar, and the tab bar's place left clear.
 

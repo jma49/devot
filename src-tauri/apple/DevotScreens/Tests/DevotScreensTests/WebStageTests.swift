@@ -112,7 +112,7 @@ final class WebStageTests: XCTestCase {
         XCTAssertEqual(webView.bounds.size, CGSize(width: 844, height: 390))
     }
 
-    func testEachWebTabTakesTheWebViewAndEachNativeListRestsItWithoutResizingIt() throws {
+    func testEveryTabRootRestsTheWebViewWithoutResizingIt() throws {
         let webView = RecordingWebView()
         let rust = FakeRust()
         let tao = UIViewController()
@@ -126,20 +126,13 @@ final class WebStageTests: XCTestCase {
         let tabs = screens.root.tabs
 
         let shown = TabModel.tabs.filter { $0 != .settings }
-        XCTAssertNotNil(tabs.screen(.activity))
         for tab in shown + shown.reversed() {
             tabs.select(tab)
             tabs.view.layoutIfNeeded()
             XCTAssertEqual(webView.bounds.size, window.bounds.size, "\(tab)")
-            guard let screen = tabs.screen(tab) else {
-                XCTAssertNotNil(tabs.listRoots[tab], "\(tab)")
-                XCTAssertTrue(webView.superview === screens.root.host.stage, "\(tab)")
-                XCTAssertFalse(reachableByVoiceOver(webView), "\(tab)")
-                continue
-            }
-            XCTAssertTrue(webView.superview === screen.view, "\(tab)")
-            XCTAssertEqual(screen.view.safeAreaInsets, window.safeAreaInsets, "\(tab)")
-            XCTAssertEqual(webView.safeAreaInsets, window.safeAreaInsets, "\(tab)")
+            XCTAssertNotNil(tabs.listRoots[tab], "\(tab)")
+            XCTAssertTrue(webView.superview === screens.root.host.stage, "\(tab)")
+            XCTAssertFalse(reachableByVoiceOver(webView), "\(tab)")
         }
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(webView.resized, 0)

@@ -34,6 +34,7 @@ import { usePhoneData } from './usePhoneData'
 import { editingAllowed, startLicence, useLicence } from '../licence'
 import { dailySettings } from '../app/useNoteMaking'
 import { choicesFromTree } from '../notebookChoices'
+import { activityHandlers } from './screens/activity'
 import { startScreensBridge, type ScreensBridge } from './screens/bridge'
 import { noteHandlers } from './screens/notes'
 import { SCREENS_HANDLERS } from './screens/ops'
@@ -300,6 +301,15 @@ export function PhoneApp() {
       ...listHandlers(() => latestStore.current.core),
       ...searchHandlers(() => latestStore.current.core),
       ...noteHandlers(() => latestStore.current.core),
+      ...activityHandlers(() => {
+        const { core, notes } = latestStore.current
+        return (
+          core && {
+            writing: (at) => core.writing(at),
+            titles: () => new Map(notes.map((note) => [note.id, note.title])),
+          }
+        )
+      }),
     })
     bridge.current = started
     let live = true
@@ -450,7 +460,8 @@ export function PhoneApp() {
   const render = (tab: PhoneTab, route: PhoneRoute) => {
     if (route.screen === 'note' && route.noteId)
       return <PhoneNote store={store} noteId={route.noteId} onBack={pop} />
-    if (tab === 'activity') return <PhoneActivity data={store} onOpenNote={openNote} />
+    if (tab === 'activity' && native === false)
+      return <PhoneActivity data={store} onOpenNote={openNote} />
     return null
   }
 
