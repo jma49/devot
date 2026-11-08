@@ -301,16 +301,21 @@ final class SettingsStore {
         }
     }
 
-    func setAi(_ next: AiView) {
+    /// `settled` hears the view Rust kept, or nil when Rust refused the change.
+    func setAi(_ next: AiView, settled: @escaping (AiView?) -> Void = { _ in }) {
         guard let old = ai, next != old else { return }
         ai = next
         bridge?.direct(.aiSet, ["settings": next.settings]) { [weak self] outcome in
             guard let self else { return }
             switch outcome {
-            case .ok(let value): if let view = AiView(value) { ai = view }
+            case .ok(let value):
+                let view = AiView(value)
+                if let view { ai = view }
+                settled(view)
             case .failed(let code):
                 if ai == next { ai = old }
                 refused(key: "ai", code: code)
+                settled(nil)
             }
         }
     }

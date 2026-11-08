@@ -112,7 +112,9 @@ final class SettingsScreens {
         case .sync(let anchor):
             sync(anchor)
         case .ai:
-            SettingsHosting(title: L10n.settingsPaneAi(), AiPane(store: store) { [weak self] in self?.buy() })
+            SettingsHosting(
+                title: L10n.settingsPaneAi(),
+                AiPane(store: store, drafts: AiDrafts(store: store)) { [weak self] in self?.buy() })
         case .licence(let entry):
             SettingsHosting(
                 title: L10n.settingsPaneLicence(),

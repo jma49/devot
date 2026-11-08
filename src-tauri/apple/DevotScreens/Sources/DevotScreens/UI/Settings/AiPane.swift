@@ -4,9 +4,8 @@ import SwiftUI
 /// Suggest on Idle (`AiSection.tsx`, its phone layout).
 struct AiPane: View {
     let store: SettingsStore
+    @State var drafts: AiDrafts
     let buy: () -> Void
-    @State private var endpoint = ""
-    @State private var model = ""
     @State private var key = ""
     @State private var problem: String?
     @State private var announcement: String?
@@ -39,8 +38,9 @@ struct AiPane: View {
             }
         }
         .settingsPage(store)
-        .onAppear(perform: fill)
-        .onChange(of: store.ai?.active) { fill() }
+        .onAppear { drafts.fill() }
+        .onChange(of: store.ai != nil) { drafts.fill() }
+        .onChange(of: store.ai?.active) { key = "" }
     }
 
     private func providerSection(_ view: AiView) -> some View {
@@ -54,11 +54,13 @@ struct AiPane: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .listRowBackground(Color(Tokens.Color.phoneCard))
-            field(L10n.aiSettingsEndpoint(), L10n.aiSettingsEndpointHint(), $endpoint, shown.defaultEndpoint)
+            field(
+                L10n.aiSettingsEndpoint(), L10n.aiSettingsEndpointHint(), draft(view.active, \.endpoint),
+                shown.defaultEndpoint)
             field(
                 L10n.aiSettingsModel(),
-                shown.defaultModel.isEmpty ? L10n.aiSettingsModelRequiredHint() : L10n.aiSettingsModelHint(), $model,
-                shown.defaultModel)
+                shown.defaultModel.isEmpty ? L10n.aiSettingsModelRequiredHint() : L10n.aiSettingsModelHint(),
+                draft(view.active, \.model), shown.defaultModel)
             VStack(alignment: .leading, spacing: Tokens.Space.space4) {
                 RowText(title: L10n.aiSettingsKey(), detail: L10n.phoneAiKeyHint())
                 SecureField(L10n.aiSettingsKeyLabel(provider: name), text: $key)
@@ -93,31 +95,17 @@ struct AiPane: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .submitLabel(.done)
-                .onSubmit(commit)
+                .onSubmit { drafts.commit() }
         }
         .settingsRow(described: true)
     }
 
-    private func fill() {
-        guard let view = store.ai else { return }
-        endpoint = view[view.active].endpoint
-        model = view[view.active].model
-        key = ""
+    private func draft(_ provider: String, _ part: WritableKeyPath<AiDrafts.Draft, String>) -> Binding<String> {
+        Binding(get: { drafts[provider]?[keyPath: part] ?? "" }, set: { drafts[provider]?[keyPath: part] = $0 })
     }
 
     private func choose(_ active: String) {
-        guard var next = store.ai else { return }
-        next[next.active].endpoint = endpoint
-        next[next.active].model = model
-        next.active = active
-        store.setAi(next)
-    }
-
-    private func commit() {
-        guard var next = store.ai else { return }
-        next[next.active].endpoint = endpoint
-        next[next.active].model = model
-        store.setAi(next)
+        drafts.commit(active: active)
     }
 
     private func saveKey(_ provider: String) {
