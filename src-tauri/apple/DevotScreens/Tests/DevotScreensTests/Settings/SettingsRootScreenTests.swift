@@ -57,7 +57,7 @@ final class SettingsRootScreenTests: XCTestCase {
         let list = UIScrollView(frame: CGRect(x: 0, y: 0, width: 400, height: 600))
         list.contentInsetAdjustmentBehavior = .never
         list.contentSize = CGSize(width: 400, height: 1000)
-        return (list, PlaceKeeper(list) { _ in reader() })
+        return (list, PlaceKeeper(list, keepsTheFoot: true) { _ in reader() })
     }
 
     /// The list passes through a short content size on its way to the larger one, as SwiftUI's does.

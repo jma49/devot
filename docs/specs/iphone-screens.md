@@ -372,7 +372,8 @@ Settings root (large title, the system search field, a Pair a Device bar button 
   A change applies on every move of the slider and is saved when the finger lifts, as Glass Transparency is.
 - App Font is not on the phone.
 - The root's list ends `size.phone-tab-edge` above the tab bar, so its build footer clears the bar's scroll edge effect.
-- The root and every pushed Settings page keep the reader's place while the list's content grows (`PlaceKeeper`): once the reader has scrolled to the foot the foot stays in view, and elsewhere the first row or header that starts on the screen stays where it was.
+- The root and every pushed Settings page keep the reader's place when the text size changes (`PlaceKeeper`): the first row or header that starts on the screen stays where it was, until the reader scrolls again.
+  The root instead keeps its foot in view once the reader has scrolled there, for its build footer; a pane pinned to its foot would push the rows at the top of the screen under the navigation bar.
   SwiftUI's list passes through a short content size at a new text size and drops its offset, so text the reader was looking at would leave the screen, which the accessibility audit's Dynamic Type check reads as text that does not scale.
 - The panes read their snapshots (editor settings, crash reports, licence, AI, sync) through Rust-direct operations each time the root shows, and Default Notebook's choices from the page with `settings.notebooks`, so a pushed page never waits for a first read.
 - A change applies to the snapshot first and then goes to Rust; Rust's newer snapshot replaces it, an older one never does, and a refused write puts the old value back, raises the `appearanceSettings.failed` alert and logs `W_PHONE_SETTINGS_SAVE_FAILED key=… code=…`.

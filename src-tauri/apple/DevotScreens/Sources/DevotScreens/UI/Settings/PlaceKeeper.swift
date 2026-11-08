@@ -3,8 +3,8 @@ import UIKit
 /// Keeps the reader's place in a list while its content changes size, as a larger text size does:
 /// SwiftUI's list passes through a short content size on the way, which drops its offset, and the
 /// accessibility audit's Dynamic Type check reads text that leaves the screen as text that does not
-/// scale. Once the reader has scrolled to the foot the foot stays in view; elsewhere the first row
-/// or header that starts on the screen keeps its place.
+/// scale. After a text size change the first row or header that starts on the screen keeps its
+/// place; a list that keeps its foot keeps it in view once the reader has scrolled there.
 @MainActor
 final class PlaceKeeper {
     private struct Anchor {
@@ -14,21 +14,29 @@ final class PlaceKeeper {
     }
 
     let list: UIScrollView
+    private let keepsTheFoot: Bool
     private let movedByTheReader: @MainActor (UIScrollView) -> Bool
     private var observations: [NSKeyValueObservation] = []
     private var adjusting = false
     private var anchor: Anchor?
+    /// Set from a text size change until the reader scrolls: otherwise the list's own settling, as rows
+    /// learn their heights, is left alone.
+    private var textSizeChanged = false
     private(set) var atTheFoot = false
 
-    init(_ list: UIScrollView, movedByTheReader: @escaping @MainActor (UIScrollView) -> Bool = {
+    init(_ list: UIScrollView, keepsTheFoot: Bool = false, movedByTheReader: @escaping @MainActor (UIScrollView) -> Bool = {
         $0.isTracking || $0.isDragging || $0.isDecelerating
     }) {
         self.list = list
+        self.keepsTheFoot = keepsTheFoot
         self.movedByTheReader = movedByTheReader
         observations = [
             list.observe(\.contentOffset) { [weak self] _, _ in MainActor.assumeIsolated { self?.moved() } },
             list.observe(\.contentSize) { [weak self] _, _ in MainActor.assumeIsolated { self?.resized() } },
         ]
+        list.registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { [weak self] (_: UIScrollView, _) in
+            self?.textSizeChanged = true
+        }
     }
 
     private var top: CGFloat { -list.adjustedContentInset.top }
@@ -40,7 +48,8 @@ final class PlaceKeeper {
     /// Only the reader's own scrolling marks the place: the list moves itself while it lays out.
     private func moved() {
         guard !adjusting, movedByTheReader(list) else { return }
-        atTheFoot = list.contentOffset.y >= foot - 1
+        atTheFoot = keepsTheFoot && list.contentOffset.y >= foot - 1
+        textSizeChanged = false
         mark()
     }
 
@@ -49,7 +58,7 @@ final class PlaceKeeper {
         let target: CGFloat
         if atTheFoot {
             target = foot
-        } else if let anchor, let frame = frame(of: anchor) {
+        } else if textSizeChanged, let anchor, let frame = frame(of: anchor) {
             target = min(max(frame.minY - anchor.fromTop + top, top), foot)
         } else {
             return
@@ -77,11 +86,13 @@ final class PlaceKeeper {
         }
     }
 
+    /// Found among the list's elements rather than asked for: asking for a header or footer that is gone
+    /// raises an exception.
     private func frame(of anchor: Anchor) -> CGRect? {
         guard let collection = list as? UICollectionView else { return nil }
-        let layout = collection.collectionViewLayout
-        if let kind = anchor.kind { return layout.layoutAttributesForSupplementaryView(ofKind: kind, at: anchor.path)?.frame }
-        return layout.layoutAttributesForItem(at: anchor.path)?.frame
+        let content = CGRect(origin: .zero, size: list.contentSize).insetBy(dx: 0, dy: -list.bounds.height)
+        return collection.collectionViewLayout.layoutAttributesForElements(in: content)?
+            .first { $0.indexPath == anchor.path && $0.representedElementKind == anchor.kind }?.frame
     }
 }
 

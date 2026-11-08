@@ -260,7 +260,8 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         if placeKeeper == nil, let list = view.firstSubview(of: UICollectionView.self) {
-            placeKeeper = PlaceKeeper(list)
+            // The build footer is the root's last line, so the root keeps its foot.
+            placeKeeper = PlaceKeeper(list, keepsTheFoot: true)
         }
     }
 

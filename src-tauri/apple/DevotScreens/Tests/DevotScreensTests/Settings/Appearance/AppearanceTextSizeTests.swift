@@ -36,10 +36,10 @@ final class AppearanceTextSizeTests: XCTestCase {
 
     /// How far below the list's visible top an element's top is.
     private func shownAt(_ list: UICollectionView, kind: String?, _ path: IndexPath) throws -> CGFloat {
-        let layout = list.collectionViewLayout
+        let content = CGRect(origin: .zero, size: list.contentSize).insetBy(dx: 0, dy: -list.bounds.height)
         let attributes = try XCTUnwrap(
-            kind.flatMap { layout.layoutAttributesForSupplementaryView(ofKind: $0, at: path) }
-                ?? layout.layoutAttributesForItem(at: path))
+            list.collectionViewLayout.layoutAttributesForElements(in: content)?
+                .first { $0.indexPath == path && $0.representedElementKind == kind })
         return attributes.frame.minY - list.contentOffset.y - list.adjustedContentInset.top
     }
 
@@ -64,6 +64,47 @@ final class AppearanceTextSizeTests: XCTestCase {
             settle()
             XCTAssertEqual(try shownAt(list, kind: kind, path), place, accuracy: 1, "\(size.rawValue)", file: file, line: line)
         }
+        withExtendedLifetime(keeper) {}
+    }
+
+    /// A pane is not pinned to its foot, which would push the rows at the top of the screen under the bar.
+    func testAtThePanesFootTheFirstRowOnTheScreenKeepsItsPlace() throws {
+        let (window, _, list) = try show()
+        var reading = true
+        let keeper = PlaceKeeper(list) { _ in reading }
+        for _ in 0..<3 {
+            let foot = list.contentSize.height + list.adjustedContentInset.bottom - list.bounds.height
+            list.setContentOffset(CGPoint(x: 0, y: foot), animated: false)
+            settle()
+        }
+        reading = false
+        let shown = list.contentOffset.y + list.adjustedContentInset.top
+        let first = try XCTUnwrap(
+            list.collectionViewLayout.layoutAttributesForElements(in: CGRect(x: 0, y: shown, width: 402, height: 300))?
+                .filter { $0.representedElementCategory != .decorationView && $0.frame.minY >= shown }
+                .min { $0.frame.minY < $1.frame.minY })
+        let place = first.frame.minY - shown
+        for size in [UIContentSizeCategory.extraExtraExtraLarge, .accessibilityMedium, .accessibilityExtraExtraExtraLarge] {
+            window.traitOverrides.preferredContentSizeCategory = size
+            settle()
+            XCTAssertEqual(
+                try shownAt(list, kind: first.representedElementKind, first.indexPath), place, accuracy: 1, "\(size.rawValue)")
+        }
+        withExtendedLifetime(keeper) {}
+    }
+
+    /// Rows learn their heights as a scroll brings them in, and the list settles by itself.
+    func testWithoutATextSizeChangeTheListIsLeftWhereItSettles() throws {
+        let (_, _, list) = try show()
+        var reading = true
+        let keeper = PlaceKeeper(list) { _ in reading }
+        list.setContentOffset(CGPoint(x: 0, y: list.contentOffset.y + 300), animated: false)
+        settle()
+        reading = false
+        list.contentOffset.y += 100
+        let settled = list.contentOffset.y
+        list.contentSize.height += 1
+        XCTAssertEqual(list.contentOffset.y, settled, accuracy: 0.5)
         withExtendedLifetime(keeper) {}
     }
 
