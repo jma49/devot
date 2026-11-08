@@ -44,6 +44,7 @@ import { NoteRow, type RowEvents } from './NoteRow'
 import { useRowMotion } from './rowMotion'
 import { scrollRowIntoView } from './listScroll'
 import { ListHeader } from './ListHeader'
+import { usePendingFocus } from './pendingFocus'
 
 interface Props {
   /**
@@ -177,8 +178,17 @@ export const NoteList = memo(function NoteList(props: Props) {
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map())
   const [metrics, setMetrics] = useState({ gap: 0, padding: 0 })
   const [viewport, setViewport] = useState({ top: 0, height: 0 })
-  const [revealed, setRevealed] = useState<string>()
-  const toFocus = useRef<string>(undefined)
+  const pending = usePendingFocus({
+    view: props.view,
+    listed: (id) => indexOf.has(id),
+    element: (id) => rows.current.get(id),
+    container: () => list.current,
+    take: (row) => {
+      row.scrollIntoView({ block: 'nearest' })
+      row.focus()
+    },
+  })
+  const revealed = pending.revealed
   const offsets = useMemo(() => {
     if (!windowed) return undefined
     let sum = 0
@@ -298,17 +308,8 @@ export const NoteList = memo(function NoteList(props: Props) {
   const focusRow = (id: string) => {
     const row = rows.current.get(id)
     if (row) return row.focus()
-    toFocus.current = id
-    setRevealed(id)
+    pending.request(id)
   }
-  useEffect(() => {
-    const id = toFocus.current
-    const row = id === undefined ? undefined : rows.current.get(id)
-    if (!row) return
-    toFocus.current = undefined
-    row.scrollIntoView({ block: 'nearest' })
-    row.focus()
-  })
 
   // A selection made elsewhere (a new note, a duplicate) is scrolled into
   // view: the order may put it anywhere, even below the fold. While the list
@@ -402,8 +403,6 @@ export const NoteList = memo(function NoteList(props: Props) {
       if (id !== undefined) keyboard.current = id
       setFocusedRow(id)
       if (id !== undefined) dropSelectionLeftBehind(document, e.target as HTMLElement)
-      // The row asked for has the keyboard now; it stays rendered as the focused row.
-      setRevealed(undefined)
     }
     // Focus that moves on, or falls to the page while its row stays (a click
     // on a button that takes no focus, or on blank space), leaves the list

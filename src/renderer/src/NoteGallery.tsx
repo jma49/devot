@@ -53,6 +53,7 @@ import { usePaneResize } from './paneResize'
 import { BOARD_PANE } from './paneWidth'
 import { patchChildren } from './preview/dom'
 import { useRowMotion } from './rowMotion'
+import { usePendingFocus } from './pendingFocus'
 import { useStable } from './stable'
 import { sizes } from './theme/tokens'
 
@@ -141,8 +142,16 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
         ? selected
         : order[0]
   const [focusedCard, setFocusedCard] = useState<string>()
-  const [revealed, setRevealed] = useState<string>()
-  const toFocus = useRef<string>(undefined)
+  const list = useRef<HTMLUListElement>(null)
+  const cards = useRef(new Map<string, HTMLLIElement>())
+  const pending = usePendingFocus({
+    view: props.view,
+    listed: (id) => indexOf.has(id),
+    element: (id) => cards.current.get(id),
+    container: () => list.current,
+    take: (card) => card.focus({ preventScroll: true }),
+  })
+  const revealed = pending.revealed
   const [grid, setGrid] = useState<Grid>({ width: 0, top: 0, height: 0 })
   const columns = galleryColumns(grid.width, CARD_MIN_WIDTH, CARD_MAX_WIDTH, GAP)
   const cardWidth = Math.max(0, (grid.width - GAP * (columns - 1)) / columns)
@@ -170,8 +179,6 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
     props.empty && notes.length === 0 ? listEmpty(props.empty, props.editing) : undefined
 
   const scroller = useRef<HTMLDivElement>(null)
-  const list = useRef<HTMLUListElement>(null)
-  const cards = useRef(new Map<string, HTMLLIElement>())
   useRowMotion(() => list.current, 'data-note-id', order, props.view, 'grow')
 
   const measure = useStable(() => {
@@ -205,16 +212,8 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
     reveal(indexOf.get(id) ?? -1)
     const card = cards.current.get(id)
     if (card) return card.focus({ preventScroll: true })
-    toFocus.current = id
-    setRevealed(id)
+    pending.request(id)
   }
-  useEffect(() => {
-    const id = toFocus.current
-    const card = id === undefined ? undefined : cards.current.get(id)
-    if (!card) return
-    toFocus.current = undefined
-    card.focus({ preventScroll: true })
-  })
 
   // The card that has the keyboard. One that left the gallery (Move to Trash,
   // a filter that hides it) hands it to the next card it had, else the
@@ -234,7 +233,6 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
         keyboard.current = id
         setFocusedCard(id)
         if (id !== undefined) dropSelectionLeftBehind(document, e.target as HTMLElement)
-        setRevealed(undefined)
       }
       const left = () => {
         keyboard.current = undefined

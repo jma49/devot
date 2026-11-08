@@ -57,6 +57,7 @@ import { STATUS_ICONS } from './NoteRow'
 import { usePaneResize } from './paneResize'
 import { BOARD_PANE, fittedBoardWidth } from './paneWidth'
 import { useRowMotion } from './rowMotion'
+import { usePendingFocus } from './pendingFocus'
 import { useStable } from './stable'
 
 interface Props {
@@ -153,8 +154,19 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
         ? selected
         : order[0]
   const [focusedCard, setFocusedCard] = useState<string>()
-  const [revealed, setRevealed] = useState<string>()
-  const toFocus = useRef<string>(undefined)
+  const cards = useRef(new Map<string, HTMLLIElement>())
+  const board = useRef<HTMLElement>(null)
+  const pending = usePendingFocus({
+    view: props.view,
+    listed: (id) => onBoard.has(id),
+    element: (id) => cards.current.get(id),
+    container: () => board.current,
+    take: (card) => {
+      card.focus({ preventScroll: true })
+      card.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    },
+  })
+  const revealed = pending.revealed
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map())
   const [metrics, setMetrics] = useState({ gap: 0, padding: 0 })
   const [views, setViews] = useState<ReadonlyMap<NoteStatus, ColumnView>>(() => new Map())
@@ -207,7 +219,6 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
   const { width, edge } = usePaneResize(BOARD_PANE, fittedBoardWidth(statuses.length))
 
   const idBase = useId()
-  const board = useRef<HTMLElement>(null)
   useRowMotion(
     () => board.current,
     'data-note-id',
@@ -216,27 +227,14 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
     'grow',
     columns.map((column) => column.notes.length).join(),
   )
-  const cards = useRef(new Map<string, HTMLLIElement>())
   const focusFirstColumn = () => board.current?.querySelector<HTMLElement>('.board-cards')?.focus()
   /** Gives `id`'s card the keyboard and scrolls it into view; a card a long board has not rendered renders first. */
   const focusCard = (id: string) => {
     const card = cards.current.get(id)
-    if (!card) {
-      toFocus.current = id
-      setRevealed(id)
-      return
-    }
+    if (!card) return pending.request(id)
     card.focus({ preventScroll: true })
     card.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }
-  useEffect(() => {
-    const id = toFocus.current
-    const card = id === undefined ? undefined : cards.current.get(id)
-    if (!card) return
-    toFocus.current = undefined
-    card.focus({ preventScroll: true })
-    card.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  })
 
   // On a long board, measures the cards and each column (gap, padding, height) as they change.
   const [sizes] = useState(
