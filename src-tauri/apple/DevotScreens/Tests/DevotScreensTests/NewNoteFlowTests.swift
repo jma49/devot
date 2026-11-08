@@ -48,6 +48,16 @@ final class NewNoteFlowTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
     }
 
+    /// Runs the run loop until the condition holds, for a step that waits on the system's push and pop.
+    private func settle(
+        until condition: () throws -> Bool, timeout: TimeInterval = 30, file: StaticString = #filePath,
+        line: UInt = #line
+    ) rethrows {
+        let deadline = Date().addingTimeInterval(timeout)
+        while try !condition(), Date() < deadline { settle(0.02) }
+        if try !condition() { XCTFail("waited \(timeout) s and the condition never held", file: file, line: line) }
+    }
+
     private var navigation: UINavigationController {
         screens.root.tabs.selectedViewController as! UINavigationController
     }
@@ -146,13 +156,16 @@ final class NewNoteFlowTests: XCTestCase {
         XCTAssertFalse(screen.cover.isHidden)
         XCTAssertEqual(screen.cover.alpha, 1)
         XCTAssertFalse(try requests().contains { $0.op == .editorShow }, "no editor was ever shown")
-        settle(1.5)
+        let licenceRead = {
+            try self.sent().last { _, message in
+                if case .direct(_, .licenceGet, _) = message { true } else { false }
+            }
+        }
+        try settle(until: { try licenceRead() != nil })
+        XCTAssertNil(navigation.transitionCoordinator, "the read waits for the pop to end")
         XCTAssertFalse(navigation.viewControllers.contains(screen))
         XCTAssertNil(screens.root.tabs.presentedViewController, "the surface waits for the licence read")
-        let read = try XCTUnwrap(
-            try sent().last { _, message in
-                if case .direct(_, .licenceGet, _) = message { true } else { false }
-            })
+        let read = try XCTUnwrap(try licenceRead())
         let licence = try JSONDecoder().decode(
             JSONValue.self, from: try JSONSerialization.data(withJSONObject: keyBuildEnded))
         answered.insert(read.0)

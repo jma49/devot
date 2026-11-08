@@ -133,6 +133,19 @@ final class EditorScreenTests: XCTestCase {
         settle()
     }
 
+    /// Runs the run loop until a tab switch has ended: the shown tab's stack is in the window and the
+    /// one left has gone from it. iOS 26.5 can finish the switch, and so the lists' `viewDidAppear`, turns later.
+    private func settleTabSwitch(
+        _ tabs: DevotTabBarController, from: Tab, to: Tab, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        settle(
+            until: {
+                tabs.navigations[to]?.viewIfLoaded?.window != nil && tabs.navigations[from]?.viewIfLoaded?.window == nil
+                    && tabs.transitionCoordinator == nil
+            }, file: file, line: line)
+        settle()
+    }
+
     private func editor(_ noteId: String, title: String = "Plans", coverTimeout: TimeInterval = 10)
         -> EditorScreen
     {
@@ -374,12 +387,12 @@ final class EditorScreenTests: XCTestCase {
         try answerAll()
 
         tabs.select(.notes)
-        settle()
+        settleTabSwitch(tabs, from: .library, to: .notes)
         XCTAssertTrue(webView.superview === screens.root.host.stage)
         XCTAssertTrue(try requests().contains(.editorHide))
         try answerAll()
         tabs.select(.library)
-        settle()
+        settleTabSwitch(tabs, from: .notes, to: .library)
         XCTAssertTrue(webView.isDescendant(of: screen.view))
         XCTAssertEqual(try requests().filter { $0 == .editorShow }.count, 2)
 
