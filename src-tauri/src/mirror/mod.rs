@@ -164,6 +164,9 @@ struct Inner {
     /// The manifest changed but could not be written back (the folder went
     /// away or could not be written): written on resume, never read again.
     dirty: bool,
+    /// Manifests that could not be written back to a folder the mirror left: written, instead of
+    /// the folder's older copy being read, when that folder is used again.
+    pending: HashMap<PathBuf, Manifest>,
     kept: Vec<String>,
     kept_count: u64,
     /// A manifest read anew (a folder chosen again, a launch) is told even when nothing is written.
@@ -329,6 +332,40 @@ impl Mirror {
         code
     }
 
+    /// Lets the folder go, writing back first a manifest that is only in memory, unless a batch is
+    /// writing the folder: that batch writes back its own (`apply`).
+    fn leave(&self, inner: &mut Inner) {
+        if inner.dirty
+            && let (Some(path), Some(manifest)) = (inner.folder.clone(), inner.manifest.take())
+        {
+            let batch = *crate::locks::lock(&self.writing);
+            let saved = !batch
+                && Root::open(&path).is_ok_and(|root| save_manifest(&root, &manifest).is_ok());
+            if !saved {
+                inner.pending.insert(path, manifest);
+            }
+        }
+        inner.manifest = None;
+        inner.epoch += 1;
+        inner.dirty = false;
+        inner.paused = None;
+        inner.kept.clear();
+        inner.kept_count = 0;
+    }
+
+    /// At quit: every manifest only in memory goes back to its folder if it can.
+    pub fn flush(&self) {
+        let Ok(mut inner) = self.inner.lock() else {
+            return;
+        };
+        self.leave(&mut inner);
+        for (path, manifest) in inner.pending.drain() {
+            if !Root::open(&path).is_ok_and(|root| save_manifest(&root, &manifest).is_ok()) {
+                log::warn!("W_MIRROR_MANIFEST_UNSAVED");
+            }
+        }
+    }
+
     pub fn get(&self, notify: Notify) -> Result<Status, &'static str> {
         let inner = self.lock(notify)?;
         Ok(self.status(&inner))
@@ -355,12 +392,7 @@ impl Mirror {
             self.store(&inner, folder.as_deref(), include)?;
             if folder != inner.folder {
                 log::info!("I_MIRROR_OFF");
-                inner.manifest = None;
-                inner.epoch += 1;
-                inner.dirty = false;
-                inner.paused = None;
-                inner.kept.clear();
-                inner.kept_count = 0;
+                self.leave(&mut inner);
             }
             inner.folder = folder;
             inner.include_attachments = include;
@@ -386,13 +418,8 @@ impl Mirror {
     ) -> Result<Status, &'static str> {
         self.store(inner, Some(&root), inner.include_attachments)?;
         log::info!("I_MIRROR_FOLDER_CHOSEN");
+        self.leave(inner);
         inner.folder = Some(root);
-        inner.manifest = None;
-        inner.epoch += 1;
-        inner.dirty = false;
-        inner.paused = None;
-        inner.kept.clear();
-        inner.kept_count = 0;
         inner.generation += 1;
         Ok(self.changed(inner, notify))
     }
@@ -471,6 +498,15 @@ impl Mirror {
                 inner.manifest = None;
                 inner.epoch += 1;
             }
+        }
+        if inner.manifest.is_none()
+            && let Some(manifest) = inner.pending.remove(&path)
+        {
+            if save_manifest(&root, &manifest).is_err() {
+                inner.pending.insert(path, manifest);
+                return Err(self.pause(&mut inner, "E_MIRROR_FOLDER_READ_ONLY", notify));
+            }
+            inner.manifest = Some(manifest);
         }
         if inner.manifest.is_none() {
             let (mut manifest, fresh) = match read_manifest(&root) {
@@ -612,7 +648,8 @@ impl Mirror {
     /// did, never across file writes. A failure that pauses the mirror stops the run (it is the last
     /// result). The manifest is written back once the operations have run. When the folder is
     /// turned off or chosen anew meanwhile, the batch stops before its next operation, writes back
-    /// its own folder's manifest and records nothing (`E_MIRROR_STALE`).
+    /// its own folder's manifest (or keeps it for that folder when it cannot) and records nothing
+    /// else (`E_MIRROR_STALE`).
     pub fn apply(
         &self,
         generation: u64,
@@ -624,11 +661,12 @@ impl Mirror {
             return Err("E_MIRROR_OPS_INVALID");
         }
         let _turn = self.write_turn();
-        let (root, mut manifest, epoch, mut changed) = {
+        let (path, root, mut manifest, epoch, mut changed) = {
             let mut inner = self.lock(notify)?;
             let root = self.current(&mut inner, generation, notify)?;
             let manifest = inner.manifest.clone().ok_or("E_MIRROR_STALE")?;
-            (root, manifest, inner.epoch, inner.dirty)
+            let path = inner.folder.clone().ok_or("E_MIRROR_OFF")?;
+            (path, root, manifest, inner.epoch, inner.dirty)
         };
         let still_current = || self.inner.lock().is_ok_and(|inner| inner.epoch == epoch);
         let mut results = Vec::with_capacity(ops.len());
@@ -668,6 +706,12 @@ impl Mirror {
         }
         let mut inner = self.lock(notify)?;
         if superseded || inner.epoch != epoch {
+            // It went on from the manifest the folder was left with, so it stands in for that one.
+            if unsaved {
+                inner.pending.insert(path, manifest);
+            } else if changed {
+                inner.pending.remove(&path);
+            }
             return Err("E_MIRROR_STALE");
         }
         inner.manifest = Some(manifest);

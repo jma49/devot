@@ -373,6 +373,9 @@ fn on_exit(app: &AppHandle) {
     if let Some(db) = app.try_state::<crate::storage::Db>() {
         checkpoint_at_exit(db.inner(), EXIT_CHECKPOINT_LIMIT);
     }
+    if let Some(mirror) = app.try_state::<std::sync::Arc<crate::mirror::Mirror>>() {
+        mirror.flush();
+    }
     #[cfg(desktop)]
     if let Some(api) = app.try_state::<std::sync::Arc<crate::http_api::HttpApi>>() {
         api.stop_bridge();

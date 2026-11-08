@@ -527,6 +527,80 @@ fn writes_back_on_resume_a_manifest_it_could_not_write() {
     assert_eq!(f.get().paused, None);
 }
 
+/// Pauses the mirror on `Notes` with a move to `Moved.md` only in memory, lets the manifest be
+/// written again, and returns the folder and its older manifest, which lists `Plan.md`.
+fn pause_with_a_move_unsaved(f: &Fixture) -> (PathBuf, Vec<u8>) {
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    f.apply(generation, &[note_op("Plan.md", "one")]);
+    let older = fs::read(folder.join(MANIFEST)).unwrap();
+    fs::remove_file(folder.join(MANIFEST)).unwrap();
+    fs::create_dir(folder.join(MANIFEST)).unwrap();
+    let mut moved = note_op("Moved.md", "one");
+    moved["from"] = json!("Plan.md");
+    f.apply(generation, &[moved]);
+    assert_eq!(f.get().paused, Some("E_MIRROR_FOLDER_READ_ONLY"));
+    fs::remove_dir(folder.join(MANIFEST)).unwrap();
+    (folder, older)
+}
+
+fn stored_path(folder: &Path) -> String {
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    stored.notes[NOTE].path.clone()
+}
+
+#[test]
+fn writes_back_a_manifest_it_could_not_write_when_turned_off_or_its_folder_chosen_again() {
+    let f = Fixture::new();
+    let (folder, _) = pause_with_a_move_unsaved(&f);
+    f.mirror
+        .set(&patch(json!({ "turnOff": true })), &f.notify())
+        .unwrap();
+    assert_eq!(stored_path(&folder), "Moved.md");
+    assert!(matches!(f.choose(&folder), Choice::Chosen { .. }));
+    assert_eq!(
+        f.open().unwrap().manifest.unwrap().notes[NOTE].path,
+        "Moved.md"
+    );
+
+    let f = Fixture::new();
+    let (folder, older) = pause_with_a_move_unsaved(&f);
+    fs::write(folder.join(MANIFEST), older).unwrap();
+    assert!(matches!(f.choose(&folder), Choice::Chosen { .. }));
+    assert_eq!(stored_path(&folder), "Moved.md");
+    assert_eq!(
+        f.open().unwrap().manifest.unwrap().notes[NOTE].path,
+        "Moved.md"
+    );
+}
+
+#[test]
+fn keeps_a_manifest_it_still_cannot_write_for_the_next_use_of_its_folder() {
+    let f = Fixture::new();
+    let (folder, older) = pause_with_a_move_unsaved(&f);
+    fs::create_dir(folder.join(MANIFEST)).unwrap();
+    f.mirror
+        .set(&patch(json!({ "turnOff": true })), &f.notify())
+        .unwrap();
+    fs::remove_dir(folder.join(MANIFEST)).unwrap();
+    fs::write(folder.join(MANIFEST), older).unwrap();
+    assert!(matches!(f.choose(&folder), Choice::Chosen { .. }));
+    assert_eq!(
+        f.open().unwrap().manifest.unwrap().notes[NOTE].path,
+        "Moved.md"
+    );
+    assert_eq!(stored_path(&folder), "Moved.md");
+}
+
+#[test]
+fn writes_back_at_quit_a_manifest_it_could_not_write() {
+    let f = Fixture::new();
+    let (folder, _) = pause_with_a_move_unsaved(&f);
+    f.mirror.flush();
+    assert_eq!(stored_path(&folder), "Moved.md");
+}
+
 #[cfg(unix)]
 #[test]
 fn never_writes_its_manifest_through_a_link() {
@@ -1008,6 +1082,35 @@ fn a_batch_the_mirror_is_turned_off_under_stops_and_records_nothing() {
     assert!(stored.files.contains_key(FILE));
     assert!(matches!(f.choose(&folder), Choice::Chosen { .. }));
     assert!(f.open().unwrap().manifest.unwrap().files.contains_key(FILE));
+}
+
+#[test]
+fn a_batch_the_mirror_is_turned_off_under_keeps_a_manifest_it_could_not_write() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    let older = fs::read(folder.join(MANIFEST)).unwrap();
+    let mirror = &f.mirror;
+    let ops = [file_op("a.png")];
+    let result = std::thread::scope(|scope| {
+        let (batch, release) = hold(scope, mirror, generation, &ops);
+        fs::remove_file(folder.join(MANIFEST)).unwrap();
+        fs::create_dir(folder.join(MANIFEST)).unwrap();
+        let off = soon(scope, || {
+            mirror.set(&patch(json!({ "turnOff": true })), &|_| {})
+        });
+        assert!(off.is_some(), "turning off waited");
+        drop(release);
+        batch.join().unwrap()
+    });
+    assert_eq!(result, Err("E_MIRROR_STALE"));
+    fs::remove_dir(folder.join(MANIFEST)).unwrap();
+    fs::write(folder.join(MANIFEST), older).unwrap();
+    assert!(matches!(f.choose(&folder), Choice::Chosen { .. }));
+    assert!(f.open().unwrap().manifest.unwrap().files.contains_key(FILE));
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert!(stored.files.contains_key(FILE));
 }
 
 #[test]

@@ -55,6 +55,8 @@ The notes database stays the source of truth: the folder is written by Devot and
   On again, the copies come back at the next reconcile under the same names, so no note's file changes.
 - **Failures:** a folder that is missing (or has a link in its place) or cannot be written pauses the mirror with a code (Rust holds it; the main window shows a notice in the notice stack); a file or folder inside it that cannot be written (locked, say) only waits, logged, for a later pass.
   A manifest that could not be written back stays in memory and is written when the mirror resumes, never read again from the folder.
+  Turning the mirror off, choosing a folder (the same one again too) and quitting write such a manifest back to its folder first; one that still cannot be written is kept in memory for that folder and written, instead of the folder's older copy being read, the next time the folder is used.
+  A batch the mirror is turned off or moved under does the same with its own manifest.
   A paused mirror checks its folder every 30 seconds and when the main window comes to the front (`mirror_open`) and resumes with a reconcile; Devot never makes the chosen folder itself.
   A manifest that cannot be read, or files without one, pause it too, until a folder is chosen again (or a missing manifest comes back), and the notice says so (`E_MIRROR_MANIFEST_MISSING`, `E_MIRROR_MANIFEST_INVALID`); so does a manifest another library wrote (`E_MIRROR_MANIFEST_FOREIGN`).
   Choosing that folder again asks first, then starts from an empty manifest, and the files that still hold what Devot would write are taken back (see above), so nothing is written twice.
