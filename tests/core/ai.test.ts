@@ -35,10 +35,12 @@ const WRITER = newWriter('mcp', 'Claude Code', 'mcptest')
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
-function setup() {
+/** `wrap` stands between the services and the file, to make storage fail. */
+function setup(wrap: (sqlite: SqliteAdapter) => SqliteAdapter = (sqlite) => sqlite) {
   const path = join(tempDir('devot-ai-'), 'devot.sqlite')
-  const storage = openSqliteAdapter(path)
-  open.push(storage)
+  const sqlite = openSqliteAdapter(path)
+  open.push(sqlite)
+  const storage = wrap(sqlite)
   const clock = createClock('mac1')
   const newId = createIdGenerator()
   const books = createBookService({ storage, clock, newId })
@@ -650,6 +652,33 @@ describe('trashing notes', () => {
     // Never purged: the note and its body stay.
     await s.notes.restore(ids.shared)
     expect((await s.ai.read(ids.shared)).markdown).toBe('A shared kiwi note.')
+  })
+})
+
+describe('a failed trash', () => {
+  it('keeps no copy of the note: a later patch matches what the app wrote since', async () => {
+    let refusing = false
+    const s = setup((sqlite) =>
+      Object.assign(Object.create(sqlite) as SqliteAdapter, {
+        putNote(record: Parameters<SqliteAdapter['putNote']>[0]) {
+          if (!refusing) return sqlite.putNote(record)
+          refusing = false
+          return Promise.reject(new Error('E_STORAGE_BUSY'))
+        },
+      }),
+    )
+    const { ids } = await world(s)
+    refusing = true
+    await expect(s.ai.trash(ids.shared)).rejects.toThrow('E_STORAGE_BUSY')
+    await s.notes.setBody(ids.shared, 'A shared kiwi note. Typed later.')
+    await s.notes.flush()
+    await s.ai.update({
+      id: ids.shared,
+      body: { patches: [{ find: 'Typed later.', replace: 'Typed later, patched.' }] },
+    })
+    expect((await s.storage.getNote(ids.shared))!.bodyMd).toBe(
+      'A shared kiwi note. Typed later, patched.',
+    )
   })
 })
 

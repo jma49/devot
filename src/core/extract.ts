@@ -1,6 +1,7 @@
 // New Note from Selection: selected text moves into a note of its own, titled after its first line (see NoteService.extract).
 
 import { clipTitle } from './noteLimits'
+import { readFence, type Fence } from './fences'
 import { FRONT_MATTER_FENCE, readableText } from './readable'
 
 const CONTAINER_MARKERS =
@@ -70,10 +71,12 @@ export function listExcerpt(markdown: string, title: string): string {
 }
 
 // The lines that count, found by one search over the whole text rather than a test of every line:
-// a code fence (group 1) or a task item (group 2). Multiline `^` also follows U+2028 and U+2029,
-// which do not end a line here, so a match after one is passed over.
+// a line that may be a code fence (group 1) or a task item (group 2). Multiline `^` also follows
+// U+2028 and U+2029, which do not end a line here, and the CR of a CRLF, so a match there is passed over.
 const TASK_LINES =
-  /^(?:[ \t]{0,3}(`{3,}|~{3,})|[ \t]*(?:>[ \t]?)*[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\[([ xX])\](?=[ \t\r\n]|(?![\s\S])))/gm
+  /^(?:((?: {0,3}>[ \t]?)* {0,3}(?:`{3,}|~{3,})[^\n\r]*)|[ \t]*(?:>[ \t]?)*[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\[([ xX])\](?=[ \t\r\n]|(?![\s\S])))/gm
+// Every line, read while a quoted code block is open: any line can end its quote.
+const EVERY_LINE = /^[^\n\r]*/gm
 const FRONT_MATTER_OPEN = /^---[ \t]*(?:\r\n?|\n|(?![\s\S]))/
 const FRONT_MATTER_CLOSE = /(?:\r\n?|\n)---[ \t]*(?:\r\n?|\n|(?![\s\S]))/g
 
@@ -95,26 +98,38 @@ export function frontMatterEnd(markdown: string): number {
  * The task items in `text`, which starts at the start of a line, read with the code fence
  * `fence` open; and the fence open at its end.
  */
-export function tasksIn(
-  text: string,
-  fence?: string,
-): TaskProgress & { fence: string | undefined } {
+export function tasksIn(text: string, fence?: Fence): TaskProgress & { fence: Fence | undefined } {
   let done = 0
   let total = 0
   const lines = new RegExp(TASK_LINES)
-  for (let found = lines.exec(text); found; found = lines.exec(text)) {
+  const quotedCode = new RegExp(EVERY_LINE)
+  let scan = fence?.depth ? quotedCode : lines
+  for (let found = scan.exec(text); found; found = scan.exec(text)) {
     const before = text.charCodeAt(found.index - 1)
-    if (before === 0x2028 || before === 0x2029) {
-      lines.lastIndex = found.index + 1
+    const inLineBreak = before === 0x0d && text.charCodeAt(found.index) === 0x0a
+    if (before === 0x2028 || before === 0x2029 || inLineBreak) {
+      scan.lastIndex = found.index + 1
       continue
     }
-    const marks = found[1]
-    if (fence !== undefined) {
-      if (marks && marks[0] === fence[0] && marks.length >= fence.length) fence = undefined
+    if (scan === quotedCode) {
+      const read = readFence(found[0], fence)
+      fence = read.fence
+      if (!read.code) {
+        lines.lastIndex = found.index
+        scan = lines
+      } else if (!fence?.depth) {
+        lines.lastIndex = scan.lastIndex
+        scan = lines
+      }
       continue
     }
-    if (marks) {
-      fence = marks
+    const line = found[1]
+    if (line !== undefined || fence !== undefined) {
+      if (line !== undefined) fence = readFence(line, fence).fence
+      if (fence?.depth) {
+        quotedCode.lastIndex = scan.lastIndex
+        scan = quotedCode
+      }
       continue
     }
     total += 1

@@ -372,6 +372,8 @@ export interface PieceRenderer {
   (markdown: string, options: PreviewOptions, known?: readonly string[]): Promise<PreviewPiece[]>
   /** The preview closed: what it showed is kept only within the capacity, as a note left is. */
   forgetShown(): void
+  /** Renders as for the preview, but leaves what the preview shows pinned and its render before alone. */
+  sample(markdown: string, options: PreviewOptions): Promise<PreviewPiece[]>
 }
 
 // Past this many blocks changed, counting copies by text is cheaper than comparing.
@@ -433,6 +435,8 @@ export function createPieceRenderer({
   let ids = 0
   // A render under way when the preview closes shows nothing.
   let closings = 0
+  let shown: ReadonlySet<string> = new Set()
+  const splitSample = createBlockSplitter(pieceLength)
   const noteVersions = new Map<string, { shape: string; version: number }>()
 
   // Pieces with the same text get nodes of their own (their heading ids differ).
@@ -445,7 +449,7 @@ export function createPieceRenderer({
   // Drops the oldest pieces the note does not show right now, until the others fit. A piece it
   // shows is never dropped, or a note larger than the cache would render whole again on every
   // keystroke. The versions of notes no kept piece defines go with them: they hold the notes' text.
-  const trim = (shown: ReadonlySet<string>) => {
+  const trim = () => {
     let others = cached
     for (const key of shown) others -= cache.get(key)?.length ?? 0
     for (const [key, { length }] of cache) {
@@ -540,25 +544,27 @@ export function createPieceRenderer({
     markdown: string,
     options: PreviewOptions,
     known: readonly string[] = [],
+    showing = true,
   ) => {
     const opened = closings
     const names = registry.renderers().includes(headingIds)
-    const { blocks, was: wasAt } = split(markdown)
+    const { blocks, was: wasAt } = (showing ? split : splitSample)(markdown)
     // Only front matter shows the note's fields: other pieces do not render again when those change.
     const { note: fields, ...bodyOptions } = options
     const bodyKey = JSON.stringify(bodyOptions)
     const front = fields !== undefined && markdown.startsWith('---')
     const firstKey = front ? JSON.stringify(options) : bodyKey
-    const copies = copiesOf(blocks, wasAt, last)
-    const sameOptions = last?.options === `${firstKey}\u0000${bodyKey}`
+    const before = showing ? last : undefined
+    const copies = copiesOf(blocks, wasAt, before)
+    const sameOptions = before?.options === `${firstKey}\u0000${bodyKey}`
     const keys = blocks.map((block, i) => {
       const j = wasAt[i]!
-      if (sameOptions && j >= 0 && (i === 0) === (j === 0) && last!.copies[j] === copies[i]) {
-        return last!.keys[j]!
+      if (sameOptions && j >= 0 && (i === 0) === (j === 0) && before!.copies[j] === copies[i]) {
+        return before!.keys[j]!
       }
       return keyOf(block.text, i === 0, copies[i]!, i === 0 ? firstKey : bodyKey)
     })
-    last = { blocks, copies, keys, options: `${firstKey}\u0000${bodyKey}` }
+    if (showing) last = { blocks, copies, keys, options: `${firstKey}\u0000${bodyKey}` }
     const parserOf = (i: number) => (i === 0 ? processor : bodyProcessor)
 
     const found = keys.map((key) => {
@@ -679,7 +685,8 @@ export function createPieceRenderer({
         rendered.push(await renderPiece(keys[i]!, block.text, i === 0, pieceOptions, tree, context))
       }
     } finally {
-      trim(opened === closings ? new Set(keys) : new Set())
+      if (showing) shown = opened === closings ? new Set(keys) : new Set()
+      trim()
     }
 
     const have = new Set(known)
@@ -761,8 +768,10 @@ export function createPieceRenderer({
   return Object.assign(render, {
     forgetShown: () => {
       closings += 1
-      trim(new Set())
+      shown = new Set()
+      trim()
     },
+    sample: (markdown: string, options: PreviewOptions) => render(markdown, options, [], false),
   })
 }
 

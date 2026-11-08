@@ -44,8 +44,20 @@ fn device(kit: &Arc<Fake>, vault: &Arc<Vault>) -> Device {
 }
 
 impl Device {
+    /// Connects as the service does: the state is kept where the transport asks, and on success.
     fn connect(&mut self, has_synced: bool) -> Result<super::Welcome, &'static str> {
-        let (welcome, state) = self.icloud.connect(&self.state, has_synced, NAME, NOW)?;
+        let kept = std::cell::RefCell::new(None);
+        let keep = |state: &ICloudState| {
+            *kept.borrow_mut() = Some(state.clone());
+            Ok(())
+        };
+        let connected = self
+            .icloud
+            .connect(&self.state, has_synced, NAME, NOW, &keep);
+        if let Some(state) = kept.into_inner() {
+            self.state = state;
+        }
+        let (welcome, state) = connected?;
         self.state = state;
         Ok(welcome)
     }
@@ -505,7 +517,11 @@ fn the_device_row_is_saved_on_a_new_day_or_name_only() {
     kit.advance(86_400_000);
     a.connect(true).unwrap();
     assert_eq!(kit.calls(Op::Save), saves + 3, "the clock and the row");
-    let renamed = a.icloud.connect(&a.state, true, "Desk Mac", NOW).unwrap().1;
+    let renamed = a
+        .icloud
+        .connect(&a.state, true, "Desk Mac", NOW, &|_| Ok(()))
+        .unwrap()
+        .1;
     assert_ne!(renamed.device_name, a.state.device_name);
 }
 
@@ -720,6 +736,42 @@ fn a_deleted_zone_stops_a_vault_that_synced_and_is_made_again_for_one_that_never
     a.state.zone_seen = false;
     let third = a.connect(true).unwrap();
     assert_ne!(third.epoch, again.epoch);
+}
+
+#[test]
+fn a_connect_that_fails_after_making_the_vault_zone_again_still_renews_and_subscribes() {
+    for failing in ["epoch", "clock"] {
+        let (kit, vault) = setup();
+        let zone = vault_zone(&vault.id().to_string());
+        let mut a = device(&kit, &vault);
+        let epoch = a.connect(true).unwrap().epoch;
+        kit.delete_zone(&zone);
+        // Upload Again forgets the zone was seen; the subscription is kept as the first left it.
+        a.state.zone_seen = false;
+        let record = match failing {
+            "epoch" => format!("meta-{}", vault.id()),
+            _ => a.state.device.clone(),
+        };
+        kit.fail_record(&record, ck(code::NETWORK_FAILURE));
+        assert!(a.connect(true).is_err(), "{failing}");
+        assert!(kit.zone_exists(&zone), "{failing}");
+
+        let subscribes = kit.calls(Op::Subscribe);
+        let again = a.connect(true).unwrap();
+        assert_ne!(
+            again.epoch, epoch,
+            "{failing}: the zone made again has a new epoch"
+        );
+        assert_eq!(
+            kit.calls(Op::Subscribe),
+            subscribes + 2,
+            "{failing}: the zone made again is subscribed to"
+        );
+        assert!(a.state.subscribed, "{failing}");
+        let subscribes = kit.calls(Op::Subscribe);
+        assert_eq!(a.connect(true).unwrap().epoch, again.epoch, "{failing}");
+        assert_eq!(kit.calls(Op::Subscribe), subscribes, "{failing}");
+    }
 }
 
 #[test]

@@ -97,6 +97,58 @@ describe('notebooks on SQLite', () => {
     expect(notesInBook(summaries, await books.list(), null).map((n) => n.id)).toEqual([inDevot])
   })
 
+  describe('deleting a notebook with sub-notebooks', () => {
+    async function family(failOn?: (ids: string[]) => boolean) {
+      const { storage } = setup()
+      const writes: string[][] = []
+      const write = (ids: string[]) => {
+        writes.push(ids)
+        if (failOn?.(ids)) throw new Error('E_STORAGE_TEST')
+      }
+      const wrapped: StorageAdapter = {
+        ...storage,
+        putBook: async (book) => {
+          write([book.id])
+          return storage.putBook(book)
+        },
+        putBooks: async (list) => {
+          write(list.map((b) => b.id))
+          return storage.putBooks(list)
+        },
+      }
+      const clock = createClock('mac1')
+      const books = createBookService({ storage: wrapped, clock, newId: createIdGenerator() })
+      const parent = await books.create('P', null)
+      const first = await books.create('C1', parent)
+      const second = await books.create('C2', parent)
+      writes.length = 0
+      return { books, writes, parent, first, second }
+    }
+
+    it('deletes none of them when the write fails', async () => {
+      let child = ''
+      const { books, parent, first, second } = await family((ids) => ids.includes(child))
+      child = first
+      await expect(books.remove(parent)).rejects.toThrow('E_STORAGE_TEST')
+      const live = (await books.list()).map((b) => [b.id, b.parentId])
+      expect(live).toEqual(
+        expect.arrayContaining([
+          [parent, null],
+          [first, parent],
+          [second, parent],
+        ]),
+      )
+      expect(live).toHaveLength(3)
+    })
+
+    it('deletes all of them in one write', async () => {
+      const { books, writes, parent, first, second } = await family()
+      await books.remove(parent)
+      expect(await books.list()).toEqual([])
+      expect(writes.map((ids) => [...ids].sort())).toEqual([[parent, first, second].sort()])
+    })
+  })
+
   it('moves a note between notebooks and to none', async () => {
     const { books, notes } = setup()
     const a = await books.create('A', null)

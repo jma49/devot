@@ -1081,6 +1081,7 @@ mod seats {
         licence: Arc<Licence>,
         now: Arc<AtomicI64>,
         activation: Arc<MemoryKey>,
+        key_store: Arc<MemoryKey>,
         _dir: tempfile::TempDir,
     }
 
@@ -1097,12 +1098,12 @@ mod seats {
         let dir = tempfile::tempdir().expect("temp dir");
         let now = Arc::new(AtomicI64::new(START));
         let clock = Arc::clone(&now);
-        let key_store = held.map_or_else(MemoryKey::default, MemoryKey::holding);
+        let key_store = Arc::new(held.map_or_else(MemoryKey::default, MemoryKey::holding));
         let activation = Arc::new(MemoryKey::default());
         let licence = Arc::new(
             Licence::new(
                 test_keys(true),
-                Arc::new(key_store),
+                Arc::clone(&key_store) as Arc<dyn super::super::store::KeyStore>,
                 trial_over(),
                 dir.path(),
                 Arc::new(|_: &Snapshot| {}),
@@ -1118,6 +1119,7 @@ mod seats {
             licence,
             now,
             activation,
+            key_store,
             _dir: dir,
         }
     }
@@ -1311,6 +1313,38 @@ mod seats {
     }
 
     #[test]
+    fn a_seat_refusal_closes_the_window_of_a_key_held_from_before_seats() {
+        let held = key(ID);
+        let s = seat_setup_with(Some(held.as_str()), |_| Err("E_LICENCE_DEVICE_LIMIT"));
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+        assert!(s.licence.refresh_activation_if_due());
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+    }
+
+    #[test]
+    fn an_unreachable_worker_keeps_the_window_of_a_key_held_from_before_seats() {
+        let held = key(ID);
+        let s = seat_setup_with(Some(held.as_str()), |_| Err("E_NET_TIMEOUT"));
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+        assert!(!s.licence.refresh_activation_if_due());
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+    }
+
+    #[test]
     fn a_refused_key_cannot_reopen_a_window_by_going_offline() {
         let online = Arc::new(AtomicBool::new(true));
         let flag = Arc::clone(&online);
@@ -1393,6 +1427,105 @@ mod seats {
         // An unreachable Worker is tried again at the next wake-up, not once a day.
         assert!(!s.licence.refresh_activation_if_due());
         assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    }
+
+    #[test]
+    fn a_key_swap_the_keychain_refuses_keeps_the_held_licence_s_seat() {
+        let s = seat_setup(active);
+        s.licence.set(&key(ID)).expect("set");
+        s.key_store.unwritable.store(true, Ordering::SeqCst);
+        let other = sign(
+            "devot1",
+            &serde_json::json!({
+                "id": OTHER_ID,
+                "kid": "test",
+                "plan": "pro",
+                "licensee": "buyer@example.com",
+                "issuedAt": "2026-10-24T09:30:00Z",
+            }),
+        );
+        assert_eq!(s.licence.set(&other).err(), Some("E_LICENCE_KEYCHAIN"));
+        let snapshot = s.licence.snapshot();
+        assert_eq!(snapshot.id.as_deref(), Some(ID));
+        let seat = snapshot.activation.expect("seat");
+        assert_eq!(
+            (seat.state, seat.used, seat.limit),
+            (SeatState::Active, 1, 3)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+        let stored = s
+            .activation
+            .key
+            .lock()
+            .expect("seat")
+            .clone()
+            .unwrap_or_default();
+        assert!(!stored.contains(OTHER_ID));
+    }
+
+    /// Stands in for the licence item while a keychain prompt is open: the schedule's tick runs
+    /// meanwhile and clears the seat item's read failure.
+    struct TicksDuringWrite {
+        licence: std::sync::OnceLock<std::sync::Weak<Licence>>,
+        activation: Arc<MemoryKey>,
+    }
+
+    impl super::super::store::KeyStore for TicksDuringWrite {
+        fn get(&self) -> Result<Option<String>, &'static str> {
+            Ok(None)
+        }
+
+        fn set(&self, _: &str) -> Result<(), &'static str> {
+            self.activation.unreadable.store(false, Ordering::SeqCst);
+            if let Some(licence) = self.licence.get().and_then(std::sync::Weak::upgrade) {
+                *crate::locks::lock(&licence.seat_unread) = None;
+            }
+            Ok(())
+        }
+
+        fn clear(&self) -> Result<(), &'static str> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_seat_item_read_again_while_the_key_is_stored_does_not_deadlock() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let activation = Arc::new(MemoryKey::default());
+        activation.unreadable.store(true, Ordering::SeqCst);
+        let key_store = Arc::new(TicksDuringWrite {
+            licence: std::sync::OnceLock::new(),
+            activation: Arc::clone(&activation),
+        });
+        let licence = Arc::new(
+            Licence::new(
+                test_keys(true),
+                Arc::clone(&key_store) as Arc<dyn super::super::store::KeyStore>,
+                trial_over(),
+                dir.path(),
+                Arc::new(|_: &Snapshot| {}),
+            )
+            .with_clock(Arc::new(|| START))
+            .with_activation(
+                Arc::new(MemoryKey::default()),
+                Arc::clone(&activation) as Arc<dyn super::super::store::KeyStore>,
+                Arc::new(|_: &str, device: &str, _: &str| active(device)),
+            ),
+        );
+        key_store
+            .licence
+            .set(Arc::downgrade(&licence))
+            .expect("licence");
+        let (sent, received) = std::sync::mpsc::channel();
+        let setter = Arc::clone(&licence);
+        std::thread::spawn(move || {
+            let _ = sent.send(setter.set(&key(ID)).map(|snapshot| snapshot.id));
+        });
+        let set = received
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("set returns");
+        assert_eq!(set, Ok(Some(ID.to_owned())));
+        assert_eq!(licence.require_write(Write::Content), Ok(()));
     }
 
     #[test]

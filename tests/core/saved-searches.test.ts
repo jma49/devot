@@ -12,11 +12,37 @@ import {
   savedSearchQuery,
   type SavedSearchRecord,
 } from '../../src/core'
+import { createSyncEngine } from '../../src/core/sync/engine'
 import { openSqliteAdapter, SCHEMA_VERSION, type SqliteAdapter } from '../support/sqlite-adapter'
+import { FakeTransport, FakeVault } from '../support/sync-fake'
 import { tempDir } from '../support/temp-dirs'
 
 const open: SqliteAdapter[] = []
-afterEach(() => open.splice(0).forEach((a) => a.close()))
+const engines: { stop(): Promise<void> }[] = []
+afterEach(async () => {
+  for (const engine of engines.splice(0)) await engine.stop()
+  open.splice(0).forEach((a) => a.close())
+})
+
+/** `setup` with a sync engine on the same storage, through a vault shared with other devices. */
+function syncing(vault: FakeVault, node: string) {
+  const device = setup(node)
+  const transport = new FakeTransport(vault)
+  const engine = createSyncEngine({
+    storage: device.storage,
+    sync: device.storage,
+    transport,
+    clock: device.clock,
+    newId: createIdGenerator(),
+    retryBaseMs: 1,
+    idleMs: 10,
+    everyMs: 40,
+    random: () => 0.5,
+  })
+  engine.start()
+  engines.push(engine)
+  return { ...device, engine }
+}
 
 function setup(node = 'mac1', path = join(tempDir('devot-saved-searches-'), 'devot.sqlite')) {
   const storage = openSqliteAdapter(path)
@@ -411,6 +437,41 @@ describe('renaming a tag a saved search names', () => {
     await searches.create('Work', 'tag:Work -tag:work is:active')
     await tags.rename(work, 'Office')
     expect((await searches.list())[0]?.query).toBe('tag:Work -tag:work is:active')
+  })
+
+  it('keeps both renames when one is pulled while a tag is renamed here', async () => {
+    const vault = new FakeVault()
+    const mac = syncing(vault, 'mac1')
+    const phone = syncing(vault, 'phone1')
+    const work = await mac.tags.ensure('work')
+    const home = await mac.tags.ensure('home')
+    await mac.engine.syncNow()
+    await phone.engine.syncNow()
+    // Saved after the phone last pulled, so only the rename pulled here rewrites it.
+    await mac.searches.create('Both', 'tag:work tag:home')
+    await phone.tags.rename(work, 'office')
+    await phone.engine.syncNow()
+    const put = mac.storage.putSavedSearch.bind(mac.storage)
+    let reached!: () => void
+    const atWrite = new Promise<void>((resolve) => (reached = resolve))
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let first = true
+    mac.storage.putSavedSearch = async (search) => {
+      if (first) {
+        first = false
+        reached()
+        await held
+      }
+      return put(search)
+    }
+    const pulled = mac.engine.syncNow()
+    await atWrite
+    const renamed = mac.tags.rename(home, 'house')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    release()
+    await Promise.all([pulled, renamed])
+    expect((await mac.searches.list())[0]?.query).toBe('tag:office tag:house')
   })
 
   it('keeps both rewrites when two tags in one query are renamed at once', async () => {

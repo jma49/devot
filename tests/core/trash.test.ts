@@ -8,7 +8,9 @@ import {
   createIdGenerator,
   createNoteService,
   createTagService,
+  newWriter,
   type NoteRecord,
+  type StorageAdapter,
 } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
@@ -27,6 +29,26 @@ function setup() {
     books: createBookService({ storage, clock, newId }),
     tags: createTagService({ storage, clock, newId }),
   }
+}
+
+/** Storage that holds the write moving a note to the Trash until `release` is called. */
+function heldTrash() {
+  const sqlite = openSqliteAdapter(join(tempDir('devot-trash-'), 'devot.sqlite'))
+  open.push(sqlite)
+  let reach = () => {}
+  let release = () => {}
+  const reached = new Promise<void>((resolve) => (reach = resolve))
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const storage: StorageAdapter = Object.assign(Object.create(sqlite) as SqliteAdapter, {
+    async putNote(record: Parameters<StorageAdapter['putNote']>[0]) {
+      if (record.deletedAt !== null) {
+        reach()
+        await held
+      }
+      return sqlite.putNote(record)
+    },
+  })
+  return { sqlite, storage, reached, release: () => release() }
 }
 
 async function write(notes: ReturnType<typeof setup>['notes'], id: string, text: string) {
@@ -202,5 +224,77 @@ describe('discarding an empty note on SQLite', () => {
     await notes.trash(id)
     await expect(notes.discardEmpty(id)).rejects.toThrow('E_NOTE_NOT_FOUND')
     expect((await notes.listTrash()).map((n) => n.id)).toEqual([id])
+  })
+})
+
+describe('a note on its way to the Trash', () => {
+  it('refuses an agent edit and a status change, and restores without them', async () => {
+    const { storage, reached, release } = heldTrash()
+    const notes = createNoteService({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+    })
+    const id = await notes.create('Doomed')
+    await write(notes, id, 'Kept text.')
+    const trashing = notes.trash(id)
+    await reached
+    const agent = notes.agentWrite(id, {
+      writer: newWriter('mcp', 'Agent', 'mcp00aa11bb22cc'),
+      markdown: 'Lost text.\n',
+    })
+    const status = notes.setStatusUndoable(id, 'active')
+    const outcomes = Promise.allSettled([agent, status])
+    release()
+    await trashing
+    const [agentOutcome, statusOutcome] = await outcomes
+    expect(agentOutcome).toMatchObject({
+      status: 'rejected',
+      reason: expect.objectContaining({ message: 'E_NOTE_TRASHED' }),
+    })
+    expect(statusOutcome).toMatchObject({
+      status: 'rejected',
+      reason: expect.objectContaining({ message: 'E_NOTE_TRASHED' }),
+    })
+    await notes.flush()
+    await notes.restore(id)
+    const back = await notes.read(id)
+    expect(back.bodyMd).toBe('Kept text.')
+    expect((await storage.getNote(id))?.status).toBe('none')
+  })
+})
+
+describe('another note while one is on its way to the Trash', () => {
+  it('saves all and purges as if the moving note were not there', async () => {
+    const { sqlite, storage, reached, release } = heldTrash()
+    let problems: unknown[] = []
+    const notes = createNoteService({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+      onSaveProblems: (now) => (problems = now),
+    })
+    const other = await notes.create('Already trashed')
+    await notes.flush()
+    const stored = await sqlite.getNote(other)
+    await sqlite.putNote({ ...stored!, deletedAt: 1, deletedHlc: 'z' })
+    await notes.release(other)
+    const id = await notes.create('Doomed')
+    await write(notes, id, 'Kept text.')
+    const trashing = notes.trash(id)
+    await reached
+    await expect(notes.setStatus(id, 'active')).rejects.toThrow('E_NOTE_TRASHED')
+    const during = Promise.allSettled([notes.flush(), notes.purge(other), notes.release(id)])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    release()
+    await trashing
+    expect((await during).map((outcome) => outcome.status)).toEqual([
+      'fulfilled',
+      'fulfilled',
+      'fulfilled',
+    ])
+    expect(problems).toEqual([])
   })
 })

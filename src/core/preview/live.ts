@@ -2,6 +2,7 @@
 // shows beside them (task progress, line count, linked notes), all read from the text off the
 // page's thread, which then only posts the text and patches the result in.
 import { frontMatterEnd, tasksIn } from '../extract'
+import { sameFence, type Fence } from '../fences'
 import { noteLinks } from '../links'
 import type { TaskProgress } from '../tasks'
 import { createBlockSplitter, type NoteSplit } from './blocks'
@@ -39,7 +40,7 @@ function newlines(text: string): number {
   return count
 }
 
-type BlockTasks = TaskProgress & { fence: string | undefined; after: string | undefined }
+type BlockTasks = TaskProgress & { fence: Fence | undefined; after: Fence | undefined }
 
 /**
  * A note's task progress and line count, read again after an edit only from the pieces it
@@ -53,7 +54,7 @@ export function createSplitFacts(
     const { blocks, was } = split(markdown)
     const start = frontMatterEnd(markdown)
     const counted: (BlockTasks | undefined)[] = []
-    let fence: string | undefined
+    let fence: Fence | undefined
     let done = 0
     let total = 0
     for (const [i, { text, offset }] of blocks.entries()) {
@@ -63,7 +64,7 @@ export function createSplitFacts(
         continue
       }
       const kept = start <= offset ? before[was[i]!] : undefined
-      let found = kept?.fence === fence ? kept : undefined
+      let found = kept && sameFence(kept.fence, fence) ? kept : undefined
       if (!found) {
         const read = tasksIn(start > offset ? text.slice(start - offset) : text, fence)
         found = { done: read.done, total: read.total, fence, after: read.fence }

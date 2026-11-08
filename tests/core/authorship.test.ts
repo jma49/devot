@@ -13,11 +13,14 @@ import {
   newAuthorshipId,
   newWriter,
   packRanges,
+  readAllWrites,
   readWriters,
   readWrites,
   recordTransaction,
   reverseWrites,
+  RESTORED,
   reviewSteps,
+  UNDONE,
   unpackRanges,
   validWriterName,
   WRITERS,
@@ -408,13 +411,85 @@ describe('the deleted text of an undone write', () => {
     })
     applyAgentEdit(doc, { writer: claude, at: 2, markdown: '', maxRemovedBytes: max })
     reverseWrites(doc, { kind: 'mcp', names: ['Claude Code'] })
-    const undone = [...doc.getMap(WRITES).values()].filter(
-      (raw) => (raw as { reversed?: boolean }).reversed,
-    )
+    const undone = [...doc.getMap(UNDONE).keys()]
     expect(undone).toHaveLength(1)
-    expect(undone[0]).not.toHaveProperty('removed')
+    expect(doc.getMap(WRITES).get(undone[0]!)).not.toHaveProperty('removed')
     applyAgentEdit(doc, { writer: codex, at: 3, markdown: '', maxRemovedBytes: max })
     expect(readWrites(doc)[0]!.removed).toBe(`${'a'.repeat(600)}\n`)
+  })
+})
+
+describe('two devices changing one write before they sync', () => {
+  const gemini = newWriter('mcp', 'Gemini', 'mcp5555555555ab')
+
+  /** Two devices from one state; `b`, with the higher client, wins a concurrent set of one key. */
+  const devices = (base: Y.Doc) => [loaded(base, 10), loaded(base, 20)] as const
+  const exchange = (a: Y.Doc, b: Y.Doc) => {
+    sync(a, b)
+    sync(b, a)
+  }
+
+  it('keeps a write undone on one device when the other drops its deleted text', () => {
+    const base = docWith('Keep. Old text here.\n')
+    const agent = loaded(base, 2)
+    const x = edit(agent, claude, 'Keep. New.\n')!
+    sync(agent, base)
+    const [a, b] = devices(base)
+    expect(reverseWrites(a, { kind: 'mcp', names: ['Claude Code'] }).writes).toBe(1)
+    applyAgentEdit(b, { writer: codex, at: 2000, markdown: 'New.\n', maxRemovedBytes: 6 })
+    expect(readAllWrites(b).find((w) => w.id === x)).toMatchObject({ state: 'dropped' })
+    exchange(a, b)
+    for (const doc of [a, b]) {
+      expect(readAllWrites(doc).find((w) => w.id === x)).toMatchObject({ state: 'reversed' })
+      expect(readWrites(doc).map((w) => w.session)).toEqual([codex.session])
+      expect(reverseWrites(doc, { kind: 'mcp', names: ['Claude Code'] })).toEqual({
+        writes: 0,
+        dropped: 0,
+      })
+    }
+  })
+
+  it('keeps every range two devices put back into one writer’s text', () => {
+    const base = docWith('Intro.\n')
+    for (const [writer, markdown] of [
+      [claude, 'Intro.\nOne two three four.\n'],
+      [codex, 'Intro.\nOne three four.\n'],
+      [gemini, 'Intro.\nOne three .\n'],
+    ] as const) {
+      const agent = loaded(base, 2)
+      edit(agent, writer, markdown)
+      sync(agent, base)
+    }
+    const [a, b] = devices(base)
+    reverseWrites(a, { kind: 'mcp', names: ['Codex'] })
+    reverseWrites(b, { kind: 'mcp', names: ['Gemini'] })
+    exchange(a, b)
+    for (const doc of [a, b]) {
+      expect(body(doc)).toBe('Intro.\nOne two three four.\n')
+      expect(agentText(doc)).toBe('One two three four.\n')
+    }
+    reverseWrites(a, { kind: 'mcp', names: ['Claude Code'] })
+    expect(body(a)).toBe('Intro.\n')
+    clearAuthorship(a)
+    expect([a.getMap(UNDONE).size, a.getMap(RESTORED).size]).toEqual([0, 0])
+  })
+
+  it('marks an undone write in its record too, which an earlier build reads', () => {
+    const doc = docWith('Owner. Old.\n')
+    const id = edit(doc, claude, 'Owner.\nClaude.\n')!
+    reverseWrites(doc, { kind: 'mcp', names: ['Claude Code'] })
+    const raw = doc.getMap(WRITES).get(id)
+    expect(raw).toMatchObject({ reversed: true })
+    expect(raw).not.toHaveProperty('removed')
+  })
+
+  it('reads a write an earlier build undid in its record as undone', () => {
+    const doc = docWith('Owner.\n')
+    const id = edit(doc, claude, 'Owner.\nClaude.\n')!
+    const writes = doc.getMap(WRITES)
+    writes.set(id, { ...(writes.get(id) as object), reversed: true })
+    expect(readAllWrites(doc)[0]).toMatchObject({ id, state: 'reversed' })
+    expect(readWrites(doc)).toEqual([])
   })
 })
 

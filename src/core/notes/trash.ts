@@ -18,7 +18,7 @@ export function trashMethods(
   const { takeVersion, settled } = k.versions
   const { relay } = k.relay
   const { drop, getStored, using } = k.memory
-  const { exclusive, failed, put, rowsOf, write, save } = k.saving
+  const { exclusive, failed, put, rowsOf, write, save, writable } = k.saving
   const trashed = async (id: string): Promise<NoteRecord> => {
     const record = await getStored(id, { trashed: true })
     if (!record || record.deletedAt === null) throw new Error('E_NOTE_NOT_IN_TRASH')
@@ -39,10 +39,12 @@ export function trashMethods(
           }
           if (live.get(id) !== note) return
           takeVersion(note)
+          // What reaches the note from here on would not be stored: refused.
+          note.gone = 'trashed'
           // Written apart: when it fails, the note stays as it was. With the
           // body as the document holds it, which may have taken in what
           // another process wrote since the last write (see mergeStored).
-          await put(
+          const moved = put(
             note,
             () => {
               const { changed } = rowsOf(note)
@@ -58,6 +60,12 @@ export function trashMethods(
               ydoc: Y.encodeStateAsUpdate(note.doc),
             }),
           )
+          try {
+            await moved
+          } catch (error) {
+            if (note.gone === 'trashed') note.gone = undefined
+            throw error
+          }
           drop(note)
         })
       })
@@ -65,8 +73,8 @@ export function trashMethods(
       await settled()
     },
 
-    restore: (id) =>
-      untilWritten(async () => {
+    async restore(id) {
+      await untilWritten(async () => {
         const record = await trashed(id)
         // A title stored past what storage takes now (by an older build) is
         // cut for the write, as when a note is loaded; the stored one stays.
@@ -76,7 +84,9 @@ export function trashMethods(
           deletedAt: null,
           deletedHlc: clock.tick(),
         })
-      }),
+      })
+      relay({ kind: 'back', noteId: id })
+    },
 
     listTrash: () => storage.listTrash(),
 
@@ -90,29 +100,31 @@ export function trashMethods(
       await trashed(id)
       // Storage keeps the attachments other notes show: a link pasted a
       // moment ago, its save still waiting, counts too.
-      await Promise.all([...live.values()].map(save))
+      await Promise.all(writable().map(save))
       await storage.purgeNote(id, now(), clock.tick())
       const note = live.get(id)
-      if (note) drop(note)
+      if (note) drop(note, 'purged')
       relay({ kind: 'gone', noteId: id, purged: true })
     },
 
     async discardEmpty(id) {
       // Saved first, so text typed a moment ago makes storage refuse.
-      await Promise.all([...live.values()].map(save))
+      await Promise.all(writable().map(save))
       if (!(await getStored(id))) throw new Error('E_NOTE_NOT_FOUND')
       await storage.purgeNote(id, now(), clock.tick())
       const note = live.get(id)
-      if (note) drop(note)
+      if (note) drop(note, 'purged')
       relay({ kind: 'gone', noteId: id, purged: true })
     },
 
     async emptyTrash() {
-      await Promise.all([...live.values()].map(save))
+      await Promise.all(writable().map(save))
       const all = await storage.listTrash()
-      for (const note of all) await storage.purgeNote(note.id, now(), clock.tick())
-      // Each window that shows one of them hears it is gone, as for a single purge.
-      for (const note of all) relay({ kind: 'gone', noteId: note.id, purged: true })
+      // Each window that shows one of them hears it is gone as soon as it is, as for a single purge.
+      for (const note of all) {
+        await storage.purgeNote(note.id, now(), clock.tick())
+        relay({ kind: 'gone', noteId: note.id, purged: true })
+      }
       return all.length
     },
   }

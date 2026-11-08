@@ -25,6 +25,7 @@ Part of the [Markdown dialect](markdown-dialect.md).
   The time is the page's clock at the moment the note is made, on the wall clock of the system's time zone; unit tests inject the zone (Los Angeles across both 2026 transitions, Shanghai, Kathmandu).
 - **Instruction quotes:** a blockquote whose first line is a heading starting with `!` (`> # !Instructions`) is removed, with the blank line after it, from notes made from the template; it stays in the template.
   Quotes in code blocks and ordinary quotes are kept.
+  Code blocks are read as the preview reads them (`readFence` in `src/core/fences.ts`, CommonMark fences).
 - **Starter templates:** Brainstorming, Debugging, Learning, Planning and Daily Report (`src/renderer/src/starterTemplates.ts`, text from the message catalog; core keeps only the `starter:` ID prefix and takes the list through `starters`) are not stored.
   They are read-only, listed under "Built-in" after the user's own templates (the picker and the Templates view), and editing one saves a copy as the user's own template (`TemplateService.save`).
   Applying a template to an existing note (`applyTo`) keeps the note's tags and status.

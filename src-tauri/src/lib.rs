@@ -366,6 +366,7 @@ pub fn run() {
         // The folder panel for import; no window is granted its commands.
         .plugin(tauri_plugin_dialog::init())
         .manage(exit::ExitGate::default())
+        .manage(native::PendingSecretClear::default())
         .manage(import::Imports::default())
         .manage(export::Exports::default())
         .manage(deep_link::DeepLinks::default())

@@ -16,9 +16,10 @@ impl SyncService {
     /// Rotates the vault's key: with the relay's secret, which is used for these requests and
     /// dropped, makes the successor and retires the vault this device holds, then switches to it.
     /// Not gated by the licence: taking access away never is. The new recovery key comes back to
-    /// show until it is saved.
+    /// show until it is saved. Holds `membership`, so a connect waits until the rotation ends.
     pub(crate) fn rotate_vault(&self, relay_secret: &str) -> Result<Created, &'static str> {
         let relay_secret = checked_relay_secret(relay_secret)?;
+        let _membership = self.membership.lock().map_err(|_| "E_SYNC_INTERNAL")?;
         if self.on_icloud() {
             return Err(ROTATION_ICLOUD);
         }
@@ -65,6 +66,8 @@ impl SyncService {
         }
         let secrets = self.secrets.as_ref();
         let next = self.next_key(vault)?;
+        #[cfg(test)]
+        self.wait_if_rotation_paused();
         let next_id = next.id().to_string();
         let waiting = DeviceCredentials::load_next(secrets)
             .map_err(|e| e.code())?
@@ -202,11 +205,15 @@ impl SyncService {
 
     /// Keeps this device's token for `from` before the successor's token takes its place, so
     /// Settings can list the devices of `from` that have not joined `to` yet. Tokens kept at an
-    /// earlier change of this same chain stay, since their devices have not joined `to` either.
+    /// earlier change of this same chain stay, since their devices have not joined `to` either. A
+    /// list already kept for `to` stays as it is.
     fn keep_retired_token(&self, from: &str, to: &str) {
         let secrets = self.secrets.as_ref();
         let kept = (|| {
             let mut retired = RetiredTokens::load(secrets)?.unwrap_or_default();
+            if retired.successor == to {
+                return Ok(());
+            }
             if retired.successor != from {
                 for dropped in &retired.tokens {
                     log::info!(
@@ -362,5 +369,41 @@ impl SyncService {
                 Err(VAULT_ROTATED)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::super::super::relay_tests::Secrets;
+    use super::super::super::settings::{DeviceCredentials, FILE, RetiredTokens, SettingsStore};
+    use super::SyncService;
+    use crate::licence::Gate;
+
+    #[test]
+    fn keeping_the_retired_token_again_for_the_same_successor_keeps_the_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let secrets: Arc<Secrets> = Arc::default();
+        let service = SyncService::new(
+            SettingsStore::new(&dir.path().join(FILE)),
+            secrets.clone(),
+            Arc::new(|_, _| ()),
+            Gate::open(),
+        );
+        let token = |vault: &str| DeviceCredentials {
+            relay: "wss://relay.example".into(),
+            vault: vault.into(),
+            device: format!("device-of-{vault}"),
+            token: format!("token-of-{vault}"),
+        };
+        token("old").save(secrets.as_ref()).unwrap();
+        service.keep_retired_token("old", "new");
+        token("new").save(secrets.as_ref()).unwrap();
+        service.keep_retired_token("old", "new");
+
+        let retired = RetiredTokens::load(secrets.as_ref()).unwrap().unwrap();
+        assert_eq!(retired.successor, "new");
+        assert_eq!(retired.tokens, vec![token("old")]);
     }
 }

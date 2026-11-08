@@ -7,7 +7,9 @@ Part of the [architecture overview](../architecture.md).
   It holds no note: each tool call is one request of the local HTTP API (or two, when an empty answer may mean no notebook allows AI), so the running app's core is the only write path.
   Tools: `list_notebooks` (in the sidebar's order), `search_notes` (full text, the app's query rules, a snippet per hit), `read_note` (Markdown snapshot and metadata), `list_tags` (the tags on visible notes, with counts), `create_note` (title, Markdown, a notebook by ID or exact name), `update_note`, `append_to_note`, `trash_note` and `create_notebook` (see Writes).
   Their titles, schemas and read-only and destructive annotations are `src-tauri/mcp/tools.json`, which Rust compiles in and checks arguments against, leaving out properties it does not name (`E_MCP_ARGS_INVALID` names the path and never a value); `tests/core/mcp-tools.test.ts` holds its limits to the core's.
-  MCP is JSON-RPC, one message a line (`protocol.rs`), protocol versions 2024-10-07 to 2025-11-25. stdout carries MCP messages only; logs go to stderr as codes and IDs (`I_MCP_NOTE_CREATED|UPDATED|APPENDED|TRASHED <id>`, `I_MCP_NOTEBOOK_CREATED <id>`, `W_MCP_TOOL_FAILED <tool> <code>`).
+  MCP is JSON-RPC, one message a line (`protocol.rs`), protocol versions 2024-10-07 to 2025-11-25.
+  Tool calls run one at a time while `ping` is answered; a call that `notifications/cancelled` names while it still waits never runs and gets no answer, and one already running finishes.
+  stdout carries MCP messages only; logs go to stderr as codes and IDs (`I_MCP_NOTE_CREATED|UPDATED|APPENDED|TRASHED <id>`, `I_MCP_NOTEBOOK_CREATED <id>`, `W_MCP_TOOL_FAILED <tool> <code>`).
   A failure answers `<code>: <hint>`, never note content; an empty `list_notebooks`, `search_notes` or `list_tags` with no notebook allowed adds `code: E_MCP_NO_AI_ACCESS` and a hint, which says what to do and nothing about what notebooks exist.
   It adds no crate to the tree (`toml`, for Codex's config, was already there through Tauri).
 - **Access and the token:** Settings > Integrations > AI Tools (`http_api/mcp_access.rs`, `<app data>/mcp-access.json`: `enabled`, off by default, turned on by Connect, which says so first; `scope`, read and write by default, enforced by the listener at once; `backgroundStart`, on by default).
@@ -53,6 +55,7 @@ Part of the [architecture overview](../architecture.md).
 - **Writes:** MCP writes directly; nothing waits for acceptance.
   Every write goes through the core (`src/core/ai.ts`) and needs the note (and any notebook it names) to be visible as above: a hidden note answers `E_NOTE_NOT_FOUND`, a hidden notebook `E_BOOK_NOT_FOUND`.
   A call's steps are not one storage transaction (see Local HTTP API).
+  Each call lets the note go from the AI service's memory when it ends, failed or not (`touching`), so the next call reads the stored note, with what the app wrote since.
   Once the trial is over without a licence, writes answer `E_LICENCE_REQUIRED` and reads still work.
   - `update_note` changes the title, the body, the notebook (only to one that allows AI access), the tags and the status, any of them at once.
     The body is the whole new Markdown or a list of exact passages to replace in turn (each must occur exactly once in the body as the ones before left it: `E_AI_PATCH_NOT_FOUND`, `E_AI_PATCH_AMBIGUOUS`).

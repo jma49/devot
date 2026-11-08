@@ -413,6 +413,40 @@ export function createBookService(options: BookServiceOptions): BookService {
     })
   }
 
+  const removeMany = async (ids: readonly string[]): Promise<void> => {
+    if (ids.length === 0) return
+    const books = await listBooks()
+    const known = new Set(books.map((b) => b.id))
+    if (!ids.every((id) => known.has(id))) throw new Error('E_BOOK_NOT_FOUND')
+    const parents = effectiveParents(books)
+    const children = new Map<string, string[]>()
+    for (const [child, parent] of parents) {
+      if (parent === null) continue
+      const list = children.get(parent)
+      if (list) list.push(child)
+      else children.set(parent, [child])
+    }
+    const doomed = new Set<string>()
+    const visit = [...ids]
+    for (let id = visit.pop(); id !== undefined; id = visit.pop()) {
+      if (doomed.has(id)) continue
+      doomed.add(id)
+      visit.push(...(children.get(id) ?? []))
+    }
+    const at = now()
+    const deleted = books
+      .filter((b) => doomed.has(b.id))
+      .map((b) => ({
+        ...b,
+        deletedAt: at,
+        deletedHlc: clock.tick(),
+        updatedAt: Math.max(at, b.createdAt),
+      }))
+    for (let i = 0; i < deleted.length; i += MAX_PUT_BOOKS) {
+      await storage.putBooks(deleted.slice(i, i + MAX_PUT_BOOKS))
+    }
+  }
+
   return {
     list: listBooks,
 
@@ -466,49 +500,9 @@ export function createBookService(options: BookServiceOptions): BookService {
       await putAt(books, book, parentId, siblings, index)
     },
 
-    async remove(id) {
-      await find(id)
-      const books = await listBooks()
-      const doomed = bookWithDescendants(books, id)
-      const at = now()
-      for (const book of books.filter((b) => doomed.has(b.id))) {
-        await write({ ...book, deletedAt: at, deletedHlc: clock.tick() })
-      }
-    },
+    remove: (id) => removeMany([id]),
 
-    async removeMany(ids) {
-      if (ids.length === 0) return
-      const books = await listBooks()
-      const known = new Set(books.map((b) => b.id))
-      if (!ids.every((id) => known.has(id))) throw new Error('E_BOOK_NOT_FOUND')
-      const parents = effectiveParents(books)
-      const children = new Map<string, string[]>()
-      for (const [child, parent] of parents) {
-        if (parent === null) continue
-        const list = children.get(parent)
-        if (list) list.push(child)
-        else children.set(parent, [child])
-      }
-      const doomed = new Set<string>()
-      const visit = [...ids]
-      for (let id = visit.pop(); id !== undefined; id = visit.pop()) {
-        if (doomed.has(id)) continue
-        doomed.add(id)
-        visit.push(...(children.get(id) ?? []))
-      }
-      const at = now()
-      const deleted = books
-        .filter((b) => doomed.has(b.id))
-        .map((b) => ({
-          ...b,
-          deletedAt: at,
-          deletedHlc: clock.tick(),
-          updatedAt: Math.max(at, b.createdAt),
-        }))
-      for (let i = 0; i < deleted.length; i += MAX_PUT_BOOKS) {
-        await storage.putBooks(deleted.slice(i, i + MAX_PUT_BOOKS))
-      }
-    },
+    removeMany,
 
     async setAiAccess(id, on) {
       const book = await find(id)

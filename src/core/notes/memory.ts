@@ -4,7 +4,7 @@ import { clipTitle } from '../noteLimits'
 import { REVISION_PAUSE_MS } from '../revisions'
 import { MAX_BODY_IDS, type NoteBody, type NoteSummary, type OpenedRecord } from '../storage'
 import { BODY } from './body'
-import type { Live, NoteContext } from './context'
+import { goneError, type Gone, type Live, type NoteContext } from './context'
 import type { Kernel } from './kernel'
 import { dirty, heldOf, stampsOf } from './records'
 
@@ -43,6 +43,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
       rows: fresh ? [] : undefined,
       failures: 0,
       retry: undefined,
+      gone: undefined,
       rev: {
         checked: fresh,
         lastText: fresh ? '' : undefined,
@@ -73,7 +74,8 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     if (before !== undefined && before !== id) forgetState(live.get(before))
   }
 
-  const drop = (note: Live) => {
+  const drop = (note: Live, gone?: Gone) => {
+    if (gone) note.gone = gone
     clearTimeout(note.timer)
     note.timer = undefined
     stopTimers(note)
@@ -121,6 +123,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
   const load = (id: string): Promise<Live> => {
     const cached = live.get(id)
     if (cached) {
+      if (cached.gone) return Promise.reject(goneError(cached.gone))
       live.delete(id)
       live.set(id, cached)
       cached.users += 1

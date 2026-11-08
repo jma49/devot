@@ -112,14 +112,14 @@ impl SyncService {
         let now = self.now();
         // A device that took the code just before expiry may confirm while the relay keeps it.
         if now > hosting.expires.saturating_add(pairing::GRACE_MS) {
-            self.end_pairing(&hosting);
-            return Ok(Self::ended(&hosting));
+            let closed = self.end_pairing(&hosting);
+            return Ok(Self::ended(&hosting, closed));
         }
         let state = hosting.channel.poll(hosting.pairing.id());
         match state {
             Ok(PairingState::Open) if now > hosting.expires => {
-                self.end_pairing(&hosting);
-                Ok(Self::ended(&hosting))
+                let closed = self.end_pairing(&hosting);
+                Ok(Self::ended(&hosting, closed))
             }
             Ok(PairingState::Open) => Ok(PairingCheck::is("waiting")),
             Ok(PairingState::Taken) => {
@@ -141,14 +141,19 @@ impl SyncService {
             }
             Err("E_SYNC_PAIRING_GONE") => {
                 self.forget_pairing(&hosting);
-                Ok(Self::ended(&hosting))
+                Ok(Self::ended(&hosting, None))
             }
             Err(code) => Err(code),
         }
     }
 
-    fn ended(hosting: &Hosting) -> PairingCheck {
-        if hosting.taken.load(Ordering::Relaxed) {
+    /// A confirmation the channel still held when it closed was never checked: unconfirmed too.
+    fn ended(hosting: &Hosting, closed: Option<PairingState>) -> PairingCheck {
+        let taken = matches!(
+            closed,
+            Some(PairingState::Taken | PairingState::Confirmed(_))
+        );
+        if taken || hosting.taken.load(Ordering::Relaxed) {
             log::warn!(
                 "W_SYNC_PAIRING_UNCONFIRMED pairing={}",
                 hosting.pairing.id()
@@ -167,9 +172,9 @@ impl SyncService {
         }
     }
 
-    fn end_pairing(&self, hosting: &Arc<Hosting>) {
+    fn end_pairing(&self, hosting: &Arc<Hosting>) -> Option<PairingState> {
         self.forget_pairing(hosting);
-        Self::close_on_relay(hosting);
+        Self::close_on_relay(hosting)
     }
 
     fn forget_pairing(&self, hosting: &Arc<Hosting>) {
@@ -180,12 +185,15 @@ impl SyncService {
         }
     }
 
-    fn close_on_relay(hosting: &Hosting) {
-        let closed = hosting.channel.close(hosting.pairing.id());
-        if let Err(code) = closed
-            && code != "E_SYNC_PAIRING_GONE"
-        {
-            log::warn!("W_SYNC_PAIRING_CLOSE {code}");
+    fn close_on_relay(hosting: &Hosting) -> Option<PairingState> {
+        match hosting.channel.close(hosting.pairing.id()) {
+            Ok(closed) => closed,
+            Err(code) => {
+                if code != "E_SYNC_PAIRING_GONE" {
+                    log::warn!("W_SYNC_PAIRING_CLOSE {code}");
+                }
+                None
+            }
         }
     }
 
