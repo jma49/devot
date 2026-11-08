@@ -60,6 +60,7 @@ Part of the [architecture overview](../architecture.md).
   A refused notebook or tag change is logged by code and shown in a notice that says the rule broken (or only that the change failed).
 - **Notebooks** nest through `parent_id` (no foreign key, so sync can deliver children first).
   Deleting a notebook deletes its sub-notebooks; their notes are kept and count as in no notebook (they keep `book_id`, so restoring the notebook brings them back).
+  The notebook and its sub-notebooks are deleted in one write (`putBooks`, one transaction), so a failed write deletes none of them.
   A missing parent makes a notebook top level, and a parent cycle from concurrent moves is broken at its smallest ID, the same way on every device.
   Selecting a notebook lists its notes and those of its sub-notebooks.
   Deleting a notebook (Delete Notebook, Backspace or Delete on its row) asks first, like deleting a tag: the question names the sub-notebooks that go with it and the notes that stay, Return confirms, Escape or Cancel keeps it and the keyboard returns to the row.
