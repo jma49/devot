@@ -112,6 +112,16 @@ it('builds and tests the iPhone app with the pinned Xcode on its iOS simulator, 
     expect(boot).toContain('node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS"')
     expect(boot).toMatch(/echo "DEVOT_SIMULATOR=\$\w+" >> "\$GITHUB_ENV"/)
   }
+  // A wait started while that background boot runs can fail with "current state: Booted"; the
+  // test scripts wait through the helper, which tries once more.
+  for (const script of ['devot-store-tests.sh', 'devot-screens-tests.sh', 'iphone-ui-tests.sh']) {
+    const text = read(`scripts/ci/${script}`)
+    expect({ script, bare: text.includes('bootstatus') }).toEqual({ script, bare: false })
+    expect(text).toContain('sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"')
+  }
+  expect(read('scripts/ci/iphone-simulator-ready.sh')).toContain(
+    'xcrun simctl bootstatus "$1" -b >/dev/null 2>&1 || xcrun simctl bootstatus "$1" -b >/dev/null',
+  )
   const release = parse(read('.github/workflows/release.yml')) as Workflow
   for (const body of Object.values(release.jobs)) expect(body['runs-on']).not.toBe('xcode-27')
   const select = read('scripts/ci/xcode.sh')
@@ -274,6 +284,7 @@ it('changed-code.sh runs the iPhone UI test for the native screens, the phone pa
     'scripts/ci/iphone-ui-tests.sh',
     'scripts/ci/iphone-ui-shards.ts',
     'scripts/ci/iphone-simulator.ts',
+    'scripts/ci/iphone-simulator-ready.sh',
     'scripts/ci/xcode.sh',
   ]) {
     expect({ path, iphoneUi: iphoneUi([path]) }).toEqual({ path, iphoneUi: true })

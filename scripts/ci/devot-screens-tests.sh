@@ -11,7 +11,7 @@ xcodegen generate --quiet
 device=${DEVOT_SCREENS_SIMULATOR:-${DEVOT_SIMULATOR:-$(xcrun simctl list devices available --json |
   node "$root/scripts/ci/iphone-simulator.ts")}}
 # CI boots the simulator early, in the background; this waits for it, or boots it.
-xcrun simctl bootstatus "$device" -b >/dev/null
+sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
 log=$(mktemp)
 status=0
 xcodebuild test -project DevotScreensTests.xcodeproj -scheme DevotScreensTests \

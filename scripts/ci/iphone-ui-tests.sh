@@ -17,7 +17,6 @@
 set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 bundle=${DEVOT_UI_BUILD:-$root/test-results/iphone-ui-build}
-app_id=io.github.jma49.devot
 step=${1:-all}
 
 build_runner() {
@@ -66,12 +65,14 @@ need_build() {
 # A cold-booted simulator keeps a CI runner busy for minutes, and WebKit's first start in it is the
 # slowest part: tests started then found an empty web view and missed their waits. The app is
 # started once, and the tests wait until the one-minute load is under the core count, for at most
-# DEVOT_UI_SETTLE seconds (240).
+# DEVOT_UI_SETTLE seconds (240). The xcode-27 runner's load stays in the hundreds on 3 cores for
+# all of it (PR #790), so there it is a 4 minute wait; a local run with a booted phone goes on at once.
 settle() {
   need_build
   device=$(simulator)
-  xcrun simctl bootstatus "$device" -b >/dev/null
+  sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
   xcrun simctl install "$device" "$bundle/Devot.app"
+  app_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$bundle/Devot.app/Info.plist")
   xcrun simctl launch "$device" "$app_id" >/dev/null
   cores=$(sysctl -n hw.ncpu)
   limit=${DEVOT_UI_SETTLE:-240}
@@ -99,7 +100,7 @@ run_tests() {
   fi
   echo "tests: ${selection:-all}"
   device=$(simulator)
-  xcrun simctl bootstatus "$device" -b >/dev/null
+  sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
   xcrun simctl install "$device" "$bundle/Devot.app"
   log=$(mktemp)
   # CI uploads the result bundle, with the tests' attachments, when a test fails.
