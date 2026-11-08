@@ -30,6 +30,7 @@ const FOCUS_WAIT_MS = 5000
 
 interface Focusing {
   readonly noteId: string
+  readonly typed: string
   readonly settle: (focused: boolean) => void
 }
 
@@ -97,7 +98,7 @@ export function EditorHost(props: {
       },
       setMode: (mode) => commands.current?.setMode(mode),
       info: () => commands.current?.info(),
-      focus: () =>
+      focus: (typed) =>
         new Promise<boolean>((resolve) => {
           const noteId = typedIn.current
           if (noteId === null) return resolve(false)
@@ -105,6 +106,7 @@ export function EditorHost(props: {
           const timer = setTimeout(() => asked.settle(false), FOCUS_WAIT_MS)
           const asked: Focusing = {
             noteId,
+            typed,
             settle: (focused) => {
               if (focusing.current !== asked) return
               focusing.current = null
@@ -124,7 +126,7 @@ export function EditorHost(props: {
     const { noteId } = asking
     if (shown?.noteId !== noteId || loadedId !== noteId) return
     if (shownMode?.noteId !== noteId || shownMode.mode !== 'edit') return
-    asking.settle(commands.current?.focusBody() ?? false)
+    asking.settle(commands.current?.focusBody(asking.typed) ?? false)
   }, [asking, visible, shown, loadedId, shownMode])
 
   const readyTurn = useRef(0)

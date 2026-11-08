@@ -215,8 +215,8 @@ export interface NoteCommands {
   readonly info: () => void
   /** The screen went: sheets, Find and the keyboard go with it. */
   readonly leave: () => void
-  /** Puts the caret at the start of the body, in Edit only; whether it took it. */
-  readonly focusBody: () => boolean
+  /** Puts the caret at the start of the body, in Edit only, and types `typed` there; whether it took it. */
+  readonly focusBody: (typed: string) => boolean
 }
 
 /**
@@ -419,10 +419,12 @@ export function PhoneNote(props: {
       else turn()
     },
     info: () => setSheet('info'),
-    focusBody: () => {
+    focusBody: (typed) => {
       const shown = editor.current
       if (!editing || mode !== 'edit' || !shown) return false
       shown.focusStart()
+      // By code unit: a character outside the BMP comes back whole as its two halves join.
+      if (typed) shown.type(typed.split('').map((key) => ({ key, shift: false })))
       return true
     },
     leave: () => {

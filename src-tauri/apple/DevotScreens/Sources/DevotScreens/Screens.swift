@@ -422,8 +422,8 @@ final class Screens: SettingsBridge {
                 guard let self else { return }
                 run(tabModel.appeared(tab))
             },
-            focus: { [weak self] screen in
-                self?.request(.editorFocus) { outcome in
+            focus: { [weak self] screen, typed in
+                self?.request(.editorFocus, typed.isEmpty ? [:] : ["typed": .string(typed)]) { outcome in
                     guard case .ok(let result) = outcome, result["focused"]?.bool == true else {
                         return screen.focusRefused()
                     }

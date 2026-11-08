@@ -126,6 +126,19 @@ final class NewNoteFlowTests: XCTestCase {
         XCTAssertEqual(rust.lines.filter { $0.hasPrefix("W_") }, [])
     }
 
+    func testLettersTypedBeforeTheCaretAreHandedToThePageWithTheFocus() throws {
+        deliver(#"{"v":1,"notice":"note.new"}"#)
+        let screen = try XCTUnwrap(navigation.topViewController as? EditorScreen)
+        settle(until: { screen.view.subviews.contains { $0 is UITextField && $0.isFirstResponder } })
+        let field = try XCTUnwrap(screen.view.subviews.compactMap { $0 as? UITextField }.first)
+        field.insertText("Shop")
+        try answer(.noteCreate, .ok(.object(["id": .string(made), "rev": .number(3)])))
+        settle(1)
+        let focus = try XCTUnwrap(try requests().last { $0.op == .editorFocus })
+        XCTAssertEqual(focus.args, ["typed": .string("Shop")])
+        XCTAssertEqual(field.text ?? "", "", "the field keeps nothing once the page has it")
+    }
+
     func testANewNoteWithoutANotebookAsksForAnUnfiledOne() throws {
         deliver(#"{"v":1,"notice":"note.new"}"#)
         XCTAssertEqual(try requests().last?.op, .noteCreate)

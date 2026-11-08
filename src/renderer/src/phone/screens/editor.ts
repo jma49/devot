@@ -9,8 +9,11 @@ export interface NativeEditor {
   readonly hide: () => Promise<void>
   readonly setMode: (mode: EditorMode) => void
   readonly info: () => void
-  /** Whether the body of a note shown to be typed in took the caret; the keyboard is up by now. */
-  readonly focus: () => Promise<boolean>
+  /**
+   * Whether the body of a note shown to be typed in took the caret; the keyboard is up by now.
+   * `typed`, what the native field took before, goes in at the caret.
+   */
+  readonly focus: (typed: string) => Promise<boolean>
 }
 
 const invalid = () => new Error('E_SCREENS_ARGS_INVALID')
@@ -51,6 +54,10 @@ export function editorHandlers(
       editor()?.info()
       return {}
     },
-    'editor.focus': async () => ({ focused: (await editor()?.focus()) ?? false }),
+    'editor.focus': async (args) => {
+      const typed = args['typed'] ?? ''
+      if (typeof typed !== 'string') throw invalid()
+      return { focused: (await editor()?.focus(typed)) ?? false }
+    },
   }
 }
