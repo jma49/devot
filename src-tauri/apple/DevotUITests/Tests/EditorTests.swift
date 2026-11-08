@@ -152,16 +152,20 @@ final class EditorTests: XCTestCase {
         let sentence = "Inline math sits in a sentence, like"
         let math = page.staticTexts[sentence]
         let reached = scrollUntil { math.exists && math.isHittable }
-        // WebKit hands each drawn <math> to accessibility as one element without a label (VoiceOver
-        // reads it through the math API), so a formula is a bare leaf where TeX would be text.
-        func isFormula(_ node: XCUIElementSnapshot) -> Bool {
-            node.elementType == .other && node.label.isEmpty && node.children.isEmpty && !node.frame.isEmpty
+        // WebKit hands each drawn <math> to accessibility as an element without a label (VoiceOver
+        // reads it through the math API): a bare leaf on iOS 26, and on iOS 27 a tree whose text leaves
+        // are its tokens, here the formula's glyphs in reading order. TeX left as text is one run.
+        func isFormula(_ node: XCUIElementSnapshot, drawing glyphs: String) -> Bool {
+            guard node.elementType == .other, node.label.isEmpty, !node.frame.isEmpty else { return false }
+            if node.children.isEmpty { return true }
+            let tokens = flattened(node).filter { $0.elementType == .staticText }.map(\.label)
+            return tokens.count > 1 && tokens.joined() == glyphs
         }
         let tree = try page.snapshot()
         let found = path(in: tree) { $0.elementType == .staticText && $0.label == sentence }
         let paragraph = found.count >= 3 ? found[found.count - 2] : nil
         let body = found.count >= 3 ? found[found.count - 3].children : []
-        let inline = paragraph?.children.filter(isFormula) ?? []
+        let inline = paragraph?.children.filter { isFormula($0, drawing: "E=mc2") } ?? []
         // The note's blocks between the sentence's paragraph and the Diagrams heading.
         let after = body.firstIndex { $0 as AnyObject === paragraph as AnyObject }
             .map { $0 + 1 } ?? body.endIndex
@@ -171,12 +175,13 @@ final class EditorTests: XCTestCase {
             nodes.filter { $0.label.contains(text) }.count
         }
         let tex = shown("\\int") + shown("mc^2") + shown("$E")
-        let drawn = inline.count == 1 && display.count == 1 && display.allSatisfy(isFormula)
+        let displayed = display.count == 1 && isFormula(display[0], drawing: "\u{222B}01x2dx=13")
+        let drawn = inline.count == 1 && displayed
         if !reached || !drawn || tex > 0 { keepTree(from: sentence) }
         XCTAssertTrue(reached, "the Math section is on screen")
         XCTAssertEqual(inline.count, 1, "the inline formula is drawn in its sentence")
         XCTAssertEqual(display.count, 1, "one block between the sentence and the Diagrams heading")
-        XCTAssertTrue(display.allSatisfy(isFormula), "the display formula is drawn on its own line")
+        XCTAssertTrue(displayed, "the display formula is drawn on its own line")
         XCTAssertEqual(shown("\\int"), 0, "no display formula left as TeX")
         XCTAssertEqual(shown("mc^2"), 0, "no inline formula left as TeX")
         XCTAssertEqual(shown("$E"), 0, "no inline formula left between dollar signs")

@@ -64,7 +64,6 @@ it('every cargo step of the CI rust job is a step of pnpm rust:check', () => {
 it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () => {
   // No other job builds the Mac's or the phone's `cfg` branches, and they need Apple's SDK.
   const ios = job('ios-check')
-  expect(ios).toContain('runs-on: macos-')
   expect(commands(ios)).toContain('cargo clippy --all-targets -- -D warnings')
   expect(ios).toContain("needs.changes.outputs.rust != 'false'")
   expect(ios).toContain("needs.changes.outputs.docs_only != 'true'")
@@ -74,59 +73,202 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
     'cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings',
   )
   const gate = job('rust')
-  expect(gate).toContain('needs: [changes, rust-check, ios-check, ios-app, iphone-ui, deny]')
+  expect(gate).toContain(
+    'needs: [changes, rust-check, ios-check, ios-app, storekit, iphone-build, iphone-ui, deny]',
+  )
   expect(gate).toContain('IOS: ${{ needs.ios-check.result }}')
   expect(gate).toContain('IOS_APP: ${{ needs.ios-app.result }}')
+  expect(gate).toContain('STOREKIT: ${{ needs.storekit.result }}')
+  expect(gate).toContain('IPHONE_BUILD: ${{ needs.iphone-build.result }}')
   expect(gate).toContain('IPHONE_UI: ${{ needs.iphone-ui.result }}')
-  expect(gate).toContain('for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$IPHONE_UI" "$DENY"')
+  expect(gate).toContain(
+    'for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$STOREKIT" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"',
+  )
+})
+
+type Job = { 'runs-on'?: string; if?: string; env?: Record<string, string>; steps: Step[] }
+type Workflow = { env?: Record<string, string>; jobs: Record<string, Job> }
+const appleTools =
+  /\b(?:xcrun|xcodebuild|swiftc|cargo|tauri|xcodegen)\b|scripts\/ci\/(?:devot|iphone)-/
+
+it('builds and tests the iPhone app with the pinned Xcode on its iOS simulator, and ships that build', () => {
+  // The iOS 27 SDK and simulators exist only on the xcode-27 image; the Mac release stays on macos-26.
+  const ci = parse(workflow) as Workflow
+  expect(ci.env).toEqual({ DEVOT_XCODE: '/Applications/Xcode_27.2.app', DEVOT_IOS: '27.2' })
+  const store = parse(read('.github/workflows/app-store.yml')) as Workflow
+  expect(store.env?.['DEVOT_XCODE']).toBe(ci.env?.['DEVOT_XCODE'])
+  const iphoneJobs: [string, Job][] = [
+    ...['ios-check', 'ios-app', 'iphone-build', 'iphone-ui'].map((name): [string, Job] => [
+      name,
+      ci.jobs[name]!,
+    ]),
+    ...['build', 'export'].map((name): [string, Job] => [`app-store ${name}`, store.jobs[name]!]),
+  ]
+  for (const [name, body] of iphoneJobs) {
+    const runs = body.steps.map((step) => step.run ?? '')
+    const select = runs.findIndex((run) => /^sh (?:\.\.\/)?scripts\/ci\/xcode\.sh$/.test(run))
+    const firstTool = runs.findIndex((run) => appleTools.test(run))
+    expect({
+      name,
+      image: body['runs-on'],
+      select,
+      beforeTools: select < firstTool || firstTool < 0,
+    }).toEqual({ name, image: 'xcode-27', select: expect.any(Number), beforeTools: true })
+    expect(select).toBeGreaterThanOrEqual(0)
+  }
+  for (const name of ['ios-app', 'iphone-ui']) {
+    const boot = ci.jobs[name]!.steps.find((step) => step.run?.includes('xcrun simctl boot'))?.run
+    expect(boot).toContain('node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS"')
+    expect(boot).toMatch(/echo "DEVOT_SIMULATOR=\$\w+" >> "\$GITHUB_ENV"/)
+  }
+  // A wait started while that background boot runs can fail with "current state: Booted"; the
+  // test scripts wait through the helper, which tries once more.
+  for (const script of ['devot-store-tests.sh', 'devot-screens-tests.sh', 'iphone-ui-tests.sh']) {
+    const text = read(`scripts/ci/${script}`)
+    expect({ script, bare: text.includes('bootstatus') }).toEqual({ script, bare: false })
+    expect(text).toContain('sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"')
+  }
+  expect(read('scripts/ci/iphone-simulator-ready.sh')).toContain(
+    'xcrun simctl bootstatus "$1" -b >/dev/null 2>&1 || xcrun simctl bootstatus "$1" -b >/dev/null',
+  )
+  const release = parse(read('.github/workflows/release.yml')) as Workflow
+  for (const body of Object.values(release.jobs)) expect(body['runs-on']).not.toBe('xcode-27')
+  const select = read('scripts/ci/xcode.sh')
+  expect(select).toContain('sudo xcode-select -s "$xcode/Contents/Developer"')
+  expect(select).toContain('E_CI_XCODE_MISSING')
+  expect(select).toContain('E_CI_XCODE_VERSION')
+})
+
+it('builds the iPhone app once per run, in iphone-build, and the UI test shards only run it', () => {
+  const ci = parse(workflow) as Workflow & {
+    jobs: Record<string, Job & { needs?: string[] }>
+  }
+  const builds = Object.entries(ci.jobs).flatMap(([name, body]) =>
+    body.steps.filter((step) => step.run?.startsWith('pnpm tauri ios build ')).map(() => name),
+  )
+  expect(builds).toEqual(['iphone-build'])
+  expect(ci.jobs['iphone-build']!.if).toBe(
+    "needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'",
+  )
+  const shards = ci.jobs['iphone-ui']!
+  expect(shards.needs).toEqual(['changes', 'iphone-build'])
+  expect(shards.if).toContain("needs.changes.outputs.iphone_ui != 'false'")
+  // A shard gets the app and the test runner from the artifact: no install, Rust or app build.
+  const runs = shards.steps.map((step) => step.run ?? '').join('\n')
+  expect(runs).not.toMatch(/pnpm|cargo|rustup|xcodegen|tauri|build-for-testing/)
+  for (const action of ['pnpm/action-setup@', 'Swatinem/rust-cache@']) {
+    expect(shards.steps.some((step) => step.uses?.startsWith(action))).toBe(false)
+  }
+  expect(ci.jobs['ios-app']!.steps.some((step) => /pnpm|tauri|rustup/.test(step.run ?? ''))).toBe(
+    false,
+  )
+  // The runner and the artifact are made only when the shards run, which needs the Rust jobs too.
+  const handOver = ci.jobs['iphone-build']!.steps.filter(
+    (step) => step.run?.includes('iphone-ui') || step.uses?.startsWith('actions/upload-artifact@'),
+  )
+  expect(handOver.map((step) => step.if)).toEqual(
+    Array(3).fill("needs.changes.outputs.iphone_ui != 'false'"),
+  )
+  for (const path of [
+    'src-tauri/apple/DevotScreens/Sources/DevotScreens/Screens.swift',
+    'src/renderer/src/phone/PhoneApp.tsx',
+    'scripts/ci/iphone-ui-tests.sh',
+    'tests/fixtures/screens/valid/request-tabs-show.json',
+  ]) {
+    expect({ path, rust: iphoneUi([path]) && changedCode([path]).includes('rust=true') }).toEqual({
+      path,
+      rust: true,
+    })
+  }
+})
+
+it('hands the app and the test runner to the shards as one small, short-lived artifact', () => {
+  const build = job('iphone-build')
+  expect(commands(build)).toContain('sh scripts/ci/iphone-ui-tests.sh build')
+  expect(build).toContain(
+    'tar -C test-results -cf - iphone-ui-build | zstd -T0 -10 -q -o "$RUNNER_TEMP/iphone-ui-build.tar.zst"',
+  )
+  const upload = build.slice(build.indexOf('actions/upload-artifact@'))
+  expect(upload).toContain('name: iphone-ui-build')
+  expect(upload).toContain('compression-level: 0')
+  expect(upload).toContain('retention-days: 1')
+  const ui = job('iphone-ui')
+  expect(ui.slice(ui.indexOf('actions/download-artifact@'))).toContain('name: iphone-ui-build')
+  expect(commands(ui)).toEqual(
+    expect.arrayContaining([
+      'mkdir -p test-results',
+      'zstd -dc "$RUNNER_TEMP/iphone-ui-build.tar.zst" | tar -C test-results -xf -',
+      'sh scripts/ci/iphone-ui-tests.sh settle',
+      'sh scripts/ci/iphone-ui-tests.sh test',
+    ]),
+  )
+  // A cold-booted simulator is still busy when the download is done; tests started then miss
+  // their waits, so the shard waits for the app's first start and the machine's load first.
+  const shardCommands = commands(ui)
+  expect(shardCommands.indexOf('sh scripts/ci/iphone-ui-tests.sh settle')).toBeLessThan(
+    shardCommands.indexOf('sh scripts/ci/iphone-ui-tests.sh test'),
+  )
+  const script = read('scripts/ci/iphone-ui-tests.sh')
+  expect(script).toContain('bundle=${DEVOT_UI_BUILD:-$root/test-results/iphone-ui-build}')
+  expect(script).toContain('xcodebuild build-for-testing')
+  expect(script).toContain('xcodebuild test-without-building -xctestrun "$xctestrun"')
+  // A one-off stall reruns the test once; a test that fails twice still fails the job.
+  expect(script).toContain('-retry-tests-on-failure -test-iterations 2')
+  expect(read('scripts/ci/devot-screens-tests.sh')).toContain(
+    '-retry-tests-on-failure -test-iterations 2',
+  )
 })
 
 it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust gate waits for both', () => {
   // StoreKit Test runs only inside an app, on Apple's SDK; only the full iPhone build links the
   // Swift package into the app.
   const app = job('ios-app')
-  expect(app).toContain('runs-on: macos-')
-  expect(app).toContain("needs.changes.outputs.rust != 'false'")
-  expect(app).toContain("needs.changes.outputs.docs_only != 'true'")
+  const storeKit = job('storekit')
+  const build = job('iphone-build')
+  for (const body of [app, storeKit]) {
+    expect(body).toContain("needs.changes.outputs.rust != 'false'")
+    expect(body).toContain("needs.changes.outputs.docs_only != 'true'")
+  }
+  expect(storeKit).toContain('runs-on: macos-26')
+  expect(commands(storeKit)).toEqual([
+    'brew install xcodegen',
+    'sh scripts/ci/devot-store-tests.sh',
+  ])
   const steps = commands(app)
   expect(steps).toContain('brew install xcodegen')
-  expect(steps).toContain('sh scripts/ci/devot-store-tests.sh')
   expect(steps).toContain('sh scripts/ci/devot-screens-tests.sh')
   expect(steps).toContain('sh scripts/ci/devot-screens-release-check.sh')
-  expect(steps).toContain('rustup toolchain install')
-  const build = steps.find((step) => step.startsWith('pnpm tauri ios build '))
-  expect(build).toContain('--debug --target aarch64-sim')
-  // The app embeds a placeholder page, as in the other Rust jobs: no UI build.
-  expect(build).toContain('"beforeBuildCommand":""')
-  expect(app).toContain('dist/index.html')
-  expect(app).not.toMatch(/ui:build|ui:release|vite build/)
+  expect(build).toContain("needs.changes.outputs.rust != 'false'")
+  expect(commands(build)).toEqual(
+    expect.arrayContaining([
+      'rustup toolchain install',
+      'pnpm tauri ios build --debug --target aarch64-sim',
+    ]),
+  )
   const script = read('scripts/ci/devot-store-tests.sh')
   expect(script).toContain('src-tauri/apple/DevotStore/TestHost')
   expect(script).toContain('xcodegen generate')
   expect(script).toContain('xcodebuild test')
   expect(script).toContain('-scheme DevotStoreTests')
+  expect(script).toContain('-maximum-test-execution-time-allowance 120')
 })
 
 it('launches the real iPhone app with its built UI in a simulator, switches the tabs and audits them', () => {
   // The only job that runs the shipping app: the screens' XCTests run in an empty host app.
   const ui = job('iphone-ui')
-  expect(ui).toContain('runs-on: macos-26')
-  expect(ui).toContain('timeout-minutes: 40')
+  const build = job('iphone-build')
+  expect(ui).toContain('timeout-minutes: 20')
   expect(ui).toMatch(
     /^ {4}if: needs\.changes\.outputs\.iphone_ui != 'false' && needs\.changes\.outputs\.docs_only != 'true'$/m,
   )
-  const steps = commands(ui)
-  expect(steps).toEqual(
-    expect.arrayContaining([
-      'brew install xcodegen',
-      'rustup toolchain install',
-      'sh scripts/ci/iphone-ui-tests.sh',
-    ]),
+  expect(commands(ui)).toContain('sh scripts/ci/iphone-ui-tests.sh test')
+  expect(commands(build)).toEqual(
+    expect.arrayContaining(['brew install xcodegen', 'sh scripts/ci/iphone-ui-tests.sh build']),
   )
   // Tauri's beforeBuildCommand, the release UI build, is kept: the app shows the real page.
-  expect(steps).toContain('pnpm tauri ios build --debug --target aarch64-sim')
+  expect(commands(build)).toContain('pnpm tauri ios build --debug --target aarch64-sim')
   expect(read('src-tauri/tauri.conf.json')).toContain('"beforeBuildCommand": "pnpm ui:release"')
-  expect(ui).not.toContain('dist/index.html')
+  expect(build).not.toContain('dist/index.html')
   expect(job('changes')).toContain('iphone_ui: ${{ steps.diff.outputs.iphone_ui }}')
   expect(job('changes')).toContain(
     "printf 'web=true\\nrust=true\\ndocs_only=false\\niphone_ui=true\\n'",
@@ -135,14 +277,15 @@ it('launches the real iPhone app with its built UI in a simulator, switches the 
   expect(script).toContain('src-tauri/apple/DevotUITests')
   expect(script).toContain('xcodegen generate')
   expect(script).toContain('xcrun simctl install')
-  expect(script).toContain('xcodebuild test')
-  expect(script).toContain('-scheme DevotUITests')
+  expect(script).toContain(
+    'xcodebuild build-for-testing -project DevotUITests.xcodeproj -scheme DevotUITests',
+  )
   // A failing run keeps its result bundle, with each test's attachments, as the evidence.
   expect(script).toContain('results="$root/test-results/iphone-ui.xcresult"')
   expect(script).toContain('-resultBundlePath "$results"')
   const upload = ui.slice(ui.indexOf('- if: failure()'))
   expect(upload).toMatch(/^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # v/m)
-  expect(upload).toContain('name: iphone-ui-xcresult')
+  expect(upload).toContain('name: iphone-ui-xcresult-${{ matrix.shard }}')
   expect(upload).toContain('path: test-results/iphone-ui.xcresult/')
   const tests = read('src-tauri/apple/DevotUITests/Tests/TabsTests.swift')
   expect(tests).toContain('performAccessibilityAudit')
@@ -161,6 +304,10 @@ it('changed-code.sh runs the iPhone UI test for the native screens, the phone pa
     'src/renderer/src/phone/PhoneApp.tsx',
     'tests/fixtures/screens/valid/request-tabs-show.json',
     'scripts/ci/iphone-ui-tests.sh',
+    'scripts/ci/iphone-ui-shards.ts',
+    'scripts/ci/iphone-simulator.ts',
+    'scripts/ci/iphone-simulator-ready.sh',
+    'scripts/ci/xcode.sh',
   ]) {
     expect({ path, iphoneUi: iphoneUi([path]) }).toEqual({ path, iphoneUi: true })
   }
@@ -244,7 +391,7 @@ it('documentation-only pull requests skip heavy jobs but still report every requ
   }
 })
 
-type Step = { if?: string; run?: string }
+type Step = { if?: string; run?: string; uses?: string; with?: Record<string, string> }
 const policySteps = () =>
   (parse(workflow) as { jobs: Record<string, { if?: string; steps: Step[] }> }).jobs[
     'policy-check'
@@ -278,6 +425,33 @@ it('uses the setup caches only where the job installs those dependencies', () =>
   expect(rust).toContain('workspaces: src-tauri')
   expect(rust).toContain("save-if: ${{ github.ref == 'refs/heads/main' }}")
   expect(job('deny')).not.toContain('Swatinem/rust-cache@')
+})
+
+it('the iPhone build reuses Rust caches only main writes, per Xcode build, which no release build shares', () => {
+  const ci = parse(workflow) as Workflow
+  const rust = ci.jobs['iphone-build']!.steps.find((step) =>
+    step.uses?.startsWith('Swatinem/rust-cache@'),
+  )
+  expect(rust?.with).toEqual({
+    workspaces: 'src-tauri',
+    'shared-key': 'iphone-sim',
+    key: 'xcode-${{ env.DEVOT_XCODE_BUILD }}',
+    'save-if': "${{ github.ref == 'refs/heads/main' }}",
+  })
+  expect(read('scripts/ci/xcode.sh')).toContain('echo "DEVOT_XCODE_BUILD=')
+  for (const file of ['release.yml', 'app-store.yml']) {
+    const text = read(`.github/workflows/${file}`)
+    expect({ file, shared: text.includes('shared-key:') }).toEqual({ file, shared: false })
+  }
+  // pnpm's metadata cache holds its supply-chain verdict on the lockfile, so an unchanged one is not checked again.
+  const build = job('iphone-build')
+  const restore = build.indexOf('id: pnpm-metadata')
+  const install = build.indexOf('run: pnpm install --frozen-lockfile')
+  expect(restore).toBeGreaterThan(build.indexOf('id: pnpm-cache-path'))
+  expect(install).toBeGreaterThan(restore)
+  expect(build.slice(restore, install)).toContain(
+    "key: pnpm-metadata-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}",
+  )
 })
 
 it('reuses the browser packages but still installs them, and saves them once from main', () => {

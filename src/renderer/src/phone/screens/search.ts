@@ -60,15 +60,13 @@ export function titlesOnly(query: string): string {
 }
 
 /** Rust has checked the query's length and its scope (`screens::message`). */
-export function searchHandlers(core: () => SearchCore | null): ScreensHandlers {
+export function searchHandlers(core: () => Promise<SearchCore>): ScreensHandlers {
   return {
     search: async (args) => {
-      const found = core()
-      if (!found) throw new Error('E_SCREENS_UNAVAILABLE')
       const typed = String(args['query'])
       const query = args['scope'] === 'titles' ? titlesOnly(typed) : typed
       if (parseSearch(query).length === 0) return { rows: [], capped: false }
-      const result = await found.search(query, undefined, { flush: true })
+      const result = await (await core()).search(query, undefined, { flush: true })
       return { rows: result.found, capped: result.capped }
     },
   }

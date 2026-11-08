@@ -85,7 +85,11 @@ export function useTestPhoneData(): PhoneStore {
     setData({ ...EMPTY, core, ...listed, books, tags, trash, loadedAt: Date.now() })
   }, [])
   useEffect(() => void Promise.resolve().then(refresh), [refresh])
-  return { ...data, refresh, onTakenIn: () => () => {} }
+  const started = useCallback(
+    async () => shownCore ?? Promise.reject(new Error('E_SCREENS_UNAVAILABLE')),
+    [],
+  )
+  return { ...data, refresh, onTakenIn: () => () => {}, started }
 }
 
 export interface ShownEditor {

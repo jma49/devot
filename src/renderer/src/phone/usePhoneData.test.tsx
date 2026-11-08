@@ -11,6 +11,7 @@ vi.hoisted(() => Object.assign(globalThis, { DEVOT_UI_TEST: true }))
 const NOTE = { id: 'n1', title: 'From the Mac' }
 let stored: { id: string; title: string }[] = []
 const calls: string[] = []
+let starting: 'started' | 'failed' = 'started'
 let takenIn: ((change: TakenIn) => void) | undefined
 
 const core = {
@@ -33,6 +34,7 @@ vi.mock('../backups', () => ({ listBackups: async () => ({ backups: [] }) }))
 vi.mock('../core-client', () => ({
   startCore: async (_problems: unknown, _writes: unknown, _failed: unknown, windowed: unknown) => {
     takenIn = (windowed as { onTakenIn?: (change: TakenIn) => void } | undefined)?.onTakenIn
+    if (starting === 'failed') throw new Error('E_CORE_START')
     return core
   },
   stopCore: () => {},
@@ -42,6 +44,20 @@ afterEach(() => {
   unmountAll()
   stored = []
   calls.length = 0
+  starting = 'started'
+})
+
+it('hands the native screens the core once it has started and the lists are read', async () => {
+  const data = renderHook(() => usePhoneData(), { props: {} })
+  const started = data.current.started()
+  expect(await started).toBe(core)
+  expect(calls).toContain('listed')
+})
+
+it('refuses the native screens the core when it failed to start', async () => {
+  starting = 'failed'
+  const data = renderHook(() => usePhoneData(), { props: {} })
+  await expect(data.current.started()).rejects.toThrow('E_SCREENS_UNAVAILABLE')
 })
 
 it('merges what sync wrote into the notes in memory, saves them, then reloads the lists', async () => {

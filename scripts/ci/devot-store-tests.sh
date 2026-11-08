@@ -2,35 +2,24 @@
 # CI helper: runs the StoreKit bridge's tests (src-tauri/apple/DevotStore) on an iPhone simulator.
 # StoreKit Test runs only inside an app, so XcodeGen makes a test project with an empty host app
 # from TestHost/project.yml; the project is generated here and never committed.
-# The newest iPhone runtime is used, except two whose StoreKit Test is broken under xcodebuild
-# (FB22237318): iOS 26.4 refuses SKTestSession's configuration even for a development build, and
-# iOS 26.5 leaves a fresh purchase out of the current entitlements until the next sync.
-# DEVOT_STORE_SIMULATOR picks a simulator by UDID instead.
+# The simulator is scripts/ci/iphone-simulator.ts's pick, which leaves out the iOS versions whose
+# StoreKit Test is broken; DEVOT_STORE_SIMULATOR, or DEVOT_SIMULATOR, picks one by UDID instead.
 set -eu
-cd "$(dirname "$0")/../../src-tauri/apple/DevotStore/TestHost"
+root=$(cd "$(dirname "$0")/../.." && pwd)
+cd "$root/src-tauri/apple/DevotStore/TestHost"
 xcodegen generate --quiet
-device=${DEVOT_STORE_SIMULATOR:-$(xcrun simctl list devices available --json | node -e '
-  const { devices } = JSON.parse(require("fs").readFileSync(0, "utf8"))
-  const version = (runtime) => (runtime.match(/iOS-(\d+)-(\d+)/) ?? []).slice(1).map(Number)
-  const newer = (a, b) => version(b)[0] - version(a)[0] || version(b)[1] - version(a)[1]
-  const phones = (runtime) => devices[runtime].filter((d) => d.name.startsWith("iPhone"))
-  const runtimes = Object.keys(devices).filter((r) => r.includes(".iOS-") && phones(r).length).sort(newer)
-  console.error(`iPhone runtimes: ${runtimes.map((r) => version(r).join(".")).join(", ")}`)
-  const broken = (r) => ["26.4", "26.5"].includes(version(r).join("."))
-  const runtime = runtimes.find((r) => !broken(r))
-  if (!runtime) {
-    console.error("no iPhone runtime whose StoreKit Test works under xcodebuild; install one (iOS 26.2 is known good)")
-    process.exit(1)
-  }
-  const phone = phones(runtime)[0]
-  console.error(`StoreKit tests on ${phone.name}, iOS ${version(runtime).join(".")}`)
-  console.log(phone.udid)
-')}
+device=${DEVOT_STORE_SIMULATOR:-${DEVOT_SIMULATOR:-$(xcrun simctl list devices available --json |
+  node "$root/scripts/ci/iphone-simulator.ts" --storekit)}}
+# CI boots the simulator early, in the background; this waits for it, or boots it.
+sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
 log=$(mktemp)
 start=$(date '+%Y-%m-%d %H:%M:%S')
 status=0
+# A test that hangs fails after two minutes instead of holding the job to its timeout.
 xcodebuild test -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
-  -destination "id=$device" >"$log" 2>&1 || status=$?
+  -destination "id=$device" -test-timeouts-enabled YES \
+  -default-test-execution-time-allowance 60 -maximum-test-execution-time-allowance 120 \
+  >"$log" 2>&1 || status=$?
 grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" "$log" || tail -n 60 "$log"
 rm -f "$log"
 if [ "$status" -ne 0 ]; then

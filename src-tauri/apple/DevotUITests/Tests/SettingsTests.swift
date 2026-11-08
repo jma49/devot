@@ -283,6 +283,11 @@ final class SettingsTests: XCTestCase {
         let handle = { (issue: XCUIAccessibilityAuditIssue) -> Bool in
             if Self.systemControl(issue) { return true }
             let element = issue.element
+            // CI's iOS 27.2 reported one with no element and no frame (PR #790), which names nothing to find or fix.
+            if issue.auditType == .textClipped && element == nil {
+                print("audit issue without an element: \(issue.compactDescription)")
+                return true
+            }
             let frame = element?.frame ?? .null
             // An element is found again by its type and label, so one without a label cannot be deferred.
             if issue.auditType == .contrast, let element, !element.label.isEmpty, !frame.isNull, !clear.contains(frame) {
