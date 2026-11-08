@@ -8,94 +8,174 @@
 //! and its unsaved edits stay; a quit from the menu bar icon runs this handshake too.
 //! Every window with a core of its own (each main window, each note window: `note_relay::may_relay`)
 //! saves, and the app exits once all of them have reported back.
+//! Each held quit has a round, which its events carry and every answer names, so an answer to a
+//! quit called off since counts for nothing in the next one.
 //! Closing a main window quits only when it is the last one shown (`on_close`): another main window
 //! shown keeps the app running, and then `main`, which hosts the mirror, hides rather than closes
 //! while any other main window closes after saving (`main_windows`).
 
 use crate::MAIN_WINDOW;
+use serde::Serialize;
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Condvar, Mutex, PoisonError};
+use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Env, Manager, RunEvent, Window, WindowEvent};
 
 pub const FLUSH_EVENT: &str = "devot://flush-before-exit";
 /// A held quit was called off: windows that already stopped what they had running (the Markdown
-/// mirror) start it again.
+/// mirror, an import) start it again.
 pub const EXIT_CANCELLED_EVENT: &str = "devot://exit-cancelled";
 const FLUSH_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// What both events carry: the quit's round.
+#[derive(Clone, Serialize)]
+struct Round {
+    round: u64,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+enum QuitPhase {
+    #[default]
+    Running,
+    /// A quit waits while these windows save.
+    Held {
+        round: u64,
+        waiting: HashSet<String>,
+    },
+    /// The exit has begun; it begins once.
+    Exiting { restart: bool },
+    /// The app has exited, so background loops end.
+    Stopped,
+}
+
+#[derive(Default)]
+struct Quit {
+    phase: QuitPhase,
+    /// How many quits were held: each took the next round, from 1.
+    rounds: u64,
+}
+
+/// A window's save for the quit of a round.
+#[derive(Debug, PartialEq, Eq)]
+enum Saved {
+    Waiting,
+    /// It was the last window the quit waited for: the app exits.
+    Done,
+    /// That quit is no longer held: called off since, or the app exits already.
+    Late,
+}
+
 #[derive(Default)]
 pub struct ExitGate {
-    ready: AtomicBool,
-    restart: AtomicBool,
-    /// The round of the quit held while the UI saves (rounds count from 1), or 0 when none is.
-    held: AtomicU64,
-    rounds: AtomicU64,
-    /// The windows the held quit waits for.
-    waiting: Mutex<HashSet<String>>,
-    /// Set once the app exits, so background loops end instead of sleeping through it.
-    stopped: Mutex<bool>,
-    stop: Condvar,
+    quit: Mutex<Quit>,
+    stopped: Condvar,
 }
 
 impl ExitGate {
+    fn quit(&self) -> MutexGuard<'_, Quit> {
+        crate::locks::lock(&self.quit)
+    }
+
     /// Holds a quit while the windows in `savers` save: its round, or None when one is held already or the app is exiting.
     fn begin(&self, savers: HashSet<String>) -> Option<u64> {
-        if self.ready.load(Ordering::SeqCst) {
+        let mut quit = self.quit();
+        if quit.phase != QuitPhase::Running {
             return None;
         }
-        let round = self.rounds.fetch_add(1, Ordering::SeqCst) + 1;
-        let mut waiting = crate::locks::lock(&self.waiting);
-        let begun = self
-            .held
-            .compare_exchange(0, round, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok();
-        if !begun {
-            return None;
-        }
-        *waiting = savers;
+        quit.rounds += 1;
+        let round = quit.rounds;
+        quit.phase = QuitPhase::Held {
+            round,
+            waiting: savers,
+        };
         Some(round)
     }
 
-    /// `label` has saved (or is gone): whether the held quit waits for no window now.
-    fn saved(&self, label: &str) -> bool {
-        let mut waiting = crate::locks::lock(&self.waiting);
-        waiting.remove(label);
-        self.asked() && waiting.is_empty()
+    /// Whether a quit was ever held with `round`, the only rounds a window can answer for.
+    fn handed_out(&self, round: u64) -> bool {
+        (1..=self.quit().rounds).contains(&round)
     }
 
-    fn asked(&self) -> bool {
-        self.held.load(Ordering::SeqCst) != 0
+    fn saved(&self, label: &str, round: u64) -> Saved {
+        match &mut self.quit().phase {
+            QuitPhase::Held {
+                round: held,
+                waiting,
+            } if *held == round => {
+                waiting.remove(label);
+                if waiting.is_empty() {
+                    Saved::Done
+                } else {
+                    Saved::Waiting
+                }
+            }
+            _ => Saved::Late,
+        }
+    }
+
+    /// `label` closed: the held quit's round when it was the last window that quit waited for.
+    fn closed(&self, label: &str) -> Option<u64> {
+        let QuitPhase::Held { round, waiting } = &mut self.quit().phase else {
+            return None;
+        };
+        (waiting.remove(label) && waiting.is_empty()).then_some(*round)
+    }
+
+    /// Begins the exit for the quit of `round`: false unless that quit is held, so the exit begins
+    /// once and never for a quit called off.
+    fn exit(&self, round: u64, restart: bool) -> bool {
+        let mut quit = self.quit();
+        if !matches!(quit.phase, QuitPhase::Held { round: held, .. } if held == round) {
+            return false;
+        }
+        quit.phase = QuitPhase::Exiting { restart };
+        true
+    }
+
+    /// Calls off the quit of `round`: false unless that quit is held.
+    fn call_off(&self, round: u64) -> bool {
+        let mut quit = self.quit();
+        if !matches!(quit.phase, QuitPhase::Held { round: held, .. } if held == round) {
+            return false;
+        }
+        quit.phase = QuitPhase::Running;
+        true
+    }
+
+    fn held(&self) -> bool {
+        matches!(self.quit().phase, QuitPhase::Held { .. })
+    }
+
+    fn exiting(&self) -> bool {
+        matches!(
+            self.quit().phase,
+            QuitPhase::Exiting { .. } | QuitPhase::Stopped
+        )
     }
 
     fn quitting(&self) -> bool {
-        self.ready.load(Ordering::SeqCst) || self.asked()
+        self.quit().phase != QuitPhase::Running
     }
 
-    fn call_off(&self) {
-        let mut waiting = crate::locks::lock(&self.waiting);
-        waiting.clear();
-        self.held.store(0, Ordering::SeqCst);
-    }
-
-    fn timed_out(&self, round: u64) -> bool {
-        !self.ready.load(Ordering::SeqCst) && self.held.load(Ordering::SeqCst) == round
-    }
-
-    /// False once the app is exiting, at once if it already is.
+    /// False once the app has exited, at once if it already has.
     fn wait(&self, timeout: Duration) -> bool {
-        let stopped = crate::locks::lock(&self.stopped);
-        let (stopped, _) = self
-            .stop
-            .wait_timeout_while(stopped, timeout, |stopped| !*stopped)
+        let (quit, _) = self
+            .stopped
+            .wait_timeout_while(self.quit(), timeout, |quit| {
+                quit.phase != QuitPhase::Stopped
+            })
             .unwrap_or_else(PoisonError::into_inner);
-        !*stopped
+        quit.phase != QuitPhase::Stopped
     }
 
-    fn stop(&self) {
-        *crate::locks::lock(&self.stopped) = true;
-        self.stop.notify_all();
+    /// The app has exited: whether its own exit asked for a restart.
+    fn stop(&self) -> bool {
+        let mut quit = self.quit();
+        let restart = quit.phase == QuitPhase::Exiting { restart: true };
+        quit.phase = QuitPhase::Stopped;
+        drop(quit);
+        self.stopped.notify_all();
+        restart
     }
 }
 
@@ -117,15 +197,24 @@ enum Decision {
     Hold,
 }
 
-fn decide(exit_code: Option<i32>, ready: bool, already_asked: bool) -> Decision {
-    match (exit_code, ready, already_asked) {
+fn decide(exit_code: Option<i32>, exiting: bool, held: bool) -> Decision {
+    match (exit_code, exiting, held) {
         (Some(_), _, _) | (None, true, _) => Decision::Allow,
         (None, false, false) => Decision::HoldAndAsk,
         (None, false, true) => Decision::Hold,
     }
 }
 
-fn exit_now(app: &AppHandle) {
+/// Exits for the quit of `round`: false, doing nothing, unless that quit is still held.
+fn exit_now(app: &AppHandle, round: u64) -> bool {
+    // Restart to Update restarts into the update it installed (see `updates`).
+    #[cfg(desktop)]
+    let restart = crate::updates::on_exit(app);
+    #[cfg(mobile)]
+    let restart = false;
+    if !app.state::<ExitGate>().exit(round, restart) {
+        return false;
+    }
     #[cfg(desktop)]
     if let Some(windows) = app.try_state::<crate::note_window::NoteWindows>() {
         windows.persist();
@@ -134,15 +223,8 @@ fn exit_now(app: &AppHandle) {
     if let Some(api) = app.try_state::<std::sync::Arc<crate::http_api::HttpApi>>() {
         api.stop_bridge();
     }
-    let gate = app.state::<ExitGate>();
-    // Restart to Update restarts into the update it installed (see `updates`).
-    #[cfg(desktop)]
-    let restart = crate::updates::on_exit(app);
-    #[cfg(mobile)]
-    let restart = false;
-    gate.restart.store(restart, Ordering::SeqCst);
-    gate.ready.store(true, Ordering::SeqCst);
     app.exit(0);
+    true
 }
 
 /// From a quit request until it is called off, and while the app exits. Long work on the database
@@ -155,7 +237,7 @@ pub fn quitting(app: &AppHandle) -> bool {
 /// Once the windows have saved and the app is on its way out.
 pub fn exiting(app: &AppHandle) -> bool {
     app.try_state::<ExitGate>()
-        .is_some_and(|gate| gate.ready.load(Ordering::SeqCst))
+        .is_some_and(|gate| gate.exiting())
 }
 
 /// Tauri's own restart passes on every argument this process was launched with, and a launch
@@ -185,16 +267,15 @@ pub fn request_quit(app: &AppHandle) {
     let Some(round) = app.state::<ExitGate>().begin(savers) else {
         return;
     };
-    if none || app.emit(FLUSH_EVENT, ()).is_err() {
-        exit_now(app);
+    if none || app.emit(FLUSH_EVENT, Round { round }).is_err() {
+        exit_now(app, round);
         return;
     }
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(FLUSH_TIMEOUT);
-        if app.state::<ExitGate>().timed_out(round) {
-            log::warn!("W_EXIT_FLUSH_TIMEOUT");
-            exit_now(&app);
+        if exit_now(&app, round) {
+            log::warn!("W_EXIT_FLUSH_TIMEOUT {round}");
         }
     });
 }
@@ -224,13 +305,14 @@ fn on_close(label: &str, other_main_shown: bool, keep_running: bool) -> OnClose 
 
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
     let app = window.app_handle();
-    if app.state::<ExitGate>().ready.load(Ordering::SeqCst) {
+    let gate = app.state::<ExitGate>();
+    if gate.exiting() {
         return;
     }
     if matches!(event, WindowEvent::Destroyed) {
         // A window that closed while the quit waited has nothing left to save.
-        if app.state::<ExitGate>().saved(window.label()) {
-            exit_now(app);
+        if let Some(round) = gate.closed(window.label()) {
+            exit_now(app, round);
         }
         return;
     }
@@ -267,7 +349,7 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
     match event {
         RunEvent::ExitRequested { api, code, .. } => {
             let gate = app.state::<ExitGate>();
-            match decide(*code, gate.ready.load(Ordering::SeqCst), gate.asked()) {
+            match decide(*code, gate.exiting(), gate.held()) {
                 Decision::Allow => {}
                 Decision::Hold => api.prevent_exit(),
                 Decision::HoldAndAsk => {
@@ -286,7 +368,7 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
 /// by now, so the single-instance socket is gone and a restarted process cannot hand its launch
 /// back to this one.
 fn on_exit(app: &AppHandle) {
-    app.state::<ExitGate>().stop();
+    let restarts = app.state::<ExitGate>().stop();
     if let Some(db) = app.try_state::<crate::storage::Db>() {
         checkpoint_at_exit(db.inner(), EXIT_CHECKPOINT_LIMIT);
     }
@@ -294,7 +376,7 @@ fn on_exit(app: &AppHandle) {
     if let Some(api) = app.try_state::<std::sync::Arc<crate::http_api::HttpApi>>() {
         api.stop_bridge();
     }
-    if app.state::<ExitGate>().restart.load(Ordering::SeqCst) {
+    if restarts {
         restart(app);
     }
 }
@@ -314,26 +396,47 @@ fn checkpoint_at_exit(db: &crate::storage::Db, limit: Duration) -> bool {
     checkpointed
 }
 
-/// A window saved for the quit; the app exits once every window has.
-#[tauri::command]
-pub fn app_exit_ready(app: AppHandle, window: tauri::WebviewWindow) {
-    let gate = app.state::<ExitGate>();
-    if !gate.asked() {
-        // Late, for a quit called off since.
-        log::warn!("W_EXIT_READY_UNASKED");
-        return;
-    }
-    if gate.saved(window.label()) {
-        exit_now(&app);
+fn handed_out(app: &AppHandle, round: u64) -> Result<(), String> {
+    if app.state::<ExitGate>().handed_out(round) {
+        Ok(())
+    } else {
+        Err("E_EXIT_ROUND".into())
     }
 }
 
+/// A window saved for the quit of `round`; the app exits once every window has.
 #[tauri::command]
-pub fn app_exit_cancel(app: AppHandle, window: tauri::WebviewWindow) {
-    log::warn!("W_EXIT_CALLED_OFF");
-    app.state::<ExitGate>().call_off();
-    // A window that had already answered may have stopped its mirror: every window starts its own again.
-    if app.emit(EXIT_CANCELLED_EVENT, ()).is_err() {
+pub fn app_exit_ready(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    round: u64,
+) -> Result<(), String> {
+    handed_out(&app, round)?;
+    match app.state::<ExitGate>().saved(window.label(), round) {
+        Saved::Waiting => {}
+        Saved::Done => {
+            exit_now(&app, round);
+        }
+        Saved::Late => log::warn!("W_EXIT_READY_LATE {round}"),
+    }
+    Ok(())
+}
+
+/// A window could not save for the quit of `round` and calls it off, unless it is over already.
+#[tauri::command]
+pub fn app_exit_cancel(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    round: u64,
+) -> Result<(), String> {
+    handed_out(&app, round)?;
+    if !app.state::<ExitGate>().call_off(round) {
+        log::warn!("W_EXIT_CANCEL_LATE {round}");
+        return Ok(());
+    }
+    log::warn!("W_EXIT_CALLED_OFF {round}");
+    // A window that had already answered may have stopped its mirror or its import: every window starts its own again.
+    if app.emit(EXIT_CANCELLED_EVENT, Round { round }).is_err() {
         log::warn!("W_EXIT_CANCELLED_EMIT_FAILED");
     }
     #[cfg(desktop)]
@@ -344,6 +447,7 @@ pub fn app_exit_cancel(app: AppHandle, window: tauri::WebviewWindow) {
     }
     #[cfg(mobile)]
     let _ = window;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -378,25 +482,152 @@ mod tests {
     fn exits_once_every_window_that_saves_has_saved_or_closed() {
         let gate = ExitGate::default();
         let note = crate::note_window::label_for("0192a6f0-0000-7000-8000-000000000001");
-        gate.begin(savers(&["main", &note])).unwrap();
-        assert!(!gate.saved("main"), "the note window has not saved yet");
-        assert!(!gate.saved("main"), "saving twice counts once");
-        assert!(gate.saved(&note));
+        let round = gate.begin(savers(&["main", &note])).unwrap();
+        assert_eq!(
+            gate.saved("main", round),
+            Saved::Waiting,
+            "the note window has not saved yet"
+        );
+        assert_eq!(
+            gate.saved("main", round),
+            Saved::Waiting,
+            "saving twice counts once"
+        );
+        assert_eq!(gate.saved(&note, round), Saved::Done);
         let gate = ExitGate::default();
-        gate.begin(savers(&["main", &note])).unwrap();
-        assert!(!gate.saved(&note));
-        assert!(gate.saved("main"));
+        let round = gate.begin(savers(&["main", &note])).unwrap();
+        assert_eq!(
+            gate.closed("settings"),
+            None,
+            "a window the quit does not wait for"
+        );
+        assert_eq!(gate.closed(&note), None);
+        assert_eq!(gate.closed(&note), None, "closing counts once");
+        assert_eq!(gate.saved("main", round), Saved::Done);
+        let gate = ExitGate::default();
+        let round = gate.begin(savers(&["main", &note])).unwrap();
+        assert_eq!(gate.saved("main", round), Saved::Waiting);
+        assert_eq!(gate.closed(&note), Some(round));
     }
 
     #[test]
     fn a_window_saving_for_a_called_off_quit_exits_nothing() {
         let gate = ExitGate::default();
-        gate.begin(savers(&["main", "note-x"])).unwrap();
-        gate.call_off();
-        assert!(!gate.saved("note-x"));
-        assert!(!gate.saved("main"));
+        let round = gate.begin(savers(&["main", "note-x"])).unwrap();
+        assert!(gate.call_off(round));
+        assert_eq!(gate.saved("note-x", round), Saved::Late);
+        assert_eq!(gate.saved("main", round), Saved::Late);
+        assert_eq!(gate.closed("main"), None);
+        let next = gate.begin(savers(&["main"])).unwrap();
+        assert_eq!(gate.saved("main", next), Saved::Done);
+    }
+
+    #[test]
+    fn a_save_for_a_called_off_quit_does_not_count_for_the_next() {
+        let gate = ExitGate::default();
+        let first = gate.begin(savers(&["main", "main-2"])).unwrap();
+        assert!(gate.call_off(first), "main could not save");
+        let second = gate.begin(savers(&["main", "main-2"])).unwrap();
+        assert_eq!(
+            gate.saved("main-2", first),
+            Saved::Late,
+            "main-2 answers the first quit late"
+        );
+        assert_eq!(
+            gate.saved("main", second),
+            Saved::Waiting,
+            "the second quit still waits for main-2"
+        );
+        assert_eq!(gate.saved("main-2", second), Saved::Done);
+    }
+
+    #[test]
+    fn the_exit_begins_once_and_nothing_answers_it_after() {
+        let gate = ExitGate::default();
+        let round = gate.begin(savers(&["main", "main-2"])).unwrap();
+        assert!(gate.exit(round, false), "the quit timed out");
+        assert!(!gate.exit(round, false), "a second exit does nothing");
+        assert_eq!(gate.saved("main", round), Saved::Late);
+        assert_eq!(
+            gate.saved("main-2", round),
+            Saved::Late,
+            "a save after the timeout exits nothing"
+        );
+        assert_eq!(gate.closed("main"), None);
+        assert!(!gate.call_off(round), "nor can a window call the exit off");
+        assert_eq!(gate.begin(savers(&["main"])), None);
+        assert!(gate.exiting());
+    }
+
+    #[test]
+    fn of_answers_that_race_for_the_last_save_one_exits() {
+        let gate = Arc::new(ExitGate::default());
+        let round = gate.begin(savers(&["main"])).unwrap();
+        let answers: Vec<_> = (0..8)
+            .map(|_| {
+                let gate = Arc::clone(&gate);
+                std::thread::spawn(move || {
+                    gate.saved("main", round) == Saved::Done && gate.exit(round, false)
+                })
+            })
+            .collect();
+        let exits = answers
+            .into_iter()
+            .map(|answer| answer.join().unwrap())
+            .filter(|exited| *exited)
+            .count();
+        assert_eq!(exits, 1);
+    }
+
+    #[test]
+    fn only_the_quit_held_now_can_be_called_off() {
+        let gate = ExitGate::default();
+        assert!(!gate.call_off(1), "no quit is held");
+        let first = gate.begin(savers(&["main"])).unwrap();
+        assert!(gate.call_off(first));
+        assert!(!gate.call_off(first), "called off once");
+        let second = gate.begin(savers(&["main"])).unwrap();
+        assert!(
+            !gate.call_off(first),
+            "a late call-off of the first quit leaves the second held"
+        );
+        assert!(gate.held());
+        assert!(gate.exit(second, false));
+        assert!(!gate.call_off(second), "the app exits already");
+    }
+
+    #[test]
+    fn a_window_answers_only_for_a_round_a_quit_was_held_with() {
+        let gate = ExitGate::default();
+        assert!(!gate.handed_out(0));
+        assert!(!gate.handed_out(1));
+        let round = gate.begin(savers(&["main"])).unwrap();
+        assert_eq!(round, 1, "rounds count from 1");
+        assert!(gate.handed_out(round));
+        assert!(!gate.handed_out(0));
+        assert!(!gate.handed_out(round + 1));
+        assert!(gate.call_off(round));
+        assert!(gate.handed_out(round), "a late answer is still one");
+    }
+
+    #[test]
+    fn the_app_restarts_only_when_its_own_exit_asked_to() {
+        let gate = ExitGate::default();
+        let round = gate.begin(savers(&["main"])).unwrap();
+        assert!(gate.exit(round, true));
+        assert!(gate.stop());
+        let gate = ExitGate::default();
+        let round = gate.begin(savers(&["main"])).unwrap();
+        assert!(gate.exit(round, false));
+        assert!(!gate.stop());
+        let gate = ExitGate::default();
         gate.begin(savers(&["main"])).unwrap();
-        assert!(gate.saved("main"));
+        assert!(
+            !gate.stop(),
+            "an exit the handshake never saw (logout) restarts nothing"
+        );
+        assert!(gate.exiting());
+        assert_eq!(gate.begin(savers(&["main"])), None);
     }
 
     #[test]
@@ -473,29 +704,19 @@ mod tests {
         let first = gate
             .begin(savers(&["main"]))
             .expect("the first quit asks the UI");
-        assert!(gate.asked());
+        assert!(gate.held());
         assert_eq!(gate.begin(savers(&["main"])), None, "one quit at a time");
-        assert!(gate.timed_out(first));
-        gate.call_off();
-        assert!(!gate.asked());
-        assert!(
-            !gate.timed_out(first),
-            "the timeout of a called-off quit does nothing"
-        );
+        assert!(gate.call_off(first));
+        assert!(!gate.held());
         let second = gate
             .begin(savers(&["main"]))
             .expect("a later quit asks again");
-        assert!(!gate.timed_out(first));
-        assert!(gate.timed_out(second));
-    }
-
-    #[test]
-    fn nothing_asks_or_times_out_once_the_ui_has_saved() {
-        let gate = ExitGate::default();
-        let round = gate.begin(savers(&["main"])).unwrap();
-        gate.ready.store(true, Ordering::SeqCst);
-        assert!(!gate.timed_out(round));
-        assert_eq!(gate.begin(savers(&["main"])), None);
+        assert!(
+            !gate.exit(first, false),
+            "the timeout of a called-off quit does nothing"
+        );
+        assert!(gate.held());
+        assert!(gate.exit(second, false));
     }
 
     #[test]
@@ -524,12 +745,17 @@ mod tests {
     fn quitting_lasts_from_a_quit_request_until_it_is_called_off_or_the_app_exits() {
         let gate = ExitGate::default();
         assert!(!gate.quitting());
-        gate.begin(savers(&["main"])).unwrap();
+        let first = gate.begin(savers(&["main"])).unwrap();
         assert!(gate.quitting());
-        gate.call_off();
+        assert!(!gate.exiting());
+        assert!(gate.call_off(first));
         assert!(!gate.quitting());
-        gate.ready.store(true, Ordering::SeqCst);
+        let second = gate.begin(savers(&["main"])).unwrap();
+        assert!(gate.exit(second, false));
         assert!(gate.quitting());
+        gate.stop();
+        assert!(gate.quitting());
+        assert!(gate.exiting());
     }
 
     fn note(id: &str) -> NoteRecord {

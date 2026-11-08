@@ -124,8 +124,11 @@ export interface ImportOptions {
   /** The notebook the notes (and notebooks made for folders) go into; null or left out for none. */
   destination?: string | null
   onProgress?: (done: number, total: number) => unknown
-  /** Once true, the import ends there (the file it was on is finished first) and the rest are listed as not imported. */
-  stopped?: () => boolean
+  /**
+   * Once true, the import ends there (the file it was on is finished first) and the rest are listed
+   * as not imported. A promise holds the import before its next file until it settles.
+   */
+  stopped?: () => boolean | Promise<boolean>
   /** Where files are converted and parsed; in this thread when left out. */
   prepare?: ImportPreparer
   /** False keeps wiki-style links as written; on when left out. */
@@ -622,7 +625,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   const paths = scan.files.map((f) => f.path)
   const total = paths.length
   await onProgress?.(0, total)
-  if (drafts.length > 0 && !stopped?.()) {
+  if (drafts.length > 0 && !(await stopped?.())) {
     try {
       const ids = await books.createMany(drafts)
       ids.forEach((id, i) => folders.set(draftPaths[i]!, id))
@@ -631,7 +634,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     }
   }
   for (const [index, path] of paths.entries()) {
-    if (stopped?.()) {
+    if (await stopped?.()) {
       for (const rest of paths.slice(index)) problems.push({ path: rest, code: 'E_IMPORT_STOPPED' })
       break
     }

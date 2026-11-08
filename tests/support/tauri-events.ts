@@ -4,11 +4,12 @@ type Answer = (cmd: string, args: Record<string, unknown>) => unknown
 
 /**
  * Tauri's IPC for a hook test: listeners register once `release` is called while `hold` is on, so
- * a test can unmount a component before its listeners exist. Other commands land in `invoked` and
- * get `answer`'s reply.
+ * a test can unmount a component before its listeners exist. Other commands land in `invoked` (with
+ * their arguments in `calls`) and get `answer`'s reply.
  */
 export function mockTauri(answer: Answer = () => null) {
   const invoked: string[] = []
+  const calls: [cmd: string, args: Record<string, unknown>][] = []
   const listeners = new Map<string, number[]>()
   const asked = new Map<string, number>()
   const waiting: (() => void)[] = []
@@ -36,10 +37,12 @@ export function mockTauri(answer: Answer = () => null) {
       return null
     }
     invoked.push(cmd)
+    calls.push([cmd, args])
     return answer(cmd, args)
   })
   return {
     invoked,
+    calls,
     hold: () => void (holding = true),
     release: () => {
       holding = false

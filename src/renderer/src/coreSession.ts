@@ -7,7 +7,14 @@ import { invoke } from './ipc'
 import { resumeMirrorAfterCancelledQuit } from './mirror'
 import type { RelayLink } from './noteRelay'
 import type { QuitGuard } from './saving'
-import { answerAsked, listenCloseAsked, saveEdits } from './saveGuards'
+import {
+  answerAsked,
+  listenCloseAsked,
+  quitAnswers,
+  quitRound,
+  saveEdits,
+  type AskedQuit,
+} from './saveGuards'
 import { welcomeContent } from './welcome/content'
 import { listSeeded } from './welcome/seed'
 
@@ -160,35 +167,50 @@ export function useQuitAndClose({
     // When a note could not be saved, the first such quit is called off
     // instead: the window stays with the changes and the notice says so
     // (saving.ts); quitting again goes on without them.
+    const answers = quitAnswers()
+    const quit = async (asked: AskedQuit) => {
+      saveNow()
+      // A running import waits after the file it is on, so no note is left
+      // half made (unless that file outlasts the quit timeout), and goes on
+      // if the quit is called off.
+      await core.holdImport()
+      await answerAsked(
+        asked,
+        quitGuard,
+        core.flush({ versions: true }),
+        () => {
+          setQuitHeld(true)
+          setSaveNoticeDismissed(false)
+          void core.resumeImport()
+        },
+        async () => {
+          // The import ends where it waits and lists the files it did not reach.
+          await core.stopImport()
+          // The notice's writes are seen before the app goes, so they do not come back on the next launch.
+          await markShownSeen({ reload: false })
+          // A mirror pass ends after the batch it is in, so its manifest
+          // lists every file it wrote; the next launch catches up.
+          await core.mirrorStop()
+          // A large note's last edit may still wait for its pace (Rust's exit timeout bounds this).
+          await core.syncFlush()
+        },
+      )
+    }
+    // Another window called the quit off, maybe after this one had stopped its mirror.
+    const restart = () => {
+      resumeMirrorAfterCancelledQuit(core)
+      void core.resumeImport()
+    }
     let unlisten: (() => void) | undefined
     let unlistenCancel: (() => void) | undefined
     let unlistenIdle: (() => void) | undefined
     let stopped = false
     if (!DEVOT_UI_TEST) {
       void import('@tauri-apps/api/event').then(async ({ listen }) => {
-        const stop = await listen('devot://flush-before-exit', async () => {
-          saveNow()
-          // A running import stops after the file it is on, so no note
-          // is left half made (unless that file outlasts the quit timeout).
-          await core.stopImport()
-          await answerAsked(
-            'quit',
-            quitGuard,
-            core.flush({ versions: true }),
-            () => {
-              setQuitHeld(true)
-              setSaveNoticeDismissed(false)
-            },
-            async () => {
-              // The notice's writes are seen before the app goes, so they do not come back on the next launch.
-              await markShownSeen({ reload: false })
-              // A mirror pass ends after the batch it is in, so its manifest
-              // lists every file it wrote; the next launch catches up.
-              await core.mirrorStop()
-              // A large note's last edit may still wait for its pace (Rust's exit timeout bounds this).
-              await core.syncFlush()
-            },
-          )
+        const stop = await listen<unknown>('devot://flush-before-exit', ({ payload }) => {
+          const round = quitRound(payload)
+          if (round === undefined) console.warn('W_EXIT_ROUND_MISSING')
+          else void answers.asked(round, quit)
         })
         if (stopped) stop()
         else unlisten = stop
@@ -205,8 +227,7 @@ export function useQuitAndClose({
         if (stopped) stopIdle()
         else unlistenIdle = stopIdle
       })
-      // Another window called the quit off after this one had stopped its mirror: start it again.
-      void listenExitCancelled(() => resumeMirrorAfterCancelledQuit(core)).then((stop) => {
+      void listenExitCancelled((round) => void answers.calledOff(round, restart)).then((stop) => {
         if (stopped) stop()
         else unlistenCancel = stop
       })
@@ -225,16 +246,21 @@ export function useQuitAndClose({
     const closed = () => {
       const ready = coreRef.current
       saveNow()
+      // The import waits and ends as for a quit.
       void answerAsked(
         'close',
         closeGuard,
-        ready?.stopImport().then(() => ready.flush({ versions: true })),
+        ready?.holdImport().then(() => ready.flush({ versions: true })),
         () => {
           setCloseHeld(true)
           setSaveNoticeDismissed(false)
+          void ready?.resumeImport()
         },
-        // Seen before the window goes, as for a quit.
-        () => markShownSeen({ reload: false }),
+        async () => {
+          await ready?.stopImport()
+          // Seen before the window goes, as for a quit.
+          await markShownSeen({ reload: false })
+        },
       )
     }
     return listenCloseAsked(closed)
