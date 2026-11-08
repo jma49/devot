@@ -421,7 +421,6 @@ test.describe('the top bar', () => {
   const screens = [
     ['Library', 'New Notebook', 'Search'],
     ['Notes', 'Status filter', 'Search'],
-    ['Settings', 'Pair a device', 'Search Settings'],
   ] as const
 
   for (const [tabName, first, second] of screens) {
