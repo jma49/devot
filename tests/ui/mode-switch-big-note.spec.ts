@@ -6,9 +6,12 @@ import type { ViewLike } from './keystrokes'
 import { longNote } from './longNote'
 
 // The longest frame in the 2 s after each click: each switch froze WebKit for about 18 s while the scroll sync
-// removed a wheel listener of its own from the preview when Split ended (#782). The budget stretches on CI
-// (tests/support/budget.ts); a local machine running several suites at once skips instead of failing.
+// removed a wheel listener of its own from the preview when Split ended (#782), and still held 0.7 s once the
+// preview's blocks sat on layers (#784); scrollSync.test.ts holds the listener itself. The budget stretches on
+// CI (tests/support/budget.ts). A local machine running several suites at once skips instead of failing, but
+// never past NOISE_CEILING_MS: the slowest switch seen under load 45 took under 6 s.
 const SWITCH_BUDGET_MS = 2000
+const NOISE_CEILING_MS = 4 * SWITCH_BUDGET_MS
 const NOTE_CHARS = 600_000
 const WATCH_MS = 2000
 
@@ -72,8 +75,9 @@ test('switching Split to Preview to Edit in a 600 KB note never holds a frame lo
 
   const limit = SWITCH_BUDGET_MS * budgetScale(process.env)
   const overloaded = !process.env['CI'] && loadavg()[0]! > cpus().length
+  const longest = Math.max(toPreview, toEdit)
   test.skip(
-    overloaded && Math.max(toPreview, toEdit) >= limit,
+    overloaded && longest >= limit && longest < NOISE_CEILING_MS,
     `machine overloaded (${toPreview.toFixed(0)} ms and ${toEdit.toFixed(0)} ms frames)`,
   )
   expect(toPreview).toBeLessThan(limit)

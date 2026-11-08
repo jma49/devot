@@ -23,6 +23,7 @@ Part of the [architecture overview](../architecture.md).
   A value written on the panes every scroll event restyled the whole preview and held Split mode to a few frames a second on a 250 KB note; `tests/ui/glass-scroll-edge.spec.ts` holds it.
 - The preview keeps one non-passive wheel listener for as long as it lives (`previewScrollPane`), and synced scrolling in Split view subscribes to it (`ScrollPane.onWheel`) instead of adding its own and removing it when Split ends.
   Removing a non-passive wheel listener made WebKit rebuild the event region of everything built under it one text box at a time, each costing more than the one before: leaving Split for Preview or Edit held one frame for about 18.7 s in a 600 KB note (#782).
+  With the preview's blocks on layers (#784) the rebuild still held that frame for about 0.7 s on Split -> Preview, against 0.3 s with the listener kept.
   `tests/ui/mode-switch-big-note.spec.ts` holds the longest frame after each of those switches under 2 s.
 - The preview draws a diagram (Mermaid, PlantUML, Markmap) only while it is within one screen of the view, above or below it (an `IntersectionObserver` on the preview pane, `preview/islands.ts`), and keeps a drawing once made; exports and printing draw every diagram themselves (`exporter.ts`).
   Drawings that land in the same frame go into the page together, with one layout read before and after and one scroll-sync update, instead of one relayout of the whole preview per diagram (#717: a 1 MB note with about 170 diagrams kept WebContent busy for 2.5 minutes).
