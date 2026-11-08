@@ -330,6 +330,22 @@ describe('the editor host under the native screens', () => {
     expect(document.querySelector('.phone-sheet-layer [role="dialog"]')).toBeNull()
   })
 
+  it('keeps Note Info shown when Swift asks for it again while it slides away', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await swift('editor.show', { noteId: id })
+    await swift('editor.info')
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      await act(async () => document.querySelector<HTMLElement>('.phone-sheet-dim')!.click())
+      await swift('editor.info')
+      await act(async () => void vi.advanceTimersByTime(1000))
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(document.querySelectorAll('.phone-sheet-layer [role="dialog"]')).toHaveLength(1)
+  })
+
   it('refuses a request without a note or with an unknown mode', async () => {
     await start()
     await expect(bridge.handlers['editor.show']!({})).rejects.toThrow('E_SCREENS_ARGS_INVALID')
