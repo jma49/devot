@@ -97,6 +97,8 @@ fn apply_now(app: &AppHandle, on: bool) {
     }
     if show_icon(app).is_err() {
         log::warn!("W_MENU_BAR_ICON_FAILED");
+        // A background launch in menu bar mode left its own item out for this icon.
+        crate::background::menu_bar_icon_changed(app, false);
         return;
     }
     state.on.store(true, Ordering::SeqCst);

@@ -31,6 +31,7 @@ A second launch with the flag, one that lost a race to start, is ignored by the 
   A click opens its menu: two disabled lines, "Running in the background for AI tools" and "Quits after 10 minutes without a request", then Open Devot and Integrations Settings…, then Quit Devot.
   With Keep in Menu Bar on, that mode's icon serves instead.
   Turning the setting on or off while it runs that way decides again (`background::menu_bar_icon_changed`), so exactly one item shows.
+  When that mode's icon cannot be shown, the background item shows instead.
   The Status row of Settings > Integrations > AI Tools says the same and then has Quit Devot.
   Both run the normal quit handshake (see Saving and quitting).
 - **Opening it:** Open Devot, launching Devot from Finder or the `devot` command, a `devot://` link, or any main window taking the focus makes it an ordinary Devot: the activation policy goes back, the item goes, and the main window shows.
