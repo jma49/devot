@@ -242,6 +242,7 @@ struct SheetButton: View {
 final class SettingsHosting<Content: View>: UIHostingController<Content> {
     /// Runs once the page has left the stack; a cancelled back swipe never runs it.
     var left: () -> Void = {}
+    private(set) var placeKeeper: PlaceKeeper?
 
     init(title: String, _ content: Content) {
         super.init(rootView: content)
@@ -254,6 +255,13 @@ final class SettingsHosting<Content: View>: UIHostingController<Content> {
     override func viewDidLoad() {
         super.viewDidLoad()
         followTheme { [weak self] in self?.view.backgroundColor = Tokens.Color.phoneBackground }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if placeKeeper == nil, let list = view.firstSubview(of: UICollectionView.self) {
+            placeKeeper = PlaceKeeper(list)
+        }
     }
 
     override func didMove(toParent parent: UIViewController?) {
