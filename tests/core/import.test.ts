@@ -778,6 +778,37 @@ describe('Markdown folder import', () => {
     expect((await sqlite.listNotes()).map((n) => n.title)).toEqual(['A'])
   })
 
+  it.each([
+    { stop: false, notes: ['A', 'B', 'C'], stopped: [] },
+    { stop: true, notes: ['A'], stopped: ['b.md', 'c.md'] },
+  ])(
+    'waits before its next file while asked to, then goes on or stops (stop: $stop)',
+    async ({ stop, notes, stopped }) => {
+      const { sqlite, services } = await setup()
+      const files = { 'a.md': '# A\n', 'b.md': '# B\n', 'c.md': '# C\n' }
+      const { source } = sourceFor(sqlite, files)
+      let read = 0
+      let release: (stop: boolean) => void = () => {}
+      const held = new Promise<boolean>((resolve) => (release = resolve))
+      let done = false
+      const report = importMarkdown({
+        ...services,
+        scan: scanOf(files),
+        source: { ...source, read: (path) => ((read += 1), source.read(path)) },
+        stopped: () => (read === 1 ? held : false),
+      }).finally(() => (done = true))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(read).toBe(1)
+      expect(done).toBe(false)
+      release(stop)
+      expect(await report).toMatchObject({ notes: notes.length })
+      expect((await report).problems).toEqual(
+        stopped.map((path) => ({ path, code: 'E_IMPORT_STOPPED' })),
+      )
+      expect((await sqlite.listNotes()).map((n) => n.title).sort()).toEqual(notes)
+    },
+  )
+
   it('says so when a failed file cannot be cleaned up', async () => {
     const { sqlite, services } = await setup()
     const files = { 'a.md': '# A\n' }

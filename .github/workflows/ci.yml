@@ -547,13 +547,17 @@ jobs:
     needs: changes
     if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src-tauri
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      # The action runs in its own container with its own Rust; it only reads the manifest.
-      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
-        with:
-          manifest-path: src-tauri/Cargo.toml
+      - run: rustup toolchain install
+      # Built from crates.io: cargo-deny-action fetched the tool from a GitHub release download,
+      # which stopped serving the archive (#792).
+      - run: cargo install --locked cargo-deny@0.20.2
+      - run: cargo deny check
 
   # Required check for Rust. It runs even when a Rust job was skipped and
   # fails when the change detection, compilation, tests, the iPhone app build,

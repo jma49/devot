@@ -23,18 +23,24 @@ afterEach(() => {
   tauri.clear()
 })
 
-function fakeCore(saved: boolean) {
+function fakeCore(saved: boolean | Promise<void>) {
   return {
+    holdImport: vi.fn<() => Promise<void>>(async () => {}),
+    resumeImport: vi.fn<() => Promise<void>>(async () => {}),
     stopImport: vi.fn<() => Promise<void>>(async () => {}),
     flush: vi.fn<() => Promise<void>>(() =>
-      saved ? Promise.resolve() : Promise.reject(new Error('E_SAVE')),
+      typeof saved !== 'boolean'
+        ? saved
+        : saved
+          ? Promise.resolve()
+          : Promise.reject(new Error('E_SAVE')),
     ),
     mirrorStop: vi.fn<() => Promise<void>>(async () => {}),
     syncFlush: vi.fn<() => Promise<void>>(async () => {}),
   }
 }
 
-function setup({ primary = true, saved = true } = {}) {
+function setup({ primary = true, saved = true as boolean | Promise<void> } = {}) {
   const core = fakeCore(saved)
   const props = {
     core: core as unknown as Core,
@@ -86,37 +92,76 @@ describe('useQuitAndClose', () => {
     for (const event of QUIT_EVENTS) expect(tauri.listening(event)).toBe(1)
   })
 
-  it('calls the quit off when its save fails', async () => {
+  it('calls the quit off when its save fails, and lets the import it held go on', async () => {
     tauri = mockTauri()
     const { core, props } = setup({ saved: false })
     renderHook(useQuitAndClose, { props })
     await settle()
-    tauri.emit('devot://flush-before-exit')
+    tauri.emit('devot://flush-before-exit', { round: 1 })
     await settle()
     expect(props.saveNow).toHaveBeenCalled()
-    expect(tauri.invoked).toEqual(['app_exit_cancel'])
+    expect(core.holdImport).toHaveBeenCalledBefore(core.flush)
+    expect(tauri.calls).toEqual([['app_exit_cancel', { round: 1 }]])
     expect(props.setQuitHeld).toHaveBeenCalledWith(true)
+    expect(core.resumeImport).toHaveBeenCalled()
+    expect(core.stopImport).not.toHaveBeenCalled()
     expect(core.mirrorStop).not.toHaveBeenCalled()
     expect(core.syncFlush).not.toHaveBeenCalled()
   })
 
-  it('lets the quit go on once the save succeeds', async () => {
+  it('lets the quit go on once the save succeeds, ending the import it held', async () => {
     tauri = mockTauri()
     const { core, props } = setup()
     renderHook(useQuitAndClose, { props })
     await settle()
-    tauri.emit('devot://flush-before-exit')
+    tauri.emit('devot://flush-before-exit', { round: 2 })
     await settle()
-    expect(tauri.invoked).toEqual(['app_exit_ready'])
+    expect(tauri.calls).toEqual([['app_exit_ready', { round: 2 }]])
+    expect(core.holdImport).toHaveBeenCalledBefore(core.flush)
+    expect(core.stopImport).toHaveBeenCalledBefore(core.mirrorStop)
+    expect(core.resumeImport).not.toHaveBeenCalled()
     expect(props.markShownSeen).toHaveBeenCalledWith({ reload: false })
     expect(core.mirrorStop).toHaveBeenCalled()
     expect(core.syncFlush).toHaveBeenCalled()
     expect(props.setQuitHeld).not.toHaveBeenCalled()
   })
 
-  it('calls a secondary window close off when its save fails', async () => {
+  it('stops nothing for a quit another window calls off while this one saves, and lets its import go on', async () => {
     tauri = mockTauri()
-    const { props } = setup({ primary: false, saved: false })
+    let saved: () => void = () => {}
+    const { core, props } = setup({ saved: new Promise<void>((resolve) => (saved = resolve)) })
+    renderHook(useQuitAndClose, { props })
+    await settle()
+    tauri.emit('devot://flush-before-exit', { round: 1 })
+    await settle()
+    tauri.emit(EXIT_CANCELLED_EVENT, { round: 1 })
+    await settle()
+    expect(core.resumeImport).not.toHaveBeenCalled()
+    saved()
+    await settle()
+    expect(tauri.invoked).toEqual([])
+    expect(core.stopImport).not.toHaveBeenCalled()
+    expect(core.mirrorStop).not.toHaveBeenCalled()
+    expect(core.resumeImport).toHaveBeenCalledOnce()
+  })
+
+  it('answers no quit whose event carries no round', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    tauri = mockTauri()
+    const { core, props } = setup()
+    renderHook(useQuitAndClose, { props })
+    await settle()
+    tauri.emit('devot://flush-before-exit')
+    await settle()
+    expect(tauri.invoked).toEqual([])
+    expect(core.holdImport).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith('W_EXIT_ROUND_MISSING')
+    warn.mockRestore()
+  })
+
+  it('calls a secondary window close off when its save fails, and lets its import go on', async () => {
+    tauri = mockTauri()
+    const { core, props } = setup({ primary: false, saved: false })
     renderHook(useQuitAndClose, { props })
     await settle()
     window.dispatchEvent(new Event(CLOSE_EVENT))
@@ -124,17 +169,22 @@ describe('useQuitAndClose', () => {
     expect(props.saveNow).toHaveBeenCalled()
     expect(tauri.invoked).toEqual(['note_window_close_cancel'])
     expect(props.setCloseHeld).toHaveBeenCalledWith(true)
+    expect(core.holdImport).toHaveBeenCalledBefore(core.flush)
+    expect(core.resumeImport).toHaveBeenCalled()
+    expect(core.stopImport).not.toHaveBeenCalled()
   })
 
-  it('closes a secondary window once its save succeeds', async () => {
+  it('closes a secondary window once its save succeeds, ending its import', async () => {
     tauri = mockTauri()
-    const { props } = setup({ primary: false })
+    const { core, props } = setup({ primary: false })
     renderHook(useQuitAndClose, { props })
     await settle()
     window.dispatchEvent(new Event(CLOSE_EVENT))
     await settle()
     expect(tauri.invoked).toEqual(['note_window_close_ready'])
     expect(props.setCloseHeld).not.toHaveBeenCalled()
+    expect(core.stopImport).toHaveBeenCalled()
+    expect(core.resumeImport).not.toHaveBeenCalled()
   })
 
   it('stops the close listener that registers after the window unmounted', async () => {

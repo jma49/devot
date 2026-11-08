@@ -2,6 +2,7 @@
 // problems and the quit and close guards, saving as the page goes, and at the end of the trial.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SaveProblem } from '../../core'
+import { errorCode } from '../../core/errors'
 import type { Core } from './core-client'
 import { invoke } from './ipc'
 import { createQuitGuard, newProblems, type QuitGuard } from './saving'
@@ -47,6 +48,19 @@ export function useSaveProblems(
   }
 }
 
+/**
+ * What Rust asks of a window: to save for the quit it numbered with `round` (`exit.rs`), which
+ * every answer names, or to close. `calledOff` says whether another window called that quit off.
+ */
+export type Asked = AskedQuit | 'close'
+export type AskedQuit = { round: number; calledOff?: () => boolean }
+
+/** The round a quit's event carries, or undefined when it carries none. */
+export function quitRound(payload: unknown): number | undefined {
+  const round = (payload as { round?: unknown } | null | undefined)?.round
+  return typeof round === 'number' && Number.isSafeInteger(round) && round > 0 ? round : undefined
+}
+
 const READY = {
   quit: 'app_exit_ready',
   close: 'note_window_close_ready',
@@ -56,14 +70,17 @@ const CANCEL = {
   close: 'note_window_close_cancel',
 } as const
 
+const send = (commands: typeof READY | typeof CANCEL, asked: Asked) =>
+  asked === 'close' ? invoke(commands.close) : invoke(commands.quit, { round: asked.round })
+
 /**
  * Answers Rust's quit or close of this window, which it holds until then. A window with nothing to
  * save (`save` undefined) goes. Otherwise `guard` decides on the save: the first one that fails is
  * called off (`held` runs, so the window can say so), and the next goes on without the changes;
- * `beforeExit` runs just before Rust is told to go on.
+ * `beforeExit` runs just before Rust is told to go on. A quit called off meanwhile goes no further.
  */
 export async function answerAsked(
-  asked: 'quit' | 'close',
+  asked: Asked,
   guard: QuitGuard,
   save: Promise<unknown> | undefined,
   held: () => void,
@@ -71,12 +88,37 @@ export async function answerAsked(
 ): Promise<void> {
   const answer = save ? await guard.answer(save) : 'exit'
   if (answer === 'exit') {
+    if (asked !== 'close' && asked.calledOff?.()) return
     await beforeExit?.()
-    await invoke(READY[asked])
+    await send(READY, asked)
     return
   }
   held()
-  await invoke(CANCEL[asked])
+  await send(CANCEL, asked)
+}
+
+/**
+ * A main window's answers to Rust's quits, one at a time in the order asked. A call-off counts at
+ * once, so an answer still saving for that quit stops nothing, and what the call-off starts again
+ * runs after that answer.
+ */
+export function quitAnswers() {
+  let last: Promise<unknown> = Promise.resolve()
+  let calledOff = 0
+  const queue = (step: () => unknown) => {
+    last = last
+      .then(step)
+      .catch((error: unknown) => console.warn('W_EXIT_ANSWER_FAILED', errorCode(error)))
+    return last
+  }
+  return {
+    asked: (round: number, answer: (asked: AskedQuit) => Promise<unknown>) =>
+      queue(() => answer({ round, calledOff: () => round <= calledOff })),
+    calledOff: (round: number, restart: () => unknown) => {
+      calledOff = Math.max(calledOff, round)
+      return queue(restart)
+    },
+  }
 }
 
 /** Saves the pending edits when the page goes away or out of sight. */
@@ -114,7 +156,7 @@ export function useSaveAtTrialEnd(editing: boolean, core: Core | undefined, firs
 
 /** Rust asks one window to close (a note window, or a main window File > New Window opened); UI tests ask with this page event. */
 export const CLOSE_EVENT = 'devot:note-window-close'
-/** Rust asks every window to save before the app quits; UI tests ask note windows with this page event. */
+/** Rust asks every window to save before the app quits; UI tests ask note windows with this page event, its detail the quit's round. */
 export const FLUSH_EVENT = 'devot:flush-before-exit'
 
 /** Hears Rust ask this window, and no other, to close. */
