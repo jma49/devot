@@ -77,6 +77,7 @@ Part of the [architecture overview](../architecture.md).
 - **Markdown snapshot:** derived from the Yjs document on save (debounced).
   FTS5 search, export and MCP read the snapshot.
 - **Task progress:** a note's task items, how many are done and how many there are (`taskProgress` in `src/core/extract.ts`), are derived from the body when they are shown and never stored, synced, encrypted or written to the Markdown mirror.
+  They are the task items the preview shows as checkboxes: code blocks are read as CommonMark reads them (`readFence` in `src/core/fences.ts`; a fence in a quote ends with the quote).
   The note list's rows (`NoteService.rowDetails`), board cards and gallery captions (`NoteService.taskCounts`) ask the core for the notes they render, edits not saved yet included, and keep the answer until the note's update time moves.
   Every write of a body (the editor, import, sync, the MCP server and HTTP API, history, templates) is counted the same way, since the count reads the body itself.
   There is no stored column for it: a note summary comes from an index that never reads the note's row, and a window re-dates the notes it writes without listing them again, so a stored count would lag each edit until the next reload.

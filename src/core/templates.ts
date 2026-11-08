@@ -19,6 +19,7 @@ import { systemOffset, type OffsetAt } from './activity'
 import { buildBookTree, flattenBookTree, TEMPLATES_BOOK_ID, type BookService } from './books'
 import { errorCode } from './errors'
 import { newFileCopies, replaceFileLinks } from './files'
+import { readFence, type Fence } from './fences'
 import type { Clock } from './hlc'
 import { noteTitle, readFrontMatter, withoutFrontMatterKeys } from './frontMatter'
 import type { NoteService } from './notes'
@@ -123,20 +124,15 @@ export function expandTemplate(text: string, context: TemplateContext): string {
 
 const INSTRUCTION_START = /^ {0,3}>[ \t]*#{1,6}[ \t]*!/
 const QUOTE_LINE = /^ {0,3}>/
-const FENCE = /^ {0,3}(`{3,}|~{3,})/
-
 export function withoutInstructions(text: string): string {
   const lines = text.split('\n')
   const out: string[] = []
-  let fence: string | null = null
+  let fence: Fence | undefined
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i] ?? ''
-    const mark = FENCE.exec(line)?.[1]
-    if (mark !== undefined) {
-      if (fence === null) fence = mark
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null
-    }
-    if (fence === null && !mark && INSTRUCTION_START.test(line)) {
+    const read = readFence(line, fence)
+    fence = read.fence
+    if (!read.code && INSTRUCTION_START.test(line)) {
       while (i + 1 < lines.length && QUOTE_LINE.test(lines[i + 1] ?? '')) i += 1
       if (lines[i + 1]?.trim() === '') i += 1
       continue

@@ -400,6 +400,14 @@ describe('instruction quotes', () => {
     expect(withoutInstructions(body)).toBe(body)
   })
 
+  it('keeps a quote in code a longer opening fence holds, and drops the instruction after it', () => {
+    const body = '```\n```js\n> # !Note\n```\n> # !Fill this in\n\nText\n'
+    expect(withoutInstructions(body)).toBe('```\n```js\n> # !Note\n```\nText\n')
+    expect(draftFromTemplate({ title: 'T', body }, clock).body).toBe(
+      '```\n```js\n> # !Note\n```\nText\n',
+    )
+  })
+
   it('stays in the template itself: only the draft drops it', () => {
     const body = '> # !Instructions\n> Hi\n\nBody\n'
     expect(withoutInstructions(body)).toBe('Body\n')

@@ -114,4 +114,19 @@ describe('taskProgress', () => {
     const body = '---\ntodo: - [ ] no\n---\n```\n- [ ] code\n```\n[ ] not a list\n- [] empty'
     expect(taskProgress(body)).toEqual({ done: 0, total: 0 })
   })
+
+  it('reads code fences as the preview does', () => {
+    // A backtick in a backtick fence's info string makes it text.
+    expect(taskProgress('``` a`b\n- [ ] t')).toEqual({ done: 0, total: 1 })
+    // A closing fence holds nothing but spaces after its marks.
+    expect(taskProgress('```\n```js\n- [ ] t\n```')).toEqual({ done: 0, total: 0 })
+    expect(taskProgress('> ```\n> - [ ] x\n> ```')).toEqual({ done: 0, total: 0 })
+  })
+
+  it('ends a quoted code block with its quote', () => {
+    expect(taskProgress('> ```\n> - [ ] in code\nplain\n> - [ ] t\n- [x] u')).toEqual({
+      done: 1,
+      total: 2,
+    })
+  })
 })
