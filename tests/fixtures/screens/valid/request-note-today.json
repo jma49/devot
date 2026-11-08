@@ -1,0 +1,9 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 51,
+    "op": "note.today",
+    "args": {}
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "from": "rust",
+  "message": {
+    "v": 1,
+    "notice": "route",
+    "route": "stack",
+    "tab": "library",
+    "stack": [{ "kind": "trash" }]
+  }
+}

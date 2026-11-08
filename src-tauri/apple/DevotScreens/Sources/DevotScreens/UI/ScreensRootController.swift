@@ -7,6 +7,9 @@ final class ScreensRootController: UIViewController {
     let host: WebViewHost
     let tabs: DevotTabBarController
     var log: ((LogLevel, String) -> Void)?
+    /// The app is leaving the front (`entersBackground` once it is gone), for the record a launch restores.
+    var onLeave: ((_ entersBackground: Bool) -> Void)?
+    var onActivate: (() -> Void)?
 
     init(webView: WKWebView) {
         host = WebViewHost(webView: webView)
@@ -25,8 +28,13 @@ final class ScreensRootController: UIViewController {
         tabs.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(tabs.view)
         tabs.didMove(toParent: self)
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(sceneActivated), name: UIScene.didActivateNotification, object: nil)
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(sceneActivated), name: UIScene.didActivateNotification, object: nil)
+        center.addObserver(
+            self, selector: #selector(sceneDeactivating), name: UIScene.willDeactivateNotification, object: nil)
+        center.addObserver(
+            self, selector: #selector(enteredBackground), name: UIApplication.didEnterBackgroundNotification,
+            object: nil)
     }
 
     func attach(to parent: UIViewController) {
@@ -56,7 +64,17 @@ final class ScreensRootController: UIViewController {
     }
 
     @objc private func sceneActivated(_ notification: Notification) {
-        if notification.object as? UIScene === view.window?.windowScene { makeWindowKey() }
+        guard notification.object as? UIScene === view.window?.windowScene else { return }
+        makeWindowKey()
+        onActivate?()
+    }
+
+    @objc private func sceneDeactivating(_ notification: Notification) {
+        if notification.object as? UIScene === view.window?.windowScene { onLeave?(false) }
+    }
+
+    @objc private func enteredBackground() {
+        onLeave?(true)
     }
 
     /// Tao's window is not the scene's key window after launch (spike S2), and a field in a window

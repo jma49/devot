@@ -8,7 +8,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use super::lists::{self, Page};
+use super::lists::{self, Ids, Page};
 use super::message::{Empty, Reply};
 use crate::ai::{self, Ai, provider::ProviderId, settings::AiSettings};
 use crate::editor_settings::{self, EditorSettingsStore};
@@ -213,6 +213,8 @@ pub enum Op {
     ListsLibrary(Empty),
     #[serde(rename = "direct.lists.trash")]
     ListsTrash(Empty),
+    #[serde(rename = "direct.lists.titles")]
+    ListsTitles(Ids),
 }
 
 pub const OPS: &[&str] = &[
@@ -260,6 +262,7 @@ pub const OPS: &[&str] = &[
     "direct.lists.notes",
     "direct.lists.library",
     "direct.lists.trash",
+    "direct.lists.titles",
 ];
 
 /// A request Rust answers itself, under the name Swift sent.
@@ -366,6 +369,7 @@ pub async fn run(services: &Services, op: Op) -> Result<Value, &'static str> {
         Op::ListsNotes(page) => value(lists.notes(page).await),
         Op::ListsLibrary(Empty {}) => value(lists.library().await),
         Op::ListsTrash(Empty {}) => value(lists.trash().await),
+        Op::ListsTitles(ids) => value(lists.titles(ids).await),
     }
 }
 
@@ -536,10 +540,11 @@ mod tests {
             "store",
             "sync",
         ];
-        const LISTS: [&str; 3] = [
+        const LISTS: [&str; 4] = [
             "direct.lists.notes",
             "direct.lists.library",
             "direct.lists.trash",
+            "direct.lists.titles",
         ];
         assert_eq!(variants(), OPS);
         let mut seen = HashSet::new();

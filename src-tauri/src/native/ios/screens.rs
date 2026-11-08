@@ -148,6 +148,9 @@ pub fn install_screens(window: &tauri::WebviewWindow) {
         HUB.set_installed(installed);
         if installed {
             log::info!("I_SCREENS_INSTALLED");
+            if let Some(app) = APP.get() {
+                crate::deep_link::screens_installed(app);
+            }
         } else {
             log::warn!("W_SCREENS_NOT_INSTALLED");
         }
@@ -185,6 +188,14 @@ pub fn screens_licence_changed() {
                 .to_string()
                 .as_bytes(),
         );
+    }
+}
+
+/// Shows a link on the native screens, when they have a route for it.
+pub fn screens_route(link: &crate::deep_link::Link) {
+    match crate::screens::route::route(link) {
+        Some(route) => deliver(crate::screens::route::notice(&route).to_string().as_bytes()),
+        None => log::info!("I_SCREENS_LINK_UNROUTED"),
     }
 }
 

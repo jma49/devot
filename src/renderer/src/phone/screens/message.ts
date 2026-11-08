@@ -30,6 +30,7 @@ export const SCREENS_OPS = [
   'note.text',
   'note.complete',
   'note.undoStatus',
+  'note.today',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
 

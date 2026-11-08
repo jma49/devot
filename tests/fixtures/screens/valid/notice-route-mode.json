@@ -1,0 +1,9 @@
+{
+  "from": "rust",
+  "message": {
+    "v": 1,
+    "notice": "route",
+    "route": "mode",
+    "mode": "preview"
+  }
+}

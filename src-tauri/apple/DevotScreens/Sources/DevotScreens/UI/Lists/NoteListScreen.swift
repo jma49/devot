@@ -17,15 +17,23 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
     private var afterMenu: (() -> Void)?
     private var excerptsDue = false
     private let empty = UILabel()
+    /// A restored list's first note, scrolled to the top once its rows are there.
+    private var restoredFirst: String?
     var now: () -> Date = Date.init
 
+    /// The status the list opened with, which names it in a restored stack.
+    let openedStatus: StatusFilter
+
     init(title: String, view: ListView, status: StatusFilter = .all, tab: Tab, context: ListContext, isRoot: Bool) {
+        openedStatus = status
         source = context.source(view, status: status)
         super.init(title: title, tab: tab, context: context, isRoot: isRoot)
         source.onUpdate = { [weak self] in self?.apply($0) }
         context.watch(self) { [weak self] change in
             switch change {
-            case .library: self?.redrawRows()
+            case .library(let library):
+                self?.retitle(library)
+                self?.redrawRows()
             case .excerpts(let ids): self?.excerptsArrived(ids)
             case .notes, .trash: break
             }
@@ -126,6 +134,13 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
         if let id = update.selected, let path = data.indexPath(for: .note(id)) {
             collection.selectItem(at: path, animated: false, scrollPosition: [])
         }
+        if let id = restoredFirst, source.loaded {
+            restoredFirst = nil
+            if let path = data.indexPath(for: .note(id)) {
+                collection.layoutIfNeeded()
+                collection.scrollToItem(at: path, at: .top, animated: false)
+            }
+        }
         empty.isHidden = !update.layout.sections.isEmpty || !source.loaded
         scheduleExcerpts()
         if collection.isEditing { setBatchBar() }
@@ -144,6 +159,30 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
         let shown = reconfiguring.map(Item.note).filter { snapshot.indexOfItem($0) != nil }
         snapshot.reconfigureItems(shown)
         return snapshot
+    }
+
+    /// The first note row the list shows, for the record a launch restores.
+    var firstVisibleId: String? {
+        guard let data else { return nil }
+        for path in collection.indexPathsForVisibleItems.sorted() {
+            if case .note(let id)? = data.itemIdentifier(for: path) { return id }
+        }
+        return nil
+    }
+
+    func restoreFirstVisible(_ id: String) {
+        restoredFirst = id
+    }
+
+    /// A notebook or tag list opened before the Library was read, or renamed since, takes its name.
+    private func retitle(_ library: LibraryContents) {
+        switch source.view {
+        case .book(let id):
+            if let name = library.books.first(where: { $0.id == id })?.name { navigationItem.title = name }
+        case .tag(let id):
+            if let name = library.tags.first(where: { $0.id == id })?.name { navigationItem.title = "#" + name }
+        case .all, .pinned, .templates: break
+        }
     }
 
     private func redrawRows() {

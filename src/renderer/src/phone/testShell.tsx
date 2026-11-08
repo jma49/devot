@@ -2,6 +2,7 @@
 // the lists it reads, and an editor stand-in that records the keyboard it is given.
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createBookService } from '../../../core/books'
+import { openTodaysNote, type DailyNotesSettings } from '../../../core/dailyNotes'
 import { createClock } from '../../../core/hlc'
 import { createIdGenerator } from '../../../core/ids'
 import { createNoteService } from '../../../core/notes/service'
@@ -24,6 +25,8 @@ export function testCore() {
   const named: Record<string, unknown> = {
     createTemplate: () => templates.create(),
     listWithTemplates: () => templates.listWithNotes(),
+    openTodaysNote: (settings: DailyNotesSettings, at: number, create: boolean) =>
+      openTodaysNote({ notes, templates, books, settings, at, create }),
     listBooks: () => books.list(),
     createBook: (name: string, parentId: string | null) => books.create(name, parentId),
     listTags: () => tags.list(),

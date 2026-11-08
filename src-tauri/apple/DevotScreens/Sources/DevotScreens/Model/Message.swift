@@ -101,6 +101,7 @@ public enum Op: String, CaseIterable, Sendable {
     case noteText = "note.text"
     case noteComplete = "note.complete"
     case noteUndoStatus = "note.undoStatus"
+    case noteToday = "note.today"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {
@@ -119,6 +120,8 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case savedSearchesChanged = "savedSearches.changed"
     /// Sent by Rust itself, never by the page.
     case licenceChanged = "licence.changed"
+    /// Sent by Rust itself: a deep link to show (Model/Route.swift).
+    case route
 }
 
 public enum Outcome: Equatable, Sendable {

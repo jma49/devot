@@ -8,7 +8,7 @@ extension FakeRust {
         guard case .direct(_, let op, _)? = try? Message(json: json) else { return request }
         switch op {
         case .listsNotes: return .object(["rows": .array([]), "total": .number(0)])
-        case .listsTrash: return .array([])
+        case .listsTrash, .listsTitles: return .array([])
         case .listsLibrary:
             let counts = ["all", "pinned", "active", "onHold", "completed", "templates", "trash"]
             return .object([
