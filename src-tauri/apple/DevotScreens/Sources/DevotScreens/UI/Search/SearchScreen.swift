@@ -231,6 +231,11 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
         cell.backgroundConfiguration = background
     }
 
+    func collectionView(_ collectionView: UICollectionView, didHighlightItemAt path: IndexPath) {
+        guard case .note(let id)? = data.itemIdentifier(for: path) else { return }
+        context.prepare(id)
+    }
+
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt path: IndexPath) {
         guard let item = data.itemIdentifier(for: path) else { return }
         if case .note(let id) = item, let hit = hits[id] {
