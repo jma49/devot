@@ -4,6 +4,9 @@ import { rotateICloudVault, rotateSyncVault } from '../sync'
 import { Setting } from './controls'
 import type { Failure } from './SyncDevices'
 
+/** A confirming row: closed, open for the answer, or open while its request runs, when it stays open. */
+export type ConfirmStep = 'idle' | 'asking' | 'running'
+
 /**
  * Change Vault Key on a relay vault (docs/adr/0017-sync-key-rotation.md): the relay's secret makes
  * the new vault and is never kept, so typing it is the confirmation. The new recovery key comes
@@ -14,9 +17,10 @@ export function RotateKeyRow(props: {
   failed: Failure
 }) {
   const ids = useId()
-  const [asking, setAsking] = useState(false)
+  const [step, setStep] = useState<ConfirmStep>('idle')
   const [secret, setSecret] = useState('')
-  const [rotating, setRotating] = useState(false)
+  const asking = step !== 'idle'
+  const rotating = step === 'running'
   const field = useRef<HTMLInputElement>(null)
   const opener = useRef<HTMLButtonElement>(null)
   const { onRotated, failed } = props
@@ -24,20 +28,25 @@ export function RotateKeyRow(props: {
     if (asking) field.current?.focus()
   }, [asking])
   const cancel = () => {
-    setAsking(false)
+    if (rotating) return
+    setStep('idle')
     setSecret('')
     requestAnimationFrame(() => opener.current?.focus())
   }
   const rotate = () => {
     if (secret.trim() === '' || rotating) return
-    setRotating(true)
-    rotateSyncVault(secret)
-      .then((rotated) => {
+    setStep('running')
+    rotateSyncVault(secret).then(
+      (rotated) => {
         setSecret('')
-        setAsking(false)
+        setStep('idle')
         onRotated(rotated.recoveryKey)
-      }, failed('syncSettings.rotateFailed'))
-      .finally(() => setRotating(false))
+      },
+      (e: unknown) => {
+        setStep('asking')
+        failed('syncSettings.rotateFailed')(e)
+      },
+    )
   }
   if (!asking)
     return (
@@ -48,7 +57,7 @@ export function RotateKeyRow(props: {
             type="button"
             className="button"
             data-destructive
-            onClick={() => setAsking(true)}
+            onClick={() => setStep('asking')}
           >
             {`${t('syncSettings.rotate')}…`}
           </button>
@@ -103,8 +112,9 @@ export function ICloudRotateKeyRow(props: {
   onRotated: (recoveryKey: string | null) => void
   failed: Failure
 }) {
-  const [asking, setAsking] = useState(false)
-  const [rotating, setRotating] = useState(false)
+  const [step, setStep] = useState<ConfirmStep>('idle')
+  const asking = step !== 'idle'
+  const rotating = step === 'running'
   const confirm = useRef<HTMLButtonElement>(null)
   const opener = useRef<HTMLButtonElement>(null)
   const { onRotated, failed } = props
@@ -112,18 +122,23 @@ export function ICloudRotateKeyRow(props: {
     if (asking) confirm.current?.focus()
   }, [asking])
   const cancel = () => {
-    setAsking(false)
+    if (rotating) return
+    setStep('idle')
     requestAnimationFrame(() => opener.current?.focus())
   }
   const rotate = () => {
     if (rotating) return
-    setRotating(true)
-    rotateICloudVault()
-      .then((rotated) => {
-        setAsking(false)
+    setStep('running')
+    rotateICloudVault().then(
+      (rotated) => {
+        setStep('idle')
         onRotated(rotated.recoveryKey)
-      }, failed('syncSettings.rotateFailed'))
-      .finally(() => setRotating(false))
+      },
+      (e: unknown) => {
+        setStep('asking')
+        failed('syncSettings.rotateFailed')(e)
+      },
+    )
   }
   return (
     <Setting
@@ -156,7 +171,7 @@ export function ICloudRotateKeyRow(props: {
             type="button"
             className="button"
             data-destructive
-            onClick={() => setAsking(true)}
+            onClick={() => setStep('asking')}
           >
             {`${t('syncSettings.rotate')}…`}
           </button>
