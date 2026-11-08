@@ -8,8 +8,9 @@ import { longNote } from './longNote'
 // Resizing the window in Preview on a 600 KB note held one frame for about 2.9 s (#786): the sheet's
 // cutout around the sidebar (sidebarSurround.ts) holds the window's size, and written on the root it
 // was inherited by every element, so WebKit compared each one's 700-odd custom properties again.
-// The structural test holds what each block inherits across a resize on every platform; the frame
-// budget stretches on CI and an overloaded local machine skips (tests/support/budget.ts).
+// The structural test holds what each block inherits across a resize and is the gate on CI. The frame
+// budget is a local check: CI stretches it five times (tests/support/budget.ts), above the 2.7 s the
+// regression took on a Mac, so a hosted runner fails it only when much slower than that Mac.
 const RESIZE_BUDGET_MS = 1500
 const NOTE_CHARS = 600_000
 const NARROWER_PX = 240
