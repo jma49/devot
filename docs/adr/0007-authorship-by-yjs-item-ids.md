@@ -138,6 +138,9 @@ Measured with a script on yjs 13.6.33 (Node 26, M1 Pro):
 5. **Yjs internals.** Attribution and reversal walk a text's items (`_start`), as the welcome note merge does already (`dropClient`). yjs is pinned, and the tests cover the walk on each upgrade.
 6. **Revisions weigh more.** A kept version holds the maps. Clearing does not shrink versions already taken.
 7. **Undo All on two devices offline.** If both devices undo the same writer before they sync, both put the deleted text back, and after the merge it shows twice. The pre-merge version restores either side (ADR 0002, risk 2).
+   - Two devices changing one write's record before they sync would lose one change, since a Y.Map keeps one of two concurrent sets of a key: an Undo All on one device and a cap that drops the write's deleted text on the other would leave the write live again, and two Undo Alls that put text back into one writer's text would keep only one side's ranges.
+     So a write's record is set once, and dropping its `removed` text, the same on every device, is the only set after it; Undo All marks the write in a root map `undone` (write ID → true) and adds the ranges it puts back to their owners in a root map `restored`, each under a random key of its own (`{ v: 1, write, ids }`).
+     A record with `reversed: true`, as earlier builds marked an undone write, still reads as undone.
 8. **Seen is per device.** A note seen on one device still shows the mark on another.
 
 ## Consequences
