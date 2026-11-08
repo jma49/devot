@@ -84,6 +84,8 @@ export function EditorHost(props: {
       show: (noteId, focusBody) => {
         typedIn.current = focusBody ? noteId : null
         focusing.current?.settle(false)
+        // A screen took the page, so the one a held write was asked on has gone.
+        closeGate()
         setShown((before) => ({ noteId, turn: (before?.turn ?? 0) + 1 }))
         setVisible(true)
       },
