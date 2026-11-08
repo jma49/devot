@@ -213,6 +213,13 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The note's row is already in place when the list comes back, and nothing moves into the list: the row only fades out of the accent wash over `motion.duration.phone-flash`.
   An untouched new note (no title, no body, no chip changed) is gone before the list shows, with no motion and no toast.
 - **Search:** rule 3. The overlay fades in over `motion.duration.phone-search`; the glass field grows leftwards from the search button, from `motion.scale.phone-search-field` of its width with `bouncy`, fading in over `motion.duration.phone-search-field`. Closing goes back the same way. Results and the chips change at once (rule 2). Reduce Motion leaves the crossfade.
+- **Search** (the native screens): rule 3, then rule 2.
+  The system's Search circle beside the tab bar grows into its field with the system's motion, and the keyboard rises with it.
+  Typing searches once it pauses for 120 ms, and a scope, a recent search or a suggestion searches at once.
+  Results, recent searches and the suggestions replace the list at once when they arrive (rule 2), with no motion of their own.
+  A result opens its note as any row does, and Back lands in Search with its query and results.
+  A saved search from the Library opens Search with its query and results, without the keyboard.
+  Under Reduce Motion the system decides its look.
 - **Undo toast:** rule 3. It rises `size.phone-toast-rise` and grows from `motion.scale.phone-toast` with `bouncy` while fading in over `motion.duration.ring`, and goes back the same way after `motion.duration.phone-toast`. A second action replaces it where it is. Under Reduce Motion it crossfades in place.
 - **Pane switch:** rule 4. The knob moves with `bouncy` and the track's colour fades, without bouncing. Under Reduce Motion the knob crossfades into place.
 - **Pane segmented control:** rule 4. The pill slides with `bouncy` to the chosen segment, with the `selection` haptic. Under Reduce Motion it moves at once with no spring.

@@ -1,12 +1,14 @@
 import UIKit
 
 /// The Library (design/phone.md, Library): the smart lists, then Notebooks and Tags under heads
-/// that fold for the session, then Templates and Trash. Each row opens its list on this tab.
+/// that fold for the session, the saved searches, then Templates and Trash. Each row opens its list
+/// on this tab, and a saved search opens in the Search tab.
 final class LibraryScreen: ListScreen, UICollectionViewDelegate {
     enum Section: Int, Hashable, Sendable {
         case smart
         case notebooks
         case tags
+        case searches
         case more
     }
 
@@ -15,6 +17,7 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
         case head(Section)
         case book(String)
         case tag(String)
+        case search(String)
         case templates
         case trash
     }
@@ -33,6 +36,8 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
     private var depths: [String: Int] = [:]
     /// Opens a list on this screen's stack.
     var push: (UIViewController) -> Void = { _ in }
+    /// Runs a saved search's query in the Search tab.
+    var openSearch: (String) -> Void = { _ in }
 
     init(tab: Tab, context: ListContext) {
         super.init(title: L10n.phoneTabLibrary(), tab: tab, context: context, isRoot: true)
@@ -107,6 +112,13 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
                 snapshot.appendItems(library.tags.map { .tag($0.id) }, toSection: .tags)
             }
         }
+        if let library, !library.savedSearches.isEmpty {
+            snapshot.appendSections([.searches])
+            snapshot.appendItems([.head(.searches)], toSection: .searches)
+            if !foldedSections.contains(.searches) {
+                snapshot.appendItems(library.savedSearches.map { .search($0.id) }, toSection: .searches)
+            }
+        }
         snapshot.appendSections([.more])
         snapshot.appendItems([.templates, .trash], toSection: .more)
         return snapshot
@@ -149,7 +161,7 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
             accessories = [.disclosureIndicator()]
         case .head(let section):
             content = UIListContentConfiguration.header()
-            content.text = section == .notebooks ? L10n.sidebarNotebooks() : L10n.sidebarTags()
+            content.text = Self.head(section)
             content.textProperties.color = Tokens.Color.phoneTextSecondary
             let folded = foldedSections.contains(section)
             accessories = [Self.chevron(folded)]
@@ -175,6 +187,9 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
             content.imageProperties.reservedLayoutSize = CGSize(width: Tokens.Size.phoneRowIcon, height: 0)
             content.secondaryText = tag.map { String($0.count) }
             accessories = [.disclosureIndicator()]
+        case .search(let id):
+            content.text = library?.savedSearches.first { $0.id == id }?.name
+            content.image = UIImage(systemName: "magnifyingglass")
         case .templates:
             content.text = L10n.sidebarTemplates()
             content.image = UIImage(systemName: "doc.on.doc")
@@ -215,6 +230,15 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
         chevron.tintColor = Tokens.Color.phoneTextSecondary
         chevron.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .footnote, scale: .medium)
         return .customView(configuration: .init(customView: chevron, placement: .trailing()))
+    }
+
+    private static func head(_ section: Section) -> String {
+        switch section {
+        case .notebooks: L10n.sidebarNotebooks()
+        case .tags: L10n.sidebarTags()
+        case .searches: L10n.sidebarSavedSearches()
+        case .smart, .more: ""
+        }
     }
 
     static func tagColor(_ name: String?) -> UIColor {
@@ -258,6 +282,9 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
             collectionView.deselectItem(at: path, animated: false)
             if foldedSections.remove(section) == nil { foldedSections.insert(section) }
             refold(item)
+        case .search(let id):
+            collectionView.deselectItem(at: path, animated: false)
+            if let query = library?.savedSearches.first(where: { $0.id == id })?.query { openSearch(query) }
         default:
             guard let screen = screen(item) else { return }
             push(screen)
@@ -284,7 +311,7 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
         case .tag(let id): return note("#" + (library?.tags.first { $0.id == id }?.name ?? ""), .tag(id), .all)
         case .templates: return TemplatesScreen.make(context: context, tab: listTab)
         case .trash: return TrashScreen(tab: listTab, context: context)
-        case .head: return nil
+        case .head, .search: return nil
         }
     }
 }

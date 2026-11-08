@@ -136,7 +136,7 @@ final class InstallTests: XCTestCase {
         try answerAll(screens, rust)
         let tabs = screens.root.tabs
         XCTAssertTrue(screens.selectionFeedback.view === tabs.view)
-        _ = tabs.tabBarController(tabs, shouldSelect: try XCTUnwrap(tabs.selectedViewController))
+        _ = tabs.tabBarController(tabs, shouldSelectTab: try XCTUnwrap(tabs.selectedTab))
         let popped = try XCTUnwrap(rust.calls.last)
         XCTAssertEqual(
             try Message(json: popped.1), .request(id: popped.0, op: .tabsPopToRoot, args: ["tab": .string("library")]))
@@ -144,8 +144,8 @@ final class InstallTests: XCTestCase {
 
         screens.delivered(Data(#"{"v":1,"notice":"tabs.state","tab":"settings","barHidden":false,"attention":true}"#.utf8))
         settle()
-        XCTAssertEqual(tabs.selectedIndex, TabModel.tabs.firstIndex(of: .settings))
-        XCTAssertEqual(tabs.viewControllers?[3].tabBarItem.badgeValue, "!")
+        XCTAssertEqual(tabs.selected, .settings)
+        XCTAssertEqual(tabs.items[.settings]?.badgeValue, "!")
         XCTAssertEqual(try tabRequests(rust).count, 2)
 
         screens.delivered(Data(#"{"v":1,"notice":"tabs.state","tab":"settings","barHidden":true,"attention":true}"#.utf8))
@@ -244,7 +244,7 @@ final class InstallTests: XCTestCase {
         screens.delivered(Data(#"{"v":1,"notice":"settings.open","pane":"licence","focusKey":true}"#.utf8))
         settle()
         let tabs = screens.root.tabs
-        XCTAssertEqual(tabs.selectedIndex, TabModel.tabs.firstIndex(of: .settings))
+        XCTAssertEqual(tabs.selected, .settings)
         XCTAssertEqual(tabs.settings.navigation.viewControllers.count, 2)
         XCTAssertTrue(tabs.settings.navigation.viewControllers.first === tabs.settings.root)
         XCTAssertTrue(try tabAsks(rust).contains(Ask(op: .tabsShow, args: ["tab": .string("settings")])))

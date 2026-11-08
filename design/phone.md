@@ -67,6 +67,7 @@ A notebook's path and the Mac key use `.phone-mono`, the mono font.
 Tab bar: four icon-only tabs (Notes, Library, Activity, Settings) in a `size.phone-glass-bar` glass bar at x 16, as wide as the screen leaves beside the `size.phone-compose` glass circle: 286 on a 390 screen, with the circle at x 312. The selected tab has a lens (inset 4 on every side at every tab, `radius.phone-lens-bar`, concentric with the bar) and a filled icon in the accent; the lens stretches between tabs by width and never reaches past the bar's inner edge, and it can be dragged along the bar; Settings shows a badge when the licence needs attention. The circle is offered on the Notes and Library screens that can take a new note, and hidden on Activity, Settings, Templates, Trash, a note and a pane.
 
 With the native screens installed the tab bar is the system's (`docs/specs/iphone-screens.md`, Tabs): the same four icon-only tabs and symbols, the selected one in `color.accent-text`, Settings with the same badge, and no compose circle.
+The system's search circle follows the four tabs and opens the Search tab with the keyboard up.
 New Note is then the compose button in the bar of the Notes and Library lists, on the screens that offered the circle; held, it offers New Note in a notebook and From Template.
 
 The native note lists, Library, Templates and Trash are system lists (`docs/specs/iphone-screens.md`, Lists).
@@ -78,7 +79,7 @@ A hold peeks with the system's context menu: Pin, Status, Move to, Tags, Share a
 The filter button's menu has Select, which turns on multiple selection with a toolbar of Pin, Move, Set Status and Trash.
 The Library is an inset grouped list: the smart lists with their counts, Notebooks and Tags under heads that fold for the session, then Templates and Trash.
 A notebook with notebooks inside has a 44 pt chevron of its own that folds them, and the rest of its row opens it.
-Saved searches join the Library with the native Search.
+Saved searches follow Tags under a head that folds, each with a magnifying glass, and open the Search tab with their query run.
 In Trash, Restore leads and Delete Permanently trails; it and Empty Trash ask first.
 
 New Note: the circle makes an empty note, in the notebook the list shows, else the default notebook, else none, and pushes its screen at once with the caret in the body.
@@ -87,6 +88,11 @@ Back from a note left untouched deletes it for good.
 In Templates the circle is New Template and makes a template the same way.
 
 Search: an overlay over the whole screen, including the tab bar. In the top bar's place, a 44 glass field and a 44 close circle. With no query: Recent, then chips (`size.phone-search-chip`, a 44 target) for Notebooks, Status and Tags, each filling the field with `in:`, `is:` or `#`. Recent searches stay in this device's `localStorage`, added on Return or on opening a result; they are never synced or logged. Results are note rows without swipes, found words in `color.phone.match`, the notebook in mono where the time goes, the excerpt moved to start a few words before the match, since one line holds far less than the core's excerpt.
+
+With the native screens installed Search is a tab of its own (`docs/specs/iphone-screens.md`, Search): a navigation stack under a large title with the system's search field and its All and Titles scopes, never an overlay.
+Before a query, Recent, Notebooks, Statuses and Tags are solid rows under plain heads, each filling the field with its clause and searching; recent searches stay on this iPhone.
+Results are the list's note rows under a Notes head with their count, and replace the list at once when they arrive; nothing found is the system's empty view with the query.
+A result opens its note on the Search tab, so Back lands in Search as it was.
 
 Settings: a card with the app row (dove tile, version and licence state, a badge when the licence needs attention; it opens the trial sheet during a trial and the Licence pane otherwise); General (General, Appearance, Editing, Preview); Sync & storage (Sync); AI & integrations (AI); a card of Licence; a build footer in `.phone-figures`. Its search button opens a glass field that filters the panes that open on a phone, by name. There is no Backups or About row: neither has a pane on the phone.
 General always lists Default Notebook, and Send Crash Reports where the build can send them.

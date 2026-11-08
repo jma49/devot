@@ -20,7 +20,7 @@ UIApplication (tao's app delegate, unchanged)
                ├─ Library   UINavigationController → Library → note list → EditorScreen
                ├─ Activity  UINavigationController → Activity (in the page until stage 4)
                ├─ Settings  UINavigationController → Settings root → panes
-               └─ Search    (the search tab role) → search with scopes All and Titles
+               └─ Search    UISearchTab → UINavigationController → Search (scopes All and Titles) → EditorScreen
             sheets: the system's sheet presentation   menus: UIMenu and context menus
 ```
 
@@ -210,13 +210,35 @@ The Notes and Library tabs' roots and every list they push are native (`DevotScr
   A batch entry refused for the licence raises the sheet; any other failure is logged as `W_PHONE_BATCH_FAILED count=… code=…` or `W_PHONE_LIST_WRITE_FAILED op=… code=…`.
 - A failed read is logged as `W_PHONE_LIST_READ_FAILED`, `W_PHONE_LIBRARY_READ_FAILED` or `W_PHONE_TRASH_READ_FAILED` with its code, and the list keeps what it showed.
 
+### Search
+
+The Search tab is a navigation stack under a large title whose root, `SearchScreen`, holds the system search field with the scopes All and Titles over a native list.
+
+| Message                   | From  | Meaning                                                                            |
+| ------------------------- | ----- | ---------------------------------------------------------------------------------- |
+| `search { query, scope }` | Swift | searches through the core with its pending edits saved; answers `{ rows, capped }` |
+
+- `scope` is `all` or `titles`; Titles rewrites each plain word as a `title:` clause on the page (`phone/screens/search.ts`), so the core's syntax is parsed in one place.
+- Rust refuses a query past the limit above (Message envelope) with `E_SCREENS_QUERY_TOO_LONG`, since the core cuts a long query rather than failing on it.
+- A row is a list row with the excerpt the core cut around the first word found, when it found one in the body; `ExcerptCache` asks for the rest.
+- `SearchModel` searches once typing pauses for 120 ms, and at once for a scope, a recent search or a suggestion; results replace the list when they arrive, and an answer to an older search is dropped.
+- A query that differs only in its outer spaces is not searched again, and an empty field shows the start at once.
+- A `notes.changed` notice searches the shown query again after the same pause.
+- A failed search is logged as `W_PHONE_SEARCH_FAILED code=…`, and the list keeps what it showed.
+- Before a query the list shows this iPhone's recent searches, then the notebooks, statuses and tags, each filling the field with its clause (by name where quoting holds the name, else `bookId:` or `tagId:`) and searching.
+- Recent searches are the six newest queries whose result was opened, kept in `UserDefaults` and never synced or logged.
+- A result opens its `EditorScreen` on the Search tab, so Back lands in Search with the query and results as they were.
+- A saved search in the Library opens the Search tab at its root and runs its query without raising the keyboard.
+
 ### Tabs
 
 The Notes and Library tabs are navigation stacks with the system bar and large titles over native lists (Lists above).
 The Activity tab is a navigation stack with a hidden bar whose root, `WebTabScreen`, holds the web view while its tab is shown, and the page draws that tab's stack.
 A list that appears asks the page to let the shown note go, as a web tab does when it takes the web view.
 The Settings tab is native (Settings tree below); the page still follows it with `tabs.show`, sent whenever the tab appears, whatever page is on its top.
-The tab bar is the system's, icon-only: each item's image is the web tab bar's symbol and its filled variant when selected, its title is nil, and its name is its VoiceOver label.
+The tab bar is the system's in tab mode (`UITab`), icon-only: each tab's image is the web tab bar's symbol and its filled variant when selected (iOS 26.1 and later), its title is empty, and its name is its VoiceOver label.
+The system's search tab (`UISearchTab`) follows the four, drawn as the system's search circle, and raises the keyboard when it is chosen.
+The page has no Search tab: Swift never sends `tabs.show` for it, a reselect pops nothing, and a `tabs.state` naming the page's own tab does not take the bar away from Search unless the page moved to another tab.
 UIKit's bar items have no large content title, so the large content viewer shows the symbol alone.
 The page keeps its own tab bar and compose circle only when the screens are not installed; under the system bar, New Note is the compose button in the Notes and Library lists' bar.
 

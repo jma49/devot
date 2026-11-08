@@ -36,6 +36,9 @@ A search for a word of three characters or more first re-indexes the notes saved
   Shift+Opt+Cmd+F searches every note; while it does, nothing in the sidebar shows as selected (the notebook, All Notes or filter shows again once the search is cleared, and a row pressed meanwhile shows its own view: a notebook comes without the hidden filter, a filter covers every note rather than the hidden notebook).
   Escape or the clear button empties the field and returns to searching every note.
   Typing a search in the Trash shows All Notes.
+- **On the iPhone** (`docs/specs/iphone-screens.md`, Search): the Search tab searches every note, with the scopes All and Titles; Titles reads each plain word as a `title:` clause and leaves qualifiers, quotes and minus signs as typed.
+  There is no This notebook scope: a notebook's row before a query fills the field with its `in:` clause instead.
+  Recent searches are kept on the iPhone alone, and a saved search in the Library opens the Search tab with its query run.
 - **Results:** in relevance order (see Note list order).
   Each row marks the words found in its title and in an excerpt of the body around the first word found there (about 160 characters), built from text nodes and `<mark>`, never from HTML.
   Storage cuts excerpts in code for the returned notes only, folding case one character for one like the trigram index.

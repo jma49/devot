@@ -269,12 +269,11 @@ final class Screens: SettingsBridge {
     }
 
     private var shownNavigation: UINavigationController? {
-        root.tabs.selectedViewController as? UINavigationController
+        root.tabs.shownNavigation
     }
 
     private var editorScreens: [EditorScreen] {
-        (root.tabs.viewControllers ?? []).compactMap { $0 as? UINavigationController }
-            .flatMap(\.viewControllers).compactMap { $0 as? EditorScreen }
+        root.tabs.navigations.values.flatMap(\.viewControllers).compactMap { $0 as? EditorScreen }
     }
 
     /// Pushed at once on the shown tab; a second tap while a push runs, or on the note already shown, does nothing.
