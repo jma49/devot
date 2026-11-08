@@ -24,7 +24,8 @@ final class EditorBarsTests: XCTestCase {
     private var keyboard: XCUIElement { app.keyboards.firstMatch }
     private var formatting: XCUIElement { app.otherElements["devot.formatting"] }
     private var findBar: XCUIElement { app.otherElements["devot.find"] }
-    private var toolbar: XCUIElement { app.toolbars.firstMatch }
+    /// Stands for the bottom toolbar: iOS 27 lists a screen-wide toolbar element even while the bar is hidden.
+    private var findButton: XCUIElement { app.toolbars.buttons[L10n.phoneNoteFind()] }
 
     private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 5) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
@@ -57,7 +58,7 @@ final class EditorBarsTests: XCTestCase {
         newNote(typing: "Bars ride the keyboard")
         XCTAssertTrue(formatting.waitForExistence(timeout: 5), "the formatting bar is up with the keyboard")
         XCTAssertTrue(waitUntil { formatting.frame.maxY <= keyboard.frame.minY + 1 }, "it sits above the keyboard")
-        XCTAssertTrue(waitUntil { !toolbar.exists || !toolbar.isHittable }, "the bottom toolbar steps aside")
+        XCTAssertTrue(waitUntil { !findButton.exists || !findButton.isHittable }, "the bottom toolbar steps aside")
         let bold = formatting.buttons[L10n.formatBold()]
         XCTAssertTrue(bold.exists)
         XCTAssertGreaterThanOrEqual(bold.frame.height, 44)
@@ -66,7 +67,7 @@ final class EditorBarsTests: XCTestCase {
         formatting.buttons[L10n.phoneNoteHideKeyboard()].tap()
         XCTAssertTrue(keyboard.waitForNonExistence(timeout: 5), "Hide Keyboard lowers the keyboard")
         XCTAssertTrue(formatting.waitForNonExistence(timeout: 5), "the bar goes with it")
-        XCTAssertTrue(waitUntil { toolbar.exists && toolbar.isHittable }, "the bottom toolbar returns")
+        XCTAssertTrue(waitUntil { findButton.exists && findButton.isHittable }, "the bottom toolbar returns")
         keepScreen("the keyboard lowered")
     }
 
@@ -88,12 +89,13 @@ final class EditorBarsTests: XCTestCase {
     func testFindShowsTheCountAsYouType() {
         newNote(typing: "cat dog cat bird cat")
         formatting.buttons[L10n.phoneNoteHideKeyboard()].tap()
-        XCTAssertTrue(waitUntil { toolbar.exists && toolbar.isHittable })
-        toolbar.buttons[L10n.phoneNoteFind()].tap()
+        XCTAssertTrue(waitUntil { findButton.exists && findButton.isHittable })
+        findButton.tap()
         XCTAssertTrue(findBar.waitForExistence(timeout: 5), "the find bar takes the formatting bar's place")
         XCTAssertFalse(formatting.exists)
         let field = findBar.textFields.firstMatch
-        XCTAssertTrue(waitUntil { field.hasFocus }, "the find field takes the keyboard")
+        // typeText below fails unless the field has the keyboard's focus.
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "the find field takes the keyboard")
         field.typeText("cat")
         let count = findBar.staticTexts[L10n.phoneFindCount(current: "1", total: "3")]
         XCTAssertTrue(count.waitForExistence(timeout: 5), "the count follows the query")
