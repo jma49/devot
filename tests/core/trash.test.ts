@@ -48,7 +48,7 @@ function heldTrash() {
       return sqlite.putNote(record)
     },
   })
-  return { storage, reached, release: () => release() }
+  return { sqlite, storage, reached, release: () => release() }
 }
 
 async function write(notes: ReturnType<typeof setup>['notes'], id: string, text: string) {
@@ -262,5 +262,39 @@ describe('a note on its way to the Trash', () => {
     const back = await notes.read(id)
     expect(back.bodyMd).toBe('Kept text.')
     expect((await storage.getNote(id))?.status).toBe('none')
+  })
+})
+
+describe('another note while one is on its way to the Trash', () => {
+  it('saves all and purges as if the moving note were not there', async () => {
+    const { sqlite, storage, reached, release } = heldTrash()
+    let problems: unknown[] = []
+    const notes = createNoteService({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+      onSaveProblems: (now) => (problems = now),
+    })
+    const other = await notes.create('Already trashed')
+    await notes.flush()
+    const stored = await sqlite.getNote(other)
+    await sqlite.putNote({ ...stored!, deletedAt: 1, deletedHlc: 'z' })
+    await notes.release(other)
+    const id = await notes.create('Doomed')
+    await write(notes, id, 'Kept text.')
+    const trashing = notes.trash(id)
+    await reached
+    await expect(notes.setStatus(id, 'active')).rejects.toThrow('E_NOTE_TRASHED')
+    const during = Promise.allSettled([notes.flush(), notes.purge(other), notes.release(id)])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    release()
+    await trashing
+    expect((await during).map((outcome) => outcome.status)).toEqual([
+      'fulfilled',
+      'fulfilled',
+      'fulfilled',
+    ])
+    expect(problems).toEqual([])
   })
 })

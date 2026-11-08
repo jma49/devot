@@ -55,8 +55,8 @@ export function createSaving(
   // The changes stay pending: retried after a delay that doubles with each failure in a row, and reported.
   const failed = (note: Live, error: unknown) => {
     const { id } = note.record
-    // A note let go meanwhile is not tried again.
-    if (live.get(id) !== note) return
+    // A note let go meanwhile, or refusing changes as it goes, is not tried again: its caller hears why.
+    if (live.get(id) !== note || note.gone) return
     note.failures += 1
     clearTimeout(note.retry)
     note.retry = undefined
@@ -118,8 +118,9 @@ export function createSaving(
   }
 
   const write = async (note: Live) => {
+    if (!dirty(note)) return
     if (note.gone) throw goneError(note.gone)
-    if (!dirty(note) || live.get(note.record.id) !== note) return
+    if (live.get(note.record.id) !== note) return
     // A title, notebook, status or pin change before any body edit moves
     // `updatedAt`: keep the body as a version first, dated by its own save.
     const body = unchecked(note)
@@ -192,7 +193,10 @@ export function createSaving(
     })
   }
 
-  const saveAll = () => Promise.allSettled([...live.values()].map(save))
+  /** The notes in memory a save may still store: not those refusing changes on their way out. */
+  const writable = () => [...live.values()].filter((note) => !note.gone)
+
+  const saveAll = () => Promise.allSettled(writable().map(save))
 
   const schedule = (note: Live) => {
     if (note.gone) throw goneError(note.gone)
@@ -204,7 +208,7 @@ export function createSaving(
     }, delay)
   }
 
-  return { exclusive, failed, put, rowsOf, write, save, saveAll, schedule }
+  return { exclusive, failed, put, rowsOf, write, save, saveAll, schedule, writable }
 }
 
 export function savingMethods(
@@ -214,7 +218,7 @@ export function savingMethods(
   const { live } = ctx
   const { stopTimers, takeVersion, settled } = k.versions
   const { drop } = k.memory
-  const { exclusive, write, save } = k.saving
+  const { exclusive, write, save, writable } = k.saving
   return {
     // Released notes (import, the AI service) take no version here: the saved
     // body is the latest text, and the next edit keeps it (keepBaseline).
@@ -233,7 +237,7 @@ export function savingMethods(
     },
 
     async flush(quitting) {
-      const notes = [...live.values()]
+      const notes = writable()
       const saved = await Promise.allSettled(notes.map(save))
       if (quitting?.versions) for (const note of live.values()) takeVersion(note)
       await settled()
