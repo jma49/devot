@@ -15,6 +15,7 @@ Part of the [architecture overview](../architecture.md).
   The HTTP API's switch stays apart: each listener takes one holder's token, each only while its own switch is on, and each has its own rate limit (see Local HTTP API).
 - **The bridge's socket** (`Server::start_bridge`, ADR 0012): `<identifier>.mcp.sock` in this user's private folder (`single_instance`, 0700, owner checked), mode 0600, with the HTTP API's routes and guards (Host `localhost`; Origin and `Sec-Fetch-*` refused).
   It accepts a connection only when the peer runs as this user (`getpeereid`; `SO_PEERCRED` on Linux; `atomic_file::peer_uid`), and the bridge connects only to a socket this user owns and checks the peer the same way before it writes a byte (`E_MCP_PEER_REFUSED`), so the token never reaches another user's process.
+  Its accept loop waits on the socket and on one end of a socket pair the server drops to stop it, so stopping never depends on the socket's file still being there (a quit may remove the file first).
   It takes only the bridge's token, and bodies up to six times the Markdown limit plus 1 MiB (`BRIDGE_MAX_BODY`), the worst JSON escaping of a note the core accepts; the decoded limits are unchanged.
   It opens once MCP is on and a main window takes calls (`http_api_listening`) and closes when MCP is turned off, when a quit begins, and on `RunEvent::Exit`, which every way out reaches, an Apple Event's quit (logout, another app) among them.
   One that a crash or a kill left is removed as soon as the next launch holds the data folder, and replaced when it binds.

@@ -30,6 +30,8 @@ A second launch with the flag, one that lost a race to start, is ignored by the 
 - **The menu bar item** shows while it runs that way (the dove, as menu bar mode's).
   A click opens its menu: two disabled lines, "Running in the background for AI tools" and "Quits after 10 minutes without a request", then Open Devot and Integrations Settings…, then Quit Devot.
   With Keep in Menu Bar on, that mode's icon serves instead.
+  Turning the setting on or off while it runs that way decides again (`background::menu_bar_icon_changed`), so exactly one item shows.
+  When that mode's icon cannot be shown, the background item shows instead.
   The Status row of Settings > Integrations > AI Tools says the same and then has Quit Devot.
   Both run the normal quit handshake (see Saving and quitting).
 - **Opening it:** Open Devot, launching Devot from Finder or the `devot` command, a `devot://` link, or any main window taking the focus makes it an ordinary Devot: the activation policy goes back, the item goes, and the main window shows.
@@ -39,4 +41,5 @@ A second launch with the flag, one that lost a race to start, is ignored by the 
   Records waiting to sync delay it for up to 10 minutes more.
   Any window shown ends this for good, and the item stays until the owner quits.
 - **The rest is as ever:** the data folder's lock, the licence, sync (the hidden main window runs the engine), backups.
-  A launch that cannot open its notes logs its code and exits with no alert; opening Devot shows why.
+  A launch that cannot open its notes logs its code and shows no alert; opening Devot shows why.
+  Its main window, with no core, answers the idle check with nothing unsaved, so it quits by itself as any other background launch does.

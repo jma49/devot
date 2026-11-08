@@ -29,7 +29,8 @@ it('the Mac still asks for its update status', async () => {
   vi.stubEnv('TAURI_ENV_PLATFORM', 'darwin')
   const { startUpdateStatus } = await import('./updates')
   startUpdateStatus()
-  expect(invoke).toHaveBeenCalledWith('update_status')
+  // It reads once it listens for Rust's changes.
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith('update_status'))
 })
 
 it('a phone makes no native menu call, having no menu', async () => {

@@ -67,6 +67,25 @@ pub fn peer_uid(_: &std::os::unix::net::UnixStream) -> Option<u32> {
     None
 }
 
+/// Waits until `first` or `second` has something to read (or hung up): whether each has.
+pub fn wait_readable(
+    first: &impl std::os::fd::AsFd,
+    second: &impl std::os::fd::AsFd,
+) -> io::Result<(bool, bool)> {
+    use rustix::event::{PollFd, PollFlags, poll};
+    loop {
+        let mut fds = [
+            PollFd::new(first, PollFlags::IN),
+            PollFd::new(second, PollFlags::IN),
+        ];
+        match poll(&mut fds, None) {
+            Ok(_) => return Ok((!fds[0].revents().is_empty(), !fds[1].revents().is_empty())),
+            Err(rustix::io::Errno::INTR) => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
 /// Whether `path` is on a volume mounted read-only, as a disk image is.
 #[cfg(desktop)]
 pub fn on_read_only_volume(path: &Path) -> bool {

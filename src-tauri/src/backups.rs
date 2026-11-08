@@ -470,48 +470,59 @@ impl Others for AppHandle {
     }
 }
 
-/// The windows a restore waits for, while one does.
+/// Every restore holds the gate from its start until its `DONE` has been sent, so no second one
+/// replaces the database under a core reloaded after the first.
+#[derive(Default)]
+enum RestorePhase {
+    #[default]
+    Idle,
+    Waiting {
+        asked: HashSet<String>,
+    },
+    Restoring,
+}
+
 #[derive(Default)]
 struct Preparing {
-    waiting: std::sync::Mutex<Option<HashSet<String>>>,
+    phase: std::sync::Mutex<RestorePhase>,
 }
 
 impl Preparing {
-    fn waiting(&self) -> std::sync::MutexGuard<'_, Option<HashSet<String>>> {
-        crate::locks::lock(&self.waiting)
+    fn phase(&self) -> std::sync::MutexGuard<'_, RestorePhase> {
+        crate::locks::lock(&self.phase)
     }
 
     fn begin(&self, asked: HashSet<String>) -> Result<(), &'static str> {
-        let mut waiting = self.waiting();
-        if waiting.is_some() {
+        let mut phase = self.phase();
+        if !matches!(*phase, RestorePhase::Idle) {
             return Err("E_BACKUP_RESTORE_BUSY");
         }
-        *waiting = Some(asked);
+        *phase = RestorePhase::Waiting { asked };
         Ok(())
     }
 
     fn ready(&self, label: &str) {
-        if let Some(waiting) = self.waiting().as_mut() {
-            waiting.remove(label);
+        if let RestorePhase::Waiting { asked } = &mut *self.phase() {
+            asked.remove(label);
         }
     }
 
-    /// Whether every window asked has answered or closed (`live` are the windows open); the wait
-    /// ends when so.
+    /// Whether every window asked has answered or closed (`live` are the windows open); the
+    /// restore goes ahead when so.
     fn settled(&self, live: &HashSet<String>) -> bool {
-        let mut waiting = self.waiting();
-        let Some(asked) = waiting.as_mut() else {
-            return true;
-        };
-        asked.retain(|label| live.contains(label));
-        if asked.is_empty() {
-            *waiting = None;
+        let mut phase = self.phase();
+        if let RestorePhase::Waiting { asked } = &mut *phase {
+            asked.retain(|label| live.contains(label));
+            if !asked.is_empty() {
+                return false;
+            }
+            *phase = RestorePhase::Restoring;
         }
-        waiting.is_none()
+        true
     }
 
     fn end(&self) {
-        *self.waiting() = None;
+        *self.phase() = RestorePhase::Idle;
     }
 }
 
@@ -538,7 +549,7 @@ impl Backups {
     }
 
     /// Windows asked to stop reload after, whether the restore ran or not. A restore refused because
-    /// another is waiting asked none, so it tells none.
+    /// another is under way asked none, so it tells none.
     async fn restore_with_others_stopped(
         &self,
         others: &impl Others,
@@ -547,9 +558,7 @@ impl Backups {
         id: &str,
         now: i64,
     ) -> Result<(), &'static str> {
-        if !asked.is_empty() {
-            self.preparing.begin(asked.clone())?;
-        }
+        self.preparing.begin(asked.clone())?;
         let result = match self.wait_for(others, asked).await {
             Ok(()) => self.restore(db, id, now).await,
             Err(code) => Err(code),
@@ -557,6 +566,7 @@ impl Backups {
         for label in asked {
             others.tell(label, DONE_EVENT);
         }
+        self.preparing.end();
         result
     }
 
@@ -565,9 +575,6 @@ impl Backups {
         others: &impl Others,
         asked: &HashSet<String>,
     ) -> Result<(), &'static str> {
-        if asked.is_empty() {
-            return Ok(());
-        }
         for label in asked {
             others.tell(label, PREPARE_EVENT);
         }
@@ -577,7 +584,6 @@ impl Backups {
                 return Ok(());
             }
             if Instant::now() >= deadline {
-                self.preparing.end();
                 log::warn!("W_BACKUP_PREPARE_TIMEOUT");
                 return Err("E_BACKUP_RESTORE_WINDOWS");
             }
@@ -824,6 +830,12 @@ mod tests {
             gate.settled(&labels(&["main", "main-2"])),
             "a window that closed has nothing left to write"
         );
+        assert_eq!(
+            gate.begin(asked.clone()),
+            Err("E_BACKUP_RESTORE_BUSY"),
+            "the restore itself still holds the gate"
+        );
+        gate.end();
         gate.begin(asked.clone()).unwrap();
         gate.end();
         gate.ready("main");
@@ -880,6 +892,41 @@ mod tests {
         let (first, then) = events.split_at(2);
         assert_eq!(to(PREPARE_EVENT, first), asked, "{events:?}");
         assert_eq!(to(DONE_EVENT, then), asked, "{events:?}");
+    }
+
+    #[test]
+    fn a_restore_that_asked_no_window_still_keeps_a_second_one_out() {
+        let (_dir, backups, db) = app_data();
+        let id = backups.back_up(NOW).unwrap().id;
+        let (alone, told) = (Told::default(), Told::default());
+        let none = HashSet::new();
+        tauri::async_runtime::block_on(async {
+            let held = backups.lock.lock().await;
+            let first = backups.restore_with_others_stopped(&alone, &none, &db, &id, NOW + HOUR);
+            tokio::pin!(first);
+            assert!(
+                tokio::time::timeout(Duration::from_millis(50), &mut first)
+                    .await
+                    .is_err(),
+                "the first restore waits for the lock"
+            );
+            let second = tokio::time::timeout(
+                Duration::from_secs(1),
+                backups.restore_with_others_stopped(
+                    &told,
+                    &labels(&["main"]),
+                    &db,
+                    &id,
+                    NOW + HOUR,
+                ),
+            )
+            .await;
+            assert_eq!(second, Ok(Err("E_BACKUP_RESTORE_BUSY")));
+            assert!(told.0.lock().unwrap().is_empty());
+            drop(held);
+            first.await.unwrap();
+        });
+        backups.preparing.begin(labels(&["main"])).unwrap();
     }
 
     fn left_behind(folder: TempDir) -> PathBuf {

@@ -11,16 +11,22 @@ import type { WireStorage } from './storage/wire'
 const EVENT = 'devot://lists-changed'
 const TEST_CHANNEL = 'devot.test.listsChanged'
 
-/** Runs `run` once, `ms` after the first call that finds nothing waiting. */
-export function coalesced(run: () => void, ms: number): () => void {
+/** Runs `run` once, `ms` after the first call that finds nothing waiting; `flush` runs a waiting one at once. */
+export function coalesced(run: () => void, ms: number): (() => void) & { flush(): void } {
   let timer: ReturnType<typeof setTimeout> | undefined
-  return () => {
-    if (timer !== undefined) return
-    timer = setTimeout(() => {
-      timer = undefined
-      run()
-    }, ms)
+  const fire = () => {
+    clearTimeout(timer)
+    timer = undefined
+    run()
   }
+  const call = () => {
+    if (timer === undefined) timer = setTimeout(fire, ms)
+  }
+  return Object.assign(call, {
+    flush() {
+      if (timer !== undefined) fire()
+    },
+  })
 }
 
 /** Calls `onWrote` after each write that changes what the lists show; `storage` is otherwise as it was. */

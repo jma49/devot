@@ -103,8 +103,7 @@ pub fn enter(app: &mut tauri::App, menu_bar_mode: bool) {
     log::info!("I_BACKGROUND_STARTED");
     #[cfg(target_os = "macos")]
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-    // In menu bar mode its icon already holds Open Devot and Quit Devot.
-    if !menu_bar_mode && show_icon(app.handle()).is_err() {
+    if shows_own_item(true, menu_bar_mode) && show_icon(app.handle()).is_err() {
         log::warn!("W_BACKGROUND_ICON_FAILED");
     }
     let handle = app.handle().clone();
@@ -114,6 +113,28 @@ pub fn enter(app: &mut tauri::App, menu_bar_mode: bool) {
         .is_err()
     {
         log::warn!("W_BACKGROUND_WATCH_FAILED");
+    }
+}
+
+/// In menu bar mode its icon already holds Open Devot and Quit Devot, so it serves instead.
+fn shows_own_item(in_background: bool, menu_bar_icon: bool) -> bool {
+    in_background && !menu_bar_icon
+}
+
+/// Menu bar mode's icon came or went, on the main thread: the item follows, so one shows.
+pub fn menu_bar_icon_changed(app: &AppHandle, shown: bool) {
+    let in_background = app.try_state::<Background>().is_some_and(|b| b.active());
+    let has_item = app.tray_by_id(TRAY_ID).is_some();
+    match (shows_own_item(in_background, shown), has_item) {
+        (true, false) => {
+            if show_icon(app).is_err() {
+                log::warn!("W_BACKGROUND_ICON_FAILED");
+            }
+        }
+        (false, true) => {
+            let _ = app.remove_tray_by_id(TRAY_ID);
+        }
+        _ => {}
     }
 }
 
@@ -423,6 +444,18 @@ mod tests {
         assert!(!state.leave());
         assert_eq!(state.mode(), Mode::Normal);
         assert!(state.window_seen.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn one_item_shows_in_the_background_whichever_way_menu_bar_mode_turns() {
+        let state = Background::new(true);
+        assert!(shows_own_item(state.active(), false));
+        // Keep in Menu Bar turned on in Settings: its icon serves instead.
+        assert!(!shows_own_item(state.active(), true));
+        // Turned off again while still in the background.
+        assert!(shows_own_item(state.active(), false));
+        state.leave();
+        assert!(!shows_own_item(state.active(), false));
     }
 
     #[test]

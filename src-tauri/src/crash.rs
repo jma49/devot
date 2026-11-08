@@ -140,7 +140,7 @@ pub fn start_native(data_dir: &Path) {
     let spawned = std::thread::Builder::new()
         .name("devot-crash-reports".into())
         .spawn(move || {
-            if crash_reporter::send_pending(&dir, dsn) > 0 {
+            if crash_reporter::send_pending(&dir, dsn, || CHOSEN.load(Ordering::SeqCst)) > 0 {
                 log::info!("I_CRASH_REPORTS_SENT");
             }
         });

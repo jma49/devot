@@ -411,8 +411,9 @@ pub fn delivery(status: Option<u16>) -> Delivery {
 }
 
 /// The answer is read here rather than left to the SDK's background transport, which would drop a
-/// report it failed to send. Returns how many were accepted.
-pub fn send_pending(dir: &Path, dsn: &str) -> usize {
+/// report it failed to send. `still_on` is read before each post, so turning reports off stops
+/// those already read from disk too. Returns how many were accepted.
+pub fn send_pending(dir: &Path, dsn: &str, still_on: impl Fn() -> bool) -> usize {
     let Ok(dsn) = dsn.parse::<sentry::types::Dsn>() else {
         log::warn!("W_CRASH_REPORT_DSN_INVALID");
         return 0;
@@ -436,6 +437,9 @@ pub fn send_pending(dir: &Path, dsn: &str) -> usize {
         .into();
     let mut accepted = 0;
     for report in reports {
+        if !still_on() {
+            break;
+        }
         let mut body = Vec::new();
         let envelope = sentry::Envelope::from(crate::crash_scrub::scrub_event(report.event));
         if envelope.to_writer(&mut body).is_err() {
@@ -1597,7 +1601,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let ids = saved(dir.path(), 3);
         let (dsn, requests) = sentry_stand_in(vec![200, 429]);
-        assert_eq!(send_pending(dir.path(), &dsn), 1);
+        assert_eq!(send_pending(dir.path(), &dsn, || true), 1);
         let first = requests.recv().unwrap();
         assert!(
             first.starts_with("POST /api/42/envelope/ HTTP/1.1"),
@@ -1616,11 +1620,29 @@ mod tests {
     }
 
     #[test]
+    fn turning_reports_off_stops_those_already_read() {
+        let dir = tempfile::tempdir().unwrap();
+        saved(dir.path(), 2);
+        let (dsn, requests) = sentry_stand_in(vec![200, 200]);
+        let received = std::cell::Cell::new(0);
+        // The stand-in passes a request on before it answers, so the first post is seen here.
+        let still_on = || {
+            while requests.try_recv().is_ok() {
+                received.set(received.get() + 1);
+            }
+            received.get() == 0
+        };
+        assert_eq!(send_pending(dir.path(), &dsn, still_on), 1);
+        assert_eq!(received.get(), 1);
+        assert!(requests.try_recv().is_err());
+    }
+
+    #[test]
     fn a_report_sentry_refuses_is_dropped() {
         let dir = tempfile::tempdir().unwrap();
         saved(dir.path(), 1);
         let (dsn, _requests) = sentry_stand_in(vec![400]);
-        assert_eq!(send_pending(dir.path(), &dsn), 0);
+        assert_eq!(send_pending(dir.path(), &dsn, || true), 0);
         assert_eq!(report_count(dir.path()), 0);
     }
 
@@ -1633,9 +1655,9 @@ mod tests {
             listener.local_addr().unwrap().port()
         };
         let dsn = format!("http://public@127.0.0.1:{port}/42");
-        assert_eq!(send_pending(dir.path(), &dsn), 0);
+        assert_eq!(send_pending(dir.path(), &dsn, || true), 0);
         assert_eq!(report_count(dir.path()), 2);
-        assert_eq!(send_pending(dir.path(), "not a dsn"), 0);
+        assert_eq!(send_pending(dir.path(), "not a dsn", || true), 0);
         assert_eq!(report_count(dir.path()), 2);
     }
 

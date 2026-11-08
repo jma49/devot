@@ -53,6 +53,7 @@ function setup({ primary = true, saved = true as boolean | Promise<void> } = {})
     setSaveNoticeDismissed: vi.fn<(dismissed: boolean) => void>(),
     setQuitHeld: vi.fn<(held: boolean) => void>(),
     setCloseHeld: vi.fn<(held: boolean) => void>(),
+    flushListsNews: vi.fn<() => void>(),
   }
   return { core, props }
 }
@@ -126,6 +127,48 @@ describe('useQuitAndClose', () => {
     expect(props.setQuitHeld).not.toHaveBeenCalled()
   })
 
+  it('lets the quit go on at once while the window has no core', async () => {
+    tauri = mockTauri()
+    const { props } = setup()
+    renderHook(useQuitAndClose, {
+      props: { ...props, core: undefined, coreRef: { current: undefined } },
+    })
+    await settle()
+    tauri.emit('devot://flush-before-exit', { round: 1 })
+    await settle()
+    expect(tauri.calls).toEqual([['app_exit_ready', { round: 1 }]])
+    expect(props.markShownSeen).not.toHaveBeenCalled()
+  })
+
+  it('answers an idle check with nothing unsaved while the window has no core', async () => {
+    const answers: unknown[] = []
+    tauri = mockTauri((cmd, args) => {
+      if (cmd === 'background_idle_answer') answers.push(args['saved'])
+      return null
+    })
+    const { props } = setup()
+    renderHook(useQuitAndClose, {
+      props: { ...props, core: undefined, coreRef: { current: undefined } },
+    })
+    await settle()
+    tauri.emit('devot://background-idle-check')
+    await settle()
+    expect(answers).toEqual([true])
+  })
+
+  it('saves with the core the window adopted after it began to listen', async () => {
+    tauri = mockTauri()
+    const { core, props } = setup()
+    const coreRef: { current: Core | undefined } = { current: undefined }
+    renderHook(useQuitAndClose, { props: { ...props, core: undefined, coreRef } })
+    await settle()
+    coreRef.current = core as unknown as Core
+    tauri.emit('devot://flush-before-exit', { round: 1 })
+    await settle()
+    expect(core.flush).toHaveBeenCalled()
+    expect(tauri.calls).toEqual([['app_exit_ready', { round: 1 }]])
+  })
+
   it('stops nothing for a quit another window calls off while this one saves, and lets its import go on', async () => {
     tauri = mockTauri()
     let saved: () => void = () => {}
@@ -185,6 +228,22 @@ describe('useQuitAndClose', () => {
     expect(props.setCloseHeld).not.toHaveBeenCalled()
     expect(core.stopImport).toHaveBeenCalled()
     expect(core.resumeImport).not.toHaveBeenCalled()
+  })
+
+  it('tells the other main windows of its writes before a secondary window closes', async () => {
+    tauri = mockTauri()
+    const { props } = setup({ primary: false })
+    const order: string[] = []
+    props.markShownSeen.mockImplementation(async () => void order.push('seen'))
+    props.flushListsNews.mockImplementation(() => {
+      order.push(`news after ${tauri.invoked.length} calls`)
+    })
+    renderHook(useQuitAndClose, { props })
+    await settle()
+    window.dispatchEvent(new Event(CLOSE_EVENT))
+    await settle()
+    expect(order).toEqual(['seen', 'news after 0 calls'])
+    expect(tauri.invoked).toEqual(['note_window_close_ready'])
   })
 
   it('stops the close listener that registers after the window unmounted', async () => {

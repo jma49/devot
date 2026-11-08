@@ -1,4 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  createClock,
+  createIdGenerator,
+  createMirrorRunner,
+  createNoteService,
+  observeWrites,
+  type MirrorRunner,
+} from '../../core'
+import { folderHost } from '../../../tests/support/mirror-host'
+import { tempSqliteAdapter } from '../../../tests/support/sqlite-adapter'
+import { tempDir } from '../../../tests/support/temp-dirs'
 import { answerAsked, quitAnswers, quitRound } from './saveGuards'
 import { createQuitGuard } from './saving'
 
@@ -100,6 +111,52 @@ describe('quitAnswers', () => {
     saved()
     await Promise.all([first, restarted, second])
     expect(steps).toEqual(['save 1', 'called off 1', 'restart', 'save 2'])
+  })
+
+  it('keeps the mirror running for a quit called off while this window stops it', async () => {
+    tauri.invoke.mockResolvedValue()
+    const sqlite = tempSqliteAdapter('devot-quit-mirror-')
+    let runner: MirrorRunner | undefined
+    const storage = observeWrites(sqlite, (ids) => runner?.touch(ids))
+    const notes = createNoteService({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+    })
+    const host = folderHost(sqlite, tempDir('devot-quit-mirror-folder-'))
+    const mirror = createMirrorRunner({ storage, host, untitled: 'Untitled', delayMs: 5 })
+    runner = mirror
+    mirror.reconcile()
+    await mirror.idle()
+
+    // Another window's save failed: the call-off reaches this window once it has begun its last steps.
+    const answers = quitAnswers()
+    let restarted: Promise<unknown> = Promise.resolve()
+    await answers.asked(1, (asked) =>
+      answerAsked(
+        asked,
+        createQuitGuard(),
+        Promise.resolve(),
+        () => {},
+        async () => {
+          restarted = answers.calledOff(1, () => mirror.reconcile())
+          await mirror.stop()
+        },
+      ),
+    )
+    await restarted
+    await mirror.idle()
+    host.clear()
+
+    const id = await notes.create('Kept', null)
+    await notes.setBody(id, 'Still mirrored.\n')
+    await notes.release(id)
+    await notes.flush()
+    await mirror.idle()
+    expect(host.log.written).toContain('Kept.md')
+    await mirror.stop()
+    sqlite.close()
   })
 
   it('goes on with the next answer after one that failed', async () => {

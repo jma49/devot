@@ -42,6 +42,7 @@ Losing or corrupting a note is the one failure that cannot be undone.
   The raw copy reads the three files through `/bin/cat` in a process of its own, on the database's thread, and keeps a file only when `cat` exits cleanly, since closing any descriptor of a file in the app's process would drop every POSIX lock it holds on it, the app's own SQLite locks included (#761).
   Every other window with a core of its own (each main window, `main` hidden too, and each note window) is asked first (`devot://restore-prepare`): it saves, holds compaction, stops its core and answers (`backup_restore_ready`); a window that has not answered in 5 seconds calls the restore off (`E_BACKUP_RESTORE_WINDOWS`).
   Once the restore is over, ran or not, each of them reloads (`devot://restore-done`).
+  From its start until those are sent, every restore, one with no other window to ask too, refuses another (`E_BACKUP_RESTORE_BUSY`, `RestorePhase` in `src-tauri/src/backups.rs`).
   So no window writes the notes it held from before the restore back over it, and the compaction in `main` is held wherever the restore starts.
   Failures are logged by code and shown as a notice.
   While sync is on, a restore is refused (`E_BACKUP_SYNC_ON`, said in the sheet): the relay's newer clocks would win the next sync's merges and its purges are final, so the restore would be undone within a cycle.
@@ -145,6 +146,7 @@ Every PR must test the logic it changes, which review checks.
   The minidump itself holds stack memory, which may contain note text, so it never reaches the disk or the network, and registers are not kept.
   The next launch (DSN builds only) sends up to five saved reports, newest first, on its own thread and one request each (ureq over the system TLS, as Sentry's transport, but reading Sentry's answer, which the SDK's background transport drops), and deletes the rest.
   A report is deleted once Sentry has accepted it or refused it for good (another 4xx); without a connection, on a 429 or a 5xx it waits for a later launch, for up to 30 days, and nothing more is sent that launch.
+  The choice is read again before each request, so turning reports off while they are being sent stops those already read from disk too.
   The reporter sleeps in the kernel until a crash arrives (no polling) and exits when the app's end of a pipe closes, which happens on any quit or kill.
   Builds without a DSN start no reporter, attach no handler and create no folder; a build without a DSN also refuses `--crash-reporter`.
   Release builds keep line tables in a separate `devot.dSYM` next to the stripped binary, so Sentry can name functions once it is uploaded (below).

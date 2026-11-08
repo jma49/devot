@@ -10,6 +10,7 @@ import { hasDesktopShell } from './platform'
 import { format, t, type MessageKey } from './i18n'
 import { invoke } from './ipc'
 import { failureText } from './failure'
+import { followRustState } from './rustState'
 
 const UPDATE_STATUS = 'devot:update-status'
 const TAURI_EVENT = 'devot://update-status'
@@ -186,22 +187,14 @@ export function startUpdateStatus(): void {
   if (!hasDesktopShell) return
   if (started) return
   started = true
-  window.addEventListener(UPDATE_STATUS, (e) =>
-    take(readUpdateStatus((e as CustomEvent<unknown>).detail)),
-  )
-  invoke<unknown>('update_status').then(
-    (status) => take(readUpdateStatus(status)),
-    () => console.warn('W_UPDATE_STATUS_READ_FAILED'),
-  )
-  if (!DEVOT_UI_TEST) {
-    import('@tauri-apps/api/event')
-      .then(({ listen }) =>
-        listen<unknown>(TAURI_EVENT, (e) =>
-          window.dispatchEvent(new CustomEvent(UPDATE_STATUS, { detail: e.payload })),
-        ),
-      )
-      .catch(() => console.warn('W_UPDATE_STATUS_LISTEN_FAILED'))
-  }
+  void followRustState({
+    event: TAURI_EVENT,
+    pageEvent: UPDATE_STATUS,
+    read: () => invoke<unknown>('update_status'),
+    take: (status) => take(readUpdateStatus(status)),
+    readFailed: 'W_UPDATE_STATUS_READ_FAILED',
+    listenFailed: 'W_UPDATE_STATUS_LISTEN_FAILED',
+  })
 }
 
 export function useUpdateStatus(): UpdateStatus {
