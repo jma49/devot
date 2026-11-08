@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { NoteSummary } from '../../../../core/storage'
 import { PhoneNote, type NativeNoteChrome, type NoteCommands } from '../PhoneNote'
+import { closeGate } from '../requireEditing'
 import type { PhoneStore } from '../usePhoneData'
 import type { NativeEditor } from './editor'
 import type { ScreensNotice } from './message'
@@ -89,6 +90,8 @@ export function EditorHost(props: {
         typedIn.current = null
         focusing.current?.settle(false)
         commands.current?.leave()
+        // A write held for the screen being left must not run on an unlock after it has gone.
+        closeGate()
         setVisible(false)
         return new Promise<void>((resolve) => afterPaint(resolve))
       },

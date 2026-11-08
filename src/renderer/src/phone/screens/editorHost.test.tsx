@@ -346,6 +346,29 @@ describe('the editor host under the native screens', () => {
     expect(document.querySelectorAll('.phone-sheet-layer [role="dialog"]')).toHaveLength(1)
   })
 
+  it('drops the trash held by the Pro sheet once the screen it was asked on goes', async () => {
+    const id = await shell.notes.create('Plans', null)
+    licence = ENDED
+    await readCurrentLicence()
+    await start()
+    await swift('editor.show', { noteId: id })
+    await swift('editor.info')
+    const trashRow = [...document.querySelectorAll<HTMLElement>('.phone-sheet-layer button')].find(
+      (b) => b.textContent === 'Move to Trash',
+    )!
+    await act(async () => trashRow.click())
+    await vi.waitFor(() =>
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Not Now'),
+    )
+    await swift('editor.hide')
+    licence = PRO
+    await act(async () => void (await readCurrentLicence()))
+    await nextFrames()
+    expect(notices('nav.back')).toStrictEqual([])
+    expect((await shell.notes.list()).map((n) => n.id)).toContain(id)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
   it('refuses a request without a note or with an unknown mode', async () => {
     await start()
     await expect(bridge.handlers['editor.show']!({})).rejects.toThrow('E_SCREENS_ARGS_INVALID')
