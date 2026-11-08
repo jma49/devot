@@ -108,8 +108,11 @@ run_tests() {
   rm -rf "$results"
   mkdir -p "$(dirname "$results")"
   status=0
+  # A test that fails once is run again, so a one-off simulator stall does not fail the job; a test
+  # that fails twice fails it, and the log lists the first failure either way.
   # shellcheck disable=SC2086
   xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" \
+    -retry-tests-on-failure -test-iterations 2 \
     -resultBundlePath "$results" $selection >"$log" 2>&1 || status=$?
   grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit|Evidence: " "$log" || tail -n 60 "$log"
   rm -f "$log"

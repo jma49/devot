@@ -204,6 +204,8 @@ it('hands the app and the test runner to the shards as one small, short-lived ar
   expect(script).toContain('bundle=${DEVOT_UI_BUILD:-$root/test-results/iphone-ui-build}')
   expect(script).toContain('xcodebuild build-for-testing')
   expect(script).toContain('xcodebuild test-without-building -xctestrun "$xctestrun"')
+  // A one-off stall reruns the test once; a test that fails twice still fails the job.
+  expect(script).toContain('-retry-tests-on-failure -test-iterations 2')
 })
 
 it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust gate waits for both', () => {
