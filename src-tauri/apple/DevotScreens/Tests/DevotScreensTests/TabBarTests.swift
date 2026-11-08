@@ -95,7 +95,7 @@ final class TabBarTests: XCTestCase {
         let notes = try XCTUnwrap(tabs.listRoots[.notes])
         notes.loadViewIfNeeded()
         let items = try XCTUnwrap(notes.navigationItem.rightBarButtonItems)
-        XCTAssertEqual(items.count, 3)
+        guard items.count == 3 else { return XCTFail("expected three items, got \(items.count)") }
         XCTAssertEqual(items[0].accessibilityLabel, L10n.noteListNewNote())
         XCTAssertNotNil(items[0].primaryAction)
         XCTAssertEqual(

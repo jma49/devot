@@ -205,7 +205,7 @@ final class InstallTests: XCTestCase {
         screens.request(.ping) { outcomes.append($0) }
         screens.request(.noteCreate, ["title": .string("Plans")]) { outcomes.append($0) }
         let ids = rust.calls.dropFirst(earlier).map(\.0)
-        XCTAssertEqual(ids.count, 2)
+        guard ids.count == 2 else { return XCTFail("expected two requests, got \(ids.count)") }
         let (ping, create) = (ids[0], ids[1])
         XCTAssertEqual(create, ping + 1)
         let sent = try Message(json: rust.calls[earlier + 1].1)

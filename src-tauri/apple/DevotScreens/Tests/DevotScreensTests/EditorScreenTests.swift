@@ -280,7 +280,7 @@ final class EditorScreenTests: XCTestCase {
 
         let still = try XCTUnwrap(list.snapshot)
         XCTAssertTrue(list.view.subviews.last === still, "the list's still covers the page until it repaints")
-        XCTAssertEqual(page.hides.count, 1)
+        guard page.hides.count == 1 else { return XCTFail("expected one hide, got \(page.hides.count)") }
         page.hides[0]()
         XCTAssertNil(list.snapshot)
         XCTAssertNil(still.superview)
