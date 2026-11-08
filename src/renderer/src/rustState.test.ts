@@ -57,6 +57,18 @@ describe('followRustState', () => {
     expect(taken).toEqual(['S2'])
   })
 
+  it('takes a read sent after the window last heard of a change', async () => {
+    tauri = mockTauri()
+    tauri.hold()
+    const { state: s, taken } = state(async () => 'S2', { unrevisioned: true })
+    const followed = followRustState(s)
+    await settle()
+    window.dispatchEvent(new CustomEvent(s.pageEvent, { detail: 'S1' }))
+    tauri.release()
+    await followed
+    expect(taken).toEqual(['S1', 'S2'])
+  })
+
   it('hands a revisioned state every reply, for its store to order', async () => {
     tauri = mockTauri()
     let answer: (value: unknown) => void = () => {}

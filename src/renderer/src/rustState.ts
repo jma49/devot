@@ -10,8 +10,8 @@ export interface RustState {
   read: () => Promise<unknown>
   take: (value: unknown) => void
   /**
-   * The state carries no revision to order it by: a read answered after an event may be older
-   * than it, so the read's reply is dropped then.
+   * The state carries no revision to order it by: a read answered after an event that came once
+   * it was sent may be older than that event, so the read's reply is dropped then.
    */
   unrevisioned?: boolean
   readFailed: string
@@ -37,10 +37,15 @@ export function followRustState(state: RustState): Promise<void> {
           () => {},
           () => console.warn(state.listenFailed),
         )
-  return listening.then(state.read).then(
-    (value) => {
-      if (!(state.unrevisioned && heard)) state.take(value)
-    },
-    () => console.warn(state.readFailed),
-  )
+  return listening
+    .then(() => {
+      heard = false
+      return state.read()
+    })
+    .then(
+      (value) => {
+        if (!(state.unrevisioned && heard)) state.take(value)
+      },
+      () => console.warn(state.readFailed),
+    )
 }
