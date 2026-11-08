@@ -192,6 +192,7 @@ Part of the [design system](design-system.md).
     On a notebook Left closes it (or goes to its parent) and Right opens it (or goes to its first sub-notebook).
   - **Hiding the sidebar:** Cmd+/, View > Hide Sidebar (which reads Show Sidebar while it is hidden; the page relabels it through `sidebar_menu_set`, main window only), or the button in the sidebar's title bar hide it; the button that shows it again sits at the start of the list's toolbar.
     Each window remembers it in local storage (`devot.sidebarHidden.<window label>`, like focus mode).
+    Below `size.sidebar-collapse-width` Show Sidebar and Hide Sidebar change only that narrow window's request, so the remembered choice comes back when the window widens.
     In focus mode the sidebar is hidden anyway: Cmd+/ leaves focus mode and shows it.
     Hiding it with the keyboard in it gives the keyboard to the list.
     The key reaches the page first, which runs it and stops it; the menu item runs it only when the page did not (so a picked item or a key the page never saw still works), and the first menu toggle within half a second of the key's is dropped as an echo.
