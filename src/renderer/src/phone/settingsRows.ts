@@ -47,11 +47,6 @@ export function licenceRowChangesAt(licence: LicenceSnapshot, now: number): numb
   return endsAt - (days - 1) * DAY_MS
 }
 
-/** The panes a phone lists: General holds only crash reports there, so it shows only when they can be sent. */
-export function phonePanes<T extends string>(panes: readonly T[], crashReports: boolean): T[] {
-  return panes.filter((pane) => pane !== 'general' || crashReports)
-}
-
 /**
  * Whether an App Store build opens the purchase sheet at launch: before the trial and once it has
  * ended, when the App Store purchases are known and no licence holds. A licence that lacks only

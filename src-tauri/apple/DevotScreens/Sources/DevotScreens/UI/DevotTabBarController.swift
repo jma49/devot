@@ -1,21 +1,31 @@
 import UIKit
 
-/// The system tab bar: icons only, each tab a navigation stack whose root holds the web view.
+/// The system tab bar: icons only, each tab a navigation stack. Settings is native; the other
+/// tabs' roots hold the web view.
 final class DevotTabBarController: UITabBarController, UITabBarControllerDelegate {
     var onAppear: ((Tab) -> Void)?
     var onReselect: ((Tab) -> Void)?
+    let settings: SettingsScreens
     private var screens: [Tab: WebTabScreen] = [:]
 
     init(host: WebViewHost) {
+        settings = SettingsScreens(host: host)
         super.init(nibName: nil, bundle: nil)
         viewControllers = TabModel.tabs.map { tab in
-            let screen = WebTabScreen(tab: tab, host: host) { [weak self] in self?.onAppear?($0) }
-            screens[tab] = screen
-            let navigation = UINavigationController(rootViewController: screen)
-            navigation.setNavigationBarHidden(true, animated: false)
+            let navigation: UINavigationController
+            if tab == .settings {
+                navigation = settings.navigation
+                settings.onTabAppear = { [weak self] in self?.onAppear?(.settings) }
+            } else {
+                let screen = WebTabScreen(tab: tab, host: host) { [weak self] in self?.onAppear?($0) }
+                screens[tab] = screen
+                navigation = UINavigationController(rootViewController: screen)
+                navigation.setNavigationBarHidden(true, animated: false)
+            }
             navigation.tabBarItem = Self.item(tab)
             return navigation
         }
+        settings.router.selectTab = { [weak self] in self?.select(.settings) }
         selectedIndex = TabModel.tabs.firstIndex(of: .library) ?? 0
         delegate = self
         tabBarMinimizeBehavior = .never

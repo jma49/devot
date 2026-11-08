@@ -95,13 +95,13 @@ test('Settings lists no Usage, which the phone does not record, in its rows or i
   await expect(root(page).getByText('No matching settings')).toBeVisible()
 })
 
-test('General is listed only when this build can send crash reports', async ({ page }) => {
-  await openSettings(page)
-  await expect(root(page).getByRole('button', { name: /^Appearance/ })).toBeVisible()
-  await expect(root(page).getByRole('button', { name: /^General/ })).toHaveCount(0)
+test('General is always listed and opens on Default Notebook', async ({ page }) => {
+  const pane = await openPane(page, 'General')
+  await expect(pane.getByRole('combobox', { name: 'Default Notebook' })).toBeAttached()
+  await expect(pane.getByRole('switch', { name: 'Send Crash Reports' })).toHaveCount(0)
 })
 
-test('General, when listed, opens on its crash reports switch', async ({ page }) => {
+test('General offers crash reports where this build can send them', async ({ page }) => {
   await crashReports(page, true)
   const pane = await openPane(page, 'General')
   await expect(pane.getByRole('switch', { name: 'Send Crash Reports' })).toBeAttached()

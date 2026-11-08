@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest'
-import { t } from '../i18n'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { setIPhoneWording, t } from '../i18n'
 import type { PaneId } from './panes'
+import shared from '../../../../tests/fixtures/settings-search.json'
 import { searchSettings } from './search'
+
+/** Queries and what the iPhone finds for them; XCTest runs the Swift port over the same file. */
+const SHARED = shared as {
+  panes: PaneId[]
+  cases: { query: string; results: { pane: PaneId; label: string }[] }[]
+}
 
 describe('searchSettings', () => {
   it('finds nothing for an empty query', () => {
@@ -93,6 +100,22 @@ describe('searchSettings', () => {
       expect(searchSettings('transparency', t).map((result) => result.label)).not.toContain(
         'phone.appearance.transparency',
       )
+    })
+  })
+
+  describe('the shared fixture, in the iPhone wording', () => {
+    beforeAll(() => setIPhoneWording(true))
+    afterAll(() => setIPhoneWording(false))
+
+    it.each(SHARED.cases)('finds what Swift finds for "$query"', ({ query, results }) => {
+      const found = searchSettings(query, t, { onPhone: true, panes: SHARED.panes })
+      expect(found.map(({ pane, label }) => ({ pane, label }))).toStrictEqual(results)
+    })
+
+    it('finds Default Notebook on the iPhone, which now lists it', () => {
+      expect(SHARED.cases.find((c) => c.query === 'default notebook')?.results).toStrictEqual([
+        { pane: 'general', label: 'generalSettings.defaultNotebook' },
+      ])
     })
   })
 })

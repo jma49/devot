@@ -69,6 +69,29 @@ pub struct NoteCreate {
     pub title: Option<String>,
 }
 
+/// A Settings pane the page still draws under the native Settings, until its native pane lands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WebPane {
+    Appearance,
+    Sync,
+}
+
+/// A place a web pane opens scrolled to: Sync's pairing, for Pair a device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PaneAnchor {
+    Pairing,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShowPane {
+    pub pane: WebPane,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<PaneAnchor>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct NoteArgs {
@@ -106,6 +129,10 @@ pub enum Op {
     TabsShow(TabArgs),
     #[serde(rename = "tabs.popToRoot")]
     TabsPopToRoot(TabArgs),
+    #[serde(rename = "settings.showPane")]
+    SettingsShowPane(ShowPane),
+    #[serde(rename = "settings.notebooks")]
+    SettingsNotebooks(Empty),
     #[serde(rename = "editor.show")]
     EditorShow(NoteArgs),
     #[serde(rename = "editor.hide")]
@@ -123,6 +150,8 @@ pub const OPS: &[&str] = &[
     "note.create",
     "tabs.show",
     "tabs.popToRoot",
+    "settings.showPane",
+    "settings.notebooks",
     "editor.show",
     "editor.hide",
     "editor.setMode",
@@ -150,6 +179,20 @@ pub struct TabsState {
     pub tab: Tab,
     pub bar_hidden: bool,
     pub attention: bool,
+}
+
+/// A Settings page the page's own sheets open: the License page, its key field first if asked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OpenPane {
+    Licence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct SettingsOpen {
+    pub pane: OpenPane,
+    pub focus_key: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -181,6 +224,8 @@ pub enum Notice {
     EditorTitle(EditorTitle),
     #[serde(rename = "tabs.state")]
     TabsState(TabsState),
+    #[serde(rename = "settings.open")]
+    SettingsOpen(SettingsOpen),
     #[serde(rename = "nav.openNote")]
     NavOpenNote(OpenNote),
     #[serde(rename = "nav.back")]
@@ -197,6 +242,7 @@ const NOTICES: &[&str] = &[
     "notes.changed",
     "editor.title",
     "tabs.state",
+    "settings.open",
     "nav.openNote",
     "nav.back",
     "editor.ready",
@@ -442,9 +488,14 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             }
             create.title.as_deref().map_or(Ok(()), title)
         }
+        Op::SettingsShowPane(ShowPane { pane, anchor }) => match (pane, anchor) {
+            (_, None) | (WebPane::Sync, Some(PaneAnchor::Pairing)) => Ok(()),
+            _ => Err("E_SCREENS_ARGS_INVALID"),
+        },
         Op::EditorShow(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
         Op::TabsShow(_)
         | Op::TabsPopToRoot(_)
+        | Op::SettingsNotebooks(_)
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
         | Op::EditorInfo(_) => Ok(()),
@@ -466,7 +517,10 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
         | Notice::EditorMode(EditorMode { note_id, .. }) => {
             note_ids(std::slice::from_ref(note_id), 1)
         }
-        Notice::TabsState(_) | Notice::NavBack(_) | Notice::EditorScroll(_) => Ok(()),
+        Notice::TabsState(_)
+        | Notice::SettingsOpen(_)
+        | Notice::NavBack(_)
+        | Notice::EditorScroll(_) => Ok(()),
     }
 }
 

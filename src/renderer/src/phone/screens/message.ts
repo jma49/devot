@@ -13,6 +13,8 @@ export const SCREENS_OPS = [
   'note.create',
   'tabs.show',
   'tabs.popToRoot',
+  'settings.showPane',
+  'settings.notebooks',
   'editor.show',
   'editor.hide',
   'editor.setMode',
@@ -27,10 +29,17 @@ export interface TabsState {
   readonly attention: boolean
 }
 
+/** A Settings page one of the page's sheets opens in the native Settings. */
+export interface SettingsOpen {
+  readonly pane: 'licence'
+  readonly focusKey: boolean
+}
+
 export type EditorMode = 'edit' | 'preview'
 
 export type ScreensNotice =
   | ({ readonly notice: 'tabs.state' } & TabsState)
+  | ({ readonly notice: 'settings.open' } & SettingsOpen)
   | { readonly notice: 'nav.openNote'; readonly noteId: string; readonly title: string }
   | { readonly notice: 'nav.back' }
   | { readonly notice: 'editor.ready'; readonly noteId: string }

@@ -204,6 +204,17 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Request a Refund row** (App Store builds, while Devot Pro is held): rule 2. The row presses as any Settings row; its value changes in place to Opening and then to Requested or a failure. Apple's refund sheet covers the app with Apple's motion, and a cancel leaves the row as it was.
 - **Usage:** rule 2. A new period or event type replaces the figures, charts and lists at once; the period's pill moves as in any pane segmented control. Show Events opens the list at once.
 - **Settings search:** rule 2. The field and results appear at once, and results change as you type.
+- **Native Settings** (the native screens): the system draws it and keeps its motion.
+  A pane pushes and pops with the system's navigation transition and its back swipe (rule 3), the large title folding into the bar as the list scrolls.
+  A page opened from elsewhere (Enter License Key in the Pro sheet) lands over the Settings root, so Back returns there; set while the app is in the background, the stack changes without motion.
+  The search field is the system's, under the large title, hidden as the list scrolls; results replace the groups as you type, with no motion of their own (rule 2), and No matching settings is the system's empty view.
+  A switch is the system's toggle (rule 4); a value row pushes its own page of choices, and a choice moves the checkmark at once with the `selection` haptic (rule 4); nothing else in Settings has a haptic.
+  A setting changes before it is saved; a refused save puts the old value back at once and raises the system's alert (rule 2).
+  An action row's value changes in place (rule 2), as on the web shell's Restore Purchases and Request a Refund rows.
+  The Trial, Mac licence key and purchase sheets are one content-sized system sheet with its grabber, rising and following a drag with the system's motion (rule 3); when their content grows the sheet's height follows in one system animation, and content taller than the sheet scrolls inside it.
+  A pane the page still draws (Appearance, Sync) shows the screen's background during the push until the page has the pane, then the pane at once (rule 2); Pair a Device lands on Sync's pairing without a scroll animation.
+  Removing a licence asks first in the system's alert, with Remove in the destructive style.
+  Under Reduce Motion the system crossfades its pushes and sheets.
 - **Note mode toggle** (the web shell): rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. The panes crossfade as Edit and Preview says.
 - **Note bottom bar and formatting bar:** rule 2. As the keyboard rises the bottom bar fades and drops 20 pt with `gentle`, and the formatting bar fades in on the keyboard. Under Reduce Motion both only crossfade. The system's bar of previous, next and a check mark is not shown above the keyboard, so the formatting bar sits on the keyboard itself, and Hide keyboard lowers the keyboard with the system's motion.
 - **Find bar:** rule 2. It appears at once on the keyboard, in the bottom bar's place, and matches change as you type.

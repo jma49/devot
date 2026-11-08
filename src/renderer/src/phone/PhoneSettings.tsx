@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { errorCode } from '../../../core/errors'
-import { crashReports } from '../crashReports'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import {
@@ -22,8 +21,10 @@ import { doveMask } from './dove'
 import { MacKeyRow } from './PhoneMacKey'
 import { PhoneDetailSheet } from './PhoneSheet'
 import { useLicenceClock } from './licenceClock'
-import { licenceRow, phonePanes } from './settingsRows'
+import { licenceRow } from './settingsRows'
 import { logFailure } from '../failure'
+import { revealAnchor } from './paneAnchor'
+import type { PaneAnchor } from './screens/settings'
 
 /** The panes that open on a phone; the rest are left out of its Settings. The phone records no usage. */
 type PhonePane = Exclude<PaneId, 'keyboard' | 'mirror' | 'integrations' | 'plugins' | 'usage'>
@@ -187,22 +188,6 @@ function useVersion(): string | null {
   return version
 }
 
-/** Whether this build can send crash reports, General's only setting on a phone; false until known. */
-function useCrashReportsAvailable(): boolean {
-  const [available, setAvailable] = useState(false)
-  useEffect(() => {
-    let live = true
-    crashReports().then(
-      (state) => live && setAvailable(state?.available ?? false),
-      () => console.warn('W_CRASH_REPORTS_STATUS_FAILED'),
-    )
-    return () => {
-      live = false
-    }
-  }, [])
-  return available
-}
-
 function SettingsSearch(props: {
   panes: readonly PhonePane[]
   onOpen: (pane: PaneId) => void
@@ -266,7 +251,6 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
   const now = useLicenceClock(licence)
   const [searching, setSearching] = useState(false)
   const [trialOpen, setTrialOpen] = useState(false)
-  const panes = phonePanes(OPEN_PANES, useCrashReportsAvailable())
   useEffect(() => startSyncStatus(), [])
   const state = licenceRow(licence, now)
   const trialEnds = licence.trial?.endsAt ?? null
@@ -274,7 +258,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
   const groups: readonly { title?: MessageKey; rows: readonly Row[]; after?: ReactNode }[] = [
     {
       title: 'phone.settings.group.general',
-      rows: GENERAL_GROUP.filter((pane) => panes.includes(pane)).map((pane) => paneRow(pane)),
+      rows: GENERAL_GROUP.map((pane) => paneRow(pane)),
     },
     {
       title: 'phone.settings.group.sync',
@@ -387,7 +371,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
       </header>
       {searching && (
         <SettingsSearch
-          panes={panes}
+          panes={OPEN_PANES}
           onOpen={(pane) => {
             setSearching(false)
             props.onOpenPane(pane)
@@ -420,8 +404,17 @@ const PANE_SECTIONS: Readonly<Partial<Record<PaneId, () => Promise<() => React.J
   licence: () => import('../settings/LicenceSection').then((m) => m.LicenceSection),
 }
 
-/** An existing Settings pane, in a phone screen of its own. */
-export function PhoneSettingsPane(props: { pane: string; focusKey?: boolean; onBack: () => void }) {
+/**
+ * An existing Settings pane, in a phone screen of its own; under the native navigation bar
+ * (`nativeBar`) it draws no top bar of its own.
+ */
+export function PhoneSettingsPane(props: {
+  pane: string
+  focusKey?: boolean
+  anchor?: PaneAnchor | undefined
+  nativeBar?: boolean
+  onBack: () => void
+}) {
   const pane = props.pane as PaneId
   const [Section, setSection] = useState<(() => React.JSX.Element) | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -431,6 +424,10 @@ export function PhoneSettingsPane(props: { pane: string; focusKey?: boolean; onB
         ?.querySelector<HTMLInputElement>('input[data-licence-key]')
         ?.focus({ preventScroll: true })
   }, [Section, props.focusKey])
+  useEffect(() => {
+    if (Section && props.anchor && scroller.current)
+      return revealAnchor(scroller.current, props.anchor)
+  }, [Section, props.anchor])
   useEffect(() => {
     let alive = true
     void PANE_SECTIONS[pane]?.()
@@ -443,21 +440,29 @@ export function PhoneSettingsPane(props: { pane: string; focusKey?: boolean; onB
   const title = PANE_TABS[pane] ? t(PANE_TABS[pane].label) : t('settings.title')
   return (
     <section aria-label={title} className="phone-screen">
-      <div ref={scroller} className="phone-scroll phone-settings-pane settings-window">
+      <div
+        ref={scroller}
+        className="phone-scroll phone-settings-pane settings-window"
+        data-native-bar={props.nativeBar ? '' : undefined}
+      >
         <OnPhone.Provider value={true}>{Section && <Section />}</OnPhone.Provider>
       </div>
-      <div aria-hidden="true" className="phone-topbar-band" />
-      <header className="phone-topbar">
-        <button
-          type="button"
-          className="phone-glass phone-nav-control"
-          aria-label={t('phone.back')}
-          onClick={props.onBack}
-        >
-          <Icon name="nav.back" size="lg" />
-        </button>
-        <h1 className="phone-topbar-title">{title}</h1>
-      </header>
+      {props.nativeBar ? null : (
+        <>
+          <div aria-hidden="true" className="phone-topbar-band" />
+          <header className="phone-topbar">
+            <button
+              type="button"
+              className="phone-glass phone-nav-control"
+              aria-label={t('phone.back')}
+              onClick={props.onBack}
+            >
+              <Icon name="nav.back" size="lg" />
+            </button>
+            <h1 className="phone-topbar-title">{title}</h1>
+          </header>
+        </>
+      )}
     </section>
   )
 }

@@ -1,0 +1,156 @@
+{
+  "panes": ["general", "appearance", "editing", "preview", "sync", "ai", "licence"],
+  "cases": [
+    {
+      "query": "line numbers",
+      "results": [
+        {
+          "pane": "editing",
+          "label": "editorSettings.lineNumbers"
+        }
+      ]
+    },
+    {
+      "query": "default notebook",
+      "results": [
+        {
+          "pane": "general",
+          "label": "generalSettings.defaultNotebook"
+        }
+      ]
+    },
+    {
+      "query": "appearance",
+      "results": [
+        {
+          "pane": "appearance",
+          "label": "settings.pane.appearance"
+        }
+      ]
+    },
+    {
+      "query": "transparency",
+      "results": [
+        {
+          "pane": "appearance",
+          "label": "phone.appearance.transparency"
+        }
+      ]
+    },
+    {
+      "query": "License",
+      "results": [
+        {
+          "pane": "licence",
+          "label": "settings.pane.licence"
+        },
+        {
+          "pane": "licence",
+          "label": "licenceSettings.key"
+        }
+      ]
+    },
+    {
+      "query": "font",
+      "results": [
+        {
+          "pane": "appearance",
+          "label": "editorSettings.noteFont"
+        },
+        {
+          "pane": "appearance",
+          "label": "appearanceSettings.previewFontSize"
+        },
+        {
+          "pane": "editing",
+          "label": "editorSettings.fontWeight"
+        }
+      ]
+    },
+    {
+      "query": "sync",
+      "results": [
+        {
+          "pane": "sync",
+          "label": "settings.pane.sync"
+        },
+        {
+          "pane": "sync",
+          "label": "syncSettings.setup"
+        },
+        {
+          "pane": "sync",
+          "label": "syncSettings.enabled"
+        }
+      ]
+    },
+    {
+      "query": "crash",
+      "results": [
+        {
+          "pane": "general",
+          "label": "generalSettings.crashReports"
+        }
+      ]
+    },
+    {
+      "query": "TAB width",
+      "results": []
+    },
+    {
+      "query": "synced scrolling",
+      "results": []
+    },
+    {
+      "query": "menu bar",
+      "results": []
+    },
+    {
+      "query": "http",
+      "results": []
+    },
+    {
+      "query": "zzz",
+      "results": []
+    },
+    {
+      "query": "   ",
+      "results": []
+    },
+    {
+      "query": "ai",
+      "results": [
+        {
+          "pane": "ai",
+          "label": "settings.pane.ai"
+        },
+        {
+          "pane": "editing",
+          "label": "editorSettings.highlightTrailingWhitespace"
+        }
+      ]
+    },
+    {
+      "query": "preview",
+      "results": [
+        {
+          "pane": "preview",
+          "label": "settings.pane.preview"
+        },
+        {
+          "pane": "appearance",
+          "label": "appearanceSettings.previewFontSize"
+        }
+      ]
+    },
+    {
+      "query": "images",
+      "results": [
+        {
+          "pane": "preview",
+          "label": "previewSettings.remoteImages"
+        }
+      ]
+    }
+  ]
+}

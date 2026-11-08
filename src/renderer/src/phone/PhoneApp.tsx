@@ -8,6 +8,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
+import { buildBookTree } from '../../../core/books'
 import { errorCode } from '../../../core/errors'
 import { TEMPLATES_BOOK_ID } from '../../../core/templatesBook'
 import { editorSettings } from '../editorSettings'
@@ -51,8 +52,10 @@ import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
 import { haptic } from './haptics'
 import { startLicence, useLicence } from '../licence'
+import { choicesFromTree } from '../notebookChoices'
 import { startScreensBridge, type ScreensBridge } from './screens/bridge'
 import { SCREENS_HANDLERS } from './screens/ops'
+import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
 import { editorHandlers, type NativeEditor } from './screens/editor'
 import { EditorHost } from './screens/EditorHost'
@@ -316,6 +319,7 @@ export function PhoneApp() {
   const committedLater = useRef<(() => void) | null>(null)
   const latest = useRef(state)
   const nativeTabs = useRef<NativeTabs | null>(null)
+  const nativeSettings = useRef<NativeSettings | null>(null)
   const nativeEditor = useRef<NativeEditor | null>(null)
   const [prepared] = useState(createPreparedNotes)
   const bridge = useRef<ScreensBridge | null>(null)
@@ -333,6 +337,10 @@ export function PhoneApp() {
       ...tabHandlers({
         show: (tab) => nativeTabs.current?.show(tab),
         popToRoot: (tab) => nativeTabs.current?.popToRoot(tab),
+      }),
+      ...settingsHandlers({
+        showPane: (pane, anchor) => nativeSettings.current?.showPane(pane, anchor),
+        notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
       ...editorHandlers(() => nativeEditor.current),
     })
@@ -491,6 +499,23 @@ export function PhoneApp() {
         if (tab === latest.current.tab) go({ type: 'selectTab', tab })
       },
     }
+    nativeSettings.current = {
+      showPane: (pane, anchor) => {
+        const settings = latest.current.stacks.settings
+        const above = settings[settings.length - 1]
+        // Swift asks each time the pane shows: one still drawn keeps what the owner was doing in it.
+        const shown =
+          settings.length === 2 && above?.screen === 'pane' && above.pane === pane && !anchor
+        if (latest.current.tab !== 'settings') {
+          leaveTab()
+          go({ type: 'selectTab', tab: 'settings' })
+        }
+        if (shown) return
+        go({ type: 'selectTab', tab: 'settings' })
+        go({ type: 'push', screen: 'pane', pane, ...(anchor ? { anchor } : {}) })
+      },
+      notebooks: () => choicesFromTree(buildBookTree(store.books)),
+    }
   })
   useEffect(() => {
     if (native)
@@ -552,7 +577,15 @@ export function PhoneApp() {
       )
     }
     if (route.screen === 'pane' && route.pane)
-      return <PhoneSettingsPane pane={route.pane} focusKey={route.focusKey === true} onBack={pop} />
+      return (
+        <PhoneSettingsPane
+          pane={route.pane}
+          focusKey={route.focusKey === true}
+          anchor={route.anchor}
+          nativeBar={native === true}
+          onBack={pop}
+        />
+      )
     if (tab === 'library' && route.screen === 'root')
       return (
         <PhoneLibrary
@@ -686,6 +719,10 @@ export function PhoneApp() {
         licence={licence}
         onOpenLicence={(focusKey) => {
           setSearching(false)
+          if (native) {
+            bridge.current?.notify({ notice: 'settings.open', pane: 'licence', focusKey })
+            return
+          }
           go({ type: 'selectTab', tab: 'settings' })
           go({ type: 'push', screen: 'pane', pane: 'licence', focusKey })
         }}

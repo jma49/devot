@@ -209,16 +209,27 @@ fn storefront(shop: &Shop) -> Result<Arc<Storefront<app_store::Platform>>, &'sta
 
 #[tauri::command]
 pub async fn store_products(shop: Tauri<'_, Shop>) -> Result<Vec<ProductView>, String> {
-    storefront(&shop)?
+    Ok(store_products_inner(&shop).await?)
+}
+
+pub(crate) async fn store_products_inner(shop: &Shop) -> Result<Vec<ProductView>, &'static str> {
+    storefront(shop)?
         .products()
         .await
-        .map_err(|error| error.code().to_owned())
+        .map_err(|error| error.code())
 }
 
 #[tauri::command]
 pub async fn store_purchase(shop: Tauri<'_, Shop>, product: String) -> Result<Bought, String> {
-    let product = product_of(&product).ok_or("E_APP_STORE_UNKNOWN_PRODUCT")?;
-    let shop = storefront(&shop)?;
+    Ok(store_purchase_inner(&shop, &product).await?)
+}
+
+pub(crate) async fn store_purchase_inner(
+    shop: &Shop,
+    product: &str,
+) -> Result<Bought, &'static str> {
+    let product = product_of(product).ok_or("E_APP_STORE_UNKNOWN_PRODUCT")?;
+    let shop = storefront(shop)?;
     log::info!("I_APP_STORE_PURCHASE_STARTED {}", product_key(product));
     let outcome = shop.purchase(product).await;
     let line = purchase_line(product, &outcome);
@@ -227,7 +238,7 @@ pub async fn store_purchase(shop: Tauri<'_, Shop>, product: String) -> Result<Bo
     } else {
         log::warn!("{line}");
     }
-    outcome.map_err(|error| error.code().to_owned())
+    outcome.map_err(|error| error.code())
 }
 
 fn purchase_line(product: Product, outcome: &Result<Bought, StoreError>) -> String {

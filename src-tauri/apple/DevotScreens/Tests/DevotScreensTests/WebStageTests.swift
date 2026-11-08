@@ -46,6 +46,17 @@ final class WebStageTests: XCTestCase {
         return window
     }
 
+    private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition(), Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        XCTAssertTrue(condition(), file: file, line: line)
+    }
+
+    /// UIKit leaves a view out of the accessibility tree when it or a superview hides its elements.
+    private func reachableByVoiceOver(_ view: UIView) -> Bool {
+        !sequence(first: view, next: \.superview).contains { $0.accessibilityElementsHidden }
+    }
+
     func testTheStageIsOnePointThatClipsAndStaysVisible() {
         let stage = WebStage()
         XCTAssertEqual(stage.bounds.size, CGSize(width: 1, height: 1))
@@ -114,7 +125,8 @@ final class WebStageTests: XCTestCase {
         webView.resized = 0
         let tabs = screens.root.tabs
 
-        for tab in TabModel.tabs + TabModel.tabs.reversed() {
+        let web = TabModel.tabs.filter { $0 != .settings }
+        for tab in web + web.reversed() {
             tabs.select(tab)
             tabs.view.layoutIfNeeded()
             let screen = try XCTUnwrap(tabs.screen(tab))
@@ -125,6 +137,126 @@ final class WebStageTests: XCTestCase {
         }
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(webView.resized, 0)
+    }
+
+    private func requests(_ rust: FakeRust, _ op: Op) throws -> [(UInt64, [String: JSONValue])] {
+        try rust.calls.compactMap { call in
+            if case .request(let id, let sent, let args) = try Message(json: call.1), sent == op { (id, args) } else { nil }
+        }
+    }
+
+    func testTheNativeSettingsRestsTheWebViewAndAWebPaneTakesItUnderTheBarOnceThePageShowsThePane() throws {
+        let webView = RecordingWebView()
+        let rust = FakeRust()
+        let tao = UIViewController()
+        tao.view.addSubview(webView)
+        let screens = try XCTUnwrap(
+            Screens.attach(webView: webView, root: tao, rust: rust, defaults: try freshDefaults()))
+        let window = try shownWindow(tao)
+        webView.frame = window.bounds
+        tao.view.layoutIfNeeded()
+        webView.resized = 0
+        let tabs = screens.root.tabs
+        XCTAssertTrue(reachableByVoiceOver(webView))
+        tabs.select(.settings)
+        tabs.view.layoutIfNeeded()
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
+        XCTAssertFalse(reachableByVoiceOver(webView))
+
+        tabs.settings.navigation.pushViewController(tabs.settings.controller(.appearance), animated: false)
+        tabs.view.layoutIfNeeded()
+        let pane = try XCTUnwrap(tabs.settings.navigation.topViewController as? WebPaneScreen)
+        let asked = try XCTUnwrap(try requests(rust, .settingsShowPane).last)
+        XCTAssertEqual(asked.1, ["pane": .string("appearance")])
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
+
+        screens.replied(asked.0, try Message.reply(id: asked.0, outcome: .ok(.object([:]))).json())
+        XCTAssertTrue(webView.superview === pane.view)
+        XCTAssertTrue(reachableByVoiceOver(webView))
+        XCTAssertEqual(webView.bounds.size, window.bounds.size)
+        XCTAssertGreaterThan(webView.safeAreaInsets.top, window.safeAreaInsets.top)
+        XCTAssertTrue(try requests(rust, .tabsPopToRoot).isEmpty)
+
+        tabs.settings.navigation.popViewController(animated: false)
+        tabs.view.layoutIfNeeded()
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
+        XCTAssertFalse(reachableByVoiceOver(webView))
+        XCTAssertEqual(webView.leftWindow, 0)
+        XCTAssertEqual(webView.resized, 0)
+        XCTAssertEqual(try requests(rust, .tabsPopToRoot).map(\.1), [["tab": .string("settings")]])
+    }
+
+    func testAWebPaneAsksForItsPaneOnlyOnceThePageHasLetTheShownNoteGo() throws {
+        let webView = RecordingWebView()
+        let rust = FakeRust()
+        let tao = UIViewController()
+        tao.view.addSubview(webView)
+        let screens = try XCTUnwrap(
+            Screens.attach(webView: webView, root: tao, rust: rust, defaults: try freshDefaults()))
+        let window = try shownWindow(tao)
+        webView.frame = window.bounds
+        tao.view.layoutIfNeeded()
+        let tabs = screens.root.tabs
+        let note = "01970000-0000-7000-8000-000000000001"
+        screens.delivered(Data(#"{"v":1,"notice":"nav.openNote","noteId":"\#(note)","title":"Plans"}"#.utf8))
+        RunLoop.main.run(until: Date().addingTimeInterval(1))
+        let shown = try XCTUnwrap(try requests(rust, .editorShow).last)
+        screens.replied(shown.0, try Message.reply(id: shown.0, outcome: .ok(.object([:]))).json())
+
+        tabs.select(.settings)
+        // iOS 26.5 can swap in the selected tab's view a turn later, as it does here when leaving a pushed note.
+        waitUntil { tabs.settings.navigation.viewIfLoaded?.window != nil }
+        tabs.settings.navigation.pushViewController(tabs.settings.controller(.appearance), animated: false)
+        tabs.view.layoutIfNeeded()
+        let pane = try XCTUnwrap(tabs.settings.navigation.topViewController as? WebPaneScreen)
+        let hide = try XCTUnwrap(try requests(rust, .editorHide).last)
+        XCTAssertTrue(try requests(rust, .settingsShowPane).isEmpty)
+
+        screens.replied(hide.0, try Message.reply(id: hide.0, outcome: .ok(.object([:]))).json())
+        let asked = try XCTUnwrap(try requests(rust, .settingsShowPane).last)
+        XCTAssertEqual(asked.1, ["pane": .string("appearance")])
+        screens.replied(asked.0, try Message.reply(id: asked.0, outcome: .ok(.object([:]))).json())
+        XCTAssertTrue(webView.superview === pane.view)
+        XCTAssertEqual(try requests(rust, .editorHide).count, 1)
+        XCTAssertEqual(rust.lines.filter { $0.hasPrefix("W_") }, [])
+    }
+
+    func testPairADeviceOpensSyncAtItsPairingOnceAndAnAnswerAfterLeavingMovesNothing() throws {
+        let webView = RecordingWebView()
+        let rust = FakeRust()
+        let tao = UIViewController()
+        tao.view.addSubview(webView)
+        let screens = try XCTUnwrap(
+            Screens.attach(webView: webView, root: tao, rust: rust, defaults: try freshDefaults()))
+        _ = try shownWindow(tao)
+        let tabs = screens.root.tabs
+        tabs.select(.settings)
+        tabs.view.layoutIfNeeded()
+        let router = tabs.settings.router
+        let make = router.make
+        var made: [SettingsPage] = []
+        let navigation = tabs.settings.navigation
+        router.make = { made.append($0); return UIViewController() }
+        router.navigation = nil
+        tabs.settings.root.onPair()
+        XCTAssertEqual(made, [.sync(anchor: .pairing)])
+        router.make = make
+        router.navigation = navigation
+        navigation.setViewControllers([tabs.settings.root, make(.sync(anchor: .pairing))], animated: false)
+        tabs.view.layoutIfNeeded()
+        let pane = try XCTUnwrap(tabs.settings.navigation.topViewController as? WebPaneScreen)
+        let shows = { try self.requests(rust, .settingsShowPane) }
+        XCTAssertEqual(try shows().last?.1, ["pane": .string("sync"), "anchor": .string("pairing")])
+
+        tabs.select(.library)
+        tabs.view.layoutIfNeeded()
+        let late = try XCTUnwrap(try shows().last)
+        screens.replied(late.0, try Message.reply(id: late.0, outcome: .ok(.object([:]))).json())
+        XCTAssertFalse(webView.superview === pane.view)
+
+        tabs.select(.settings)
+        tabs.view.layoutIfNeeded()
+        XCTAssertEqual(try shows().last?.1, ["pane": .string("sync")])
     }
 
     /// The bar's inset may reach a screen through its superview, which a negative additional inset

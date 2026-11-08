@@ -3,11 +3,15 @@ import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   appleStrings,
+  compileSettingsIndex,
   compileStrings,
+  SETTINGS_INDEX,
   staleOutputs,
   STRINGS_SWIFT,
   XCSTRINGS,
 } from '../../scripts/i18n/apple'
+import { PANES, PANE_TABS } from '../../src/renderer/src/settings/panes'
+import { SETTINGS_ENTRIES } from '../../src/renderer/src/settings/searchEntries'
 import { en } from '../../src/renderer/src/i18n/en'
 import { enPhone } from '../../src/renderer/src/i18n/phone'
 import { CJK } from '../support/policy-patterns'
@@ -94,7 +98,7 @@ describe('the Swift string catalog', () => {
 
   it('are the committed files', async () => {
     const outputs = await appleStrings('.')
-    expect(outputs.map(([path]) => path)).toEqual([STRINGS_SWIFT, XCSTRINGS])
+    expect(outputs.map(([path]) => path)).toEqual([STRINGS_SWIFT, XCSTRINGS, SETTINGS_INDEX])
     expect(staleOutputs('.', outputs)).toEqual([])
   })
 
@@ -112,5 +116,35 @@ describe('the Swift string catalog', () => {
     writeFileSync(join(root, outputs[0][0]), swift.replace('Notes', 'Notez'))
     expect(staleOutputs(root, outputs)).toEqual(['Generated/Strings.swift'])
     expect(readFileSync(join(root, outputs[1][0]), 'utf8')).toBe(xcstrings)
+  })
+})
+
+describe("the native Settings' search index", () => {
+  const index = compileSettingsIndex(SETTINGS_ENTRIES, PANES, PANE_TABS)
+
+  it('lists every pane in navigation order with its label key', () => {
+    const panes = [...index.matchAll(/^    \("([a-z]+)", "([^"]+)"\),$/gm)]
+    expect(panes.map((match) => match[1])).toEqual([...PANES])
+    expect(panes.map((match) => match[2])).toEqual(PANES.map((pane) => PANE_TABS[pane].label))
+  })
+
+  it('lists every entry in order, with the device that alone shows it', () => {
+    const entries = [
+      ...index.matchAll(
+        /^    Entry\(pane: "([a-z]+)", label: "([^"]+)", only: (\.mac|\.phone|nil)\),$/gm,
+      ),
+    ]
+    expect(entries.map((match) => [match[1], match[2], match[3]])).toEqual(
+      SETTINGS_ENTRIES.map((entry) => [
+        entry.pane,
+        entry.label,
+        entry.only ? `.${entry.only}` : 'nil',
+      ]),
+    )
+  })
+
+  it('names only keys the string catalog has', () => {
+    for (const [, key] of index.matchAll(/"([a-zA-Z]+\.[a-zA-Z.]+)"/g))
+      expect(en).toHaveProperty([key!])
   })
 })

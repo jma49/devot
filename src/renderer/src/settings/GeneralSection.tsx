@@ -51,7 +51,7 @@ export function GeneralSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string }>()
   const [saveError, change] = useSettingsChange()
   const ids = useId()
-  // The iPhone layout has no board, activity strip, menu bar, updater, command line tool or folders to open, and does not read these defaults yet; its Settings lists General only when crash reports can be sent.
+  // The iPhone layout has no board, activity strip, menu bar, updater, command line tool, daily notes or folders to open.
   const onPhone = useOnPhone()
   const [cliTool, setCliTool] = useState<CliToolStatus>()
   const [cliBusy, setCliBusy] = useState(false)
@@ -140,29 +140,29 @@ export function GeneralSection() {
           {failureText('editorSettings.failed', saveError)}
         </p>
       ) : null}
-      {onPhone ? null : (
-        <>
-          <SettingsSection title="generalSettings.defaults">
-            <Setting
-              label="generalSettings.defaultNotebook"
-              description={t('generalSettings.defaultNotebookHint')}
-              htmlFor={`${ids}-notebook`}
-              descriptionId={`${ids}-notebook-hint`}
-            >
-              <Select
-                id={`${ids}-notebook`}
-                value={shown ?? ''}
-                aria-describedby={`${ids}-notebook-hint`}
-                onChange={(e) => change({ defaultNotebook: e.currentTarget.value || null })}
-              >
-                <option value="">{t('generalSettings.noNotebook')}</option>
-                {notebooks.map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {indented(n.name, n.depth)}
-                  </option>
-                ))}
-              </Select>
-            </Setting>
+      <SettingsSection title="generalSettings.defaults">
+        <Setting
+          label="generalSettings.defaultNotebook"
+          description={t('generalSettings.defaultNotebookHint')}
+          htmlFor={`${ids}-notebook`}
+          descriptionId={`${ids}-notebook-hint`}
+        >
+          <Select
+            id={`${ids}-notebook`}
+            value={shown ?? ''}
+            aria-describedby={`${ids}-notebook-hint`}
+            onChange={(e) => change({ defaultNotebook: e.currentTarget.value || null })}
+          >
+            <option value="">{t('generalSettings.noNotebook')}</option>
+            {notebooks.map((n) => (
+              <option key={n.id} value={n.id}>
+                {indented(n.name, n.depth)}
+              </option>
+            ))}
+          </Select>
+        </Setting>
+        {onPhone ? null : (
+          <>
             <Setting
               label="generalSettings.listDates"
               description={t('generalSettings.listDatesHint')}
@@ -191,7 +191,11 @@ export function GeneralSection() {
               checked={activityStrip}
               onChange={(on) => change({ activityStrip: on })}
             />
-          </SettingsSection>
+          </>
+        )}
+      </SettingsSection>
+      {onPhone ? null : (
+        <>
           <SettingsSection title="generalSettings.dailyNotes">
             <Setting
               label="generalSettings.dailyNotebook"

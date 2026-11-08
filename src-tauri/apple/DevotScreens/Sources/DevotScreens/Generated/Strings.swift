@@ -5634,6 +5634,14 @@ public enum L10n {
     text("phone.settings.closeSearch", "Close search")
   }
 
+  public static func phoneSettingsAlertOk() -> String {
+    text("phone.settings.alertOk", "OK")
+  }
+
+  public static func phoneSettingsDefaultNotebookFooter() -> String {
+    text("phone.settings.defaultNotebookFooter", "New notes go here unless a notebook is open.")
+  }
+
   public static func phoneSettingsTrial() -> String {
     text("phone.settings.trial", "Trial")
   }

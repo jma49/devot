@@ -655,7 +655,7 @@ export function SyncSection() {
           </PhoneGroup>
         ) : null}
         {recoveryKey ? <PhoneGroup>{recoveryPanel}</PhoneGroup> : null}
-        {inVault ? null : <PhoneGroup>{setupRows}</PhoneGroup>}
+        {inVault ? null : <PhoneGroup anchor="pairing">{setupRows}</PhoneGroup>}
         {inVault ? (
           <PhoneGroup>
             <DevicesRow
@@ -667,7 +667,7 @@ export function SyncSection() {
           </PhoneGroup>
         ) : null}
         {rotatedRows ? <PhoneGroup>{rotatedRows}</PhoneGroup> : null}
-        {inVault && !rotatedAway ? <PhoneGroup>{pairingRow}</PhoneGroup> : null}
+        {inVault && !rotatedAway ? <PhoneGroup anchor="pairing">{pairingRow}</PhoneGroup> : null}
         {leaveRow ? <PhoneGroup>{leaveRow}</PhoneGroup> : null}
       </section>
     )
