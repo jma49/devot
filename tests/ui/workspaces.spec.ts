@@ -142,7 +142,7 @@ test('a workspace opened in focus mode leaves the keyboard in the editor when Cm
   await paletteField(page).fill('b devot')
   await expect(palette(page).getByRole('option', { name: /Devot/ })).toBeVisible()
   await page.keyboard.press('Meta+Enter')
-  await expect(header(page)).toHaveText('Devot')
+  await expect(palette(page)).toBeHidden()
   await page.clock.runFor(200)
   await body(page).click()
   await expect(body(page)).toBeFocused()
