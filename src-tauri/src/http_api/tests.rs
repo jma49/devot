@@ -1288,6 +1288,24 @@ fn a_socket_a_dead_devot_left_is_replaced_and_a_look_that_sends_nothing_gets_not
 }
 
 #[test]
+fn a_bridge_whose_socket_file_is_gone_still_stops() {
+    let dir = tempfile::tempdir().unwrap();
+    let place = dir.path().join("mcp.sock");
+    let gate = Arc::new(Gate::new(Limits::DEFAULT));
+    let server = Server::start_bridge(&place, gate, Arc::new(Core::default())).unwrap();
+    std::fs::remove_file(&place).unwrap();
+    let (done, finished) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        drop(server);
+        let _ = done.send(());
+    });
+    assert!(
+        finished.recv_timeout(Duration::from_secs(2)).is_ok(),
+        "the drop waits on a socket file that is gone"
+    );
+}
+
+#[test]
 fn a_file_at_the_sockets_place_that_is_not_this_users_socket_is_left_alone() {
     let dir = tempfile::tempdir().unwrap();
     let place = dir.path().join("mcp.sock");

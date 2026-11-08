@@ -50,9 +50,16 @@ sha2 = "0.10"
 # Safe calls relative to a folder handle (openat, mkdirat, renameat and
 # renameatx_np, unlinkat, fstatat) for atomic_file, so no folder on the way
 # to a file can be swapped for a link after Devot looked. File system calls,
-# and on Linux a Unix socket peer's user (`net`, for the MCP bridge); already
+# and on Linux a Unix socket peer's user (`net`, for the MCP bridge), and the
+# bridge's accept loop waiting on its socket or its wake-up (`event`); already
 # in the tree through tempfile (native-tls).
-rustix = { version = "1.1", default-features = false, features = ["std", "fs", "process", "net"] }
+rustix = { version = "1.1", default-features = false, features = [
+  "std",
+  "fs",
+  "process",
+  "net",
+  "event",
+] }
 # Plugin packages as `.zip` archives (`plugins::package`), deflate through
 # flate2's Rust backend, named here because no other dependency selects it on iOS.
 # Read entry by entry, never through `extract` (no links, no permission bits).
