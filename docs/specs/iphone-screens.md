@@ -185,6 +185,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - When a `rev` is not the next one, Swift reads every row the list has loaded again (at least the first page of 200) rather than guess, so the list keeps its length and scroll position.
 - `notes.changed { rev, ids, all: true }` says the page cannot name the notes (a sync or a launch took in changes), and Swift reads the loaded rows again too.
 - The page reports the writes a note save does not (a note's tags, a purge, and notebooks, tags and saved searches) a moment after they complete (`phone/screens/feed.ts`).
+- Seeding the first-launch notes sends `notes.changed { all: true }`, since a list may have read the empty library before them.
 
 ### Lists
 
