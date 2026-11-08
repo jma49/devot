@@ -50,14 +50,11 @@ Its keyline is `size.phone-grouped-pad-x` (16) from a card's edge: section heade
 - **Separator:** a `size.phone-separator` hairline in `color.phone.separator` between rows, from the keyline (the label's keyline on the Settings screen) to the card's right edge; none above a card's first row.
 - **Text:** label 16/23 in the body colour; at most one short description under it, 14/19 in `color.phone.text-secondary`, `space.2` below the label.
   The native Settings draws both sizes in one modifier that scales them with Dynamic Type from the body style (`@ScaledMetric`), since the type scale has no token for them.
-- **Trailing edge:** a value, a switch, a stepper and a chevron end on one right edge, `size.phone-grouped-pad-x` from the card's edge, in every row and every pane.
-  At the accessibility sizes a select or a stepper goes under its label and stays on that edge.
+- **Trailing edge:** a value, a switch and a chevron end on one right edge, `size.phone-grouped-pad-x` from the card's edge, in every row and every pane.
 - **Values and pickers:** a select's value is 14/19 in `color.phone.text-secondary`, at most 40% of the row, on one line cut with an ellipsis, then the disclosure chevron.
   The label wraps before a short value is cut.
   The whole row opens the picker.
   A picker among a row's actions (the imported font) is a row of its own: its value on the keyline, the chevron on the right edge.
-- **Stepper:** its value as a trailing value, then a `size.phone-stepper-height` pair of `size.phone-stepper-button` buttons on `color.phone.lens`, its outer corners concentric with the card; it never stretches.
-  The value comes first in reading and tab order, and each button is a 44 by 44 target.
 - **Controls that fill a row:** a segmented control or a slider takes the row's width with `size.phone-grouped-pad-x` on every side, so its corners are concentric with the card; its name is the section header, never a label inside the card.
   A card that holds more than one control names each slider on a line above its track, label left and value right.
   A free-text field goes under its label at the row's width.

@@ -2150,23 +2150,6 @@ button.phone-compose[data-hidden] {
   justify-content: center;
 }
 
-.phone-segmented {
-  position: relative;
-  min-height: var(--size-phone-pane-segmented);
-  padding: 3px;
-  box-sizing: border-box;
-  border-radius: calc(var(--size-phone-pane-segmented) / 2);
-  background: var(--color-phone-lens);
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-}
-
-/* In a card the control's corners share the card's centre, and the pill's share the control's. */
-.settings-card .phone-segmented {
-  border-radius: var(--phone-grouped-inner-radius);
-}
-
 .phone-detail-head {
   display: flex;
   align-items: center;
@@ -2367,47 +2350,6 @@ button.phone-compose[data-hidden] {
   font-size: calc(17px * var(--phone-text-scale, 1));
 }
 
-/* At the accessibility sizes a row stacks rather than cut its label. */
-.phone-app[data-text-size='accessibility'] {
-  .phone-settings-pane .setting:has(> .setting-control > :is(.select, .stepper)) {
-    flex-flow: column;
-    align-items: stretch;
-  }
-
-  .phone-settings-pane .setting:has(> .setting-control > :is(.select, .stepper)) .setting-text {
-    flex: none;
-    max-width: none;
-  }
-
-  .phone-settings-pane .setting:has(> .setting-control > :is(.select, .stepper)) .setting-control {
-    flex: none;
-    max-width: none;
-    align-items: flex-end;
-    margin-left: 0;
-  }
-
-  .phone-segmented {
-    grid-auto-flow: row;
-    grid-auto-rows: minmax(var(--size-phone-target), 1fr);
-  }
-
-  .phone-segmented-pill {
-    bottom: auto;
-    width: calc(100% - 6px);
-    height: calc((100% - 6px) / var(--segments));
-    transform: translateY(calc(100% * var(--segment)));
-  }
-
-  .phone-segment::after {
-    inset: 0;
-  }
-
-  .phone-theme-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    row-gap: var(--size-phone-row-pad);
-  }
-}
-
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .phone-sheet {
     background: var(--color-phone-glass-opaque);
@@ -2417,11 +2359,6 @@ button.phone-compose[data-hidden] {
 }
 
 :root[data-motion='reduced'] {
-  .phone-segmented-pill,
-  .phone-app .phone-settings-pane.settings-window .setting-toggle input[role='switch']::after {
-    transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
-  }
-
   .phone-note-section-body {
     transition:
       opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out),

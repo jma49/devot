@@ -33,10 +33,6 @@ describe('the phone layout tokens', () => {
     ['size.phone-card-inset', 4],
     ['size.phone-row-pad', 12],
     ['size.phone-group-gap', 20],
-    ['size.phone-stepper-height', 32],
-    ['size.phone-stepper-button', 44],
-    ['size.phone-theme-thumb-width', 44],
-    ['size.phone-theme-thumb-height', 56],
     ['size.phone-group-title', 10],
     ['size.phone-topbar-top', 12],
     ['size.phone-topbar-band', 68],
@@ -56,7 +52,6 @@ describe('the phone layout tokens', () => {
     ['radius.phone-heat-legend', 3],
     ['radius.phone-card', 22],
     ['radius.phone-row-press', 16],
-    ['radius.phone-theme-thumb', 10],
     ['radius.phone-sheet', 34],
     ['radius.phone-menu-row', 20],
     ['size.phone-scheme-card', 150],
@@ -150,6 +145,13 @@ describe('the phone motion tokens', () => {
   it('has no tokens left for the capture sheet New Note replaced', () => {
     const names = Object.keys(sizes)
     expect(names.filter((name) => /phone-(capture|arrive|dim-capture)/.test(name))).toEqual([])
+  })
+
+  it('has no tokens left for the web Settings panes the native ones replaced', () => {
+    const names = Object.keys(sizes)
+    expect(
+      names.filter((name) => /phone-(stepper|slider|switch|pane-segmented|theme-thumb)/.test(name)),
+    ).toEqual([])
   })
 
   it('draws the glass rim from tokens, on the bars and the lifted lens', () => {

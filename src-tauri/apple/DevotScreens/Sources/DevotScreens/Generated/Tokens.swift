@@ -3449,7 +3449,6 @@ public enum Tokens {
     public static let phoneLensBar: CGFloat = 27
     public static let phoneLensSegmented: CGFloat = 18
     public static let phoneChip: CGFloat = 15
-    public static let phoneThemeThumb: CGFloat = 10
     public static let phoneRowPress: CGFloat = 16
     public static let phoneGroupedCard: CGFloat = 24
     public static let phoneSchemeMini: CGFloat = 16
@@ -3495,12 +3494,6 @@ public enum Tokens {
     public static let phoneGlassRim: CGFloat = 1.2
     public static let phoneGlassBar: CGFloat = 62
     public static let phoneLensInset: CGFloat = 4
-    public static let phoneSwitchWidth: CGFloat = 51
-    public static let phoneSwitchHeight: CGFloat = 31
-    public static let phonePaneSegmented: CGFloat = 36
-    public static let phoneSliderTrack: CGFloat = 4
-    public static let phoneSliderThumbWidth: CGFloat = 38
-    public static let phoneSliderThumbHeight: CGFloat = 24
     public static let phoneSheetDone: CGFloat = 50
     public static let phoneSegmented: CGFloat = 44
     public static let phoneEditorToolbar: CGFloat = 48
@@ -3531,11 +3524,6 @@ public enum Tokens {
     public static let phoneGroupedPadY: CGFloat = 12
     public static let phoneGroupedGap: CGFloat = 12
     public static let phoneGroupGap: CGFloat = 20
-    public static let phoneStepperHeight: CGFloat = 32
-    public static let phoneStepperButton: CGFloat = 44
-    public static let phoneStepperField: CGFloat = 36
-    public static let phoneThemeThumbWidth: CGFloat = 44
-    public static let phoneThemeThumbHeight: CGFloat = 56
     public static let phoneThemeRingGap: CGFloat = 2
     public static let phoneThemeRing: CGFloat = 2
     public static let phoneSchemeCard: CGFloat = 150
