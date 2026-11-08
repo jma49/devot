@@ -30,6 +30,7 @@ Part of the [architecture overview](../architecture.md).
   A write may be based on a whole number below 2^53 − 1 (`MAX_BODY_VERSION`), so the version it moves on to is still exact in JavaScript; `note_put` and `note_put_meta` refuse any other with `E_NOTE_VERSION_INVALID`, as every storage adapter does (`checkNote`, `checkNoteMeta`).
 - **Hand-set dates:** Note Info's Created and Updated rows set a note's created and updated dates (`noteInfo/NoteInfoCard.tsx`).
   A click on a row opens Devot's own date picker under it (`DatePicker.tsx`, its logic in `noteInfo/calendar.ts`): a month with the days of the weeks around it, the week starting on the locale's first day, and the hour and minute (with AM and PM where the locale writes them).
+  AM or PM is its own part of the time: clearing or retyping the hour keeps it, and A or P chooses it while the hour is cleared.
   The picker keeps the date's seconds and milliseconds and turns off the days the other date rules out: Created no later than Updated, Updated no earlier than Created.
   A date left unchanged is written back exactly as stored, even in the hour that comes twice when the clocks go back.
   Set is turned off while the time breaks that rule, is incomplete or is skipped when the clocks go forward, and says why; Return sets, Escape cancels, and a save that fails says so and keeps the picker open.
