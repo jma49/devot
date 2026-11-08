@@ -46,7 +46,7 @@ struct LabelledSlider: View {
 
     @ViewBuilder private func end(_ end: SliderEnd?) -> some View {
         switch end {
-        case .caption(let text): if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("nocaps") { Color.clear.frame(width: 30, height: 10) } else { Text(text).settingsDetail() }
+        case .caption(let text): Text(text).settingsDetail()
         case .symbol(let name):
             Image(systemName: name).foregroundStyle(Color(Tokens.Color.phoneTextSecondary)).accessibilityHidden(true)
         case nil: EmptyView()
@@ -55,12 +55,16 @@ struct LabelledSlider: View {
 }
 
 /// When a slider's value is written: as a drag's finger lifts, or once steps that came without a
-/// drag settle, since VoiceOver and Switch Control adjust a slider without touch tracking.
+/// drag settle, since VoiceOver and Switch Control adjust a slider without touch tracking. SwiftUI
+/// can hand over a drag's last value just after the lift, so a value within a settle of the lift is
+/// written at once rather than left to a debounce an app closed straight away would lose.
 @MainActor
 final class SliderCommit {
     static let settle: Duration = .milliseconds(400)
     private let settle: Duration
+    private let clock = ContinuousClock()
     private var dragging = false
+    private var lifted: ContinuousClock.Instant?
     private var pending: Task<Void, Never>?
     private var release: (() -> Void)?
 
@@ -71,12 +75,18 @@ final class SliderCommit {
     func editing(_ editing: Bool, _ released: @escaping () -> Void) {
         cancel()
         dragging = editing
+        lifted = editing ? nil : clock.now
         if !editing { released() }
     }
 
     func changed(_ released: @escaping () -> Void) {
         guard !dragging else { return }
         cancel()
+        if let lifted, clock.now - lifted < settle {
+            released()
+            return
+        }
+        self.lifted = nil
         release = released
         pending = Task { [weak self, settle] in
             try? await Task.sleep(for: settle)

@@ -38,4 +38,26 @@ final class SliderCommitTests: XCTestCase {
         commit.editing(false) { self.released += 1 }
         XCTAssertEqual(released, 1)
     }
+
+    /// SwiftUI may hand over a drag's last value after it reports the finger lifted; that value is
+    /// written at once, not a settle later, so an app closed straight after the drag keeps it.
+    func testAValueThatArrivesJustAfterTheLiftIsWrittenAtOnce() {
+        commit.editing(true) { self.released += 1 }
+        commit.editing(false) { self.released += 1 }
+        XCTAssertEqual(released, 1)
+        commit.changed { self.released += 1 }
+        XCTAssertEqual(released, 2)
+        wait()
+        XCTAssertEqual(released, 2)
+    }
+
+    func testStepsLongAfterALiftWaitToSettleAgain() {
+        commit.editing(true) { self.released += 1 }
+        commit.editing(false) { self.released += 1 }
+        wait()
+        commit.changed { self.released += 1 }
+        XCTAssertEqual(released, 1)
+        wait()
+        XCTAssertEqual(released, 2)
+    }
 }
