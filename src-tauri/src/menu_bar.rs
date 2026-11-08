@@ -92,6 +92,7 @@ fn apply_now(app: &AppHandle, on: bool) {
         }
         // Nothing else would bring a hidden main window back but the Dock.
         reveal_main(app);
+        crate::background::menu_bar_icon_changed(app, false);
         return;
     }
     if show_icon(app).is_err() {
@@ -99,6 +100,7 @@ fn apply_now(app: &AppHandle, on: bool) {
         return;
     }
     state.on.store(true, Ordering::SeqCst);
+    crate::background::menu_bar_icon_changed(app, true);
     if app
         .global_shortcut()
         .register(QUICK_CAPTURE_SHORTCUT)
