@@ -196,6 +196,8 @@ The Notes and Library tabs' roots and every list they push are native (`DevotScr
 | `template.create`                        | Swift | makes an empty template; answers `{ id }`, which Swift opens                                 |
 | `template.apply { templateId, bookId? }` | Swift | makes a note from a template; answers `{ id }`, which Swift opens                            |
 | `note.text { noteId }`                   | Swift | the note's title and Markdown, for the share sheet                                           |
+| `note.complete { noteId }`               | Swift | sets the status to completed; answers `{ undo }`, what `note.undoStatus` needs               |
+| `note.undoStatus { noteId, undo }`       | Swift | puts the status and the update time back, unless the note was written again since            |
 
 - A `change` is one of `book { bookId }`, `status { status }`, `pinned { pinned }`, `putTag { tagId }`, `removeTag { tagId }`, `trash`, `restore` and `purge`.
 - `NoteListDataSource` is one list's feed: it reads the first page when its screen loads, and a list nobody has shown reads nothing.
@@ -208,6 +210,15 @@ The Notes and Library tabs' roots and every list they push are native (`DevotScr
 - `ListContext` holds what the lists share: the bridge, the gate, the excerpts and the Library's last read, which it reads again on a change once a screen has asked for it.
 - Every list write goes through the gate (`notes.batch`, `trash.empty`, `template.create`, `template.apply` are write intents); a swipe answers the system with whether it ran before the gate raises its sheet, and a context menu's write runs once the menu has gone.
   A batch entry refused for the licence raises the sheet; any other failure is logged as `W_PHONE_BATCH_FAILED count=… code=…` or `W_PHONE_LIST_WRITE_FAILED op=… code=…`.
+- The undo toast (`UI/Toast.swift`) is offered to `ListContext.undoToasts` by the one write that can be taken back: one note trashed (Undo restores it) or completed by its swipe (Undo sends `note.undoStatus` with the `undo` that `note.complete` answered).
+  The page keeps no undo of its own: it answers a completion with `StatusUndo` (`status`, `updatedAt`, `statusHlc`, `bodyVersion`), which Rust checks and Swift holds for the toast.
+  A second action replaces the words in place and the first stays done; a trash of several notes, a refused one and a restore offer nothing.
+- The toast is a `UIVisualEffectView` of regular, non-interactive `UIGlassEffect` over a `FloatShadowView`, `size.phone-toast` high between the `size.phone-screen-edge` keylines.
+  Its bottom is `size.phone-toast-gap` above the tab bar's top edge (`DevotTabBarController` tells the presenter), and never below the safe area or under `keyboardLayoutGuide`.
+  The glass is put on after the rise, because UIKit may not install it on a moving host.
+- `SettleAnimator` runs `phone-settle` from the release position and velocity on a `CADisplayLink` at 80 to 120 Hz and stops at the first crossing of the target, because the system springs overshoot; it sets `transform` only.
+  `ToastModel` holds the rules without UIKit: the pan begins after about 10 pt sideways and fails past 12 pt vertical, the toast goes past 0.25 of its width or faster than 800 pt/s in the direction of the drag, and flies to plus or minus its width + 24 at max(finger speed, distance / 0.16 s).
+- VoiceOver announces the message and the toast stays while its focus is on it; Reduce Motion replaces the rise with a 200 ms crossfade in place, and the drag still works.
 - A failed read is logged as `W_PHONE_LIST_READ_FAILED`, `W_PHONE_LIBRARY_READ_FAILED` or `W_PHONE_TRASH_READ_FAILED` with its code, and the list keeps what it showed.
 
 ### Tabs

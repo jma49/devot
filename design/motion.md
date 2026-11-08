@@ -213,7 +213,15 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The note's row is already in place when the list comes back, and nothing moves into the list: the row only fades out of the accent wash over `motion.duration.phone-flash`.
   An untouched new note (no title, no body, no chip changed) is gone before the list shows, with no motion and no toast.
 - **Search:** rule 3. The overlay fades in over `motion.duration.phone-search`; the glass field grows leftwards from the search button, from `motion.scale.phone-search-field` of its width with `bouncy`, fading in over `motion.duration.phone-search-field`. Closing goes back the same way. Results and the chips change at once (rule 2). Reduce Motion leaves the crossfade.
-- **Undo toast:** rule 3. It rises `size.phone-toast-rise` and grows from `motion.scale.phone-toast` with `bouncy` while fading in over `motion.duration.ring`, and goes back the same way after `motion.duration.phone-toast`. A second action replaces it where it is. Under Reduce Motion it crossfades in place.
+- **Undo toast:** rule 3.
+  It rises `size.phone-toast-rise` over `motion.duration.phone-enter` on `motion.easing.phone-enter` while fading in, with no scale and no bounce.
+  Its glass is put on once the rise has ended.
+  It fades out over `motion.duration.phone-exit` after `motion.duration.phone-toast`, and stays while VoiceOver is on it.
+  A sideways drag follows the finger.
+  Let go past `motion.ratio.phone-toast-dismiss` of its width, or faster than `motion.velocity.phone-toast-flick` the way it was dragged, it flies off at least as fast as the finger and within `motion.duration.phone-fly`.
+  Otherwise it settles back on `phone-settle` from the finger's speed, without passing its place.
+  A second action replaces its words in place with a crossfade of `motion.duration.phone-adjust`.
+  Under Reduce Motion it crossfades in place over `motion.duration.phone-crossfade` and still follows a drag.
 - **Pane switch:** rule 4. The knob moves with `bouncy` and the track's colour fades, without bouncing. Under Reduce Motion the knob crossfades into place.
 - **Pane segmented control:** rule 4. The pill slides with `bouncy` to the chosen segment, with the `selection` haptic. Under Reduce Motion it moves at once with no spring.
 - **Pane slider:** rule 1. The thumb and fill follow the finger, and the glass or text changes as it goes.
