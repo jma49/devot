@@ -448,6 +448,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   let running = false
   let connected = false
+  /** Counts connects; a pass ends only on the connection it started on, so a stop or a drop reported meanwhile stands. */
+  let connection = 0
   let status: SyncStatus = {
     state: 'off',
     lastSync: null,
@@ -657,6 +659,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       reportUnsynced()
     }
     connected = true
+    connection += 1
     reconnectDelay = RECONNECT_MIN_MS
     await syncAll(pass)
   }
@@ -748,13 +751,15 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   }
 
   async function syncAll(pass: PassOptions = {}) {
+    const on = connection
     set({ state: 'syncing' })
     await pullAll()
     await pushAll(pass)
-    await finishPass()
+    await finishPass(on)
   }
 
-  async function finishPass() {
+  async function finishPass(on: number) {
+    if (!connected || on !== connection) return
     if (heldBack) {
       set({ state: 'idle', code: null })
       return
@@ -1129,11 +1134,12 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       armPaced(pace?.until)
       return
     }
+    const on = connection
     set({ state: 'syncing' })
     await pushAll({ paced })
     // iCloud has no socket to say what changed meanwhile, and a silent push may not come.
     if (pull && via === 'icloud') await pullAll()
-    await finishPass()
+    await finishPass(on)
   }
 
   const kept = (id: string) => tooLarge.has(id) || unsynced.has(id) || parked.has(id)

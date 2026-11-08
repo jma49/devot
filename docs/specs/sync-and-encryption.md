@@ -118,6 +118,7 @@ Part of the [architecture overview](../architecture.md).
     The engine closes the socket, reports `paused` with that time (the notice and Settings > Sync say "Sync paused until" it, in local time), and connects again once, at a random moment in the minute after it (measured on the relay's clock from the `welcome`, checked at least hourly, since a timer falls behind while the machine sleeps); a refusal without `until` (a relay that did not say) waits for the next 00:00 UTC.
     A refusal for `storedBytes` lasts past the reset, so the pass goes on with the records that fit (smaller ones, purges) and pauses after it.
     A pass the socket closed in the middle of stops there, so the upload keeps its place.
+    A pass that finishes after a stop or a drop was reported ends with that status, not idle, and leaves the last sync as it was.
     Local work goes on.
     A backlog of at least 100 records (a first upload, a new epoch) reports its progress, records sent of the total; the total is kept in `sync_state` (`uploadTotal`) and what is left is the pending count, so a restart keeps its place and a large vault uploads over several days.
     A `welcome` without `quota` comes from a relay older than the cap: sync goes on, and Settings > Sync says to update the relay.
