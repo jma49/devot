@@ -1,10 +1,7 @@
 import UIKit
 
-/// Keeps the reader's place in a list while its content changes size, as a larger text size does:
-/// SwiftUI's list passes through a short content size on the way, which drops its offset, and the
-/// accessibility audit's Dynamic Type check reads text that leaves the screen as text that does not
-/// scale. After a text size change the first row or header that starts on the screen keeps its
-/// place; a list that keeps its foot keeps it in view once the reader has scrolled there.
+/// Keeps the first row or header on the screen in place when the text size changes, or the foot for a
+/// list that keeps it: SwiftUI's list passes through a short content size on the way and drops its offset.
 @MainActor
 final class PlaceKeeper {
     private struct Anchor {
@@ -19,8 +16,8 @@ final class PlaceKeeper {
     private var observations: [NSKeyValueObservation] = []
     private var adjusting = false
     private var anchor: Anchor?
-    /// Set from a text size change until the reader scrolls: otherwise the list's own settling, as rows
-    /// learn their heights, is left alone.
+    private var markPending = false
+    /// Until the reader scrolls: without a text size change the list's own settling is left alone.
     private var textSizeChanged = false
     private(set) var atTheFoot = false
 
@@ -45,12 +42,20 @@ final class PlaceKeeper {
         max(top, list.contentSize.height + list.adjustedContentInset.bottom - list.bounds.height)
     }
 
-    /// Only the reader's own scrolling marks the place: the list moves itself while it lays out.
+    /// Only the reader's own scrolling moves the place: the list moves itself while it lays out.
     private func moved() {
         guard !adjusting, movedByTheReader(list) else { return }
         atTheFoot = keepsTheFoot && list.contentOffset.y >= foot - 1
         textSizeChanged = false
-        mark()
+        guard !markPending else { return }
+        markPending = true
+        // A scroll holds the run loop in its tracking mode, so this marks once, as the scroll ends.
+        RunLoop.main.perform(inModes: [.default]) { [weak self] in
+            MainActor.assumeIsolated {
+                self?.markPending = false
+                self?.mark()
+            }
+        }
     }
 
     private func resized() {
@@ -86,8 +91,7 @@ final class PlaceKeeper {
         }
     }
 
-    /// Found among the list's elements rather than asked for: asking for a header or footer that is gone
-    /// raises an exception.
+    /// Asking the layout for a header or footer that is gone raises an exception, so it is searched for.
     private func frame(of anchor: Anchor) -> CGRect? {
         guard let collection = list as? UICollectionView else { return nil }
         let content = CGRect(origin: .zero, size: list.contentSize).insetBy(dx: 0, dy: -list.bounds.height)

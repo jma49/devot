@@ -84,14 +84,34 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(app.navigationBars[L10n.settingsPaneAppearance()].waitForExistence(timeout: 10))
     }
 
-    /// Scrolls the pane until `element` shows whole between the bars, down the pane or back up it.
+    /// Scrolls the pane until `element` shows whole between the bars, down the pane or back up it, and
+    /// back towards it once it shows: a swipe's fling on iOS 26.5 carried a card from under the tab bar to
+    /// under the navigation bar.
     private func scrolled(to element: XCUIElement, back: Bool = false) -> XCUIElement {
-        let list = app.collectionViews.firstMatch
-        for _ in 0..<6 where !(element.exists && element.isHittable && clearOfTheBars(scrolled: false).contains(element.frame)) {
-            if back { list.swipeDown(velocity: .slow) } else { list.swipeUp(velocity: .slow) }
+        for _ in 0..<8 {
+            let clear = clearOfTheBars(scrolled: false)
+            if element.exists && element.isHittable && clear.contains(element.frame) { break }
+            let step = clear.height / 2
+            var distance = back ? -step : step
+            if element.exists && element.frame.minY < clear.minY {
+                distance = -min(clear.minY - element.frame.minY + 8, step)
+            } else if element.exists && element.frame.maxY > clear.maxY {
+                distance = min(element.frame.maxY - clear.maxY + 8, step)
+            }
+            scroll(by: distance, within: clear)
         }
         XCTAssertTrue(element.exists)
         return element
+    }
+
+    /// Moves the list up by `distance` (down when negative) in the margin beside its cards, holding before
+    /// the lift so the list does not fling on.
+    private func scroll(by distance: CGFloat, within clear: CGRect) {
+        let start = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: clear.maxX - 8, dy: distance > 0 ? clear.maxY - 8 : clear.minY + 8))
+        start.press(
+            forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)), withVelocity: .slow,
+            thenHoldForDuration: 0.3)
     }
 
     private func transparency() -> XCUIElement {
