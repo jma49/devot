@@ -8,6 +8,8 @@ import {
   buildFirstPieces,
   buildPending,
   buildToLine,
+  CHUNK_BLOCKS,
+  CHUNK_CLASS,
   hasPending,
   noteOffset,
   patchChildren,
@@ -78,16 +80,139 @@ const piece = (key: string, text: string, line: number): NextPiece => ({
 
 const known = (key: string, line: number): NextPiece => ({ key, line, offset: line * 10 })
 
-/** The nodes added to or removed from `host` from now until the returned function is called. */
+/** The note's blocks in `host`, out of their chunks. */
+const blocks = (host: Element) => Array.from(host.children).flatMap((chunk) => [...chunk.children])
+
+/** What `host` shows, without the chunks around it: where an edit's nodes land decides those. */
+const content = (host: Element) => Array.from(host.children, (chunk) => chunk.innerHTML).join('')
+
+const heading = (key: string, text: string, line: number): NextPiece => ({
+  key,
+  line,
+  offset: line * 10,
+  nodes: [
+    {
+      type: 'element',
+      tagName: 'h2',
+      properties: {},
+      children: [{ type: 'text', value: text }],
+    },
+  ],
+})
+
+/** The blocks and chunks added to or removed from `host` from now until the returned function is called. */
 function watched(host: Element): () => Node[] {
   const observer = new MutationObserver(() => undefined)
-  observer.observe(host, { childList: true })
+  observer.observe(host, { childList: true, subtree: true })
   return () => {
-    const records = observer.takeRecords()
+    const records = observer
+      .takeRecords()
+      .filter((record) => record.target === host || record.target.parentNode === host)
     observer.disconnect()
     return records.flatMap((record) => [...record.removedNodes, ...record.addedNodes])
   }
 }
+
+const paragraphs = (count: number, from = 0) =>
+  Array.from({ length: count }, (_, i) => piece(`p${from + i}`, `P${from + i}`, from + i + 1))
+
+describe('patchPieces, in chunks', () => {
+  it('puts the blocks in chunks of CHUNK_BLOCKS, a heading in the chunk of the block after it', () => {
+    const host = document.createElement('div')
+    const next = paragraphs(CHUNK_BLOCKS * 2 + 10)
+    next[CHUNK_BLOCKS - 1] = heading('h', 'Heading', CHUNK_BLOCKS)
+    patchPieces(host, [], next)
+    expect(Array.from(host.children, (chunk) => chunk.className)).toEqual([
+      CHUNK_CLASS,
+      CHUNK_CLASS,
+      CHUNK_CLASS,
+    ])
+    expect(Array.from(host.children, (chunk) => chunk.childElementCount)).toEqual([
+      CHUNK_BLOCKS + 1,
+      CHUNK_BLOCKS,
+      9,
+    ])
+    expect(blocks(host).map((block) => block.textContent)).toEqual(
+      next.map((one) =>
+        (one.nodes![0] as HastElement).children.map((t) => (t as { value: string }).value).join(''),
+      ),
+    )
+  })
+
+  it('builds the pieces left for later into the last chunk and then new ones', () => {
+    const host = document.createElement('div')
+    const shown = patchPieces(host, [], paragraphs(CHUNK_BLOCKS + 30), {
+      defer: true,
+    })
+    let built = 0
+    buildPending(host, shown, () => (built += 1) <= 30)
+    buildPending(host, shown, () => true)
+    expect(Array.from(host.children, (chunk) => chunk.childElementCount)).toEqual([
+      CHUNK_BLOCKS,
+      30,
+    ])
+  })
+
+  it('patches a piece inside its chunk, moving no other chunk or block', () => {
+    const host = document.createElement('div')
+    let shown = patchPieces(host, [], paragraphs(CHUNK_BLOCKS * 3))
+    const chunks = [...host.children]
+    const moved = watched(host)
+    const edited = CHUNK_BLOCKS + 5
+    shown = patchPieces(host, shown, [
+      ...shown.slice(0, edited).map((one) => known(one.key, one.line)),
+      {
+        key: 'added',
+        line: edited + 1,
+        offset: 0,
+        nodes: [paragraph('Added'), heading('x', 'H', 1).nodes![0]!],
+      },
+      ...shown.slice(edited + 1).map((one) => known(one.key, one.line + 1)),
+    ])
+    expect([...host.children]).toEqual(chunks)
+    expect(chunks[1]!.childElementCount).toBe(CHUNK_BLOCKS + 1)
+    const changes = moved()
+    expect(changes.every((node) => chunks[1]!.contains(node) || node.parentNode === null)).toBe(
+      true,
+    )
+    expect(changes).toHaveLength(1)
+  })
+
+  it('splits a chunk that a paste made more than twice CHUNK_BLOCKS long', () => {
+    const host = document.createElement('div')
+    let shown = patchPieces(host, [], paragraphs(CHUNK_BLOCKS * 2))
+    shown = patchPieces(host, shown, [
+      ...shown.slice(0, 10).map((one) => known(one.key, one.line)),
+      ...paragraphs(CHUNK_BLOCKS * 3, 1000),
+      ...shown.slice(10).map((one) => known(one.key, one.line)),
+    ])
+    expect(Array.from(host.children, (chunk) => chunk.childElementCount)).toEqual([
+      CHUNK_BLOCKS,
+      CHUNK_BLOCKS,
+      CHUNK_BLOCKS,
+      CHUNK_BLOCKS,
+      CHUNK_BLOCKS,
+    ])
+    expect(blocks(host)).toHaveLength(CHUNK_BLOCKS * 5)
+    expect(blocks(host)[10]!.textContent).toBe('P1000')
+  })
+
+  it('removes a chunk an edit empties, and keeps a heading with the block after it', () => {
+    const host = document.createElement('div')
+    const next = paragraphs(CHUNK_BLOCKS * 3)
+    next[CHUNK_BLOCKS - 2] = heading('h', 'Heading', CHUNK_BLOCKS - 1)
+    let shown = patchPieces(host, [], next)
+    expect(host.children[0]!.lastElementChild!.localName).toBe('p')
+    shown = patchPieces(host, shown, [
+      ...shown.slice(0, CHUNK_BLOCKS - 1).map((one) => known(one.key, one.line)),
+      ...shown.slice(CHUNK_BLOCKS * 2).map((one) => known(one.key, one.line)),
+    ])
+    expect(host.children).toHaveLength(2)
+    expect(host.children[0]!.lastElementChild!.localName).toBe('p')
+    expect(host.children[0]!.childElementCount).toBe(CHUNK_BLOCKS)
+    expect(blocks(host)).toHaveLength(CHUNK_BLOCKS * 2 - 1)
+  })
+})
 
 describe('patchPieces', () => {
   it('leaves the pieces between two changed ones where they are', () => {
@@ -103,7 +228,7 @@ describe('patchPieces', () => {
         piece('notes', 'Notes', 2),
       ],
     )
-    const [b, c, d] = [1, 2, 3].map((i) => host.children[i]!)
+    const [b, c, d] = [1, 2, 3].map((i) => blocks(host)[i]!)
     const moved = watched(host)
 
     shown = patchPieces(host, shown, [
@@ -114,18 +239,18 @@ describe('patchPieces', () => {
       piece('notes2', 'Notes edited', 2),
     ])
 
-    expect(Array.from(host.children, (child) => child.textContent)).toEqual([
+    expect(blocks(host).map((child) => child.textContent)).toEqual([
       'A',
       'B edited',
       'C',
       'D',
       'Notes edited',
     ])
-    expect(host.children[1]).toBe(b)
-    expect(host.children[2]).toBe(c)
-    expect(host.children[3]).toBe(d)
+    expect(blocks(host)[1]).toBe(b)
+    expect(blocks(host)[2]).toBe(c)
+    expect(blocks(host)[3]).toBe(d)
     expect(moved()).toEqual([])
-    expect(host.children[2]!.getAttribute('data-source-line')).toBe('4')
+    expect(blocks(host)[2]!.getAttribute('data-source-line')).toBe('4')
     expect(shown.map((p) => p.key)).toEqual(['a', 'b2', 'c', 'd', 'notes2'])
   })
 
@@ -138,9 +263,9 @@ describe('patchPieces', () => {
       known('c', 4),
       { key: 'e', line: 5, offset: 50, nodes: [] },
     ])
-    expect(Array.from(host.children, (child) => child.textContent)).toEqual(['A', 'B1', 'B2', 'C'])
+    expect(blocks(host).map((child) => child.textContent)).toEqual(['A', 'B1', 'B2', 'C'])
     shown = patchPieces(host, shown, [known('a', 1), known('c', 2), known('e', 3)])
-    expect(Array.from(host.children, (child) => child.textContent)).toEqual(['A', 'C'])
+    expect(blocks(host).map((child) => child.textContent)).toEqual(['A', 'C'])
     expect(shown.map((p) => p.key)).toEqual(['a', 'c', 'e'])
   })
 
@@ -253,7 +378,7 @@ describe('patchPieces, deferring', { timeout: 30_000 }, () => {
     patchPieces(host, [], next)
     expect(host.querySelector('[data-task-at]')).not.toBeNull()
     expect(host.querySelector('[data-image-from]')).not.toBeNull()
-    expect(host.innerHTML).toBe(patchedOver(next, other).innerHTML)
+    expect(content(host)).toBe(content(patchedOver(next, other)))
   })
 
   it('leaves the pieces past those on screen to be built later', async () => {
@@ -263,7 +388,7 @@ describe('patchPieces, deferring', { timeout: 30_000 }, () => {
     expect(host.childNodes).toHaveLength(0)
     expect(shown.every((one) => one.nodes.length === 0)).toBe(true)
     expect(buildPending(host, shown, () => true)).toBe(next.length)
-    expect(host.innerHTML).toBe(patchedOver(next, []).innerHTML)
+    expect(content(host)).toBe(content(patchedOver(next, [])))
   })
 
   it('takes an edit before and after the built pieces as a whole build would', async () => {
@@ -284,8 +409,8 @@ describe('patchPieces, deferring', { timeout: 30_000 }, () => {
     shown = patchPieces(host, shown, next, { defer: true })
     buildPending(host, shown, () => true)
     expect(shown.every((one) => one.pending === undefined)).toBe(true)
-    expect(host.innerHTML).toBe(
-      patchedOver(await createPieceRenderer()(edited, options), []).innerHTML,
+    expect(content(host)).toBe(
+      content(patchedOver(await createPieceRenderer()(edited, options), [])),
     )
   })
 
@@ -301,7 +426,7 @@ describe('patchPieces, deferring', { timeout: 30_000 }, () => {
     )
     buildPending(host, shown, (next) => next.key === 'a')
     patchPieces(host, shown, [known('c', 1), known('a', 2), known('b', 3)], { defer: true })
-    expect(Array.from(host.children, (child) => child.textContent)).toEqual(['C', 'A', 'B'])
+    expect(blocks(host).map((child) => child.textContent)).toEqual(['C', 'A', 'B'])
   })
 })
 
@@ -337,7 +462,7 @@ describe('noteOffset, over pieces built later', { timeout: 30_000 }, () => {
 
     const whole = document.createElement('div')
     const wholeShown = patchPieces(whole, [], await createPieceRenderer()(edited, options))
-    expect(host.innerHTML).toBe(whole.innerHTML)
+    expect(content(host)).toBe(content(whole))
     const offsets = offsetsIn(host, shown)
     expect(offsets.length).toBeGreaterThan(10)
     expect(offsets).toEqual(offsetsIn(whole, wholeShown))

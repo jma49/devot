@@ -137,6 +137,7 @@
   "tests/ui/slash-menu.spec.ts": 112119,
   "tests/ui/sort.spec.ts": 65470,
   "tests/ui/source-menu.spec.ts": 52526,
+  "tests/ui/split-top-typing.spec.ts": 40000,
   "tests/ui/split-typing.spec.ts": 30000,
   "tests/ui/startup.spec.ts": 27205,
   "tests/ui/status-keys.spec.ts": 31472,
