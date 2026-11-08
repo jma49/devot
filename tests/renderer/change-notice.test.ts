@@ -20,3 +20,9 @@ it('says a note left the Trash before it could be deleted, without the code', ()
   expect(message).toContain('Trash')
   expect(message).not.toContain('E_NOTE_NOT_TRASHED')
 })
+
+it('says a change refused for want of a licence is locked, without the code', () => {
+  const message = changeMessage('E_LICENCE_REQUIRED')
+  expect(message).toContain('read-only until you add a license')
+  expect(message).not.toContain('E_LICENCE_REQUIRED')
+})

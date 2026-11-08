@@ -494,6 +494,10 @@ public enum L10n {
     text("change.noteNotTrashed", "This note is no longer in the Trash, so it was not deleted. It may have been restored in another window or on another device.")
   }
 
+  public static func changeLicenceRequired() -> String {
+    text("change.licenceRequired", "Notes are read-only until you add a license, so the change was not made.")
+  }
+
   public static func changeBookNameInvalid(max p0: String) -> String {
     fill(text("change.bookNameInvalid", "A notebook name is one line of at most {max} characters."), ["max": p0])
   }

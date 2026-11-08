@@ -47,5 +47,7 @@ export const messages = {
     'This tag cannot take that name: a saved search that uses it would pass {max} characters. Shorten the name or edit that search.',
   'change.noteNotTrashed':
     'This note is no longer in the Trash, so it was not deleted. It may have been restored in another window or on another device.',
+  'change.licenceRequired':
+    'Notes are read-only until you add a license, so the change was not made.',
   'change.bookNameInvalid': 'A notebook name is one line of at most {max} characters.',
 } as const
