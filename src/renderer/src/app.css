@@ -7524,6 +7524,12 @@ button.popup:focus-visible {
   isolation: isolate;
 }
 
+/* The sidebar's cutout (sidebarSurround.ts) holds the window's size, so only the sheet's ::before may inherit
+   it: inherited by the window's content, each resize restyled every block of the note (issue 786). */
+:is(.window, .settings) > * {
+  --sidebar-surround-clip: initial;
+}
+
 /* One continuous sheet avoids compositing seams between the sidebar's corners and the panes. */
 :is(.window, .settings)::before {
   content: '';

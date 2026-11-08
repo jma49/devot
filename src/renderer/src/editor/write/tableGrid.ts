@@ -26,8 +26,10 @@ import { displayWidth } from '../table'
 import { spec } from '../formatContext'
 import { locate, rewrite, tableCommand } from '../tableCommands'
 import { tableRowTypingOff } from '../tableTyping'
+import { scrollsOnItsOwn } from '../unwrap'
 import { writeBlockRule, type BlockLayers, type BlockPiece, type BlockRule } from './blocks'
 import { firstReaching } from './changes'
+import { tableScroll } from './tableScroll'
 import {
   DELIMITER,
   atomicSpans,
@@ -129,10 +131,57 @@ const EDGES = 2
 // Marks a cell's width does not count: emphasis, code and the parts of a link but its text.
 const LINK = /!?\[([^\]]*)\]\([^)]*\)/g
 const MARKS = /\*\*|__|~~|==|[*`]|\\(?=[^\s])/g
+// Text in these scripts may break between any two characters.
+const BREAKS_ANYWHERE = /([\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}])/u
+const NOT_ASCII = /[^\x20-\x7e]/
+
+const shownText = (source: string) => source.replace(LINK, '$1').replace(MARKS, '')
 
 /** About how many characters wide a cell's text shows, its marks left out. */
 export function shownWidth(source: string): number {
-  return displayWidth(source.replace(LINK, '$1').replace(MARKS, ''))
+  return displayWidth(shownText(source))
+}
+
+function widestWord(shown: string): number {
+  let widest = 0
+  if (!NOT_ASCII.test(shown)) {
+    let run = 0
+    for (let i = 0; i < shown.length; i++) {
+      if (shown.charCodeAt(i) === 32) run = 0
+      else if (++run > widest) widest = run
+    }
+    return widest
+  }
+  for (const word of shown.split(/\s+/)) {
+    // A word shows at most two columns a character.
+    if (2 * word.length <= widest) continue
+    const pieces = NOT_ASCII.test(word) ? word.split(BREAKS_ANYWHERE) : [word]
+    for (const piece of pieces) widest = Math.max(widest, displayWidth(piece))
+  }
+  return widest
+}
+
+/** About how many characters wide the widest part of a cell's text that cannot wrap shows. */
+export function longestWord(source: string): number {
+  return widestWord(shownText(source))
+}
+
+/** A column's widest shown cell, and the widest word it keeps whole, in characters. */
+export interface ColumnSize {
+  width: number
+  least: number
+}
+
+const trackLength = (chars: number, column: number) =>
+  `calc(${chars}ch + 2 * var(--space-5) + ${EDGES + (column === 0 ? 1 : 0)}px)`
+
+/**
+ * A column's grid track: as wide as its widest cell when the row has room, and never narrower
+ * than its widest word, as the preview's columns keep their words whole (issue 722). A row
+ * without room for every column scrolls sideways.
+ */
+export function columnTrack(size: ColumnSize, column: number): string {
+  return `minmax(${trackLength(size.least, column)}, ${trackLength(size.width, column)})`
 }
 
 // Column widths go in a stylesheet of their own, one rule per set of widths:
@@ -153,16 +202,14 @@ function sheet(): CSSStyleSheet | null {
 }
 
 // Returned only while its rule is in the column sheet.
-function columnsClass(widths: readonly number[]): string | null {
+function columnsClass(sizes: readonly ColumnSize[]): string | null {
   const rules = sheet()
   if (!rules) return null
-  const key = widths.join(',')
+  const key = sizes.map((size) => `${size.least} ${size.width}`).join(',')
   const known = columnRules.get(key)
   if (known && known.rule.parentStyleSheet === rules) return known.name
   const name = `cm-wm-cols-${serial++}`
-  const tracks = widths.map(
-    (w, c) => `minmax(0, calc(${w}ch + 2 * var(--space-5) + ${EDGES + (c === 0 ? 1 : 0)}px))`,
-  )
+  const tracks = sizes.map(columnTrack)
   try {
     const at = rules.insertRule(
       `.${name} { grid-template-columns: ${tracks.join(' ')}; }`,
@@ -220,21 +267,34 @@ const adoptColumns = ViewPlugin.fromClass(
   },
 )
 
-function widthsOf(state: EditorState, table: WriteTable): number[] {
-  return table.align.map((_, column) => {
+// The same table (one note text and tree) is measured once: a caret move measures no table again.
+const measured = new WeakMap<WriteTable, ColumnSize[]>()
+
+export function columnSizes(state: EditorState, table: WriteTable): ColumnSize[] {
+  const known = measured.get(table)
+  if (known) return known
+  const sizes = table.align.map((_, column) => {
     let width = MIN_COLUMN
+    let least = MIN_COLUMN
     for (const [i, line] of table.lines.entries()) {
       const cell = line.cells[column]
       if (i === DELIMITER || !cell) continue
-      width = Math.max(width, shownWidth(state.doc.sliceString(cell.textFrom, cell.textTo)))
+      const shown = shownText(state.doc.sliceString(cell.textFrom, cell.textTo))
+      const cellWidth = displayWidth(shown)
+      width = Math.max(width, cellWidth)
+      // A cell's words are no wider than the cell.
+      if (cellWidth > least && least < MAX_COLUMN) least = Math.max(least, widestWord(shown))
     }
-    return Math.min(width, MAX_COLUMN)
+    width = Math.min(width, MAX_COLUMN)
+    return { width, least: Math.min(least, width) }
   })
+  measured.set(table, sizes)
+  return sizes
 }
 
 function grid(state: EditorState, table: WriteTable, layers: BlockLayers): void {
   const caret = caretOf(state.selection)
-  const columns = columnsClass(widthsOf(state, table))
+  const columns = columnsClass(columnSizes(state, table))
   const decorations = layers.decorations as Range<Decoration>[]
   const outer = layers.outer as Range<Decoration>[]
   const atomic = layers.atomic as Range<Decoration>[]
@@ -522,6 +582,12 @@ const gridSelectionClip = ViewPlugin.fromClass(
   },
 )
 
+const gridScrollsOnItsOwn = scrollsOnItsOwn.of((state, from, to) => {
+  const tables = writeTablesOf(state)
+  const table = tables[firstReaching(tables, from)]
+  return table !== undefined && table.from <= to && shownTable(state, table)
+})
+
 export const writeTables: Extension = [
   composedTables,
   tableDrawings,
@@ -531,6 +597,8 @@ export const writeTables: Extension = [
   tableRowTypingOff.of(true),
   adoptColumns,
   gridSelectionClip,
+  tableScroll,
+  gridScrollsOnItsOwn,
   Prec.highest(keymap.of([{ key: 'Enter', run: gridReturn }])),
 ]
 
@@ -538,11 +606,18 @@ const token = (name: string) => `var(--color-${name})`
 const HAIRLINE = `1px solid ${token('line-hairline')}`
 
 export const tableTheme = EditorView.theme({
+  // A row wider than the column scrolls sideways, the table's other rows with it (tableScroll.ts);
+  // the last row shows the scroll bar under the table.
   '&[data-write] .cm-line.cm-wm-row': {
     display: 'grid',
     justifyContent: 'start',
     paddingInline: 'var(--space-3)',
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    overscrollBehaviorX: 'none',
   },
+  '&[data-write] .cm-line.cm-wm-row:not(.cm-wm-row-last)': { scrollbarWidth: 'none' },
+  '&[data-write] .cm-line.cm-wm-row:not(.cm-wm-row-last)::-webkit-scrollbar': { display: 'none' },
   '&[data-write] .cm-line.cm-wm-row::before': { display: 'none' },
   // The caret's cell carries the active line, not its row (see the cell rules below).
   '&[data-write] .cm-line.cm-wm-row.cm-activeLine': { backgroundColor: 'transparent' },
@@ -558,7 +633,7 @@ export const tableTheme = EditorView.theme({
     padding: 'var(--space-2) var(--space-5)',
     borderInlineEnd: HAIRLINE,
     borderBottom: HAIRLINE,
-    overflowWrap: 'anywhere',
+    overflowWrap: 'break-word',
   },
   '.cm-wm-cell-first': { borderInlineStart: HAIRLINE },
   '.cm-wm-row-head .cm-wm-cell': {

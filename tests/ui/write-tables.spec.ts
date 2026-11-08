@@ -386,3 +386,163 @@ test('composing in a cell keeps every character in order', async ({ page }) => {
     `| Tea${KAN}x |   2 |`,
   ])
 })
+
+// Issue 722: a table wider than the column keeps its words whole and scrolls sideways, all its rows
+// (each a line of its own) together.
+const WIDE_WORDS = ['Quarterly', 'Forecast', 'Estimate', 'Actuals', 'Variance']
+const WIDE = WIDE_WORDS.map((word) => Array.from({ length: 30 }, (_, c) => `${word}${c}`))
+const WIDE_TABLE = [WIDE[0]!, WIDE[0]!.map(() => '---'), ...WIDE.slice(1)]
+  .map((row) => `| ${row.join(' | ')} |`)
+  .join('\n')
+const wideRows = (page: Page) => page.locator('.cm-line.cm-wm-row')
+const rowOffsets = (page: Page) =>
+  wideRows(page).evaluateAll((rows) => rows.map((row) => Math.round(row.scrollLeft)))
+/** A cell's text on more than one line box means its column broke a word. */
+const brokenCells = (page: Page) =>
+  cells(page).evaluateAll((all) =>
+    all.flatMap((cell) => {
+      const range = document.createRange()
+      range.selectNodeContents(cell)
+      const tops = new Set(Array.from(range.getClientRects(), (rect) => Math.round(rect.top)))
+      return tops.size > 1 ? [cell.textContent] : []
+    }),
+  )
+
+test('a 30-column table keeps its words whole and scrolls sideways, every row together', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 820 })
+  const below = Array.from({ length: 60 }, (_, n) => `Line ${n + 1}`).join('\n\n')
+  await createNote(page, 'Wide', `Above\n\n${WIDE_TABLE}\n\n${below}`)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await expect(cells(page)).toHaveCount(150)
+  expect(await brokenCells(page)).toEqual([])
+  const narrowest = await cells(page).evaluateAll((all) =>
+    Math.min(...all.map((cell) => cell.getBoundingClientRect().width)),
+  )
+  expect(narrowest).toBeGreaterThan(60)
+  const scroller = page.locator('[data-devot-part="editor-scroll"]')
+  expect(await scroller.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  expect(
+    await wideRows(page)
+      .first()
+      .evaluate((row) => row.scrollWidth > row.clientWidth),
+  ).toBe(true)
+
+  const aboveBox = (await page.locator('.cm-line').first().boundingBox())!
+  const middle = (await cells(page)
+    .filter({ hasText: /^Estimate2$/ })
+    .boundingBox())!
+  await page.mouse.move(middle.x + middle.width / 2, middle.y + middle.height / 2)
+  await page.mouse.wheel(400, 0)
+  // WebKit on Linux animates a wheel scroll, so the rows agree on every step before they arrive.
+  await expect
+    .poll(async () => {
+      const offsets = await rowOffsets(page)
+      return new Set(offsets).size === 1 && offsets[0]! > 100
+    })
+    .toBe(true)
+  expect((await page.locator('.cm-line').first().boundingBox())!.x).toBe(aboveBox.x)
+
+  // Typing in a cell scrolled into view, and the caret drawn where it is.
+  const shown = await cells(page).evaluateAll((all) => {
+    const row = all[0]!.closest('.cm-wm-row')!.getBoundingClientRect()
+    return all
+      .map((cell) => ({
+        text: cell.textContent ?? '',
+        box: cell.getBoundingClientRect(),
+      }))
+      .filter(({ text, box }) => text.startsWith('Actuals') && box.left > row.left + 40)[0]!.text
+  })
+  await intoCell(page, shown)
+  await page.keyboard.type('z')
+  await expect(cells(page).filter({ hasText: new RegExp(`^${shown}z$`) })).toHaveCount(1)
+  const caretCell = cells(page).filter({ hasText: new RegExp(`^${shown}z$`) })
+  const caretBox = async () => (await page.locator('.cm-cursor-primary').boundingBox())!
+  const inside = async () => {
+    const [caret, cell] = [await caretBox(), (await caretCell.boundingBox())!]
+    return caret.x >= cell.x && caret.x <= cell.x + cell.width
+  }
+  await expect.poll(inside).toBe(true)
+  await page.mouse.wheel(-120, 0)
+  await expect.poll(async () => new Set(await rowOffsets(page)).size).toBe(1)
+  await expect.poll(inside).toBe(true)
+
+  // Tab to the last column brings its cell into view, every row with it.
+  for (let c = Number(shown.slice('Actuals'.length)); c < 29; c++) await page.keyboard.press('Tab')
+  const last = cells(page).filter({ hasText: /^Actuals29$/ })
+  await expect
+    .poll(async () => {
+      const [cell, row] = [
+        (await last.boundingBox())!,
+        (await wideRows(page).last().boundingBox())!,
+      ]
+      return cell.x + cell.width <= row.x + row.width + 1
+    })
+    .toBe(true)
+  expect(new Set(await rowOffsets(page)).size).toBe(1)
+  // The table bar stays at the grid's left edge.
+  await expect(bar(page)).toBeVisible()
+  const gridEdge = await wideRows(page)
+    .first()
+    .evaluate(
+      (row) => row.getBoundingClientRect().left + parseFloat(getComputedStyle(row).paddingLeft),
+    )
+  expect(
+    Math.abs((await page.locator('.cm-table-bar').boundingBox())!.x - gridEdge),
+  ).toBeLessThanOrEqual(1)
+  await page.keyboard.type('!')
+  await expect(cells(page).filter({ hasText: /^Actuals29!$/ })).toHaveCount(1)
+
+  // A vertical scroll over the table still scrolls the note.
+  await page.mouse.move(middle.x + middle.width / 2, middle.y + middle.height / 2)
+  await page.mouse.wheel(0, 300)
+  await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+})
+
+const insideItsRow = (page: Page, text: string) => async () => {
+  const cell = (await cells(page)
+    .filter({ hasText: new RegExp(`^${text}$`) })
+    .boundingBox())!
+  const row = (await wideRows(page).first().boundingBox())!
+  return cell.x >= row.x - 1 && cell.x + cell.width <= row.x + row.width + 1
+}
+
+test('a find match in a cell scrolled out of view scrolls its cell into view', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 })
+  await createNote(page, 'Wide find', `Above\n\n${WIDE_TABLE}\n\nBelow`)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await expect(cells(page)).toHaveCount(150)
+  expect(await insideItsRow(page, 'Variance27')()).toBe(false)
+
+  await page.keyboard.press('Meta+f')
+  const find = page.getByRole('search', { name: 'Find in Note' })
+  await expect(find.getByRole('textbox', { name: 'Find' })).toBeFocused()
+  await page.keyboard.type('Variance27')
+  await expect(find.getByRole('status')).toHaveText('1 of 1')
+  await expect.poll(insideItsRow(page, 'Variance27')).toBe(true)
+  expect(new Set(await rowOffsets(page)).size).toBe(1)
+})
+
+test('undo in a cell scrolled back out of view scrolls it into view again', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 })
+  await createNote(page, 'Wide undo', `Above\n\n${WIDE_TABLE}\n\nBelow`)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await expect(cells(page)).toHaveCount(150)
+  await intoCell(page, 'Actuals0')
+  for (let c = 0; c < 29; c++) await page.keyboard.press('Tab')
+  await expect.poll(insideItsRow(page, 'Actuals29')).toBe(true)
+  await page.keyboard.type('q')
+  await expect(cells(page).filter({ hasText: /^Actuals29q$/ })).toHaveCount(1)
+
+  const row = (await wideRows(page).nth(2).boundingBox())!
+  await page.mouse.move(row.x + row.width / 2, row.y + row.height / 2)
+  await page.mouse.wheel(-100000, 0)
+  await expect.poll(async () => await rowOffsets(page)).toEqual(Array(5).fill(0))
+  expect(await insideItsRow(page, 'Actuals29q')()).toBe(false)
+
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(cells(page).filter({ hasText: /^Actuals29$/ })).toHaveCount(1)
+  await expect.poll(insideItsRow(page, 'Actuals29')).toBe(true)
+  expect(new Set(await rowOffsets(page)).size).toBe(1)
+})

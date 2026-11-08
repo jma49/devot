@@ -11,12 +11,16 @@ import type { Decoration } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { noteMarkdown } from '../markdown'
 import { parseTable, printTable } from '../table'
+import { unwrapLines, unwrapMode } from '../unwrap'
 import { drawnBlocks, writeBlocks, type BlockLayers } from './blocks'
 import { writeFocusTracking } from './focus'
 import {
   SheetAdoption,
   bandsClip,
+  columnSizes,
+  columnTrack,
   layerY,
+  longestWord,
   shownWidth,
   tableDrawings,
   tableRule,
@@ -33,6 +37,7 @@ import {
   writeTablesOf,
   type Span,
 } from './tables'
+import { revealScroll } from './tableScroll'
 
 const TABLE = ['| Name | Qty |', '| ---- | --: |', '| Tea  |   2 |', '|      |   3 |'].join('\n')
 
@@ -215,6 +220,93 @@ describe('a cell edit', () => {
   it('counts the shown text for a column width, not its marks', () => {
     expect(shownWidth('**bold** [link](https://example.com/a/long/path)')).toBe(9)
     expect(shownWidth('a \\| b')).toBe(5)
+  })
+})
+
+describe("a grid's column tracks", () => {
+  it('measures the widest word a cell cannot break, its marks left out', () => {
+    expect(longestWord('Quarterly forecast')).toBe(9)
+    expect(longestWord('**Quarterly** [forecast numbers](https://example.com/a/long/path)')).toBe(9)
+    expect(longestWord('')).toBe(0)
+    expect(longestWord('   ')).toBe(0)
+    // Wide characters break between any two of them, as the preview's cells do.
+    expect(longestWord('\u6f22\u5b57\u306e\u8868')).toBe(2)
+    expect(longestWord('ab\u6f22cde')).toBe(3)
+  })
+
+  it('gives every column its widest cell and, at least, its widest word', () => {
+    const doc = formatted(
+      ['| Quarterly0 | b |', '| --- | --- |', '| Forecast numbers here | x |'].join('\n'),
+    )
+    const state = stateOf(doc)
+    expect(columnSizes(state, writeTablesOf(state)[0]!)).toEqual([
+      { width: 21, least: 10 },
+      { width: 3, least: 3 },
+    ])
+  })
+
+  it('keeps a long word within the widest column', () => {
+    const url = `https://example.com/${'a'.repeat(80)}`
+    const doc = formatted(['| Link |', '| --- |', `| ${url} |`].join('\n'))
+    const state = stateOf(doc)
+    expect(columnSizes(state, writeTablesOf(state)[0]!)).toEqual([{ width: 48, least: 48 }])
+  })
+
+  it('never lets a track shrink below its widest word', () => {
+    expect(columnTrack({ width: 21, least: 10 }, 0)).toBe(
+      'minmax(calc(10ch + 2 * var(--space-5) + 3px), calc(21ch + 2 * var(--space-5) + 3px))',
+    )
+    expect(columnTrack({ width: 9, least: 9 }, 4)).toBe(
+      'minmax(calc(9ch + 2 * var(--space-5) + 2px), calc(9ch + 2 * var(--space-5) + 2px))',
+    )
+  })
+})
+
+describe("a grid's sideways scroll", () => {
+  const doc = `Above\n\n${TABLE}\n\nBelow`
+  const unwrapped = (mode: 'all' | 'active', ...carets: number[]) => {
+    const state = EditorState.create({
+      doc,
+      selection: EditorSelection.create(carets.map((at) => EditorSelection.cursor(at))),
+      extensions: [
+        noteMarkdown,
+        writeFocusTracking,
+        writeBlocks,
+        writeTables,
+        unwrapMode.of(mode),
+        EditorState.allowMultipleSelections.of(true),
+      ],
+    })
+    ensureSyntaxTree(state, doc.length, 1e9)
+    return unwrapLines(state, [{ from: 0, to: doc.length }]).length
+  }
+  const inTea = doc.indexOf('Tea') + 1
+
+  it('is its own: a grid never unwraps, so the note does not scroll sideways with it', () => {
+    expect(unwrapped('active', inTea)).toBe(0)
+    expect(unwrapped('all', 0)).toBe(0)
+  })
+
+  it('leaves a table showing its source to unwrap as Edit mode does', () => {
+    expect(unwrapped('active', inTea, inTea + 1)).toBe(1)
+  })
+})
+
+describe("a grid row's sideways scroll to the caret", () => {
+  const box = { left: 100, right: 500 }
+
+  it('leaves a row whose caret cell shows whole', () => {
+    expect(revealScroll({ left: 120, right: 300 }, 200, box, 40)).toBe(40)
+  })
+
+  it('brings a cell past either edge whole into the row', () => {
+    expect(revealScroll({ left: 450, right: 600 }, 590, box, 40)).toBe(140)
+    expect(revealScroll({ left: 60, right: 200 }, 70, box, 140)).toBe(100)
+  })
+
+  it('keeps the caret in a cell wider than the row', () => {
+    expect(revealScroll({ left: 0, right: 900 }, 700, box, 40)).toBe(240)
+    expect(revealScroll({ left: 0, right: 900 }, 300, box, 40)).toBe(40)
   })
 })
 
