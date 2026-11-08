@@ -18,6 +18,7 @@ import { fontVariables, importedFontLoaded, subscribeFontsLoaded, syncImportedFo
 import { sizes } from './theme/tokens'
 import { createSyncedStore } from './syncedStore'
 import { invoke } from './ipc'
+import { followRustState } from './rustState'
 
 const EDITOR_SETTINGS_CHANGED = 'devot:editor-settings-changed'
 const TAURI_EVENT = 'devot://editor-settings-changed'
@@ -150,22 +151,14 @@ export function startEditorSettings(style: StyleTarget = document.documentElemen
   apply()
   subscribeEditorSettings(apply)
   subscribeFontsLoaded(() => applyEditorStyle(store.current(), style))
-  window.addEventListener(EDITOR_SETTINGS_CHANGED, (e) =>
-    store.confirm(reported(readSnapshot((e as CustomEvent<unknown>).detail))),
-  )
-  loaded = invoke<unknown>('editor_settings_get').then(
-    (stored) => store.confirm(reported(readSnapshot(stored))),
-    () => console.warn('W_EDITOR_SETTINGS_READ_FAILED'),
-  )
-  if (!DEVOT_UI_TEST) {
-    import('@tauri-apps/api/event')
-      .then(({ listen }) =>
-        listen<unknown>(TAURI_EVENT, (e) =>
-          window.dispatchEvent(new CustomEvent(EDITOR_SETTINGS_CHANGED, { detail: e.payload })),
-        ),
-      )
-      .catch(() => console.warn('W_EDITOR_SETTINGS_LISTEN_FAILED'))
-  }
+  loaded = followRustState({
+    event: TAURI_EVENT,
+    pageEvent: EDITOR_SETTINGS_CHANGED,
+    read: () => invoke<unknown>('editor_settings_get'),
+    take: (stored) => store.confirm(reported(readSnapshot(stored))),
+    readFailed: 'W_EDITOR_SETTINGS_READ_FAILED',
+    listenFailed: 'W_EDITOR_SETTINGS_LISTEN_FAILED',
+  })
 }
 
 /**

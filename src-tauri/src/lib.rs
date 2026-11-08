@@ -446,15 +446,7 @@ fn licence_emitter(app: tauri::AppHandle) -> licence::Emit {
         #[cfg(target_os = "ios")]
         crate::native::ios::screens_tell(screens::message::FromRust::LicenceChanged);
         #[cfg(desktop)]
-        {
-            let handle = app.clone();
-            if app
-                .run_on_main_thread(move || crate::plugins::menu::refresh(&handle))
-                .is_err()
-            {
-                log::warn!("W_PLUGIN_MENU_FAILED");
-            }
-        }
+        crate::plugins::menu::refresh_on_main_thread(&app);
     })
 }
 

@@ -7,7 +7,14 @@ import { invoke } from './ipc'
 import { resumeMirrorAfterCancelledQuit } from './mirror'
 import type { RelayLink } from './noteRelay'
 import type { QuitGuard } from './saving'
-import { answerAsked, listenCloseAsked, saveEdits } from './saveGuards'
+import {
+  answerAsked,
+  listenCloseAsked,
+  quitAnswers,
+  quitRound,
+  saveEdits,
+  type AskedQuit,
+} from './saveGuards'
 import { welcomeContent } from './welcome/content'
 import { listSeeded } from './welcome/seed'
 
@@ -142,6 +149,7 @@ export function useQuitAndClose({
   setSaveNoticeDismissed,
   setQuitHeld,
   setCloseHeld,
+  flushListsNews,
 }: {
   core: Core | undefined
   coreRef: RefObject<Core | undefined>
@@ -153,60 +161,84 @@ export function useQuitAndClose({
   setSaveNoticeDismissed: (dismissed: boolean) => void
   setQuitHeld: (held: boolean) => void
   setCloseHeld: (held: boolean) => void
+  /** Sends at once the other main windows' news of this window's writes that still waits. */
+  flushListsNews: () => void
 }) {
+  // From the first frame, so a window whose core is still starting or failed to start answers at once.
   useEffect(() => {
-    if (!core) return
     // Quitting: Rust holds the exit, asks us to save, and exits on our reply.
     // When a note could not be saved, the first such quit is called off
     // instead: the window stays with the changes and the notice says so
     // (saving.ts); quitting again goes on without them.
+    const answers = quitAnswers()
+    const quit = async (asked: AskedQuit) => {
+      const ready = coreRef.current
+      if (!ready) return answerAsked(asked, quitGuard, undefined, () => {})
+      saveNow()
+      // A running import waits after the file it is on, so no note is left
+      // half made (unless that file outlasts the quit timeout), and goes on
+      // if the quit is called off.
+      await ready.holdImport()
+      await answerAsked(
+        asked,
+        quitGuard,
+        ready.flush({ versions: true }),
+        () => {
+          setQuitHeld(true)
+          setSaveNoticeDismissed(false)
+          void ready.resumeImport()
+        },
+        async () => {
+          // The import ends where it waits and lists the files it did not reach.
+          await ready.stopImport()
+          // The notice's writes are seen before the app goes, so they do not come back on the next launch.
+          await markShownSeen({ reload: false })
+          // A mirror pass ends after the batch it is in, so its manifest
+          // lists every file it wrote; the next launch catches up.
+          await ready.mirrorStop()
+          // A large note's last edit may still wait for its pace (Rust's exit timeout bounds this).
+          await ready.syncFlush()
+        },
+      )
+    }
+    // Another window called the quit off, maybe after this one had stopped its mirror.
+    const restart = () => {
+      const ready = coreRef.current
+      if (!ready) return
+      resumeMirrorAfterCancelledQuit(ready)
+      void ready.resumeImport()
+    }
     let unlisten: (() => void) | undefined
     let unlistenCancel: (() => void) | undefined
     let unlistenIdle: (() => void) | undefined
     let stopped = false
     if (!DEVOT_UI_TEST) {
       void import('@tauri-apps/api/event').then(async ({ listen }) => {
-        const stop = await listen('devot://flush-before-exit', async () => {
-          saveNow()
-          // A running import stops after the file it is on, so no note
-          // is left half made (unless that file outlasts the quit timeout).
-          await core.stopImport()
-          await answerAsked(
-            'quit',
-            quitGuard,
-            core.flush({ versions: true }),
-            () => {
-              setQuitHeld(true)
-              setSaveNoticeDismissed(false)
-            },
-            async () => {
-              // The notice's writes are seen before the app goes, so they do not come back on the next launch.
-              await markShownSeen({ reload: false })
-              // A mirror pass ends after the batch it is in, so its manifest
-              // lists every file it wrote; the next launch catches up.
-              await core.mirrorStop()
-              // A large note's last edit may still wait for its pace (Rust's exit timeout bounds this).
-              await core.syncFlush()
-            },
-          )
+        const stop = await listen<unknown>('devot://flush-before-exit', ({ payload }) => {
+          const round = quitRound(payload)
+          if (round === undefined) console.warn('W_EXIT_ROUND_MISSING')
+          else void answers.asked(round, quit)
         })
         if (stopped) stop()
         else unlisten = stop
         // A Devot an AI tool started asks before it quits by itself (background.rs): a save that
         // fails here keeps it running, without the notice a quit's own failure would bring up.
         const stopIdle = await listen('devot://background-idle-check', async () => {
-          saveNow()
-          const saved = await core.flush({ versions: true }).then(
-            () => true,
-            () => false,
-          )
+          const ready = coreRef.current
+          // A window whose core is still starting or failed to start holds nothing unsaved.
+          if (ready) saveNow()
+          const saved = ready
+            ? await ready.flush({ versions: true }).then(
+                () => true,
+                () => false,
+              )
+            : true
           await invoke('background_idle_answer', { saved })
         })
         if (stopped) stopIdle()
         else unlistenIdle = stopIdle
       })
-      // Another window called the quit off after this one had stopped its mirror: start it again.
-      void listenExitCancelled(() => resumeMirrorAfterCancelledQuit(core)).then((stop) => {
+      void listenExitCancelled((round) => void answers.calledOff(round, restart)).then((stop) => {
         if (stopped) stop()
         else unlistenCancel = stop
       })
@@ -217,7 +249,7 @@ export function useQuitAndClose({
       unlistenCancel?.()
       unlistenIdle?.()
     }
-  }, [core, quitGuard, saveNow, markShownSeen, setSaveNoticeDismissed, setQuitHeld])
+  }, [coreRef, quitGuard, saveNow, markShownSeen, setSaveNoticeDismissed, setQuitHeld])
 
   // A window File > New Window opened closes after saving, as a note window does (main_windows.rs): Rust holds the close and asks. As for a quit, the first close whose save fails is called off, and the notice says so.
   useEffect(() => {
@@ -225,20 +257,36 @@ export function useQuitAndClose({
     const closed = () => {
       const ready = coreRef.current
       saveNow()
+      // The import waits and ends as for a quit.
       void answerAsked(
         'close',
         closeGuard,
-        ready?.stopImport().then(() => ready.flush({ versions: true })),
+        ready?.holdImport().then(() => ready.flush({ versions: true })),
         () => {
           setCloseHeld(true)
           setSaveNoticeDismissed(false)
+          void ready?.resumeImport()
         },
-        // Seen before the window goes, as for a quit.
-        () => markShownSeen({ reload: false }),
+        async () => {
+          await ready?.stopImport()
+          // Seen before the window goes, as for a quit.
+          await markShownSeen({ reload: false })
+          // The window's page, with its coalescing timer, goes with it.
+          flushListsNews()
+        },
       )
     }
     return listenCloseAsked(closed)
-  }, [primary, coreRef, closeGuard, saveNow, markShownSeen, setSaveNoticeDismissed, setCloseHeld])
+  }, [
+    primary,
+    coreRef,
+    closeGuard,
+    saveNow,
+    markShownSeen,
+    setSaveNoticeDismissed,
+    setCloseHeld,
+    flushListsNews,
+  ])
 
   useEffect(
     () =>

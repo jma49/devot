@@ -14,6 +14,7 @@ import { useExternalChanges } from '../externalChanges'
 import { saveEdits } from '../saveGuards'
 import { welcomeContent } from '../welcome/content'
 import { listSeeded } from '../welcome/seed'
+import { createCoreGate } from './coreGate'
 import { reportingListWrites } from './screens/feed'
 import { externalChangesReported, noteWritesReported } from './screens/noteChanges'
 
@@ -61,6 +62,8 @@ export type PhoneStore = PhoneData & {
   readonly refresh: () => Promise<void>
   /** Hears each change a note in memory took in that the phone did not make (sync's, merged in); returns the stop. */
   readonly onTakenIn: (listener: (change: TakenIn) => void) => () => void
+  /** The core once it has started and the lists are read; refused with `E_SCREENS_UNAVAILABLE` if it failed to start. */
+  readonly started: () => Promise<Core>
 }
 
 /**
@@ -75,6 +78,7 @@ export function usePhoneData(onListed: () => void = () => {}): PhoneStore {
   })
   const coreRef = useRef<Core | null>(null)
   const [takenIn] = useState(() => new Set<(change: TakenIn) => void>())
+  const [gate] = useState(() => createCoreGate<Core>())
   const onTakenIn = useCallback(
     (listener: (change: TakenIn) => void) => {
       takenIn.add(listener)
@@ -134,12 +138,19 @@ export function usePhoneData(onListed: () => void = () => {}): PhoneStore {
         coreRef.current = core
         const seeds =
           !DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome
-        await listSeeded(
-          () => load(core),
-          seeds ? () => core.seedWelcome(welcomeContent()) : undefined,
-        )
+        try {
+          await listSeeded(
+            () => load(core),
+            seeds ? () => core.seedWelcome(welcomeContent()) : undefined,
+          )
+        } finally {
+          gate.open(core)
+        }
       })
-      .catch((e: unknown) => console.warn('W_PHONE_CORE_START_FAILED', errorCode(e)))
+      .catch((e: unknown) => {
+        console.warn('W_PHONE_CORE_START_FAILED', errorCode(e))
+        gate.fail()
+      })
       .finally(() => {
         if (alive) listedRef.current()
       })
@@ -148,7 +159,8 @@ export function usePhoneData(onListed: () => void = () => {}): PhoneStore {
       coreRef.current = null
       if (started) stopCore(started)
     }
-  }, [load, refresh, takenIn])
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The gate is made once and never changes.
+  }, [gate, load, refresh, takenIn])
 
   // Sync wrote what other devices changed: the notes in memory take it in and are saved, then the lists reload.
   const { core } = data
@@ -163,5 +175,5 @@ export function usePhoneData(onListed: () => void = () => {}): PhoneStore {
       : undefined,
   )
 
-  return { ...data, refresh, onTakenIn }
+  return { ...data, refresh, onTakenIn, started: gate.started }
 }

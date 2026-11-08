@@ -279,6 +279,7 @@ export function App() {
     primary,
     saveNow,
     markShownSeen: shown.markShownSeen,
+    flushListsNews: windowLists.wrote.flush,
     ...saves.held,
   })
 

@@ -30,7 +30,9 @@ import {
   CLOSE_EVENT,
   FLUSH_EVENT,
   answerAsked,
+  quitRound,
   saveEdits,
+  type Asked,
   useSaveAtTrialEnd,
   useSaveOnHide,
   useSaveProblems,
@@ -45,10 +47,16 @@ import type { ScrollPane } from '../preview/scrollSync'
 import { ActivationBar, TrialEndedBar } from '../TrialNotices'
 import { failureText } from '../failure'
 
-/** Hears what Rust asks of this window: the global quit, and the close of this window alone. */
-function listenAsked(onClose: () => void, onQuit: () => void): () => void {
+/** Hears what Rust asks of this window: the global quit, by its round, and the close of this window alone. */
+function listenAsked(onClose: () => void, onQuit: (round: number) => void): () => void {
+  const quit = (payload: unknown) => {
+    const round = quitRound(payload)
+    if (round === undefined) console.warn('W_EXIT_ROUND_MISSING')
+    else onQuit(round)
+  }
+  const onQuitAsked = (e: Event) => quit((e as CustomEvent<unknown>).detail)
   window.addEventListener(CLOSE_EVENT, onClose)
-  window.addEventListener(FLUSH_EVENT, onQuit)
+  window.addEventListener(FLUSH_EVENT, onQuitAsked)
   const unlisten = DEVOT_UI_TEST
     ? undefined
     : unlistenLater(
@@ -58,14 +66,14 @@ function listenAsked(onClose: () => void, onQuit: () => void): () => void {
         ]).then(([{ listen }, { getCurrentWebviewWindow }]) =>
           Promise.all([
             getCurrentWebviewWindow().listen('devot://note-window-close', onClose),
-            listen('devot://flush-before-exit', onQuit),
+            listen<unknown>('devot://flush-before-exit', ({ payload }) => quit(payload)),
           ]),
         ),
         () => console.warn('W_NOTE_WINDOW_LISTEN_FAILED'),
       )
   return () => {
     window.removeEventListener(CLOSE_EVENT, onClose)
-    window.removeEventListener(FLUSH_EVENT, onQuit)
+    window.removeEventListener(FLUSH_EVENT, onQuitAsked)
     unlisten?.()
   }
 }
@@ -176,19 +184,19 @@ export function NoteWindow() {
   // Heard from the start: Rust waits for an answer to every close and quit, and a window still
   // opening, or one that could not open its note, has nothing of its own to save.
   useEffect(() => {
-    const answer = (asked: 'quit' | 'close') =>
+    const answer = (asked: Asked) =>
       void answerAsked(
         asked,
-        asked === 'quit' ? quitGuard : closeGuard,
+        asked === 'close' ? closeGuard : quitGuard,
         coreRef.current?.flush({ versions: true }),
         () => {
-          setHeld(asked)
+          setHeld(asked === 'close' ? 'close' : 'quit')
           setDismissed(false)
         },
       )
     return listenAsked(
       () => answer('close'),
-      () => answer('quit'),
+      (round) => answer({ round }),
     )
   }, [quitGuard, closeGuard, setDismissed])
 

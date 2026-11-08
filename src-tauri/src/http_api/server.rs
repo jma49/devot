@@ -251,7 +251,12 @@ enum Via {
 
 enum Bound {
     Tcp(SocketAddr),
-    Unix { path: PathBuf, file: (u64, u64) },
+    Unix {
+        path: PathBuf,
+        file: (u64, u64),
+        /// Dropped to wake the accept loop, which never needs the socket's file for that.
+        wake: Option<UnixStream>,
+    },
 }
 
 pub struct Server {
@@ -337,6 +342,7 @@ impl Server {
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
             .map_err(|_| "E_MCP_LISTEN_FAILED")?;
         let meta = std::fs::symlink_metadata(path).map_err(|_| "E_MCP_LISTEN_FAILED")?;
+        let (wake, woken) = UnixStream::pair().map_err(|_| "E_MCP_LISTEN_FAILED")?;
         let stop = Arc::new(AtomicBool::new(false));
         let stopping = Arc::clone(&stop);
         let uid = crate::atomic_file::effective_uid();
@@ -344,7 +350,7 @@ impl Server {
             .name("mcp-bridge".into())
             .spawn(move || {
                 accept(
-                    listener.incoming(),
+                    bridge_incoming(listener, woken),
                     Via::Bridge,
                     |stream: &UnixStream| {
                         let ours = crate::atomic_file::peer_uid(stream) == Some(uid);
@@ -364,6 +370,7 @@ impl Server {
             bound: Bound::Unix {
                 path: path.to_owned(),
                 file: (meta.dev(), meta.ino()),
+                wake: Some(wake),
             },
             port: 0,
             stop,
@@ -389,20 +396,18 @@ impl Drop for Server {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::SeqCst);
         // Wakes the blocked accept so it sees the flag.
-        match &self.bound {
+        match &mut self.bound {
             Bound::Tcp(address) => {
                 let _ = TcpStream::connect_timeout(address, Duration::from_secs(1));
             }
-            Bound::Unix { path, .. } => {
-                let _ = UnixStream::connect(path);
-            }
+            Bound::Unix { wake, .. } => drop(wake.take()),
         }
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
         match &self.bound {
             Bound::Tcp(_) => log::info!("I_HTTP_API_STOPPED {}", self.port),
-            Bound::Unix { path, file } => {
+            Bound::Unix { path, file, .. } => {
                 let ours = std::fs::symlink_metadata(path)
                     .is_ok_and(|meta| (meta.dev(), meta.ino()) == *file);
                 if ours {
@@ -436,6 +441,20 @@ pub fn spawn_counted(
             work();
         })
         .map(drop)
+}
+
+/// The bridge's connections, until the other end of `woken` closes.
+fn bridge_incoming(
+    listener: UnixListener,
+    woken: UnixStream,
+) -> impl Iterator<Item = std::io::Result<UnixStream>> {
+    std::iter::from_fn(
+        move || match crate::atomic_file::wait_readable(&listener, &woken) {
+            Err(error) => Some(Err(error)),
+            Ok((_, true)) => None,
+            Ok((_, false)) => Some(listener.accept().map(|(stream, _)| stream)),
+        },
+    )
 }
 
 fn accept<S: Conn>(

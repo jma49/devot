@@ -20,9 +20,7 @@ final class TabBarTests: XCTestCase {
         XCTAssertEqual(content.map(\.accessibilityLabel), names)
         for item in content {
             XCTAssertNotNil(item.image)
-            #if compiler(>=6.4)
-                if #available(iOS 26.1, *) { XCTAssertNotNil(item.selectedImage) }
-            #endif
+            if #available(iOS 26.1, *) { XCTAssertNotNil(item.selectedImage) }
         }
         let search = try XCTUnwrap(items.last as? UISearchTab)
         XCTAssertTrue(search === tabs.searchTab)

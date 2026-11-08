@@ -24,6 +24,7 @@ import { licenceEntitlements, startLicence, subscribeLicence } from './licence'
 import { saveEdits } from './saveGuards'
 import type { WirePulled, WireSync, WireSyncLocal, WireTransport } from './storage/syncWire'
 import { unlistenLater } from './windowEvents'
+import { followRustState } from './rustState'
 
 export const SYNC_CHANGED = 'devot:sync-changed'
 const CHANGED_EVENT = 'devot://sync-changed'
@@ -219,20 +220,15 @@ const appBuild = (): Promise<string | undefined> =>
 export function startSyncStatus(): void {
   if (started) return
   started = true
-  window.addEventListener(SYNC_CHANGED, (e) => publish(readSnapshot((e as CustomEvent).detail)))
-  invoke<unknown>('sync_get').then(
-    (value) => publish(readSnapshot(value)),
-    () => console.warn('W_SYNC_READ_FAILED'),
-  )
-  if (!DEVOT_UI_TEST) {
-    import('@tauri-apps/api/event')
-      .then(({ listen }) =>
-        listen<unknown>(CHANGED_EVENT, (e) =>
-          window.dispatchEvent(new CustomEvent(SYNC_CHANGED, { detail: e.payload })),
-        ),
-      )
-      .catch(() => console.warn('W_SYNC_LISTEN_FAILED'))
-  }
+  void followRustState({
+    event: CHANGED_EVENT,
+    pageEvent: SYNC_CHANGED,
+    read: () => invoke<unknown>('sync_get'),
+    take: (value) => publish(readSnapshot(value)),
+    unrevisioned: true,
+    readFailed: 'W_SYNC_READ_FAILED',
+    listenFailed: 'W_SYNC_LISTEN_FAILED',
+  })
 }
 
 export const syncSnapshot = (): SyncSnapshot => snapshot

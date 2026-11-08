@@ -13,6 +13,7 @@ import { countOf } from './format'
 import { format, t, type MessageKey } from './i18n'
 import { invoke } from './ipc'
 import { createSyncedStore, type Revision } from './syncedStore'
+import { followRustState } from './rustState'
 
 const MIRROR_CHANGED = 'devot:mirror-changed'
 const TAURI_EVENT = 'devot://mirror-changed'
@@ -89,22 +90,14 @@ let started = false
 export function startMirrorStatus(): void {
   if (started) return
   started = true
-  window.addEventListener(MIRROR_CHANGED, (e) =>
-    store.confirm(readStatus((e as CustomEvent<unknown>).detail)),
-  )
-  invoke<unknown>('mirror_get').then(
-    (status) => store.confirm(readStatus(status)),
-    () => console.warn('W_MIRROR_READ_FAILED'),
-  )
-  if (!DEVOT_UI_TEST) {
-    import('@tauri-apps/api/event')
-      .then(({ listen }) =>
-        listen<unknown>(TAURI_EVENT, (e) =>
-          window.dispatchEvent(new CustomEvent(MIRROR_CHANGED, { detail: e.payload })),
-        ),
-      )
-      .catch(() => console.warn('W_MIRROR_LISTEN_FAILED'))
-  }
+  void followRustState({
+    event: TAURI_EVENT,
+    pageEvent: MIRROR_CHANGED,
+    read: () => invoke<unknown>('mirror_get'),
+    take: (status) => store.confirm(readStatus(status)),
+    readFailed: 'W_MIRROR_READ_FAILED',
+    listenFailed: 'W_MIRROR_LISTEN_FAILED',
+  })
 }
 
 const mirrorStatus = (): MirrorStatus => store.current()

@@ -14,6 +14,7 @@ import {
 } from '../../core/entitlements'
 import { invoke } from './ipc'
 import { openPurchase } from './purchaseSheet'
+import { followRustState } from './rustState'
 
 const LICENCE_CHANGED = 'devot:licence-changed'
 /** What Rust and the core refuse sync and AI with when the licence does not include them. */
@@ -228,20 +229,15 @@ let started = false
 export function startLicence(): void {
   if (started) return
   started = true
-  window.addEventListener(LICENCE_CHANGED, (e) => publish(readLicence((e as CustomEvent).detail)))
-  invoke<unknown>('licence_get').then(
-    (value) => publish(readLicence(value)),
-    () => console.warn('W_LICENCE_READ_FAILED'),
-  )
-  if (!DEVOT_UI_TEST) {
-    import('@tauri-apps/api/event')
-      .then(({ listen }) =>
-        listen<unknown>(CHANGED_EVENT, (e) =>
-          window.dispatchEvent(new CustomEvent(LICENCE_CHANGED, { detail: e.payload })),
-        ),
-      )
-      .catch(() => console.warn('W_LICENCE_LISTEN_FAILED'))
-  }
+  void followRustState({
+    event: CHANGED_EVENT,
+    pageEvent: LICENCE_CHANGED,
+    read: () => invoke<unknown>('licence_get'),
+    take: (value) => publish(readLicence(value)),
+    unrevisioned: true,
+    readFailed: 'W_LICENCE_READ_FAILED',
+    listenFailed: 'W_LICENCE_LISTEN_FAILED',
+  })
 }
 
 export const licenceSnapshot = (): LicenceSnapshot => snapshot
