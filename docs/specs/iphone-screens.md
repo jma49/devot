@@ -565,6 +565,7 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 ```
 
 - Appearance holds three colour scheme cards, a two-column grid of themes with "Aa" swatches for light and dark, a Glass card whose sample previews Glass Transparency, a Text card with a live sample above the Text Size and Preview Font Size sliders, a Note Font row and an inline Animations choice.
+- A theme change shows at once on every native screen: each window carries the theme in effect as a trait (`Tokens.ThemeTrait`), and every `Tokens.Color` is drawn from its window's trait, so UIKit draws colours set before the change again.
 - Gradient is a card under the themes, so choosing one moves nothing above it, shown only while the Light or Dark theme is Dawn, Tide, Sage or Ember, and gone at once when neither is.
   It holds one slider labelled Gradient, from Solid (0) to Full (100) in steps of 5, with no description and a 44 pt target.
   It reads and writes the `gradientStrength` editor setting through Rust (default 0), one value for every gradient theme, so it is kept on this device and never synced, like the theme choice.
