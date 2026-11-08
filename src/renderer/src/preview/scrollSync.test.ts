@@ -547,6 +547,48 @@ describe('previewScrollPane', () => {
     pane.dispose()
   })
 
+  it('keeps one wheel listener while it lives, which synced scrolling uses without adding its own', () => {
+    stubResizeObserver()
+    const preview = fakePreview([[{ line: 1, top: 0 }], [{ line: 5, top: 500 }]], 1000)
+    const calls: string[] = []
+    const add = preview.element.addEventListener.bind(preview.element)
+    const remove = preview.element.removeEventListener.bind(preview.element)
+    preview.element.addEventListener = (type, listener, options) => {
+      if (type === 'wheel')
+        calls.push(
+          `add ${typeof options === 'object' && options.passive === false ? 'active' : 'passive'}`,
+        )
+      add(type, listener, options)
+    }
+    preview.element.removeEventListener = (type, listener, options) => {
+      if (type === 'wheel') calls.push('remove')
+      remove(type, listener, options)
+    }
+    const wheel = () => {
+      const event = Object.assign(new Event('wheel', { cancelable: true }), {
+        deltaX: 0,
+        deltaY: 40,
+        deltaMode: 0,
+      })
+      preview.element.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    const pane = previewScrollPane(preview.scroller, frameQueue())
+    pane.rendered(9, preview.runs)
+    expect(calls).toEqual(['add active'])
+    const editor = new FakePane(1)
+    for (let session = 0; session < 2; session += 1) {
+      const stop = syncScrolling(editor, pane, frameQueue())
+      expect(wheel()).toBe(true)
+      expect(editor.element.scrollTop).toBeGreaterThan(0)
+      stop()
+      expect(wheel()).toBe(false)
+    }
+    expect(calls).toEqual(['add active'])
+    pane.dispose()
+    expect(calls).toEqual(['add active', 'remove'])
+  })
+
   it('measures afresh when the content changed height on its own (a diagram)', () => {
     stubResizeObserver()
     const pieces = [[{ line: 1, top: 0 }], [{ line: 4, top: 50 }]]

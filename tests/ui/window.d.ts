@@ -23,6 +23,8 @@ interface Window {
   devotFlight?: string
   devotFrame: number
   devotFrames: { editor: string; preview: string }[]
+  /** Frame times from a click on, until `done`. */
+  devotFrameTimes: { times: number[]; done: boolean }
   devotHeld: { answer: () => void; event: () => void }[]
   devotInitialEditorSettings: unknown
   devotKeyMs: number[]

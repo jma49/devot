@@ -69,6 +69,7 @@
   "tests/ui/mermaid-charts.spec.ts": 58376,
   "tests/ui/mermaid-style.spec.ts": 35353,
   "tests/ui/mirror.spec.ts": 47198,
+  "tests/ui/mode-switch-big-note.spec.ts": 30000,
   "tests/ui/motion-retarget.spec.ts": 76824,
   "tests/ui/multi-select.spec.ts": 166096,
   "tests/ui/names.spec.ts": 36923,

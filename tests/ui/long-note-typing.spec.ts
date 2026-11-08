@@ -3,6 +3,7 @@ import { cpus, loadavg } from 'node:os'
 import { budgetScale } from '../support/budget'
 import { expect, openApp, test } from './fixtures'
 import { median, watchKeys, type ViewLike } from './keystrokes'
+import { longNote } from './longNote'
 
 // Typing in a 200 KB note of prose, lists, tables and code blocks: per keystroke, the editor's own work
 // (the transaction, CodeMirror's update and its measure in the next frame) and the time from the key to the end of the
@@ -15,40 +16,6 @@ const NOTE_CHARS = 200_000
 const KEYS = 'abcdefghijklmnopqrstuvwxyzabcd'
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
-
-function longNote(chars: number): string {
-  const sections: string[] = []
-  for (let i = 0, length = 0; length < chars; i++) {
-    const section = [
-      `## Section ${i}`,
-      '',
-      'A paragraph of prose with **bold**, *emphasis*, `code`, a [link](https://example.com) and enough words to wrap at the width of the editor.',
-      '',
-      '- one item',
-      '- two items',
-      '  - [ ] a nested task',
-      '1. ordered',
-      '',
-      '| Name | Price |',
-      '| --- | ---: |',
-      '| apple | 1 |',
-      '',
-      ...(i % 2 === 0
-        ? [
-            '```ts',
-            'export const total = (items: number[]) => items.reduce((a, b) => a + b, 0)',
-            '```',
-          ]
-        : ['```python', 'def total(items):', '    return sum(items)', '```']),
-      '',
-      '> A quote with [[Another note]].',
-      '',
-    ].join('\n')
-    sections.push(section)
-    length += section.length
-  }
-  return sections.join('')
-}
 
 async function openLongNote(page: Page, chars: number) {
   await openApp(page)
