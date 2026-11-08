@@ -182,8 +182,8 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - The core sends `notes.changed { rev, ids }` after each write it makes and after it takes in external changes from sync, iCloud or another process.
 - It also sends `books.changed`, `tags.changed` and `savedSearches.changed`.
 - Swift reads only the changed rows again from Rust and applies them to the list's diffable snapshot, so moves and inserts take the system's list animation.
-- When a `rev` is not the next one, Swift reloads the whole first page (200 rows) rather than guess.
-- `notes.changed { rev, ids, all: true }` says the page cannot name the notes (a sync or a launch took in changes), and Swift reloads the first page too.
+- When a `rev` is not the next one, Swift reads every row the list has loaded again (at least the first page of 200) rather than guess, so the list keeps its length and scroll position.
+- `notes.changed { rev, ids, all: true }` says the page cannot name the notes (a sync or a launch took in changes), and Swift reads the loaded rows again too.
 - The page reports the writes a note save does not (a note's tags, a purge, and notebooks, tags and saved searches) a moment after they complete (`phone/screens/feed.ts`).
 
 ### Lists
@@ -195,6 +195,7 @@ The Notes and Library tabs' roots and every list they push are native (`DevotScr
 | `excerpts { ids }`                       | Swift | at most 60 IDs; answers `{ excerpts: { id: text } }`, and a note with no excerpt is left out |
 | `notes.batch { ids, change }`            | Swift | one change to several notes; answers `{ changed, failed: [{ id, code }] }`                   |
 | `trash.empty`                            | Swift | purges the Trash; answers `{ purged }`                                                       |
+| `book.create`                            | Swift | makes a notebook named New Notebook at the top level; answers `{ id }`                       |
 | `template.create`                        | Swift | makes an empty template; answers `{ id }`, which Swift opens                                 |
 | `template.apply { templateId, bookId? }` | Swift | makes a note from a template; answers `{ id }`, which Swift opens                            |
 | `note.text { noteId }`                   | Swift | the note's title and Markdown, for the share sheet                                           |
@@ -210,7 +211,7 @@ The Notes and Library tabs' roots and every list they push are native (`DevotScr
 - `ExcerptCache` asks for the excerpts of the rows on screen and a screen ahead, at most 60 IDs a call, never one it holds or is asking for, and keeps them by note ID and body version, so an edit asks again.
   A failed call is logged as `W_PHONE_EXCERPTS_FAILED code=…` and asked again when the rows next show.
 - `ListContext` holds what the lists share: the bridge, the gate, the excerpts and the Library's last read, which it reads again on a change once a screen has asked for it.
-- Every list write goes through the gate (`notes.batch`, `trash.empty`, `template.create`, `template.apply` are write intents); a swipe answers the system with whether it ran before the gate raises its sheet, and a context menu's write runs once the menu has gone.
+- Every list write goes through the gate (`notes.batch`, `trash.empty`, `book.create`, `template.create`, `template.apply` are write intents); a swipe answers the system with whether it ran before the gate raises its sheet, and a context menu's write runs once the menu has gone.
   A batch entry refused for the licence raises the sheet; any other failure is logged as `W_PHONE_BATCH_FAILED count=… code=…` or `W_PHONE_LIST_WRITE_FAILED op=… code=…`.
 - The undo toast (`UI/Toast.swift`) is offered to `ListContext.undoToasts` by the one write that can be taken back: one note trashed (Undo restores it) or completed by its swipe (Undo sends `note.undoStatus` with the `undo` that `note.complete` answered).
   The page keeps no undo of its own: it answers a completion with `StatusUndo` (`status`, `updatedAt`, `statusHlc`, `bodyVersion`), which Rust checks and Swift holds for the toast.

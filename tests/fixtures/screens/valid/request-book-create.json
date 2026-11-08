@@ -1,0 +1,9 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 3,
+    "op": "book.create",
+    "args": {}
+  }
+}

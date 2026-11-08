@@ -59,6 +59,15 @@ final class ListContextTests: XCTestCase {
         XCTAssertEqual(shown.count, 2)
     }
 
+    func testANewNotebookIsMadeByThePage() throws {
+        XCTAssertTrue(context.perform(.newNotebook))
+        let sent = try XCTUnwrap(bridge.sent.first)
+        XCTAssertEqual(sent.op, Op.bookCreate.rawValue)
+        XCTAssertEqual(sent.args, [:])
+        bridge.answer(Op.bookCreate.rawValue, .failed("E_STORAGE_BUSY"))
+        XCTAssertEqual(bridge.lines, ["W_PHONE_LIST_WRITE_FAILED op=book.create code=E_STORAGE_BUSY"])
+    }
+
     func testATemplateMadeOrUsedOpensItsNote() {
         context.perform(.newTemplate)
         bridge.answer(Op.templateCreate.rawValue, .ok(.object(["id": .string(id)])))

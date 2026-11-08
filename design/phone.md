@@ -75,8 +75,10 @@ VoiceOver reads a row as a button, with its status and pin in its value rather t
 A head folds its section with a chevron, for the session.
 Swipe actions are the system's rectangles: Pin leading, Trash and Complete trailing (a completed note has no Complete), in the action colours of Behaviour.
 A hold peeks with the system's context menu: Pin, Status, Move to, Tags, Share and Move to Trash.
+Move to ticks the note's notebook, or No Notebook; the selection bar's Move ticks nothing, and New Note in a notebook offers only notebooks.
 The filter button's menu offers All, Active, On Hold and Done, and Select, which turns on multiple selection with a toolbar of Pin, Move, Set Status and Trash.
 The Library is an inset grouped list: the smart lists with their counts, Notebooks and Tags under heads that fold for the session, then Templates and Trash.
+Its bar has New Notebook (`folder.badge.plus`) beside New Note, which adds a notebook named New Notebook at the top level, as on the Mac.
 A notebook with notebooks inside has a 44 pt chevron of its own that folds them, and the rest of its row opens it.
 Saved searches follow Tags under a head that folds, each with a magnifying glass, and open the Search tab with their query run.
 In Trash, Restore leads and Delete Permanently trails; it and Empty Trash ask first.

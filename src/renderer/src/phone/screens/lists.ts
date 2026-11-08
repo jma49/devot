@@ -1,6 +1,7 @@
 import type { BatchChange, BatchResult } from '../../../../core/batch'
 import type { StatusUndo } from '../../../../core/notes/types'
 import type { NoteStatus } from '../../../../core/storage'
+import { t } from '../../i18n'
 import type { ScreensHandlers } from './ops'
 
 /** What the native lists ask of the core (docs/specs/iphone-screens.md, Operations). */
@@ -9,6 +10,7 @@ export interface ListsCore {
   readonly batch: (ids: string[], change: BatchChange) => Promise<BatchResult>
   readonly emptyTrash: () => Promise<number>
   readonly createTemplate: () => Promise<string>
+  readonly createBook: (name: string, parentId: string | null) => Promise<string>
   readonly applyTemplate: (id: string, now: number, bookId: string | null) => Promise<string>
   readonly read: (id: string) => Promise<{ title: string; bodyMd: string }>
   readonly setStatusUndoable: (id: string, status: NoteStatus) => Promise<StatusUndo>
@@ -35,6 +37,7 @@ export function listHandlers(
     'notes.batch': async (args) =>
       started().batch(strings(args['ids']), args['change'] as BatchChange),
     'trash.empty': async () => ({ purged: await started().emptyTrash() }),
+    'book.create': async () => ({ id: await started().createBook(t('book.new'), null) }),
     'template.create': async () => ({ id: await started().createTemplate() }),
     'template.apply': async (args) => ({
       id: await started().applyTemplate(

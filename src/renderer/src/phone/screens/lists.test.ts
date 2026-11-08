@@ -8,6 +8,7 @@ import { createNoteService } from '../../../../core/notes/service'
 import { createTagService } from '../../../../core/tags'
 import { createTemplateService } from '../../../../core/templates'
 import { TEMPLATES_BOOK_ID } from '../../../../core/templatesBook'
+import { t } from '../../i18n'
 import { memoryStorage } from '../../storage/memory'
 import { listHandlers, type ListsCore } from './lists'
 
@@ -31,6 +32,7 @@ function lists() {
     batch: (ids, change) => applyBatch({ notes, tags }, ids, change),
     emptyTrash: () => notes.emptyTrash(),
     createTemplate: () => templates.create(),
+    createBook: (name, parentId) => books.create(name, parentId),
     applyTemplate: (id, now, bookId) => templates.apply(id, { now }, bookId),
     read: (id) => notes.read(id),
     setStatusUndoable: (id, status) => notes.setStatusUndoable(id, status),
@@ -105,6 +107,13 @@ describe('the native lists operations', () => {
     const emptied = (await run(handlers, 'trash.empty')) as { purged: number }
     expect(emptied.purged).toBeGreaterThanOrEqual(1)
     expect((await notes.listTrash()).map((n) => n.id)).not.toContain(id)
+  })
+
+  it('makes a notebook named New Notebook at the top level', async () => {
+    const { books, handlers } = lists()
+    const made = (await run(handlers, 'book.create')) as { id: string }
+    const book = (await books.list()).find((b) => b.id === made.id)
+    expect([book?.name, book?.parentId]).toStrictEqual([t('book.new'), null])
   })
 
   it('makes a template, and a note from one in the notebook asked for', async () => {

@@ -170,6 +170,9 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A head's chevron turns between right and down at once; the section's rows fold away or open with the system's list animation, and what is below follows.
   A notebook with notebooks inside folds them the same way from its own chevron.
   Under Reduce Motion the rows come and go at once.
+- **New Notebook** (the native screens): rule 3.
+  The Library's bar button presses as any bar button, and the new notebook's row comes into Notebooks with the system's list animation once the page reports it.
+  Under Reduce Motion the row shows at once.
 - **Row pressed** (the native screens): rule 4.
   A row fills with `color.phone.pressed` while pressed, with the system's highlight.
   A row that pushed is deselected alongside the pop, and selected again when the back swipe is turned back.

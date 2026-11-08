@@ -156,6 +156,8 @@ final class ListContext {
             }
         case .emptyTrash:
             write(.trashEmpty, [:]) { _ in }
+        case .newNotebook:
+            write(.bookCreate, [:]) { _ in }
         case .newTemplate:
             write(.templateCreate, [:]) { [weak self] made in
                 if let id = made["id"]?.string { self?.open(id, "") }

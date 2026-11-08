@@ -24,6 +24,7 @@ export const SCREENS_OPS = [
   'editor.focus',
   'notes.batch',
   'trash.empty',
+  'book.create',
   'template.create',
   'template.apply',
   'note.text',

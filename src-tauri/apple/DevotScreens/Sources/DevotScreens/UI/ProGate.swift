@@ -7,6 +7,7 @@ enum WriteIntent: Equatable {
     /// Completes one note, with the undo toast that takes it back.
     case complete(id: String)
     case emptyTrash
+    case newNotebook
     case newTemplate
     case fromTemplate(templateId: String, bookId: String?)
 }

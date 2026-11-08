@@ -70,9 +70,18 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
                 library: { [weak self] done in done(self?.library) },
                 fromTemplate: { [weak self] in self?.pickTemplate() }))
         compose.accessibilityLabel = L10n.noteListNewNote()
-        navigationItem.rightBarButtonItem = compose
+        let book = UIBarButtonItem(
+            image: UIImage(systemName: "folder.badge.plus"),
+            primaryAction: UIAction { [weak self] _ in self?.newNotebook() })
+        book.accessibilityLabel = L10n.bookNew()
+        navigationItem.rightBarButtonItems = [compose, .fixedSpace(0), book]
         if let read = context.library { show(read) }
         context.readLibrary()
+    }
+
+    /// A notebook named New Notebook at the top level, as on the Mac; it shows once the page reports it.
+    func newNotebook() {
+        context.gate.require(.newNotebook)
     }
 
     private func pickTemplate() {

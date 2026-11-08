@@ -95,6 +95,7 @@ public enum Op: String, CaseIterable, Sendable {
     case editorFocus = "editor.focus"
     case notesBatch = "notes.batch"
     case trashEmpty = "trash.empty"
+    case bookCreate = "book.create"
     case templateCreate = "template.create"
     case templateApply = "template.apply"
     case noteText = "note.text"

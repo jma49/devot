@@ -239,6 +239,8 @@ pub enum Op {
     NotesBatch(Batch),
     #[serde(rename = "trash.empty")]
     TrashEmpty(Empty),
+    #[serde(rename = "book.create")]
+    BookCreate(Empty),
     #[serde(rename = "template.create")]
     TemplateCreate(Empty),
     #[serde(rename = "template.apply")]
@@ -269,6 +271,7 @@ pub const OPS: &[&str] = &[
     "editor.focus",
     "notes.batch",
     "trash.empty",
+    "book.create",
     "template.create",
     "template.apply",
     "note.text",
@@ -675,6 +678,7 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
         | Op::EditorInfo(_)
         | Op::EditorFocus(_)
         | Op::TrashEmpty(_)
+        | Op::BookCreate(_)
         | Op::TemplateCreate(_) => Ok(()),
     }
 }
