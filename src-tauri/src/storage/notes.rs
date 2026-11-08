@@ -116,6 +116,26 @@ impl Store {
         )?)
     }
 
+    /// Whether a write of note `id` carrying `deleted_at` and `deleted_hlc` takes its stored row
+    /// out of the Trash: the merge in `put_note_with_writes` and `put_note_meta` keeps the newer
+    /// stamp, so only a newer stamp with no `deleted_at` clears it.
+    pub fn restores_note(
+        &self,
+        id: &str,
+        deleted_at: Option<i64>,
+        deleted_hlc: Option<&str>,
+    ) -> Result<bool> {
+        if deleted_at.is_some() {
+            return Ok(false);
+        }
+        Ok(self.conn.query_row(
+            "SELECT EXISTS (SELECT 1 FROM notes WHERE id = ?1 AND deleted_at IS NOT NULL
+               AND COALESCE(?2, '') > COALESCE(deleted_hlc, ''))",
+            params![id, deleted_hlc],
+            |row| row.get(0),
+        )?)
+    }
+
     /// The bodies of `ids` in their order, trashed notes included; purged and unknown IDs are left out.
     pub fn get_bodies(&self, ids: &[String]) -> Result<Vec<NoteBody>> {
         let mut statement = self.conn.prepare_cached(NOTE_BODIES_SQL)?;

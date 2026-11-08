@@ -8,8 +8,8 @@ use super::format::{verify_licence, verify_revocations};
 use super::keys::{PRODUCTION, TEST, decode_key, gates};
 use super::store::MemoryKey;
 use super::testing::{
-    ID, LICENSEE, gated_db, has_note, key, licence_json, save_note, sign, sign_raw, test_keys,
-    trial_over, vectors,
+    ID, LICENSEE, gated_db, has_note, is_trashed, key, licence_json, restore_note,
+    restore_note_meta, save_note, sign, sign_raw, test_keys, trash_note, trial_over, vectors,
 };
 use super::*;
 use crate::data_folder::Build;
@@ -790,6 +790,20 @@ fn as_the_trial_ends_a_note_that_exists_still_saves_but_a_new_note_does_not() {
 }
 
 #[test]
+fn as_the_trial_ends_a_note_in_the_trash_still_saves_but_does_not_come_back() {
+    let s = first_launch(true);
+    s.licence.snapshot();
+    let (_db_dir, db) = gated_db(&s.licence);
+    save_note(&db, KEPT, 0).expect("the trial runs");
+    trash_note(&db, KEPT, 1).expect("the trial runs");
+    s.at(START + 30 * 24 * HOUR + trial::GRACE_MS - 1);
+    assert_eq!(restore_note(&db, KEPT, 2), Err(REQUIRED.to_owned()));
+    assert_eq!(restore_note_meta(&db, KEPT, 2), Err(REQUIRED.to_owned()));
+    assert_eq!(save_note(&db, KEPT, 2), Ok(()));
+    assert!(is_trashed(&db, KEPT));
+}
+
+#[test]
 fn an_ungated_build_saves_a_new_note_and_its_edits_alike() {
     let s = setup(false);
     let (_db_dir, db) = gated_db(&s.licence);
@@ -1213,6 +1227,32 @@ mod seats {
         assert!(!has_note(&db, NEW));
         s.now.store(EXPIRES + SEAT_GRACE_MS, Ordering::SeqCst);
         assert_eq!(save_note(&db, KEPT, 2), Err(REQUIRED.to_owned()));
+    }
+
+    #[test]
+    fn as_a_lease_runs_out_a_note_in_the_trash_still_saves_but_does_not_come_back() {
+        use super::super::SEAT_GRACE_MS;
+        use super::super::testing::{
+            gated_db, is_trashed, restore_note, restore_note_meta, save_note, trash_note,
+        };
+        use super::KEPT;
+        const EXPIRES: i64 = 1_790_035_200_000;
+        let s = seat_setup(|device| {
+            Ok(ActivationReply {
+                lease: lease_for(ID, device, "2026-09-22T00:00:00Z"),
+                used: 1,
+                limit: 3,
+            })
+        });
+        s.licence.set(&key(ID)).expect("set");
+        let (_db_dir, db) = gated_db(&s.licence);
+        save_note(&db, KEPT, 0).expect("the seat is active");
+        trash_note(&db, KEPT, 1).expect("the seat is active");
+        s.now.store(EXPIRES + SEAT_GRACE_MS - 1, Ordering::SeqCst);
+        assert_eq!(restore_note(&db, KEPT, 2), Err(REQUIRED.to_owned()));
+        assert_eq!(restore_note_meta(&db, KEPT, 2), Err(REQUIRED.to_owned()));
+        assert_eq!(save_note(&db, KEPT, 2), Ok(()));
+        assert!(is_trashed(&db, KEPT));
     }
 
     #[test]

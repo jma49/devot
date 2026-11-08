@@ -118,7 +118,46 @@ describe('Write mode links', () => {
     expect(shown('a wiki link [[QA Write mode]].')).toBe('a wiki link [[QA Write mode]].')
     expect(marks('see [[Plan]]')).toEqual(['cm-wm-plain [Plan]'])
     expect(shown('see [[Plan]]', caret(6))).toBe('see [[Plan]]')
-    expect(marks('a [x] b')).toEqual([])
+  })
+
+  it('by reference with no definition stay plain text, with the caret beside them or not', () => {
+    expect(marks('a [b] c')).toEqual(['cm-wm-plain [b]'])
+    expect(rangesOf('a [b] c', caret(2)).ranges).toContainEqual({
+      kind: 'mark',
+      from: 2,
+      to: 5,
+      className: 'cm-wm-plain',
+    })
+    expect(marks('a [b][] c')).toEqual(['cm-wm-plain [b][]'])
+    expect(marks('a [b][nope] c')).toEqual(['cm-wm-plain [b][nope]'])
+    expect(shown('a [b][nope] c')).toBe('a [b][nope] c')
+    expect(marks('keys \u2318[ and \u2318].')).toEqual(['cm-wm-plain [ and \u2318]'])
+    expect(shown('a [**b**] c')).toBe('a [b] c')
+    expect(marks('[Note]: remember to call\n\nsee [note] here')).toEqual([
+      'cm-wm-plain [Note]',
+      'cm-wm-plain [note]',
+    ])
+    expect(marks('a [foo\u00a0bar] c\n\n[foo bar]: /u')).toEqual(['cm-wm-plain [foo\u00a0bar]'])
+  })
+
+  it('by reference with a definition are links, whatever the case and spacing of the label', () => {
+    expect(marks('a [b] c\n\n[b]: https://example.com')).toEqual([])
+    expect(marks('a [B  c][]\n\n[b c]: https://example.com')).toEqual([])
+    expect(marks('a [x][B]\n\n[b]: https://example.com')).toEqual([])
+    expect(marks('a [b] c\n\n```\n[b]: https://example.com\n```')).toEqual([
+      'cm-wm-plain [b]',
+      'cm-wm-fence ```',
+      'cm-wm-fence ```',
+    ])
+    expect(marks('[\u1e9e]\n\n[SS]: /u')).toEqual([])
+    expect(marks('[\u03c3]\n\n[\u03c2]: /u')).toEqual([])
+    expect(marks('[\u00a0]\n\n[\u00a0]: /u')).toEqual([])
+  })
+
+  it('inline with no address are links, with the caret in them or not', () => {
+    expect(marks('a [x]() c')).toEqual([])
+    expect(marks('a []() c')).toEqual([])
+    expect(rangesOf('a [x]() c', caret(6)).ranges.filter((r) => r.kind === 'mark')).toEqual([])
   })
 
   it('leave images to the image rules', () => {
@@ -161,6 +200,12 @@ describe('Write mode footnotes', () => {
     expect(shown('- x[^a]\n- [^a]: note')).toBe('{bullet1} x{^1}\n{bullet1} {^1:}note')
     expect(shown('x[^a]: suffix and y[^a]\n\n[^a]: note').split('\n')[0]).toBe(
       'x{^1}: suffix and y{^1}',
+    )
+  })
+
+  it('number a reference on a line that only looks like a link definition', () => {
+    expect(shown('[TODO]: see this[^1]\n\n[^1]: The note.')).toBe(
+      '[TODO]: see this{^1}\n\n{^1:}The note.',
     )
   })
 
