@@ -1,6 +1,6 @@
 // What the windows say about the trial: one bar that stays while notes are read-only (the trial is
 // over without a licence), and once, in the trial's last day, when it ends.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { currentLocale, t } from './i18n'
 import {
   openBuy,
@@ -25,12 +25,33 @@ function remindedFor(): number | null {
   }
 }
 
+// Still hides it in this window when storage refuses the write.
+let remindedHere: number | null = null
+const remindedListeners = new Set<() => void>()
+
+const dismissedFor = () => remindedHere ?? remindedFor()
+
+// Every main window shows the reminder, so a dismissal in one reaches the others by the storage event.
+function subscribeReminded(notify: () => void): () => void {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === REMINDED_KEY || e.key === null) notify()
+  }
+  remindedListeners.add(notify)
+  window.addEventListener('storage', onStorage)
+  return () => {
+    remindedListeners.delete(notify)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
 function remember(endsAt: number) {
+  remindedHere = endsAt
   try {
     globalThis.localStorage?.setItem(REMINDED_KEY, String(endsAt))
   } catch {
     console.warn('W_TRIAL_REMINDER_NOT_KEPT')
   }
+  for (const notify of remindedListeners) notify()
 }
 
 function TrialButtons() {
@@ -119,7 +140,7 @@ const nextMidnight = (from: number) => {
 /** Once, when less than a day of the trial is left; dismissed, it never comes back. */
 export function TrialReminder() {
   const licence = useLicence()
-  const [dismissed, setDismissed] = useState(remindedFor)
+  const dismissed = useSyncExternalStore(subscribeReminded, dismissedFor)
   const [now, setNow] = useState(Date.now)
   const endsAt = licence.trial?.state === 'running' ? licence.trial.endsAt : null
 
@@ -167,7 +188,6 @@ export function TrialReminder() {
         className="button"
         onClick={() => {
           remember(endsAt)
-          setDismissed(endsAt)
         }}
       >
         {t('notice.dismiss')}
