@@ -133,7 +133,9 @@ describe('editor setup from the settings', () => {
       state.facet(EditorView.scrollMargins).map((f) => f({} as EditorView))
     // With Scroll Past End the caret keeps four lines of room below it (13px at 1.5).
     expect(margins(on)).toEqual([{ top: 0, bottom: 78 }])
-    expect(margins(make({ ...DEFAULT_EDITOR_SETTINGS, scrollPastEnd: false }))).toEqual([])
+    expect(margins(make({ ...DEFAULT_EDITOR_SETTINGS, scrollPastEnd: false }))).toEqual([
+      { top: 0, bottom: 0 },
+    ])
     expect(margins(make({ ...DEFAULT_EDITOR_SETTINGS, cursorScrollMargin: 40 }))).toEqual([
       { top: 40, bottom: 78 },
     ])
@@ -142,8 +144,15 @@ describe('editor setup from the settings', () => {
     ).toEqual([{ top: 120, bottom: 120 }])
     // The trial-ended bar's room is read when the margin is, so it follows the bar appearing.
     vi.stubGlobal('document', { documentElement: {} })
-    vi.stubGlobal('getComputedStyle', () => ({ getPropertyValue: () => '40px' }))
+    vi.stubGlobal('getComputedStyle', () => ({
+      getPropertyValue: (name: string) => (name === '--trial-bar-inset' ? '40px' : ''),
+    }))
     expect(margins(on)).toEqual([{ top: 0, bottom: 118 }])
+    // So does the room the iPhone's keyboard covers, on top of the bar's.
+    vi.stubGlobal('getComputedStyle', () => ({
+      getPropertyValue: (name: string) => (name === '--editor-foot-inset' ? '300px' : '40px'),
+    }))
+    expect(margins(on)).toEqual([{ top: 0, bottom: 418 }])
     vi.unstubAllGlobals()
     const decorated = (settings: EditorSettings) =>
       make(settings).facet(EditorView.decorations).length

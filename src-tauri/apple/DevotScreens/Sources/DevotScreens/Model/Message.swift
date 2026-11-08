@@ -91,7 +91,6 @@ public enum Op: String, CaseIterable, Sendable {
     case editorPrepare = "editor.prepare"
     case editorHide = "editor.hide"
     case editorSetMode = "editor.setMode"
-    case editorInfo = "editor.info"
     case editorFocus = "editor.focus"
     case notesBatch = "notes.batch"
     case trashEmpty = "trash.empty"
@@ -101,6 +100,14 @@ public enum Op: String, CaseIterable, Sendable {
     case noteText = "note.text"
     case noteComplete = "note.complete"
     case noteUndoStatus = "note.undoStatus"
+    case editorFormat = "editor.format"
+    case editorAi = "editor.ai"
+    case editorFind = "editor.find"
+    case editorInsets = "editor.insets"
+    case editorDuplicate = "editor.duplicate"
+    case noteInfo = "note.info"
+    case noteSetDates = "note.setDates"
+    case noteAddTag = "note.addTag"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {
@@ -117,6 +124,9 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case booksChanged = "books.changed"
     case tagsChanged = "tags.changed"
     case savedSearchesChanged = "savedSearches.changed"
+    case editorNote = "editor.note"
+    case editorPicker = "editor.picker"
+    case editorHaptic = "editor.haptic"
     /// Sent by Rust itself, never by the page.
     case licenceChanged = "licence.changed"
 }

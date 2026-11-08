@@ -1,0 +1,14 @@
+{
+  "from": "page",
+  "message": {
+    "v": 1,
+    "notice": "editor.note",
+    "id": "01890a5d-ac96-774b-bcce-b302099a8057",
+    "bookId": "01890a5d-ac96-774b-bcce-b302099a8059",
+    "status": "active",
+    "pinned": true,
+    "tagIds": ["01890a5d-ac96-774b-bcce-b302099a8058"],
+    "createdAt": 1767225600000,
+    "updatedAt": 1767312000000
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "from": "page",
+  "message": {
+    "v": 1,
+    "notice": "editor.haptic",
+    "kind": "selection"
+  }
+}

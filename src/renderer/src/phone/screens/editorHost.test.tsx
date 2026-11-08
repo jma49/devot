@@ -7,6 +7,7 @@ import type { EditorHandle } from '../../editor/handle'
 import { invoke } from '../../ipc'
 import { readCurrentLicence } from '../../licence'
 import { closePurchase } from '../../purchaseSheet'
+import { haptic } from '../haptics'
 import { PhoneApp } from '../PhoneApp'
 import { closeGate } from '../requireEditing'
 import { setTestCore, testCore } from '../testShell'
@@ -143,6 +144,9 @@ const layer = (mode: 'edit' | 'preview') =>
     mode === 'edit' ? '.phone-note-layer:not(.phone-note-preview)' : '.phone-note-preview',
   )!
 
+const summary = async (id: string) =>
+  (await shell.core.listWithTemplates()).notes.find((note) => note.id === id)
+
 async function start() {
   await act(async () => root.render(<PhoneApp />))
   await vi.waitFor(() => expect(bridge.handlers['editor.show']).toBeDefined())
@@ -235,11 +239,13 @@ describe('the editor host under the native screens', () => {
     const id = await shell.notes.create('Plans', null)
     await start()
     await swift('editor.show', { noteId: id })
-    const scroller = editorHost().querySelector<HTMLElement>('.phone-note-scroll')!
-    scroller.scrollTop = 400
+    // The shown note scrolls the page itself (pageScroll.ts).
+    expect(document.documentElement.hasAttribute('data-page-scrolls')).toBe(true)
+    const scrollTo = vi.spyOn(window, 'scrollTo')
     await swift('editor.hide')
+    expect(document.documentElement.hasAttribute('data-page-scrolls')).toBe(false)
     await swift('editor.show', { noteId: id })
-    expect(scroller.scrollTop).toBe(0)
+    expect(scrollTo).toHaveBeenCalledWith(0, 0)
   })
 
   it('hides the editor and answers once the list is painted again', async () => {
@@ -320,14 +326,105 @@ describe('the editor host under the native screens', () => {
     expect(noteScreen()?.getAttribute('aria-label')).toBe('First')
   })
 
-  it('opens Note Info when Swift asks', async () => {
+  it('leaves the bars, the find bar and the sheets to Swift, and sends it the chips’ taps', async () => {
     const id = await shell.notes.create('Plans', null)
     await start()
     await swift('editor.show', { noteId: id })
-    await swift('editor.info')
-    expect(document.querySelector('.phone-sheet-layer [role="dialog"]')).not.toBeNull()
-    await swift('editor.hide')
+    expect(editorHost().querySelector('.phone-note-bottom')).toBeNull()
+    expect(editorHost().querySelector('.phone-accessory')).toBeNull()
+    const chips = [...editorHost().querySelectorAll<HTMLButtonElement>('.phone-chip-target')]
+    await act(async () => chips[0]!.click())
+    await act(async () => chips[1]!.click())
+    await act(async () => chips.at(-1)!.click())
+    expect(notices('editor.picker').map((n) => n.notice === 'editor.picker' && n.picker)).toEqual([
+      'notebook',
+      'status',
+      'tags',
+    ])
     expect(document.querySelector('.phone-sheet-layer [role="dialog"]')).toBeNull()
+  })
+
+  it('tells Swift the facts of each note it shows, for the More menu and the pickers', async () => {
+    const book = await shell.books.create('Work', null)
+    const id = await shell.notes.create('Plans', book)
+    const tagId = await shell.tags.addToNote(id, 'urgent')
+    await shell.notes.setPinned(id, true)
+    const other = await shell.notes.create('Other', null)
+    await start()
+    await swift('editor.show', { noteId: id })
+    await vi.waitFor(() =>
+      expect(notices('editor.note').at(-1)).toMatchObject({
+        id,
+        bookId: book,
+        status: 'none',
+        pinned: true,
+        tagIds: [tagId],
+      }),
+    )
+    await swift('editor.show', { noteId: other })
+    await vi.waitFor(() =>
+      expect(notices('editor.note').at(-1)).toMatchObject({ id: other, bookId: null, tagIds: [] }),
+    )
+  })
+
+  it('makes a tag by name on the note the tags picker shows', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    const made = (await swift('note.addTag', { noteId: id, name: 'urgent' })) as { tagId: string }
+    expect((await summary(id))?.tagIds).toEqual([made.tagId])
+  })
+
+  it('drives Find, formatting and the suggestion on the shown note', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await swift('editor.show', { noteId: id })
+    expect(await swift('editor.find', { action: 'search', query: 'x' })).toMatchObject({ total: 0 })
+    // A locked note searches too: Find shows the editor, which takes no caret.
+    expect(notices('editor.mode').at(-1)).toMatchObject({ mode: 'edit' })
+    await swift('editor.find', { action: 'close' })
+    await expect(bridge.handlers['editor.format']!({ id: 'strike' })).rejects.toThrow(
+      'E_SCREENS_ARGS_INVALID',
+    )
+    await expect(bridge.handlers['editor.ai']!({ action: 'write' })).rejects.toThrow(
+      'E_SCREENS_ARGS_INVALID',
+    )
+  })
+
+  it('duplicates the shown note with its tags, and answers with the copy', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await shell.tags.addToNote(id, 'urgent')
+    await start()
+    await swift('editor.show', { noteId: id })
+    const made = (await swift('editor.duplicate')) as { id: string; title: string }
+    expect(made.id).not.toBe(id)
+    expect(made.title).toBe('Plans copy')
+    expect((await summary(made.id))?.tagIds).toHaveLength(1)
+  })
+
+  it('answers Note Info with the counts, the revisions and the backlinks', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    expect(await swift('note.info', { noteId: id })).toStrictEqual({
+      words: 0,
+      characters: 0,
+      readingMinutes: 1,
+      revisions: 0,
+      backlinks: [],
+    })
+  })
+
+  it('sets the dates Note Info picks', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await swift('note.setDates', { noteId: id, createdAt: 1_000 })
+    expect((await summary(id))?.createdAt).toBe(1_000)
+  })
+
+  it('hands the page’s haptics to Swift', async () => {
+    await start()
+    await act(async () => haptic('selection'))
+    expect(notices('editor.haptic')).toStrictEqual([{ notice: 'editor.haptic', kind: 'selection' }])
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith('haptic', expect.anything())
   })
 
   it('refuses a request without a note or with an unknown mode', async () => {

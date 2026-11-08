@@ -1,0 +1,15 @@
+{
+  "from": "page",
+  "code": "E_SCREENS_ARGS_INVALID",
+  "message": {
+    "v": 1,
+    "notice": "editor.note",
+    "id": "01890a5d-ac96-774b-bcce-b302099a8057",
+    "bookId": null,
+    "status": "archived",
+    "pinned": false,
+    "tagIds": [],
+    "createdAt": 1,
+    "updatedAt": 1
+  }
+}

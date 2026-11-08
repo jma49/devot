@@ -34,6 +34,7 @@ import { usePhoneData } from './usePhoneData'
 import { startLicence, useLicence } from '../licence'
 import { choicesFromTree } from '../notebookChoices'
 import { startScreensBridge, type ScreensBridge } from './screens/bridge'
+import { noteHandlers } from './screens/notes'
 import { SCREENS_HANDLERS } from './screens/ops'
 import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
@@ -53,6 +54,7 @@ import { openPurchase } from '../purchaseSheet'
 import { PhoneGate } from './PhoneProSheet'
 import { dropIntent, watchWrite } from './requireEditing'
 import { applyGlassPrefs } from './glassPrefs'
+import { routeHaptics } from './haptics'
 import { PhoneNote } from './PhoneNote'
 import { PhoneSettings, PhoneSettingsPane } from './PhoneSettings'
 import { useLicenceClock } from './licenceClock'
@@ -296,6 +298,7 @@ export function PhoneApp() {
       ...newNoteHandlers(() => nativeNewNote.current),
       ...listHandlers(() => latestStore.current.core),
       ...searchHandlers(() => latestStore.current.core),
+      ...noteHandlers(() => latestStore.current.core),
     })
     bridge.current = started
     let live = true
@@ -409,6 +412,11 @@ export function PhoneApp() {
       notes()
       library()
     }
+  }, [native])
+  useEffect(() => {
+    if (!native) return
+    routeHaptics((kind) => bridge.current?.notify({ notice: 'editor.haptic', kind }))
+    return () => routeHaptics(null)
   }, [native])
   useEffect(() => {
     if (native)

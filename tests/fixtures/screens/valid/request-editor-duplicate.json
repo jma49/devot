@@ -2,8 +2,8 @@
   "from": "swift",
   "message": {
     "v": 1,
-    "id": 23,
-    "op": "editor.info",
+    "id": 45,
+    "op": "editor.duplicate",
     "args": {}
   }
 }

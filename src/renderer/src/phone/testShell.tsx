@@ -2,8 +2,10 @@
 // the lists it reads, and an editor stand-in that records the keyboard it is given.
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createBookService } from '../../../core/books'
+import { duplicateNote } from '../../../core/duplicate'
 import { createClock } from '../../../core/hlc'
 import { createIdGenerator } from '../../../core/ids'
+import { noteCounts } from '../../../core/noteCounts'
 import { createNoteService } from '../../../core/notes/service'
 import { createTagService } from '../../../core/tags'
 import { createTemplateService } from '../../../core/templates'
@@ -30,6 +32,14 @@ export function testCore() {
     addTag: (noteId: string, name: string) => tags.addToNote(noteId, name),
     removeTag: (noteId: string, tagId: string) => tags.removeFromNote(noteId, tagId),
     listSavedSearches: async () => [],
+    duplicate: (id: string, suffix?: string, tagIds?: string[]) =>
+      duplicateNote({ notes, tags }, id, {
+        ...(suffix === undefined ? {} : { suffix }),
+        ...(tagIds === undefined ? {} : { tagIds }),
+      }),
+    setNoteDates: (id: string, dates: { createdAt?: number; updatedAt?: number }) =>
+      notes.setDates(id, dates),
+    noteCounts: (markdown: string) => noteCounts(markdown),
     history: async () => [],
     backlinks: async () => [],
     // Preview is drawn behind Edit; a result it cannot read would make it render again forever.

@@ -22,6 +22,16 @@ const MAX_BATCH_IDS: usize = 10_000;
 /// and a space; it never reads a longer query further.
 const MAX_QUERY_CHARS: usize = 10 * (100 + 16);
 const MAX_CODE_CHARS: usize = 64;
+/// MAX_TAG_NAME_CHARS in src/core/tagNames.ts.
+const MAX_TAG_NAME_CHARS: usize = 100;
+/// What the native find bar takes: a phrase, never a document.
+const MAX_FIND_CHARS: usize = 1000;
+/// A keyboard and its bar never cover more than a tall screen.
+const MAX_INSET: f64 = 4096.0;
+/// UIKit's keyboard animates for about a quarter of a second; anything past two is not one.
+const MAX_INSET_SECONDS: f64 = 2.0;
+/// `UIView.AnimationCurve` raw values, the keyboard's private 7 included.
+const MAX_CURVE: u64 = 7;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -200,6 +210,84 @@ pub struct TemplateApply {
     pub book_id: Option<String>,
 }
 
+/// The buttons of the native formatting bar, by the editor's format IDs (`editor/formats.ts`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BarFormat {
+    Heading,
+    Bold,
+    Italic,
+    TaskList,
+    Code,
+    Link,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FormatArgs {
+    pub id: BarFormat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AiAction {
+    Suggest,
+    Accept,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AiArgs {
+    pub action: AiAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FindAction {
+    Search,
+    Next,
+    Previous,
+    Close,
+}
+
+/// The native find bar: `search` carries the query, the steps and `close` none.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FindArgs {
+    pub action: FindAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+}
+
+/// Where the keyboard and the formatting bar leave the note, and how the keyboard moved.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InsetArgs {
+    pub bottom: f64,
+    pub duration: f64,
+    pub curve: u64,
+}
+
+impl Eq for InsetArgs {}
+
+/// Note Info's dates, in milliseconds; the core refuses an update before the creation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct SetDates {
+    pub note_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct AddTag {
+    pub note_id: String,
+    pub name: String,
+}
+
 /// What Swift may ask the page for: an operation joins with the pull request that first sends it.
 /// What Rust answers itself is a `direct::Op`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -231,8 +319,6 @@ pub enum Op {
     EditorHide(Empty),
     #[serde(rename = "editor.setMode")]
     EditorSetMode(ModeArgs),
-    #[serde(rename = "editor.info")]
-    EditorInfo(Empty),
     #[serde(rename = "editor.focus")]
     EditorFocus(Empty),
     #[serde(rename = "notes.batch")]
@@ -251,6 +337,22 @@ pub enum Op {
     NoteComplete(NoteArgs),
     #[serde(rename = "note.undoStatus")]
     NoteUndoStatus(UndoStatus),
+    #[serde(rename = "editor.format")]
+    EditorFormat(FormatArgs),
+    #[serde(rename = "editor.ai")]
+    EditorAi(AiArgs),
+    #[serde(rename = "editor.find")]
+    EditorFind(FindArgs),
+    #[serde(rename = "editor.insets")]
+    EditorInsets(InsetArgs),
+    #[serde(rename = "editor.duplicate")]
+    EditorDuplicate(Empty),
+    #[serde(rename = "note.info")]
+    NoteInfo(NoteArgs),
+    #[serde(rename = "note.setDates")]
+    NoteSetDates(SetDates),
+    #[serde(rename = "note.addTag")]
+    NoteAddTag(AddTag),
 }
 
 pub const OPS: &[&str] = &[
@@ -267,7 +369,6 @@ pub const OPS: &[&str] = &[
     "editor.prepare",
     "editor.hide",
     "editor.setMode",
-    "editor.info",
     "editor.focus",
     "notes.batch",
     "trash.empty",
@@ -277,6 +378,14 @@ pub const OPS: &[&str] = &[
     "note.text",
     "note.complete",
     "note.undoStatus",
+    "editor.format",
+    "editor.ai",
+    "editor.find",
+    "editor.insets",
+    "editor.duplicate",
+    "note.info",
+    "note.setDates",
+    "note.addTag",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -347,6 +456,52 @@ pub struct NoteNew {
     pub book_id: Option<String>,
 }
 
+/// The shown note's chips and dates, for the native More menu, pickers and Note Info.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct EditorNote {
+    pub id: String,
+    pub book_id: Option<String>,
+    pub status: String,
+    pub pinned: bool,
+    pub tag_ids: Vec<String>,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Picker {
+    Notebook,
+    Status,
+    Tags,
+}
+
+/// A chip under the note's title: Swift opens its native picker.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct EditorPicker {
+    pub note_id: String,
+    pub picker: Picker,
+}
+
+/// `HapticKind` in src/renderer/src/phone/haptics.ts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HapticKind {
+    Light,
+    Soft,
+    Selection,
+    Success,
+    Warning,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EditorHaptic {
+    pub kind: HapticKind,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "notice", content = "fields")]
 pub enum Notice {
@@ -376,6 +531,12 @@ pub enum Notice {
     TagsChanged(Empty),
     #[serde(rename = "savedSearches.changed")]
     SavedSearchesChanged(Empty),
+    #[serde(rename = "editor.note")]
+    EditorNote(EditorNote),
+    #[serde(rename = "editor.picker")]
+    EditorPicker(EditorPicker),
+    #[serde(rename = "editor.haptic")]
+    EditorHaptic(EditorHaptic),
 }
 
 const NOTICES: &[&str] = &[
@@ -392,6 +553,9 @@ const NOTICES: &[&str] = &[
     "books.changed",
     "tags.changed",
     "savedSearches.changed",
+    "editor.note",
+    "editor.picker",
+    "editor.haptic",
 ];
 
 /// The notices Rust sends Swift itself; the page can send none of them.
@@ -670,12 +834,42 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             note_ids(std::slice::from_ref(&apply.template_id), 1)?;
             book(apply.book_id.as_ref())
         }
+        Op::NoteInfo(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::NoteSetDates(dates) => {
+            note_ids(std::slice::from_ref(&dates.note_id), 1)?;
+            match (dates.created_at, dates.updated_at) {
+                (None, None) => Err("E_SCREENS_ARGS_INVALID"),
+                (Some(created), Some(updated)) if created > updated => Err("E_SCREENS_DATES_ORDER"),
+                _ => Ok(()),
+            }
+        }
+        Op::NoteAddTag(AddTag { note_id, name }) => {
+            note_ids(std::slice::from_ref(note_id), 1)?;
+            tag_name(name)
+        }
+        Op::EditorFind(find) => match (find.action, find.query.as_deref()) {
+            (FindAction::Search, Some(query)) if query.chars().count() <= MAX_FIND_CHARS => Ok(()),
+            (FindAction::Search, Some(_)) => Err("E_SCREENS_QUERY_TOO_LONG"),
+            (FindAction::Next | FindAction::Previous | FindAction::Close, None) => Ok(()),
+            _ => Err("E_SCREENS_ARGS_INVALID"),
+        },
+        Op::EditorInsets(insets) => {
+            let within = |value: f64, max: f64| value.is_finite() && (0.0..=max).contains(&value);
+            if within(insets.bottom, MAX_INSET)
+                && within(insets.duration, MAX_INSET_SECONDS)
+                && insets.curve <= MAX_CURVE
+            {
+                Ok(())
+            } else {
+                Err("E_SCREENS_ARGS_INVALID")
+            }
+        }
+        Op::EditorFormat(_) | Op::EditorAi(_) | Op::EditorDuplicate(_) => Ok(()),
         Op::TabsShow(_)
         | Op::TabsPopToRoot(_)
         | Op::SettingsNotebooks(_)
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
-        | Op::EditorInfo(_)
         | Op::EditorFocus(_)
         | Op::TrashEmpty(_)
         | Op::BookCreate(_)
@@ -697,8 +891,32 @@ fn change(change: &Change) -> Result<(), &'static str> {
     }
 }
 
+/// One line of at most MAX_TAG_NAME_CHARS characters, as the core takes a tag's name.
+fn tag_name(name: &str) -> Result<(), &'static str> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || name.contains(['\r', '\n']) {
+        return Err("E_SCREENS_ARGS_INVALID");
+    }
+    if name.chars().count() > MAX_TAG_NAME_CHARS {
+        return Err("E_SCREENS_TAG_TOO_LONG");
+    }
+    Ok(())
+}
+
 fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
     match notice {
+        Notice::EditorNote(note) => {
+            note_ids(std::slice::from_ref(&note.id), 1)?;
+            book(note.book_id.as_ref())?;
+            note_ids(&note.tag_ids, MAX_BATCH_IDS)?;
+            if !NOTE_STATUSES.contains(&note.status.as_str()) {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            Ok(())
+        }
+        Notice::EditorPicker(EditorPicker { note_id, .. }) => {
+            note_ids(std::slice::from_ref(note_id), 1)
+        }
         Notice::NotesChanged(changed) => note_ids(&changed.ids, MAX_CHANGED_IDS),
         Notice::EditorTitle(editor) => {
             note_ids(std::slice::from_ref(&editor.id), 1)?;
@@ -719,7 +937,8 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
         | Notice::EditorScroll(_)
         | Notice::BooksChanged(_)
         | Notice::TagsChanged(_)
-        | Notice::SavedSearchesChanged(_) => Ok(()),
+        | Notice::SavedSearchesChanged(_)
+        | Notice::EditorHaptic(_) => Ok(()),
     }
 }
 

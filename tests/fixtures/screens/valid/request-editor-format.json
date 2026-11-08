@@ -1,0 +1,11 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 40,
+    "op": "editor.format",
+    "args": {
+      "id": "taskList"
+    }
+  }
+}

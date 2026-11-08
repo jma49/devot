@@ -53,7 +53,9 @@ import { PhoneDetailSheet, PhoneSheet, SheetChoice } from './PhoneSheet'
 import { requireEditing, watchWrite } from './requireEditing'
 import type { PhoneStore } from './usePhoneData'
 import { useKeyboard } from './useKeyboard'
-import type { EditorMode } from './screens/message'
+import { runFind, type BarFormat, type FindAction, type FindCount } from './screens/editor'
+import type { EditorMode, EditorNoteFacts, EditorPicker } from './screens/message'
+import { NOTE_PAGE_SCROLLS } from './screens/pageScroll'
 
 const FORMATS: readonly {
   id: FormatId
@@ -196,7 +198,11 @@ function InfoSheet(props: {
 
 type Sheet = 'info' | 'notebook' | 'status' | 'tags' | null
 
-const PICKER_OPS = { notebook: 'move', status: 'status', tags: 'tags' } as const
+const PICKER_OPS = {
+  notebook: 'move',
+  status: 'status',
+  tags: 'tags',
+} as const
 
 /** A note New Note just made, whose body takes the keyboard once its push has landed. */
 export interface NewNoteArrival {
@@ -212,7 +218,11 @@ export interface NewNoteArrival {
 /** What the native editor screen runs on the note it shows. */
 export interface NoteCommands {
   readonly setMode: (mode: EditorMode) => void
-  readonly info: () => void
+  readonly format: (id: BarFormat) => void
+  readonly ai: (action: 'suggest' | 'accept') => void
+  /** Find works in Edit, so a search shows the editor until `close`. */
+  readonly find: (action: FindAction, query: string) => FindCount
+  readonly duplicate: () => Promise<{ id: string; title: string } | null>
   /** The screen went: sheets, Find and the keyboard go with it. */
   readonly leave: () => void
   /** Puts the caret at the start of the body, in Edit only; whether it took it. */
@@ -220,8 +230,8 @@ export interface NoteCommands {
 }
 
 /**
- * The note inside the native editor screen, which draws the bar: Back pops the screen, a link
- * pushes another, and the page reports what the bar shows.
+ * The note inside the native editor screen, which draws the bars, the find bar and the sheets: Back
+ * pops the screen, a link pushes another, and the page reports what the bars show.
  */
 export interface NativeNoteChrome {
   readonly openNote: (id: string) => void
@@ -229,6 +239,10 @@ export interface NativeNoteChrome {
   readonly mode: (id: string, mode: EditorMode) => void
   readonly title: (id: string, title: string) => void
   readonly titleVisible: (visible: boolean) => void
+  /** What the More menu and the pickers show of the note, again whenever it changes. */
+  readonly facts: (facts: EditorNoteFacts) => void
+  /** A chip was tapped: Swift opens its picker. */
+  readonly picker: (noteId: string, picker: EditorPicker) => void
   readonly commands: RefObject<NoteCommands | null>
   /** Counts Swift's shows: each comes with a new screen, so the page reports the bar's state again. */
   readonly turn: number
@@ -355,13 +369,45 @@ export function PhoneNote(props: {
     if (shownTitle !== undefined) native?.title(noteId, shownTitle)
   }, [native, noteId, shownTitle])
 
+  const factsKey = note
+    ? [
+        note.id,
+        note.bookId,
+        note.status,
+        note.pinned,
+        note.tagIds.join(' '),
+        note.createdAt,
+        note.updatedAt,
+      ]
+        .map(String)
+        .join('|')
+    : null
+  const shownNote = useRef(note)
+  useLayoutEffect(() => {
+    shownNote.current = note
+  })
+  useEffect(() => {
+    const shown = shownNote.current
+    if (!native || factsKey === null || !shown) return
+    native.facts({
+      id: shown.id,
+      bookId: shown.bookId,
+      status: shown.status,
+      pinned: shown.pinned,
+      tagIds: [...shown.tagIds],
+      createdAt: shown.createdAt,
+      updatedAt: shown.updatedAt,
+    })
+  }, [native, factsKey])
+
   // The bar takes the title once the note's own has scrolled under it.
   const scrolledTurn = useRef<number | null>(null)
   useLayoutEffect(() => {
-    const scroller = screen.current?.querySelector<HTMLElement>('.phone-note-scroll')
-    if (!native || !noteShown || !scroller) return
+    const element = screen.current?.querySelector<HTMLElement>('.phone-note-scroll')
+    if (!native || !noteShown || !element) return
+    const scroller = NOTE_PAGE_SCROLLS ? window : element
     // Each screen Swift pushes opens its note at the top, the note shown last too.
-    if (scrolledTurn.current !== native.turn) scroller.scrollTop = 0
+    if (scrolledTurn.current !== native.turn) scroller.scrollTo(0, 0)
     scrolledTurn.current = native.turn
     let visible: boolean | null = null
     const check = () => {
@@ -414,7 +460,25 @@ export function PhoneNote(props: {
       if (next === 'edit') requireEditing({ op: 'edit', id: noteId }, turn)
       else turn()
     },
-    info: () => setSheet('info'),
+    format: (id) => editor.current?.format(id),
+    ai: (action) =>
+      requireEditing({ op: 'ai', id: noteId }, () =>
+        action === 'suggest' ? editor.current?.suggest() : editor.current?.acceptSuggestion(),
+      ),
+    find: (action, query) => {
+      if (action === 'search') {
+        setMode('edit')
+        setFinding(true)
+      }
+      if (action === 'close') setFinding(false)
+      return runFind(findTarget, action, query)
+    },
+    duplicate: async () => {
+      const core = store.core
+      if (!core || !note) return null
+      const id = await core.duplicate(note.id, t('note.copySuffix'), [...note.tagIds])
+      return { id, title: (await core.read(id)).title }
+    },
     focusBody: () => {
       const shown = editor.current
       if (!editing || mode !== 'edit' || !shown) return false
@@ -444,7 +508,10 @@ export function PhoneNote(props: {
   const openNote = (id: string) =>
     native
       ? native.openNote(id)
-      : setHistory((h) => ({ ids: [...h.ids.slice(0, h.at + 1), id], at: h.at + 1 }))
+      : setHistory((h) => ({
+          ids: [...h.ids.slice(0, h.at + 1), id],
+          at: h.at + 1,
+        }))
   const links: LinkSources = {
     find: async (query) => {
       const core = store.core
@@ -491,8 +558,11 @@ export function PhoneNote(props: {
     .filter((tag) => tag !== undefined && tag.deletedAt === null)
   const title = titleDraft ?? note.title
   const back = () => (history.at > 0 ? setHistory((h) => ({ ...h, at: h.at - 1 })) : props.onBack())
-  const pick = (picker: 'notebook' | 'status' | 'tags') =>
-    requireEditing({ op: PICKER_OPS[picker], id: note.id }, () => setSheet(picker))
+  // The native screen's pickers ask for Devot Pro when they write, not when they open.
+  const pick = (picker: EditorPicker) =>
+    native
+      ? native.picker(note.id, picker)
+      : requireEditing({ op: PICKER_OPS[picker], id: note.id }, () => setSheet(picker))
 
   return (
     <section ref={screen} aria-label={note.title || t('note.untitled')} className="phone-screen">
@@ -666,99 +736,104 @@ export function PhoneNote(props: {
           </div>
         </header>
       )}
-      <div
-        className="phone-note-bottom"
-        data-hidden={typing || finding || undefined}
-        inert={typing || finding}
-      >
-        {native ? null : (
-          <div className="phone-glass phone-capsule phone-capsule-tall">
+      {/* The native screen draws its own toolbar, formatting bar and find bar. */}
+      {native ? null : (
+        <>
+          <div
+            className="phone-note-bottom"
+            data-hidden={typing || finding || undefined}
+            inert={typing || finding}
+          >
+            <div className="phone-glass phone-capsule phone-capsule-tall">
+              <button
+                type="button"
+                className="phone-capsule-button"
+                aria-label={t('phone.note.previous')}
+                onClick={back}
+              >
+                <Icon name="phone.history.back" size="md" />
+              </button>
+              <button
+                type="button"
+                className="phone-capsule-button"
+                aria-label={t('phone.note.next')}
+                disabled={history.at >= history.ids.length - 1}
+                onClick={() => setHistory((h) => ({ ...h, at: h.at + 1 }))}
+              >
+                <Icon name="phone.history.forward" size="md" />
+              </button>
+            </div>
+            <span className="phone-topbar-spacer" />
             <button
               type="button"
-              className="phone-capsule-button"
-              aria-label={t('phone.note.previous')}
-              onClick={back}
+              className="phone-glass phone-note-circle"
+              aria-label={t('phone.note.find')}
+              onClick={() => {
+                setMode('edit')
+                setFinding(true)
+              }}
             >
-              <Icon name="phone.history.back" size="md" />
+              <Icon name="search" size="md" />
             </button>
+            {mode === 'edit' && (
+              <button
+                type="button"
+                className="phone-glass phone-note-circle phone-note-ai"
+                aria-label={t('phone.note.suggest')}
+                onClick={() =>
+                  requireEditing({ op: 'ai', id: noteId }, () => editor.current?.suggest())
+                }
+              >
+                <Icon name="format.ai" size="md" />
+              </button>
+            )}
+          </div>
+          <div
+            className="phone-accessory"
+            data-shown={typing || undefined}
+            inert={!typing}
+            style={{
+              bottom: `calc(${keyboard.height}px + var(--size-phone-sheet-inset))`,
+            }}
+          >
+            <div
+              role="toolbar"
+              aria-label={t('phone.note.formatting')}
+              className="phone-glass phone-accessory-bar"
+            >
+              {FORMATS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  className="phone-accessory-button"
+                  aria-label={t(f.label)}
+                  onPointerDown={(event) => event.preventDefault()}
+                  onClick={() => editor.current?.format(f.id)}
+                >
+                  <Icon name={f.icon} size="md" />
+                </button>
+              ))}
+              <button
+                type="button"
+                className="phone-accessory-button phone-accessory-ai"
+                aria-label={t('phone.note.accept')}
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={() => editor.current?.acceptSuggestion()}
+              >
+                <Icon name="format.ai" size="md" />
+              </button>
+            </div>
             <button
               type="button"
-              className="phone-capsule-button"
-              aria-label={t('phone.note.next')}
-              disabled={history.at >= history.ids.length - 1}
-              onClick={() => setHistory((h) => ({ ...h, at: h.at + 1 }))}
+              className="phone-glass phone-accessory-hide"
+              aria-label={t('phone.note.hideKeyboard')}
+              onClick={() => (document.activeElement as HTMLElement | null)?.blur()}
             >
-              <Icon name="phone.history.forward" size="md" />
+              <Icon name="phone.keyboard.hide" size="md" />
             </button>
           </div>
-        )}
-        <span className="phone-topbar-spacer" />
-        <button
-          type="button"
-          className="phone-glass phone-note-circle"
-          aria-label={t('phone.note.find')}
-          onClick={() => {
-            setMode('edit')
-            setFinding(true)
-          }}
-        >
-          <Icon name="search" size="md" />
-        </button>
-        {mode === 'edit' && (
-          <button
-            type="button"
-            className="phone-glass phone-note-circle phone-note-ai"
-            aria-label={t('phone.note.suggest')}
-            onClick={() =>
-              requireEditing({ op: 'ai', id: noteId }, () => editor.current?.suggest())
-            }
-          >
-            <Icon name="format.ai" size="md" />
-          </button>
-        )}
-      </div>
-      <div
-        className="phone-accessory"
-        data-shown={typing || undefined}
-        inert={!typing}
-        style={{ bottom: `calc(${keyboard.height}px + var(--size-phone-sheet-inset))` }}
-      >
-        <div
-          role="toolbar"
-          aria-label={t('phone.note.formatting')}
-          className="phone-glass phone-accessory-bar"
-        >
-          {FORMATS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className="phone-accessory-button"
-              aria-label={t(f.label)}
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => editor.current?.format(f.id)}
-            >
-              <Icon name={f.icon} size="md" />
-            </button>
-          ))}
-          <button
-            type="button"
-            className="phone-accessory-button phone-accessory-ai"
-            aria-label={t('phone.note.accept')}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={() => editor.current?.acceptSuggestion()}
-          >
-            <Icon name="format.ai" size="md" />
-          </button>
-        </div>
-        <button
-          type="button"
-          className="phone-glass phone-accessory-hide"
-          aria-label={t('phone.note.hideKeyboard')}
-          onClick={() => (document.activeElement as HTMLElement | null)?.blur()}
-        >
-          <Icon name="phone.keyboard.hide" size="md" />
-        </button>
-      </div>
+        </>
+      )}
       {suggestFailure && (
         <PhoneDetailSheet
           title={t('phone.note.suggest')}
@@ -766,7 +841,7 @@ export function PhoneNote(props: {
           onClose={() => setSuggestFailure(undefined)}
         />
       )}
-      {finding && (
+      {finding && !native && (
         <PhoneFindBar
           target={findTarget}
           keyboardHeight={keyboard.height}

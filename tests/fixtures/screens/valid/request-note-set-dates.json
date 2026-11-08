@@ -1,0 +1,13 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 47,
+    "op": "note.setDates",
+    "args": {
+      "noteId": "01890a5d-ac96-774b-bcce-b302099a8057",
+      "createdAt": 1767225600000,
+      "updatedAt": 1767312000000
+    }
+  }
+}

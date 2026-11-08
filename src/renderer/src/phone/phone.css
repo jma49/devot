@@ -2550,3 +2550,45 @@ button.phone-grouped-open:active:not(:disabled) {
   font-size: calc(15px * var(--phone-text-scale, 1));
   color: var(--color-phone-text-secondary);
 }
+
+/* The shown note scrolls the page itself, so the native bars follow the web view's scroll view (screens/pageScroll.ts). The page's other layers stay laid out, out of the way. */
+:root[data-page-scrolls],
+:root[data-page-scrolls] body,
+:root[data-page-scrolls] #root {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+  overscroll-behavior: auto;
+  contain: none;
+}
+
+:root[data-page-scrolls] .phone-app {
+  position: relative;
+  inset: auto;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+:root[data-page-scrolls] .phone-app > :not(.phone-editor-host) {
+  position: fixed;
+  inset: 0;
+  visibility: hidden;
+}
+
+:root[data-page-scrolls] .phone-editor-host,
+:root[data-page-scrolls] .phone-editor-host > .phone-screen,
+:root[data-page-scrolls] .phone-editor-host .phone-scroll.phone-note-scroll {
+  position: relative;
+  inset: auto;
+  min-height: 100vh;
+  overflow: visible;
+  overscroll-behavior: auto;
+}
+
+:root[data-page-scrolls] .phone-editor-host .phone-topbar-band {
+  position: fixed;
+}
+
+:root[data-page-scrolls] .phone-app .phone-note-body .editor {
+  --editor-overflow-y: visible;
+}

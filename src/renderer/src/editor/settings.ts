@@ -226,13 +226,15 @@ function scrollMarginsOf(s: EditorSettings): { top: number; bottom: number } {
   return { top: s.cursorScrollMargin, bottom: Math.max(s.cursorScrollMargin, room) }
 }
 
-/** Room the trial-ended bar keeps at the foot of the window (TrialNotices.tsx), read when the margin is. */
-function trialBarInset(): number {
-  if (typeof document === 'undefined') return 0
-  const px = Number.parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue('--trial-bar-inset'),
-  )
+const insetOf = (name: string): number => {
+  const px = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name))
   return Number.isFinite(px) ? px : 0
+}
+
+/** Room covered at the foot of the window, read when the margin is: the trial-ended bar (TrialNotices.tsx) and, on the iPhone, the keyboard with the formatting bar (phone/screens/pageScroll.ts). */
+function footInset(): number {
+  if (typeof document === 'undefined') return 0
+  return insetOf('--trial-bar-inset') + insetOf('--editor-foot-inset')
 }
 const whitespaceTheme = EditorView.theme({
   '.cm-highlightSpace': {
@@ -269,9 +271,7 @@ const PARTS = {
   scrollPastEnd: (s: EditorSettings): Extension => (s.scrollPastEnd ? pastEnd : []),
   scrollMargin: (s: EditorSettings): Extension => {
     const { top, bottom } = scrollMarginsOf(s)
-    return top > 0 || bottom > 0
-      ? EditorView.scrollMargins.of(() => ({ top, bottom: bottom + trialBarInset() }))
-      : []
+    return EditorView.scrollMargins.of(() => ({ top, bottom: bottom + footInset() }))
   },
   invisibles: (s: EditorSettings): Extension => (s.showInvisibles ? invisibles : []),
   trailing: (s: EditorSettings): Extension =>
