@@ -68,6 +68,7 @@ interface Session<F> {
  */
 export function earlyKeys<F>(env: EarlyKeysEnv<F>) {
   let session: Session<F> | undefined
+  const keptForNote = new Map<string, EarlyKey[]>()
 
   const stopListening = (s: Session<F>) => {
     clearTimeout(s.expiry)
@@ -94,7 +95,12 @@ export function earlyKeys<F>(env: EarlyKeysEnv<F>) {
       const before = session
       if (before) {
         expire(before)
-        if (session === before) session = undefined
+        if (session === before) {
+          session = undefined
+          if (before.noteId !== undefined && before.keys.length > 0) {
+            keptForNote.set(before.noteId, before.keys)
+          }
+        }
       }
       const s: Session<F> = {
         listening: collectEarlyKeys(env.target, env.isFree),
@@ -117,7 +123,10 @@ export function earlyKeys<F>(env: EarlyKeysEnv<F>) {
     },
 
     take(noteId: string): EarlyKey[] {
-      return session?.noteId === noteId ? end(session) : []
+      const kept = keptForNote.get(noteId) ?? []
+      keptForNote.delete(noteId)
+      const current = session?.noteId === noteId ? end(session) : []
+      return kept.length > 0 ? [...kept, ...current] : current
     },
 
     /** A New Note is still waiting for its editor. */

@@ -192,6 +192,21 @@ describe('earlyKeys', () => {
     expect(givenBack).toEqual([{ field: 'row', keys: '' }])
   })
 
+  it('keeps the keys of a note already made for its editor when a second New Note starts first', () => {
+    const { target, slot, givenBack } = setup()
+    const first = slot.start()
+    typeKeys(target, ['a', 'b', 'c'])
+    first.claim('note1')
+    const second = slot.start()
+    second.claim('note2')
+    typeKeys(target, ['d'])
+    vi.runAllTimers()
+    expect(givenBack).toEqual([])
+    expect(text(slot.take('note1'))).toBe('abc')
+    expect(slot.take('note1')).toEqual([])
+    expect(text(slot.take('note2'))).toBe('d')
+  })
+
   it('a second New Note gives the earlier keys back and leaves the same field', () => {
     const { target, slot, givenBack } = setup()
     slot.start()
