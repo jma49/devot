@@ -1,7 +1,7 @@
-// The AI access picker's logic: which notebooks it lists, which it opens
-// with checked, and what applying a selection changes. Notebooks are
-// independent — checking a parent never checks its sub-notebooks — because
-// AI access is per notebook and a sub-notebook needs its own switch.
+// The AI access picker's logic: which notebooks it lists and what applying a
+// selection changes. Notebooks are independent — checking a parent never
+// checks its sub-notebooks — because AI access is per notebook and a
+// sub-notebook needs its own switch.
 import type { BookNode } from '../../core/books'
 
 /** Set in the storage both windows share, so Settings can ask the main window to open the picker. */
@@ -23,15 +23,6 @@ export function notebooksInOrder(tree: readonly BookNode[]): BookNode[] {
   }
   walk(tree)
   return out
-}
-
-/** The notebooks that allow AI access now: the picker opens with these checked. */
-export function checkedNotebooks(tree: readonly BookNode[]): Set<string> {
-  return new Set(
-    notebooksInOrder(tree)
-      .filter((node) => node.aiAccess)
-      .map((node) => node.id),
-  )
 }
 
 /** What applying `checked` changes, in tree order: only the notebooks whose switch differs. */

@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BookNode } from '../../core/books'
-import {
-  aiAccessChanges,
-  checkedNotebooks,
-  notebooksInOrder,
-  type AiAccessChange,
-} from './aiAccess'
+import { aiAccessChanges, notebooksInOrder, type AiAccessChange } from './aiAccess'
 import { BookIcon } from './BookIcon'
 import { countOf } from './format'
 import { currentLocale, t } from './i18n'
@@ -23,14 +18,9 @@ export function AiAccessDialog(props: {
   onCancel: () => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
-  const [checked, setChecked] = useState(() => checkedNotebooks(props.tree))
-  // The notebooks load after the core is ready: start again from what allows
-  // access now rather than apply a selection made against an empty tree.
-  const [listed, setListed] = useState(props.tree)
-  if (props.tree !== listed) {
-    setListed(props.tree)
-    setChecked(checkedNotebooks(props.tree))
-  }
+  // The draft holds only what the user ticked, applied over each tree, so a
+  // reload of the library keeps it and a notebook that is gone drops out.
+  const [overrides, setOverrides] = useState<ReadonlyMap<string, boolean>>(new Map())
   useEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
@@ -38,15 +28,14 @@ export function AiAccessDialog(props: {
   }, [])
 
   const rows = notebooksInOrder(props.tree)
+  const checked = new Set(
+    rows.filter((node) => overrides.get(node.id) ?? node.aiAccess).map((node) => node.id),
+  )
   const changes = aiAccessChanges(props.tree, checked)
   const allChecked = rows.every((node) => checked.has(node.id))
-  const toggle = (id: string) =>
-    setChecked((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const setAll = (on: boolean) => setOverrides(new Map(rows.map((node) => [node.id, on])))
+  const toggle = (node: BookNode) =>
+    setOverrides((prev) => new Map(prev).set(node.id, !(prev.get(node.id) ?? node.aiAccess)))
 
   return (
     <dialog
@@ -66,18 +55,13 @@ export function AiAccessDialog(props: {
         {t('aiAccess.detail')}
       </p>
       <div className="ai-access-tools">
-        <button
-          type="button"
-          className="button"
-          onClick={() => setChecked(new Set(rows.map((node) => node.id)))}
-          disabled={allChecked}
-        >
+        <button type="button" className="button" onClick={() => setAll(true)} disabled={allChecked}>
           {t('aiAccess.all')}
         </button>
         <button
           type="button"
           className="button"
-          onClick={() => setChecked(new Set())}
+          onClick={() => setAll(false)}
           disabled={checked.size === 0}
         >
           {t('aiAccess.none')}
@@ -90,11 +74,7 @@ export function AiAccessDialog(props: {
               className="ai-access-label"
               style={{ paddingInlineStart: `calc(${node.depth} * var(--space-7))` }}
             >
-              <input
-                type="checkbox"
-                checked={checked.has(node.id)}
-                onChange={() => toggle(node.id)}
-              />
+              <input type="checkbox" checked={checked.has(node.id)} onChange={() => toggle(node)} />
               <BookIcon icon={node.icon} color={node.iconColor} size="sm" />
               <span className="ai-access-name" dir="auto">
                 {node.name}
