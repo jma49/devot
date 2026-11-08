@@ -391,7 +391,7 @@ jobs:
   # The Swift packages (src-tauri/apple/DevotStore and DevotScreens): their tests in host apps on an
   # iPhone simulator, as StoreKit Test and UIKit need. iphone-build builds the app that links them.
   ios-app:
-    name: iPhone app and StoreKit tests
+    name: iPhone screens tests
     needs: changes
     if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: xcode-27
@@ -404,25 +404,33 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      # A cold boot takes a minute or more: it runs in the background while the job builds, and
-      # each test script waits for it. The StoreKit tests need an iOS version whose StoreKit Test
-      # works under xcodebuild (scripts/ci/iphone-simulator.ts), so they may get a phone of their own.
-      - name: Boot the iPhone simulators
+      # A cold boot takes a minute or more: it runs in the background, and the test script waits for it.
+      - name: Boot the iPhone simulator
         run: |
-          devices=$(xcrun simctl list devices available --json)
-          screens=$(printf '%s' "$devices" | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
-          store=$(printf '%s' "$devices" | node scripts/ci/iphone-simulator.ts --storekit)
-          echo "DEVOT_SIMULATOR=$screens" >> "$GITHUB_ENV"
-          echo "DEVOT_STORE_SIMULATOR=$store" >> "$GITHUB_ENV"
-          for device in $(printf '%s\n' "$store" "$screens" | sort -u); do
-            nohup xcrun simctl boot "$device" >>"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
-          done
-      - run: sh scripts/ci/devot-store-tests.sh
-      # Frees the runner's memory for the screens tests when the StoreKit tests had a phone of their own.
-      - run: '[ "$DEVOT_STORE_SIMULATOR" = "$DEVOT_SIMULATOR" ] || xcrun simctl shutdown "$DEVOT_STORE_SIMULATOR"'
+          device=$(xcrun simctl list devices available --json | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
+          echo "DEVOT_SIMULATOR=$device" >> "$GITHUB_ENV"
+          nohup xcrun simctl boot "$device" >>"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
       - run: sh scripts/ci/devot-screens-tests.sh
       # The spike harness is built into a debug app only (docs/specs/iphone-screens.md, Spikes).
       - run: sh scripts/ci/devot-screens-release-check.sh
+
+  # StoreKit Test hung under xcodebuild on the xcode-27 image's iOS 27 simulators (CI run
+  # 42469038809) and on iOS 27.2 locally, and is broken on iOS 26.4 and 26.5, so the StoreKit bridge
+  # is tested on macos-26's iOS 26.2, where it passes. It builds with the iOS 27 SDK in iphone-build.
+  storekit:
+    name: StoreKit tests
+    needs: changes
+    if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: brew install xcodegen
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: sh scripts/ci/devot-store-tests.sh
 
   # The iPhone app for the simulator, with the release UI build: the only build that links the
   # Swift packages and Rust's calls into them. When the UI test runs, this job also builds its test
@@ -551,7 +559,7 @@ jobs:
   # fails when the change detection, compilation, tests, the iPhone app build,
   # any iPhone UI test shard or the deny check failed.
   rust:
-    needs: [changes, rust-check, ios-check, ios-app, iphone-build, iphone-ui, deny]
+    needs: [changes, rust-check, ios-check, ios-app, storekit, iphone-build, iphone-ui, deny]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -561,16 +569,17 @@ jobs:
           RUST: ${{ needs.rust-check.result }}
           IOS: ${{ needs.ios-check.result }}
           IOS_APP: ${{ needs.ios-app.result }}
+          STOREKIT: ${{ needs.storekit.result }}
           IPHONE_BUILD: ${{ needs.iphone-build.result }}
           IPHONE_UI: ${{ needs.iphone-ui.result }}
           DENY: ${{ needs.deny.result }}
         run: |
-          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP iphone-build=$IPHONE_BUILD iphone-ui=$IPHONE_UI deny=$DENY"
+          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP storekit=$STOREKIT iphone-build=$IPHONE_BUILD iphone-ui=$IPHONE_UI deny=$DENY"
           {
             printf '### Rust merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone app and StoreKit tests' "$IOS_APP" 'iPhone app build' "$IPHONE_BUILD" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone screens tests' "$IOS_APP" 'StoreKit tests' "$STOREKIT" 'iPhone app build' "$IPHONE_BUILD" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"; do
+          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$STOREKIT" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac

@@ -15,8 +15,11 @@ sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
 log=$(mktemp)
 start=$(date '+%Y-%m-%d %H:%M:%S')
 status=0
+# A test that hangs fails after two minutes instead of holding the job to its timeout.
 xcodebuild test -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
-  -destination "id=$device" >"$log" 2>&1 || status=$?
+  -destination "id=$device" -test-timeouts-enabled YES \
+  -default-test-execution-time-allowance 60 -maximum-test-execution-time-allowance 120 \
+  >"$log" 2>&1 || status=$?
 grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" "$log" || tail -n 60 "$log"
 rm -f "$log"
 if [ "$status" -ne 0 ]; then

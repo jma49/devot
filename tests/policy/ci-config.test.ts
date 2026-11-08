@@ -66,14 +66,15 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
   )
   const gate = job('rust')
   expect(gate).toContain(
-    'needs: [changes, rust-check, ios-check, ios-app, iphone-build, iphone-ui, deny]',
+    'needs: [changes, rust-check, ios-check, ios-app, storekit, iphone-build, iphone-ui, deny]',
   )
   expect(gate).toContain('IOS: ${{ needs.ios-check.result }}')
   expect(gate).toContain('IOS_APP: ${{ needs.ios-app.result }}')
+  expect(gate).toContain('STOREKIT: ${{ needs.storekit.result }}')
   expect(gate).toContain('IPHONE_BUILD: ${{ needs.iphone-build.result }}')
   expect(gate).toContain('IPHONE_UI: ${{ needs.iphone-ui.result }}')
   expect(gate).toContain(
-    'for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"',
+    'for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$STOREKIT" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"',
   )
 })
 
@@ -209,12 +210,19 @@ it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust
   // StoreKit Test runs only inside an app, on Apple's SDK; only the full iPhone build links the
   // Swift package into the app.
   const app = job('ios-app')
+  const storeKit = job('storekit')
   const build = job('iphone-build')
-  expect(app).toContain("needs.changes.outputs.rust != 'false'")
-  expect(app).toContain("needs.changes.outputs.docs_only != 'true'")
+  for (const body of [app, storeKit]) {
+    expect(body).toContain("needs.changes.outputs.rust != 'false'")
+    expect(body).toContain("needs.changes.outputs.docs_only != 'true'")
+  }
+  expect(storeKit).toContain('runs-on: macos-26')
+  expect(commands(storeKit)).toEqual([
+    'brew install xcodegen',
+    'sh scripts/ci/devot-store-tests.sh',
+  ])
   const steps = commands(app)
   expect(steps).toContain('brew install xcodegen')
-  expect(steps).toContain('sh scripts/ci/devot-store-tests.sh')
   expect(steps).toContain('sh scripts/ci/devot-screens-tests.sh')
   expect(steps).toContain('sh scripts/ci/devot-screens-release-check.sh')
   expect(build).toContain("needs.changes.outputs.rust != 'false'")
@@ -229,6 +237,7 @@ it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust
   expect(script).toContain('xcodegen generate')
   expect(script).toContain('xcodebuild test')
   expect(script).toContain('-scheme DevotStoreTests')
+  expect(script).toContain('-maximum-test-execution-time-allowance 120')
 })
 
 it('launches the real iPhone app with its built UI in a simulator, switches the tabs and audits them', () => {
