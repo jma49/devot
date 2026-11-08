@@ -646,7 +646,8 @@ impl Mirror {
 
     /// One batch runs at a time, holding the state only to read the manifest and to record what it
     /// did, never across file writes. A failure that pauses the mirror stops the run (it is the last
-    /// result). The manifest is written back once the operations have run. When the folder is
+    /// result). The manifest is written back once the operations have run; a pause that write-back
+    /// meets is one more result, after one for each operation. When the folder is
     /// turned off or chosen anew meanwhile, the batch stops before its next operation, writes back
     /// its own folder's manifest (or keeps it for that folder when it cannot) and records nothing
     /// else (`E_MIRROR_STALE`).
@@ -697,11 +698,16 @@ impl Mirror {
             }
         }
         let unsaved = changed && save_manifest(&root, &manifest).is_err();
-        if unsaved {
-            paused.get_or_insert(if root.is_missing() {
+        if unsaved && paused.is_none() {
+            let code = if root.is_missing() {
                 "E_MIRROR_FOLDER_MISSING"
             } else {
                 "E_MIRROR_FOLDER_READ_ONLY"
+            };
+            paused = Some(code);
+            results.push(OpResult {
+                code: Some(code),
+                ..OpResult::default()
             });
         }
         let mut inner = self.lock(notify)?;

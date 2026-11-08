@@ -674,6 +674,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
       }
       const results: MirrorResult[] = []
       let changed = dirty
+      let stopped = false
       for (const op of ops) {
         let result: MirrorResult
         try {
@@ -693,6 +694,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         results.push(result)
         if (result.code?.startsWith('E_MIRROR_FOLDER_')) {
           paused = result.code
+          stopped = true
           break
         }
       }
@@ -702,7 +704,10 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
           dirty = false
         } catch {
           dirty = true
-          paused ??= lstat(folder!) ? 'E_MIRROR_FOLDER_READ_ONLY' : 'E_MIRROR_FOLDER_MISSING'
+          if (!stopped) {
+            paused = lstat(folder!) ? 'E_MIRROR_FOLDER_READ_ONLY' : 'E_MIRROR_FOLDER_MISSING'
+            results.push({ code: paused })
+          }
         }
       }
       return results

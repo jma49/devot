@@ -527,6 +527,20 @@ fn writes_back_on_resume_a_manifest_it_could_not_write() {
     assert_eq!(f.get().paused, None);
 }
 
+#[test]
+fn reports_a_pause_from_its_manifest_save_as_a_last_result_of_its_own() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    fs::remove_file(folder.join(MANIFEST)).unwrap();
+    fs::create_dir(folder.join(MANIFEST)).unwrap();
+    let results = f.apply(generation, &[note_op("Plan.md", "one")]);
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0].code, None);
+    assert_eq!(results[1].code, Some("E_MIRROR_FOLDER_READ_ONLY"));
+}
+
 /// Pauses the mirror on `Notes` with a move to `Moved.md` only in memory, lets the manifest be
 /// written again, and returns the folder and its older manifest, which lists `Plan.md`.
 fn pause_with_a_move_unsaved(f: &Fixture) -> (PathBuf, Vec<u8>) {
