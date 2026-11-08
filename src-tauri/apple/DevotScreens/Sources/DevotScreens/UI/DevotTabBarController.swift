@@ -1,7 +1,7 @@
 import UIKit
 
 /// The system tab bar: icons only, each tab a navigation stack, and the system's Search circle
-/// after them. Notes, Library, Settings and Search are native; Activity's root holds the web view.
+/// after them. Every tab is native; the web view shows only in a note's screen.
 final class DevotTabBarController: UITabBarController, UITabBarControllerDelegate {
     var onAppear: ((Tab) -> Void)?
     var onReselect: ((Tab) -> Void)?
@@ -10,15 +10,14 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     let toasts = ToastPresenter()
     private(set) var search: SearchScreen!
     private(set) var searchTab: UISearchTab!
-    private var screens: [Tab: WebTabScreen] = [:]
     private(set) var listRoots: [Tab: ListScreen] = [:]
     private(set) var navigations: [Tab: UINavigationController] = [:]
     private(set) var items: [Tab: UITab] = [:]
 
-    init(host: WebViewHost) {
+    init() {
         settings = SettingsScreens()
         super.init(nibName: nil, bundle: nil)
-        for tab in TabModel.tabs + [.search] { navigations[tab] = navigation(tab, host: host) }
+        for tab in TabModel.tabs + [.search] { navigations[tab] = navigation(tab) }
         var shown: [UITab] = TabModel.tabs.map { tab in
             let navigation = navigations[tab]!
             let item = UITab(title: "", image: UIImage(systemName: TabModel.symbol(tab)), identifier: tab.rawValue) { _ in
@@ -66,27 +65,20 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
         return top < view.bounds.maxY - 1 ? top : nil
     }
 
-    private func navigation(_ tab: Tab, host: WebViewHost) -> UINavigationController {
-        if tab == .settings {
+    private func navigation(_ tab: Tab) -> UINavigationController {
+        guard let root = listRoot(tab) else {
             settings.onTabAppear = { [weak self] in self?.onAppear?(.settings) }
             return settings.navigation
         }
-        if let root = listRoot(tab) {
-            listRoots[tab] = root
-            root.onAppear = { [weak self] in self?.onAppear?($0) }
-            let navigation = UINavigationController(rootViewController: root)
-            navigation.navigationBar.prefersLargeTitles = true
-            navigation.view.backgroundColor = Tokens.Color.phoneBackground
-            if let library = root as? LibraryScreen {
-                library.push = { [weak navigation] in navigation?.pushViewController($0, animated: true) }
-                library.openSearch = { [weak self] in self?.openSearch($0) }
-            }
-            return navigation
+        listRoots[tab] = root
+        root.onAppear = { [weak self] in self?.onAppear?($0) }
+        let navigation = UINavigationController(rootViewController: root)
+        navigation.navigationBar.prefersLargeTitles = true
+        navigation.view.backgroundColor = Tokens.Color.phoneBackground
+        if let library = root as? LibraryScreen {
+            library.push = { [weak navigation] in navigation?.pushViewController($0, animated: true) }
+            library.openSearch = { [weak self] in self?.openSearch($0) }
         }
-        let screen = WebTabScreen(tab: tab, host: host) { [weak self] in self?.onAppear?($0) }
-        screens[tab] = screen
-        let navigation = UINavigationController(rootViewController: screen)
-        navigation.setNavigationBarHidden(true, animated: false)
         return navigation
     }
 
@@ -107,12 +99,9 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
         case .search:
             search = SearchScreen(context: lists)
             return search
-        case .activity, .settings: return nil
+        case .activity: return ActivityScreen(context: lists)
+        case .settings: return nil
         }
-    }
-
-    func screen(_ tab: Tab) -> WebTabScreen? {
-        screens[tab]
     }
 
     var selected: Tab? {

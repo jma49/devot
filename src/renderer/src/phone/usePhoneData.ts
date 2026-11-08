@@ -66,9 +66,16 @@ export type PhoneStore = PhoneData & {
   readonly started: () => Promise<Core>
 }
 
-/** The phone's one core: started once, every list reloaded after each write. */
-export function usePhoneData(): PhoneStore {
+/**
+ * The phone's one core: started once, every list reloaded after each write. `onListed` runs once
+ * the first listing is done, with the first-launch notes seeded into an empty library, or has failed.
+ */
+export function usePhoneData(onListed: () => void = () => {}): PhoneStore {
   const [data, setData] = useState<PhoneData>(EMPTY)
+  const listedRef = useRef(onListed)
+  useEffect(() => {
+    listedRef.current = onListed
+  })
   const coreRef = useRef<Core | null>(null)
   const [takenIn] = useState(() => new Set<(change: TakenIn) => void>())
   const [gate] = useState(() => createCoreGate<Core>())
@@ -143,6 +150,9 @@ export function usePhoneData(): PhoneStore {
       .catch((e: unknown) => {
         console.warn('W_PHONE_CORE_START_FAILED', errorCode(e))
         gate.fail()
+      })
+      .finally(() => {
+        if (alive) listedRef.current()
       })
     return () => {
       alive = false

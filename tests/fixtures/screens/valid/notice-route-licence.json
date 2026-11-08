@@ -1,0 +1,9 @@
+{
+  "from": "rust",
+  "message": {
+    "v": 1,
+    "notice": "route",
+    "route": "licence",
+    "prefill": "devot1.abc.def"
+  }
+}

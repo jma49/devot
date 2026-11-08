@@ -14345,17 +14345,6 @@
         }
       }
     },
-    "phone.info.devices" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Synced devices"
-          }
-        }
-      }
-    },
     "phone.info.minutes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14803,6 +14792,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tag"
+          }
+        }
+      }
+    },
+    "phone.note.tags" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags…"
           }
         }
       }

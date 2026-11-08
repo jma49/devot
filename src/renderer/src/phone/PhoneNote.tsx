@@ -11,9 +11,9 @@ import {
 } from 'react'
 import { createAiGenerator } from '../../../core/aiProvider'
 import { createSuggester } from '../../../core/aiSuggest'
-import type { NoteSummary } from '../../../core/storage'
 import { noteCounts } from '../../../core/noteCounts'
 import { tagCounts } from '../../../core/tags'
+import { TEMPLATES_BOOK_ID } from '../../../core/templatesBook'
 import { aiTransport } from '../ai'
 import { aiSuggestFailure } from '../aiEditView'
 import { licenceEntitlements, useEditing } from '../licence'
@@ -24,7 +24,6 @@ import { format, currentLocale, t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { rememberTag } from '../quickTag'
 import { tagColorClass, tagColorStyle } from '../tagColorStyle'
-import type { IconName } from '../icons/symbols'
 import type { LinkSources } from '../linkCompletion'
 import { linkedNoteCreate, linkedNoteDiscard } from '../linkedNotes'
 import type { EarlyKey } from '../editor/earlyKeys'
@@ -33,14 +32,11 @@ import { motionReduced } from '../motionPreference'
 import { motionMs } from '../motionTiming'
 import type { Core } from '../core-client'
 import { NoteEditor } from '../NoteEditor'
-import { listDevices, useSyncSnapshot } from '../sync'
 import type { FindTarget } from '../find/target'
 import { Preview } from '../preview/Preview'
-import type { FormatId } from '../editor/formats'
 import { notebookPath } from './library'
 import { crossfadePanes } from './modeCrossfade'
-import { useNoteStats, type NoteStats } from './noteStats'
-import { PhoneFindBar } from './PhoneFindBar'
+import { useNoteStats } from './noteStats'
 import {
   NotebookPicker,
   STATUS_LABEL,
@@ -49,154 +45,26 @@ import {
   statusTile,
   TagPicker,
 } from './pickers'
-import { PhoneDetailSheet, PhoneSheet, SheetChoice } from './PhoneSheet'
+import { PhoneDetailSheet } from './PhoneSheet'
 import { requireEditing, watchWrite } from './requireEditing'
 import type { PhoneStore } from './usePhoneData'
-import { useKeyboard } from './useKeyboard'
-import type { EditorMode } from './screens/message'
+import {
+  NO_FIND_COUNT,
+  runFind,
+  type BarFormat,
+  type FindAction,
+  type FindCount,
+} from './screens/editor'
+import type { EditorMode, EditorNoteFacts, EditorPicker } from './screens/message'
+import { NOTE_PAGE_SCROLLS } from './screens/pageScroll'
 
-const FORMATS: readonly {
-  id: FormatId
-  icon: IconName
-  label:
-    | 'format.heading'
-    | 'format.bold'
-    | 'format.italic'
-    | 'format.taskList'
-    | 'format.code'
-    | 'format.link'
-}[] = [
-  { id: 'heading', icon: 'format.heading', label: 'format.heading' },
-  { id: 'bold', icon: 'format.bold', label: 'format.bold' },
-  { id: 'italic', icon: 'format.italic', label: 'format.italic' },
-  { id: 'taskList', icon: 'format.taskList', label: 'format.taskList' },
-  { id: 'code', icon: 'format.code', label: 'format.code' },
-  { id: 'link', icon: 'format.link', label: 'format.link' },
-]
+type Sheet = 'notebook' | 'status' | 'tags' | null
 
-const rowIcon = (name: IconName) => (
-  <span className="phone-row-icon">
-    <Icon name={name} size="phone-row" />
-  </span>
-)
-
-function InfoSheet(props: {
-  store: PhoneStore
-  note: NoteSummary
-  stats: NoteStats
-  onClose: () => void
-  onTrash: () => void
-  onOpenNote: (id: string) => void
-}) {
-  const { store, note } = props
-  const sync = useSyncSnapshot()
-  const [revisions, setRevisions] = useState<number | null>(null)
-  const [backlinks, setBacklinks] = useState<readonly NoteSummary[] | null>(null)
-  const [devices, setDevices] = useState<number | null>(null)
-  const [linksOpen, setLinksOpen] = useState(false)
-  useEffect(() => {
-    const core = store.core
-    if (!core) return
-    let alive = true
-    void Promise.all([core.history(note.id), core.backlinks(note.id)])
-      .then(([history, links]) => {
-        if (!alive) return
-        setRevisions(history.length)
-        setBacklinks(links)
-      })
-      .catch(() => console.warn('W_PHONE_INFO_FAILED'))
-    return () => {
-      alive = false
-    }
-  }, [store.core, note.id])
-  useEffect(() => {
-    if (!sync.enrolled) return
-    let alive = true
-    void listDevices()
-      .then((found) => alive && setDevices(found.length))
-      .catch(() => console.warn('W_PHONE_DEVICES_FAILED'))
-    return () => {
-      alive = false
-    }
-  }, [sync.enrolled])
-  const { stats } = props
-  const book = store.books.find((b) => b.id === note.bookId)
-  const when = (at: number) => noteDate(at, store.loadedAt, currentLocale())
-  const strip: readonly [string, string][] = [
-    [t('phone.info.words'), stats.words.toLocaleString(currentLocale())],
-    [t('phone.info.characters'), stats.characters.toLocaleString(currentLocale())],
-    [
-      t('phone.info.reading'),
-      format(t('phone.info.minutes'), { count: String(stats.readingMinutes) }),
-    ],
-    [t('phone.info.revisions'), revisions === null ? '' : String(revisions)],
-  ]
-  return (
-    <PhoneSheet title={t('phone.info.title')} onClose={props.onClose} tall>
-      <dl className="phone-card phone-info-stats">
-        {strip.map(([label, value]) => (
-          <div key={label} className="phone-info-stat">
-            <dd className="phone-figures">{value}</dd>
-            <dt>{label}</dt>
-          </div>
-        ))}
-      </dl>
-      <ul className="phone-card">
-        <SheetChoice
-          lead={rowIcon('notebook')}
-          label={t('phone.info.notebook')}
-          value={book?.name ?? t('phone.noNotebook')}
-        />
-        <SheetChoice
-          lead={rowIcon('phone.calendar')}
-          label={t('phone.info.created')}
-          value={when(note.createdAt)}
-          figures
-        />
-        <SheetChoice
-          lead={rowIcon('phone.clock')}
-          label={t('phone.info.modified')}
-          value={when(note.updatedAt)}
-          figures
-        />
-        {devices !== null && (
-          <SheetChoice
-            lead={rowIcon('phone.devices')}
-            label={t('phone.info.devices')}
-            value={String(devices)}
-            figures
-          />
-        )}
-      </ul>
-      {backlinks !== null && (
-        <ul className="phone-card">
-          <SheetChoice
-            lead={rowIcon('phone.link')}
-            label={t('phone.info.backlinks')}
-            value={String(backlinks.length)}
-            figures
-            {...(backlinks.length > 0 ? { onPick: () => setLinksOpen((open) => !open) } : {})}
-          />
-          {linksOpen &&
-            backlinks.map((link) => (
-              <SheetChoice
-                key={link.id}
-                label={link.title || t('note.untitled')}
-                onPick={() => props.onOpenNote(link.id)}
-              />
-            ))}
-        </ul>
-      )}
-      <ul className="phone-card">
-        <SheetChoice label={t('note.moveToTrash')} destructive onPick={props.onTrash} />
-      </ul>
-    </PhoneSheet>
-  )
-}
-
-type Sheet = 'info' | 'notebook' | 'status' | 'tags' | null
-
-const PICKER_OPS = { notebook: 'move', status: 'status', tags: 'tags' } as const
+const PICKER_OPS = {
+  notebook: 'move',
+  status: 'status',
+  tags: 'tags',
+} as const
 
 /** A note New Note just made, whose body takes the keyboard once its push has landed. */
 export interface NewNoteArrival {
@@ -212,7 +80,11 @@ export interface NewNoteArrival {
 /** What the native editor screen runs on the note it shows. */
 export interface NoteCommands {
   readonly setMode: (mode: EditorMode) => void
-  readonly info: () => void
+  readonly format: (id: BarFormat) => void
+  readonly ai: (action: 'suggest' | 'accept') => void
+  /** Find works in Edit, so a search shows the editor until `close`. */
+  readonly find: (action: FindAction, query: string) => FindCount | Promise<FindCount>
+  readonly duplicate: () => Promise<{ id: string; title: string } | null>
   /** The screen went: sheets, Find and the keyboard go with it. */
   readonly leave: () => void
   /** Puts the caret at the start of the body, in Edit only, and types `typed` there; whether it took it. */
@@ -220,15 +92,20 @@ export interface NoteCommands {
 }
 
 /**
- * The note inside the native editor screen, which draws the bar: Back pops the screen, a link
- * pushes another, and the page reports what the bar shows.
+ * The note inside the native editor screen, which draws the bars, the find bar and the sheets: Back
+ * pops the screen, a link pushes another, and the page reports what the bars show.
  */
 export interface NativeNoteChrome {
   readonly openNote: (id: string) => void
   readonly loaded: (id: string) => void
+  readonly openFailed: (id: string) => void
   readonly mode: (id: string, mode: EditorMode) => void
   readonly title: (id: string, title: string) => void
   readonly titleVisible: (visible: boolean) => void
+  /** What the More menu and the pickers show of the note, again whenever it changes. */
+  readonly facts: (facts: EditorNoteFacts) => void
+  /** A chip was tapped: Swift opens its picker. */
+  readonly picker: (noteId: string, picker: EditorPicker) => void
   readonly commands: RefObject<NoteCommands | null>
   /** Counts Swift's shows: each comes with a new screen, so the page reports the bar's state again. */
   readonly turn: number
@@ -236,6 +113,8 @@ export interface NativeNoteChrome {
 
 // A push that ends without a transitionend (the layer was already in place) still lands.
 const LANDING_MARGIN_MS = 100
+// A big note can take seconds to load; a search asked meanwhile gives up after this.
+const FIND_WAIT_MS = 5000
 
 /** Whether the screen's layer has finished sliding in: at once for a screen that did not arrive. */
 function useLanded(screen: RefObject<HTMLElement | null>, arriving: boolean): boolean {
@@ -264,7 +143,6 @@ export function PhoneNote(props: {
   store: PhoneStore
   noteId: string
   onBack: () => void
-  onTrash: (note: NoteSummary) => void
   arrival?: NewNoteArrival
   native?: NativeNoteChrome
   takePreopened?: (core: Core, noteId: string) => Uint8Array | undefined
@@ -276,8 +154,9 @@ export function PhoneNote(props: {
   const touched = (id: string) => {
     if (id === props.noteId) arrival?.onTouched()
   }
-  const [history, setHistory] = useState({ ids: [props.noteId], at: 0 })
-  const noteId = native ? props.noteId : history.ids[history.at]!
+  // The web fallback's links push onto a trail that its Back walks down.
+  const [trail, setTrail] = useState<readonly string[]>([props.noteId])
+  const noteId = native ? props.noteId : trail[trail.length - 1]!
   const note =
     store.notes.find((n) => n.id === noteId) ?? store.templates.find((n) => n.id === noteId)
   const [modes, setModes] = useState<Readonly<Record<string, 'edit' | 'preview'>>>({})
@@ -307,15 +186,20 @@ export function PhoneNote(props: {
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [suggestFailure, setSuggestFailure] = useState<string>()
   const [finding, setFinding] = useState(false)
-  const [findTarget, setFindTarget] = useState<FindTarget | null>(null)
+  const findTarget = useRef<FindTarget | null>(null)
+  const pendingFind = useRef<{ query: string; answer: (count: FindCount) => void } | null>(null)
+  const takeFindTarget = useCallback((target: FindTarget | null) => {
+    findTarget.current = target
+    const pending = pendingFind.current
+    if (!target || !pending) return
+    pendingFind.current = null
+    pending.answer(runFind(target, 'search', pending.query))
+  }, [])
   // A locked note stays in Preview; only Find shows its editor, which then takes no caret.
   const mode = finding ? 'edit' : editing ? (modes[noteId] ?? 'preview') : 'preview'
   const titleField = useRef<HTMLTextAreaElement>(null)
   const editor = useRef<EditorHandle | null>(null)
   const showAlertMenu = useAlertMenu()
-  const keyboard = useKeyboard()
-  // The keyboard rises during a new note's push: the screen makes room for it once the push lands.
-  const typing = mode === 'edit' && keyboard.open && !finding && landed
   // An editor being left reports an empty body as it goes: only its own note's body takes that.
   const showText = (id: string, next: string) => {
     if (next !== '') touched(id)
@@ -363,13 +247,45 @@ export function PhoneNote(props: {
     if (shownTitle !== undefined) native?.title(noteId, shownTitle)
   }, [native, noteId, shownTitle])
 
+  const factsKey = note
+    ? [
+        note.id,
+        note.bookId,
+        note.status,
+        note.pinned,
+        note.tagIds.join(' '),
+        note.createdAt,
+        note.updatedAt,
+      ]
+        .map(String)
+        .join('|')
+    : null
+  const shownNote = useRef(note)
+  useLayoutEffect(() => {
+    shownNote.current = note
+  })
+  useEffect(() => {
+    const shown = shownNote.current
+    if (!native || factsKey === null || !shown) return
+    native.facts({
+      id: shown.id,
+      bookId: shown.bookId,
+      status: shown.status,
+      pinned: shown.pinned,
+      tagIds: [...shown.tagIds],
+      createdAt: shown.createdAt,
+      updatedAt: shown.updatedAt,
+    })
+  }, [native, factsKey])
+
   // The bar takes the title once the note's own has scrolled under it.
   const scrolledTurn = useRef<number | null>(null)
   useLayoutEffect(() => {
-    const scroller = screen.current?.querySelector<HTMLElement>('.phone-note-scroll')
-    if (!native || !noteShown || !scroller) return
+    const element = screen.current?.querySelector<HTMLElement>('.phone-note-scroll')
+    if (!native || !noteShown || !element) return
+    const scroller = NOTE_PAGE_SCROLLS ? window : element
     // Each screen Swift pushes opens its note at the top, the note shown last too.
-    if (scrolledTurn.current !== native.turn) scroller.scrollTop = 0
+    if (scrolledTurn.current !== native.turn) scroller.scrollTo(0, 0)
     scrolledTurn.current = native.turn
     let visible: boolean | null = null
     const check = () => {
@@ -422,7 +338,41 @@ export function PhoneNote(props: {
       if (next === 'edit') requireEditing({ op: 'edit', id: noteId }, turn)
       else turn()
     },
-    info: () => setSheet('info'),
+    format: (id) => requireEditing({ op: 'edit', id: noteId }, () => editor.current?.format(id)),
+    ai: (action) =>
+      requireEditing({ op: 'ai', id: noteId }, () =>
+        action === 'suggest' ? editor.current?.suggest() : editor.current?.acceptSuggestion(),
+      ),
+    find: (action, query) => {
+      if (action === 'search') {
+        if (editing) setMode('edit')
+        setFinding(true)
+      }
+      if (action === 'close') setFinding(false)
+      const target = findTarget.current
+      pendingFind.current?.answer(NO_FIND_COUNT)
+      pendingFind.current = null
+      if (target || action !== 'search') return runFind(target, action, query)
+      // A query typed while the note still loads runs once its editor can search it.
+      return new Promise<FindCount>((resolve) => {
+        const timer = setTimeout(() => {
+          if (pendingFind.current?.answer !== answer) return
+          pendingFind.current = null
+          resolve(NO_FIND_COUNT)
+        }, FIND_WAIT_MS)
+        const answer = (count: FindCount) => {
+          clearTimeout(timer)
+          resolve(count)
+        }
+        pendingFind.current = { query, answer }
+      })
+    },
+    duplicate: async () => {
+      const core = store.core
+      if (!core || !note) return null
+      const id = await core.duplicate(note.id, t('note.copySuffix'), [...note.tagIds])
+      return { id, title: (await core.read(id)).title }
+    },
     focusBody: (typed) => {
       const shown = editor.current
       if (!editing || mode !== 'edit' || !shown) return false
@@ -451,10 +401,7 @@ export function PhoneNote(props: {
     [onTakenIn],
   )
 
-  const openNote = (id: string) =>
-    native
-      ? native.openNote(id)
-      : setHistory((h) => ({ ids: [...h.ids.slice(0, h.at + 1), id], at: h.at + 1 }))
+  const openNote = (id: string) => (native ? native.openNote(id) : setTrail((ids) => [...ids, id]))
   const links: LinkSources = {
     find: async (query) => {
       const core = store.core
@@ -500,9 +447,12 @@ export function PhoneNote(props: {
     .map((id) => store.tags.find((tag) => tag.id === id))
     .filter((tag) => tag !== undefined && tag.deletedAt === null)
   const title = titleDraft ?? note.title
-  const back = () => (history.at > 0 ? setHistory((h) => ({ ...h, at: h.at - 1 })) : props.onBack())
-  const pick = (picker: 'notebook' | 'status' | 'tags') =>
-    requireEditing({ op: PICKER_OPS[picker], id: note.id }, () => setSheet(picker))
+  const back = () => (trail.length > 1 ? setTrail((ids) => ids.slice(0, -1)) : props.onBack())
+  // The native screen's pickers ask for Devot Pro when they write, not when they open.
+  const pick = (picker: EditorPicker) =>
+    native
+      ? native.picker(note.id, picker)
+      : requireEditing({ op: PICKER_OPS[picker], id: note.id }, () => setSheet(picker))
 
   return (
     <section ref={screen} aria-label={note.title || t('note.untitled')} className="phone-screen">
@@ -609,12 +559,13 @@ export function PhoneNote(props: {
               onOpenFailed={(id, code) => {
                 console.warn('W_NOTE_OPEN_FAILED', id, code)
                 setOpenFailure({ noteId: id, code })
+                native?.openFailed(id)
               }}
               links={links}
               showAlertMenu={showAlertMenu}
               handleRef={editor}
               onOpenNote={openNote}
-              onFind={setFindTarget}
+              onFind={takeFindTarget}
               suggester={suggester}
               onSuggestFailed={setSuggestFailure}
             />
@@ -629,6 +580,7 @@ export function PhoneNote(props: {
             <Preview
               core={core}
               markdown={mode === 'preview' ? text : previewText}
+              frontMatterInInfo={native !== undefined && note?.bookId !== TEMPLATES_BOOK_ID}
               onOpenNote={openNote}
               onToggleTask={(at) =>
                 requireEditing({ op: 'task', id: noteId }, () => editor.current?.toggleTask(at))
@@ -649,7 +601,7 @@ export function PhoneNote(props: {
             type="button"
             className="phone-glass phone-nav-control"
             aria-label={t('phone.back')}
-            onClick={props.onBack}
+            onClick={back}
           >
             <Icon name="nav.back" size="lg" />
           </button>
@@ -673,143 +625,14 @@ export function PhoneNote(props: {
             >
               <Icon name={mode === 'edit' ? 'mode.preview' : 'mode.edit'} size="lg" />
             </button>
-            <span aria-hidden="true" className="phone-capsule-divider" />
-            <button
-              type="button"
-              className="phone-capsule-button"
-              aria-label={t('phone.info.title')}
-              onClick={() => setSheet('info')}
-            >
-              <Icon name="phone.info" size="lg" />
-            </button>
           </div>
         </header>
       )}
-      <div
-        className="phone-note-bottom"
-        data-hidden={typing || finding || undefined}
-        inert={typing || finding}
-      >
-        {native ? null : (
-          <div className="phone-glass phone-capsule phone-capsule-tall">
-            <button
-              type="button"
-              className="phone-capsule-button"
-              aria-label={t('phone.note.previous')}
-              onClick={back}
-            >
-              <Icon name="phone.history.back" size="md" />
-            </button>
-            <button
-              type="button"
-              className="phone-capsule-button"
-              aria-label={t('phone.note.next')}
-              disabled={history.at >= history.ids.length - 1}
-              onClick={() => setHistory((h) => ({ ...h, at: h.at + 1 }))}
-            >
-              <Icon name="phone.history.forward" size="md" />
-            </button>
-          </div>
-        )}
-        <span className="phone-topbar-spacer" />
-        <button
-          type="button"
-          className="phone-glass phone-note-circle"
-          aria-label={t('phone.note.find')}
-          onClick={() => {
-            if (editing) setMode('edit')
-            setFinding(true)
-          }}
-        >
-          <Icon name="search" size="md" />
-        </button>
-        {mode === 'edit' && (
-          <button
-            type="button"
-            className="phone-glass phone-note-circle phone-note-ai"
-            aria-label={t('phone.note.suggest')}
-            onClick={() =>
-              requireEditing({ op: 'ai', id: noteId }, () => editor.current?.suggest())
-            }
-          >
-            <Icon name="format.ai" size="md" />
-          </button>
-        )}
-      </div>
-      <div
-        className="phone-accessory"
-        data-shown={typing || undefined}
-        inert={!typing}
-        style={{ bottom: `calc(${keyboard.height}px + var(--size-phone-sheet-inset))` }}
-      >
-        <div
-          role="toolbar"
-          aria-label={t('phone.note.formatting')}
-          className="phone-glass phone-accessory-bar"
-        >
-          {FORMATS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className="phone-accessory-button"
-              aria-label={t(f.label)}
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => editor.current?.format(f.id)}
-            >
-              <Icon name={f.icon} size="md" />
-            </button>
-          ))}
-          <button
-            type="button"
-            className="phone-accessory-button phone-accessory-ai"
-            aria-label={t('phone.note.accept')}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={() => editor.current?.acceptSuggestion()}
-          >
-            <Icon name="format.ai" size="md" />
-          </button>
-        </div>
-        <button
-          type="button"
-          className="phone-glass phone-accessory-hide"
-          aria-label={t('phone.note.hideKeyboard')}
-          onClick={() => (document.activeElement as HTMLElement | null)?.blur()}
-        >
-          <Icon name="phone.keyboard.hide" size="md" />
-        </button>
-      </div>
       {suggestFailure && (
         <PhoneDetailSheet
           title={t('phone.note.suggest')}
           body={aiSuggestFailure(suggestFailure)}
           onClose={() => setSuggestFailure(undefined)}
-        />
-      )}
-      {finding && (
-        <PhoneFindBar
-          target={findTarget}
-          keyboardHeight={keyboard.height}
-          onClose={() => setFinding(false)}
-        />
-      )}
-      {sheet === 'info' && (
-        <InfoSheet
-          store={store}
-          note={note}
-          stats={stats}
-          onClose={() => setSheet(null)}
-          onTrash={() => {
-            setSheet(null)
-            requireEditing({ op: 'trash', id: note.id }, () => {
-              touched(note.id)
-              props.onTrash(note)
-              props.onBack()
-            })
-          }}
-          onOpenNote={(id) => {
-            setSheet(null)
-            openNote(id)
-          }}
         />
       )}
       {sheet === 'notebook' && (

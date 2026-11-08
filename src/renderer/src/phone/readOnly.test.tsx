@@ -130,7 +130,7 @@ function Screen(props: { store: PhoneStore }) {
   const licence = useLicence()
   return (
     <>
-      <PhoneNote store={props.store} noteId="n1" onBack={() => {}} onTrash={() => {}} />
+      <PhoneNote store={props.store} noteId="n1" onBack={() => {}} />
       <PhoneGate licence={licence} onOpenLicence={() => {}} />
     </>
   )
@@ -200,38 +200,6 @@ describe('a note while editing is locked', () => {
     expect(mode()).toBe('preview')
     await notNow()
     expect(mode()).toBe('preview')
-  })
-
-  it('leaves a note in Preview after Find on it while locked, once writing is unlocked', async () => {
-    loadedText = 'Read me'
-    await open(ENDED)
-    expect(mode()).toBe('preview')
-    await tap(named('Find in Note'))
-    expect(mode()).toBe('edit')
-    await tap(named('Close find'))
-    expect(mode()).toBe('preview')
-    await unlock()
-    expect(mode()).toBe('preview')
-  })
-
-  it('ends Find on a locked note when Preview is chosen', async () => {
-    loadedText = 'Read me'
-    await open(ENDED)
-    await tap(named('Find in Note'))
-    expect(mode()).toBe('edit')
-    await tap(named('Preview'))
-    expect(mode()).toBe('preview')
-    expect(named('Close find')).toBeNull()
-  })
-
-  it('ends Find on a note when Preview is chosen once writing is allowed', async () => {
-    loadedText = 'Read me'
-    await open(RUNNING)
-    await tap(named('Find in Note'))
-    expect(mode()).toBe('edit')
-    await tap(named('Preview'))
-    expect(mode()).toBe('preview')
-    expect(named('Close find')).toBeNull()
   })
 
   it('keeps the editor read-only with no caret', async () => {

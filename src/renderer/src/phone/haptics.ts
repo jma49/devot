@@ -1,8 +1,12 @@
-import { invoke } from '../ipc'
-
 export type HapticKind = 'light' | 'soft' | 'selection' | 'success' | 'warning'
 
-/** Plays a haptic on the iPhone; Rust does nothing on the Mac. A failure is only logged. */
+let sink: ((kind: HapticKind) => void) | null = null
+
+/** The native screens play the page's haptics (`editor.haptic`); the web fallback plays none. */
+export function routeHaptics(to: ((kind: HapticKind) => void) | null): void {
+  sink = to
+}
+
 export function haptic(kind: HapticKind): void {
-  void invoke('haptic', { kind }).catch(() => console.warn('W_PHONE_HAPTIC_FAILED'))
+  sink?.(kind)
 }

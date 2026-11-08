@@ -63,6 +63,9 @@ targets:
         CFBundleVersion: "1.0.0"
         ITSAppUsesNonExemptEncryption: false
         DevotCloudKitContainer: $(DEVOT_CLOUDKIT_CONTAINER)
+        CFBundleURLTypes:
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER).devot
+            CFBundleURLSchemes: [devot]
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full

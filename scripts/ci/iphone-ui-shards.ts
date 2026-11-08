@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url'
 // add one here and in the workflow's matrix (tests/policy/iphone-ui-shards.test.ts checks both).
 // `node scripts/ci/iphone-ui-shards.ts <shard>` prints that shard's xcodebuild test selection.
 
-// Seconds on CI (iOS 27.2, 2026-11-08): settings-1 211, settings-2 206, editor 173, rest 138.
+// Seconds on CI (iOS 27.2, 2026-11-08): settings-1 211, settings-2 206, editor 173, rest 138; with
+// EditorBarsTests, DeepLinkTests and ActivityTests in it, rest ran past 9 minutes, so they have shards of their own.
 export const SHARDS: Record<string, string[]> = {
   'settings-1': [
     'SettingsTests/testGlassTransparencyIsKeptAcrossALaunch',
@@ -23,6 +24,8 @@ export const SHARDS: Record<string, string[]> = {
     'SettingsTests/testTheAppRowOpensTheTrialSheetWhileATrialRunsAndLicenseOtherwise',
   ],
   editor: ['EditorTests', 'TabsTests'],
+  'editor-bars': ['EditorBarsTests'],
+  links: ['DeepLinkTests', 'ActivityTests'],
 }
 export const REST = 'rest'
 

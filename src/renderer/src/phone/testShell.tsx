@@ -2,8 +2,11 @@
 // the lists it reads, and an editor stand-in that records the keyboard it is given.
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createBookService } from '../../../core/books'
+import { duplicateNote } from '../../../core/duplicate'
+import { openTodaysNote, type DailyNotesSettings } from '../../../core/dailyNotes'
 import { createClock } from '../../../core/hlc'
 import { createIdGenerator } from '../../../core/ids'
+import { noteCounts } from '../../../core/noteCounts'
 import { createNoteService } from '../../../core/notes/service'
 import { createTagService } from '../../../core/tags'
 import { createTemplateService } from '../../../core/templates'
@@ -24,12 +27,22 @@ export function testCore() {
   const named: Record<string, unknown> = {
     createTemplate: () => templates.create(),
     listWithTemplates: () => templates.listWithNotes(),
+    openTodaysNote: (settings: DailyNotesSettings, at: number, create: boolean) =>
+      openTodaysNote({ notes, templates, books, settings, at, create }),
     listBooks: () => books.list(),
     createBook: (name: string, parentId: string | null) => books.create(name, parentId),
     listTags: () => tags.list(),
     addTag: (noteId: string, name: string) => tags.addToNote(noteId, name),
     removeTag: (noteId: string, tagId: string) => tags.removeFromNote(noteId, tagId),
     listSavedSearches: async () => [],
+    duplicate: (id: string, suffix?: string, tagIds?: string[]) =>
+      duplicateNote({ notes, tags }, id, {
+        ...(suffix === undefined ? {} : { suffix }),
+        ...(tagIds === undefined ? {} : { tagIds }),
+      }),
+    setNoteDates: (id: string, dates: { createdAt?: number; updatedAt?: number }) =>
+      notes.setDates(id, dates),
+    noteCounts: (markdown: string) => noteCounts(markdown),
     history: async () => [],
     backlinks: async () => [],
     // Preview is drawn behind Edit; a result it cannot read would make it render again forever.
@@ -41,8 +54,10 @@ export function testCore() {
     }),
   }
   // What the screens ask of the core besides these goes to the note service, or finds nothing.
+  // `then` stays undefined, so a promise can resolve to the core instead of waiting on it.
   const core = new Proxy(named, {
     get: (target, key) => {
+      if (key === 'then') return undefined
       if (key in target) return target[key as string]
       const own = (notes as unknown as Record<string | symbol, unknown>)[key]
       return typeof own === 'function' ? own.bind(notes) : async () => undefined

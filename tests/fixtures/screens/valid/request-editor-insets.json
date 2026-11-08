@@ -1,0 +1,13 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 44,
+    "op": "editor.insets",
+    "args": {
+      "bottom": 380.5,
+      "duration": 0.25,
+      "curve": 7
+    }
+  }
+}

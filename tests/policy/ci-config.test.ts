@@ -257,7 +257,7 @@ it('launches the real iPhone app with its built UI in a simulator, switches the 
   // The only job that runs the shipping app: the screens' XCTests run in an empty host app.
   const ui = job('iphone-ui')
   const build = job('iphone-build')
-  expect(ui).toContain('timeout-minutes: 20')
+  expect(ui).toContain('timeout-minutes: 30')
   expect(ui).toMatch(
     /^ {4}if: needs\.changes\.outputs\.iphone_ui != 'false' && needs\.changes\.outputs\.docs_only != 'true'$/m,
   )

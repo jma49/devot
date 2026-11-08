@@ -4,9 +4,12 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Core } from '../../core-client'
 import type { EditorHandle } from '../../editor/handle'
+import type { FindOptions } from '../../../../core/find'
+import type { FindTarget } from '../../find/target'
 import { invoke } from '../../ipc'
 import { readCurrentLicence } from '../../licence'
 import { closePurchase } from '../../purchaseSheet'
+import { haptic } from '../haptics'
 import { PhoneApp } from '../PhoneApp'
 import { closeGate } from '../requireEditing'
 import { setTestCore, testCore } from '../testShell'
@@ -44,7 +47,17 @@ interface EditorProps {
   onOpenNote?: (id: string) => void
   takePreopened?: (core: Core, noteId: string) => Uint8Array | undefined
   handleRef?: { current: EditorHandle | null }
+  onFind?: (target: FindTarget | null) => void
 }
+
+const searchable = (searched: string[] = []) =>
+  ({
+    search: (options: FindOptions) => searched.push(options.query),
+    next: () => {},
+    previous: () => {},
+    clear: () => {},
+    status: () => ({ total: 2, current: 0, capped: false }),
+  }) as unknown as FindTarget
 
 // Like NoteEditor, the stand-in keeps one view for its lifetime and swaps notes into it.
 const editors = vi.hoisted(() => ({
@@ -53,6 +66,7 @@ const editors = vi.hoisted(() => ({
   bodies: new Map<string, string>(),
   latest: null as EditorProps | null,
   given: [] as string[],
+  findTarget: null as FindTarget | null,
 }))
 vi.mock('../../NoteEditor', () => ({
   NoteEditor: (props: EditorProps) => {
@@ -69,12 +83,18 @@ vi.mock('../../NoteEditor', () => ({
       editors.shown.push(noteId)
       if (takePreopened?.(core, noteId)) editors.given.push(noteId)
       latest.current.onLoaded?.(editors.bodies.get(noteId) ?? '')
+      if (editors.findTarget) latest.current.onFind?.(editors.findTarget)
     }, [noteId, core, takePreopened])
     return <div className="cm-editor" hidden={props.hidden} />
   },
 }))
-vi.mock('../../preview/Preview', () => ({
-  Preview: (props: { markdown: string }) => <div className="preview">{props.markdown}</div>,
+const previews = vi.hoisted(() => [] as { frontMatterInInfo?: boolean }[])
+vi.mock('../../preview/Preview', async (actual) => ({
+  previewNote: (await actual<typeof import('../../preview/Preview')>()).previewNote,
+  Preview: (props: { markdown: string; frontMatterInInfo?: boolean }) => {
+    previews.push(props)
+    return <div className="preview">{props.markdown}</div>
+  },
 }))
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 
@@ -110,6 +130,8 @@ beforeEach(async () => {
   editors.bodies.clear()
   editors.latest = null
   editors.given = []
+  editors.findTarget = searchable()
+  previews.length = 0
   licence = PRO
   vi.mocked(invoke).mockImplementation(async (command) =>
     command === 'licence_get' ? licence : undefined,
@@ -142,6 +164,9 @@ const layer = (mode: 'edit' | 'preview') =>
   editorHost().querySelector<HTMLElement>(
     mode === 'edit' ? '.phone-note-layer:not(.phone-note-preview)' : '.phone-note-preview',
   )!
+
+const summary = async (id: string) =>
+  (await shell.core.listWithTemplates()).notes.find((note) => note.id === id)
 
 async function start() {
   await act(async () => root.render(<PhoneApp />))
@@ -235,11 +260,13 @@ describe('the editor host under the native screens', () => {
     const id = await shell.notes.create('Plans', null)
     await start()
     await swift('editor.show', { noteId: id })
-    const scroller = editorHost().querySelector<HTMLElement>('.phone-note-scroll')!
-    scroller.scrollTop = 400
+    // The shown note scrolls the page itself (pageScroll.ts).
+    expect(document.documentElement.hasAttribute('data-page-scrolls')).toBe(true)
+    const scrollTo = vi.spyOn(window, 'scrollTo')
     await swift('editor.hide')
+    expect(document.documentElement.hasAttribute('data-page-scrolls')).toBe(false)
     await swift('editor.show', { noteId: id })
-    expect(scroller.scrollTop).toBe(0)
+    expect(scrollTo).toHaveBeenCalledWith(0, 0)
   })
 
   it('hides the editor and answers once the list is painted again', async () => {
@@ -342,78 +369,229 @@ describe('the editor host under the native screens', () => {
     expect(noteScreen()?.getAttribute('aria-label')).toBe('First')
   })
 
-  it('opens Note Info when Swift asks', async () => {
+  it('sends Swift the chips’ taps for its pickers', async () => {
     const id = await shell.notes.create('Plans', null)
     await start()
     await swift('editor.show', { noteId: id })
-    await swift('editor.info')
-    expect(document.querySelector('.phone-sheet-layer [role="dialog"]')).not.toBeNull()
-    await swift('editor.hide')
+    const chips = [...editorHost().querySelectorAll<HTMLButtonElement>('.phone-chip-target')]
+    await act(async () => chips[0]!.click())
+    await act(async () => chips[1]!.click())
+    await act(async () => chips.at(-1)!.click())
+    expect(notices('editor.picker').map((n) => n.notice === 'editor.picker' && n.picker)).toEqual([
+      'notebook',
+      'status',
+      'tags',
+    ])
     expect(document.querySelector('.phone-sheet-layer [role="dialog"]')).toBeNull()
   })
 
-  it('keeps Note Info shown when Swift asks for it again while it slides away', async () => {
+  it('tells Swift the facts of each note it shows, for the More menu and the pickers', async () => {
+    const book = await shell.books.create('Work', null)
+    const id = await shell.notes.create('Plans', book)
+    const tagId = await shell.tags.addToNote(id, 'urgent')
+    await shell.notes.setPinned(id, true)
+    const other = await shell.notes.create('Other', null)
+    await start()
+    await swift('editor.show', { noteId: id })
+    await vi.waitFor(() =>
+      expect(notices('editor.note').at(-1)).toMatchObject({
+        id,
+        bookId: book,
+        status: 'none',
+        pinned: true,
+        tagIds: [tagId],
+      }),
+    )
+    await swift('editor.show', { noteId: other })
+    await vi.waitFor(() =>
+      expect(notices('editor.note').at(-1)).toMatchObject({ id: other, bookId: null, tagIds: [] }),
+    )
+  })
+
+  it('makes a tag by name on the note the tags picker shows', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    const made = (await swift('note.addTag', { noteId: id, name: 'urgent' })) as { tagId: string }
+    expect((await summary(id))?.tagIds).toEqual([made.tagId])
+  })
+
+  it('drives Find, formatting and the suggestion on the shown note', async () => {
     const id = await shell.notes.create('Plans', null)
     await start()
     await swift('editor.show', { noteId: id })
-    await swift('editor.info')
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    try {
-      await act(async () => document.querySelector<HTMLElement>('.phone-sheet-dim')!.click())
-      await swift('editor.info')
-      await act(async () => void vi.advanceTimersByTime(1000))
-    } finally {
-      vi.useRealTimers()
-    }
-    expect(document.querySelectorAll('.phone-sheet-layer [role="dialog"]')).toHaveLength(1)
+    expect(await swift('editor.find', { action: 'search', query: 'x' })).toMatchObject({ total: 2 })
+    // A locked note searches too: Find shows the editor, which takes no caret.
+    expect(notices('editor.mode').at(-1)).toMatchObject({ mode: 'edit' })
+    await swift('editor.find', { action: 'close' })
+    await expect(bridge.handlers['editor.format']!({ id: 'strike' })).rejects.toThrow(
+      'E_SCREENS_ARGS_INVALID',
+    )
+    await expect(bridge.handlers['editor.ai']!({ action: 'write' })).rejects.toThrow(
+      'E_SCREENS_ARGS_INVALID',
+    )
   })
 
-  it('drops the trash held by the Pro sheet once the screen it was asked on goes', async () => {
+  it('runs a search asked for before the note can be searched once it can, the latest query only', async () => {
     const id = await shell.notes.create('Plans', null)
+    editors.findTarget = null
+    await start()
+    await swift('editor.show', { noteId: id })
+    const searched: string[] = []
+    let first: Promise<unknown> = Promise.resolve()
+    let second: Promise<unknown> = Promise.resolve()
+    await act(async () => {
+      first = bridge.handlers['editor.find']!({ action: 'search', query: 'c' })
+      second = bridge.handlers['editor.find']!({ action: 'search', query: 'ca' })
+    })
+    await act(async () => editors.latest!.onFind!(searchable(searched)))
+    expect(await first).toStrictEqual({ total: 0, current: 0, capped: false })
+    expect(await second).toStrictEqual({ total: 2, current: 1, capped: false })
+    expect(searched).toStrictEqual(['ca'])
+    expect(await swift('editor.find', { action: 'search', query: 'cat' })).toMatchObject({
+      total: 2,
+    })
+    expect(searched).toStrictEqual(['ca', 'cat'])
+  })
+
+  it('formats only while editing is allowed, and asks for Devot Pro otherwise', async () => {
+    const id = await shell.notes.create('Plans', null)
+    const format = vi.fn<(id: string) => void>()
+    await start()
+    await swift('editor.show', { noteId: id })
+    act(() => {
+      editors.latest!.handleRef!.current = { format } as unknown as EditorHandle
+    })
+    await swift('editor.format', { id: 'bold' })
+    expect(format).toHaveBeenCalledWith('bold')
+    licence = ENDED
+    await act(async () => {
+      await readCurrentLicence()
+    })
+    await swift('editor.format', { id: 'italic' })
+    expect(format).toHaveBeenCalledTimes(1)
+    expect(notices('editor.haptic').at(-1)).toStrictEqual({
+      notice: 'editor.haptic',
+      kind: 'warning',
+    })
+  })
+
+  it('duplicates the shown note with its tags, and answers with the copy', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await shell.tags.addToNote(id, 'urgent')
+    await start()
+    await swift('editor.show', { noteId: id })
+    const made = (await swift('editor.duplicate')) as { id: string; title: string }
+    expect(made.id).not.toBe(id)
+    expect(made.title).toBe('Plans copy')
+    expect((await summary(made.id))?.tagIds).toHaveLength(1)
+  })
+
+  it('answers Note Info with the counts, the revisions, the backlinks and no front matter', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    expect(await swift('note.info', { noteId: id })).toStrictEqual({
+      words: 0,
+      characters: 0,
+      readingMinutes: 1,
+      revisions: 0,
+      backlinks: [],
+      frontMatter: null,
+    })
+  })
+
+  it('answers Note Info with the front matter rows and what differs from the note', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await shell.tags.addToNote(id, 'work')
+    await shell.notes.setBody(
+      id,
+      '---\ntitle: Trip\nstatus: active\ntags: [work]\nwhere: Oslo\n---\nBody',
+    )
+    await shell.notes.flush()
+    await start()
+    const info = (await swift('note.info', { noteId: id })) as { frontMatter: unknown }
+    expect(info.frontMatter).toStrictEqual({
+      kind: 'properties',
+      rows: [
+        {
+          key: 'title',
+          value: { kind: 'text', text: 'Trip' },
+          difference: { field: 'title', badge: 'Note: Plans', value: 'Trip' },
+        },
+        {
+          key: 'status',
+          value: { kind: 'text', text: 'active' },
+          difference: { field: 'status', badge: 'Note: No Status', value: 'active' },
+        },
+        { key: 'tags', value: { kind: 'chips', chips: [{ name: 'work' }] } },
+        { key: 'where', value: { kind: 'text', text: 'Oslo' } },
+      ],
+    })
+  })
+
+  it('applies the front matter’s title, status and tags to the note', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await shell.tags.addToNote(id, 'old')
+    await start()
+    await swift('note.applyFrontMatter', { noteId: id, field: 'title', value: 'Trip' })
+    await swift('note.applyFrontMatter', { noteId: id, field: 'status', value: 'active' })
+    await swift('note.applyFrontMatter', { noteId: id, field: 'tags', value: '["work","Old"]' })
+    await shell.notes.flush()
+    const applied = await summary(id)
+    expect(applied?.title).toBe('Trip')
+    expect(applied?.status).toBe('active')
+    const names = (await shell.tags.list())
+      .filter((tag) => applied?.tagIds.includes(tag.id))
+      .map((tag) => tag.name)
+    expect(names.sort()).toStrictEqual(['old', 'work'])
+  })
+
+  it('refuses a front matter change the preview would not have offered', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await expect(
+      bridge.handlers['note.applyFrontMatter']!({ noteId: id, field: 'status', value: 'later' }),
+    ).rejects.toThrow('E_SCREENS_ARGS_INVALID')
+    await expect(
+      bridge.handlers['note.applyFrontMatter']!({ noteId: id, field: 'tags', value: '{"a":1}' }),
+    ).rejects.toThrow('E_SCREENS_ARGS_INVALID')
+  })
+
+  it('leaves the front matter out of the preview under the native screens', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await swift('editor.show', { noteId: id })
+    expect(previews.at(-1)?.frontMatterInInfo).toBe(true)
+  })
+
+  it('sets the dates Note Info picks', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await swift('note.setDates', { noteId: id, createdAt: 1_000 })
+    expect((await summary(id))?.createdAt).toBe(1_000)
+  })
+
+  it('hands the page’s haptics to Swift', async () => {
+    await start()
+    await act(async () => haptic('selection'))
+    expect(notices('editor.haptic')).toStrictEqual([{ notice: 'editor.haptic', kind: 'selection' }])
+  })
+
+  it('drops a format held by the gate once the screen it was asked on goes', async () => {
+    const id = await shell.notes.create('Plans', null)
+    const format = vi.fn<(id: string) => void>()
     licence = ENDED
     await readCurrentLicence()
     await start()
     await swift('editor.show', { noteId: id })
-    await swift('editor.info')
-    const trashRow = [...document.querySelectorAll<HTMLElement>('.phone-sheet-layer button')].find(
-      (b) => b.textContent === 'Move to Trash',
-    )!
-    await act(async () => trashRow.click())
-    await vi.waitFor(() =>
-      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Not Now'),
-    )
+    act(() => {
+      editors.latest!.handleRef!.current = { format } as unknown as EditorHandle
+    })
+    await swift('editor.format', { id: 'bold' })
     await swift('editor.hide')
     licence = PRO
     await act(async () => void (await readCurrentLicence()))
     await nextFrames()
-    expect(notices('nav.back')).toStrictEqual([])
-    expect((await shell.notes.list()).map((n) => n.id)).toContain(id)
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
-  })
-
-  it('drops the trash held by the Pro sheet once another screen takes the page', async () => {
-    const first = await shell.notes.create('Plans', null)
-    const second = await shell.notes.create('Ideas', null)
-    licence = ENDED
-    await readCurrentLicence()
-    await start()
-    await swift('editor.show', { noteId: first })
-    await swift('editor.show', { noteId: second })
-    await swift('editor.info')
-    const trashRow = [...document.querySelectorAll<HTMLElement>('.phone-sheet-layer button')].find(
-      (b) => b.textContent === 'Move to Trash',
-    )!
-    await act(async () => trashRow.click())
-    await vi.waitFor(() =>
-      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Not Now'),
-    )
-    await swift('editor.show', { noteId: first })
-    licence = PRO
-    await act(async () => void (await readCurrentLicence()))
-    await nextFrames()
-    expect(notices('nav.back')).toStrictEqual([])
-    expect((await shell.notes.list()).map((n) => n.id)).toContain(second)
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(format).not.toHaveBeenCalled()
   })
 
   it('refuses a request without a note or with an unknown mode', async () => {

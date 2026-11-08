@@ -31,9 +31,12 @@ import { startPhoneRoot } from './spring'
 import { watchDragEnd, type DragEnd } from './dragEnd'
 import { PhoneActivity } from './PhoneActivity'
 import { usePhoneData } from './usePhoneData'
-import { startLicence, useLicence } from '../licence'
+import { editingAllowed, startLicence, useLicence } from '../licence'
+import { dailySettings } from '../app/useNoteMaking'
 import { choicesFromTree } from '../notebookChoices'
+import { activityHandlers } from './screens/activity'
 import { startScreensBridge, type ScreensBridge } from './screens/bridge'
+import { noteHandlers } from './screens/notes'
 import { SCREENS_HANDLERS } from './screens/ops'
 import { glassHandlers } from './screens/glass'
 import { settingsHandlers, type NativeSettings } from './screens/settings'
@@ -52,8 +55,9 @@ import { useSyncEngine } from '../sync'
 import { licenceRow, welcomeDue } from './settingsRows'
 import { openPurchase } from '../purchaseSheet'
 import { PhoneGate } from './PhoneProSheet'
-import { dropIntent, watchWrite } from './requireEditing'
+import { dropIntent } from './requireEditing'
 import { applyGlassPrefs } from './glassPrefs'
+import { routeHaptics } from './haptics'
 import { PhoneNote } from './PhoneNote'
 import { useLicenceClock } from './licenceClock'
 import './phone.css'
@@ -258,7 +262,8 @@ interface PhoneTestDriver {
 
 export function PhoneApp() {
   const [state, dispatch] = useReducer(navigate, undefined, initialNavigation)
-  const phoneData = usePhoneData()
+  const bridge = useRef<ScreensBridge | null>(null)
+  const phoneData = usePhoneData(() => bridge.current?.libraryListed())
   const [discarding, setDiscarding] = useState<ReadonlySet<string>>(() => new Set())
   // A discarded note leaves every screen the moment it is left, before its purge returns.
   const store =
@@ -284,7 +289,6 @@ export function PhoneApp() {
   const nativeEditor = useRef<NativeEditor | null>(null)
   const nativeNewNote = useRef<NativeNewNote | null>(null)
   const [prepared] = useState(createPreparedNotes)
-  const bridge = useRef<ScreensBridge | null>(null)
   // Null until the bridge says whether the native screens are there; without them the page is the fallback.
   const [native, setNative] = useState<boolean | null>(null)
   const covered = useSyncExternalStore(watchModals, modalOpen)
@@ -315,6 +319,24 @@ export function PhoneApp() {
       ...newNoteHandlers(() => nativeNewNote.current),
       ...listHandlers(() => latestStore.current.started()),
       ...searchHandlers(() => latestStore.current.started()),
+      ...noteHandlers(
+        () => latestStore.current.core,
+        () => {
+          const { notes, templates, tags, refresh } = latestStore.current
+          return {
+            note: (id) => notes.find((n) => n.id === id) ?? templates.find((n) => n.id === id),
+            tags,
+            refresh,
+          }
+        },
+      ),
+      ...activityHandlers(async () => {
+        const core = await latestStore.current.started()
+        return {
+          writing: (at) => core.writing(at),
+          titles: () => new Map(latestStore.current.notes.map((note) => [note.id, note.title])),
+        }
+      }),
     })
     bridge.current = started
     let live = true
@@ -341,8 +363,8 @@ export function PhoneApp() {
   const { barHidden } = tabsState(state, covered, attention)
 
   // Read afresh: a chip changed in the editor may not have reached the lists yet.
-  const leaveNewNote = (id: string) => {
-    const note = made.current.get(id)
+  const leaveNewNote = (id: string, before: MadeNote | null = null) => {
+    const note = made.current.get(id) ?? before
     made.current.delete(id)
     const core = phoneData.core
     if (!note || !core) return
@@ -384,9 +406,12 @@ export function PhoneApp() {
     }
     nativeNewNote.current = {
       create: async (named) => {
-        const core = store.core
-        if (!core) throw new Error('E_SCREENS_UNAVAILABLE')
-        const bookId = newNoteBook(named, editorSettings().defaultNotebook, store.books)
+        const core = await latestStore.current.started()
+        const bookId = newNoteBook(
+          named,
+          editorSettings().defaultNotebook,
+          latestStore.current.books,
+        )
         const id = await makeNewNote(core, bookId)
         // The write that made the note is reported in a microtask: the reply counts it.
         await Promise.resolve()
@@ -395,7 +420,13 @@ export function PhoneApp() {
         void phoneData.refresh()
         return { id, rev }
       },
-      discard: (noteId) => leaveNewNote(noteId),
+      discard: (noteId, before) => leaveNewNote(noteId, before),
+      today: async () => {
+        const core = await latestStore.current.started()
+        const { id } = await core.openTodaysNote(dailySettings(), Date.now(), editingAllowed())
+        void phoneData.refresh()
+        return { id }
+      },
     }
   })
   useEffect(() => {
@@ -414,6 +445,11 @@ export function PhoneApp() {
       notes()
       library()
     }
+  }, [native])
+  useEffect(() => {
+    if (!native) return
+    routeHaptics((kind) => bridge.current?.notify({ notice: 'editor.haptic', kind }))
+    return () => routeHaptics(null)
   }, [native])
   useEffect(() => {
     if (native)
@@ -449,17 +485,12 @@ export function PhoneApp() {
     const note = [...store.notes, ...store.templates].find((n) => n.id === noteId)
     bridge.current?.notify({ notice: 'nav.openNote', noteId, title: note?.title ?? '' })
   }
-  // The note's screen is popped by the editor; the native lists offer their own Undo.
-  const trash = (note: NoteSummary) => {
-    const core = store.core
-    if (core)
-      watchWrite('trash', core.trash(note.id).then(store.refresh), 'W_PHONE_NOTE_ACTION_FAILED')
-  }
 
   const render = (tab: PhoneTab, route: PhoneRoute) => {
     if (route.screen === 'note' && route.noteId)
-      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} onTrash={trash} />
-    if (tab === 'activity') return <PhoneActivity data={store} onOpenNote={openNote} />
+      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} />
+    if (tab === 'activity' && native === false)
+      return <PhoneActivity data={store} onOpenNote={openNote} />
     return null
   }
 
@@ -497,7 +528,6 @@ export function PhoneApp() {
           editor={nativeEditor}
           prepared={prepared}
           openNote={openNote}
-          onTrash={trash}
         />
       )}
       <PhoneGate

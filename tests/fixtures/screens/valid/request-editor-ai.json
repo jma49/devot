@@ -1,0 +1,11 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 41,
+    "op": "editor.ai",
+    "args": {
+      "action": "accept"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_ARGS_INVALID",
+  "message": {
+    "v": 1,
+    "id": 57,
+    "op": "editor.insets",
+    "args": {
+      "bottom": 300.5,
+      "duration": 2.5,
+      "curve": 7
+    }
+  }
+}

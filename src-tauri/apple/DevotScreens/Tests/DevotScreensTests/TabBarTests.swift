@@ -7,7 +7,7 @@ import XCTest
 @MainActor
 final class TabBarTests: XCTestCase {
     private func controller() -> DevotTabBarController {
-        DevotTabBarController(host: WebViewHost(webView: WKWebView()))
+        DevotTabBarController()
     }
 
     func testFourIconOnlyTabsNamedForVoiceOverThenTheSystemSearchTab() throws {
@@ -71,7 +71,13 @@ final class TabBarTests: XCTestCase {
                 XCTAssertFalse(navigation.isNavigationBarHidden)
                 XCTAssertTrue(navigation.navigationBar.prefersLargeTitles)
                 XCTAssertTrue(navigation.viewControllers.first === tabs.settings.root)
-                XCTAssertNil(tabs.screen(tab))
+                XCTAssertNil(tabs.listRoots[tab])
+            case .activity:
+                let root = try XCTUnwrap(tabs.listRoots[tab] as? ActivityScreen)
+                XCTAssertTrue(navigation.viewControllers.first === root)
+                XCTAssertFalse(navigation.isNavigationBarHidden)
+                XCTAssertEqual(root.navigationItem.largeTitleDisplayMode, .always)
+                XCTAssertEqual(root.navigationItem.title, L10n.phoneTabActivity())
             case .notes, .library:
                 let root = try XCTUnwrap(tabs.listRoots[tab])
                 XCTAssertTrue(navigation.viewControllers.first === root)
@@ -80,10 +86,8 @@ final class TabBarTests: XCTestCase {
                 XCTAssertEqual(root.navigationItem.largeTitleDisplayMode, .always)
                 XCTAssertEqual(root.navigationItem.title, tab == .notes ? L10n.phoneTabNotes() : L10n.phoneTabLibrary())
                 XCTAssertTrue(tab == .notes ? root is NoteListScreen : root is LibraryScreen)
-                XCTAssertNil(tabs.screen(tab))
-            default:
-                XCTAssertTrue(navigation.isNavigationBarHidden)
-                XCTAssertTrue(navigation.viewControllers.first === tabs.screen(tab))
+            case .search:
+                XCTFail("Search is not one of the page's tabs")
             }
         }
     }
@@ -93,7 +97,7 @@ final class TabBarTests: XCTestCase {
         let notes = try XCTUnwrap(tabs.listRoots[.notes])
         notes.loadViewIfNeeded()
         let items = try XCTUnwrap(notes.navigationItem.rightBarButtonItems)
-        XCTAssertEqual(items.count, 3)
+        guard items.count == 3 else { return XCTFail("expected three items, got \(items.count)") }
         XCTAssertEqual(items[0].accessibilityLabel, L10n.noteListNewNote())
         XCTAssertNotNil(items[0].primaryAction)
         XCTAssertEqual(

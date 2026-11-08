@@ -18,7 +18,6 @@
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize",
     "allow-symbol-png",
-    "allow-haptic",
     "allow-system-accent",
     "allow-clipboard-write-text",
     "allow-clipboard-read-text",

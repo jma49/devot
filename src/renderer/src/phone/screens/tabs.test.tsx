@@ -134,26 +134,26 @@ describe('the page under the native tab bar', () => {
     expect(bridge.notices).toStrictEqual([])
   })
 
-  it('shows the tab Swift asks for, keeping every stack mounted', async () => {
+  it('shows the tab Swift asks for, keeping every stack mounted, and leaves Activity to Swift', async () => {
     await start()
     await swift('tabs.show', { tab: 'activity' })
-    const activity = shownStack().querySelector('section')!
-    expect(screens()).toEqual(['Activity'])
+    const activity = shownStack()
+    expect(activity.querySelector('section')).toBeNull()
     await swift('tabs.show', { tab: 'settings' })
-    expect(shownStack().querySelector('section')).toBeNull()
+    expect(shownStack()).not.toBe(activity)
     expect(activity.isConnected).toBe(true)
     await swift('tabs.show', { tab: 'activity' })
-    expect(shownStack().querySelector('section')).toBe(activity)
+    expect(shownStack()).toBe(activity)
     expect(lastNotice()).toMatchObject({ tab: 'activity' })
   })
 
   it('keeps the shown stack when Swift shows the tab already shown', async () => {
     await start()
     await swift('tabs.show', { tab: 'activity' })
-    const activity = shownStack().querySelector('section')!
+    const activity = shownStack()
     const notices = bridge.notices.length
     await swift('tabs.show', { tab: 'activity' })
-    expect(shownStack().querySelector('section')).toBe(activity)
+    expect(shownStack()).toBe(activity)
     expect(bridge.notices).toHaveLength(notices)
   })
 })

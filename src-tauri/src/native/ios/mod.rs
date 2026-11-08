@@ -39,6 +39,8 @@ pub use input_accessory::hide_input_accessory_bar;
 #[cfg(target_os = "ios")]
 pub use keychain::add_device_only_password;
 #[cfg(target_os = "ios")]
+pub(crate) use screens::screens_route;
+#[cfg(target_os = "ios")]
 pub use screens::{
     install_screens, screens_page_started, screens_post, screens_take, screens_tell,
 };
@@ -48,4 +50,4 @@ pub use store::{
     store_restore,
 };
 #[cfg(target_os = "ios")]
-pub use uikit::{haptic, open_url, set_interface_style, share, symbol_png};
+pub use uikit::{open_url, set_interface_style, share, symbol_png};

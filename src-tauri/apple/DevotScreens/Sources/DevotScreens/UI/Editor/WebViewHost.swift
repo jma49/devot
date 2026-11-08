@@ -11,6 +11,8 @@ final class WebViewHost {
     weak var holder: WebHolderScreen?
     /// The screen a pop is revealing, which takes the web view once the pop is done.
     weak var waiting: WebHolderScreen?
+    /// The bottom inset the page was sent last (`editor.insets`); the page sets 0 itself on a hide.
+    var footInset: CGFloat = 0
     private var size: CGSize?
 
     init(webView: WKWebView) {
@@ -147,4 +149,20 @@ class WebHolderScreen: UIViewController {
     func appeared() {}
 
     func tookWebView() {}
+}
+
+/// The page lays itself out by the window's safe area, as without the system bar. The tab bar's
+/// inset can reach this view through its superview, which a negative additional inset cannot take
+/// back on every iOS, so the view reports the window's insets and its subviews derive theirs from it.
+final class WindowSafeAreaView: UIView {
+    var willLeaveWindow: (() -> Void)?
+
+    override var safeAreaInsets: UIEdgeInsets {
+        window?.safeAreaInsets ?? super.safeAreaInsets
+    }
+
+    override func willMove(toWindow newWindow: UIWindow?) {
+        if newWindow == nil, window != nil { willLeaveWindow?() }
+        super.willMove(toWindow: newWindow)
+    }
 }

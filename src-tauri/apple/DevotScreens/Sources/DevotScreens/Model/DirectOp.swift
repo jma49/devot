@@ -46,4 +46,5 @@ public enum DirectOp: String, CaseIterable, Sendable {
     case listsNotes = "direct.lists.notes"
     case listsLibrary = "direct.lists.library"
     case listsTrash = "direct.lists.trash"
+    case listsTitles = "direct.lists.titles"
 }

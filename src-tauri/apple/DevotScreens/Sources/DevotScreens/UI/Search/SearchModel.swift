@@ -42,6 +42,8 @@ final class SearchModel {
     }
 
     static let pause: TimeInterval = 0.12
+    /// MAX_QUERY_CHARS in src-tauri/src/screens/message.rs, counted as Rust counts: in Unicode scalars.
+    static let maxQuery = 1160
 
     private let bridge: () -> (any SettingsBridge)?
     /// Runs the work after a delay, and answers what cancels it.
@@ -61,8 +63,14 @@ final class SearchModel {
         self.bridge = bridge
     }
 
+    private static func cut(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.unicodeScalars.count > maxQuery else { return trimmed }
+        return String(String.UnicodeScalarView(trimmed.unicodeScalars.prefix(maxQuery)))
+    }
+
     func type(_ text: String) {
-        let next = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let next = Self.cut(text)
         guard next != query else { return }
         query = next
         guard !next.isEmpty else { return clear() }
@@ -71,7 +79,7 @@ final class SearchModel {
 
     func run(_ text: String, scope: Scope? = nil) {
         if let scope { self.scope = scope }
-        query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        query = Self.cut(text)
         guard !query.isEmpty else { return clear() }
         search()
     }
@@ -117,6 +125,8 @@ final class SearchModel {
                 onResults()
             case .failed(let code):
                 bridge.log(.warn, "W_PHONE_SEARCH_FAILED code=\(code)")
+                results = nil
+                onResults()
             }
         }
     }

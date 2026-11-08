@@ -14,6 +14,8 @@ pub const TEMPLATES_BOOK_ID: &str = "00000000-0000-7000-8000-000000000001";
 /// The first page a list paints; the rest follow in pages of the same size.
 pub const PAGE_ROWS: u32 = 200;
 const MAX_PAGE_ROWS: u32 = 1_000;
+/// The most notes one titles read names: the editors of every tab's stack.
+pub const MAX_TITLE_IDS: usize = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase", deny_unknown_fields)]
@@ -108,6 +110,19 @@ pub struct SavedSearch {
     pub query: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Ids {
+    pub ids: Vec<String>,
+}
+
+/// A live note's title, for an editor rebuilt from a link or a restored stack.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Title {
+    pub id: String,
+    pub title: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Library {
@@ -136,6 +151,18 @@ impl Reads {
 
     pub async fn library(&self) -> Result<Library, &'static str> {
         self.0.call(library).await.map_err(|error| error.code())
+    }
+
+    /// The titles of those of `ids` that are live notes, in the order asked; a note in the Trash
+    /// or gone has none.
+    pub async fn titles(&self, ids: Ids) -> Result<Vec<Title>, &'static str> {
+        if ids.ids.len() > MAX_TITLE_IDS || !ids.ids.iter().all(|id| valid_note_id(id)) {
+            return Err("E_SCREENS_ARGS_INVALID");
+        }
+        self.0
+            .call(move |store| titles(store, &ids.ids))
+            .await
+            .map_err(|error| error.code())
     }
 
     pub async fn trash(&self) -> Result<Vec<TrashedNote>, &'static str> {
@@ -235,6 +262,23 @@ fn rows(store: &Store, page: &Page) -> crate::storage::Result<Rows> {
             .collect(),
         total,
     })
+}
+
+fn titles(store: &Store, ids: &[String]) -> crate::storage::Result<Vec<Title>> {
+    let notes: HashMap<String, String> = store
+        .list_notes_page(None, None)?
+        .into_iter()
+        .map(|note| (note.id, note.title))
+        .collect();
+    Ok(ids
+        .iter()
+        .filter_map(|id| {
+            notes.get(id).map(|title| Title {
+                id: id.clone(),
+                title: title.clone(),
+            })
+        })
+        .collect())
 }
 
 fn library(store: &Store) -> crate::storage::Result<Library> {
@@ -656,5 +700,34 @@ mod tests {
             trash.iter().map(|n| n.id.clone()).collect::<Vec<_>>(),
             [id(11)]
         );
+    }
+
+    #[test]
+    fn titles_name_live_notes_only_in_the_order_asked() {
+        let library = library();
+        let titles = |ids: Vec<String>| block_on(library.reads.titles(Ids { ids }));
+        assert_eq!(
+            titles(vec![id(3), id(11), id(42), id(10), id(1)]),
+            Ok(vec![
+                Title {
+                    id: id(3),
+                    title: "Note 3".into()
+                },
+                Title {
+                    id: id(10),
+                    title: "Note 10".into()
+                },
+                Title {
+                    id: id(1),
+                    title: "Note 1".into()
+                },
+            ])
+        );
+        assert_eq!(titles(vec!["inbox".into()]), Err("E_SCREENS_ARGS_INVALID"));
+        assert_eq!(
+            titles((0..=MAX_TITLE_IDS as u32).map(id).collect()),
+            Err("E_SCREENS_ARGS_INVALID")
+        );
+        assert_eq!(titles(Vec::new()), Ok(Vec::new()));
     }
 }

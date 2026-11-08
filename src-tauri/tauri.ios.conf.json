@@ -1,5 +1,8 @@
 {
   "bundle": {
     "resources": null
+  },
+  "plugins": {
+    "deep-link": { "mobile": [{ "scheme": ["devot"], "appLink": false }] }
   }
 }

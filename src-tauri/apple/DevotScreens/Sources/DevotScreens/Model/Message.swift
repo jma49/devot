@@ -90,7 +90,6 @@ public enum Op: String, CaseIterable, Sendable {
     case editorPrepare = "editor.prepare"
     case editorHide = "editor.hide"
     case editorSetMode = "editor.setMode"
-    case editorInfo = "editor.info"
     case glassGet = "glass.get"
     case glassSet = "glass.set"
     case editorFocus = "editor.focus"
@@ -102,6 +101,17 @@ public enum Op: String, CaseIterable, Sendable {
     case noteText = "note.text"
     case noteComplete = "note.complete"
     case noteUndoStatus = "note.undoStatus"
+    case editorFormat = "editor.format"
+    case editorAi = "editor.ai"
+    case editorFind = "editor.find"
+    case editorInsets = "editor.insets"
+    case editorDuplicate = "editor.duplicate"
+    case noteInfo = "note.info"
+    case noteSetDates = "note.setDates"
+    case noteApplyFrontMatter = "note.applyFrontMatter"
+    case noteAddTag = "note.addTag"
+    case noteToday = "note.today"
+    case activityWriting = "activity.writing"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {
@@ -118,12 +128,17 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case booksChanged = "books.changed"
     case tagsChanged = "tags.changed"
     case savedSearchesChanged = "savedSearches.changed"
+    case editorNote = "editor.note"
+    case editorPicker = "editor.picker"
+    case editorHaptic = "editor.haptic"
     /// Rust's own: the sync snapshot changed.
     case syncChanged = "sync.changed"
     /// Rust's own: a pairing on show through iCloud may have moved on.
     case syncPairing = "sync.pairing"
     /// Rust's own: the licence changed.
     case licenceChanged = "licence.changed"
+    /// Rust's own: a deep link to show (Model/Route.swift).
+    case route
 }
 
 public enum Outcome: Equatable, Sendable {

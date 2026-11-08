@@ -158,8 +158,16 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The bar hides over a note, search or a sheet and comes back when it goes, with the system's slide (rule 3); over a pushed list or Settings pane it stays.
   A tab the page opens itself (All Notes from the Library) moves the system's selection the same way.
   The Settings mark appears and goes at once.
-- **Activity's section head** (the page's screens): rule 3. The chevron turns over `motion.duration.phone-chevron` on `motion.easing.phone-push`; the ranked notes fold away or open with `gentle` while fading over `motion.duration.ring`. Under Reduce Motion the rows crossfade and the chevron is simply turned.
-- **Activity week menu:** a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The stats and ranking change at once (rule 2).
+- **Deep link** (the native screens): rule 3 while the app is in front, rule 2 otherwise.
+  In front, the linked screen comes with the system's push as the tab's stack is set (`setViewControllers(_:animated:)`), and the tab bar's selection moves as for a tab the page opens; a link that launches or wakes the app sets the stack without motion, so its first frame already shows the screen.
+  A sheet over the tabs goes with the system's motion; the gate's own sheet stays.
+- **Restoring the last screens** (the native screens): rule 2.
+  The stacks are rebuilt before the first frame with no motion, and the launch screen draws that frame's background, empty large-title bar and the tab bar's place; a title fills in at once when Rust has read it, and an editor whose note has gone leaves its stack at once.
+- **Activity's section head** (the web fallback): rule 3. The chevron turns over `motion.duration.phone-chevron` on `motion.easing.phone-push`; the ranked notes fold away or open with `gentle` while fading over `motion.duration.ring`. Under Reduce Motion the rows crossfade and the chevron is simply turned.
+- **Activity week menu** (the web fallback): a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The stats and ranking change at once (rule 2).
+- **Activity** (the native screens): rule 2.
+  The segmented control is the system's, and a choice of week replaces the figures, the ranked notes and their section's head at once, with the `selection` haptic.
+  A new reading after a change is drawn at once too, and a ranked note opens with the system's push (rule 3).
 - **Note list rows** (the native screens): rule 2.
   A change the page reports redraws only its rows: a changed row is drawn again in place, a row whose place changed moves there with the system's list animation (rule 3), and a row that leaves fades with it.
   The first page, and a read after a missed change, are drawn at once.
@@ -191,10 +199,10 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A push, a pop, a tab switch and any other sheet's rise have none.
   A bar button gives no touch-down, so the generators are made ready when a context menu opens or the selection bar shows, and the warning's while a locked list shows.
   A write Devot Pro does not allow feels only the warning.
-  The editor's haptics stay the page's `haptic` command until the editor's bars are native.
+  The page's haptics are Swift's too: the page sends `editor.haptic` and has no haptic command of its own, so the web fallback plays none, and a picker's choice plays `selection`.
 - **Filter and week menus** (the native screens): the system's menu from its bar button, with the system's motion.
   The filtered rows change at once (rule 2).
-  Activity's week menu stays the page's.
+  Activity's week menu stays the web fallback's.
 - **Edit and Preview:** rule 3.
   Both panes stay drawn, the hidden one laid out but not shown, so a diagram in Preview is ready before the toggle.
   The one coming fades in over `motion.duration.phone-enter` on `motion.easing.standard` while it rises 8 pt on `motion.easing.phone-enter`; the one going fades out over the same time while it drops 8 pt on `motion.easing.phone-pair`.
@@ -204,7 +212,33 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Under Reduce Motion the panes only fade.
 - **Title under the bar** (the native screens): rule 2.
   Once the note's own title has scrolled under the system bar, the bar shows it; it goes when the title comes back.
+- **Bottom toolbar and the keyboard** (the native screens): rule 3.
+  A note's screen has the system's bottom toolbar of Back, Forward, Find and, in Edit, AI.
+  Back, Forward and Find stand side by side, so the system draws them on one glass, and a flexible space sets AI apart on its own.
+  It hides as the keyboard rises and comes back as it goes, inside the keyboard's own animation: the same duration and curve, never the toolbar's own slide.
+  A keyboard raised for a sheet over the note moves neither the toolbar nor the bars.
+  Each time the toolbar comes or goes, assistive technologies are told the layout changed, so they find its buttons where they are drawn.
+  The page scrolls as one document in the web view's own scroll view, so the system bar's scroll edge effect follows it, and a drag down through the keyboard takes the keyboard with the finger.
+  The keyboard's height reaches the page once per change as `editor.insets`, which the page applies at once, with no motion of its own; the native scroll view's bottom inset changes with it.
+  Under Reduce Motion the keyboard decides its own look, and the toolbar follows it.
+- **Formatting bar on the keyboard** (the native screens): rule 3.
+  In Edit, while the keyboard is up, a 44 pt glass capsule of the formatting buttons and a 44 pt Hide Keyboard circle sit in one glass container `size.phone-sheet-inset` above it.
+  They are pinned to the keyboard's layout guide, so they ride its curve, an interactive dismissal and an undocked keyboard with no animation of their own.
+  The glass is the system's interactive glass, so a press is the system's; it is solid under Reduce Transparency or Increase Contrast.
+  A button formats at the caret and never takes the keyboard; Hide Keyboard lowers it, and the bar goes with it.
+  On a narrow phone the capsule's row scrolls sideways, and every button keeps its 44 pt.
+- **Find bar** (the native screens): rule 2.
+  Find, from the toolbar or the More menu, swaps a glass bar in at once in the formatting bar's place: a field, the count, previous, next, and a close circle.
+  The count follows each key typed; a count for an older query is dropped.
+  Return steps to the next match; Close clears the highlights and swaps the bar out at once.
+- **Note's More menu** (the native screens): the system's menu from its bar button, with the system's motion.
+  Pin, Status, Move to Notebook, Tags, Share, Find in Note, Duplicate and Move to Trash; a write goes through the gate and plays its haptic.
+  Move to Trash pops the note's screen once the note is in the Trash, and offers the undo toast over the list; a refused or failed write leaves the screen.
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes. Under Reduce Motion it crossfades in place, and still follows a drag.
+  Under the native screens the note's pickers (notebook, status, tags) are the system's sheets at medium and large height, with a grabber and a close item, and a list scrolled to its edge pulls the sheet to large; they rise and close with the system's motion.
+  A single choice closes the sheet, then writes; the tags picker stays open and its ticks follow each write.
+  Note Info is a content-sized system sheet with the date pickers; Share is the system's share sheet.
+  Note Info's Properties card shows the note's front matter; Apply on a row is rule 1: it writes through the gate, and once the note changes the sheet reads Note Info again and the rows are replaced at once, so the applied row's badge and Apply go without motion.
   A closing sheet goes at once for focus, keys and what it was asked for, and an inert copy of it slides away from where it was; a sheet raised while that copy slides takes its place at once.
 - **New Note** (the native screens): rule 3.
   The compose button in the list's bar presses as any bar button.
@@ -270,8 +304,6 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The value is stored when the finger lifts, or, for a step VoiceOver or Switch Control makes without a drag, once the steps settle for 400 ms.
   A value SwiftUI hands over within 400 ms after the lift is the drag's last one and is stored at once.
 - **Note mode toggle** (the web shell): rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. The panes crossfade as Edit and Preview says.
-- **Note bottom bar and formatting bar:** rule 2. As the keyboard rises the bottom bar fades and drops 20 pt with `gentle`, and the formatting bar fades in on the keyboard. Under Reduce Motion both only crossfade. The system's bar of previous, next and a check mark is not shown above the keyboard, so the formatting bar sits on the keyboard itself, and Hide keyboard lowers the keyboard with the system's motion.
-- **Find bar:** rule 2. It appears at once on the keyboard, in the bottom bar's place, and matches change as you type.
 - **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` over `motion.duration.phone-glass-press` on `motion.easing.phone-push`, and brightens over `motion.duration.ring`.
 
 ## Local diagrams

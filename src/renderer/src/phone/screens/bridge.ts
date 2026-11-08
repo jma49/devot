@@ -18,6 +18,11 @@ export interface ScreensBridge {
   readonly installed: Promise<boolean>
   /** Sends a notice to the native screens; before they are known to be installed, or without them, it is dropped. */
   readonly notify: (notice: ScreensNotice) => void
+  /**
+   * The page has listed its library, the first-launch notes seeded: Rust sends the links it holds
+   * to the native screens from now on, so a link to a first-launch note finds it.
+   */
+  readonly libraryListed: () => void
   readonly stop: () => void
 }
 
@@ -37,7 +42,13 @@ const isTaken = (value: unknown): value is Taken =>
  * asks Rust for the requests that came before, so none is lost in between.
  */
 export function startScreensBridge(handlers: ScreensHandlers = SCREENS_HANDLERS): ScreensBridge {
-  if (DEVOT_UI_TEST) return { installed: Promise.resolve(false), notify: () => {}, stop: () => {} }
+  if (DEVOT_UI_TEST)
+    return {
+      installed: Promise.resolve(false),
+      notify: () => {},
+      libraryListed: () => {},
+      stop: () => {},
+    }
   const post = (reply: ScreensReply) =>
     invoke('screens_post', { message: JSON.stringify(reply) }).catch((error: unknown) =>
       console.warn(`W_SCREENS_POST_FAILED id=${reply.id} code=${errorCode(error)}`),
@@ -91,5 +102,16 @@ export function startScreensBridge(handlers: ScreensHandlers = SCREENS_HANDLERS)
         return false
       },
     )
-  return { installed, notify, stop: listening.stop }
+  let linksAsked = false
+  const libraryListed = () => {
+    if (linksAsked) return
+    linksAsked = true
+    void installed.then((attachedNow) => {
+      if (!attachedNow || listening.stopped()) return
+      invoke('deep_link_take').catch((error: unknown) =>
+        console.warn(`W_DEEP_LINK_TAKE_FAILED code=${errorCode(error)}`),
+      )
+    })
+  }
+  return { installed, notify, libraryListed, stop: listening.stop }
 }

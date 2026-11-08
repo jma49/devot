@@ -2,6 +2,8 @@
 // Rust checks every message before it comes and after it leaves; the page checks only the
 // envelope, so a request from another version of the app is dropped rather than misread.
 
+import type { NoteStatus } from '../../../../core/storage'
+import type { HapticKind } from '../haptics'
 import type { PhoneTab } from '../navigation'
 
 export const SCREENS_VERSION = 1
@@ -19,7 +21,6 @@ export const SCREENS_OPS = [
   'editor.prepare',
   'editor.hide',
   'editor.setMode',
-  'editor.info',
   'glass.get',
   'glass.set',
   'editor.focus',
@@ -31,6 +32,17 @@ export const SCREENS_OPS = [
   'note.text',
   'note.complete',
   'note.undoStatus',
+  'editor.format',
+  'editor.ai',
+  'editor.find',
+  'editor.insets',
+  'editor.duplicate',
+  'note.info',
+  'note.setDates',
+  'note.applyFrontMatter',
+  'note.addTag',
+  'note.today',
+  'activity.writing',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
 
@@ -49,6 +61,20 @@ export interface SettingsOpen {
 
 export type EditorMode = 'edit' | 'preview'
 
+/** A chip under the note's title, whose picker Swift draws. */
+export type EditorPicker = 'notebook' | 'status' | 'tags'
+
+/** What the native More menu, pickers and Note Info show of the note. */
+export interface EditorNoteFacts {
+  readonly id: string
+  readonly bookId: string | null
+  readonly status: NoteStatus
+  readonly pinned: boolean
+  readonly tagIds: readonly string[]
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
 export type ScreensNotice =
   | ({ readonly notice: 'tabs.state' } & TabsState)
   | ({ readonly notice: 'settings.open' } & SettingsOpen)
@@ -58,6 +84,9 @@ export type ScreensNotice =
   | { readonly notice: 'editor.mode'; readonly noteId: string; readonly mode: EditorMode }
   | { readonly notice: 'editor.title'; readonly id: string; readonly title: string }
   | { readonly notice: 'editor.scroll'; readonly titleVisible: boolean }
+  | ({ readonly notice: 'editor.note' } & EditorNoteFacts)
+  | { readonly notice: 'editor.picker'; readonly noteId: string; readonly picker: EditorPicker }
+  | { readonly notice: 'editor.haptic'; readonly kind: HapticKind }
   | { readonly notice: 'note.new'; readonly bookId?: string }
   | {
       readonly notice: 'notes.changed'

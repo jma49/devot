@@ -6,7 +6,7 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 
 ## Glass
 
-- Glass is on floating controls only: the tab bar, top bar buttons and capsules, the note's bottom bar, the keyboard's accessory bar, menus, the undo toast and sheets' buttons. Rows, cards and the note itself are never glass, and glass never sits on glass.
+- Glass is on floating controls only: the tab bar, top bar buttons and capsules, the keyboard's formatting bar, menus, the undo toast and sheets' buttons. Rows, cards and the note itself are never glass, and glass never sits on glass.
 - `.phone-glass` is the one recipe: the `color.phone.glass` tint, `blur(10px) saturate(1.9) brightness(1.04)`, a 0.5 edge, inner highlights, inner glow, two drop shadows, a `size.phone-glass-rim` gradient rim (`::before`) and a radial sheen (`::after`). The pseudo-elements are taken: a glass control extends its hit area on a child.
 - A pressed glass control grows to `motion.scale.phone-glass-press` and brightens to 1.05.
 - The peek's status bar and menu sit over the peek's own 16 px blur and draw no blur of their own: a second one would add nothing, and it would be drawn again every frame they grow.
@@ -21,7 +21,7 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 
 ## Touch
 
-- Every target is at least `size.phone-target` (44 pt). A smaller drawing keeps its size and extends its hit area: the formatting bar's buttons (38 by 40), the sheet's close, and the note's chips (30 in a layout item 44 tall, so wrapped rows' targets touch and never overlap).
+- Every target is at least `size.phone-target` (44 pt). A smaller drawing keeps its size and extends its hit area: the sheet's close, and the note's chips (30 in a layout item 44 tall, so wrapped rows' targets touch and never overlap).
 - A back swipe starts from the left edge and tracks the finger; every push can be undone by it. A vertical scroll never starts a swipe.
 - Anything a gesture does is reachable without it: a row's swipe actions are also in its context menu, and VoiceOver offers both.
 
@@ -58,7 +58,7 @@ Plain lists sit at `size.phone-list-edge` (x 20 to 370), with text at `size.phon
 
 A section head (`size.phone-section-head`, drawn 40 in a 44 target) has the title, a hairline and a chevron that turns when the section is collapsed; collapsing lasts the session.
 
-Grouped pages: cards inset 16, `radius.phone-card`, `size.phone-card-inset` around their rows, no separators. Rows are 44 with `size.phone-row-pad`, and a pressed row fills to `radius.phone-row-press`. A row's value sits beside its label while both fit and goes under it when they don't, so neither breaks a letter at a time; on the Settings root and note info's icon rows it always goes under at the accessibility sizes. The Settings screen and its panes are the exception: they follow Phone grouped lists in `design/layout.md`, with `radius.phone-grouped-card`, separators and titles on the card's 16 keyline.
+Grouped pages: cards inset 16, `radius.phone-card`, `size.phone-card-inset` around their rows, no separators. Rows are 44 with `size.phone-row-pad`, and a pressed row fills to `radius.phone-row-press`. A row's value sits beside its label while both fit and goes under it when they don't, so neither breaks a letter at a time; on the Settings root it always goes under at the accessibility sizes. The Settings screen and its panes are the exception: they follow Phone grouped lists in `design/layout.md`, with `radius.phone-grouped-card`, separators and titles on the card's 16 keyline.
 
 Activity: "Week" capsule, then a card of the last 15 weeks (`size.phone-heat-cell` days, `radius.phone-heat-cell`, `size.phone-heat-gap` apart, in `color.activity.level-*`, a month over the week it starts, the current month's included, a name in the last week ending at the grid's edge, a less-more legend of `size.phone-heat-legend`); three stat cards, which stack as text grows; then the ranked notes under a section head, their growth in `color.phone.grow`. The capsule's menu offers This week and Last week and changes the stats and the ranking only, never the heatmap. VoiceOver reads the heatmap as one summary, not 105 cells.
 
@@ -132,7 +132,7 @@ The recovery key shows only while a new vault's key waits to be saved, as on the
 AI: the provider segmented control and its endpoint, model and key with its state under the field, then next edit suggestions.
 There are no accent swatches.
 
-Sheets: note info, the pickers, the trial and short messages rise from the bottom edge, the full width of the screen, with `radius.phone-sheet` on the top corners only, since a floating sheet's corners cannot be concentric with every device's. They render at the app's root, over everything; the scrim covers the whole screen. The contents scroll inside, and their bottom padding clears the home indicator (`safe-area-inset-bottom` plus `size.phone-sheet-inset`, at least 16). A sheet is modal: it takes the keyboard when it opens, the rest of the app is inert behind it, Tab goes round its own controls, Escape closes it, and the keyboard goes back to what opened it. A sheet opened over a sheet is the live one until it closes. The tag field's corners are concentric with the sheet (`radius.phone-sheet` less `size.phone-sheet-pad`), and the colour picker's previews cut a long name with an ellipsis and stack at the accessibility sizes.
+Sheets: the pickers, the trial and short messages rise from the bottom edge, the full width of the screen, with `radius.phone-sheet` on the top corners only, since a floating sheet's corners cannot be concentric with every device's. They render at the app's root, over everything; the scrim covers the whole screen. The contents scroll inside, and their bottom padding clears the home indicator (`safe-area-inset-bottom` plus `size.phone-sheet-inset`, at least 16). A sheet is modal: it takes the keyboard when it opens, the rest of the app is inert behind it, Tab goes round its own controls, Escape closes it, and the keyboard goes back to what opened it. A sheet opened over a sheet is the live one until it closes. The tag field's corners are concentric with the sheet (`radius.phone-sheet` less `size.phone-sheet-pad`), and the colour picker's previews cut a long name with an ellipsis and stack at the accessibility sizes.
 
 Detail sheet, for the trial and a failed suggestion: a sheet with a `color.phone.lens` circle holding the info icon, a 20 bold title, the body 16/24 in `color.phone.text-secondary`, and a full-width glass Done, `size.phone-sheet-done` high.
 
@@ -152,17 +152,23 @@ It has no close circle, names no price and links nowhere; a check in progress or
 Every write the phone offers goes through one gate (`phone/requireEditing.ts`), so a tap shows one sheet and never a write that silently fails.
 
 Note: a note opens in Preview, and an empty one in Edit, chosen once when its body has loaded.
-While editing is locked a note opens in Preview and stays there: the mode toggle, a task box, the title, the chips and the AI circle show the lock's sheet instead.
-Its text, in Edit and Preview, shares the title's left and right edges. A later change to the body never changes the mode. Back and Forward return to a note in the mode it was left in; leaving the note's screen forgets that. The top bar has a back circle, the notebook's path in mono, and a capsule of the mode toggle and info. Below it the title 26 bold, wrapping to as many lines as it needs (Return adds none), the chips, a long name cut with an ellipsis at the screen's width, then the edit time and word count in `.phone-figures`; there is no per-note sync state. The bottom has a glass capsule of Back and Forward, a find circle and, in Edit, an AI circle with its sparkle in the caret colour. While typing the bottom fades and the formatting bar sits on the keyboard, with a hide-keyboard circle.
-Under the native screens a note is its own screen pushed over the list, full bleed under the system bar, which holds Back, Info and the mode toggle; the toggle shows the mode it switches to.
-The page then draws neither its top bar nor the Back and Forward capsule, since the screens' stack is the note's history, and a link pushes the linked note's screen.
+While editing is locked a note opens in Preview and stays there: the mode toggle, a task box, the title, the chips and AI show the lock's sheet instead.
+Its text, in Edit and Preview, shares the title's left and right edges.
+A later change to the body never changes the mode.
+Back returns to a note in the mode it was left in; leaving the note's screen forgets that.
+The title is 26 bold, wrapping to as many lines as it needs (Return adds none), then the chips, a long name cut with an ellipsis at the screen's width, then the edit time and word count in `.phone-figures`; there is no per-note sync state.
+The web fallback's note keeps only a top bar of a back circle, the notebook's path in mono and a capsule with the mode toggle, and the chips' web pickers: Back walks back through the notes its links opened, and it has no find, formatting bar, AI button or note info.
+Under the native screens a note is its own screen pushed over the list, full bleed under the system bar, which holds Back, More, the mode toggle and Info; the toggle shows the mode it switches to.
+More holds Pin, Status, Move to Notebook, Tags, Share, Find in Note, Duplicate and Move to Trash.
+The system's bottom toolbar holds Back, Forward, Find and, in Edit, AI, and steps aside while the keyboard is up.
+The page draws none of its own bars, since the screens' stack is the note's history and a link pushes the linked note's screen.
+While typing in Edit the native formatting bar sits on the keyboard: a glass capsule of 44 pt buttons and a Hide Keyboard circle, solid under Reduce Transparency or Increase Contrast.
+The chips open the native pickers; Info opens Note Info as a system sheet with its figures, notebook, the created and modified dates, the backlinks and Move to Trash.
 The bar shows the title only once the note's own has scrolled under it.
 
-Find: the editor's own find, in a glass bar on the keyboard with a count, its numbers in `.phone-figures` and its words in the body font, previous, next and a close circle. It switches a note in Preview to Edit; on a locked note it shows the editor only while it is open, and the note keeps the mode it had.
+Find: the editor's own find, driven by the native find bar in the formatting bar's place, with a count in monospaced digits, previous, next and a close circle. It switches a note in Preview to Edit; on a locked note it shows the editor only while it is open, and the note keeps the mode it had.
 Choosing Preview while Find is open ends it.
 While editing is locked that editor takes no caret, so a tap in the text raises no keyboard.
-
-Note info: the sheet has the stats in mono, in two columns at the accessibility sizes; icon rows for notebook, created, modified and, on an enrolled device, synced devices, plain rows at full opacity, not buttons, each value under its label at the accessibility sizes; backlinks, which opens the linking notes when there are any; and Move to Trash. There is no revision history or export row: neither has a phone screen yet.
 
 Undo toast: regular glass, not interactive, `size.phone-toast` high between the `size.phone-screen-edge` keylines, `size.phone-toast-gap` above the tab bar (or above the safe area where no bar is up, and above the keyboard while it is), over a `shadow.phone-float-*` shadow in `color.phone.float-shadow`; the kind's glyph, the message and the Undo pill.
 The Undo pill (`size.phone-toast-undo`) reaches its 44 target inside the toast.

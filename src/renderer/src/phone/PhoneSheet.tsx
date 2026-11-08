@@ -77,7 +77,6 @@ export function PhoneSheet({
   children: ReactNode
   /** Its `close` moves as a drag down does. */
   ref?: Ref<SheetHandle>
-  tall?: boolean
   /** No head: the contents bring their own title. */
   plain?: boolean
   /** Before the title, which then starts the head and takes the detail sheet's size. */
@@ -190,7 +189,6 @@ export function PhoneSheet({
         onKeyDown={onKey}
         className="phone-sheet"
         data-shown={shown || undefined}
-        data-tall={props.tall || undefined}
         data-dragging={drag !== null || undefined}
         style={drag !== null ? { transform: `translateY(${drag}px)` } : undefined}
       >

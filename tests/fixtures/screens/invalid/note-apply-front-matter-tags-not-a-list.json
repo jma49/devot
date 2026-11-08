@@ -1,0 +1,14 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_ARGS_INVALID",
+  "message": {
+    "v": 1,
+    "id": 74,
+    "op": "note.applyFrontMatter",
+    "args": {
+      "noteId": "01890a5d-ac96-774b-bcce-b302099a8057",
+      "field": "tags",
+      "value": "{\"work\":1}"
+    }
+  }
+}

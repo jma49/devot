@@ -110,7 +110,22 @@ final class Haptics {
     }
 
     func play(_ event: HapticEvent) {
-        let generator = generator(event.kind)
+        play(kind: event.kind)
+    }
+
+    /// One the page asks for (`editor.haptic`), by the name `haptics.ts` gives it.
+    func play(page name: String) {
+        switch name {
+        case "light", "soft": play(kind: .light)
+        case "selection": play(kind: .selection)
+        case "success": play(kind: .success)
+        case "warning": play(kind: .warning)
+        default: return
+        }
+    }
+
+    private func play(kind: HapticKind) {
+        let generator = generator(kind)
         generator.prepare()
         generator.occurred()
     }

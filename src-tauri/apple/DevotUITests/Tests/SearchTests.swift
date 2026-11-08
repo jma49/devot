@@ -1,8 +1,8 @@
 import DevotScreens
 import XCTest
 
-/// The native Search tab in the installed app: the search circle, a query, the Titles scope, a result
-/// opened and Back to Search as it was.
+/// The native Search tab in the installed app: the search circle, a query, the Titles scope leaving a
+/// body-only match out, a result opened and Back to Search as it was.
 @MainActor
 final class SearchTests: XCTestCase {
     private var app: XCUIApplication!
@@ -36,14 +36,19 @@ final class SearchTests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10), "Search shows the system search field")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "the circle raises the keyboard")
         let title = L10n.welcomeExampleTitle()
-        field.typeText(title)
+        // A word only the welcome example's body has (src/renderer/src/welcome/markdown-example.md).
+        let body = "Superscripts"
+        field.typeText(body)
         let row = app.collectionViews.cells.matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "the welcome example is found")
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "the welcome example is found by its body")
         keepScreen("found")
         let titles = app.buttons[L10n.phoneSearchScopeTitles()]
         XCTAssertTrue(titles.waitForExistence(timeout: 5), "the field offers the Titles scope")
         titles.tap()
         XCTAssertTrue(waitUntil { titles.isSelected }, "Titles is chosen")
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10), "a match in the body alone leaves the Titles results")
+        field.tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: body.count) + title)
         XCTAssertTrue(row.waitForExistence(timeout: 15), "the welcome example is found by its title")
         keepScreen("found by title")
         XCTAssertTrue(waitUntil { row.isHittable })

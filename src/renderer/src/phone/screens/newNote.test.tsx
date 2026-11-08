@@ -43,14 +43,16 @@ interface EditorProps {
   core: Core
   noteId: string
   onLoaded?: (text: string) => void
+  onOpenFailed?: (noteId: string, code: string) => void
   handleRef?: { current: EditorHandle | null }
 }
 
-// `held` keeps each load back until the test lets it through, as a slow open does.
+// `held` keeps each load back until the test lets it through, as a slow open does; `fails` opens fail.
 const editors = vi.hoisted(() => ({
   focused: [] as string[],
-  typed: [] as { noteId: string; text: string }[],
   held: null as (() => void)[] | null,
+  fails: false,
+  typed: [] as { noteId: string; text: string }[],
 }))
 vi.mock('../../NoteEditor', () => ({
   NoteEditor: (props: EditorProps) => {
@@ -68,7 +70,8 @@ vi.mock('../../NoteEditor', () => ({
         } as unknown as EditorHandle
       }
       const load = () => latest.current.onLoaded?.('')
-      if (editors.held) editors.held.push(load)
+      if (editors.fails) latest.current.onOpenFailed?.(noteId, 'E_STORAGE_READ_FAILED')
+      else if (editors.held) editors.held.push(load)
       else load()
     }, [noteId, handleRef])
     return <div className="cm-editor" />
@@ -102,6 +105,7 @@ beforeEach(async () => {
   editors.focused = []
   editors.typed = []
   editors.held = null
+  editors.fails = false
   vi.mocked(invoke).mockImplementation(async (command) =>
     command === 'licence_get' ? PRO : undefined,
   )
@@ -156,6 +160,29 @@ async function focus(args: Record<string, unknown> = {}) {
 const listed = async (id: string) => (await shell.notes.list()).find((n) => n.id === id)
 
 describe('New Note under the native screens', () => {
+  it('waits for the core when New Note is asked before the lists are first read', async () => {
+    let release: () => void = () => {}
+    const flushed = new Promise<void>((resolve) => (release = resolve))
+    let held = false
+    const core = shell.core
+    setTestCore(
+      new Proxy(core, {
+        get: (target, key) => {
+          if (key !== 'flush' || held) return Reflect.get(target, key) as unknown
+          held = true
+          return () => flushed
+        },
+      }),
+    )
+    await act(async () => root.render(<PhoneApp />))
+    await vi.waitFor(() => expect(bridge.handlers['note.create']).toBeDefined())
+    const made = await swift('note.create', {})
+    expect(await listed(made['id'] as string)).toMatchObject({ bookId: null })
+    const today = await swift('note.today')
+    expect(await listed(today['id'] as string)).toBeDefined()
+    release()
+  })
+
   it('puts a note Swift names no notebook for in the Default Notebook', async () => {
     const book = await shell.books.create('Inbox', null)
     await start()
@@ -298,11 +325,64 @@ describe('New Note under the native screens', () => {
     expect(editors.focused).toStrictEqual([])
   })
 
+  it('takes no caret, and stops waiting at once, for a note whose open failed', async () => {
+    await start()
+    const id = (await swift('note.create', {}))['id'] as string
+    editors.fails = true
+    await swift('editor.show', { noteId: id, focus: 'body' })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const asked = bridge.handlers['editor.focus']!({})
+    await act(async () => {})
+    vi.useRealTimers()
+    expect(await Promise.race([asked, 'still waiting'])).toStrictEqual({ focused: false })
+    expect(editors.focused).toStrictEqual([])
+  })
+
+  it('discards a new note an earlier launch made, as that launch says it was made', async () => {
+    const book = await shell.books.create('Trips', null)
+    const left = await shell.notes.create('', book)
+    const moved = await shell.notes.create('', null)
+    await shell.notes.flush()
+    await start()
+    await swift('note.discard', { noteId: left, made: { bookId: book } })
+    await vi.waitFor(async () => expect(await listed(left)).toBeUndefined())
+    await swift('note.discard', { noteId: moved, made: { bookId: book } })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    expect(await listed(moved)).toBeDefined()
+  })
+
+  it("finds or makes today's note, the same one twice", async () => {
+    await start()
+    const first = await swift('note.today')
+    const again = await swift('note.today')
+    expect(again).toStrictEqual(first)
+    expect(Object.keys(first)).toStrictEqual(['id'])
+    expect((await listed(first['id'] as string))?.title).not.toBe('')
+  })
+
+  it("refuses to make today's note while editing is locked", async () => {
+    const ended = { state: 'ended', endsAt: Date.now() - 1, code: null, source: 'keychain' }
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === 'licence_get' ? { ...PRO, gated: true, state: 'none', trial: ended } : undefined,
+    )
+    await readCurrentLicence()
+    await start()
+    await expect(bridge.handlers['note.today']!({})).rejects.toThrow('E_LICENCE_REQUIRED')
+    expect(await shell.notes.list()).toStrictEqual([])
+  })
+
   it('refuses a focus Rust would not have passed on', async () => {
     await start()
     await expect(bridge.handlers['editor.show']!({ noteId: 'x', focus: 'title' })).rejects.toThrow(
       'E_SCREENS_ARGS_INVALID',
     )
     await expect(bridge.handlers['note.discard']!({})).rejects.toThrow('E_SCREENS_ARGS_INVALID')
+    for (const made of ['Trips', [], { bookId: '' }, { bookId: null, title: '' }]) {
+      await expect(bridge.handlers['note.discard']!({ noteId: 'x', made })).rejects.toThrow(
+        'E_SCREENS_ARGS_INVALID',
+      )
+    }
   })
 })

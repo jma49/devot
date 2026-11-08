@@ -96,6 +96,12 @@ final class SettingsScreens {
     }
 
     func controller(_ page: SettingsPage) -> UIViewController {
+        let controller = make(page)
+        controller.restorationIdentifier = page.pane
+        return controller
+    }
+
+    private func make(_ page: SettingsPage) -> UIViewController {
         switch page {
         case .general:
             SettingsHosting(title: L10n.settingsPaneGeneral(), GeneralPane(store: store, router: router))

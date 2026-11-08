@@ -171,6 +171,37 @@ describe('the native screens bridge', () => {
     expect(posted).toStrictEqual([])
   })
 
+  const linksAsked = () => tauri.invoked.filter((cmd) => cmd === 'deep_link_take').length
+
+  it('asks Rust for the held links once the library is listed and the screens are installed', async () => {
+    const { bridge } = start()
+    bridge.libraryListed()
+    await bridge.installed
+    await settle()
+    expect(linksAsked()).toBe(1)
+    bridge.libraryListed()
+    await settle()
+    expect(linksAsked()).toBe(1)
+  })
+
+  it('leaves the links held until the library is listed', async () => {
+    const { bridge } = start()
+    await bridge.installed
+    await settle()
+    expect(linksAsked()).toBe(0)
+    bridge.libraryListed()
+    await settle()
+    expect(linksAsked()).toBe(1)
+  })
+
+  it('never asks for the links without the screens', async () => {
+    const { bridge } = start([], undefined, false)
+    bridge.libraryListed()
+    await bridge.installed
+    await settle()
+    expect(linksAsked()).toBe(0)
+  })
+
   it('runs only ping until an operation gets its handler', () => {
     expect(Object.keys(SCREENS_HANDLERS)).toStrictEqual(['ping'])
     const sent = new Set(requests.map(([, fixture]) => (fixture.message as { op: string }).op))

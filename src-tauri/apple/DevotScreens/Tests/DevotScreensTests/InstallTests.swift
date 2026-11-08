@@ -45,7 +45,13 @@ final class InstallTests: XCTestCase {
 
     /// Lets queued appearance and layout run, as the next turn of the main run loop would.
     private func settle() {
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.25))
+    }
+
+    /// Turns the main run loop until the condition holds; a slow CI runner can take more than one turn.
+    private func settle(until condition: () -> Bool, timeout: TimeInterval = 10) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
     }
 
     private func sent(_ rust: FakeRust) throws -> [Message] {
@@ -205,7 +211,7 @@ final class InstallTests: XCTestCase {
         screens.request(.ping) { outcomes.append($0) }
         screens.request(.noteCreate, ["title": .string("Plans")]) { outcomes.append($0) }
         let ids = rust.calls.dropFirst(earlier).map(\.0)
-        XCTAssertEqual(ids.count, 2)
+        guard ids.count == 2 else { return XCTFail("expected two requests, got \(ids.count)") }
         let (ping, create) = (ids[0], ids[1])
         XCTAssertEqual(create, ping + 1)
         let sent = try Message(json: rust.calls[earlier + 1].1)
@@ -250,8 +256,11 @@ final class InstallTests: XCTestCase {
         screens.root.view.layoutIfNeeded()
         settle()
         screens.delivered(Data(#"{"v":1,"notice":"settings.open","pane":"licence","focusKey":true}"#.utf8))
-        settle()
         let tabs = screens.root.tabs
+        settle(until: {
+            tabs.settings.navigation.viewControllers.count == 2
+                && (try? sent(rust).contains { if case .direct(_, .licenceGet, _) = $0 { true } else { false } }) == true
+        })
         XCTAssertEqual(tabs.selected, .settings)
         XCTAssertEqual(tabs.settings.navigation.viewControllers.count, 2)
         XCTAssertTrue(tabs.settings.navigation.viewControllers.first === tabs.settings.root)
@@ -280,7 +289,14 @@ final class InstallTests: XCTestCase {
         XCTAssertEqual(rust.calls.count, 0)
         try show(root)
         root.view.layoutIfNeeded()
-        settle()
+        let asked = { (try? self.sent(rust).compactMap { message -> String? in
+            switch message {
+            case .direct(_, let op, _): op.rawValue
+            case .request(_, let op, _): op.rawValue
+            default: nil
+            }
+        }) ?? [] }
+        settle(until: { asked().contains("direct.editorSettings.get") && asked().contains { $0.hasPrefix("glass.") } })
         withExtendedLifetime(screens) {}
         let ops = try sent(rust).compactMap { message -> String? in
             switch message {

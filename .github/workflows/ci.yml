@@ -502,11 +502,12 @@ jobs:
     needs: [changes, iphone-build]
     if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: xcode-27
-    timeout-minutes: 20
+    # A slow xcode-27 runner spends up to 10 minutes on the download and the settle before a test runs.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [settings-1, settings-2, editor, rest]
+        shard: [settings-1, settings-2, editor, editor-bars, links, rest]
     env:
       DEVOT_UI_SHARD: ${{ matrix.shard }}
     steps:

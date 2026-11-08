@@ -7,12 +7,12 @@ import {
   useState,
   type RefObject,
 } from 'react'
-import type { NoteSummary } from '../../../../core/storage'
 import { PhoneNote, type NativeNoteChrome, type NoteCommands } from '../PhoneNote'
 import { closeGate } from '../requireEditing'
 import type { PhoneStore } from '../usePhoneData'
-import type { NativeEditor } from './editor'
+import { NO_FIND_COUNT, type NativeEditor } from './editor'
 import type { ScreensNotice } from './message'
+import { NOTE_PAGE_SCROLLS, pageScrolls, setFootInset } from './pageScroll'
 import type { PreparedNotes } from './prepared'
 
 /** Runs `then` once the frame after the next has started, when the last change has been painted. */
@@ -24,8 +24,8 @@ function afterPaint(then: () => void): () => void {
 }
 
 // The keyboard is up when Swift asks, so the caret waits for the note's load however slow it is (over
-// a second on a busy simulator); only an open that failed, which reports nothing, or a note that opens
-// in Preview, takes no caret.
+// a second on a busy simulator); a failed open or a note that opens in Preview takes no caret, and the
+// wait gives up only on a load that hangs.
 const FOCUS_WAIT_MS = 5000
 
 interface Focusing {
@@ -44,7 +44,6 @@ export function EditorHost(props: {
   editor: RefObject<NativeEditor | null>
   prepared: PreparedNotes
   openNote: (id: string) => void
-  onTrash: (note: NoteSummary) => void
 }) {
   const [shown, setShown] = useState<{ noteId: string; turn: number } | null>(null)
   const [visible, setVisible] = useState(false)
@@ -65,6 +64,10 @@ export function EditorHost(props: {
     () => ({
       openNote: (id) => latest.current.openNote(id),
       loaded: setLoadedId,
+      openFailed: (id) => {
+        if (typedIn.current === id) typedIn.current = null
+        if (focusing.current?.noteId === id) focusing.current.settle(false)
+      },
       mode: (noteId, mode) => {
         setShownMode({ noteId, mode })
         latest.current.notify({ notice: 'editor.mode', noteId, mode })
@@ -72,6 +75,9 @@ export function EditorHost(props: {
       title: (id, title) => latest.current.notify({ notice: 'editor.title', id, title }),
       titleVisible: (titleVisible) =>
         latest.current.notify({ notice: 'editor.scroll', titleVisible }),
+      facts: (facts) => latest.current.notify({ notice: 'editor.note', ...facts }),
+      picker: (noteId, picker) =>
+        latest.current.notify({ notice: 'editor.picker', noteId, picker }),
       commands,
       turn: shown?.turn ?? 0,
     }),
@@ -93,13 +99,18 @@ export function EditorHost(props: {
         typedIn.current = null
         focusing.current?.settle(false)
         commands.current?.leave()
+        setFootInset(0)
         // A write held for the screen being left must not run on an unlock after it has gone.
         closeGate()
         setVisible(false)
         return new Promise<void>((resolve) => afterPaint(resolve))
       },
       setMode: (mode) => commands.current?.setMode(mode),
-      info: () => commands.current?.info(),
+      format: (id) => commands.current?.format(id),
+      ai: (action) => commands.current?.ai(action),
+      find: (action, query) => commands.current?.find(action, query) ?? NO_FIND_COUNT,
+      insets: setFootInset,
+      duplicate: async () => (await commands.current?.duplicate()) ?? null,
       focus: (typed) =>
         new Promise<boolean>((resolve) => {
           const noteId = typedIn.current
@@ -131,6 +142,12 @@ export function EditorHost(props: {
     asking.settle(commands.current?.focusBody(asking.typed) ?? false)
   }, [asking, visible, shown, loadedId, shownMode])
 
+  useLayoutEffect(() => {
+    if (!NOTE_PAGE_SCROLLS || !visible) return
+    pageScrolls(true)
+    return () => pageScrolls(false)
+  }, [visible])
+
   const readyTurn = useRef(0)
   useEffect(() => {
     if (!visible || !shown || loadedId !== shown.noteId || readyTurn.current === shown.turn) return
@@ -148,7 +165,6 @@ export function EditorHost(props: {
           store={props.store}
           noteId={shown.noteId}
           onBack={() => latest.current.notify({ notice: 'nav.back' })}
-          onTrash={(note) => latest.current.onTrash(note)}
           native={chrome}
           takePreopened={props.prepared.take}
         />

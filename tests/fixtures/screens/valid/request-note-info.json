@@ -1,0 +1,11 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 46,
+    "op": "note.info",
+    "args": {
+      "noteId": "01890a5d-ac96-774b-bcce-b302099a8057"
+    }
+  }
+}

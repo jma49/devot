@@ -22,6 +22,18 @@ const MAX_BATCH_IDS: usize = 10_000;
 /// and a space; it never reads a longer query further.
 const MAX_QUERY_CHARS: usize = 10 * (100 + 16);
 const MAX_CODE_CHARS: usize = 64;
+/// MAX_TAG_NAME_CHARS in src/core/tagNames.ts.
+const MAX_TAG_NAME_CHARS: usize = 100;
+/// Far more tags than one note's front matter names.
+const MAX_FRONT_MATTER_TAGS: usize = 200;
+/// What the native find bar takes: a phrase, never a document.
+const MAX_FIND_CHARS: usize = 1000;
+/// A keyboard and its bar never cover more than a tall screen.
+const MAX_INSET: f64 = 4096.0;
+/// UIKit's keyboard animates for about a quarter of a second; anything past two is not one.
+const MAX_INSET_SECONDS: f64 = 2.0;
+/// `UIView.AnimationCurve` raw values, the keyboard's private 7 included.
+const MAX_CURVE: u64 = 7;
 /// What a new note's hidden field took before the page put the caret in its body: a few words.
 const MAX_TYPED_CHARS: usize = 1_000;
 
@@ -88,6 +100,21 @@ pub const GLASS_TRANSPARENCY_STEP: i32 = 5;
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct NoteArgs {
     pub note_id: String,
+}
+
+/// A new note as Swift saw it made, for a discard after a relaunch, when the page no longer knows it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Made {
+    pub book_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Discard {
+    pub note_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub made: Option<Made>,
 }
 
 /// Where the page may put the caret once Swift asks (`editor.focus`): a new note's body.
@@ -197,6 +224,102 @@ pub struct TemplateApply {
     pub book_id: Option<String>,
 }
 
+/// The buttons of the native formatting bar, by the editor's format IDs (`editor/formats.ts`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BarFormat {
+    Heading,
+    Bold,
+    Italic,
+    TaskList,
+    Code,
+    Link,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FormatArgs {
+    pub id: BarFormat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AiAction {
+    Suggest,
+    Accept,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AiArgs {
+    pub action: AiAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FindAction {
+    Search,
+    Next,
+    Previous,
+    Close,
+}
+
+/// The native find bar: `search` carries the query, the steps and `close` none.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FindArgs {
+    pub action: FindAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+}
+
+/// Where the keyboard and the formatting bar leave the note, and how the keyboard moved.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InsetArgs {
+    pub bottom: f64,
+    pub duration: f64,
+    pub curve: u64,
+}
+
+impl Eq for InsetArgs {}
+
+/// Note Info's dates, in milliseconds; the core refuses an update before the creation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct SetDates {
+    pub note_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<u64>,
+}
+
+/// The note field a front matter row names otherwise (`frontMatterView` in src/core/preview).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NoteField {
+    Title,
+    Status,
+    Tags,
+}
+
+/// Note Info's Apply: `value` is what the row offers, the tags as a JSON list of names.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ApplyFrontMatter {
+    pub note_id: String,
+    pub field: NoteField,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct AddTag {
+    pub note_id: String,
+    pub name: String,
+}
+
 /// What Swift may ask the page for: an operation joins with the pull request that first sends it.
 /// What Rust answers itself is a `direct::Op`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -211,7 +334,7 @@ pub enum Op {
     #[serde(rename = "note.create")]
     NoteCreate(NoteCreate),
     #[serde(rename = "note.discard")]
-    NoteDiscard(NoteArgs),
+    NoteDiscard(Discard),
     #[serde(rename = "tabs.show")]
     TabsShow(TabArgs),
     #[serde(rename = "tabs.popToRoot")]
@@ -226,8 +349,6 @@ pub enum Op {
     EditorHide(Empty),
     #[serde(rename = "editor.setMode")]
     EditorSetMode(ModeArgs),
-    #[serde(rename = "editor.info")]
-    EditorInfo(Empty),
     #[serde(rename = "glass.get")]
     GlassGet(Empty),
     #[serde(rename = "glass.set")]
@@ -250,6 +371,30 @@ pub enum Op {
     NoteComplete(NoteArgs),
     #[serde(rename = "note.undoStatus")]
     NoteUndoStatus(UndoStatus),
+    #[serde(rename = "editor.format")]
+    EditorFormat(FormatArgs),
+    #[serde(rename = "editor.ai")]
+    EditorAi(AiArgs),
+    #[serde(rename = "editor.find")]
+    EditorFind(FindArgs),
+    #[serde(rename = "editor.insets")]
+    EditorInsets(InsetArgs),
+    #[serde(rename = "editor.duplicate")]
+    EditorDuplicate(Empty),
+    #[serde(rename = "note.info")]
+    NoteInfo(NoteArgs),
+    #[serde(rename = "note.setDates")]
+    NoteSetDates(SetDates),
+    #[serde(rename = "note.applyFrontMatter")]
+    NoteApplyFrontMatter(ApplyFrontMatter),
+    #[serde(rename = "note.addTag")]
+    NoteAddTag(AddTag),
+    /// Today's note, found or made as `devot://today` does; the answer is its `id`.
+    #[serde(rename = "note.today")]
+    NoteToday(Empty),
+    /// The Activity tab's figures: the last weeks' writing and the most edited notes.
+    #[serde(rename = "activity.writing")]
+    ActivityWriting(Empty),
 }
 
 pub const OPS: &[&str] = &[
@@ -265,7 +410,6 @@ pub const OPS: &[&str] = &[
     "editor.prepare",
     "editor.hide",
     "editor.setMode",
-    "editor.info",
     "glass.get",
     "glass.set",
     "editor.focus",
@@ -277,6 +421,17 @@ pub const OPS: &[&str] = &[
     "note.text",
     "note.complete",
     "note.undoStatus",
+    "editor.format",
+    "editor.ai",
+    "editor.find",
+    "editor.insets",
+    "editor.duplicate",
+    "note.info",
+    "note.setDates",
+    "note.applyFrontMatter",
+    "note.addTag",
+    "note.today",
+    "activity.writing",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -347,6 +502,52 @@ pub struct NoteNew {
     pub book_id: Option<String>,
 }
 
+/// The shown note's chips and dates, for the native More menu, pickers and Note Info.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct EditorNote {
+    pub id: String,
+    pub book_id: Option<String>,
+    pub status: String,
+    pub pinned: bool,
+    pub tag_ids: Vec<String>,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Picker {
+    Notebook,
+    Status,
+    Tags,
+}
+
+/// A chip under the note's title: Swift opens its native picker.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct EditorPicker {
+    pub note_id: String,
+    pub picker: Picker,
+}
+
+/// `HapticKind` in src/renderer/src/phone/haptics.ts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HapticKind {
+    Light,
+    Soft,
+    Selection,
+    Success,
+    Warning,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EditorHaptic {
+    pub kind: HapticKind,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "notice", content = "fields")]
 pub enum Notice {
@@ -376,6 +577,12 @@ pub enum Notice {
     TagsChanged(Empty),
     #[serde(rename = "savedSearches.changed")]
     SavedSearchesChanged(Empty),
+    #[serde(rename = "editor.note")]
+    EditorNote(EditorNote),
+    #[serde(rename = "editor.picker")]
+    EditorPicker(EditorPicker),
+    #[serde(rename = "editor.haptic")]
+    EditorHaptic(EditorHaptic),
 }
 
 const NOTICES: &[&str] = &[
@@ -392,6 +599,9 @@ const NOTICES: &[&str] = &[
     "books.changed",
     "tags.changed",
     "savedSearches.changed",
+    "editor.note",
+    "editor.picker",
+    "editor.haptic",
 ];
 
 /// What Rust tells Swift itself, never passed on from the page: a notice without fields, after
@@ -407,7 +617,10 @@ pub enum FromRust {
     LicenceChanged,
 }
 
-pub const RUST_NOTICES: &[&str] = &["sync.changed", "sync.pairing", "licence.changed"];
+/// The notice that carries a link's route (`screens::route`); unlike `FromRust` it has fields.
+pub const ROUTE_NOTICE: &str = "route";
+
+pub const RUST_NOTICES: &[&str] = &["sync.changed", "sync.pairing", "licence.changed", "route"];
 
 impl FromRust {
     pub const ALL: [Self; 3] = [Self::SyncChanged, Self::SyncPairing, Self::LicenceChanged];
@@ -676,7 +889,10 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             book(create.book_id.as_ref())?;
             create.title.as_deref().map_or(Ok(()), title)
         }
-        Op::NoteDiscard(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::NoteDiscard(Discard { note_id, made }) => {
+            note_ids(std::slice::from_ref(note_id), 1)?;
+            book(made.as_ref().and_then(|made| made.book_id.as_ref()))
+        }
         Op::EditorShow(ShowNote { note_id, .. })
         | Op::EditorPrepare(NoteArgs { note_id })
         | Op::NoteText(NoteArgs { note_id })
@@ -699,6 +915,41 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             note_ids(std::slice::from_ref(&apply.template_id), 1)?;
             book(apply.book_id.as_ref())
         }
+        Op::NoteInfo(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::NoteSetDates(dates) => {
+            note_ids(std::slice::from_ref(&dates.note_id), 1)?;
+            match (dates.created_at, dates.updated_at) {
+                (None, None) => Err("E_SCREENS_ARGS_INVALID"),
+                (Some(created), Some(updated)) if created > updated => Err("E_SCREENS_DATES_ORDER"),
+                _ => Ok(()),
+            }
+        }
+        Op::NoteAddTag(AddTag { note_id, name }) => {
+            note_ids(std::slice::from_ref(note_id), 1)?;
+            tag_name(name)
+        }
+        Op::NoteApplyFrontMatter(apply) => {
+            note_ids(std::slice::from_ref(&apply.note_id), 1)?;
+            front_matter_value(apply.field, &apply.value)
+        }
+        Op::EditorFind(find) => match (find.action, find.query.as_deref()) {
+            (FindAction::Search, Some(query)) if query.chars().count() <= MAX_FIND_CHARS => Ok(()),
+            (FindAction::Search, Some(_)) => Err("E_SCREENS_QUERY_TOO_LONG"),
+            (FindAction::Next | FindAction::Previous | FindAction::Close, None) => Ok(()),
+            _ => Err("E_SCREENS_ARGS_INVALID"),
+        },
+        Op::EditorInsets(insets) => {
+            let within = |value: f64, max: f64| value.is_finite() && (0.0..=max).contains(&value);
+            if within(insets.bottom, MAX_INSET)
+                && within(insets.duration, MAX_INSET_SECONDS)
+                && insets.curve <= MAX_CURVE
+            {
+                Ok(())
+            } else {
+                Err("E_SCREENS_ARGS_INVALID")
+            }
+        }
+        Op::EditorFormat(_) | Op::EditorAi(_) | Op::EditorDuplicate(_) => Ok(()),
         Op::EditorFocus(FocusArgs { typed }) => {
             if typed
                 .as_ref()
@@ -722,10 +973,11 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
         | Op::GlassGet(_)
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
-        | Op::EditorInfo(_)
         | Op::TrashEmpty(_)
         | Op::BookCreate(_)
-        | Op::TemplateCreate(_) => Ok(()),
+        | Op::TemplateCreate(_)
+        | Op::NoteToday(_)
+        | Op::ActivityWriting(_) => Ok(()),
     }
 }
 
@@ -743,8 +995,48 @@ fn change(change: &Change) -> Result<(), &'static str> {
     }
 }
 
+fn front_matter_value(field: NoteField, value: &str) -> Result<(), &'static str> {
+    match field {
+        NoteField::Title => title(value),
+        NoteField::Status if NOTE_STATUSES.contains(&value) => Ok(()),
+        NoteField::Status => Err("E_SCREENS_ARGS_INVALID"),
+        NoteField::Tags => {
+            let names: Vec<String> =
+                serde_json::from_str(value).map_err(|_| "E_SCREENS_ARGS_INVALID")?;
+            if names.len() > MAX_FRONT_MATTER_TAGS {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            names.iter().try_for_each(|name| tag_name(name))
+        }
+    }
+}
+
+/// One line of at most MAX_TAG_NAME_CHARS characters, as the core takes a tag's name.
+fn tag_name(name: &str) -> Result<(), &'static str> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || name.contains(['\r', '\n']) {
+        return Err("E_SCREENS_ARGS_INVALID");
+    }
+    if name.chars().count() > MAX_TAG_NAME_CHARS {
+        return Err("E_SCREENS_TAG_TOO_LONG");
+    }
+    Ok(())
+}
+
 fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
     match notice {
+        Notice::EditorNote(note) => {
+            note_ids(std::slice::from_ref(&note.id), 1)?;
+            book(note.book_id.as_ref())?;
+            note_ids(&note.tag_ids, MAX_BATCH_IDS)?;
+            if !NOTE_STATUSES.contains(&note.status.as_str()) {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            Ok(())
+        }
+        Notice::EditorPicker(EditorPicker { note_id, .. }) => {
+            note_ids(std::slice::from_ref(note_id), 1)
+        }
         Notice::NotesChanged(changed) => note_ids(&changed.ids, MAX_CHANGED_IDS),
         Notice::EditorTitle(editor) => {
             note_ids(std::slice::from_ref(&editor.id), 1)?;
@@ -765,7 +1057,8 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
         | Notice::EditorScroll(_)
         | Notice::BooksChanged(_)
         | Notice::TagsChanged(_)
-        | Notice::SavedSearchesChanged(_) => Ok(()),
+        | Notice::SavedSearchesChanged(_)
+        | Notice::EditorHaptic(_) => Ok(()),
     }
 }
 
@@ -831,6 +1124,14 @@ mod tests {
                 FromPage::Reply(reply) => reply.to_value(),
                 FromPage::Notice(notice) => notice.to_value(),
             }),
+            "rust" if fixture.message["notice"] == ROUTE_NOTICE => {
+                let mut fields = fixture.message.as_object().cloned().unwrap_or_default();
+                fields.remove("v");
+                fields.remove("notice");
+                let route: super::super::route::Route =
+                    serde_json::from_value(Value::Object(fields)).expect("a route");
+                Ok(super::super::route::notice(&route))
+            }
             "rust" => FromRust::ALL
                 .into_iter()
                 .map(FromRust::to_value)
@@ -846,7 +1147,8 @@ mod tests {
         assert_eq!(FromRust::after(CHANGED_EVENT), Some(FromRust::SyncChanged));
         assert_eq!(FromRust::after(PAIRING_EVENT), Some(FromRust::SyncPairing));
         assert_eq!(FromRust::after(SOCKET_EVENT), None);
-        let names: Vec<_> = FromRust::ALL.into_iter().map(FromRust::name).collect();
+        let mut names: Vec<_> = FromRust::ALL.into_iter().map(FromRust::name).collect();
+        names.push(ROUTE_NOTICE);
         assert_eq!(names, RUST_NOTICES);
         assert!(RUST_NOTICES.iter().all(|name| !NOTICES.contains(name)));
     }
@@ -914,6 +1216,28 @@ mod tests {
         assert_eq!(
             from_swift(1, &excerpts(MAX_EXCERPT_IDS + 1)),
             Err("E_SCREENS_IDS_TOO_MANY")
+        );
+    }
+
+    fn apply_tags(count: usize) -> Vec<u8> {
+        let names: Vec<String> = (0..count).map(|i| format!("t{i}")).collect();
+        let value = serde_json::to_string(&names).unwrap();
+        bytes(&json!({
+            "v": 1, "id": 1, "op": "note.applyFrontMatter",
+            "args": { "noteId": NOTE, "field": "tags", "value": value }
+        }))
+    }
+
+    #[test]
+    fn applies_at_most_max_front_matter_tags_tags() {
+        assert!(from_swift(1, &apply_tags(MAX_FRONT_MATTER_TAGS)).is_ok());
+        assert!(
+            from_swift(1, &apply_tags(0)).is_ok(),
+            "the front matter may take every tag off"
+        );
+        assert_eq!(
+            from_swift(1, &apply_tags(MAX_FRONT_MATTER_TAGS + 1)),
+            Err("E_SCREENS_ARGS_INVALID")
         );
     }
 

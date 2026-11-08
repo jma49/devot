@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
-import { openPhoneNote, phoneNoteIds } from './phone'
+import { openPhoneNote } from './phone'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -46,16 +46,11 @@ test('the top bar has back, a mono crumb and a capsule; the title is 26 bold', a
   )
 })
 
-test('the mode toggle swaps Edit and Preview, and the sparkle leaves in Preview', async ({
-  page,
-}) => {
+test('the mode toggle swaps Edit and Preview', async ({ page }) => {
   const toEdit = note(page).getByRole('button', { name: 'Edit', exact: true })
   const toPreview = note(page).getByRole('button', { name: 'Preview', exact: true })
-  const ai = note(page).getByRole('button', { name: 'Suggest with AI' })
   await expect(note(page).locator('.phone-note-preview')).toHaveAttribute('data-shown', 'true')
-  await expect(ai).toHaveCount(0)
   await toEdit.click()
-  await expect(ai).toBeVisible()
   await expect(note(page).locator('.phone-note-preview')).not.toHaveAttribute('data-shown', 'true')
   await toPreview.click()
   await expect(note(page).locator('.phone-note-preview')).toHaveAttribute('data-shown', 'true')
@@ -83,61 +78,6 @@ test("Preview and Edit text share the title's edges", async ({ page }) => {
   const box = (await line.boundingBox())!
   const inset = await line.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft))
   expect(Math.abs(box.x + inset - heading.x)).toBeLessThanOrEqual(1)
-})
-
-test('bottom controls reach 44 points', async ({ page }) => {
-  await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
-  for (const name of ['Find in Note', 'Suggest with AI', 'Previous Note', 'Next Note']) {
-    const box = (await note(page).getByRole('button', { name }).boundingBox())!
-    expect(box.width).toBeGreaterThanOrEqual(44)
-    expect(box.height).toBeGreaterThanOrEqual(44)
-  }
-})
-
-test('find uses the editor: it counts matches, steps and closes', async ({ page }) => {
-  await note(page).getByRole('button', { name: 'Find in Note' }).click()
-  const field = note(page).getByRole('searchbox', { name: 'Find in Note' })
-  await expect(note(page).locator('.phone-note-bottom')).toHaveAttribute('data-hidden', 'true')
-  await field.fill('e')
-  await expect(note(page).locator('.phone-find-count')).toHaveText(/^\d+ of \d+$/)
-  await expect(note(page).locator('.cm-find-match').first()).toBeAttached()
-  await note(page).getByRole('button', { name: 'Next match' }).click()
-  await note(page).getByRole('button', { name: 'Close find' }).click()
-  await expect(field).toHaveCount(0)
-  await expect(note(page).locator('.cm-find-match')).toHaveCount(0)
-  await expect(note(page).locator('.phone-note-bottom')).not.toHaveAttribute('data-hidden', 'true')
-})
-
-test('typing shows the formatting bar on the keyboard and hides the bottom bar', async ({
-  page,
-}) => {
-  await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
-  await page.evaluate(() => {
-    const viewport = window.visualViewport!
-    Object.defineProperty(viewport, 'height', { value: window.innerHeight - 300 })
-    viewport.dispatchEvent(new Event('resize'))
-  })
-  await expect(note(page).locator('.phone-note-bottom')).toHaveAttribute('data-hidden', 'true')
-  const bar = note(page).getByRole('toolbar', { name: 'Formatting' })
-  await expect(note(page).locator('.phone-accessory')).toHaveAttribute('data-shown', 'true')
-  await expect(bar.getByRole('button')).toHaveCount(7)
-  await expect(note(page).getByRole('button', { name: 'Hide keyboard' })).toBeVisible()
-})
-
-test('note info has stats in figures, icon rows and a working Move to Trash', async ({ page }) => {
-  const listed = (await phoneNoteIds(page)).length
-  await note(page).getByRole('button', { name: 'Note Info' }).click()
-  const sheet = page.getByRole('dialog', { name: 'Note Info' })
-  await expect(sheet.locator('.phone-info-stat dd').first()).toHaveClass(/phone-figures/)
-  for (const row of ['Notebook', 'Created', 'Modified']) {
-    await expect(
-      sheet.locator('.phone-grouped-row').filter({ hasText: row }).locator('.phone-row-icon'),
-    ).toBeVisible()
-  }
-  await expect(sheet.getByText('Revision history')).toHaveCount(0)
-  await sheet.getByRole('button', { name: 'Move to Trash' }).click()
-  await expect(note(page)).toHaveCount(0)
-  await expect.poll(async () => (await phoneNoteIds(page)).length).toBe(listed - 1)
 })
 
 test('a long title at twice the text size wraps uncropped, and Return adds no line', async ({
@@ -224,92 +164,13 @@ test('wrapped chips are 44 tall around a 30 face, and their targets do not overl
   })
 })
 
-test('hidden note bars are inert', async ({ page }) => {
-  const bottom = note(page).locator('.phone-note-bottom')
-  const accessory = note(page).locator('.phone-accessory')
-  const focusable = (bar: typeof bottom) =>
-    bar
-      .locator('button:not([disabled])')
-      .first()
-      .evaluate((button) => {
-        button.focus()
-        return button.ownerDocument.activeElement === button
-      })
-  await expect(accessory).toHaveAttribute('inert')
-  await expect(bottom).not.toHaveAttribute('inert')
-  expect(await focusable(accessory)).toBe(false)
-  await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
-  await page.evaluate(() => {
-    const viewport = window.visualViewport!
-    Object.defineProperty(viewport, 'height', { value: window.innerHeight - 300 })
-    viewport.dispatchEvent(new Event('resize'))
-  })
-  await expect(bottom).toHaveAttribute('inert')
-  await expect(accessory).not.toHaveAttribute('inert')
-  expect(await focusable(bottom)).toBe(false)
-  expect(await focusable(accessory)).toBe(true)
-})
-
-test('note info metadata is plain rows at full opacity, with dates in figures', async ({
-  page,
-}) => {
-  await note(page).getByRole('button', { name: 'Note Info' }).click()
-  const sheet = page.getByRole('dialog', { name: 'Note Info' })
-  for (const label of ['Notebook', 'Created', 'Modified']) {
-    await expect(sheet.getByRole('button', { name: new RegExp(`^${label}`) })).toHaveCount(0)
-    const row = sheet.locator('.phone-grouped-row').filter({ hasText: label }).locator('> *')
-    expect(await row.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
-  }
-  for (const label of ['Created', 'Modified']) {
-    await expect(
-      sheet
-        .locator('.phone-grouped-row')
-        .filter({ hasText: label })
-        .locator('.phone-grouped-count'),
-    ).toHaveClass(/phone-figures/)
-  }
-  await expect(sheet.getByRole('button', { name: 'Move to Trash' })).toBeEnabled()
-})
-
-test('note info at twice the text size reflows without clipping', async ({ page }) => {
-  await atDoubleText(page)
-  await note(page).getByRole('button', { name: 'Note Info' }).click()
-  const sheet = page.getByRole('dialog', { name: 'Note Info' })
-  const stats = sheet.locator('.phone-info-stat')
-  await expect(stats).toHaveCount(4)
-  const lefts = await stats.evaluateAll((items) =>
-    items.map((item) => item.getBoundingClientRect().left),
-  )
-  expect(new Set(lefts).size).toBe(2)
-  const clipped = await sheet
-    .locator('.phone-card')
-    .evaluateAll((cards) => cards.filter((card) => card.scrollHeight > card.clientHeight).length)
-  expect(clipped).toBe(0)
-  const row = sheet.locator('.phone-grouped-row').filter({ hasText: 'Notebook' })
-  const [label, value] = await Promise.all([
-    row.locator('.phone-grouped-label').boundingBox(),
-    row.locator('.phone-grouped-count').boundingBox(),
-  ])
-  expect(value!.y).toBeGreaterThanOrEqual(label!.y + label!.height - 1)
-  expect(label!.height).toBeLessThan(2 * 17 * 2)
-})
-
 test.describe('under Reduce Motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } })
 
-  test('a sheet and the bottom bar only crossfade', async ({ page }) => {
+  test('a sheet only crossfades', async ({ page }) => {
     await expect(page.locator(':root')).toHaveAttribute('data-motion', 'reduced')
-    const bottom = note(page).locator('.phone-note-bottom')
-    await note(page).getByRole('button', { name: 'Find in Note' }).click()
-    await expect(bottom).toHaveAttribute('data-hidden', 'true')
-    const bar = await bottom.evaluate((el) => ({
-      translate: getComputedStyle(el).translate,
-      property: getComputedStyle(el).transitionProperty,
-    }))
-    expect(bar).toEqual({ translate: 'none', property: 'opacity' })
-    await note(page).getByRole('button', { name: 'Close find' }).click()
-    await note(page).getByRole('button', { name: 'Note Info' }).click()
-    const sheet = page.getByRole('dialog', { name: 'Note Info' })
+    await note(page).locator('.phone-chip-target').nth(1).click()
+    const sheet = page.getByRole('dialog', { name: 'Status' })
     await expect(sheet).toHaveCSS('opacity', '1')
     const seen = await sheet.evaluate((el) => ({
       transform: getComputedStyle(el).transform,
@@ -327,8 +188,7 @@ test.describe('which mode a note opens in', () => {
   const modeOf = (page: Page) => note(page).locator('.phone-note-body')
   const preview = (page: Page) => note(page).locator('.phone-note-preview')
   const heading = (page: Page) => note(page).locator('.phone-note-heading')
-  const previous = (page: Page) => note(page).getByRole('button', { name: 'Previous Note' })
-  const nextNote = (page: Page) => note(page).getByRole('button', { name: 'Next Note' })
+  const back = (page: Page) => note(page).getByRole('button', { name: 'Back', exact: true })
 
   const ydocOf = (body: string) => {
     const doc = new Y.Doc()
@@ -424,22 +284,22 @@ test.describe('which mode a note opens in', () => {
     await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
   })
 
-  test('Back and Forward return to each note in the mode it was left in', async ({ page }) => {
+  test('Back returns to the linking note in the mode it was left in, then leaves', async ({
+    page,
+  }) => {
     await seedAndOpen(page, 'Linking')
     await preview(page).getByRole('link', { name: 'Target' }).click()
     await expect(heading(page)).toHaveValue('Target')
     await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
     await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
 
-    await previous(page).click()
+    await back(page).click()
     await expect(heading(page)).toHaveValue('Linking')
     await expect(modeOf(page)).toHaveAttribute('data-mode', 'preview')
     await expect(preview(page).getByRole('link', { name: 'Target' })).toBeVisible()
 
-    await nextNote(page).click()
-    await expect(heading(page)).toHaveValue('Target')
-    await expect(note(page).locator('.cm-content')).toContainText('Target body')
-    await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
+    await back(page).click()
+    await expect(note(page)).toHaveCount(0)
   })
 })
 
@@ -476,23 +336,6 @@ test('an unbroken long tag stays on screen, cut with an ellipsis, in a 44 target
   const text = target.locator('.phone-chip-text')
   await expect(text).toHaveCSS('text-overflow', 'ellipsis')
   expect(await text.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
-})
-
-test('the find count draws its numbers as figures and its words in the body font', async ({
-  page,
-}) => {
-  await note(page).getByRole('button', { name: 'Find in Note' }).click()
-  await note(page).getByRole('searchbox', { name: 'Find in Note' }).fill('e')
-  const count = note(page).locator('.phone-find-count')
-  await expect(count).toHaveText(/^\d+ of \d+$/)
-  await expect(count).not.toHaveCSS('font-family', /mono|Menlo/i)
-  const figures = count.locator('.phone-figures')
-  await expect(figures).toHaveCount(2)
-  for (const figure of await figures.all()) {
-    await expect(figure).toHaveText(/^\d+$/)
-    await expect(figure).toHaveCSS('font-variant-numeric', 'tabular-nums')
-    await expect(figure).not.toHaveCSS('font-family', /mono|Menlo/i)
-  }
 })
 
 test('the tag field is concentric with the sheet', async ({ page }) => {

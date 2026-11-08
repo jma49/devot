@@ -1,0 +1,9 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 61,
+    "op": "activity.writing",
+    "args": {}
+  }
+}

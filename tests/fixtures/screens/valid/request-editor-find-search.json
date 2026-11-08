@@ -1,0 +1,12 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 42,
+    "op": "editor.find",
+    "args": {
+      "action": "search",
+      "query": "groceries"
+    }
+  }
+}

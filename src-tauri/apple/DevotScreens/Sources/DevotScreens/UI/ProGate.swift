@@ -10,6 +10,14 @@ enum WriteIntent: Equatable {
     case newNotebook
     case newTemplate
     case fromTemplate(templateId: String, bookId: String?)
+    /// A tag made by name on the note, from the tags picker.
+    case addTag(noteId: String, name: String)
+    /// The editor's note copied, then opened.
+    case duplicate(noteId: String)
+    /// Note Info's dates, as milliseconds since 1970.
+    case setDates(noteId: String, createdAt: Double?, updatedAt: Double?)
+    /// A front matter row's value given to the note, from Note Info's Apply.
+    case applyFrontMatter(noteId: String, field: FrontMatter.Field, value: String)
 }
 
 /// The short Pro sheet's kinds, as `requireEditing.ts` names them.

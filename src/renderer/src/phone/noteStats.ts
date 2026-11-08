@@ -12,7 +12,7 @@ export interface NoteStats {
 
 const NONE: NoteStats = { words: 0, characters: 0, readingMinutes: 1 }
 
-function statsOf({ words, characters }: NoteCounts): NoteStats {
+export function statsOf({ words, characters }: NoteCounts): NoteStats {
   return {
     words,
     characters,

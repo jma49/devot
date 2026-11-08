@@ -12,17 +12,35 @@ private let second = "01970000-0000-7000-8000-000000000002"
 private final class FakePage {
     var shown: [String] = []
     var modes: [NoteMode] = []
-    var infos = 0
-    var hides: [() -> Void] = []
     var appeared: [Tab] = []
+    var asked: [(op: Op, args: [String: JSONValue])] = []
+    var answers: [Op: JSONValue] = [:]
+    var writes: [WriteIntent] = []
+    var opened: [String] = []
+    var trashes: [(id: String, leave: @MainActor () -> Void)] = []
 
     var actions: EditorActions {
-        EditorActions(
+        var actions = EditorActions(
             show: { [unowned self] id, _ in shown.append(id) },
             setMode: { [unowned self] in modes.append($0) },
-            info: { [unowned self] in infos += 1 },
             appeared: { [unowned self] in appeared.append($0) })
+        actions.page = { [unowned self] op, args, done in
+            asked.append((op, args))
+            done(.ok(answers[op] ?? .object([:])))
+        }
+        actions.ask = { [unowned self] in writes.append($0) }
+        actions.write = { [unowned self] in writes.append($0) }
+        actions.open = { [unowned self] id, _ in opened.append(id) }
+        actions.trash = { [unowned self] id, leave in trashes.append((id, leave)) }
+        return actions
     }
+
+    func ops(_ op: Op) -> [[String: JSONValue]] { asked.filter { $0.op == op }.map(\.args) }
+}
+
+/// Takes first responder without raising the system keyboard, so a test posts the keyboard's frames itself.
+final class QuietResponder: UIView {
+    override var canBecomeFirstResponder: Bool { true }
 }
 
 /// A back swipe the test holds part way and then lets go or turns back, as a finger would.
@@ -67,7 +85,8 @@ final class EditorScreenTests: XCTestCase {
     private var page: FakePage!
     private var webView: RecordingWebView!
     private var host: WebViewHost!
-    private var list: WebTabScreen!
+    /// A native list, which never holds the web view: under it the web view rests on the stage.
+    private var list: UIViewController!
     private var navigation: UINavigationController!
 
     override func setUp() async throws {
@@ -81,9 +100,7 @@ final class EditorScreenTests: XCTestCase {
         host.windowSize(window.bounds.size)
         window.addSubview(host.stage)
         host.stage.addSubview(webView)
-        list = WebTabScreen(tab: .notes, host: host) { _ in }
-        list.hideEditor = { [unowned self] done in page.hides.append(done) }
-        list.hideTimeout = 10
+        list = UIViewController()
         navigation = UINavigationController(rootViewController: list)
         window.rootViewController = navigation
         window.makeKeyAndVisible()
@@ -91,12 +108,29 @@ final class EditorScreenTests: XCTestCase {
         webView.resized = 0
         webView.leftWindow = 0
         webView.movesAnimated = []
-        page.hides = []
     }
 
     override func tearDown() async throws {
         window?.isHidden = true
         window = nil
+        KeyboardTracker.latest = nil
+    }
+
+    /// Posts the system's keyboard frame change: a keyboard `height` tall at the window's foot, or gone off it.
+    private func postKeyboard(covering height: CGFloat) throws {
+        let window = try XCTUnwrap(window)
+        let shown = height > 0 ? height : 336
+        let frame = CGRect(
+            x: 0, y: window.bounds.height - (height > 0 ? height : 0), width: window.bounds.width, height: shown)
+        NotificationCenter.default.post(
+            name: UIResponder.keyboardWillChangeFrameNotification, object: nil,
+            userInfo: [
+                UIResponder.keyboardFrameEndUserInfoKey: NSValue(
+                    cgRect: window.convert(frame, to: window.screen.coordinateSpace)),
+                UIResponder.keyboardAnimationDurationUserInfoKey: NSNumber(value: 0.25),
+                UIResponder.keyboardAnimationCurveUserInfoKey: NSNumber(value: 7),
+            ])
+        settle()
     }
 
     /// Lets queued appearance, layout and the system's push or pop run to their end.
@@ -160,7 +194,7 @@ final class EditorScreenTests: XCTestCase {
     }
 
     func testAPushMovesTheWebViewIntoTheEditorWithoutLeavingTheWindowOrResizing() throws {
-        XCTAssertTrue(webView.superview === list.view)
+        XCTAssertTrue(webView.superview === host.stage)
         let screen = editor(first)
         push(screen)
         XCTAssertTrue(webView.isDescendant(of: screen.view))
@@ -170,11 +204,9 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertEqual(webView.resized, 0)
         XCTAssertTrue(webView.superview === screen.webContainer)
         XCTAssertEqual(page.shown, [first])
-        XCTAssertNotNil(list.snapshot, "the list under the slide is a still")
         XCTAssertTrue(screen.hidesBottomBarWhenPushed)
         XCTAssertFalse(try XCTUnwrap(navigation.interactiveContentPopGestureRecognizer).isEnabled)
         XCTAssertFalse(navigation.isNavigationBarHidden)
-        XCTAssertEqual(list.navigationItem.backButtonDisplayMode, .minimal)
     }
 
     func testTheCoverStaysUntilThePageHasPaintedTheNote() {
@@ -224,11 +256,10 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertTrue(webView.isDescendant(of: screen.view))
         XCTAssertTrue(field.isFirstResponder)
         XCTAssertEqual(webView.movesAnimated, [])
-        XCTAssertTrue(page.hides.isEmpty)
         XCTAssertEqual(webView.leftWindow, 0)
     }
 
-    func testACompletedPopReturnsTheWebViewWithoutAnimation() throws {
+    func testACompletedPopRestsTheWebViewOnTheStageWithoutAnimation() throws {
         let screen = editor(first)
         push(screen)
         webView.movesAnimated = []
@@ -236,17 +267,11 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertTrue(webView.isDescendant(of: screen.view), "the live note slides out")
         swipe.interaction.finish()
         settleTransition()
-        XCTAssertTrue(webView.superview === list.view)
+        XCTAssertTrue(webView.superview === host.stage)
+        XCTAssertNil(host.holder)
         XCTAssertEqual(webView.movesAnimated, [false])
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(webView.resized, 0)
-
-        let still = try XCTUnwrap(list.snapshot)
-        XCTAssertTrue(list.view.subviews.last === still, "the list's still covers the page until it repaints")
-        XCTAssertEqual(page.hides.count, 1)
-        page.hides[0]()
-        XCTAssertNil(list.snapshot)
-        XCTAssertNil(still.superview)
     }
 
     func testTheSystemPopKeepsTheNoteInTheLeavingScreenUntilItEnds() throws {
@@ -256,20 +281,9 @@ final class EditorScreenTests: XCTestCase {
         settle(0.02)
         XCTAssertTrue(webView.isDescendant(of: screen.view))
         settleTransition()
-        XCTAssertTrue(webView.superview === list.view)
-        XCTAssertTrue(host.holder === list)
-        XCTAssertTrue(navigation.isNavigationBarHidden)
+        XCTAssertTrue(webView.superview === host.stage)
+        XCTAssertNil(host.holder)
         XCTAssertEqual(webView.leftWindow, 0)
-        XCTAssertEqual(page.hides.count, 1)
-    }
-
-    func testTheSnapshotIsDroppedWhenThePageDoesNotAnswer() throws {
-        list.hideTimeout = 0.1
-        push(editor(first))
-        navigation.popViewController(animated: true)
-        settleTransition()
-        settle(until: { list.snapshot == nil })
-        XCTAssertNil(list.snapshot)
     }
 
     func testALinkLeavesAStillInTheFirstEditorAndShowsItAgainOnBack() throws {
@@ -291,7 +305,6 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertTrue(one.webContainer.subviews.last === still)
         XCTAssertFalse(one.cover.waiting, "no blank cover over a note the still already shows")
         XCTAssertEqual(page.shown, [first, second, first])
-        XCTAssertTrue(page.hides.isEmpty)
         XCTAssertEqual(webView.leftWindow, 0)
 
         one.ready(second)
@@ -324,9 +337,220 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertEqual(screen.modeItem.accessibilityLabel, L10n.phoneNoteEdit())
         screen.toggleMode()
         XCTAssertEqual(page.modes, [.preview, .edit])
+        screen.showNote(facts(first))
         screen.showInfo()
-        XCTAssertEqual(page.infos, 1)
+        XCTAssertEqual(page.ops(.noteInfo).first?["noteId"], .string(first))
+        settle(until: { screen.presentedViewController is ContentSheetController })
         XCTAssertEqual(screen.navigationItem.backButtonDisplayMode, .minimal)
+    }
+
+    private func info(title: String?) -> JSONValue {
+        var row: [String: JSONValue] = [
+            "key": .string("title"), "value": .object(["kind": .string("text"), "text": .string("Trip")]),
+        ]
+        if let title {
+            row["difference"] = .object(["field": .string("title"), "badge": .string("Note: \(title)"), "value": .string("Trip")])
+        }
+        return .object([
+            "words": .number(1), "characters": .number(4), "readingMinutes": .number(1), "revisions": .number(0),
+            "backlinks": .array([]),
+            "frontMatter": .object(["kind": .string("properties"), "rows": .array([.object(row)])]),
+        ])
+    }
+
+    func testNoteInfoAppliesAFrontMatterRowThroughTheGateAndReadsItselfAgain() throws {
+        let screen = editor(first)
+        push(screen)
+        screen.showNote(facts(first))
+        page.answers[.noteInfo] = info(title: "Plans")
+        screen.showInfo()
+        settle(until: { screen.presentedViewController is ContentSheetController })
+        let shown = try XCTUnwrap(screen.noteInfo)
+        let row = try XCTUnwrap(shown.rows.first)
+        XCTAssertEqual(row.difference?.value, "Trip")
+        shown.apply(try XCTUnwrap(row.difference))
+        XCTAssertEqual(page.writes.last, .applyFrontMatter(noteId: first, field: .title, value: "Trip"))
+        page.answers[.noteInfo] = info(title: nil)
+        screen.retitle("Trip")
+        XCTAssertEqual(page.ops(.noteInfo).count, 2, "the note's new title reads Note Info again")
+        XCTAssertNil(shown.rows.first?.difference)
+        screen.showNote(facts(first, status: "active"))
+        XCTAssertEqual(page.ops(.noteInfo).count, 3)
+    }
+
+    private func facts(_ id: String, pinned: Bool = false, status: String = "none") -> EditorNote {
+        EditorNote(id: id, bookId: nil, status: status, pinned: pinned, tagIds: [], createdAt: 1, updatedAt: 2)
+    }
+
+    func testTheBarsCarryMoreModeAndInfoAndTheToolbarBackForwardFindAndAI() throws {
+        let screen = editor(first)
+        push(screen)
+        XCTAssertEqual(screen.navigationItem.rightBarButtonItems, [screen.moreItem, screen.modeItem, screen.infoItem])
+        XCTAssertEqual(screen.moreItem.accessibilityLabel, L10n.noteMore())
+        XCTAssertFalse(navigation.isToolbarHidden)
+        let items = try XCTUnwrap(screen.toolbarItems)
+        XCTAssertEqual(items.count, 5)
+        XCTAssertEqual(
+            Array(items.prefix(3)), [screen.backItem, screen.forwardItem, screen.findItem],
+            "Back, Forward and Find stand together, so the system draws them on one glass")
+        XCTAssertFalse([screen.backItem, screen.forwardItem, screen.findItem, screen.aiItem].contains(items[3]))
+        XCTAssertEqual(items[4], screen.aiItem, "a flexible space sets AI apart on its own glass")
+        XCTAssertFalse(screen.forwardItem.isEnabled)
+        screen.showMode(.preview)
+        XCTAssertTrue(screen.aiItem.isHidden)
+        screen.showMode(.edit)
+        XCTAssertFalse(screen.aiItem.isHidden)
+    }
+
+    func testTheMoreMenuNamesEachActionAndTicksTheNotesStatus() throws {
+        let screen = editor(first)
+        push(screen)
+        XCTAssertTrue(screen.moreMenu().isEmpty, "no menu before the page has said what the note is")
+        screen.showNote(facts(first, pinned: true, status: "active"))
+        let titles = screen.moreMenu().compactMap { $0 as? UIMenu }.flatMap(\.children).map(\.title)
+        XCTAssertEqual(
+            titles,
+            [
+                L10n.noteUnpin(), L10n.phoneStatus(), L10n.noteMenuMove(), L10n.phoneNoteTags(), L10n.phoneActionShare(),
+                L10n.phoneNoteFind(), L10n.noteMenuDuplicate(), L10n.noteMoveToTrash(),
+            ])
+        let statuses = try XCTUnwrap(
+            screen.moreMenu().compactMap { $0 as? UIMenu }.flatMap(\.children).compactMap { $0 as? UIMenu }.first)
+        XCTAssertEqual(statuses.children.compactMap { ($0 as? UIAction)?.state == .on ? $0.title : nil }, [NoteStatus.active.name])
+        XCTAssertTrue(page.writes.isEmpty, "a menu writes nothing until an item is chosen")
+    }
+
+    func testForwardOpensTheNotePoppedLastOffTheScreen() {
+        let one = editor(first)
+        push(one)
+        push(editor(second, title: "Second"))
+        navigation.popViewController(animated: true)
+        settleTransition()
+        XCTAssertTrue(one.forwardItem.isEnabled)
+        XCTAssertEqual(one.forward?.id, second)
+    }
+
+    func testFindSwapsInItsBarAndShowsTheCountOfTheLatestQuery() {
+        let screen = editor(first)
+        push(screen)
+        page.answers[.editorFind] = .object(["total": .number(3), "current": .number(1), "capped": .bool(false)])
+        screen.startFind()
+        XCTAssertTrue(screen.finding)
+        XCTAssertEqual(screen.findBar.alpha, 1)
+        XCTAssertEqual(screen.formattingBar.alpha, 0)
+        XCTAssertTrue(navigation.isToolbarHidden)
+        screen.findBar.field.text = "cat"
+        screen.findBar.field.sendActions(for: .editingChanged)
+        XCTAssertEqual(page.ops(.editorFind).last, ["action": .string("search"), "query": .string("cat")])
+        XCTAssertEqual(screen.findBar.count.text, L10n.phoneFindCount(current: "1", total: "3"))
+        screen.closeFind()
+        XCTAssertEqual(page.ops(.editorFind).last, ["action": .string("close")])
+        XCTAssertEqual(screen.findBar.alpha, 0)
+    }
+
+    func testTheToolbarHidesInsideTheKeyboardsOwnAnimationAndThePageGetsTheInsetsAtOnce() throws {
+        let screen = editor(first)
+        push(screen)
+        var animations: [(TimeInterval, UIView.AnimationOptions)] = []
+        var hiddenInside: Bool?
+        screen.keyboard.animate = { [unowned self] duration, options, changes in
+            animations.append((duration, options))
+            changes()
+            hiddenInside = navigation.isToolbarHidden
+        }
+        let responder = QuietResponder()
+        webView.addSubview(responder)
+        XCTAssertTrue(responder.becomeFirstResponder())
+        let window = try XCTUnwrap(screen.view.window)
+        let height: CGFloat = 336
+        let frame = CGRect(x: 0, y: window.bounds.height - height, width: window.bounds.width, height: height)
+        let screenFrame = window.convert(frame, to: window.screen.coordinateSpace)
+        screen.keyboard.keyboardWillChange([
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: screenFrame),
+            UIResponder.keyboardAnimationDurationUserInfoKey: NSNumber(value: 0.25),
+            UIResponder.keyboardAnimationCurveUserInfoKey: NSNumber(value: 7),
+        ])
+        XCTAssertEqual(animations.count, 1)
+        XCTAssertEqual(animations.first?.0, 0.25)
+        XCTAssertEqual(animations.first?.1, UIView.AnimationOptions(rawValue: 7 << 16))
+        XCTAssertEqual(hiddenInside, true)
+        XCTAssertEqual(screen.formattingBar.alpha, 1)
+        let insets = try XCTUnwrap(page.ops(.editorInsets).last)
+        let bottom = height + Tokens.Size.phoneTarget + Tokens.Size.phoneSheetInset
+        XCTAssertEqual(insets["bottom"], .number(Double(bottom)))
+        XCTAssertEqual(insets["duration"], .number(0.25))
+        XCTAssertEqual(insets["curve"], .number(7))
+        XCTAssertEqual(webView.scrollView.contentInset.bottom, bottom)
+        XCTAssertEqual(webView.scrollView.keyboardDismissMode, .interactive)
+        XCTAssertTrue(screen.contentScrollView(for: .top) === webView.scrollView)
+    }
+
+    func testAKeyboardRaisedForASheetOverTheNoteLeavesTheBarsAndTheInsets() throws {
+        let screen = editor(first)
+        push(screen)
+        let sheet = UIViewController()
+        let field = QuietResponder()
+        sheet.view.addSubview(field)
+        screen.present(sheet, animated: false)
+        settle(until: { screen.presentedViewController === sheet && !sheet.isBeingPresented })
+        XCTAssertTrue(field.becomeFirstResponder())
+        let sent = page.ops(.editorInsets).count
+        try postKeyboard(covering: 336)
+        XCTAssertFalse(screen.keyboardUp)
+        XCTAssertFalse(navigation.isToolbarHidden)
+        XCTAssertEqual(screen.formattingBar.alpha, 0)
+        XCTAssertEqual(page.ops(.editorInsets).count, sent, "the page's foot stays as it was")
+        XCTAssertEqual(webView.scrollView.contentInset.bottom, 0)
+        field.resignFirstResponder()
+        sheet.dismiss(animated: false)
+    }
+
+    func testANoteShownAgainTakesTheKeyboardAsItIsNowNotAsItWasWhenCovered() throws {
+        let one = editor(first)
+        push(one)
+        let responder = QuietResponder()
+        webView.addSubview(responder)
+        XCTAssertTrue(responder.becomeFirstResponder())
+        try postKeyboard(covering: 336)
+        XCTAssertTrue(one.keyboardUp)
+        XCTAssertTrue(navigation.isToolbarHidden)
+        push(editor(second, title: "Second"))
+        responder.resignFirstResponder()
+        try postKeyboard(covering: 0)
+        navigation.popViewController(animated: true)
+        settleTransition()
+        XCTAssertTrue(host.holder === one)
+        XCTAssertFalse(one.keyboardUp)
+        XCTAssertFalse(navigation.isToolbarHidden)
+        XCTAssertEqual(one.formattingBar.alpha, 0)
+        XCTAssertEqual(webView.scrollView.contentInset.bottom, 0)
+        XCTAssertEqual(page.ops(.editorInsets).last?["bottom"], .number(0))
+    }
+
+    func testTheFindBarKeepsItsRoomAtTheFootWhileTheKeyboardIsDown() {
+        let screen = editor(first)
+        push(screen)
+        let sent = page.ops(.editorInsets).count
+        screen.startFind()
+        let bar = Tokens.Size.phoneTarget + Tokens.Size.phoneSheetInset
+        XCTAssertEqual(page.ops(.editorInsets).dropFirst(sent).first?["bottom"], .number(Double(bar)))
+        screen.closeFind()
+        settle()
+        XCTAssertEqual(page.ops(.editorInsets).last?["bottom"], .number(0))
+        XCTAssertEqual(webView.scrollView.contentInset.bottom, 0)
+    }
+
+    func testMoveToTrashLeavesTheNoteOnlyOnceItIsInTheTrash() throws {
+        let screen = editor(first)
+        push(screen)
+        screen.showNote(facts(first))
+        screen.trash()
+        XCTAssertEqual(page.trashes.map(\.id), [first])
+        settle()
+        XCTAssertTrue(navigation.topViewController === screen, "a write still under way, refused or failed leaves the note")
+        page.trashes[0].leave()
+        settleTransition()
+        XCTAssertTrue(navigation.topViewController === list)
     }
 
     func testTheBarTakesTheTitleOnceTheNotesOwnIsUnderIt() {
