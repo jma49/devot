@@ -1463,6 +1463,71 @@ mod seats {
         assert!(!stored.contains(OTHER_ID));
     }
 
+    /// Stands in for the licence item while a keychain prompt is open: the schedule's tick runs
+    /// meanwhile and clears the seat item's read failure.
+    struct TicksDuringWrite {
+        licence: std::sync::OnceLock<std::sync::Weak<Licence>>,
+        activation: Arc<MemoryKey>,
+    }
+
+    impl super::super::store::KeyStore for TicksDuringWrite {
+        fn get(&self) -> Result<Option<String>, &'static str> {
+            Ok(None)
+        }
+
+        fn set(&self, _: &str) -> Result<(), &'static str> {
+            self.activation.unreadable.store(false, Ordering::SeqCst);
+            if let Some(licence) = self.licence.get().and_then(std::sync::Weak::upgrade) {
+                *crate::locks::lock(&licence.seat_unread) = None;
+            }
+            Ok(())
+        }
+
+        fn clear(&self) -> Result<(), &'static str> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_seat_item_read_again_while_the_key_is_stored_does_not_deadlock() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let activation = Arc::new(MemoryKey::default());
+        activation.unreadable.store(true, Ordering::SeqCst);
+        let key_store = Arc::new(TicksDuringWrite {
+            licence: std::sync::OnceLock::new(),
+            activation: Arc::clone(&activation),
+        });
+        let licence = Arc::new(
+            Licence::new(
+                test_keys(true),
+                Arc::clone(&key_store) as Arc<dyn super::super::store::KeyStore>,
+                trial_over(),
+                dir.path(),
+                Arc::new(|_: &Snapshot| {}),
+            )
+            .with_clock(Arc::new(|| START))
+            .with_activation(
+                Arc::new(MemoryKey::default()),
+                Arc::clone(&activation) as Arc<dyn super::super::store::KeyStore>,
+                Arc::new(|_: &str, device: &str, _: &str| active(device)),
+            ),
+        );
+        key_store
+            .licence
+            .set(Arc::downgrade(&licence))
+            .expect("licence");
+        let (sent, received) = std::sync::mpsc::channel();
+        let setter = Arc::clone(&licence);
+        std::thread::spawn(move || {
+            let _ = sent.send(setter.set(&key(ID)).map(|snapshot| snapshot.id));
+        });
+        let set = received
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("set returns");
+        assert_eq!(set, Ok(Some(ID.to_owned())));
+        assert_eq!(licence.require_write(Write::Content), Ok(()));
+    }
+
     #[test]
     fn swapping_keys_does_not_restart_a_window() {
         let s = seat_setup(|_| Err("E_NET_TIMEOUT"));

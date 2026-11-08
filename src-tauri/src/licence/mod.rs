@@ -227,7 +227,6 @@ pub(crate) struct Licence {
     takes_keys: bool,
 }
 
-/// Keeps every character a key can hold; spaces and line breaks a mail client wrapped it with go.
 fn note_attempt(stored: &mut activation::Stored, licence_id: &str) {
     if !stored.attempted.iter().any(|id| id == licence_id) {
         stored.attempted.push(licence_id.to_owned());
@@ -237,6 +236,7 @@ fn note_attempt(stored: &mut activation::Stored, licence_id: &str) {
     }
 }
 
+/// Keeps every character a key can hold; spaces and line breaks a mail client wrapped it with go.
 fn cleaned(input: &str) -> Result<String, &'static str> {
     if input.len() > MAX_INPUT {
         return Err(VerifyError::Malformed.code());
@@ -615,6 +615,22 @@ impl Licence {
         &self,
         f: impl FnOnce(&mut activation::Stored) -> T,
     ) -> Result<T, &'static str> {
+        self.access_activation_record(false, f)
+    }
+
+    /// The caller holds `keychain`, which the record's first read must not take again.
+    fn with_activation_record_held<T>(
+        &self,
+        f: impl FnOnce(&mut activation::Stored) -> T,
+    ) -> Result<T, &'static str> {
+        self.access_activation_record(true, f)
+    }
+
+    fn access_activation_record<T>(
+        &self,
+        keychain_held: bool,
+        f: impl FnOnce(&mut activation::Stored) -> T,
+    ) -> Result<T, &'static str> {
         let store = self
             .activation_store
             .as_deref()
@@ -628,7 +644,11 @@ impl Licence {
             .map_err(|_| "E_LICENCE_INTERNAL")?
             .is_none()
         {
-            let _keychain = self.keychain()?;
+            let _keychain = if keychain_held {
+                None
+            } else {
+                Some(self.keychain()?)
+            };
             if self
                 .activation
                 .lock()
@@ -792,10 +812,9 @@ impl Licence {
         activation::write(store, &activation::Stored::default())
     }
 
-    /// Drops another licence's seat and marks this one as tried. The caller holds `keychain`
-    /// and has loaded the seat record, so this takes no keychain lock.
+    /// Drops another licence's seat and marks this one as tried. The caller holds `keychain`.
     fn switch_seat_to(&self, licence_id: &str) {
-        let switched = self.with_activation_record(|stored| {
+        let switched = self.with_activation_record_held(|stored| {
             let lease_id = stored
                 .lease
                 .as_deref()
