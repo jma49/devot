@@ -1,7 +1,7 @@
 # The iPhone's glass is drawn in CSS
 
-Status: accepted; superseded by ADR 0018 (docs/adr/0018-iphone-native-shell-around-a-web-editor.md) from its stage 4 on, when the web shell and its CSS glass go.
-Until then the web shell keeps this recipe.
+Status: superseded by ADR 0018 (docs/adr/0018-iphone-native-shell-around-a-web-editor.md): the native shell draws the iPhone's glass with the system's materials.
+The web shell keeps this recipe only as the install fallback, until that fallback goes (docs/specs/iphone-screens.md).
 
 The iPhone layout's floating controls follow the Liquid Glass design language, drawn in CSS. The recipe: a light fill of `color.phone.glass`, `backdrop-filter` blur 10 px with saturate 1.9 and brightness 1.04, a 0.5 pt edge, inner highlights at the top left and bottom right, a soft inner glow, a two-layer drop shadow, a 1.2 pt gradient rim that is bright at the top left and bottom right and clear between, and a radial sheen from the top left. It does not place `UIGlassEffect` views behind the web view, and it uses no SVG refraction filter, which WebKit does not apply to a backdrop.
 

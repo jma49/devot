@@ -203,7 +203,7 @@ final class WebStageTests: XCTestCase {
         let window = try shownWindow(container)
         let webView = RecordingWebView(frame: window.bounds)
         container.view.addSubview(webView)
-        let screen = WebTabScreen(tab: .notes, host: WebViewHost(webView: webView)) { _ in }
+        let screen = HoldingScreen(host: WebViewHost(webView: webView))
         container.addChild(screen)
         screen.view.frame = container.view.bounds
         container.view.addSubview(screen.view)
@@ -213,6 +213,13 @@ final class WebStageTests: XCTestCase {
         XCTAssertTrue(webView.superview === screen.view)
         XCTAssertEqual(screen.view.safeAreaInsets, window.safeAreaInsets)
         XCTAssertEqual(webView.safeAreaInsets, window.safeAreaInsets)
+    }
+}
+
+/// A screen that holds the web view and nothing else.
+private final class HoldingScreen: WebHolderScreen {
+    override func loadView() {
+        view = webContainer
     }
 }
 

@@ -12,7 +12,6 @@ private let second = "01970000-0000-7000-8000-000000000002"
 private final class FakePage {
     var shown: [String] = []
     var modes: [NoteMode] = []
-    var hides: [() -> Void] = []
     var appeared: [Tab] = []
     var asked: [(op: Op, args: [String: JSONValue])] = []
     var answers: [Op: JSONValue] = [:]
@@ -86,7 +85,8 @@ final class EditorScreenTests: XCTestCase {
     private var page: FakePage!
     private var webView: RecordingWebView!
     private var host: WebViewHost!
-    private var list: WebTabScreen!
+    /// A native list, which never holds the web view: under it the web view rests on the stage.
+    private var list: UIViewController!
     private var navigation: UINavigationController!
 
     override func setUp() async throws {
@@ -100,9 +100,7 @@ final class EditorScreenTests: XCTestCase {
         host.windowSize(window.bounds.size)
         window.addSubview(host.stage)
         host.stage.addSubview(webView)
-        list = WebTabScreen(tab: .notes, host: host) { _ in }
-        list.hideEditor = { [unowned self] done in page.hides.append(done) }
-        list.hideTimeout = 10
+        list = UIViewController()
         navigation = UINavigationController(rootViewController: list)
         window.rootViewController = navigation
         window.makeKeyAndVisible()
@@ -110,7 +108,6 @@ final class EditorScreenTests: XCTestCase {
         webView.resized = 0
         webView.leftWindow = 0
         webView.movesAnimated = []
-        page.hides = []
     }
 
     override func tearDown() async throws {
@@ -197,7 +194,7 @@ final class EditorScreenTests: XCTestCase {
     }
 
     func testAPushMovesTheWebViewIntoTheEditorWithoutLeavingTheWindowOrResizing() throws {
-        XCTAssertTrue(webView.superview === list.view)
+        XCTAssertTrue(webView.superview === host.stage)
         let screen = editor(first)
         push(screen)
         XCTAssertTrue(webView.isDescendant(of: screen.view))
@@ -207,11 +204,9 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertEqual(webView.resized, 0)
         XCTAssertTrue(webView.superview === screen.webContainer)
         XCTAssertEqual(page.shown, [first])
-        XCTAssertNotNil(list.snapshot, "the list under the slide is a still")
         XCTAssertTrue(screen.hidesBottomBarWhenPushed)
         XCTAssertFalse(try XCTUnwrap(navigation.interactiveContentPopGestureRecognizer).isEnabled)
         XCTAssertFalse(navigation.isNavigationBarHidden)
-        XCTAssertEqual(list.navigationItem.backButtonDisplayMode, .minimal)
     }
 
     func testTheCoverStaysUntilThePageHasPaintedTheNote() {
@@ -261,11 +256,10 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertTrue(webView.isDescendant(of: screen.view))
         XCTAssertTrue(field.isFirstResponder)
         XCTAssertEqual(webView.movesAnimated, [])
-        XCTAssertTrue(page.hides.isEmpty)
         XCTAssertEqual(webView.leftWindow, 0)
     }
 
-    func testACompletedPopReturnsTheWebViewWithoutAnimation() throws {
+    func testACompletedPopRestsTheWebViewOnTheStageWithoutAnimation() throws {
         let screen = editor(first)
         push(screen)
         webView.movesAnimated = []
@@ -273,17 +267,11 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertTrue(webView.isDescendant(of: screen.view), "the live note slides out")
         swipe.interaction.finish()
         settleTransition()
-        XCTAssertTrue(webView.superview === list.view)
+        XCTAssertTrue(webView.superview === host.stage)
+        XCTAssertNil(host.holder)
         XCTAssertEqual(webView.movesAnimated, [false])
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(webView.resized, 0)
-
-        let still = try XCTUnwrap(list.snapshot)
-        XCTAssertTrue(list.view.subviews.last === still, "the list's still covers the page until it repaints")
-        guard page.hides.count == 1 else { return XCTFail("expected one hide, got \(page.hides.count)") }
-        page.hides[0]()
-        XCTAssertNil(list.snapshot)
-        XCTAssertNil(still.superview)
     }
 
     func testTheSystemPopKeepsTheNoteInTheLeavingScreenUntilItEnds() throws {
@@ -293,20 +281,9 @@ final class EditorScreenTests: XCTestCase {
         settle(0.02)
         XCTAssertTrue(webView.isDescendant(of: screen.view))
         settleTransition()
-        XCTAssertTrue(webView.superview === list.view)
-        XCTAssertTrue(host.holder === list)
-        XCTAssertTrue(navigation.isNavigationBarHidden)
+        XCTAssertTrue(webView.superview === host.stage)
+        XCTAssertNil(host.holder)
         XCTAssertEqual(webView.leftWindow, 0)
-        XCTAssertEqual(page.hides.count, 1)
-    }
-
-    func testTheSnapshotIsDroppedWhenThePageDoesNotAnswer() throws {
-        list.hideTimeout = 0.1
-        push(editor(first))
-        navigation.popViewController(animated: true)
-        settleTransition()
-        settle(until: { list.snapshot == nil })
-        XCTAssertNil(list.snapshot)
     }
 
     func testALinkLeavesAStillInTheFirstEditorAndShowsItAgainOnBack() throws {
@@ -328,7 +305,6 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertTrue(one.webContainer.subviews.last === still)
         XCTAssertFalse(one.cover.waiting, "no blank cover over a note the still already shows")
         XCTAssertEqual(page.shown, [first, second, first])
-        XCTAssertTrue(page.hides.isEmpty)
         XCTAssertEqual(webView.leftWindow, 0)
 
         one.ready(second)
