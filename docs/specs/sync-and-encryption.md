@@ -11,6 +11,7 @@ Part of the [architecture overview](../architecture.md).
     Each operation waits at most 120 s (600 s with assets) and is cancelled after.
     A change tag is a record's archived system fields, saved under `ifServerRecordUnchanged`; a cursor is an archived `CKServerChangeToken`.
     A deleted vault zone stops sync with `E_SYNC_ICLOUD_DELETED` and nothing is made again until the owner asks (`sync_icloud_upload_again`).
+    A connect that makes the vault zone again keeps that step (`remade`) before it makes the zone, so until one such connect finishes, each one renews the epoch and subscribes again.
     Silent pushes (a zone subscription) and `CKAccountChanged` reach the engine as `changed` and `account` events; since a silent push may not come, the engine also fetches a vault on iCloud every 5 minutes, when a window comes to the front and after each push.
     No iCloud account (`E_SYNC_ICLOUD_SIGNED_OUT`), a restricted one and a full iCloud pause with no end; an account change connects again.
     Commands for Settings (#606): `sync_icloud_status`, `sync_icloud_use` (a new vault, or one restored from its recovery key), `sync_icloud_upload_again`; batches go through `sync_push_many`, which the relay refuses (`E_SYNC_BATCH_UNSUPPORTED`).
