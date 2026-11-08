@@ -148,4 +148,36 @@ final class ListContextTests: XCTestCase {
         bridge.answer(Op.noteComplete.rawValue, .ok(.object([:])))
         XCTAssertEqual(offers.toasts.count, 0)
     }
+
+    func testAWriteTheGateLetsThroughFeelsOnceAndAHeldOrUnfeltOneFeelsNothing() {
+        let recorder = HapticRecorder()
+        var performed: [WriteIntent] = []
+        context.haptics = Haptics(make: recorder.make)
+        context.gate.perform = { performed.append($0) }
+        context.ask(.batch(ids: [id], change: .pinned(true)))
+        XCTAssertEqual(recorder.log, ["light.prepare", "light.occurred"])
+        recorder.clear()
+        context.ask(.batch(ids: [id], change: .status(.completed)))
+        XCTAssertEqual(recorder.log, ["selection.prepare", "selection.occurred"])
+        recorder.clear()
+        for intent in [WriteIntent.batch(ids: [id], change: .purge), .emptyTrash, .newTemplate, .newNote(bookId: nil)] {
+            context.ask(intent)
+        }
+        XCTAssertEqual(recorder.log, [])
+        XCTAssertEqual(performed.count, 6, "every asked write still goes through the gate")
+
+        context.gate.licence = { Licence(gated: true, state: "none", trial: Licence.Trial(state: "ended", endsAt: 1000, code: nil)) }
+        context.ask(.batch(ids: [id], change: .trash))
+        XCTAssertEqual(shown.count, 1, "a locked write shows the gate's surface")
+        XCTAssertEqual(performed.count, 6)
+        XCTAssertEqual(recorder.log, [], "and the gate's own haptic is the screens', not a list's")
+    }
+
+    func testAScreenPreparesTheGeneratorsAMenuMayFireWhenItOpens() {
+        let recorder = HapticRecorder()
+        context.haptics = Haptics(make: recorder.make)
+        context.prepareHaptics()
+        XCTAssertEqual(Set(recorder.log), ["light.prepare", "selection.prepare"])
+        XCTAssertFalse(recorder.log.contains { $0.hasSuffix("occurred") })
+    }
 }

@@ -349,6 +349,17 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
 - Enter License Key and Open License Settings close the sheet, drop the intent and open License over the Settings root.
 - The debug launch argument `-DevotLicenceFixture A1|A2|A3|K1|K2|X1` (`Debug/LicenceFixture.swift`) fixes the snapshot for the UI tests; Rust, which does not gate a debug build, still takes every write.
 
+### Haptics
+
+- `Haptics` (`UI/Haptics.swift`) holds one UIKit feedback generator per kind (`selection`, `light`, `warning`, `success`, `error`) for the session, made on first use and anchored to the tab bar controller's view.
+- `Screens` owns it and hands the same instance to `ListContext` and `SettingsStore`; a screen built without one makes no sound.
+- `HapticEvent` names each tick and its kind; `design/motion.md` (Haptics) is the table.
+- A control that may fire one calls `prepare` on touch-down; `play` prepares again before it fires, so a tick is never unprepared.
+- A bar button gives no touch-down, so a list prepares when a context menu opens or the selection bar shows, and `Screens` prepares the warning while a list shows locked.
+- A list write picked from a menu or the selection bar goes through `ListContext.ask`, which plays its event once the gate lets the write through; a swipe action goes to the gate directly, as the system plays its own haptic for it.
+- `SettingsStore.run` plays `success` when Restore Purchases unlocked writing and `error` when a purchase or restore failed.
+- The editor's and the web panes' haptics stay the page's `haptic` command (`native/ios/uikit.rs`) until the editor's bars are native.
+
 ## Glass map
 
 Glass is the system's, on the navigation layer only; content is never glass.

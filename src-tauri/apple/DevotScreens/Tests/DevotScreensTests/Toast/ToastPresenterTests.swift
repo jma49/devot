@@ -38,14 +38,12 @@ final class ToastPresenterTests: XCTestCase {
     private var presenter: ToastPresenter!
     private var timers: Timers!
     private var announced: [String] = []
-    private var felt: [UndoToast.Kind] = []
     private var voiceOverOnToast = false
     private var barTop: CGFloat? = 700
     private var undone: [String] = []
 
     override func setUp() async throws {
         announced = []
-        felt = []
         undone = []
         voiceOverOnToast = false
         barTop = 700
@@ -62,7 +60,6 @@ final class ToastPresenterTests: XCTestCase {
         presenter.barTop = { [unowned self] in barTop }
         presenter.reduceMotion = { false }
         presenter.announce = { [unowned self] in announced.append($0) }
-        presenter.feedback = { [unowned self] in felt.append($0) }
         presenter.holdsFocus = { [unowned self] _ in voiceOverOnToast }
         presenter.schedule = { [unowned self] delay, body in
             let item = Timers.Item(delay: delay, body: body)
@@ -144,11 +141,10 @@ final class ToastPresenterTests: XCTestCase {
         XCTAssertEqual(view.undo.configuration?.title, L10n.phoneToastUndo())
     }
 
-    func testItAnnouncesItsMessageGivesItsFeedbackAndNamesWhatItIs() throws {
+    func testItAnnouncesItsMessageAndNamesWhatItIs() throws {
         presenter.offer(toast(.trashed))
         presenter.offer(toast(.completed))
         XCTAssertEqual(announced, [L10n.phoneToastTrashed(), L10n.phoneToastCompleted()])
-        XCTAssertEqual(felt, [.trashed, .completed])
         let view = try shown()
         XCTAssertEqual(view.accessibilityElements?.count, 2)
         XCTAssertEqual(view.label.text, L10n.phoneToastCompleted())

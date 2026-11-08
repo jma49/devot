@@ -123,8 +123,13 @@ final class NewNoteFlowTests: XCTestCase {
     }
 
     func testALockedSnapshotShowsTheSurfaceAndPushesNothing() throws {
+        let recorder = HapticRecorder()
+        screens.haptics.make = recorder.make
         try adopt(keyBuildEnded)
         deliver(#"{"v":1,"notice":"note.new"}"#)
+        XCTAssertEqual(recorder.log.filter { $0.hasSuffix("occurred") }, ["warning.occurred"], "the warning plays once")
+        XCTAssertEqual(recorder.log.last, "warning.occurred")
+        XCTAssertEqual(recorder.log.first, "warning.prepare")
         XCTAssertFalse(navigation.topViewController is EditorScreen)
         XCTAssertFalse(try requests().contains { $0.op == .noteCreate })
         XCTAssertTrue(screens.root.tabs.presentedViewController is ContentSheetController)

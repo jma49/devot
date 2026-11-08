@@ -135,8 +135,13 @@ final class InstallTests: XCTestCase {
         settle()
         try answerAll(screens, rust)
         let tabs = screens.root.tabs
-        XCTAssertTrue(screens.selectionFeedback.view === tabs.view)
+        XCTAssertTrue(screens.haptics.view === tabs.view)
+        XCTAssertTrue(tabs.lists.haptics === screens.haptics)
+        XCTAssertTrue(tabs.settings.store.haptics === screens.haptics)
+        let recorder = HapticRecorder()
+        screens.haptics.make = recorder.make
         _ = tabs.tabBarController(tabs, shouldSelect: try XCTUnwrap(tabs.selectedViewController))
+        XCTAssertEqual(recorder.log, ["selection.prepare", "selection.occurred"])
         let popped = try XCTUnwrap(rust.calls.last)
         XCTAssertEqual(
             try Message(json: popped.1), .request(id: popped.0, op: .tabsPopToRoot, args: ["tab": .string("library")]))

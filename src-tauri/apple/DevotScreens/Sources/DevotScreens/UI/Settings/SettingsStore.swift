@@ -88,6 +88,7 @@ final class SettingsStore {
     let licences: LicenceSnapshotStore
     private(set) var editor: [String: JSONValue] = [:]
     @ObservationIgnored private var revision = -1.0
+    @ObservationIgnored var haptics = Haptics()
     private(set) var crashReports: CrashReports?
     var licence: Licence? { licences.licence }
     var ai: AiView?
@@ -217,11 +218,25 @@ final class SettingsStore {
             done(.failure(Failure(code: "E_SCREENS_UNAVAILABLE")))
             return
         }
-        bridge.direct(op, args) { outcome in
+        bridge.direct(op, args) { [weak self] outcome in
+            let result: Result<JSONValue, Failure>
             switch outcome {
-            case .ok(let value): done(.success(value))
-            case .failed(let code): done(.failure(Failure(code: code)))
+            case .ok(let value): result = .success(value)
+            case .failed(let code): result = .failure(Failure(code: code))
             }
+            self?.feel(op, result)
+            done(result)
+        }
+    }
+
+    private func feel(_ op: DirectOp, _ result: Result<JSONValue, Failure>) {
+        switch (op, result) {
+        case (.storeRestore, .success(let snapshot)):
+            if Licence(snapshot)?.allows(Date()) == true { haptics.play(.purchaseRestored) }
+        case (.storeRestore, .failure), (.storePurchase, .failure):
+            haptics.play(.purchaseFailed)
+        default:
+            break
         }
     }
 

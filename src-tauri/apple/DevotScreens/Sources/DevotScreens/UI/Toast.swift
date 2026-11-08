@@ -142,7 +142,6 @@ final class ToastPresenter: NSObject, UndoOffering, UIGestureRecognizerDelegate 
     var barTop: () -> CGFloat? = { nil }
     var reduceMotion: () -> Bool = { UIAccessibility.isReduceMotionEnabled }
     var announce: (String) -> Void = { UIAccessibility.post(notification: .announcement, argument: $0) }
-    var feedback: @MainActor (UndoToast.Kind) -> Void = ToastPresenter.defaultFeedback
     /// Runs `body` after `delay` seconds; the result cancels it.
     var schedule: @MainActor (TimeInterval, @escaping @MainActor () -> Void) -> () -> Void = ToastPresenter.afterDelay
     /// A toast stays while VoiceOver is reading it.
@@ -176,7 +175,6 @@ final class ToastPresenter: NSObject, UndoOffering, UIGestureRecognizerDelegate 
     }
 
     func offer(_ toast: UndoToast) {
-        feedback(toast.kind)
         announce(ToastView.message(toast.kind))
         undo = toast.onUndo
         if let current {
@@ -333,13 +331,6 @@ final class ToastPresenter: NSObject, UndoOffering, UIGestureRecognizerDelegate 
     }
 
     // MARK: Defaults
-
-    private static func defaultFeedback(_ kind: UndoToast.Kind) {
-        switch kind {
-        case .trashed: UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        case .completed: UISelectionFeedbackGenerator().selectionChanged()
-        }
-    }
 
     private static func afterDelay(_ delay: TimeInterval, _ body: @escaping @MainActor () -> Void) -> () -> Void {
         let item = DispatchWorkItem { MainActor.assumeIsolated(body) }

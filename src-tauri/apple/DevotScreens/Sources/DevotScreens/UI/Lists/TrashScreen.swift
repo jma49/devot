@@ -135,12 +135,13 @@ final class TrashScreen: ListScreen, UICollectionViewDelegate {
         _ collectionView: UICollectionView, contextMenuConfigurationForItemsAt paths: [IndexPath], point: CGPoint
     ) -> UIContextMenuConfiguration? {
         guard paths.count == 1, let path = paths.first, let id = data.itemIdentifier(for: path) else { return nil }
-        let gate = context.gate
+        let context = context
+        context.prepareHaptics()
         return UIContextMenuConfiguration(identifier: id as NSString, previewProvider: nil) { [weak self] _ in
             MainActor.assumeIsolated {
                 UIMenu(children: [
                     UIAction(title: L10n.trashRestore(), image: UIImage(systemName: "arrow.uturn.backward")) { _ in
-                        self?.afterMenu = { gate.require(.batch(ids: [id], change: .restore)) }
+                        self?.afterMenu = { context.ask(.batch(ids: [id], change: .restore)) }
                     },
                     UIAction(
                         title: L10n.trashDeleteForever(), image: UIImage(systemName: "trash"), attributes: .destructive
