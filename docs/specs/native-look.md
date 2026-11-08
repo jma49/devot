@@ -58,6 +58,7 @@ Part of the [design system](design-system.md).
   Templates drop only on notebooks and the Trash; the Trash's rows do not drag.
 - Quick tagging (`src/renderer/src/QuickTagPopover.tsx`, `quickTag.ts`): the command `note.quickTag` (T, rebindable; only outside the editor and text fields, and only with one note open) or a click on "+ Tag" opens a pop-up at the tag row: a field, matching tags with counts (recent first when empty; recents are tag IDs in this device's localStorage, never synced or logged), "Create …" for a new name, and swatches for the tag being created.
   Return applies and stays open, Escape closes and gives the keyboard back.
+  Opening another note (Back and Forward too) closes it for good, so going back to its note shows it closed (`app/useQuickTagNote.ts`).
   On the phone the "+ Tag" chip opens the same list in a sheet.
 - The tag context menu (`src/renderer/src/tagMenu.ts`, drawn by `TagMenuPanel.tsx`; a menu of our own, since a native one cannot show swatches: arrow keys, Return, Escape, focus back, click outside, kept inside the window): Tag Settings… (name and colour), a row of colour swatches (None, the palette, and last a Custom Color swatch opening `ColorPicker.tsx`), Filter by Tag (a check item; toggles the filter), Copy Tag ID (through `clipboard_write_text`) and Delete Tag (Delete or Backspace on the focused row; it asks first, since the tag leaves every note; hidden in a workspace).
   Renaming in place is F2 on the row, and the keyboard goes back to the row afterwards.
