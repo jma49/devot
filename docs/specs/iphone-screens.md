@@ -303,7 +303,7 @@ A route names screens by kind and ID only, and Swift builds them.
 - Swift sets the tab's stack with `setViewControllers(_:animated:)`, keeping the screens already in place that the route names, then selects the tab; the change is animated only while the app is in front (`UIApplication.applicationState == .active`), so a link that launches or wakes the app shows its screen in the first frame.
 - A sheet over the tabs closes for a stack route, except the gate's own.
 - Links that arrive before the screens are installed wait in Rust's inbox (`deep_link.rs`) and go to the screens, in order, once the install succeeds; from then on links go only to the screens and never to the page, and a page that asks for them gets none.
-  Without the screens (the kill switch, or an install that failed) the links stay with the page as before.
+  Without the screens (the kill switch, or an install that failed) the links stay held in the inbox and are not followed: the iPhone's page never asks for them (`deep_link_take` is the Mac window's).
 - The iPhone answers to `devot://` in every build (`plugins.deep-link.mobile` in `tauri.ios.conf.json`, written into the app's Info.plist and `project.yml`): its debug and release builds share one bundle ID, and only one of them is installed at a time.
 - The host-app XCTests (`RouteApplyTests`) deliver each route and check the stack and its animation; the `iphone-ui` XCUITest (`DeepLinkTests`) opens `devot://note/<id>` for the welcome example in the installed app.
 
@@ -372,7 +372,11 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 - Every `editor.show` opens the note at its top, the note shown last too, and the page sends `editor.mode`, `editor.title` and `editor.scroll` again, since each show comes with a new screen.
 - The page's editor host (`phone/screens/EditorHost.tsx`) draws the note without its own top bar or Back and Forward capsule: the system bar and the screens' stack replace them.
 - Under the native screens the page draws none of its other bars either: the bottom bar, the formatting bar, the find bar and the info sheet are Swift's (`UI/Editor/`), and the chips send `editor.picker`.
-- The More menu, the pickers and Note Info write through the gate as `WriteIntent`s; More's writes go through `ListContext.ask`, which plays their haptic, and Move to Trash pops the screen unless the gate is locked.
+- The More menu, the pickers and Note Info write through the gate as `WriteIntent`s; More's writes go through `ListContext.ask`, which plays their haptic.
+- Move to Trash goes through `ListContext.trash`, which pops the screen only once `notes.batch` has trashed the note, so a write the gate holds, Rust refuses or the store fails leaves the screen in place.
+- The More menu has no History yet: the iPhone has no history view, and History joins the menu with the native history sheet (stage 4).
+- The editor's formatting bar formats only while editing is allowed; a press while locked opens the gate's sheet, as Edit does.
+- A Find query sent while the note still loads waits for its editor (at most 5 s), and only the latest such query runs.
 - `note.info`, `note.setDates` and `note.addTag` are answered by the core (`phone/screens/notes.ts`); `editor.find` drives CodeMirror's search on the shown editor, and Rust refuses a query over 1000 characters (`E_SCREENS_QUERY_TOO_LONG`).
 - `editor.insets` takes a bottom of at most 4096 pt, a duration of at most 2 s and a curve of at most 7, each finite and not negative (`E_SCREENS_ARGS_INVALID`).
 
@@ -382,6 +386,9 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 - The editor screen gives that scroll view to the system bar (`setContentScrollView(_, for: .top)`), so its scroll edge effect follows the note, and sets `keyboardDismissMode = .interactive`, so a drag down through the keyboard dismisses it.
 - `KeyboardTracker` (`UI/Editor/KeyboardTracker.swift`) reads each keyboard frame change: it hides or shows the bottom toolbar and swaps the bars inside a `UIView.animate` on the keyboard's own duration and curve (`curve << 16`), then sets the scroll view's bottom inset and sends `editor.insets` once, outside the animation.
 - The bottom it sends is the covered height plus the formatting bar and its gap, and the page sets `--editor-foot-inset`, which CodeMirror's scroll margin reads, at once; nothing on the page animates.
+  With the keyboard down the find bar alone keeps its height and gap at the foot, and Find's opening and closing send the change.
+- Only a keyboard raised for the note's own responders (the web view, the find field, New Note's hidden field) moves the bars and the insets; one raised for a sheet over the note does not, while a keyboard going down always does.
+- The tracker keeps the keyboard's last frame for the whole app, so a screen shown again, or given the web view, starts from where the keyboard is now rather than where it was when the screen was covered, and sends `editor.insets` for it.
 - `NOTE_PAGE_SCROLLS` in `pageScroll.ts` is the switch back to the editor's own scroller, kept until document scrolling is confirmed on every supported iOS.
 - Note ids are checked as every note id is (`E_SCREENS_NOTE_ID_INVALID`), the title as a note title, and the mode against the two modes (`E_SCREENS_ARGS_INVALID`).
 

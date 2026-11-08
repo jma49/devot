@@ -211,7 +211,9 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Once the note's own title has scrolled under the system bar, the bar shows it; it goes when the title comes back.
 - **Bottom toolbar and the keyboard** (the native screens): rule 3.
   A note's screen has the system's bottom toolbar of Back, Forward, Find and, in Edit, AI.
+  Back, Forward and Find stand side by side, so the system draws them on one glass, and a flexible space sets AI apart on its own.
   It hides as the keyboard rises and comes back as it goes, inside the keyboard's own animation: the same duration and curve, never the toolbar's own slide.
+  A keyboard raised for a sheet over the note moves neither the toolbar nor the bars.
   The page scrolls as one document in the web view's own scroll view, so the system bar's scroll edge effect follows it, and a drag down through the keyboard takes the keyboard with the finger.
   The keyboard's height reaches the page once per change as `editor.insets`, which the page applies at once, with no motion of its own; the native scroll view's bottom inset changes with it.
   Under Reduce Motion the keyboard decides its own look, and the toolbar follows it.
@@ -227,7 +229,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Return steps to the next match; Close clears the highlights and swaps the bar out at once.
 - **Note's More menu** (the native screens): the system's menu from its bar button, with the system's motion.
   Pin, Status, Move to Notebook, Tags, Share, Find in Note, Duplicate and Move to Trash; a write goes through the gate and plays its haptic.
-  Move to Trash pops the note's screen and offers the undo toast over the list.
+  Move to Trash pops the note's screen once the note is in the Trash, and offers the undo toast over the list; a refused or failed write leaves the screen.
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes. Under Reduce Motion it crossfades in place, and still follows a drag.
   Under the native screens the note's pickers (notebook, status, tags) are the system's sheets at medium and large height, with a grabber and a close item, and a list scrolled to its edge pulls the sheet to large; they rise and close with the system's motion.
   A single choice closes the sheet, then writes; the tags picker stays open and its ticks follow each write.

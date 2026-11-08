@@ -479,7 +479,7 @@ final class Screens: SettingsBridge {
             },
             write: { [weak self] intent in self?.gate.require(intent) },
             ask: { [weak self] intent in self?.root.tabs.lists.ask(intent) },
-            locked: { [weak self] in self?.gate.locked() ?? false },
+            trash: { [weak self] id, leave in self?.root.tabs.lists.trash(id, then: leave) },
             library: { [weak self] done in
                 guard let lists = self?.root.tabs.lists else { return done(nil) }
                 if let library = lists.library { return done(library) }

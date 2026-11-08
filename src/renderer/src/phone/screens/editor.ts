@@ -42,7 +42,7 @@ export interface NativeEditor {
   readonly focus: () => Promise<boolean>
   readonly format: (id: BarFormat) => void
   readonly ai: (action: 'suggest' | 'accept') => void
-  readonly find: (action: FindAction, query: string) => FindCount
+  readonly find: (action: FindAction, query: string) => FindCount | Promise<FindCount>
   /** The keyboard and the formatting bar cover `bottom` points of the note, already. */
   readonly insets: (bottom: number) => void
   /** The shown note's copy, which Swift then opens; null when no note is shown. */

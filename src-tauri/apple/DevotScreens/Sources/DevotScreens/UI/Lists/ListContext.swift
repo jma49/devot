@@ -45,6 +45,7 @@ final class ListContext {
     }
 
     private var watchers: [Watcher] = []
+    private var leaveOnTrash: [String: @MainActor () -> Void] = [:]
     private var weakSources: [WeakSource] = []
     private var readingLibrary = false
     private var libraryAgain = false
@@ -125,6 +126,12 @@ final class ListContext {
         gate.require(intent)
     }
 
+    /// Move to Trash from the note's own screen, which leaves only once the note is in the Trash.
+    func trash(_ id: String, then leave: @escaping @MainActor () -> Void) {
+        leaveOnTrash[id] = leave
+        ask(.batch(ids: [id], change: .trash))
+    }
+
     /// A menu is about to open, or the selection bar to show: bar items give no touch-down to prepare on.
     func prepareHaptics() {
         haptics.prepare(.listAction)
@@ -138,10 +145,19 @@ final class ListContext {
         case .newNote:
             return false
         case .batch(let ids, let change):
-            write(.notesBatch, ["ids": .array(ids.map(JSONValue.string)), "change": change.json]) { [weak self] result in
+            let forget = { [weak self] in
+                guard change == .trash else { return }
+                for id in ids { self?.leaveOnTrash[id] = nil }
+            }
+            write(.notesBatch, ["ids": .array(ids.map(JSONValue.string)), "change": change.json], failed: forget) {
+                [weak self] result in
                 guard let self else { return }
                 let failed = result["failed"]?.array ?? []
-                guard !failed.isEmpty else { return offerUndo(ids, change) }
+                guard !failed.isEmpty else {
+                    if change == .trash { for id in ids { leaveOnTrash.removeValue(forKey: id)?() } }
+                    return offerUndo(ids, change)
+                }
+                forget()
                 let codes = failed.compactMap { $0["code"]?.string }
                 if let locked = codes.first(where: Self.locks) { return gate.refused(code: locked) }
                 bridge?.log(.warn, "W_PHONE_BATCH_FAILED count=\(failed.count) code=\(codes.first ?? "")")
@@ -194,13 +210,16 @@ final class ListContext {
         code == ProGate.required || code == ProGate.unreadable
     }
 
-    private func write(_ op: Op, _ args: [String: JSONValue], done: @escaping (JSONValue) -> Void) {
-        guard let bridge else { return }
+    private func write(
+        _ op: Op, _ args: [String: JSONValue], failed: @escaping () -> Void = {}, done: @escaping (JSONValue) -> Void
+    ) {
+        guard let bridge else { return failed() }
         bridge.request(op, args) { [weak self] outcome in
             switch outcome {
             case .ok(let result):
                 done(result)
             case .failed(let code):
+                failed()
                 guard let self else { return }
                 if Self.locks(code) { return gate.refused(code: code) }
                 bridge.log(.warn, "W_PHONE_LIST_WRITE_FAILED op=\(op.rawValue) code=\(code)")

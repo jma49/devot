@@ -15,6 +15,7 @@ final class ListContextTests: XCTestCase {
     private var context: ListContext!
     private var shown: [LockSurface] = []
     private var opened: [String] = []
+    private var left = 0
     private let offers = Offers()
 
     private let id = "01970000-0000-7000-8000-000000000001"
@@ -24,6 +25,7 @@ final class ListContextTests: XCTestCase {
         bridge = FakeBridge()
         shown = []
         opened = []
+        left = 0
         context = ListContext()
         context.bridge = bridge
         context.gate.present = { [unowned self] in shown.append($0) }
@@ -121,6 +123,27 @@ final class ListContextTests: XCTestCase {
         context.perform(.batch(ids: [id], change: .restore))
         bridge.answer(Op.notesBatch.rawValue, .ok(.object(["changed": .array([.string(id)]), "failed": .array([])])))
         XCTAssertEqual(offers.toasts.count, 0)
+    }
+
+    func testMoveToTrashFromTheNoteLeavesItOnlyOnceTheNoteIsInTheTrash() {
+        context.gate.perform = { [unowned self] in context.perform($0) }
+        let ok = JSONValue.object(["changed": .array([.string(id)]), "failed": .array([])])
+        context.trash(id) { [unowned self] in left += 1 }
+        XCTAssertEqual(left, 0, "not before Rust has answered")
+        bridge.answer(Op.notesBatch.rawValue, .ok(ok))
+        XCTAssertEqual(left, 1)
+        XCTAssertEqual(offers.toasts.map(\.kind), [.trashed])
+
+        context.trash(id) { [unowned self] in left += 1 }
+        bridge.answer(Op.notesBatch.rawValue, .failed(ProGate.required))
+        context.gate.dismissed()
+        context.trash(id) { [unowned self] in left += 1 }
+        bridge.answer(
+            Op.notesBatch.rawValue,
+            .ok(.object(["changed": .array([]), "failed": .array([.object(["id": .string(id), "code": .string("E_STORAGE_BUSY")])])])))
+        context.perform(.batch(ids: [id], change: .trash))
+        bridge.answer(Op.notesBatch.rawValue, .ok(ok))
+        XCTAssertEqual(left, 1, "a refused or failed trash leaves the note, and is forgotten")
     }
 
     func testALockedTrashShowsTheGateAndOffersNothing() {

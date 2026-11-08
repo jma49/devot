@@ -11,6 +11,8 @@ final class WebViewHost {
     weak var holder: WebHolderScreen?
     /// The screen a pop is revealing, which takes the web view once the pop is done.
     weak var waiting: WebHolderScreen?
+    /// The bottom inset the page was sent last (`editor.insets`); the page sets 0 itself on a hide.
+    var footInset: CGFloat = 0
     private var size: CGSize?
 
     init(webView: WKWebView) {

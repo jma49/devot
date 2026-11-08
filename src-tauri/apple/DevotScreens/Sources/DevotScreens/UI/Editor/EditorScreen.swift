@@ -20,7 +20,8 @@ struct EditorActions {
     var write: (WriteIntent) -> Void = { _ in }
     /// A write from the More menu, which also feels once the gate lets it through.
     var ask: (WriteIntent) -> Void = { _ in }
-    var locked: () -> Bool = { false }
+    /// Move to Trash, through the gate; `leave` runs once the note is in the Trash.
+    var trash: (_ id: String, _ leave: @escaping @MainActor () -> Void) -> Void = { _, _ in }
     var library: (@escaping (LibraryContents?) -> Void) -> Void = { $0(nil) }
     /// Pushes a note over this one: Forward, a backlink, a copy.
     var open: (_ id: String, _ title: String) -> Void = { _, _ in }
@@ -60,7 +61,7 @@ final class EditorScreen: WebHolderScreen {
     private(set) var forward: (id: String, title: String)?
     private(set) var finding = false
     private(set) var keyboardUp = false
-    private var covered: CGFloat = 0
+    private var keyboardCovered: CGFloat = 0
     private var findTurn = 0
     private weak var tagPicker: TagPicker?
     let formattingBar = FormattingBar()
@@ -158,6 +159,10 @@ final class EditorScreen: WebHolderScreen {
         findBar.close = { [weak self] in self?.closeFind() }
         keyboard.alongside = { [weak self] change in self?.keyboardMoves(change) }
         keyboard.changed = { [weak self] change in self?.keyboardMoved(change) }
+        keyboard.owns = { [weak self] in
+            guard let self else { return false }
+            return presentedViewController == nil || holdsKeyboard
+        }
         if isNew {
             keyField.alpha = 0
             keyField.isAccessibilityElement = false
@@ -179,6 +184,11 @@ final class EditorScreen: WebHolderScreen {
             forward = (id, popped.noteTitle)
             forwardItem.isEnabled = true
         }
+    }
+
+    override func viewIsAppearing(_ animated: Bool) {
+        super.viewIsAppearing(animated)
+        keyboard.sync()
     }
 
     /// Never in the tap: the keyboard is asked for once the push has landed.
@@ -217,7 +227,8 @@ final class EditorScreen: WebHolderScreen {
         let scroll = host.webView.scrollView
         setContentScrollView(scroll, for: .top)
         scroll.keyboardDismissMode = .interactive
-        setScrollInset(covered)
+        keyboard.sync()
+        applyInsets()
         guard let noteId else {
             view.bringSubviewToFront(cover)
             return cover.raise(holding: true)
@@ -359,13 +370,38 @@ final class EditorScreen: WebHolderScreen {
 
     /// Outside it, once: the page and the scroll view take the room the keyboard and the bar cover, at once.
     private func keyboardMoved(_ change: KeyboardChange) {
+        keyboardCovered = change.covered
+        applyInsets(duration: change.duration, curve: change.curve)
+    }
+
+    /// The keyboard and the bar over it, or the find bar alone once the keyboard is down.
+    private var covered: CGFloat {
         let bar = Tokens.Size.phoneTarget + Tokens.Size.phoneSheetInset
-        covered = change.up ? change.covered + bar : 0
+        return keyboardCovered > 0 ? keyboardCovered + bar : finding ? bar : 0
+    }
+
+    /// The page hears only a bottom it does not have already.
+    private func applyInsets(duration: TimeInterval = 0, curve: Int = KeyboardChange.keyboardCurve) {
         guard host.holder === self else { return }
         setScrollInset(covered)
+        guard host.footInset != covered else { return }
+        host.footInset = covered
         askPage(
             .editorInsets,
-            ["bottom": .number(Double(covered)), "duration": .number(change.duration), "curve": .number(Double(change.curve))])
+            ["bottom": .number(Double(covered)), "duration": .number(duration), "curve": .number(Double(curve))])
+    }
+
+    /// A keyboard raised for this note's own responders, not for a sheet over it.
+    private var holdsKeyboard: Bool {
+        if keyField.isFirstResponder || findBar.field.isFirstResponder { return true }
+        return host.holder === self && Self.holdsFirstResponder(host.webView, depth: 4)
+    }
+
+    /// WebKit's first responder is its content view, a few levels into the web view.
+    private static func holdsFirstResponder(_ view: UIView, depth: Int) -> Bool {
+        if view.isFirstResponder { return true }
+        guard depth > 0 else { return false }
+        return view.subviews.contains { holdsFirstResponder($0, depth: depth - 1) }
     }
 
     private func setScrollInset(_ bottom: CGFloat) {
@@ -400,6 +436,7 @@ final class EditorScreen: WebHolderScreen {
             navigationController?.setToolbarHidden(true, animated: false)
             showBars()
         }
+        if !keyboardUp { applyInsets() }
         findBar.field.becomeFirstResponder()
     }
 
@@ -432,6 +469,7 @@ final class EditorScreen: WebHolderScreen {
             if !keyboardUp { navigationController?.setToolbarHidden(false, animated: false) }
         }
         if findBar.field.isFirstResponder { findBar.field.resignFirstResponder() }
+        if !keyboardUp { applyInsets() }
     }
 
     /// `editor.find` takes at most this many characters (`screens::message`).
@@ -517,12 +555,13 @@ final class EditorScreen: WebHolderScreen {
         PickerSheet.present(content, from: self)
     }
 
-    /// The trashed note is offered back by the toast, over the list the pop reveals.
-    private func trash() {
+    /// The screen leaves only once the note is in the Trash; the toast offers it back over the list.
+    func trash() {
         guard let note else { return }
-        let locked = actions.locked()
-        actions.ask(.batch(ids: [note.id], change: .trash))
-        if !locked { navigationController?.popViewController(animated: true) }
+        actions.trash(note.id) { [weak self] in
+            guard let self, let navigation = navigationController, navigation.topViewController === self else { return }
+            navigation.popViewController(animated: true)
+        }
     }
 
     private func share() {

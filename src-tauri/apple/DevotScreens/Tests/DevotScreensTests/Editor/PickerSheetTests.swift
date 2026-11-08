@@ -8,12 +8,14 @@ import XCTest
 @MainActor
 final class PickerSheetTests: XCTestCase {
     private var writes: [WriteIntent] = []
+    private var surfaces: [LockSurface] = []
     private var library: LibraryContents?
 
     private let counts = LibraryCounts(all: 3, pinned: 0, active: 0, onHold: 0, completed: 0, templates: 0, trash: 0)
 
     override func setUp() async throws {
         writes = []
+        surfaces = []
         library = LibraryContents(
             counts: counts,
             books: [
@@ -58,6 +60,20 @@ final class PickerSheetTests: XCTestCase {
         let completed = try XCTUnwrap(NoteStatus.allCases.firstIndex(of: .completed))
         list.pick(completed)
         XCTAssertEqual(writes, [.batch(ids: ["n1"], change: .status(.completed))])
+    }
+
+    func testAPickWhileWritingIsLockedIsHeldByTheGateAndNotWritten() throws {
+        let ended = Licence(gated: true, state: "none", trial: Licence.Trial(state: "ended", endsAt: 1000, code: nil))
+        let gate = ProGate { ended }
+        gate.present = { [unowned self] in surfaces.append($0) }
+        gate.perform = { [unowned self] in writes.append($0) }
+        var context = context
+        context.write = { gate.require($0) }
+        let list = NotePickers.status(note: note(), context: context)
+        list.pick(try XCTUnwrap(NoteStatus.allCases.firstIndex(of: .completed)))
+        XCTAssertTrue(writes.isEmpty)
+        XCTAssertEqual(surfaces, [LockSurface(ended)])
+        XCTAssertEqual(gate.holding, .batch(ids: ["n1"], change: .status(.completed)))
     }
 
     func testNotebookListsNoNotebookThenEachBookIndentedAndMovesOnlyToAnother() {

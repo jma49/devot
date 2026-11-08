@@ -8,10 +8,23 @@ import XCTest
 @MainActor
 final class KeyboardTrackerTests: XCTestCase {
     private var window: UIWindow?
+    private var heard: [CGFloat] = []
+
+    override func setUp() async throws {
+        heard = []
+        KeyboardTracker.latest = nil
+    }
 
     override func tearDown() async throws {
         window?.isHidden = true
         window = nil
+        KeyboardTracker.latest = nil
+    }
+
+    private func post(_ info: [AnyHashable: Any]) {
+        NotificationCenter.default.post(
+            name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: info)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
     }
 
     private func hostedView() throws -> UIView {
@@ -94,5 +107,41 @@ final class KeyboardTrackerTests: XCTestCase {
         XCTAssertNil(tracker.last)
         tracker.keyboardWillChange(try info(covering: 300, in: view))
         XCTAssertEqual(heard, 2)
+    }
+
+    func testAPostedChangeReachesAStartedTrackerAndAStoppedOneStartsAgainFromTheLatest() throws {
+        let view = try hostedView()
+        let tracker = KeyboardTracker(view: view)
+        tracker.animate = { _, _, changes in changes() }
+        tracker.changed = { [unowned self] in heard.append($0.covered) }
+        tracker.start()
+        post(try info(covering: 300, in: view))
+        XCTAssertEqual(heard, [300])
+        tracker.stop()
+        post(try info(covering: 280, in: view))
+        XCTAssertEqual(heard, [300], "a stopped tracker hears nothing")
+        tracker.start()
+        tracker.sync()
+        XCTAssertEqual(heard, [300, 280], "it starts again from where the keyboard is now")
+        tracker.sync()
+        XCTAssertEqual(heard.count, 2)
+    }
+
+    func testAKeyboardThatRisesForAnotherScreenIsIgnoredButOneGoingDownIsNot() throws {
+        let view = try hostedView()
+        let tracker = KeyboardTracker(view: view)
+        tracker.animate = { _, _, changes in changes() }
+        tracker.changed = { [unowned self] in heard.append($0.covered) }
+        var owned = false
+        tracker.owns = { owned }
+        tracker.start()
+        post(try info(covering: 300, in: view))
+        XCTAssertEqual(heard, [])
+        XCTAssertNil(tracker.last)
+        post(try info(covering: 0, in: view))
+        XCTAssertEqual(heard, [0])
+        owned = true
+        post(try info(covering: 300, in: view))
+        XCTAssertEqual(heard, [0, 300])
     }
 }

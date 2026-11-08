@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Core } from '../../core-client'
 import type { EditorHandle } from '../../editor/handle'
+import type { FindOptions } from '../../../../core/find'
+import type { FindTarget } from '../../find/target'
 import { invoke } from '../../ipc'
 import { readCurrentLicence } from '../../licence'
 import { closePurchase } from '../../purchaseSheet'
@@ -45,7 +47,17 @@ interface EditorProps {
   onOpenNote?: (id: string) => void
   takePreopened?: (core: Core, noteId: string) => Uint8Array | undefined
   handleRef?: { current: EditorHandle | null }
+  onFind?: (target: FindTarget | null) => void
 }
+
+const searchable = (searched: string[] = []) =>
+  ({
+    search: (options: FindOptions) => searched.push(options.query),
+    next: () => {},
+    previous: () => {},
+    clear: () => {},
+    status: () => ({ total: 2, current: 0, capped: false }),
+  }) as unknown as FindTarget
 
 // Like NoteEditor, the stand-in keeps one view for its lifetime and swaps notes into it.
 const editors = vi.hoisted(() => ({
@@ -54,6 +66,7 @@ const editors = vi.hoisted(() => ({
   bodies: new Map<string, string>(),
   latest: null as EditorProps | null,
   given: [] as string[],
+  findTarget: null as FindTarget | null,
 }))
 vi.mock('../../NoteEditor', () => ({
   NoteEditor: (props: EditorProps) => {
@@ -70,6 +83,7 @@ vi.mock('../../NoteEditor', () => ({
       editors.shown.push(noteId)
       if (takePreopened?.(core, noteId)) editors.given.push(noteId)
       latest.current.onLoaded?.(editors.bodies.get(noteId) ?? '')
+      if (editors.findTarget) latest.current.onFind?.(editors.findTarget)
     }, [noteId, core, takePreopened])
     return <div className="cm-editor" hidden={props.hidden} />
   },
@@ -111,6 +125,7 @@ beforeEach(async () => {
   editors.bodies.clear()
   editors.latest = null
   editors.given = []
+  editors.findTarget = searchable()
   licence = PRO
   vi.mocked(invoke).mockImplementation(async (command) =>
     command === 'licence_get' ? licence : undefined,
@@ -376,7 +391,7 @@ describe('the editor host under the native screens', () => {
     const id = await shell.notes.create('Plans', null)
     await start()
     await swift('editor.show', { noteId: id })
-    expect(await swift('editor.find', { action: 'search', query: 'x' })).toMatchObject({ total: 0 })
+    expect(await swift('editor.find', { action: 'search', query: 'x' })).toMatchObject({ total: 2 })
     // A locked note searches too: Find shows the editor, which takes no caret.
     expect(notices('editor.mode').at(-1)).toMatchObject({ mode: 'edit' })
     await swift('editor.find', { action: 'close' })
@@ -386,6 +401,50 @@ describe('the editor host under the native screens', () => {
     await expect(bridge.handlers['editor.ai']!({ action: 'write' })).rejects.toThrow(
       'E_SCREENS_ARGS_INVALID',
     )
+  })
+
+  it('runs a search asked for before the note can be searched once it can, the latest query only', async () => {
+    const id = await shell.notes.create('Plans', null)
+    editors.findTarget = null
+    await start()
+    await swift('editor.show', { noteId: id })
+    const searched: string[] = []
+    let first: Promise<unknown> = Promise.resolve()
+    let second: Promise<unknown> = Promise.resolve()
+    await act(async () => {
+      first = bridge.handlers['editor.find']!({ action: 'search', query: 'c' })
+      second = bridge.handlers['editor.find']!({ action: 'search', query: 'ca' })
+    })
+    await act(async () => editors.latest!.onFind!(searchable(searched)))
+    expect(await first).toStrictEqual({ total: 0, current: 0, capped: false })
+    expect(await second).toStrictEqual({ total: 2, current: 1, capped: false })
+    expect(searched).toStrictEqual(['ca'])
+    expect(await swift('editor.find', { action: 'search', query: 'cat' })).toMatchObject({
+      total: 2,
+    })
+    expect(searched).toStrictEqual(['ca', 'cat'])
+  })
+
+  it('formats only while editing is allowed, and asks for Devot Pro otherwise', async () => {
+    const id = await shell.notes.create('Plans', null)
+    const format = vi.fn<(id: string) => void>()
+    await start()
+    await swift('editor.show', { noteId: id })
+    act(() => {
+      editors.latest!.handleRef!.current = { format } as unknown as EditorHandle
+    })
+    await swift('editor.format', { id: 'bold' })
+    expect(format).toHaveBeenCalledWith('bold')
+    licence = ENDED
+    await act(async () => {
+      await readCurrentLicence()
+    })
+    await swift('editor.format', { id: 'italic' })
+    expect(format).toHaveBeenCalledTimes(1)
+    expect(notices('editor.haptic').at(-1)).toStrictEqual({
+      notice: 'editor.haptic',
+      kind: 'warning',
+    })
   })
 
   it('duplicates the shown note with its tags, and answers with the copy', async () => {

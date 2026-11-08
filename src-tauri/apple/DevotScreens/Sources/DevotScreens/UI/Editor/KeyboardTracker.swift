@@ -49,11 +49,29 @@ final class KeyboardTracker {
     var animate: Animate = KeyboardTracker.system
     var alongside: (KeyboardChange) -> Void = { _ in }
     var changed: (KeyboardChange) -> Void = { _ in }
+    /// Whether a keyboard that rises is this screen's: one raised over a sheet it presents is not.
+    var owns: () -> Bool = { true }
     private(set) var last: KeyboardChange?
     private var observer: NSObjectProtocol?
 
+    /// The keyboard's last end frame in the process, kept while no screen follows it, so a screen
+    /// shown again starts from where the keyboard is.
+    static var latest: Frame?
+    private static var watcher: NSObjectProtocol?
+
     init(view: UIView) {
         self.view = view
+        Self.watch()
+    }
+
+    private static func watch() {
+        guard watcher == nil else { return }
+        watcher = NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main
+        ) { note in
+            let end = Self.frame(note.userInfo ?? [:])
+            MainActor.assumeIsolated { if let end { Self.latest = end } }
+        }
     }
 
     func start() {
@@ -62,7 +80,10 @@ final class KeyboardTracker {
             forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main
         ) { [weak self] note in
             let frame = Self.frame(note.userInfo ?? [:])
-            MainActor.assumeIsolated { self?.keyboardWillChange(frame) }
+            MainActor.assumeIsolated {
+                if let frame { Self.latest = frame }
+                self?.keyboardWillChange(frame)
+            }
         }
     }
 
@@ -70,6 +91,12 @@ final class KeyboardTracker {
         if let observer { NotificationCenter.default.removeObserver(observer) }
         observer = nil
         last = nil
+    }
+
+    /// Takes where the keyboard is now, at once, for a screen that missed its changes while covered.
+    func sync() {
+        guard observer != nil, let latest = Self.latest else { return }
+        keyboardWillChange(Frame(end: latest.end, duration: 0, curve: latest.curve))
     }
 
     /// The keyboard's end frame in screen space, on its own duration and curve.
@@ -97,7 +124,7 @@ final class KeyboardTracker {
         let change = KeyboardChange(
             covered: KeyboardChange.covered(keyboard: keyboard, view: view.bounds), duration: frame.duration,
             curve: frame.curve)
-        guard change.covered != last?.covered else { return }
+        guard change.covered != last?.covered, !change.up || owns() else { return }
         last = change
         animate(change.duration, change.options) { [weak self] in self?.alongside(change) }
         changed(change)

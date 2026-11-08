@@ -47,7 +47,13 @@ import {
 import { PhoneDetailSheet } from './PhoneSheet'
 import { requireEditing, watchWrite } from './requireEditing'
 import type { PhoneStore } from './usePhoneData'
-import { runFind, type BarFormat, type FindAction, type FindCount } from './screens/editor'
+import {
+  NO_FIND_COUNT,
+  runFind,
+  type BarFormat,
+  type FindAction,
+  type FindCount,
+} from './screens/editor'
 import type { EditorMode, EditorNoteFacts, EditorPicker } from './screens/message'
 import { NOTE_PAGE_SCROLLS } from './screens/pageScroll'
 
@@ -76,7 +82,7 @@ export interface NoteCommands {
   readonly format: (id: BarFormat) => void
   readonly ai: (action: 'suggest' | 'accept') => void
   /** Find works in Edit, so a search shows the editor until `close`. */
-  readonly find: (action: FindAction, query: string) => FindCount
+  readonly find: (action: FindAction, query: string) => FindCount | Promise<FindCount>
   readonly duplicate: () => Promise<{ id: string; title: string } | null>
   /** The screen went: sheets, Find and the keyboard go with it. */
   readonly leave: () => void
@@ -105,6 +111,8 @@ export interface NativeNoteChrome {
 
 // A push that ends without a transitionend (the layer was already in place) still lands.
 const LANDING_MARGIN_MS = 100
+// A big note can take seconds to load; a search asked meanwhile gives up after this.
+const FIND_WAIT_MS = 5000
 
 /** Whether the screen's layer has finished sliding in: at once for a screen that did not arrive. */
 function useLanded(screen: RefObject<HTMLElement | null>, arriving: boolean): boolean {
@@ -172,7 +180,15 @@ export function PhoneNote(props: {
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [suggestFailure, setSuggestFailure] = useState<string>()
   const [finding, setFinding] = useState(false)
-  const [findTarget, setFindTarget] = useState<FindTarget | null>(null)
+  const findTarget = useRef<FindTarget | null>(null)
+  const pendingFind = useRef<{ query: string; answer: (count: FindCount) => void } | null>(null)
+  const takeFindTarget = useCallback((target: FindTarget | null) => {
+    findTarget.current = target
+    const pending = pendingFind.current
+    if (!target || !pending) return
+    pendingFind.current = null
+    pending.answer(runFind(target, 'search', pending.query))
+  }, [])
   // A locked note stays in Preview; only Find shows its editor, which then takes no caret.
   const mode = editing || finding ? (modes[noteId] ?? 'preview') : 'preview'
   const titleField = useRef<HTMLTextAreaElement>(null)
@@ -312,7 +328,7 @@ export function PhoneNote(props: {
       if (next === 'edit') requireEditing({ op: 'edit', id: noteId }, turn)
       else turn()
     },
-    format: (id) => editor.current?.format(id),
+    format: (id) => requireEditing({ op: 'edit', id: noteId }, () => editor.current?.format(id)),
     ai: (action) =>
       requireEditing({ op: 'ai', id: noteId }, () =>
         action === 'suggest' ? editor.current?.suggest() : editor.current?.acceptSuggestion(),
@@ -323,7 +339,23 @@ export function PhoneNote(props: {
         setFinding(true)
       }
       if (action === 'close') setFinding(false)
-      return runFind(findTarget, action, query)
+      const target = findTarget.current
+      pendingFind.current?.answer(NO_FIND_COUNT)
+      pendingFind.current = null
+      if (target || action !== 'search') return runFind(target, action, query)
+      // A query typed while the note still loads runs once its editor can search it.
+      return new Promise<FindCount>((resolve) => {
+        const timer = setTimeout(() => {
+          if (pendingFind.current?.answer !== answer) return
+          pendingFind.current = null
+          resolve(NO_FIND_COUNT)
+        }, FIND_WAIT_MS)
+        const answer = (count: FindCount) => {
+          clearTimeout(timer)
+          resolve(count)
+        }
+        pendingFind.current = { query, answer }
+      })
     },
     duplicate: async () => {
       const core = store.core
@@ -511,7 +543,7 @@ export function PhoneNote(props: {
               showAlertMenu={showAlertMenu}
               handleRef={editor}
               onOpenNote={openNote}
-              onFind={setFindTarget}
+              onFind={takeFindTarget}
               suggester={suggester}
               onSuggestFailed={setSuggestFailure}
             />

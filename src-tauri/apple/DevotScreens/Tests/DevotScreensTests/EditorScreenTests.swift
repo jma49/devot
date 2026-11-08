@@ -18,6 +18,7 @@ private final class FakePage {
     var answers: [Op: JSONValue] = [:]
     var writes: [WriteIntent] = []
     var opened: [String] = []
+    var trashes: [(id: String, leave: @MainActor () -> Void)] = []
 
     var actions: EditorActions {
         var actions = EditorActions(
@@ -31,10 +32,16 @@ private final class FakePage {
         actions.ask = { [unowned self] in writes.append($0) }
         actions.write = { [unowned self] in writes.append($0) }
         actions.open = { [unowned self] id, _ in opened.append(id) }
+        actions.trash = { [unowned self] id, leave in trashes.append((id, leave)) }
         return actions
     }
 
     func ops(_ op: Op) -> [[String: JSONValue]] { asked.filter { $0.op == op }.map(\.args) }
+}
+
+/// Takes first responder without raising the system keyboard, so a test posts the keyboard's frames itself.
+final class QuietResponder: UIView {
+    override var canBecomeFirstResponder: Bool { true }
 }
 
 /// A back swipe the test holds part way and then lets go or turns back, as a finger would.
@@ -109,6 +116,24 @@ final class EditorScreenTests: XCTestCase {
     override func tearDown() async throws {
         window?.isHidden = true
         window = nil
+        KeyboardTracker.latest = nil
+    }
+
+    /// Posts the system's keyboard frame change: a keyboard `height` tall at the window's foot, or gone off it.
+    private func postKeyboard(covering height: CGFloat) throws {
+        let window = try XCTUnwrap(window)
+        let shown = height > 0 ? height : 336
+        let frame = CGRect(
+            x: 0, y: window.bounds.height - (height > 0 ? height : 0), width: window.bounds.width, height: shown)
+        NotificationCenter.default.post(
+            name: UIResponder.keyboardWillChangeFrameNotification, object: nil,
+            userInfo: [
+                UIResponder.keyboardFrameEndUserInfoKey: NSValue(
+                    cgRect: window.convert(frame, to: window.screen.coordinateSpace)),
+                UIResponder.keyboardAnimationDurationUserInfoKey: NSNumber(value: 0.25),
+                UIResponder.keyboardAnimationCurveUserInfoKey: NSNumber(value: 7),
+            ])
+        settle()
     }
 
     /// Lets queued appearance, layout and the system's push or pop run to their end.
@@ -354,9 +379,12 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertEqual(screen.moreItem.accessibilityLabel, L10n.noteMore())
         XCTAssertFalse(navigation.isToolbarHidden)
         let items = try XCTUnwrap(screen.toolbarItems)
-        for item in [screen.backItem, screen.forwardItem, screen.findItem, screen.aiItem] {
-            XCTAssertTrue(items.contains(item))
-        }
+        XCTAssertEqual(items.count, 5)
+        XCTAssertEqual(
+            Array(items.prefix(3)), [screen.backItem, screen.forwardItem, screen.findItem],
+            "Back, Forward and Find stand together, so the system draws them on one glass")
+        XCTAssertFalse([screen.backItem, screen.forwardItem, screen.findItem, screen.aiItem].contains(items[3]))
+        XCTAssertEqual(items[4], screen.aiItem, "a flexible space sets AI apart on its own glass")
         XCTAssertFalse(screen.forwardItem.isEnabled)
         screen.showMode(.preview)
         XCTAssertTrue(screen.aiItem.isHidden)
@@ -420,6 +448,9 @@ final class EditorScreenTests: XCTestCase {
             changes()
             hiddenInside = navigation.isToolbarHidden
         }
+        let responder = QuietResponder()
+        webView.addSubview(responder)
+        XCTAssertTrue(responder.becomeFirstResponder())
         let window = try XCTUnwrap(screen.view.window)
         let height: CGFloat = 336
         let frame = CGRect(x: 0, y: window.bounds.height - height, width: window.bounds.width, height: height)
@@ -442,6 +473,74 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertEqual(webView.scrollView.contentInset.bottom, bottom)
         XCTAssertEqual(webView.scrollView.keyboardDismissMode, .interactive)
         XCTAssertTrue(screen.contentScrollView(for: .top) === webView.scrollView)
+    }
+
+    func testAKeyboardRaisedForASheetOverTheNoteLeavesTheBarsAndTheInsets() throws {
+        let screen = editor(first)
+        push(screen)
+        let sheet = UIViewController()
+        let field = QuietResponder()
+        sheet.view.addSubview(field)
+        screen.present(sheet, animated: false)
+        settle(until: { screen.presentedViewController === sheet && !sheet.isBeingPresented })
+        XCTAssertTrue(field.becomeFirstResponder())
+        let sent = page.ops(.editorInsets).count
+        try postKeyboard(covering: 336)
+        XCTAssertFalse(screen.keyboardUp)
+        XCTAssertFalse(navigation.isToolbarHidden)
+        XCTAssertEqual(screen.formattingBar.alpha, 0)
+        XCTAssertEqual(page.ops(.editorInsets).count, sent, "the page's foot stays as it was")
+        XCTAssertEqual(webView.scrollView.contentInset.bottom, 0)
+        field.resignFirstResponder()
+        sheet.dismiss(animated: false)
+    }
+
+    func testANoteShownAgainTakesTheKeyboardAsItIsNowNotAsItWasWhenCovered() throws {
+        let one = editor(first)
+        push(one)
+        let responder = QuietResponder()
+        webView.addSubview(responder)
+        XCTAssertTrue(responder.becomeFirstResponder())
+        try postKeyboard(covering: 336)
+        XCTAssertTrue(one.keyboardUp)
+        XCTAssertTrue(navigation.isToolbarHidden)
+        push(editor(second, title: "Second"))
+        responder.resignFirstResponder()
+        try postKeyboard(covering: 0)
+        navigation.popViewController(animated: true)
+        settleTransition()
+        XCTAssertTrue(host.holder === one)
+        XCTAssertFalse(one.keyboardUp)
+        XCTAssertFalse(navigation.isToolbarHidden)
+        XCTAssertEqual(one.formattingBar.alpha, 0)
+        XCTAssertEqual(webView.scrollView.contentInset.bottom, 0)
+        XCTAssertEqual(page.ops(.editorInsets).last?["bottom"], .number(0))
+    }
+
+    func testTheFindBarKeepsItsRoomAtTheFootWhileTheKeyboardIsDown() {
+        let screen = editor(first)
+        push(screen)
+        let sent = page.ops(.editorInsets).count
+        screen.startFind()
+        let bar = Tokens.Size.phoneTarget + Tokens.Size.phoneSheetInset
+        XCTAssertEqual(page.ops(.editorInsets).dropFirst(sent).first?["bottom"], .number(Double(bar)))
+        screen.closeFind()
+        settle()
+        XCTAssertEqual(page.ops(.editorInsets).last?["bottom"], .number(0))
+        XCTAssertEqual(webView.scrollView.contentInset.bottom, 0)
+    }
+
+    func testMoveToTrashLeavesTheNoteOnlyOnceItIsInTheTrash() throws {
+        let screen = editor(first)
+        push(screen)
+        screen.showNote(facts(first))
+        screen.trash()
+        XCTAssertEqual(page.trashes.map(\.id), [first])
+        settle()
+        XCTAssertTrue(navigation.topViewController === screen, "a write still under way, refused or failed leaves the note")
+        page.trashes[0].leave()
+        settleTransition()
+        XCTAssertTrue(navigation.topViewController === list)
     }
 
     func testTheBarTakesTheTitleOnceTheNotesOwnIsUnderIt() {
