@@ -66,6 +66,11 @@ export function AuthorshipNotice(props: {
   const writers = noticeWriters(props.unseen)
   const ids = new Set(props.unseen.map((row) => row.writeId))
   const rowOf = new Map(props.unseen.map((row) => [row.writeId, row]))
+  // Preview hides the editor the review selects in, so switching to it ends the review as Done does.
+  if (step && !props.canReview) {
+    setStep(undefined)
+    setReviewHeight(undefined)
+  }
   // The control with the keyboard goes away with the review, or with the notice: the editor takes it.
   const endReview = () => {
     setStep(undefined)
