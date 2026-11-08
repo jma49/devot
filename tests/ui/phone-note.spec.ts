@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
+import { openPhoneNote } from './phone'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -22,11 +23,7 @@ const atDoubleText = (page: Page) =>
   })
 
 const openFirstNote = async (page: Page) => {
-  await page
-    .getByRole('navigation', { name: 'Tabs' })
-    .getByRole('button', { name: 'Notes' })
-    .click()
-  await page.locator('[data-section="recent"] .phone-note-open').first().click()
+  await openPhoneNote(page)
   await expect(note(page).locator('.cm-content')).toBeAttached()
 }
 
@@ -371,11 +368,7 @@ test.describe('which mode a note opens in', () => {
       )
     }, seeds)
     await page.goto('/')
-    await page
-      .getByRole('navigation', { name: 'Tabs' })
-      .getByRole('button', { name: 'Notes' })
-      .click()
-    await page.locator('.phone-note-open', { hasText: title }).first().click()
+    await openPhoneNote(page, title)
     await expect(note(page).locator('.cm-content')).toBeAttached()
   }
 
@@ -403,7 +396,7 @@ test.describe('which mode a note opens in', () => {
     await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
     await note(page).getByRole('button', { name: 'Back', exact: true }).click()
     await expect(note(page)).toHaveCount(0)
-    await page.locator('.phone-note-open', { hasText: 'Linking' }).first().click()
+    await openPhoneNote(page, 'Linking')
     await expect(preview(page).getByRole('link', { name: 'Blank' })).toBeVisible()
     await preview(page).getByRole('link', { name: 'Blank' }).click()
     await expect(heading(page)).toHaveValue('Blank')

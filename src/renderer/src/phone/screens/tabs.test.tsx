@@ -86,119 +86,75 @@ afterEach(() => {
 
 const shownStack = () => host.querySelector('.phone-stack:not([hidden])')!
 const screens = () =>
-  [...shownStack().querySelectorAll(':scope > .phone-layer:not([data-away])')].map((layer) =>
-    layer.querySelector('section')?.getAttribute('aria-label'),
+  [...shownStack().querySelectorAll(':scope > .phone-layer:not([data-away]) > section')].map(
+    (section) => section.getAttribute('aria-label'),
   )
-const webTabBar = () => host.querySelector('nav[aria-label="Tabs"]')
 const lastNotice = () => bridge.notices.at(-1)
-const libraryRow = (name: string) =>
-  [...shownStack().querySelectorAll<HTMLButtonElement>('.phone-grouped-open')].find(
-    (row) => row.querySelector('.phone-grouped-label')?.textContent === name,
-  ) ?? null
-const button = (label: string) =>
-  shownStack().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
 
 async function start() {
   await act(async () => root.render(<PhoneApp />))
-  await vi.waitFor(() => expect(screens()).toEqual(['Library']))
+  await vi.waitFor(() => expect(bridge.handlers['tabs.show']).toBeDefined())
   await act(async () => {})
 }
 
-async function swift(op: 'tabs.show' | 'tabs.popToRoot', tab: string) {
+async function swift(op: 'tabs.show' | 'tabs.popToRoot' | 'settings.showPane', args: object) {
   await act(async () => {
-    await bridge.handlers[op]!({ tab })
+    await bridge.handlers[op]!({ ...args })
   })
-}
-
-async function tap(target: HTMLElement | null) {
-  await act(async () => target!.click())
 }
 
 describe('the page under the native tab bar', () => {
-  it('draws no tab bar or New Note circle of its own', async () => {
+  it('draws no tab bar, New Note, list or search of its own', async () => {
+    await shell.notes.create('Plans', null)
     await start()
-    expect(webTabBar()).toBeNull()
-    expect(host.querySelector('.phone-compose')).toBeNull()
-    expect(lastNotice()).toStrictEqual({
-      notice: 'tabs.state',
-      tab: 'library',
-      barHidden: false,
-      attention: false,
-    })
+    await vi.waitFor(() =>
+      expect(lastNotice()).toStrictEqual({
+        notice: 'tabs.state',
+        tab: 'library',
+        barHidden: false,
+        attention: false,
+      }),
+    )
+    for (const tab of ['library', 'notes']) {
+      await swift('tabs.show', { tab })
+      expect(shownStack().querySelector('section')).toBeNull()
+    }
+    expect(host.querySelector('nav[aria-label="Tabs"]')).toBeNull()
+    expect(
+      host.querySelector('button[aria-label="New Note"], button[aria-label="Search"]'),
+    ).toBeNull()
+    expect(host.querySelector('[role="status"]')).toBeNull()
   })
 
-  it('keeps its own tab bar and circle when the native screens are not installed', async () => {
+  it('without the native screens opens on Activity and tells Swift nothing', async () => {
     bridge.installed = false
     await start()
-    expect(webTabBar()).not.toBeNull()
-    expect(host.querySelector('.phone-compose')).not.toBeNull()
+    await vi.waitFor(() => expect(screens()).toEqual(['Activity']))
+    expect(host.querySelector('nav[aria-label="Tabs"]')).toBeNull()
     expect(bridge.notices).toStrictEqual([])
   })
 
   it('shows the tab Swift asks for, keeping every stack mounted', async () => {
     await start()
-    const library = shownStack().querySelector('section')!
-    await swift('tabs.show', 'notes')
-    expect(screens()).toEqual(['All Notes'])
-    expect(library.isConnected).toBe(true)
-    await swift('tabs.show', 'library')
-    expect(shownStack().querySelector('section')).toBe(library)
-    expect(lastNotice()).toMatchObject({ tab: 'library' })
-  })
-
-  it('tells Swift when the page changes tab itself', async () => {
-    await start()
-    await tap(libraryRow('All Notes'))
-    expect(screens()).toEqual(['All Notes'])
-    expect(lastNotice()).toMatchObject({ tab: 'notes', barHidden: false })
+    await swift('tabs.show', { tab: 'settings' })
+    const settings = shownStack().querySelector('section')!
+    expect(screens()).toEqual(['Settings'])
+    await swift('tabs.show', { tab: 'activity' })
+    expect(screens()).toEqual(['Activity'])
+    expect(settings.isConnected).toBe(true)
+    await swift('tabs.show', { tab: 'settings' })
+    expect(shownStack().querySelector('section')).toBe(settings)
+    expect(lastNotice()).toMatchObject({ tab: 'settings' })
   })
 
   it('never pops a stack when Swift shows the tab already shown', async () => {
-    await shell.books.create('Work', null)
     await start()
-    await vi.waitFor(() => expect(libraryRow('Work')).not.toBeNull())
-    await tap(libraryRow('Work'))
-    expect(screens()).toEqual(['Library', 'Work'])
-    await swift('tabs.show', 'library')
+    await swift('settings.showPane', { pane: 'sync' })
     expect(screens()).toHaveLength(2)
-    await swift('tabs.popToRoot', 'library')
-    expect(screens()).toEqual(['Library'])
-  })
-
-  it('leaves a tapped note to Swift, whose pushed screen hides the bar itself', async () => {
-    await shell.notes.create('Plans', null)
-    await start()
-    await swift('tabs.show', 'notes')
-    await vi.waitFor(() => expect(shownStack().querySelector('.phone-note-open')).not.toBeNull())
-    const before = bridge.notices.length
-    await tap(shownStack().querySelector<HTMLButtonElement>('.phone-note-open'))
-    expect(bridge.notices.slice(before).map((n) => n.notice)).toStrictEqual(['nav.openNote'])
-  })
-
-  it('leaves the bar up for New Note, whose editor Swift pushes over it', async () => {
-    await start()
-    await swift('tabs.show', 'notes')
-    await tap(button('New Note'))
-    expect(lastNotice()).toStrictEqual({ notice: 'note.new' })
-    expect(bridge.notices.filter((n) => n.notice === 'tabs.state').at(-1)).toMatchObject({
-      tab: 'notes',
-      barHidden: false,
-    })
-  })
-
-  it('hides the bar while search covers the page', async () => {
-    await start()
-    await tap(button('Search'))
-    expect(lastNotice()).toMatchObject({ barHidden: true })
-  })
-
-  it('offers New Note in the list capsule, where the circle offered it', async () => {
-    await start()
-    expect(button('New Note')).not.toBeNull()
-    await swift('tabs.show', 'settings')
-    expect(button('New Note')).toBeNull()
-    await swift('tabs.show', 'notes')
-    expect(button('New Note')).not.toBeNull()
+    await swift('tabs.show', { tab: 'settings' })
+    expect(screens()).toHaveLength(2)
+    await swift('tabs.popToRoot', { tab: 'settings' })
+    expect(screens()).toEqual(['Settings'])
   })
 })
 

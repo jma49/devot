@@ -212,6 +212,11 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
         return !collectionView.isEditing
     }
 
+    func collectionView(_ collectionView: UICollectionView, didHighlightItemAt path: IndexPath) {
+        guard !collectionView.isEditing, case .note(let id)? = data.itemIdentifier(for: path) else { return }
+        context.prepare(id)
+    }
+
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt path: IndexPath) {
         switch data.itemIdentifier(for: path) {
         case .header(let section)?:

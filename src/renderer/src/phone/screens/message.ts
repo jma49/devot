@@ -17,6 +17,7 @@ export const SCREENS_OPS = [
   'settings.showPane',
   'settings.notebooks',
   'editor.show',
+  'editor.prepare',
   'editor.hide',
   'editor.setMode',
   'editor.info',

@@ -89,7 +89,7 @@ const screens = () =>
 
 async function start() {
   await act(async () => root.render(<PhoneApp />))
-  await vi.waitFor(() => expect(screens()).toEqual(['Library']))
+  await vi.waitFor(() => expect(bridge.handlers['settings.showPane']).toBeDefined())
   await act(async () => {})
 }
 
@@ -191,7 +191,7 @@ describe('the page under the native Settings', () => {
     expect(bridge.notices.filter((notice) => notice.notice === 'settings.open')).toStrictEqual([
       { notice: 'settings.open', pane: 'licence', focusKey: true },
     ])
-    expect(screens()).toEqual(['Library'])
+    expect(host.querySelector('.phone-stack:not([hidden]) section')).toBeNull()
   })
 })
 

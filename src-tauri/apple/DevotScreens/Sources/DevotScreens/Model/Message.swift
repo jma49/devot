@@ -88,6 +88,7 @@ public enum Op: String, CaseIterable, Sendable {
     case settingsShowPane = "settings.showPane"
     case settingsNotebooks = "settings.notebooks"
     case editorShow = "editor.show"
+    case editorPrepare = "editor.prepare"
     case editorHide = "editor.hide"
     case editorSetMode = "editor.setMode"
     case editorInfo = "editor.info"

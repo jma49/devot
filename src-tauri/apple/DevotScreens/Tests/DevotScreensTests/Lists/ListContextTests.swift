@@ -173,6 +173,16 @@ final class ListContextTests: XCTestCase {
         XCTAssertEqual(recorder.log, [], "and the gate's own haptic is the screens', not a list's")
     }
 
+    func testAPressedRowAsksThePageToReadItsNoteAheadOfThePush() throws {
+        context.prepare(id)
+        let sent = try XCTUnwrap(bridge.sent.first)
+        XCTAssertEqual(sent.op, Op.editorPrepare.rawValue)
+        XCTAssertEqual(sent.args, ["noteId": .string(id)])
+        bridge.answer(Op.editorPrepare.rawValue, .failed("E_SCREENS_UNAVAILABLE"))
+        XCTAssertEqual(shown, [])
+        XCTAssertEqual(bridge.lines, [])
+    }
+
     func testAScreenPreparesTheGeneratorsAMenuMayFireWhenItOpens() {
         let recorder = HapticRecorder()
         context.haptics = Haptics(make: recorder.make)

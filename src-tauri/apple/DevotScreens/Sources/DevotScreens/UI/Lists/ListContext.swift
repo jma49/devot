@@ -194,6 +194,11 @@ final class ListContext {
         }
     }
 
+    /// Lets the page read the note while the finger is still on its row, so the push finds it ready.
+    func prepare(_ id: String) {
+        bridge?.request(.editorPrepare, ["noteId": .string(id)]) { _ in }
+    }
+
     /// The note's Markdown for the share sheet, read through the page.
     func text(_ id: String, done: @escaping (_ title: String, _ markdown: String) -> Void) {
         bridge?.request(.noteText, ["noteId": .string(id)]) { [weak self] outcome in

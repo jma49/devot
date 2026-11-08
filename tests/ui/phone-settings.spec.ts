@@ -1,18 +1,20 @@
 import { readFileSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
 import { expect, gradientStops, test } from './fixtures'
+import { showPhoneTab } from './phone'
 
 test.use({
   viewport: { width: 390, height: 844 },
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15',
 })
 
-const tabs = (page: Page) => page.getByRole('navigation', { name: 'Tabs' })
+const glass = (page: Page) =>
+  page.locator('.phone-stack:not([hidden]) > .phone-layer:not([data-away]) .phone-glass').first()
 const root = (page: Page) => page.getByRole('region', { name: 'Settings' })
 
 async function openSettings(page: Page): Promise<void> {
   await page.goto('/')
-  await tabs(page).getByRole('button', { name: 'Settings' }).click()
+  await showPhoneTab(page, 'settings')
 }
 
 async function openPane(page: Page, name: string): Promise<Locator> {
@@ -34,9 +36,9 @@ async function rightPadding(control: Locator): Promise<number> {
 }
 
 const glassOpaque = (page: Page) =>
-  tabs(page).evaluate((bar) => getComputedStyle(bar).backdropFilter === 'none')
+  glass(page).evaluate((bar) => getComputedStyle(bar).backdropFilter === 'none')
 
-test('an ended trial shows on the Settings tab and its License row at launch', async ({ page }) => {
+test('an ended trial shows on its License row at launch', async ({ page }) => {
   await page.addInitScript(() => {
     const w = window
     w.devotIpcMocks = {
@@ -52,13 +54,7 @@ test('an ended trial shows on the Settings tab and its License row at launch', a
       }),
     }
   })
-  await page.goto('/')
-  await expect(
-    tabs(page)
-      .getByRole('button', { name: 'Settings' })
-      .getByRole('img', { name: 'Needs attention' }),
-  ).toBeVisible()
-  await tabs(page).getByRole('button', { name: 'Settings' }).click()
+  await openSettings(page)
   await expect(root(page).getByRole('button', { name: /^License/ })).toContainText(
     'Needs attention',
   )
@@ -116,7 +112,7 @@ test('the transparency slider scales the glass tint and survives a reload', asyn
   const pane = await openPane(page, 'Appearance')
   const slider = pane.getByRole('slider', { name: 'Glass Transparency' })
   const alpha = () =>
-    tabs(page).evaluate((bar) => {
+    glass(page).evaluate((bar) => {
       const parts = getComputedStyle(bar).backgroundColor.match(/[\d.]+/g)!
       return parts.length > 4 || parts.length === 4 ? Number(parts.at(-1)) : 1
     })
@@ -126,6 +122,7 @@ test('the transparency slider scales the glass tint and survives a reload', asyn
   await slider.fill('-100')
   await expect.poll(alpha).toBe(1)
   await page.reload()
+  await showPhoneTab(page, 'settings')
   const stored = await page.evaluate(() => localStorage.getItem('devot.phone.glassTransparency'))
   expect(stored).toBe('-100')
   await expect.poll(alpha).toBe(1)

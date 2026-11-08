@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+import { openPhoneNote } from './phone'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -11,11 +12,7 @@ async function openNote(page: Page) {
     ;(globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome = true
   })
   await page.goto('/')
-  await page
-    .getByRole('navigation', { name: 'Tabs' })
-    .getByRole('button', { name: 'Notes' })
-    .click()
-  await page.locator('[data-section="recent"] .phone-note-open').first().click()
+  await openPhoneNote(page)
   await expect(page.locator('.phone-note-chips')).toBeVisible()
 }
 

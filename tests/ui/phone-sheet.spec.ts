@@ -1,12 +1,11 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+import { openPhoneNote, showPhoneTab } from './phone'
 
 test.use({
   viewport: { width: 390, height: 844 },
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15',
 })
-
-const tabs = (page: Page) => page.getByRole('navigation', { name: 'Tabs' })
 
 async function expectWholeSheet(page: Page, sheet: Locator, last: Locator): Promise<void> {
   await expect(sheet).toBeVisible()
@@ -54,12 +53,12 @@ const seedTrial = (page: Page) =>
 async function openTrial(page: Page): Promise<Locator> {
   await seedTrial(page)
   await page.goto('/')
-  await tabs(page).getByRole('button', { name: 'Settings' }).click()
+  await showPhoneTab(page, 'settings')
   await page.locator('.phone-app-row').click()
   return page.getByRole('dialog', { name: 'Trial' })
 }
 
-test('the trial sheet covers the tab bar and is whole, its Done reachable', async ({ page }) => {
+test('the trial sheet is whole, its Done reachable', async ({ page }) => {
   const sheet = await openTrial(page)
   const done = sheet.getByRole('button', { name: 'Done' })
   await expectWholeSheet(page, sheet, done)
@@ -99,8 +98,7 @@ test('note info and the note pickers are whole, on the note screen', async ({ pa
     ;(globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome = true
   })
   await page.goto('/')
-  await tabs(page).getByRole('button', { name: 'Notes' }).click()
-  await page.locator('[data-section="recent"] .phone-note-open').first().click()
+  await openPhoneNote(page)
   const note = page.locator('section.phone-screen:has(.phone-note-scroll)')
   await expect(note.locator('.cm-content')).toBeAttached()
 
@@ -141,8 +139,7 @@ async function openNoteScreen(page: Page): Promise<Locator> {
     ;(globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome = true
   })
   await page.goto('/')
-  await tabs(page).getByRole('button', { name: 'Notes' }).click()
-  await page.locator('[data-section="recent"] .phone-note-open').first().click()
+  await openPhoneNote(page)
   const note = page.locator('section.phone-screen:has(.phone-note-scroll)')
   await expect(note.locator('.cm-content')).toBeAttached()
   return note

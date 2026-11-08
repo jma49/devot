@@ -225,6 +225,8 @@ pub enum Op {
     SettingsNotebooks(Empty),
     #[serde(rename = "editor.show")]
     EditorShow(ShowNote),
+    #[serde(rename = "editor.prepare")]
+    EditorPrepare(NoteArgs),
     #[serde(rename = "editor.hide")]
     EditorHide(Empty),
     #[serde(rename = "editor.setMode")]
@@ -260,6 +262,7 @@ pub const OPS: &[&str] = &[
     "settings.showPane",
     "settings.notebooks",
     "editor.show",
+    "editor.prepare",
     "editor.hide",
     "editor.setMode",
     "editor.info",
@@ -643,6 +646,7 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             _ => Err("E_SCREENS_ARGS_INVALID"),
         },
         Op::EditorShow(ShowNote { note_id, .. })
+        | Op::EditorPrepare(NoteArgs { note_id })
         | Op::NoteText(NoteArgs { note_id })
         | Op::NoteComplete(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
         Op::NoteUndoStatus(UndoStatus { note_id, undo }) => {

@@ -138,8 +138,6 @@ afterEach(() => {
 const editorHost = () => host.querySelector<HTMLElement>('.phone-editor-host')!
 const noteScreen = () => editorHost().querySelector('section')
 const notices = (name: ScreensNotice['notice']) => bridge.notices.filter((n) => n.notice === name)
-const shownStack = () => host.querySelector('.phone-stack:not([hidden])')!
-const rows = () => [...shownStack().querySelectorAll<HTMLButtonElement>('.phone-note-open')]
 const layer = (mode: 'edit' | 'preview') =>
   editorHost().querySelector<HTMLElement>(
     mode === 'edit' ? '.phone-note-layer:not(.phone-note-preview)' : '.phone-note-preview',
@@ -170,33 +168,11 @@ const nextFrames = () =>
   )
 
 describe('the editor host under the native screens', () => {
-  it('asks Swift to push a note a row opens, and pushes no web screen', async () => {
+  it('opens a note ahead of the push when Swift says its row was pressed', async () => {
     const id = await shell.notes.create('Plans', null)
     await start()
-    await vi.waitFor(() => expect(rows()).toHaveLength(1))
-    await act(async () => rows()[0]!.click())
-    expect(notices('nav.openNote')).toStrictEqual([
-      { notice: 'nav.openNote', noteId: id, title: 'Plans' },
-    ])
-    expect(shownStack().querySelectorAll('.phone-layer')).toHaveLength(1)
-    expect(editorHost().dataset['shown']).toBeUndefined()
-  })
-
-  it('opens a row’s note ahead of the push when the finger touches it', async () => {
-    const id = await shell.notes.create('Plans', null)
-    await start()
-    await vi.waitFor(() => expect(rows()).toHaveLength(1))
     await act(async () => {
-      rows()[0]!
-        .closest('.phone-note-content')!
-        .dispatchEvent(
-          new PointerEvent('pointerdown', {
-            bubbles: true,
-            pointerId: 1,
-            clientX: 20,
-            clientY: 20,
-          }),
-        )
+      await bridge.handlers['editor.prepare']!({ noteId: id })
       await shell.notes.flush()
     })
     await act(async () => {
@@ -204,6 +180,7 @@ describe('the editor host under the native screens', () => {
     })
     await swift('editor.show', { noteId: id })
     expect(editors.given).toStrictEqual([id])
+    await expect(bridge.handlers['editor.prepare']!({})).rejects.toThrow('E_SCREENS_ARGS_INVALID')
   })
 
   it('shows the note Swift names, without the web top bar, and swaps notes into one editor', async () => {

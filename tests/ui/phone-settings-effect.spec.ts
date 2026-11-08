@@ -1,13 +1,13 @@
 // iPhone Settings rows either change what the phone shows or are left out of it.
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+import { showPhoneTab } from './phone'
 
 test.use({
   viewport: { width: 390, height: 844 },
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15',
 })
 
-const tabs = (page: Page) => page.getByRole('navigation', { name: 'Tabs' })
 const root = (page: Page) => page.getByRole('region', { name: 'Settings' })
 
 function crashReports(page: Page, available: boolean) {
@@ -21,7 +21,7 @@ function crashReports(page: Page, available: boolean) {
 
 async function openSettings(page: Page): Promise<void> {
   await page.goto('/')
-  await tabs(page).getByRole('button', { name: 'Settings' }).click()
+  await showPhoneTab(page, 'settings')
 }
 
 async function openPane(page: Page, name: string): Promise<Locator> {
@@ -105,16 +105,4 @@ test('General offers crash reports where this build can send them', async ({ pag
   await crashReports(page, true)
   const pane = await openPane(page, 'General')
   await expect(pane.getByRole('switch', { name: 'Send Crash Reports' })).toBeAttached()
-})
-
-test('New Note where it is not offered is hidden from assistive technology', async ({ page }) => {
-  await page.goto('/')
-  const compose = page.locator('.phone-compose')
-  await expect(compose).not.toHaveAttribute('aria-hidden')
-  await expect(page.locator('[data-keyboard-proxy]')).toHaveAttribute('aria-hidden', 'true')
-  await tabs(page).getByRole('button', { name: 'Settings' }).click()
-  await expect(compose).toHaveAttribute('data-hidden')
-  await expect(compose).toHaveAttribute('inert', '')
-  await expect(compose).toHaveAttribute('aria-hidden', 'true')
-  await expect(page.getByRole('button', { name: 'New Note', exact: true })).toHaveCount(0)
 })

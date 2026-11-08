@@ -9,7 +9,6 @@ import {
   createTagService,
   createTemplateService,
 } from '../../src/core'
-import { TEMPLATES_BOOK_ID } from '../../src/core/templatesBook'
 import {
   discardNewNote,
   makeNewNote,
@@ -28,7 +27,6 @@ function phoneCore() {
   const templates = createTemplateService({ storage, notes, books, tags, clock, newId })
   const core = {
     create: (title: string, bookId: string | null) => notes.create(title, bookId),
-    createTemplate: () => templates.create(),
     discardEmpty: (id: string) => notes.discardEmpty(id),
   }
   const summary = async (id: string) => {
@@ -54,25 +52,17 @@ describe('New Note on the iPhone, on SQLite', () => {
     const work = await books.create('Work', null)
     const home = await books.create('Home', null)
     const all = await books.list()
-    const shown = newNoteBook({ view: { kind: 'book', id: work }, status: 'all' }, home, all)
-    const id = await makeNewNote(core, 'note', shown)
+    const id = await makeNewNote(core, newNoteBook(work, home, all))
     expect(await summary(id)).toMatchObject({ title: '', bookId: work, status: 'none' })
-    const fromAll = newNoteBook({ view: { kind: 'all' }, status: 'active' }, home, all)
-    expect((await summary(await makeNewNote(core, 'note', fromAll)))?.bookId).toBe(home)
+    expect((await summary(await makeNewNote(core, newNoteBook(null, home, all))))?.bookId).toBe(
+      home,
+    )
     expect(newNoteBook(null, 'gone', all)).toBeNull()
-  })
-
-  it('makes a template from Templates', async () => {
-    const { core, templates } = phoneCore()
-    const id = await makeNewNote(core, 'template', null)
-    const listed = await templates.listWithNotes()
-    expect(listed.templates.find((n) => n.id === id)?.bookId).toBe(TEMPLATES_BOOK_ID)
-    expect(listed.notes.map((n) => n.id)).not.toContain(id)
   })
 
   it('discards a note left untouched, for good and without the Trash', async () => {
     const { core, notes, storage, summary } = phoneCore()
-    const id = await makeNewNote(core, 'note', null)
+    const id = await makeNewNote(core, null)
     expect(untouched({ bookId: null }, await summary(id))).toBe(true)
     await notes.open(id)
     expect(await discardNewNote(core, id)).toBe(true)
@@ -84,16 +74,16 @@ describe('New Note on the iPhone, on SQLite', () => {
   it('counts a title or a chip changed as touched', async () => {
     const { core, notes, books, tags, summary } = phoneCore()
     const made = { bookId: null }
-    const titled = await makeNewNote(core, 'note', null)
+    const titled = await makeNewNote(core, null)
     await notes.setTitle(titled, 'Plans')
     expect(untouched(made, await summary(titled))).toBe(false)
-    const moved = await makeNewNote(core, 'note', null)
+    const moved = await makeNewNote(core, null)
     await notes.setBook(moved, await books.create('Work', null))
     expect(untouched(made, await summary(moved))).toBe(false)
-    const tagged = await makeNewNote(core, 'note', null)
+    const tagged = await makeNewNote(core, null)
     await tags.addToNote(tagged, 'idea')
     expect(untouched(made, await summary(tagged))).toBe(false)
-    const started = await makeNewNote(core, 'note', null)
+    const started = await makeNewNote(core, null)
     await notes.setStatus(started, 'active')
     expect(untouched(made, await summary(started))).toBe(false)
   })
@@ -101,7 +91,7 @@ describe('New Note on the iPhone, on SQLite', () => {
   it('keeps a note sync wrote a body into, and logs the refusal by its code', async () => {
     const { core, notes } = phoneCore()
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const id = await makeNewNote(core, 'note', null)
+    const id = await makeNewNote(core, null)
     await type(notes, id, 'From the Mac')
     expect(await discardNewNote(core, id)).toBe(false)
     expect((await notes.list()).map((n) => n.id)).toEqual([id])

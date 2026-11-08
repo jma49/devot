@@ -44,11 +44,13 @@ UIApplication (tao's app delegate, unchanged)
    Swift moves the web view only from a screen's `viewIsAppearing`, when it has a window, so the web view's window is never nil.
    Stage 0 attached only the empty root; stage 1 attaches the tab bar over the web view (Tabs, below).
    Once the root appears with its scene foreground-active, Swift makes tao's window key, which tao leaves to another window after launch, and logs `I_SCREENS_WINDOW_KEY`; it checks again each time the scene becomes active.
-4. On `false` the app keeps today's web shell unchanged.
+4. On `false` the app keeps the web fallback.
    Swift answers `false` when the kill switch is on or when an object is of another class, and logs why with a code.
 5. At start the page calls `screens_take`, which answers `{ installed, pending }`: whether the screens attached, and the operations queued before the page listened.
-6. With `installed` the page mounts the editor host alone (no tab bar, lists, sheets or glass); otherwise it mounts the web shell.
+6. With `installed` the page mounts the editor host alone (no tab bar, lists, sheets or glass); otherwise it mounts the web fallback.
    Both paths start the core and seed the welcome notes the same way.
+7. The web fallback draws no tab bar, note list, Library, search or toast, which are all native: it opens on Activity, whose ranked notes open the page's note screen, and its Settings only from the Devot Pro prompt's License button.
+   UI tests reach its other screens through `globalThis.devotPhone` (`showTab`, `openNote`, `notes`), which the page installs only in a `DEVOT_UI_TEST` build.
 
 The kill switch is the `DevotScreensOff` key of the app's own `UserDefaults`, which the launch argument `-DevotScreensOff YES` sets for one run; the privacy manifest gives reason `CA92.1` for reading it.
 The kill switch stays until stage 4 has shipped one release with no fallback in crash reports.
@@ -275,7 +277,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 | `licence.changed`                           | Rust → Swift | the licence changed: Swift reads its snapshot again; only Rust may send it                                              |
 
 - Each message joins the bridge with the change that first sends it: `editor.prepare` with the native lists, `editor.show`'s `focus` with New Note, and `editor.insets`, `editor.format` and `editor.gate` with the native toolbar and gate.
-- Until the lists are native, the page prepares a note itself when a finger lands on its row (`phone/screens/prepared.ts`): it holds and opens the note, and the editor takes the opened state when Swift shows it; a note no tap took is let go after 1.5 s.
+- On `editor.prepare` the page holds and opens the note (`phone/screens/prepared.ts`), and the editor takes the opened state when Swift shows it; a note no tap took is let go after 1.5 s.
 - The page decides the mode, so `editor.show` carries none: Edit for an empty note while writes are allowed, Preview otherwise, and Preview for every note while writes are locked.
 - A hidden editor keeps the last note open until the next `editor.show`, so going back to it costs nothing; its history and caret are kept per note as before.
 - Every `editor.show` opens the note at its top, the note shown last too, and the page sends `editor.mode`, `editor.title` and `editor.scroll` again, since each show comes with a new screen.
@@ -291,7 +293,7 @@ It moves between superviews with `addSubview` alone, never `removeFromSuperview`
 
 ### Row to editor
 
-1. Touch-down highlights the cell and sends `editor.prepare` (the page prepares a web row itself).
+1. Touch-down highlights the cell and sends `editor.prepare`, unless the list is selecting.
 2. Touch-up pushes `EditorScreen` at once, with `hidesBottomBarWhenPushed`; the push is the system's and is never retimed or waited on.
 3. The list's screen leaves a still of the page, `snapshotView(afterScreenUpdates: false)`, in its own view.
    In `viewIsAppearing`, the first callback with a window, the editor's container takes the web view under a cover: `color.phone.background` with the title in the note type scale on the editor keyline, drawn natively.

@@ -17,8 +17,18 @@ const invalid = () => new Error('E_SCREENS_ARGS_INVALID')
 
 const isMode = (value: unknown): value is EditorMode => value === 'edit' || value === 'preview'
 
-export function editorHandlers(editor: () => NativeEditor | null): ScreensHandlers {
+/** `prepare`: a native row was pressed, so its note is opened ahead of the push (`prepared.ts`). */
+export function editorHandlers(
+  editor: () => NativeEditor | null,
+  notes: { readonly prepare: (noteId: string) => void },
+): ScreensHandlers {
   return {
+    'editor.prepare': async (args) => {
+      const noteId = args['noteId']
+      if (typeof noteId !== 'string' || noteId === '') throw invalid()
+      notes.prepare(noteId)
+      return {}
+    },
     'editor.show': async (args) => {
       const noteId = args['noteId']
       const focus = args['focus']

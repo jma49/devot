@@ -152,19 +152,14 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The swipe starts only at the screen's edge: a swipe across the note stays the page's, for selecting text or scrolling a wide table.
 - **Leaving a note** (the native screens): rule 2.
   Once the pop is done the list is live again under its still, which goes at once when the page has drawn the list, or after 400 ms; popping back to an earlier note keeps its still, which fades over `motion.duration.phone-adjust` once the page has drawn the note, or after 400 ms.
-- **Tab bar lens** (the web shell, when the native screens are not installed): rule 4. At rest the lens is the tab's capsule inset `size.phone-lens-inset` inside the bar on every side, at every tab, its radius the bar's minus the inset (`radius.phone-lens-bar`), so it never reaches past the bar's inner edge and the bar does not clip it. Its two ends move on their own springs, drawn each frame by `phone/tabLens.ts`: the end it travels towards on `motion.spring.phone-lens-lead-*`, the one it leaves on `motion.spring.phone-lens-trail-*`, so it stretches along its travel by width alone and settles back to one tab; neither end goes past the bar's inner edge. A finger on a tab lifts the lens to it with the glass highlight, grown about its middle towards `motion.scale.phone-lens-lift` on `motion.spring.lift-*`. The lift is part of the drawn geometry, not a scale on top: grown, the lens keeps the margin it has at top and bottom (the inset less its growth) from the bar's ends too, so at the first and last tab, held or dragged, it is concentric with the bar at every width, and nothing of it leaves the bar. Moving past 8 pt drags it, centred under the finger through the same springs and held inside the bar, and on release it settles on the nearest tab, which opens with the `selection` haptic; the click that release makes is not a tap, and only that one is ignored. A press released or cancelled anywhere, even off the bar, lets the lens down, and a resize of the bar mid-press cancels it. A change that comes while it moves carries on from where it is, at its speed. Its width animates each frame, a known exception to compositor only: it is one small layer that moves nothing else. The selected icon takes `color.accent-text` and pops over `motion.duration.phone-pop`. Under Reduce Motion the lens moves at once and does not grow; under Reduce Transparency it loses the highlight and stays a plain fill on the opaque bar.
 - **System tab bar** (the native screens): the system draws it and keeps its motion.
   A tab tapped is rule 4: the system's lens and the accent on the selected icon; the page shows that tab's stack at once (rule 2), each stack kept where it was.
   The selected tab tapped again is rule 4 too: the `selection` haptic, and the stack pops to its root at once.
   The bar hides over a note, search or a sheet and comes back when it goes, with the system's slide (rule 3); over a pushed list or Settings pane it stays.
   A tab the page opens itself (All Notes from the Library) moves the system's selection the same way.
   The Settings mark appears and goes at once.
-- **Note list sections and Library groups:** rule 3. A head's chevron turns over `motion.duration.phone-chevron` on `motion.easing.phone-push`; the section's rows fold away or open with `gentle` while fading over `motion.duration.ring`, and what is below follows. Show more goes at once as the rows open. Under Reduce Motion the rows crossfade and the chevron is simply turned.
-- **Activity week menu:** the same pop-up as the status filter menu. The stats and ranking change at once (rule 2).
-- **Status filter menu:** a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The filtered rows change at once (rule 2).
-- **Swipe actions:** rule 1, then rule 3. The row follows the finger, with 0.6 rubber band past `size.phone-swipe-open`; on release it settles on `motion.easing.phone-push`. The buttons grow with `bouncy`, the rightmost first; past `size.phone-swipe-arm` Done stretches over the others with `gentle`. Under Reduce Motion the row crossfades into place.
-- **Status mark:** rule 4. It bumps to `motion.scale.phone-bump` with `bouncy` when the status changes; its colour does not animate.
-- **Peek:** rule 3. After `motion.delay.phone-peek` the background blurs and dims, the card grows from `motion.scale.phone-peek-enter` and 30 pt below with `gentle`, and the status bar and menu follow with `bouncy`, from `motion.scale.phone-peek-bar` and `motion.scale.phone-peek-menu`, after `motion.delay.phone-peek-bar` and `motion.delay.phone-peek-menu`. Only transforms and opacity move: the blur and dim are one layer with a fixed 16 px blur that fades in over `motion.duration.ring`, never a blur radius that grows; the card, bar and menu are promoted (`will-change`) only until their transitions finish; the bar and menu draw no blur of their own over the peek's, so nothing is blurred again as they grow. Under Reduce Motion the card, bar and menu only crossfade in place, with no delay; the background blur stays.
+- **Activity's section head** (the page's screens): rule 3. The chevron turns over `motion.duration.phone-chevron` on `motion.easing.phone-push`; the ranked notes fold away or open with `gentle` while fading over `motion.duration.ring`. Under Reduce Motion the rows crossfade and the chevron is simply turned.
+- **Activity week menu:** a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The stats and ranking change at once (rule 2).
 - **Note list rows** (the native screens): rule 2.
   A change the page reports redraws only its rows: a changed row is drawn again in place, a row whose place changed moves there with the system's list animation (rule 3), and a row that leaves fades with it.
   The first page, and a read after a missed change, are drawn at once.
@@ -207,19 +202,15 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Title under the bar** (the native screens): rule 2.
   Once the note's own title has scrolled under the system bar, the bar shows it; it goes when the title comes back.
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes. Under Reduce Motion it crossfades in place, and still follows a drag.
-- **Compose circle** (the web shell only; under the system tab bar New Note is the compose button in the list's bar, which presses as any bar button): rule 3. Where it is not offered it fades and shrinks to `motion.scale.phone-compose-hidden` with `gentle`; where it is, it comes back the same way.
-- **New Note:** rule 3.
-  The note screen pushes as any note does, with nothing beneath it changing that the user can see, and no motion of its own.
-  A list that shows the note slides in under it in the same push when the screen below would not list it.
-  The keyboard rises with the push, held by a hidden field the tap focused, and the body takes it with the caret once the push has landed; the screen makes room for the keyboard only then.
-  Under the native screens the tap pushes the new note's screen in the same turn with the system's push, before the note exists; its cover holds, with no title, until the note exists and the page has painted it, then fades as any note's cover does.
-  There the list the note belongs to is moved to under the list's still, so Back lands on the note's row.
-  There the keyboard rises once the push has landed, held by a hidden native field, and the body then takes it; where the page takes no caret (a note that opens in Preview) it goes down again at once.
-  Under Reduce Motion the push crossfades, and under the native screens the system decides its look.
+- **New Note** (the native screens): rule 3.
+  The compose button in the list's bar presses as any bar button.
+  The tap pushes the new note's screen in the same turn with the system's push, before the note exists; its cover holds, with no title, until the note exists and the page has painted it, then fades as any note's cover does.
+  The list the note belongs to is moved to under the list's still, so Back lands on the note's row.
+  The keyboard rises once the push has landed, held by a hidden native field, and the body then takes it; where the page takes no caret (a note that opens in Preview) it goes down again at once.
+  Under Reduce Motion the system decides the push's look.
 - **Returning from a new note:** rule 2.
-  The note's row is already in place when the list comes back, and nothing moves into the list: the row only fades out of the accent wash over `motion.duration.phone-flash`.
+  The note's row is already in place when the list comes back, and nothing moves into the list.
   An untouched new note (no title, no body, no chip changed) is gone before the list shows, with no motion and no toast.
-- **Search:** rule 3. The overlay fades in over `motion.duration.phone-search`; the glass field grows leftwards from the search button, from `motion.scale.phone-search-field` of its width with `bouncy`, fading in over `motion.duration.phone-search-field`. Closing goes back the same way. Results and the chips change at once (rule 2). Reduce Motion leaves the crossfade.
 - **Undo toast:** rule 3.
   It rises `size.phone-toast-rise` over `motion.duration.phone-enter` on `motion.easing.phone-enter` while fading in, with no scale and no bounce.
   Its glass is put on once the rise has ended.
