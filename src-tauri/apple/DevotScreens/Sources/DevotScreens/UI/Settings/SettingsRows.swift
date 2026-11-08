@@ -9,20 +9,22 @@ private struct SettingsType: ViewModifier {
     @ScaledMetric(relativeTo: .body) private var line: CGFloat = 23
     private let weight: Font.Weight
     private let secondary: Bool
+    private let color: UIColor?
 
     init(size: CGFloat, line: CGFloat, weight: Font.Weight = .regular, relativeTo style: Font.TextStyle = .body,
-        secondary: Bool) {
+        secondary: Bool, color: UIColor? = nil) {
         _size = ScaledMetric(wrappedValue: size, relativeTo: style)
         _line = ScaledMetric(wrappedValue: line, relativeTo: style)
         self.weight = weight
         self.secondary = secondary
+        self.color = color
     }
 
     func body(content: Content) -> some View {
         content
             .font(.system(size: size, weight: weight))
             .lineSpacing(max(0, line - UIFont.systemFont(ofSize: size, weight: weight.uiKit).lineHeight))
-            .foregroundStyle(Color(secondary ? Tokens.Color.phoneTextSecondary : Tokens.Color.phoneText))
+            .foregroundStyle(Color(color ?? (secondary ? Tokens.Color.phoneTextSecondary : Tokens.Color.phoneText)))
     }
 }
 
@@ -43,6 +45,14 @@ extension View {
         modifier(SettingsType(size: 20, line: 25, weight: .bold, relativeTo: .title3, secondary: false))
     }
     func sheetBody() -> some View { modifier(SettingsType(size: 16, line: 24, secondary: true)) }
+    /// A card's name under its picture: 16/23 medium, its colour the only thing a choice changes.
+    func cardLabel(_ color: UIColor) -> some View {
+        modifier(SettingsType(size: 16, line: 23, weight: .medium, secondary: false, color: color))
+    }
+    /// A slider's value beside its name: 14/19 medium in tabular figures.
+    func sliderValue() -> some View {
+        modifier(SettingsType(size: 14, line: 19, weight: .medium, secondary: true)).monospacedDigit()
+    }
     /// A short sheet's one line, in the primary text colour: the sheet's material lets the list through.
     func sheetMessage() -> some View { modifier(SettingsType(size: 16, line: 24, secondary: false)) }
 
@@ -220,7 +230,8 @@ struct SheetButton: View {
         }
         .frame(maxWidth: .infinity, minHeight: Tokens.Size.phoneSheetDone)
         if prominent {
-            Button(action: action) { label }.buttonStyle(.glassProminent).tint(Color(Tokens.Color.accentFill))
+            Button(action: action) { label.foregroundStyle(Color(Tokens.Color.accentOnFill)) }
+                .buttonStyle(.glassProminent).tint(Color(Tokens.Color.accentFill))
         } else {
             Button(action: action) { label }.buttonStyle(.glass)
         }
@@ -229,6 +240,10 @@ struct SheetButton: View {
 
 /// A Settings page pushed on the Settings stack, under an inline title.
 final class SettingsHosting<Content: View>: UIHostingController<Content> {
+    /// Runs once the page has left the stack; a cancelled back swipe never runs it.
+    var left: () -> Void = {}
+    private(set) var placeKeeper: PlaceKeeper?
+
     init(title: String, _ content: Content) {
         super.init(rootView: content)
         navigationItem.title = title
@@ -239,15 +254,36 @@ final class SettingsHosting<Content: View>: UIHostingController<Content> {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = Tokens.Color.phoneBackground
+        followTheme { [weak self] in self?.view.backgroundColor = Tokens.Color.phoneBackground }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if placeKeeper == nil, let list = view.firstSubview(of: UICollectionView.self) {
+            placeKeeper = PlaceKeeper(list)
+        }
+    }
+
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        if parent == nil { left() }
     }
 }
 
 extension View {
     /// The grouped list on the phone's background, and the one-line alert of a refused write.
-    func settingsPage(_ store: SettingsStore) -> some View {
-        scrollContentBackground(.hidden)
-            .background(Color(Tokens.Color.phoneBackground))
+    func settingsPage(_ store: SettingsStore, glow: Bool = false) -> some View {
+        // The tab bar's scroll edge effect would otherwise fade a pane's last footer even at the foot.
+        contentMargins(.bottom, Tokens.Size.phoneTabEdge, for: .scrollContent)
+            .scrollContentBackground(.hidden)
+            .background(alignment: .top) {
+                ZStack(alignment: .top) {
+                    Color(Tokens.Color.phoneBackground)
+                    if glow { ScreenGlow() }
+                }
+                .ignoresSafeArea()
+            }
+            .scrollEdgeEffectStyle(GlassStyleStore.shared.barEdge.swiftUI, for: [.top, .bottom])
             .alert(
                 store.failure ?? "",
                 isPresented: Binding(get: { store.failure != nil }, set: { if !$0 { store.failure = nil } })

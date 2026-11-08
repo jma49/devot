@@ -2,10 +2,10 @@
   "from": "swift",
   "message": {
     "v": 1,
-    "id": 21,
-    "op": "settings.showPane",
+    "id": 25,
+    "op": "glass.set",
     "args": {
-      "pane": "appearance"
+      "transparency": -35
     }
   }
 }

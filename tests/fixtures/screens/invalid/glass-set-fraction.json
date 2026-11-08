@@ -3,11 +3,10 @@
   "code": "E_SCREENS_ARGS_INVALID",
   "message": {
     "v": 1,
-    "id": 24,
-    "op": "settings.showPane",
+    "id": 28,
+    "op": "glass.set",
     "args": {
-      "pane": "appearance",
-      "anchor": "pairing"
+      "transparency": 2.5
     }
   }
 }

@@ -18,10 +18,7 @@ import {
   type SyncDevice,
 } from '../sync'
 import { syncThroughICloud } from '../syncICloud'
-import { Icon } from '../icons/Icon'
-import { WithFigures } from '../phone/PhoneControls'
 import { Setting } from './controls'
-import { useOnPhone } from './onPhone'
 import { failureText, logFailure } from './syncWhy'
 
 // Settings > Sync's pairing, joining and devices (docs/adr/0008-sync-device-pairing.md). Rust holds
@@ -143,7 +140,6 @@ export function PairingRow(props: {
   const { onDevicesChanged, onAnnounce, failed, focusRequest } = props
   const icloud = props.icloud === true
   const pollMs = icloud ? ICLOUD_POLL_MS : POLL_MS
-  const onPhone = useOnPhone()
 
   useEffect(() => {
     if (shown) code.current?.focus()
@@ -307,11 +303,10 @@ export function PairingRow(props: {
             ) : null}
           </div>
           <div className="settings-buttons">
-            {onPhone ? null : (
-              <button type="button" className="button" onClick={copyLink}>
-                {t('syncSettings.pairCopyLink')}
-              </button>
-            )}
+            <button type="button" className="button" onClick={copyLink}>
+              {t('syncSettings.pairCopyLink')}
+            </button>
+
             <button type="button" className="button" onClick={cancel}>
               {t('dialog.cancel')}
             </button>
@@ -326,7 +321,6 @@ export function PairingRow(props: {
             disabled={opening || props.locked}
             onClick={show}
           >
-            {onPhone ? <Icon name="phone.pair" size="md" /> : null}
             {t('syncSettings.pairShow')}
           </button>
         </div>
@@ -483,7 +477,6 @@ export function DevicesRow(props: {
   const locale = currentLocale()
   const { onAnnounce, failed, refresh } = props
   const icloud = props.icloud === true
-  const onPhone = useOnPhone()
   const datedAs = (device: SyncDevice): MessageKey =>
     device.unseen
       ? icloud
@@ -498,9 +491,7 @@ export function DevicesRow(props: {
       : 'syncSettings.devicesNotJoinedHint'
     : icloud
       ? 'syncSettings.icloudDevicesHint'
-      : onPhone
-        ? 'phone.sync.devicesHint'
-        : 'syncSettings.devicesHint'
+      : 'syncSettings.devicesHint'
 
   useEffect(() => {
     let current = true
@@ -602,21 +593,10 @@ export function DevicesRow(props: {
                 <div className="setting-text">
                   <span className="setting-label">{device.label}</span>
                   <span className="setting-description">
-                    {onPhone ? (
-                      <WithFigures
-                        template={t(dated)}
-                        values={{ date: day(device.created, locale) }}
-                      />
-                    ) : device.current ? (
-                      `${added} · ${t('syncSettings.thisDevice')}`
-                    ) : (
-                      added
-                    )}
+                    {device.current ? `${added} · ${t('syncSettings.thisDevice')}` : added}
                   </span>
                 </div>
-                {onPhone && device.current ? (
-                  <span className="phone-device-badge">{t('phone.sync.you')}</span>
-                ) : null}
+
                 {device.current || icloud ? null : (
                   <button
                     ref={(button) => {

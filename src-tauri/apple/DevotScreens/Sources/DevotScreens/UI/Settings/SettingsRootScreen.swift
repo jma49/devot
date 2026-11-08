@@ -50,9 +50,7 @@ struct SettingsRootView: View {
             }
         }
         .listStyle(.insetGrouped)
-        // The tab bar's scroll edge effect would otherwise fade the build footer even at the foot.
-        .contentMargins(.bottom, Tokens.Size.phoneTabEdge, for: .scrollContent)
-        .settingsPage(store)
+        .settingsPage(store, glow: true)
         .overlay {
             if !query.text.trimmingCharacters(in: .whitespaces).isEmpty, sections.isEmpty {
                 ContentUnavailableView(L10n.phoneSettingsNoResults(), systemImage: "magnifyingglass")
@@ -85,17 +83,22 @@ struct SettingsRootView: View {
         }
         Section {
             pane("licence", value: row?.label, badge: row?.attention ?? false)
-            if licence?.soldOnAppStore == true {
-                ActionRow(title: L10n.phoneSettingsRestore(), value: restoring?.text, busy: restoring == .running, action: restore)
-                if licence?.appStore?.pro == true {
-                    NavigationRow(title: L10n.phoneSettingsMacKey(), action: actions.showMacKey)
-                    ActionRow(title: L10n.phoneSettingsRefund(), value: refunding?.text, busy: refunding == .running, action: refund)
-                }
-            }
+            ForEach(StoreRow.shown(licence), id: \.self) { storeRow($0) }
         } footer: {
             if let version = store.version {
                 BuildFooter(text: L10n.phoneSettingsBuild(version: version))
             }
+        }
+    }
+
+    @ViewBuilder private func storeRow(_ row: StoreRow) -> some View {
+        switch row {
+        case .restore:
+            ActionRow(title: L10n.phoneSettingsRestore(), value: restoring?.text, busy: restoring == .running, action: restore)
+        case .macKey:
+            NavigationRow(title: L10n.phoneSettingsMacKey(), action: actions.showMacKey)
+        case .refund:
+            ActionRow(title: L10n.phoneSettingsRefund(), value: refunding?.text, busy: refunding == .running, action: refund)
         }
     }
 
@@ -116,7 +119,7 @@ struct SettingsRootView: View {
         } label: {
             HStack(spacing: Tokens.Size.phoneGroupedGap) {
                 Image(systemName: "bird.fill")
-                    .foregroundStyle(Color(Tokens.Color.phoneOnAction))
+                    .foregroundStyle(Color(Tokens.Color.accentOnFill))
                     .frame(width: Tokens.Size.phoneTarget, height: Tokens.Size.phoneTarget)
                     .background(RoundedRectangle(cornerRadius: Tokens.Radius.phoneGroupedCard / 2).fill(Color(Tokens.Color.accentFill)))
                     .accessibilityHidden(true)
@@ -179,6 +182,17 @@ private struct BuildFooter: View {
     }
 }
 
+/// The rows under License in an App Store build: Restore Purchases, then the Mac key and the
+/// refund once Devot Pro is bought. A build sold elsewhere has none.
+enum StoreRow: Hashable {
+    case restore, macKey, refund
+
+    static func shown(_ licence: Licence?) -> [StoreRow] {
+        guard let licence, licence.soldOnAppStore else { return [] }
+        return licence.appStore?.pro == true ? [.restore, .macKey, .refund] : [.restore]
+    }
+}
+
 /// Restore Purchases' value: what the last restore did.
 enum Restoring: Equatable {
     case running, restored, nothing
@@ -215,7 +229,7 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
     private let query: SettingsQuery
     var onAppear: () -> Void = {}
     var onPair: () -> Void = {}
-    private var footKeeper: FootKeeper?
+    private var placeKeeper: PlaceKeeper?
 
     init(store: SettingsStore, query: SettingsQuery, actions: SettingsActions) {
         self.query = query
@@ -240,13 +254,13 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = Tokens.Color.phoneBackground
+        followTheme { [weak self] in self?.view.backgroundColor = Tokens.Color.phoneBackground }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        if footKeeper == nil, let list = view.firstSubview(of: UICollectionView.self) {
-            footKeeper = FootKeeper(list)
+        if placeKeeper == nil, let list = view.firstSubview(of: UICollectionView.self) {
+            placeKeeper = PlaceKeeper(list, keepsTheFoot: true)
         }
     }
 
@@ -257,53 +271,5 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
 
     func updateSearchResults(for searchController: UISearchController) {
         query.text = searchController.searchBar.text ?? ""
-    }
-}
-
-/// Keeps a list at its foot while its content grows, once the reader has scrolled there: a list keeps its
-/// offset otherwise, so a larger text size would push the build footer off the screen, and SwiftUI's list
-/// can pass through a short content size on the way.
-@MainActor
-final class FootKeeper {
-    private let list: UIScrollView
-    private let movedByTheReader: @MainActor (UIScrollView) -> Bool
-    private var observations: [NSKeyValueObservation] = []
-    private var adjusting = false
-    private(set) var atTheFoot = false
-
-    init(_ list: UIScrollView, movedByTheReader: @escaping @MainActor (UIScrollView) -> Bool = {
-        $0.isTracking || $0.isDragging || $0.isDecelerating
-    }) {
-        self.list = list
-        self.movedByTheReader = movedByTheReader
-        observations = [
-            list.observe(\.contentOffset) { [weak self] _, _ in MainActor.assumeIsolated { self?.moved() } },
-            list.observe(\.contentSize) { [weak self] _, _ in MainActor.assumeIsolated { self?.resized() } },
-        ]
-    }
-
-    private var foot: CGFloat {
-        max(-list.adjustedContentInset.top, list.contentSize.height + list.adjustedContentInset.bottom - list.bounds.height)
-    }
-
-    private func moved() {
-        guard !adjusting, movedByTheReader(list) else { return }
-        atTheFoot = list.contentOffset.y >= foot - 1
-    }
-
-    private func resized() {
-        guard atTheFoot, abs(list.contentOffset.y - foot) > 0.5 else { return }
-        adjusting = true
-        list.contentOffset.y = foot
-        adjusting = false
-    }
-}
-
-extension UIView {
-    fileprivate func firstSubview<View: UIView>(of type: View.Type) -> View? {
-        for subview in subviews {
-            if let match = subview as? View ?? subview.firstSubview(of: type) { return match }
-        }
-        return nil
     }
 }

@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './fixtures'
-import { openPhoneNote, showPhoneTab } from './phone'
+import { openPhoneNote } from './phone'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -33,41 +33,14 @@ async function expectWholeSheet(page: Page, sheet: Locator, last: Locator): Prom
   }
 }
 
-const seedTrial = (page: Page) =>
-  page.addInitScript(() => {
-    const w = window
-    w.devotIpcMocks = {
-      ...w.devotIpcMocks,
-      licence_get: () => ({
-        gated: true,
-        state: 'none',
-        code: null,
-        id: null,
-        licensee: null,
-        plan: null,
-        trial: { state: 'running', endsAt: Date.now() + 86_400_000, code: null },
-      }),
-    }
-  })
-
-async function openTrial(page: Page): Promise<Locator> {
-  await seedTrial(page)
-  await page.goto('/')
-  await showPhoneTab(page, 'settings')
-  await page.locator('.phone-app-row').click()
-  return page.getByRole('dialog', { name: 'Trial' })
+async function openNoteInfo(page: Page): Promise<Locator> {
+  const note = await openNoteScreen(page)
+  await note.getByRole('button', { name: 'Note Info' }).click()
+  return page.getByRole('dialog', { name: 'Note Info' })
 }
 
-test('the trial sheet is whole, its Done reachable', async ({ page }) => {
-  const sheet = await openTrial(page)
-  const done = sheet.getByRole('button', { name: 'Done' })
-  await expectWholeSheet(page, sheet, done)
-  await done.click()
-  await expect(sheet).toHaveCount(0)
-})
-
 test('a sheet drag that loses its capture settles back open', async ({ page }) => {
-  const sheet = await openTrial(page)
+  const sheet = await openNoteInfo(page)
   await expect(sheet).toBeVisible()
   const handle = sheet.locator('.phone-sheet-handle')
   const box = (await handle.boundingBox())!
@@ -87,10 +60,9 @@ test('a sheet drag that loses its capture settles back open', async ({ page }) =
 })
 
 test('a sheet taller than the screen scrolls inside and stays whole', async ({ page }) => {
-  const sheet = await openTrial(page)
+  const sheet = await openNoteInfo(page)
   await page.setViewportSize({ width: 390, height: 240 })
-  const done = sheet.getByRole('button', { name: 'Done' })
-  await expectWholeSheet(page, sheet, done)
+  await expectWholeSheet(page, sheet, sheet.getByRole('button', { name: 'Move to Trash' }))
 })
 
 test('note info and the note pickers are whole, on the note screen', async ({ page }) => {

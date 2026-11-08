@@ -14147,17 +14147,6 @@
         }
       }
     },
-    "phone.appearance.editor" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Editor"
-          }
-        }
-      }
-    },
     "phone.appearance.gradientFull" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14187,17 +14176,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Text Size"
-          }
-        }
-      }
-    },
-    "phone.appearance.textSizeSmall" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A"
           }
         }
       }
@@ -14473,17 +14451,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "{count} notes"
-          }
-        }
-      }
-    },
-    "phone.list.done" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Done"
           }
         }
       }
@@ -15181,28 +15148,6 @@
         }
       }
     },
-    "phone.rowActions" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Actions for {title}"
-          }
-        }
-      }
-    },
-    "phone.search.close" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Close search"
-          }
-        }
-      }
-    },
     "phone.search.countCapped" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15357,6 +15302,204 @@
         }
       }
     },
+    "phone.settings.appearance.addFont" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a Font…"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.animationsFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Follow System uses Reduce Motion."
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.fontFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used in the editor and the preview."
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.fonts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Font"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.glass" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glass"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.importedFonts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.points" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{size} pt"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.sample" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The quick brown fox jumps over the lazy dog."
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.sampleLabel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview of the bars"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.samplePreview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview text shows at this size."
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.sampleTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.themeBothHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sets light and dark"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.themeDark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{theme}, dark"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.themeLight" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{theme}, light"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.themes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Theme"
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.themesFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a swatch to set only light or only dark."
+          }
+        }
+      }
+    },
+    "phone.settings.appearance.transparencyReduced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reduce Transparency is on in Accessibility."
+          }
+        }
+      }
+    },
     "phone.settings.build" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15364,17 +15507,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Devot {version}"
-          }
-        }
-      }
-    },
-    "phone.settings.closeSearch" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Close search"
           }
         }
       }

@@ -34,14 +34,6 @@ import { FontChoice, FontFamilySetting } from './FontChoice'
 import { useTypedNumber } from './typedNumber'
 import type { IconName } from '../icons/symbols'
 import { useDraggedNumber } from './draggedNumber'
-import { useOnPhone } from './onPhone'
-import {
-  TRANSPARENCY_MAX,
-  TRANSPARENCY_STEP,
-  setGlassPrefs,
-  useGlassPrefs,
-} from '../phone/glassPrefs'
-import { PhoneGroup, PhoneSegmented, PhoneSlider } from '../phone/PhoneControls'
 import type { Appearance } from '../theme/appearance'
 import { failureText } from '../failure'
 
@@ -201,56 +193,6 @@ function ThemeSwatch({ appearance, theme }: { appearance: Appearance; theme: The
   )
 }
 
-/** A phone's theme picture: the theme's own page, its type and its accent. */
-function PhoneThemeThumb({ appearance, theme }: { appearance: Appearance; theme: ThemeChoice }) {
-  return (
-    <span
-      className="swatch phone-theme-thumb"
-      data-appearance-preview={appearance}
-      data-theme-preview={themePreview(theme)}
-      aria-hidden="true"
-    >
-      <span className="swatch-sample">{t('appearanceSettings.swatchSample')}</span>
-      <span className="swatch-accent" />
-    </span>
-  )
-}
-
-/** On a phone: every theme in one row of even columns, the same in Light and Dark. */
-function PhoneThemePicker({
-  appearance,
-  chosen,
-  onChoose,
-}: {
-  appearance: Appearance
-  chosen: ThemeChoice
-  onChoose: (theme: ThemeChoice) => void
-}) {
-  const ids = useId()
-  return (
-    <div
-      className="phone-theme-row"
-      role="radiogroup"
-      aria-label={t(
-        appearance === 'light' ? 'appearanceSettings.lightTheme' : 'appearanceSettings.darkTheme',
-      )}
-    >
-      {THEMES.map((theme) => (
-        <Choice
-          key={theme}
-          group={`${ids}-theme`}
-          checked={chosen === theme}
-          onChange={() => onChoose(theme)}
-          label={t(THEME_LABELS[theme])}
-          className="theme-choice"
-        >
-          <PhoneThemeThumb appearance={appearance} theme={theme} />
-        </Choice>
-      ))}
-    </div>
-  )
-}
-
 /** One appearance's themes: Default, a divider, then the built-in ones, in one row that fits the card. */
 function ThemePicker({
   appearance,
@@ -305,7 +247,6 @@ function ThemePicker({
 export function AppearanceSection() {
   const settings = useEditorSettings()
   const shown = useAppearance()
-  const onPhone = useOnPhone()
   const [error, change] = useSettingsChange()
   useKeymap()
   const ids = useId()
@@ -340,147 +281,10 @@ export function AppearanceSection() {
     stored: settings.gradientStrength,
     store: (gradientStrength) => change({ gradientStrength }),
   })
-  const textSize = useDraggedNumber({
-    stored: settings.fontSize,
-    store: (size) => change({ fontSize: size }),
-  })
-  const phoneGlass = useGlassPrefs()
   const themes = { light: settings.lightTheme, dark: settings.darkTheme }
   const gradientShown = gradientThemeChosen(settings)
   const modeTitle = (appearance: Appearance) =>
     appearance === shown ? t('appearanceSettings.modeActive') : undefined
-
-  if (onPhone) {
-    return (
-      <section className="settings-section" aria-labelledby="appearance-title">
-        <h2 id="appearance-title" className="visually-hidden">
-          {t('appearanceSettings.title')}
-        </h2>
-        {error ? (
-          <p role="alert" className="settings-error">
-            {failureText('appearanceSettings.failed', error)}
-          </p>
-        ) : null}
-        <PhoneGroup title={t('appearanceSettings.colorScheme')}>
-          <PhoneSegmented
-            label={t('appearanceSettings.colorScheme')}
-            labelHidden
-            value={settings.appearance}
-            options={SCHEMES.map((choice) => ({ value: choice, label: t(SCHEME_LABELS[choice]) }))}
-            onChange={(appearance) => change({ appearance })}
-          />
-        </PhoneGroup>
-        <PhoneGroup title={t('phone.appearance.transparency')}>
-          <PhoneSlider
-            label={t('phone.appearance.transparency')}
-            labelHidden
-            min={-TRANSPARENCY_MAX}
-            max={TRANSPARENCY_MAX}
-            step={TRANSPARENCY_STEP}
-            value={phoneGlass.transparency}
-            minLabel={t('phone.appearance.solid')}
-            maxLabel={t('phone.appearance.clear')}
-            valueText={signed.format(phoneGlass.transparency)}
-            onChange={(transparency) => setGlassPrefs({ transparency })}
-          />
-        </PhoneGroup>
-        <SettingsSection title="appearanceSettings.lightMode" titleSuffix={modeTitle('light')}>
-          <PhoneThemePicker
-            appearance="light"
-            chosen={settings.lightTheme}
-            onChoose={(lightTheme) => change({ lightTheme })}
-          />
-        </SettingsSection>
-        <SettingsSection title="appearanceSettings.darkMode" titleSuffix={modeTitle('dark')}>
-          <PhoneThemePicker
-            appearance="dark"
-            chosen={settings.darkTheme}
-            onChoose={(darkTheme) => change({ darkTheme })}
-          />
-        </SettingsSection>
-        {gradientShown ? (
-          <PhoneGroup title={t('appearanceSettings.gradient')}>
-            <PhoneSlider
-              label={t('appearanceSettings.gradient')}
-              labelHidden
-              min={0}
-              max={GRADIENT_STRENGTH_MAX}
-              step={WINDOW_TRANSPARENCY_STEP}
-              value={gradientAmount.value}
-              minLabel={t('phone.appearance.solid')}
-              maxLabel={t('phone.appearance.gradientFull')}
-              valueText={plain.format(gradientAmount.value)}
-              onChange={gradientAmount.drag}
-              onRelease={gradientAmount.release}
-            />
-          </PhoneGroup>
-        ) : null}
-        <PhoneGroup title={t('phone.appearance.textSize')}>
-          <PhoneSlider
-            label={t('phone.appearance.textSize')}
-            labelHidden
-            min={FONT_SIZE_MIN}
-            max={FONT_SIZE_MAX}
-            step={1}
-            value={textSize.value}
-            minLabel={t('phone.appearance.textSizeSmall')}
-            maxLabel={t('phone.appearance.textSizeSmall')}
-            glyphEnds
-            valueText={String(textSize.value)}
-            onChange={textSize.drag}
-            onRelease={textSize.release}
-          />
-        </PhoneGroup>
-        <PhoneGroup title={t('phone.appearance.editor')}>
-          <FontFamilySetting
-            slot="note"
-            label="editorSettings.noteFont"
-            settings={settings}
-            change={change}
-            id={id}
-          />
-          <FontChoice slot="note" settings={settings} change={change} id={id} />
-          <Setting
-            label="appearanceSettings.previewFontSize"
-            description={t('previewSettings.fontSizeHint')}
-            htmlFor={id('preview-size')}
-            descriptionId={id('preview-size-hint')}
-          >
-            <NumberStepper
-              id={id('preview-size')}
-              value={previewSize.value}
-              min={FONT_SIZE_MIN}
-              max={FONT_SIZE_MAX}
-              onType={previewSize.type}
-              onLeave={previewSize.leave}
-              describedBy={id('preview-size-hint')}
-            />
-          </Setting>
-        </PhoneGroup>
-        <SettingsSection title="appearanceSettings.groupMotion">
-          <Setting
-            label="appearanceSettings.animations"
-            description={t('appearanceSettings.animationsHint')}
-            htmlFor={id('animations')}
-            descriptionId={id('animations-hint')}
-          >
-            <Select
-              id={id('animations')}
-              value={settings.animations}
-              aria-describedby={id('animations-hint')}
-              onChange={(e) => change({ animations: e.currentTarget.value as AnimationsChoice })}
-            >
-              {ANIMATIONS.map((choice) => (
-                <option key={choice} value={choice}>
-                  {t(ANIMATION_LABELS[choice])}
-                </option>
-              ))}
-            </Select>
-          </Setting>
-        </SettingsSection>
-      </section>
-    )
-  }
 
   return (
     <section className="settings-section" aria-labelledby="appearance-title">

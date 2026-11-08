@@ -101,7 +101,9 @@ final class InstallTests: XCTestCase {
         let middle = CGPoint(x: root.view.bounds.midX, y: root.view.bounds.midY)
         XCTAssertEqual(screens.root.view.hitTest(middle, with: nil)?.isDescendant(of: library.view), true)
         XCTAssertEqual(try tabAsks(rust), [Ask(op: .tabsShow, args: ["tab": .string("library")])])
-        XCTAssertEqual(try directOps(rust), [.listsLibrary], "the Notes list reads nothing until it shows")
+        XCTAssertEqual(
+            try directOps(rust).filter { $0 != .editorSettingsGet }, [.listsLibrary],
+            "the Notes list reads nothing until it shows")
     }
 
     func testMakesTaosWindowKeyOnceItsSceneIsActive() throws {
@@ -245,6 +247,7 @@ final class InstallTests: XCTestCase {
         let rust = FakeRust()
         let screens = try XCTUnwrap(
             Screens.attach(webView: WKWebView(), root: try shownRoot(), rust: rust, defaults: defaults))
+        screens.root.view.layoutIfNeeded()
         settle()
         screens.delivered(Data(#"{"v":1,"notice":"settings.open","pane":"licence","focusKey":true}"#.utf8))
         settle()
@@ -268,5 +271,25 @@ final class InstallTests: XCTestCase {
         XCTAssertEqual(try sent(rust).last, .direct(id: id, op: .licenceGet, args: [:]))
         screens.replied(id, try Message.reply(id: id, outcome: .failed("E_LICENCE_KEYCHAIN")).json())
         XCTAssertEqual(outcome, .failed("E_LICENCE_KEYCHAIN"))
+    }
+
+    func testOnceShownTheThemeIsReadAndThePageGetsThisIPhonesGlass() throws {
+        let rust = FakeRust()
+        let root = UIViewController()
+        let screens = try XCTUnwrap(Screens.attach(webView: WKWebView(), root: root, rust: rust, defaults: defaults))
+        XCTAssertEqual(rust.calls.count, 0)
+        try show(root)
+        root.view.layoutIfNeeded()
+        settle()
+        withExtendedLifetime(screens) {}
+        let ops = try sent(rust).compactMap { message -> String? in
+            switch message {
+            case .direct(_, let op, _): op.rawValue
+            case .request(_, let op, _): op.rawValue
+            default: nil
+            }
+        }
+        XCTAssertEqual(ops.filter { $0 == "direct.editorSettings.get" }.count, 1)
+        XCTAssertTrue(ops.contains("glass.get") || ops.contains("glass.set"))
     }
 }

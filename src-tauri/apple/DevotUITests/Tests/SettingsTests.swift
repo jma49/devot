@@ -9,6 +9,12 @@ final class SettingsTests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
+        launch()
+    }
+
+    private func launch(_ arguments: [String] = []) {
+        app.terminate()
+        app.launchArguments = arguments
         app.launch()
         let bar = app.tabBars.firstMatch
         // A cold debug build starts slowly on a CI simulator.
@@ -34,8 +40,8 @@ final class SettingsTests: XCTestCase {
 
     func testOpensEveryNativePaneAndComesBackToTheRoot() {
         let panes = [
-            L10n.settingsPaneGeneral(), L10n.settingsPaneEditing(), L10n.settingsPanePreview(), L10n.settingsPaneAi(),
-            L10n.settingsPaneLicence(),
+            L10n.settingsPaneGeneral(), L10n.settingsPaneAppearance(), L10n.settingsPaneEditing(),
+            L10n.settingsPanePreview(), L10n.settingsPaneAi(), L10n.settingsPaneLicence(),
         ]
         for pane in panes {
             let open = row(pane)
@@ -73,6 +79,139 @@ final class SettingsTests: XCTestCase {
         }
     }
 
+    private func openAppearance() {
+        row(L10n.settingsPaneAppearance()).tap()
+        XCTAssertTrue(app.navigationBars[L10n.settingsPaneAppearance()].waitForExistence(timeout: 10))
+    }
+
+    /// Scrolls the pane until `element` shows whole between the bars, down the pane or back up it, and
+    /// back towards it once it shows: a swipe's fling on iOS 26.5 carried a card from under the tab bar to
+    /// under the navigation bar.
+    private func scrolled(to element: XCUIElement, back: Bool = false) -> XCUIElement {
+        for _ in 0..<8 {
+            let clear = clearOfTheBars(scrolled: false)
+            if element.exists && element.isHittable && clear.contains(element.frame) { break }
+            let step = clear.height / 2
+            var distance = back ? -step : step
+            if element.exists && element.frame.minY < clear.minY {
+                distance = -min(clear.minY - element.frame.minY + 8, step)
+            } else if element.exists && element.frame.maxY > clear.maxY {
+                distance = min(element.frame.maxY - clear.maxY + 8, step)
+            }
+            scroll(by: distance, within: clear)
+        }
+        XCTAssertTrue(element.exists)
+        return element
+    }
+
+    /// Moves the list up by `distance` (down when negative) in the margin beside its cards, holding before
+    /// the lift so the list does not fling on.
+    private func scroll(by distance: CGFloat, within clear: CGRect) {
+        let start = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: clear.maxX - 8, dy: distance > 0 ? clear.maxY - 8 : clear.minY + 8))
+        start.press(
+            forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)), withVelocity: .slow,
+            thenHoldForDuration: 0.3)
+    }
+
+    private func transparency() -> XCUIElement {
+        scrolled(to: app.sliders[L10n.phoneAppearanceTransparency()])
+    }
+
+    private static func signed(_ value: Int) -> String {
+        value.formatted(.number.sign(strategy: .always(includingZero: false)))
+    }
+
+    private static func number(_ value: String?) -> Int? {
+        value.flatMap { Int($0.replacingOccurrences(of: "+", with: "")) }
+    }
+
+    /// The slider's value once it has held still for a second. `adjust` returns while the app is
+    /// still moving the thumb and before it handles the lift, so a value read at once can be one
+    /// the drag passes on its way.
+    private func settled(_ slider: XCUIElement) -> Int? {
+        var value = slider.value as? String
+        var still = 0
+        for _ in 0..<40 where still < 4 {
+            Thread.sleep(forTimeInterval: 0.25)
+            let now = slider.value as? String
+            still = now == value ? still + 1 : 0
+            value = now
+        }
+        XCTAssertEqual(still, 4, "the slider did not settle")
+        return Self.number(value)
+    }
+
+    /// Half the thumb's width: the thumb's centre stops this far inside the slider's frame at either end.
+    private static let thumbRadius: CGFloat = 18
+
+    /// Where the thumb's centre is at `position`, 0 at the start and 1 at the end; past an end outside 0...1.
+    private func track(_ slider: XCUIElement, at position: CGFloat) -> XCUICoordinate {
+        let travel = slider.frame.width - 2 * Self.thumbRadius
+        return slider.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+            .withOffset(CGVector(dx: Self.thumbRadius + position * travel, dy: 0))
+    }
+
+    /// Presses the thumb, drags it slowly to `position` and holds it there before the lift. `adjust` lifts
+    /// as its drag ends, before the slider catches up with the finger: on iOS 26.5 a drag from 0 to the
+    /// start settled at -65.
+    private func slide(_ slider: XCUIElement, to position: CGFloat) {
+        track(slider, at: slider.normalizedSliderPosition)
+            .press(forDuration: 0.2, thenDragTo: track(slider, at: position), withVelocity: .slow, thenHoldForDuration: 0.5)
+    }
+
+    /// Drags the slider towards `value`, nudging it where the drag lands off: away from the ends a drag
+    /// lands within a step or two of its target, on either side.
+    private func drag(_ slider: XCUIElement, to value: Int) {
+        var shown = settled(slider)
+        for _ in 0..<3 where shown != value {
+            slide(slider, to: slider.normalizedSliderPosition + CGFloat(value - (shown ?? 0)) / 200)
+            shown = settled(slider)
+        }
+    }
+
+    func testAThemeCardRingsBothOfItsSwatches() {
+        openAppearance()
+        let ember = L10n.appearanceSettingsThemeEmber()
+        let card = scrolled(to: app.buttons[ember])
+        let light = app.buttons[L10n.phoneSettingsAppearanceThemeLight(theme: ember)]
+        let dark = app.buttons[L10n.phoneSettingsAppearanceThemeDark(theme: ember)]
+        // The card's middle is between its swatches; its name is the card's alone.
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)).tap()
+        XCTAssertTrue(light.wait(for: \.isSelected, toEqual: true, timeout: 5))
+        XCTAssertTrue(dark.wait(for: \.isSelected, toEqual: true, timeout: 5))
+        XCTAssertTrue(card.isSelected)
+        let standard = scrolled(to: app.buttons[L10n.appearanceSettingsThemeDefault()], back: true)
+        standard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)).tap()
+        XCTAssertTrue(light.wait(for: \.isSelected, toEqual: false, timeout: 5))
+        XCTAssertFalse(dark.isSelected)
+    }
+
+    func testGlassTransparencyIsKeptAcrossALaunch() {
+        openAppearance()
+        let slider = transparency()
+        slide(slider, to: -0.2)
+        XCTAssertEqual(settled(slider), -100)
+        launch()
+        openAppearance()
+        let kept = transparency()
+        XCTAssertEqual(kept.value as? String, Self.signed(-100))
+        // A drag's last value can come just after the lift: the app closes at once, inside the debounce
+        // that lost it in CI.
+        slide(kept, to: 1.2)
+        launch()
+        openAppearance()
+        XCTAssertEqual(transparency().value as? String, Self.signed(100))
+        drag(transparency(), to: 0)
+    }
+
+    func testUnderReduceTransparencyTheGlassSliderIsLockedAndSaysWhy() {
+        launch([LaunchArgument.reduceTransparency])
+        openAppearance()
+        XCTAssertFalse(transparency().isEnabled)
+        XCTAssertTrue(app.staticTexts[L10n.phoneSettingsAppearanceTransparencyReduced()].exists)
+    }
+
     private struct Element: Hashable, CustomStringConvertible {
         let type: XCUIElement.ElementType
         let label: String
@@ -105,22 +244,32 @@ final class SettingsTests: XCTestCase {
         return CGRect(x: screen.minX, y: top, width: screen.width, height: bottom - top)
     }
 
+    /// What the list shows, by label and place, to tell whether a swipe moved it.
+    private func listed() throws -> [String] {
+        var shown: [String] = []
+        func walk(_ snapshot: any XCUIElementSnapshot) {
+            if !snapshot.label.isEmpty { shown.append("\(snapshot.label) \(snapshot.frame)") }
+            snapshot.children.forEach(walk)
+        }
+        walk(try app.collectionViews.firstMatch.snapshot())
+        return shown
+    }
+
+    /// Drags the list up by about half a screen from its left margin, where no slider takes the
+    /// touch, and holds before the lift so the list does not fling past a part of the pane.
+    private func halfAPageUp() {
+        let list = app.collectionViews.firstMatch
+        let from = list.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.7))
+        let to = list.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.25))
+        from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
+    }
+
     /// Swipes up until a swipe moves nothing the list shows.
     private func scrollToTheFoot() throws {
-        let list = app.collectionViews.firstMatch
-        func shown() throws -> [String] {
-            var shown: [String] = []
-            func walk(_ snapshot: any XCUIElementSnapshot) {
-                if !snapshot.label.isEmpty { shown.append("\(snapshot.label) \(snapshot.frame)") }
-                snapshot.children.forEach(walk)
-            }
-            walk(try list.snapshot())
-            return shown
-        }
-        var last = try shown()
+        var last = try listed()
         for _ in 0..<8 {
-            list.swipeUp()
-            let now = try shown()
+            app.collectionViews.firstMatch.swipeUp()
+            let now = try listed()
             if now == last { return }
             last = now
         }
@@ -142,6 +291,7 @@ final class SettingsTests: XCTestCase {
                 return true
             }
             print("audit issue: \(issue.compactDescription) on \(element.map { "\($0.elementType.rawValue)" } ?? "-") '\(element?.label ?? "")' \(frame)")
+            print("audit issue detail: \(issue.detailedDescription)")
             return false
         }
         // Contrast runs alone: audited with the rest, a row under the tab bar comes without its element.
@@ -171,6 +321,25 @@ final class SettingsTests: XCTestCase {
         for foot in [false, true] {
             if foot { try scrollToTheFoot() }
             let clear = clearOfTheBars(scrolled: foot)
+            auditedClear.formUnion(try shownClear(clear))
+            overABar.formUnion(try audit(clear: clear))
+        }
+        XCTAssertEqual(overABar.subtracting(auditedClear), [], "audited only over a system bar")
+    }
+
+    func testTheAppearancePanePassesTheAccessibilityAudit() throws {
+        continueAfterFailure = true
+        openAppearance()
+        var overABar: Set<Element> = []
+        var auditedClear: Set<Element> = []
+        // The top, then half a screen further down each time, until a drag moves nothing.
+        var last: [String] = []
+        for page in 0..<12 {
+            if page > 0 { halfAPageUp() }
+            let now = try listed()
+            if now == last { break }
+            last = now
+            let clear = clearOfTheBars(scrolled: page > 0)
             auditedClear.formUnion(try shownClear(clear))
             overABar.formUnion(try audit(clear: clear))
         }

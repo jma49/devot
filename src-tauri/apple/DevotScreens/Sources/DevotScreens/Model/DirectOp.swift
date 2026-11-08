@@ -4,6 +4,7 @@ public enum DirectOp: String, CaseIterable, Sendable {
     case editorSettingsGet = "direct.editorSettings.get"
     case editorSettingsSet = "direct.editorSettings.set"
     case fontsList = "direct.fonts.list"
+    case fontsImport = "direct.fonts.import"
     case crashReportsGet = "direct.crashReports.get"
     case crashReportsSet = "direct.crashReports.set"
     case aiGet = "direct.ai.get"
