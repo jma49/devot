@@ -12,6 +12,51 @@ const links = (doc: string) => [...linkDefinitions(Text.of(doc.split('\n')))].so
 const preview = unified().use(remarkParse).use(remarkGfm)
 const previewLinks = (doc: string) => [...definitionsIn(preview.parse(doc)).links.keys()].sort()
 
+interface Node {
+  type: string
+  identifier?: string
+  children?: Node[]
+}
+
+/** The numbers the preview draws: references outside definitions first, then those in each numbered definition in turn. */
+function previewNumbers(doc: string): Record<string, number> {
+  const definitions = new Map<string, Node>()
+  const order: string[] = []
+  const collect = (node: Node) => {
+    if (node.type === 'footnoteDefinition' && !definitions.has(node.identifier!))
+      definitions.set(node.identifier!, node)
+    for (const child of node.children ?? []) collect(child)
+  }
+  const visit = (node: Node) => {
+    if (node.type === 'footnoteDefinition') return
+    if (node.type === 'footnoteReference' && !order.includes(node.identifier!))
+      order.push(node.identifier!)
+    for (const child of node.children ?? []) visit(child)
+  }
+  const tree = preview.parse(doc) as Node
+  collect(tree)
+  visit(tree)
+  for (let i = 0; i < order.length; i++)
+    for (const child of definitions.get(order[i]!)?.children ?? []) visit(child)
+  return Object.fromEntries(order.filter((l) => definitions.has(l)).map((l, i) => [l, i + 1]))
+}
+
+/** Notes whose block ends the reading once missed. */
+const BLOCK_ENDS = [
+  '# H\n    [^b] code\n\n[^b]: B',
+  '```\nx\n```\n    [^b] code\n\n[^b]: B',
+  '[^a]: A\n# H [^b]\n\nText [^a].\n\n[^b]: B',
+  '[^a]: A\n```\nx\n```\nAfter [^b]\n\nText [^a].\n\n[^b]: B',
+  '[^a]: A\n- item [^b]\n\nText [^a].\n\n[^b]: B',
+  '[^a]: A\n> q [^b]\n\nText [^a].\n\n[^b]: B',
+  'Text [^a].\n\n[^a]: A\n\n    more [^b]\n\n[^b]: B',
+  '- item\n```\nx\n```\n\n    [^b] code\n\n[^b]: B',
+  '[^a]: A\nlazy [^b]\n\nText [^a].\n\n[^b]: B',
+  'Text [^a].\n\n[^a]: A\n\n        code [^b]\n\n[^b]: B',
+  '- item\n  ```\n  x\n  ```\n    [^b] text\n\n[^b]: B',
+  '[^a]: A\n---\nAfter [^b]\n\nText [^a].\n\n[^b]: B',
+]
+
 describe('footnote numbers', () => {
   it('count a label with a definition, in the order of its first reference, those in definitions last', () => {
     const doc = 'See[^b] and[^a].\n\n[^a]: First[^c].\n[^b]: Second.\n[^c]: Third.\n\nNone[^x].'
@@ -27,6 +72,11 @@ describe('footnote numbers', () => {
     for (const line of ['[TODO]: see this[^1]', '- [x]: done, see[^1]', '[a]: /url "t"[^1]'])
       expect(numbers(`${line}\n\n[^1]: The note.`)).toEqual({ 1: 1 })
     expect(numbers('[a]: /url[^1]\n\n[^1]: The note.')).toEqual({})
+  })
+
+  it('are those the preview draws after headings, fences, lists, quotes and definitions', () => {
+    for (const doc of BLOCK_ENDS)
+      expect({ doc, numbers: numbers(doc) }).toEqual({ doc, numbers: previewNumbers(doc) })
   })
 })
 
@@ -89,8 +139,8 @@ describe('link definitions', () => {
 describe('footnote numbers after an edit', () => {
   it('are those a reading of the whole note finds, edit after edit', () => {
     const next = seeded(5)
-    for (let note = 0; note < 60; note++) {
-      let state = EditorState.create({ doc: randomNote(next) })
+    for (let note = 0; note < 60 + BLOCK_ENDS.length; note++) {
+      let state = EditorState.create({ doc: BLOCK_ENDS[note - 60] ?? randomNote(next) })
       footnoteNumbers(state.doc)
       for (let i = 0; i < 20; i++) {
         const tr = state.update({ changes: randomChange(next, state.doc.toString()) })
