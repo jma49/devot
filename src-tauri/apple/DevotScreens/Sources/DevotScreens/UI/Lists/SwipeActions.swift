@@ -16,7 +16,7 @@ struct SwipeActions {
             actions.append(
                 action(
                     .normal, L10n.phoneActionComplete(), "checkmark.circle", Tokens.Color.phoneActionStatus,
-                    .batch(ids: [row.id], change: .status(.completed))))
+                    .complete(id: row.id)))
         }
         let configuration = UISwipeActionsConfiguration(actions: actions)
         configuration.performsFirstActionWithFullSwipe = true

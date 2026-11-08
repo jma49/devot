@@ -4,6 +4,8 @@ import Foundation
 enum WriteIntent: Equatable {
     case newNote(bookId: String?)
     case batch(ids: [String], change: NoteChange)
+    /// Completes one note, with the undo toast that takes it back.
+    case complete(id: String)
     case emptyTrash
     case newTemplate
     case fromTemplate(templateId: String, bookId: String?)

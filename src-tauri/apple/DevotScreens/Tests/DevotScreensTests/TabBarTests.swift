@@ -24,6 +24,18 @@ final class TabBarTests: XCTestCase {
         XCTAssertEqual(tabs.selectedIndex, TabModel.tabs.firstIndex(of: .library))
     }
 
+    func testTheUndoToastSitsAboveTheBarAndTheListsOfferItTheirUndoableWrites() {
+        let tabs = controller()
+        tabs.loadViewIfNeeded()
+        XCTAssertTrue(tabs.lists.undoToasts === tabs.toasts)
+        tabs.toasts.offer(UndoToast(kind: .trashed) {})
+        tabs.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        tabs.view.layoutIfNeeded()
+        let toast = tabs.toasts.current
+        XCTAssertTrue(toast?.superview === tabs.view)
+        tabs.toasts.dismissNow()
+    }
+
     func testTheSymbolsAreTheWebTabBarsWithTheirFilledVariantWhenSelected() {
         XCTAssertEqual(TabModel.tabs.map(TabModel.symbol), ["doc.text", "folder", "chart.bar", "gearshape"])
         for tab in TabModel.tabs {

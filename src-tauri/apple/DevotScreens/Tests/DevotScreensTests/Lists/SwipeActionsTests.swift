@@ -78,7 +78,7 @@ final class SwipeActionsTests: XCTestCase {
         XCTAssertEqual(
             performed,
             [
-                .batch(ids: [row.id], change: .trash), .batch(ids: [row.id], change: .status(.completed)),
+                .batch(ids: [row.id], change: .trash), .complete(id: row.id),
                 .batch(ids: [row.id], change: .pinned(true)),
             ])
         XCTAssertEqual(events.filter { $0.hasPrefix("completion") }, Array(repeating: "completion(true)", count: 3))

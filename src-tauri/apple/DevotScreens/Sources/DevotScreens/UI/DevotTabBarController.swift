@@ -7,6 +7,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     var onReselect: ((Tab) -> Void)?
     let settings: SettingsScreens
     let lists = ListContext()
+    let toasts = ToastPresenter()
     private var screens: [Tab: WebTabScreen] = [:]
     private(set) var listRoots: [Tab: ListScreen] = [:]
 
@@ -44,6 +45,25 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     }
 
     required init?(coder: NSCoder) { nil }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        toasts.attach(to: view)
+        toasts.barTop = { [weak self] in self?.visibleBarTop }
+        lists.undoToasts = toasts
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        toasts.hostDidLayout()
+    }
+
+    /// The tab bar's top edge, or nil while a pushed screen has taken the bar away.
+    private var visibleBarTop: CGFloat? {
+        guard !tabBar.isHidden, tabBar.alpha > 0 else { return nil }
+        let top = view.convert(tabBar.bounds, from: tabBar).minY
+        return top < view.bounds.maxY - 1 ? top : nil
+    }
 
     /// UIBarItem has no large content title; the viewer shows the symbol and VoiceOver reads the label.
     private static func item(_ tab: Tab) -> UITabBarItem {

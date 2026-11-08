@@ -24,6 +24,8 @@ final class ListContext {
     /// New notes left untouched whose editor is in no stack any more.
     var untouchedNewNotes: () -> [String] = { [] }
     var reduceMotion: () -> Bool = { UIAccessibility.isReduceMotionEnabled }
+    /// Where a trash or a completion that can be taken back says so.
+    weak var undoToasts: (any UndoOffering)?
 
     private struct Watcher {
         weak var object: AnyObject?
@@ -121,11 +123,20 @@ final class ListContext {
             return false
         case .batch(let ids, let change):
             write(.notesBatch, ["ids": .array(ids.map(JSONValue.string)), "change": change.json]) { [weak self] result in
+                guard let self else { return }
                 let failed = result["failed"]?.array ?? []
-                guard let self, !failed.isEmpty else { return }
+                guard !failed.isEmpty else { return offerUndo(ids, change) }
                 let codes = failed.compactMap { $0["code"]?.string }
                 if let locked = codes.first(where: Self.locks) { return gate.refused(code: locked) }
                 bridge?.log(.warn, "W_PHONE_BATCH_FAILED count=\(failed.count) code=\(codes.first ?? "")")
+            }
+        case .complete(let id):
+            write(.noteComplete, ["noteId": .string(id)]) { [weak self] result in
+                guard let self, let undo = result["undo"] else { return }
+                undoToasts?.offer(
+                    UndoToast(kind: .completed) { [weak self] in
+                        self?.write(.noteUndoStatus, ["noteId": .string(id), "undo": undo]) { _ in }
+                    })
             }
         case .emptyTrash:
             write(.trashEmpty, [:]) { _ in }
@@ -141,6 +152,12 @@ final class ListContext {
             }
         }
         return true
+    }
+
+    /// One note trashed is offered back; a batch of several is not.
+    private func offerUndo(_ ids: [String], _ change: NoteChange) {
+        guard ids.count == 1, change == .trash else { return }
+        undoToasts?.offer(UndoToast(kind: .trashed) { [weak self] in self?.perform(.batch(ids: ids, change: .restore)) })
     }
 
     private static func locks(_ code: String) -> Bool {

@@ -2,6 +2,12 @@ import XCTest
 
 @testable import DevotScreens
 
+@MainActor
+private final class Offers: UndoOffering {
+    var toasts: [UndoToast] = []
+    func offer(_ toast: UndoToast) { toasts.append(toast) }
+}
+
 /// The lists' writes once the gate lets them, and their reads again when the page reports a change.
 @MainActor
 final class ListContextTests: XCTestCase {
@@ -9,6 +15,7 @@ final class ListContextTests: XCTestCase {
     private var context: ListContext!
     private var shown: [LockSurface] = []
     private var opened: [String] = []
+    private let offers = Offers()
 
     private let id = "01970000-0000-7000-8000-000000000001"
     private let book = "01970000-0000-7000-8000-0000000000b1"
@@ -21,6 +28,7 @@ final class ListContextTests: XCTestCase {
         context.bridge = bridge
         context.gate.present = { [unowned self] in shown.append($0) }
         context.open = { [unowned self] id, _ in opened.append(id) }
+        context.undoToasts = offers
     }
 
     func testABatchSendsOneChangeForEveryNamedNote() throws {
@@ -74,5 +82,70 @@ final class ListContextTests: XCTestCase {
         context.libraryChanged()
         XCTAssertEqual(bridge.ops.filter { $0 == DirectOp.listsLibrary.rawValue }.count, 1)
         XCTAssertFalse(unseen.wanted)
+    }
+
+    private func trashed(_ ids: [String], failed: [JSONValue] = []) {
+        context.perform(.batch(ids: ids, change: .trash))
+        bridge.answer(
+            Op.notesBatch.rawValue,
+            .ok(.object(["changed": .array(ids.map(JSONValue.string)), "failed": .array(failed)])))
+    }
+
+    func testOneNoteTrashedIsOfferedBackAndUndoRestoresIt() throws {
+        trashed([id])
+        XCTAssertEqual(offers.toasts.map(\.kind), [.trashed])
+        XCTAssertEqual(bridge.ops, [])
+        offers.toasts[0].onUndo()
+        let sent = try XCTUnwrap(bridge.sent.first)
+        XCTAssertEqual(sent.op, Op.notesBatch.rawValue)
+        XCTAssertEqual(sent.args["ids"], .array([.string(id)]))
+        XCTAssertEqual(sent.args["change"], .object(["kind": .string("restore")]))
+        bridge.answer(Op.notesBatch.rawValue, .ok(.object(["changed": .array([.string(id)]), "failed": .array([])])))
+        XCTAssertEqual(offers.toasts.count, 1, "taking it back is not offered back")
+    }
+
+    func testSeveralNotesATrashThatFailedAndOtherChangesOfferNothing() {
+        trashed([id, book])
+        trashed([id], failed: [.object(["id": .string(id), "code": .string("E_STORAGE_BUSY")])])
+        context.perform(.batch(ids: [id], change: .pinned(true)))
+        bridge.answer(Op.notesBatch.rawValue, .ok(.object(["changed": .array([.string(id)]), "failed": .array([])])))
+        context.perform(.batch(ids: [id], change: .restore))
+        bridge.answer(Op.notesBatch.rawValue, .ok(.object(["changed": .array([.string(id)]), "failed": .array([])])))
+        XCTAssertEqual(offers.toasts.count, 0)
+    }
+
+    func testALockedTrashShowsTheGateAndOffersNothing() {
+        context.perform(.batch(ids: [id], change: .trash))
+        bridge.answer(Op.notesBatch.rawValue, .failed(ProGate.required))
+        XCTAssertEqual(shown, [.pro(.key)])
+        XCTAssertEqual(offers.toasts.count, 0)
+    }
+
+    private let undoable = JSONValue.object([
+        "status": .string("active"), "updatedAt": .number(1_800_000_000_000),
+        "statusHlc": .string("0001800000000000-0000-lists1"), "bodyVersion": .number(3),
+    ])
+
+    func testACompletionIsOfferedBackWithTheUndoThePageHandedOver() throws {
+        context.perform(.complete(id: id))
+        let sent = try XCTUnwrap(bridge.sent.first)
+        XCTAssertEqual(sent.op, Op.noteComplete.rawValue)
+        XCTAssertEqual(sent.args, ["noteId": .string(id)])
+        bridge.answer(Op.noteComplete.rawValue, .ok(.object(["undo": undoable])))
+        XCTAssertEqual(offers.toasts.map(\.kind), [.completed])
+        offers.toasts[0].onUndo()
+        let undo = try XCTUnwrap(bridge.sent.first)
+        XCTAssertEqual(undo.op, Op.noteUndoStatus.rawValue)
+        XCTAssertEqual(undo.args, ["noteId": .string(id), "undo": undoable])
+    }
+
+    func testACompletionRefusedOrAnsweredWithoutAnUndoOffersNothing() {
+        context.perform(.complete(id: id))
+        bridge.answer(Op.noteComplete.rawValue, .failed(ProGate.unreadable))
+        XCTAssertEqual(shown, [.pro(.unreadable)])
+        context.gate.dismissed()
+        context.perform(.complete(id: id))
+        bridge.answer(Op.noteComplete.rawValue, .ok(.object([:])))
+        XCTAssertEqual(offers.toasts.count, 0)
     }
 }
