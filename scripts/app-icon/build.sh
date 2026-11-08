@@ -29,6 +29,7 @@ cp "$out/master/2048x2048.png" "$art/source.png"
 cp "$out/small/32x32.png" "$out/master/64x64.png" "$out/master/128x128.png" "$icons/"
 cp "$out/master/256x256.png" "$icons/128x128@2x.png"
 cp "$out/master/512x512.png" "$icons/icon.png"
+cp "$icons/icon.png" "$root/docs/mcp-plugin/.claude-plugin/icon.png"
 
 iconset=$out/icon.iconset
 mkdir "$iconset"
