@@ -16,9 +16,22 @@ const devices: SimDevices = {
   'com.apple.CoreSimulator.SimRuntime.watchOS-12-0': [device('Apple Watch', 'W')],
   [runtime('27.1')]: [device('iPad Pro', 'P')],
 }
+// The xcode-27 image's iOS 27.1 has only the iPhone Duo, whose boot failed in CI.
+const withDuo: SimDevices = { ...devices, [runtime('27.1')]: [device('iPhone Duo', 'G-Duo')] }
 
 it('picks the iPhone 17 on the newest iOS runtime, not the first phone listed', () => {
   expect(pickIphone(devices)).toEqual({ udid: 'B-17', name: 'iPhone 17', os: '27.2' })
+})
+
+it('passes over a newer runtime without an iPhone 17 for one that has it', () => {
+  expect(pickIphone(withDuo, { storeKit: true }).udid).toBe('A-27.0')
+  expect(
+    pickIphone({
+      [runtime('27.0')]: withDuo[runtime('27.0')]!,
+      [runtime('27.1')]: withDuo[runtime('27.1')]!,
+    }).udid,
+  ).toBe('A-27.0')
+  expect(pickIphone(withDuo, { os: '27.1' }).udid).toBe('G-Duo')
 })
 
 it('prefers a booted iPhone 17 when the runtime has more than one', () => {

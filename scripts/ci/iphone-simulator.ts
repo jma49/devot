@@ -4,8 +4,9 @@ import { fileURLToPath } from 'node:url'
 
 // CI helper: reads `xcrun simctl list devices available --json` on stdin and prints the UDID of the
 // iPhone simulator the iPhone tests run on: an iPhone 17 (a booted one first) on the newest iOS
-// runtime, or that runtime's first iPhone. `--os 27.2` pins the runtime and fails when it is
-// missing. `--storekit` leaves out the runtimes whose StoreKit Test is broken under xcodebuild:
+// runtime that has one, or else the newest runtime's first iPhone, so a runtime of one new model
+// is passed over (the xcode-27 image's iOS 27.1 has only the iPhone Duo, whose boot failed in CI).
+// `--os 27.2` pins the runtime and fails when it is missing. `--storekit` leaves out the runtimes whose StoreKit Test is broken under xcodebuild:
 // iOS 26.4 refuses SKTestSession's configuration even for a development build, and iOS 26.5
 // leaves a fresh purchase out of the current entitlements until the next sync (FB22237318);
 // iOS 27.2 never returns from a purchase given a simulated error and sends no transaction update
@@ -44,7 +45,10 @@ export function pickIphone(
     usable = usable.filter((r) => !STOREKIT_BROKEN.includes(os(r)))
     if (!usable.length) throw new Error('E_SIMULATOR_NO_STOREKIT_RUNTIME')
   }
-  const newest = usable.reduce((a, b) => ((b.major - a.major || b.minor - a.minor) > 0 ? b : a))
+  const preferred = usable.filter((r) => r.phones.some((d) => d.name === PREFERRED))
+  const newest = (preferred.length ? preferred : usable).reduce((a, b) =>
+    (b.major - a.major || b.minor - a.minor) > 0 ? b : a,
+  )
   const phones = usable.filter((r) => os(r) === os(newest)).flatMap((r) => r.phones)
   const rank = (d: { name: string; state?: string }) =>
     (d.name === PREFERRED ? 2 : 0) + (d.state === 'Booted' ? 1 : 0)
