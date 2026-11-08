@@ -15,7 +15,7 @@ final class TabsTests: XCTestCase {
         for name in names {
             let item = bar.buttons[name]
             XCTAssertTrue(item.waitForExistence(timeout: 10), name)
-            item.tap()
+            item.tapOnceHittable()
             XCTAssertTrue(item.wait(for: \.isSelected, toEqual: true, timeout: 10), name)
         }
         // The bar is this test's; the page inside the web view is not audited here.

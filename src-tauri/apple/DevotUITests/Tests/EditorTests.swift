@@ -63,7 +63,7 @@ final class EditorTests: XCTestCase {
     private func openExample() {
         let notes = tabBar.buttons[L10n.phoneTabNotes()]
         XCTAssertTrue(notes.waitForExistence(timeout: 10))
-        notes.tap()
+        notes.tapOnceHittable()
         let row = app.collectionViews.cells.containing(
             NSPredicate(format: "label == %@", L10n.welcomeExampleTitle())
         ).firstMatch

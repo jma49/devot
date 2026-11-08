@@ -31,7 +31,7 @@ final class SearchTests: XCTestCase {
         XCTAssertTrue(bar.waitForExistence(timeout: 120))
         let circle = bar.buttons[L10n.phoneTabSearch()]
         XCTAssertTrue(circle.waitForExistence(timeout: 10), "the search circle follows the tabs")
-        circle.tap()
+        circle.tapOnceHittable()
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10), "Search shows the system search field")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "the circle raises the keyboard")

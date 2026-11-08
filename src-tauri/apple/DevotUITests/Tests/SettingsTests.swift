@@ -19,7 +19,7 @@ final class SettingsTests: XCTestCase {
         let bar = app.tabBars.firstMatch
         // A cold debug build starts slowly on a CI simulator.
         XCTAssertTrue(bar.waitForExistence(timeout: 120))
-        bar.buttons[L10n.phoneTabSettings()].tap()
+        bar.buttons[L10n.phoneTabSettings()].tapOnceHittable()
         XCTAssertTrue(app.navigationBars[L10n.settingsTitle()].waitForExistence(timeout: 10))
     }
 
