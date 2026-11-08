@@ -215,6 +215,8 @@ export interface NoteCommands {
   readonly info: () => void
   /** The screen went: sheets, Find and the keyboard go with it. */
   readonly leave: () => void
+  /** Puts the caret at the start of the body, in Edit only; whether it took it. */
+  readonly focusBody: () => boolean
 }
 
 /**
@@ -413,6 +415,12 @@ export function PhoneNote(props: {
       else turn()
     },
     info: () => setSheet('info'),
+    focusBody: () => {
+      const shown = editor.current
+      if (!editing || mode !== 'edit' || !shown) return false
+      shown.focusStart()
+      return true
+    },
     leave: () => {
       setSheet(null)
       setFinding(false)

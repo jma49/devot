@@ -85,6 +85,21 @@ pub struct NoteArgs {
     pub note_id: String,
 }
 
+/// Where the page may put the caret once Swift asks (`editor.focus`): a new note's body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Focus {
+    Body,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ShowNote {
+    pub note_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<Focus>,
+}
+
 /// The editor's two panes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -112,6 +127,8 @@ pub enum Op {
     Search(Search),
     #[serde(rename = "note.create")]
     NoteCreate(NoteCreate),
+    #[serde(rename = "note.discard")]
+    NoteDiscard(NoteArgs),
     #[serde(rename = "tabs.show")]
     TabsShow(TabArgs),
     #[serde(rename = "tabs.popToRoot")]
@@ -119,7 +136,7 @@ pub enum Op {
     #[serde(rename = "settings.notebooks")]
     SettingsNotebooks(Empty),
     #[serde(rename = "editor.show")]
-    EditorShow(NoteArgs),
+    EditorShow(ShowNote),
     #[serde(rename = "editor.hide")]
     EditorHide(Empty),
     #[serde(rename = "editor.setMode")]
@@ -130,6 +147,8 @@ pub enum Op {
     GlassGet(Empty),
     #[serde(rename = "glass.set")]
     GlassSet(GlassSet),
+    #[serde(rename = "editor.focus")]
+    EditorFocus(Empty),
 }
 
 pub const OPS: &[&str] = &[
@@ -137,6 +156,7 @@ pub const OPS: &[&str] = &[
     "excerpts",
     "search",
     "note.create",
+    "note.discard",
     "tabs.show",
     "tabs.popToRoot",
     "settings.notebooks",
@@ -146,6 +166,7 @@ pub const OPS: &[&str] = &[
     "editor.info",
     "glass.get",
     "glass.set",
+    "editor.focus",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -205,6 +226,14 @@ pub struct EditorScroll {
     pub title_visible: bool,
 }
 
+/// New Note in the page's list: Swift's gate decides, then asks `note.create` for this notebook.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct NoteNew {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub book_id: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "notice", content = "fields")]
 pub enum Notice {
@@ -226,6 +255,8 @@ pub enum Notice {
     EditorMode(EditorMode),
     #[serde(rename = "editor.scroll")]
     EditorScroll(EditorScroll),
+    #[serde(rename = "note.new")]
+    NoteNew(NoteNew),
 }
 
 const NOTICES: &[&str] = &[
@@ -238,6 +269,7 @@ const NOTICES: &[&str] = &[
     "editor.ready",
     "editor.mode",
     "editor.scroll",
+    "note.new",
 ];
 
 /// What Rust tells Swift itself, never passed on from the page: a notice without fields, after
@@ -248,21 +280,25 @@ pub enum FromRust {
     SyncChanged,
     /// A pairing on show through iCloud may have moved on (`devot://sync-pairing`).
     SyncPairing,
+    /// The licence changed (`licence::CHANGED_EVENT`): Swift reads its snapshot again, which is only
+    /// the screens' guess, since Rust refuses every locked write itself.
+    LicenceChanged,
 }
 
-pub const RUST_NOTICES: &[&str] = &["sync.changed", "sync.pairing"];
+pub const RUST_NOTICES: &[&str] = &["sync.changed", "sync.pairing", "licence.changed"];
 
 impl FromRust {
-    pub const ALL: [Self; 2] = [Self::SyncChanged, Self::SyncPairing];
+    pub const ALL: [Self; 3] = [Self::SyncChanged, Self::SyncPairing, Self::LicenceChanged];
 
     pub const fn name(self) -> &'static str {
         match self {
             Self::SyncChanged => "sync.changed",
             Self::SyncPairing => "sync.pairing",
+            Self::LicenceChanged => "licence.changed",
         }
     }
 
-    /// The notice Swift hears after the sync service emits `event`, if any.
+    /// The notice Swift hears after the sync service emits `event`, if any; the licence tells Swift itself.
     pub fn after(event: &str) -> Option<Self> {
         use crate::sync::service::{CHANGED_EVENT, PAIRING_EVENT};
         match event {
@@ -499,6 +535,11 @@ fn title(title: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// A notebook is named by an ID like a note's, or not at all (unfiled).
+fn book(id: Option<&String>) -> Result<(), &'static str> {
+    id.map_or(Ok(()), |id| note_ids(std::slice::from_ref(id), 1))
+}
+
 fn validate_op(op: &Op) -> Result<(), &'static str> {
     match op {
         Op::Ping(_) => Ok(()),
@@ -510,12 +551,11 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             Ok(())
         }
         Op::NoteCreate(create) => {
-            if let Some(book) = &create.book_id {
-                note_ids(std::slice::from_ref(book), 1)?;
-            }
+            book(create.book_id.as_ref())?;
             create.title.as_deref().map_or(Ok(()), title)
         }
-        Op::EditorShow(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::NoteDiscard(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::EditorShow(ShowNote { note_id, .. }) => note_ids(std::slice::from_ref(note_id), 1),
         Op::GlassSet(GlassSet { transparency }) => {
             if !(-GLASS_TRANSPARENCY_MAX..=GLASS_TRANSPARENCY_MAX).contains(transparency)
                 || transparency % GLASS_TRANSPARENCY_STEP != 0
@@ -530,7 +570,8 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
         | Op::GlassGet(_)
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
-        | Op::EditorInfo(_) => Ok(()),
+        | Op::EditorInfo(_)
+        | Op::EditorFocus(_) => Ok(()),
     }
 }
 
@@ -549,6 +590,7 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
         | Notice::EditorMode(EditorMode { note_id, .. }) => {
             note_ids(std::slice::from_ref(note_id), 1)
         }
+        Notice::NoteNew(NoteNew { book_id }) => book(book_id.as_ref()),
         Notice::TabsState(_)
         | Notice::SettingsOpen(_)
         | Notice::NavBack(_)
@@ -788,6 +830,56 @@ mod tests {
         assert_eq!(
             from_page(&bytes(&json!({ "v": 1, "id": 1, "ok": false, "code": 4 }))),
             Err("E_SCREENS_CODE_INVALID")
+        );
+    }
+
+    fn create_in(book: Value) -> Vec<u8> {
+        bytes(&json!({ "v": 1, "id": 1, "op": "note.create", "args": { "bookId": book } }))
+    }
+
+    #[test]
+    fn creates_a_note_in_a_notebook_named_by_a_valid_id_or_in_none() {
+        assert!(from_swift(1, &create_in(json!(NOTE))).is_ok());
+        assert!(from_swift(1, &create_in(Value::Null)).is_ok());
+        for refused in [
+            json!("inbox"),
+            json!(""),
+            json!(NOTE.to_uppercase()),
+            json!(7),
+        ] {
+            assert!(
+                from_swift(1, &create_in(refused.clone())).is_err(),
+                "{refused}"
+            );
+        }
+    }
+
+    #[test]
+    fn new_note_names_a_valid_notebook_or_none() {
+        let asked = |fields: Value| {
+            let mut message = object(json!({ "v": 1, "notice": "note.new" }));
+            message.extend(object(fields));
+            from_page(&bytes(&Value::Object(message)))
+        };
+        assert!(asked(json!({ "bookId": NOTE })).is_ok());
+        assert!(asked(json!({ "bookId": null })).is_ok());
+        assert!(asked(json!({})).is_ok());
+        assert_eq!(
+            asked(json!({ "bookId": "inbox" })),
+            Err("E_SCREENS_NOTE_ID_INVALID")
+        );
+    }
+
+    #[test]
+    fn the_page_cannot_send_what_only_rust_sends() {
+        for name in RUST_NOTICES {
+            let notice = bytes(&json!({ "v": 1, "notice": name }));
+            assert_eq!(from_page(&notice), Err("E_SCREENS_NOTICE_UNKNOWN"));
+            assert!(!NOTICES.contains(name));
+        }
+        assert_eq!(
+            FromRust::LicenceChanged.to_value(),
+            json!({ "v": 1, "notice": "licence.changed" })
         );
     }
 }

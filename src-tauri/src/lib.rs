@@ -444,6 +444,8 @@ fn licence_emitter(app: tauri::AppHandle) -> licence::Emit {
         if app.emit(licence::CHANGED_EVENT, snapshot).is_err() {
             log::warn!("W_LICENCE_EMIT_FAILED");
         }
+        #[cfg(target_os = "ios")]
+        crate::native::ios::screens_tell(screens::message::FromRust::LicenceChanged);
         #[cfg(desktop)]
         {
             let handle = app.clone();

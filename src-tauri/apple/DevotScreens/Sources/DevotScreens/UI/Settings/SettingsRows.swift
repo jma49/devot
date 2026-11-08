@@ -53,6 +53,8 @@ extension View {
     func sliderValue() -> some View {
         modifier(SettingsType(size: 14, line: 19, weight: .medium, secondary: true)).monospacedDigit()
     }
+    /// A short sheet's one line, in the primary text colour: the sheet's material lets the list through.
+    func sheetMessage() -> some View { modifier(SettingsType(size: 16, line: 24, secondary: false)) }
 
     /// A row on the grouped card, at least the row's height.
     func settingsRow(described: Bool = false) -> some View {

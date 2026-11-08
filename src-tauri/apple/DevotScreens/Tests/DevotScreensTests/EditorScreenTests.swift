@@ -18,7 +18,7 @@ private final class FakePage {
 
     var actions: EditorActions {
         EditorActions(
-            show: { [unowned self] in shown.append($0) },
+            show: { [unowned self] id, _ in shown.append(id) },
             setMode: { [unowned self] in modes.append($0) },
             info: { [unowned self] in infos += 1 },
             appeared: { [unowned self] in appeared.append($0) })
@@ -27,7 +27,7 @@ private final class FakePage {
 
 /// A back swipe the test holds part way and then lets go or turns back, as a finger would.
 @MainActor
-private final class HeldPop: NSObject, UINavigationControllerDelegate, UIViewControllerAnimatedTransitioning {
+final class HeldPop: NSObject, UINavigationControllerDelegate, UIViewControllerAnimatedTransitioning {
     let interaction = UIPercentDrivenInteractiveTransition()
 
     func navigationController(

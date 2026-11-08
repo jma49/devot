@@ -22,6 +22,16 @@ function afterPaint(then: () => void): () => void {
   return () => cancelAnimationFrame(frame)
 }
 
+// The keyboard is up when Swift asks, so the caret waits for the note's load however slow it is (over
+// a second on a busy simulator); only an open that failed, which reports nothing, or a note that opens
+// in Preview, takes no caret.
+const FOCUS_WAIT_MS = 5000
+
+interface Focusing {
+  readonly noteId: string
+  readonly settle: (focused: boolean) => void
+}
+
 /**
  * The note shown in the native editor screen: one editor for the page's lifetime, which takes each
  * note Swift shows. Hidden, it keeps its note, so going back to it costs nothing.
@@ -37,7 +47,13 @@ export function EditorHost(props: {
   const [shown, setShown] = useState<{ noteId: string; turn: number } | null>(null)
   const [visible, setVisible] = useState(false)
   const [loadedId, setLoadedId] = useState<string | null>(null)
+  const [shownMode, setShownMode] = useState<{ noteId: string; mode: 'edit' | 'preview' } | null>(
+    null,
+  )
   const commands = useRef<NoteCommands | null>(null)
+  const typedIn = useRef<string | null>(null)
+  const focusing = useRef<Focusing | null>(null)
+  const [asking, setAsking] = useState<Focusing | null>(null)
   const latest = useRef(props)
   useLayoutEffect(() => {
     latest.current = props
@@ -47,7 +63,10 @@ export function EditorHost(props: {
     () => ({
       openNote: (id) => latest.current.openNote(id),
       loaded: setLoadedId,
-      mode: (noteId, mode) => latest.current.notify({ notice: 'editor.mode', noteId, mode }),
+      mode: (noteId, mode) => {
+        setShownMode({ noteId, mode })
+        latest.current.notify({ notice: 'editor.mode', noteId, mode })
+      },
       title: (id, title) => latest.current.notify({ notice: 'editor.title', id, title }),
       titleVisible: (titleVisible) =>
         latest.current.notify({ notice: 'editor.scroll', titleVisible }),
@@ -60,20 +79,50 @@ export function EditorHost(props: {
   useImperativeHandle(
     props.editor,
     (): NativeEditor => ({
-      show: (noteId) => {
+      show: (noteId, focusBody) => {
+        typedIn.current = focusBody ? noteId : null
+        focusing.current?.settle(false)
         setShown((before) => ({ noteId, turn: (before?.turn ?? 0) + 1 }))
         setVisible(true)
       },
       hide: () => {
+        typedIn.current = null
+        focusing.current?.settle(false)
         commands.current?.leave()
         setVisible(false)
         return new Promise<void>((resolve) => afterPaint(resolve))
       },
       setMode: (mode) => commands.current?.setMode(mode),
       info: () => commands.current?.info(),
+      focus: () =>
+        new Promise<boolean>((resolve) => {
+          const noteId = typedIn.current
+          if (noteId === null) return resolve(false)
+          focusing.current?.settle(false)
+          const timer = setTimeout(() => asked.settle(false), FOCUS_WAIT_MS)
+          const asked: Focusing = {
+            noteId,
+            settle: (focused) => {
+              if (focusing.current !== asked) return
+              focusing.current = null
+              clearTimeout(timer)
+              resolve(focused)
+            },
+          }
+          focusing.current = asked
+          setAsking(asked)
+        }),
     }),
     [],
   )
+
+  useEffect(() => {
+    if (!asking || focusing.current !== asking || !visible) return
+    const { noteId } = asking
+    if (shown?.noteId !== noteId || loadedId !== noteId) return
+    if (shownMode?.noteId !== noteId || shownMode.mode !== 'edit') return
+    asking.settle(commands.current?.focusBody() ?? false)
+  }, [asking, visible, shown, loadedId, shownMode])
 
   const readyTurn = useRef(0)
   useEffect(() => {

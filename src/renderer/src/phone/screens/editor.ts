@@ -3,11 +3,14 @@ import type { ScreensHandlers } from './ops'
 
 /** What the native editor screen asks of the page's editor (docs/specs/iphone-screens.md). */
 export interface NativeEditor {
-  readonly show: (noteId: string) => void
+  /** `focusBody`: a new note, whose body takes the caret once Swift asks (`focus`). */
+  readonly show: (noteId: string, focusBody: boolean) => void
   /** Resolves once the page has painted without the editor. */
   readonly hide: () => Promise<void>
   readonly setMode: (mode: EditorMode) => void
   readonly info: () => void
+  /** Whether the body of a note shown to be typed in took the caret; the keyboard is up by now. */
+  readonly focus: () => Promise<boolean>
 }
 
 const invalid = () => new Error('E_SCREENS_ARGS_INVALID')
@@ -18,8 +21,10 @@ export function editorHandlers(editor: () => NativeEditor | null): ScreensHandle
   return {
     'editor.show': async (args) => {
       const noteId = args['noteId']
+      const focus = args['focus']
       if (typeof noteId !== 'string' || noteId === '') throw invalid()
-      editor()?.show(noteId)
+      if (focus !== undefined && focus !== 'body') throw invalid()
+      editor()?.show(noteId, focus === 'body')
       return {}
     },
     'editor.hide': async () => {
@@ -36,5 +41,6 @@ export function editorHandlers(editor: () => NativeEditor | null): ScreensHandle
       editor()?.info()
       return {}
     },
+    'editor.focus': async () => ({ focused: (await editor()?.focus()) ?? false }),
   }
 }

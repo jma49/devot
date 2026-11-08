@@ -1,4 +1,4 @@
-import { expect, type TestContext } from 'vitest'
+import { expect } from 'vitest'
 
 // Time budgets measure the machine as much as the code. Locally, an over-budget measurement on an
 // overloaded machine is skipped, never passed; CI always enforces. Load is asked at check time through a
@@ -48,17 +48,23 @@ export type BudgetCheck = {
 
 type BudgetMeta = { budgets?: BudgetCheck[] }
 
+/** What a check needs of its test: Vitest's context, or one a Playwright test makes from `test.skip`. */
+export type BudgetContext = {
+  readonly task?: { readonly meta: object } | undefined
+  skip(note?: string): void
+}
+
 /** The checks a test made, from its task's meta (where Vitest carries them to the reporters). */
 export function budgetChecks(meta: object | undefined): readonly BudgetCheck[] {
   return (meta as BudgetMeta | undefined)?.budgets ?? []
 }
 
-export function recordBudgetCheck(context: TestContext, check: BudgetCheck): void {
+export function recordBudgetCheck(context: BudgetContext, check: BudgetCheck): void {
   const meta = context.task?.meta as BudgetMeta | undefined
   if (meta) (meta.budgets ??= []).push(check)
 }
 
-export function skipIfOverloaded(context: TestContext, why: string): void {
+export function skipIfOverloaded(context: BudgetContext, why: string): void {
   if (overloaded()) context.skip(`machine overloaded (${why})`)
 }
 
@@ -69,7 +75,7 @@ export function skipIfOverloaded(context: TestContext, why: string): void {
  * on the same machine.
  */
 export function expectWithinBudget(
-  context: TestContext,
+  context: BudgetContext,
   ms: number,
   budgetMs: number,
   options: { readonly exact?: boolean } = {},

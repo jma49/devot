@@ -86,6 +86,7 @@ impl<R: Copy> Hub<R> {
         self.state().installed = installed;
     }
 
+    #[cfg(any(target_os = "ios", test))]
     pub fn installed(&self) -> bool {
         self.state().installed
     }

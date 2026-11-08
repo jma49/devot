@@ -32,6 +32,7 @@ targets:
       - path: ../../../../tests/fixtures/settings-search.json
         buildPhase: resources
       - path: ../../../../tests/fixtures/sync-pane.json
+      - path: ../../../../tests/fixtures/licence-gate.json
         buildPhase: resources
     dependencies:
       - target: DevotScreensHost

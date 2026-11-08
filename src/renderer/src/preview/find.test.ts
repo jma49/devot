@@ -14,11 +14,14 @@ const PIECES = [
   '<p>soft\nbreak cat</p>',
 ]
 
+/** A preview of `pieces` in one chunk; `body` is the chunk, whose children are the blocks. */
 function preview(pieces: readonly number[]) {
   const root = document.createElement('article')
+  const host = document.createElement('div')
   const body = document.createElement('div')
   body.innerHTML = pieces.map((i) => PIECES[i]).join('\n')
-  root.append(body)
+  host.append(body)
+  root.append(host)
   document.body.append(root)
   return { root, body }
 }

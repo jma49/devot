@@ -9,7 +9,10 @@ use super::super::activation::State as SeatState;
 use super::super::client::MacKey;
 use super::super::client::Reply as ActivationReply;
 use super::super::store::{KeyStore, MemoryKey};
-use super::super::testing::{ID, gated_db, has_note, key, save_note, sign, test_keys};
+use super::super::testing::{
+    ID, gated_db, has_note, is_trashed, key, restore_note, restore_note_meta, save_note, sign,
+    test_keys, trash_note,
+};
 use super::super::trial::{LENGTH_MS, TrialSource, TrialState};
 use super::super::{KEYS_OFF, Licence, REQUIRED, Snapshot};
 use super::{Bought, Limits, Storefront, mac_key, purchase_line, refund_line, restore_line};
@@ -297,6 +300,23 @@ fn after_a_refund_a_note_that_exists_still_saves_but_a_new_note_does_not() {
     assert!(!has_note(&db, NEW));
     setup.at(START + HOUR + 5 * MINUTE);
     assert_eq!(save_note(&db, KEPT, 2), Err(REQUIRED.to_owned()));
+}
+
+#[test]
+fn after_a_refund_a_note_in_the_trash_still_saves_but_does_not_come_back() {
+    const KEPT: &str = "0192a6f0-0000-7000-8000-00000000000a";
+    let setup = app_store();
+    let pro = transaction(Product::Pro, 1, START - DAY);
+    entitled(&setup, vec![pro.clone()]);
+    let (_db_dir, db) = gated_db(&setup.licence);
+    save_note(&db, KEPT, 0).expect("Devot Pro is held");
+    trash_note(&db, KEPT, 1).expect("Devot Pro is held");
+    setup.at(START + HOUR);
+    setup.licence.take_transaction(refunded(pro, START + HOUR));
+    assert_eq!(restore_note(&db, KEPT, 2), Err(REQUIRED.to_owned()));
+    assert_eq!(restore_note_meta(&db, KEPT, 2), Err(REQUIRED.to_owned()));
+    assert_eq!(save_note(&db, KEPT, 2), Ok(()));
+    assert!(is_trashed(&db, KEPT));
 }
 
 #[test]

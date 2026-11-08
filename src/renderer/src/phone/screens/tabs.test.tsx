@@ -175,13 +175,15 @@ describe('the page under the native tab bar', () => {
     expect(bridge.notices.slice(before).map((n) => n.notice)).toStrictEqual(['nav.openNote'])
   })
 
-  it('hides the bar while New Note’s web screen is pushed and shows it again once it is popped', async () => {
+  it('leaves the bar up for New Note, whose editor Swift pushes over it', async () => {
     await start()
     await swift('tabs.show', 'notes')
     await tap(button('New Note'))
-    await vi.waitFor(() => expect(lastNotice()).toMatchObject({ tab: 'notes', barHidden: true }))
-    await tap(button('Back'))
-    expect(lastNotice()).toMatchObject({ tab: 'notes', barHidden: false })
+    expect(lastNotice()).toStrictEqual({ notice: 'note.new' })
+    expect(bridge.notices.filter((n) => n.notice === 'tabs.state').at(-1)).toMatchObject({
+      tab: 'notes',
+      barHidden: false,
+    })
   })
 
   it('hides the bar while search covers the page', async () => {
