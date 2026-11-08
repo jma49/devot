@@ -42,6 +42,14 @@ final class EditorBarsTests: XCTestCase {
         add(attachment)
     }
 
+    /// The tree the query saw, for a check that fails while the screen looks right.
+    private func keepHierarchy(_ step: String) {
+        let attachment = XCTAttachment(string: app.debugDescription)
+        attachment.name = step
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     /// New Note with the keyboard up, and a line typed so Back keeps it.
     private func newNote(typing text: String) {
         let newNote = app.navigationBars.buttons[L10n.noteListNewNote()]
@@ -67,7 +75,9 @@ final class EditorBarsTests: XCTestCase {
         formatting.buttons[L10n.phoneNoteHideKeyboard()].tap()
         XCTAssertTrue(keyboard.waitForNonExistence(timeout: 5), "Hide Keyboard lowers the keyboard")
         XCTAssertTrue(formatting.waitForNonExistence(timeout: 5), "the bar goes with it")
-        XCTAssertTrue(waitUntil { findButton.exists && findButton.isHittable }, "the bottom toolbar returns")
+        let returned = waitUntil { findButton.exists && findButton.isHittable }
+        if !returned { keepHierarchy("the toolbar after Hide Keyboard") }
+        XCTAssertTrue(returned, "the bottom toolbar returns")
         keepScreen("the keyboard lowered")
     }
 

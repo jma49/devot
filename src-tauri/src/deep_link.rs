@@ -14,7 +14,8 @@
 //! Links wait in an [`Inbox`] until a main window has asked for them (`deep_link_take`; again
 //! after a reload) and while the Settings window is open. They go to the frontmost main window that
 //! has asked (`main_windows`); on the iPhone, once its native screens are installed, they go to
-//! the screens instead, as routes (`screens::route`), and the page never sees one. A second launch does not open the data
+//! the screens instead, as routes (`screens::route`), and the page never sees one; there the page
+//! asks only once it has listed its library, so a link never outruns the first-launch notes. A second launch does not open the data
 //! folder: the single-instance plugin hands its arguments to this process ([`on_second_instance`])
 //! and ends it. The `devot` command hands files over the same way (`cli`).
 
@@ -190,7 +191,8 @@ pub(crate) struct Inbox {
     /// reloaded since.
     ready: BTreeSet<String>,
     settings_open: bool,
-    /// The iPhone's native screens are installed: they take every link, and no page does.
+    /// The iPhone's native screens are installed: they take every link, once a page has listed its
+    /// library and asked, and no page takes one.
     screens: bool,
     held: VecDeque<Link>,
 }
@@ -231,9 +233,6 @@ impl Inbox {
 
     fn take(&mut self, label: &str) -> Vec<Link> {
         self.ready.insert(label.to_owned());
-        if self.screens {
-            return Vec::new();
-        }
         self.release()
     }
 
@@ -257,7 +256,7 @@ impl Inbox {
     }
 
     fn release(&mut self) -> Vec<Link> {
-        if (self.ready.is_empty() && !self.screens) || self.settings_open {
+        if self.ready.is_empty() || self.settings_open {
             return Vec::new();
         }
         self.held.drain(..).collect()
@@ -332,6 +331,21 @@ impl DeepLinks {
             }
         });
     }
+
+    /// The links held for the page that asks: under the native screens they go there instead and
+    /// the page gets none.
+    fn take_with(&self, label: &str, mut to_screens: impl FnMut(&Link)) -> Vec<Link> {
+        let mut page = Vec::new();
+        self.update_with(
+            || Some(label.to_owned()),
+            |inbox| inbox.take(label),
+            |target, link| match target {
+                Target::Window(_) => page.push(link.clone()),
+                Target::Screens => to_screens(link),
+            },
+        );
+        page
+    }
 }
 
 /// A link the iPhone's native screens take as a route; one they do nothing with is dropped here.
@@ -342,8 +356,9 @@ fn to_screens(link: &Link) {
     let _ = link;
 }
 
-/// The iPhone's native screens are installed: the links held for a page go to them, as every
-/// later one does.
+/// The iPhone's native screens are installed: the links held go to them, as every later one does,
+/// once the page has listed its library (the first-launch notes seeded) and asked for them, so a
+/// link to a first-launch note finds it.
 #[cfg(target_os = "ios")]
 pub(crate) fn screens_installed<R: Runtime>(app: &AppHandle<R>) {
     if let Some(links) = app.try_state::<DeepLinks>() {
@@ -592,9 +607,13 @@ pub fn deep_link_take(
     links: tauri::State<'_, DeepLinks>,
     window: tauri::WebviewWindow,
 ) -> Vec<Link> {
-    let taken = links.with(|inbox| inbox.take(window.label()));
+    let app = window.app_handle();
+    let taken = links.take_with(window.label(), |link| {
+        to_screens(link);
+        handed(app, "", link, false);
+    });
     for link in &taken {
-        handed(window.app_handle(), window.label(), link, true);
+        handed(app, window.label(), link, true);
     }
     taken
 }
@@ -1048,36 +1067,59 @@ mod tests {
     }
 
     #[test]
-    fn links_held_before_the_native_screens_go_to_them_once_installed_and_never_to_the_page() {
+    fn links_wait_for_the_native_screens_and_a_page_that_has_listed_its_library() {
         let mut inbox = Inbox::default();
         assert!(inbox.arrive(note()).is_empty());
+        assert!(
+            inbox.screens_ready().is_empty(),
+            "the first-launch notes may not be made yet"
+        );
         assert!(inbox.arrive(command("view.trash")).is_empty());
-        assert_eq!(inbox.screens_ready(), vec![note(), command("view.trash")]);
+        assert_eq!(inbox.take("main"), vec![note(), command("view.trash")]);
         assert_eq!(inbox.destination(Some("main")), Some(Target::Screens));
-        assert!(inbox.take("main").is_empty());
         assert_eq!(inbox.arrive(Link::Today), vec![Link::Today]);
-        assert_eq!(inbox.destination(Some("main")), Some(Target::Screens));
+        inbox.page_started("main");
+        assert!(
+            inbox.arrive(note()).is_empty(),
+            "a reloaded page lists its library again first"
+        );
+        assert_eq!(inbox.take("main"), vec![note()]);
     }
 
     #[test]
-    fn links_released_to_the_native_screens_are_sent_there_in_order() {
+    fn a_page_that_asks_under_the_native_screens_sends_the_links_there_in_order_and_gets_none() {
         let links = DeepLinks::default();
-        links.with(|inbox| inbox.arrive(note()));
-        let mut sent = Vec::new();
-        links.update_with(
-            || Some("main".to_owned()),
-            Inbox::screens_ready,
-            |target, link| sent.push((target.clone(), link.clone())),
+        links.with(|inbox| {
+            inbox.arrive(note());
+            inbox.arrive(command("view.trash"));
+            inbox.screens_ready()
+        });
+        let mut screens = Vec::new();
+        assert!(
+            links
+                .take_with("main", |link| screens.push(link.clone()))
+                .is_empty()
         );
+        assert_eq!(screens, vec![note(), command("view.trash")]);
+        let mut sent = Vec::new();
         links.update_with(
             || None,
             |inbox| inbox.arrive(Link::Today),
             |target, link| sent.push((target.clone(), link.clone())),
         );
+        assert_eq!(sent, vec![(Target::Screens, Link::Today)]);
+    }
+
+    #[test]
+    fn a_page_that_asks_without_the_native_screens_takes_the_links_itself() {
+        let links = DeepLinks::default();
+        links.with(|inbox| inbox.arrive(note()));
+        let mut screens = Vec::new();
         assert_eq!(
-            sent,
-            vec![(Target::Screens, note()), (Target::Screens, Link::Today)]
+            links.take_with("main", |link| screens.push(link.clone())),
+            vec![note()]
         );
+        assert!(screens.is_empty());
     }
 
     #[test]

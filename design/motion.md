@@ -214,6 +214,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Back, Forward and Find stand side by side, so the system draws them on one glass, and a flexible space sets AI apart on its own.
   It hides as the keyboard rises and comes back as it goes, inside the keyboard's own animation: the same duration and curve, never the toolbar's own slide.
   A keyboard raised for a sheet over the note moves neither the toolbar nor the bars.
+  Each time the toolbar comes or goes, assistive technologies are told the layout changed, so they find its buttons where they are drawn.
   The page scrolls as one document in the web view's own scroll view, so the system bar's scroll edge effect follows it, and a drag down through the keyboard takes the keyboard with the finger.
   The keyboard's height reaches the page once per change as `editor.insets`, which the page applies at once, with no motion of its own; the native scroll view's bottom inset changes with it.
   Under Reduce Motion the keyboard decides its own look, and the toolbar follows it.

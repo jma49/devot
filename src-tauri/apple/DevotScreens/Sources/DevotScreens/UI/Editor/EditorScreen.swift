@@ -363,9 +363,14 @@ final class EditorScreen: WebHolderScreen {
     /// Inside the keyboard's own animation: the toolbar goes as the keyboard rises, the formatting bar comes.
     private func keyboardMoves(_ change: KeyboardChange) {
         keyboardUp = change.up
+        let toolbarWas = navigationController?.isToolbarHidden
         navigationController?.setToolbarHidden(change.up || finding, animated: false)
         showBars()
         view.layoutIfNeeded()
+        // The bar's items keep the frames assistive technologies last read unless told the layout moved.
+        if toolbarWas != navigationController?.isToolbarHidden {
+            UIAccessibility.post(notification: .layoutChanged, argument: nil)
+        }
     }
 
     /// Outside it, once: the page and the scroll view take the room the keyboard and the bar cover, at once.

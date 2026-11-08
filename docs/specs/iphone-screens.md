@@ -302,8 +302,10 @@ A route names screens by kind and ID only, and Swift builds them.
 - A stack route reads `direct.lists.titles` for its editors first; a note no longer live ends the stack below it (`I_SCREENS_ROUTE_NOTE_GONE`), so the tab opens at its root.
 - Swift sets the tab's stack with `setViewControllers(_:animated:)`, keeping the screens already in place that the route names, then selects the tab; the change is animated only while the app is in front (`UIApplication.applicationState == .active`), so a link that launches or wakes the app shows its screen in the first frame.
 - A sheet over the tabs closes for a stack route, except the gate's own.
-- Links that arrive before the screens are installed wait in Rust's inbox (`deep_link.rs`) and go to the screens, in order, once the install succeeds; from then on links go only to the screens and never to the page, and a page that asks for them gets none.
-  Without the screens (the kill switch, or an install that failed) the links stay held in the inbox and are not followed: the iPhone's page never asks for them (`deep_link_take` is the Mac window's).
+- Links wait in Rust's inbox (`deep_link.rs`) until the screens are installed and the page has listed its library, the first-launch notes seeded, and asked for them (`deep_link_take`, which the screens bridge calls once, as `libraryListed`); then they go to the screens, in order, and so does every later link.
+  A link that launches the app on its first run would otherwise reach the screens before the welcome example exists, and its stack would end at the list.
+  Under the screens a link never goes to the page: the page that asks gets none, and a reloaded page asks again once it has listed the library.
+  Without the screens (the kill switch, or an install that failed) the links stay held in the inbox and are not followed: the page asks for them only under the screens.
 - The iPhone answers to `devot://` in every build (`plugins.deep-link.mobile` in `tauri.ios.conf.json`, written into the app's Info.plist and `project.yml`): its debug and release builds share one bundle ID, and only one of them is installed at a time.
 - The host-app XCTests (`RouteApplyTests`) deliver each route and check the stack and its animation; the `iphone-ui` XCUITest (`DeepLinkTests`) opens `devot://note/<id>` for the welcome example in the installed app.
 

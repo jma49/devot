@@ -242,7 +242,8 @@ interface PhoneTestDriver {
 
 export function PhoneApp() {
   const [state, dispatch] = useReducer(navigate, undefined, initialNavigation)
-  const phoneData = usePhoneData()
+  const bridge = useRef<ScreensBridge | null>(null)
+  const phoneData = usePhoneData(() => bridge.current?.libraryListed())
   const [discarding, setDiscarding] = useState<ReadonlySet<string>>(() => new Set())
   // A discarded note leaves every screen the moment it is left, before its purge returns.
   const store =
@@ -268,7 +269,6 @@ export function PhoneApp() {
   const nativeEditor = useRef<NativeEditor | null>(null)
   const nativeNewNote = useRef<NativeNewNote | null>(null)
   const [prepared] = useState(createPreparedNotes)
-  const bridge = useRef<ScreensBridge | null>(null)
   // Null until the bridge says whether the native screens are there; without them the page is the fallback.
   const [native, setNative] = useState<boolean | null>(null)
   const covered = useSyncExternalStore(watchModals, modalOpen)
