@@ -57,7 +57,7 @@ it('selects a listed shard by its tests and the rest shard by skipping every lis
   expect(() => selection('nope')).toThrow('E_UI_SHARD_UNKNOWN shard=nope')
 })
 
-it("runs the smoke shard in the iPhone app build and every other shard in CI's matrix, which never stops the others", () => {
+it("runs the smoke shard in a pull request's iPhone app build and every shard in a full run's matrix, which never stops the others", () => {
   const ci = parse(readFileSync('.github/workflows/ci.yml', 'utf8')) as {
     jobs: Record<
       string,
@@ -69,10 +69,8 @@ it("runs the smoke shard in the iPhone app build and every other shard in CI's m
   }
   const strategy = ci.jobs['iphone-ui']!.strategy
   expect(strategy['fail-fast']).toBe(false)
-  expect(strategy.matrix.shard).toEqual([
-    ...Object.keys(SHARDS).filter((shard) => shard !== SMOKE),
-    REST,
-  ])
+  // A full run tests every shard in the matrix: a job that needs iphone-build starts only once it ends.
+  expect(strategy.matrix.shard).toEqual([...Object.keys(SHARDS), REST])
   expect(ci.jobs['iphone-build']!.env?.['DEVOT_UI_SHARD']).toBe(SMOKE)
   // The smoke shard is the one pull requests run: it switches every tab and audits the bar.
   expect(SHARDS[SMOKE]).toContain('TabsTests')

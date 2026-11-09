@@ -2,8 +2,8 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // CI helper: splits the iPhone UI test (src-tauri/apple/DevotUITests) between the jobs of
-// .github/workflows/ci.yml. SMOKE runs in `iphone-build` on every run that tests the app; the other
-// shards and REST run in the `iphone-ui` matrix only for the merge queue, main and manual runs.
+// .github/workflows/ci.yml. A pull request runs SMOKE alone, in `iphone-build`; the merge queue, main
+// and manual runs run every shard, SMOKE and REST included, in the `iphone-ui` matrix.
 // Each listed shard runs its classes and `Class/testMethod`s; REST runs every test not listed, so a
 // new class or method can never be left out. A matrix shard should run about 8 minutes of tests on
 // CI, the smoke shard about 4: when one grows past that, move tests or add a shard here and in the

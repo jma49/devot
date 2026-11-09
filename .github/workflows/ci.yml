@@ -401,10 +401,11 @@ jobs:
 
   # The iPhone app for the simulator, with the release UI build: the only build that links the
   # Swift packages and Rust's calls into them. When the UI test runs, this job also builds its test
-  # runner, hands both to the iphone-ui shards as one artifact on full runs, and runs the smoke shard
-  # itself, on a simulator that boots during the build. The Mac's and the phone's `cfg` branches,
-  # which compile only against Apple's SDK, are checked here too, while that simulator settles:
-  # rust-check on Linux leaves out native/macos/ and the other macOS code.
+  # runner. On a pull request it runs the smoke shard itself, on a simulator that boots during the
+  # build; on a full run it hands both to the iphone-ui shards as one artifact, and the shards start
+  # only once this job ends, so nothing waits behind the upload but the compile checks. The Mac's and
+  # the phone's `cfg` branches, which compile only against Apple's SDK, are checked here: rust-check
+  # on Linux leaves out native/macos/ and the other macOS code.
   iphone-build:
     name: iPhone app build
     needs: changes
@@ -424,7 +425,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - name: Boot the iPhone simulator
-        if: needs.changes.outputs.iphone_ui != 'false'
+        if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.iphone_ui_full == 'false'
         run: |
           device=$(xcrun simctl list devices available --json | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
           echo "DEVOT_SIMULATOR=$device" >> "$GITHUB_ENV"
@@ -472,7 +473,7 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
-      - if: needs.changes.outputs.iphone_ui != 'false'
+      - if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.iphone_ui_full == 'false'
         run: sh scripts/ci/iphone-ui-tests.sh settle
       # The generated Swift tokens and strings on their own; ios-app compiles the whole package.
       - if: ${{ !cancelled() }}
@@ -492,7 +493,7 @@ jobs:
       - if: ${{ !cancelled() }}
         run: cargo test --lib input_accessory
         working-directory: src-tauri
-      - if: ${{ !cancelled() && steps.runner.outcome == 'success' }}
+      - if: ${{ !cancelled() && steps.runner.outcome == 'success' && needs.changes.outputs.iphone_ui_full == 'false' }}
         run: sh scripts/ci/iphone-ui-tests.sh test
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -506,7 +507,7 @@ jobs:
   # (src-tauri/apple/DevotUITests) switch every tab of the native tab bar, run the system's
   # accessibility audit and go through the screens. They run for the native screens, the phone page
   # and the app project (scripts/ci/changed-code.sh). A pull request runs only the smoke shard, in
-  # iphone-build; the merge queue, main and manual runs also run the other shards here, from
+  # iphone-build; the merge queue, main and manual runs run every shard here, smoke included, from
   # iphone-build's app and test runner, side by side (scripts/ci/iphone-ui-shards.ts).
   iphone-ui:
     name: iPhone UI test (${{ matrix.shard }})
@@ -518,7 +519,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [settings, rest]
+        shard: [smoke, settings, rest]
     env:
       DEVOT_UI_SHARD: ${{ matrix.shard }}
       DEVOT_UI_WAIT_SCALE: '3'

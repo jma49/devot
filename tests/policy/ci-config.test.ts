@@ -314,11 +314,21 @@ it('launches the real iPhone app with its built UI in a simulator, switches the 
   expect(commands(ui)).toContain('sh scripts/ci/iphone-ui-tests.sh test')
   expect(build).toContain('DEVOT_UI_SHARD: smoke')
   expect(build).toContain(
-    "- if: ${{ !cancelled() && steps.runner.outcome == 'success' }}\n        run: sh scripts/ci/iphone-ui-tests.sh test",
+    "- if: ${{ !cancelled() && steps.runner.outcome == 'success' && needs.changes.outputs.iphone_ui_full == 'false' }}\n        run: sh scripts/ci/iphone-ui-tests.sh test",
   )
   expect(build.slice(build.lastIndexOf('- if: failure()'))).toContain(
     'name: iphone-ui-xcresult-smoke',
   )
+  // A full run's shards start only once iphone-build ends: it boots no simulator and runs no test then.
+  const buildSteps = (parse(workflow) as Workflow).jobs['iphone-build']!.steps
+  const pullRequestOnly =
+    "needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.iphone_ui_full == 'false'"
+  expect(buildSteps.find((step) => step.run?.includes('xcrun simctl boot'))?.if).toBe(
+    pullRequestOnly,
+  )
+  expect(
+    buildSteps.find((step) => step.run === 'sh scripts/ci/iphone-ui-tests.sh settle')?.if,
+  ).toBe(pullRequestOnly)
   expect(commands(build)).toEqual(
     expect.arrayContaining(['brew install xcodegen', 'sh scripts/ci/iphone-ui-tests.sh build']),
   )

@@ -127,16 +127,16 @@ final class RestoreFlowTests: XCTestCase {
         let record = Restoration(tab: .notes, stacks: [.notes: [.editor(noteId: note)]], savedAt: Date())
         let harness = try launch(after: record, shownFirst: true)
         XCTAssertTrue(harness.rust.calls.isEmpty, "Rust refuses every call until the install returns")
-        harness.settle()
-        let ops = harness.requests().map(\.op)
-        XCTAssertTrue(ops.contains(.tabsShow))
-        XCTAssertTrue(ops.contains(.editorShow))
+        harness.settle(until: {
+            let ops = harness.requests().map(\.op)
+            return ops.contains(.tabsShow) && ops.contains(.editorShow)
+        })
     }
 
     func testARestoredEditorWhoseNoteIsGoneIsCutFromItsStack() throws {
         let record = Restoration(tab: .notes, stacks: [.notes: [.editor(noteId: note)]], savedAt: Date())
         let harness = try launch(after: record)
-        harness.settle()
+        harness.settle(until: { harness.directs().contains { $0.op == .listsTitles } })
         harness.answerTitles([:])
         XCTAssertEqual(harness.navigation(.notes).viewControllers.count, 1)
     }
