@@ -13,6 +13,7 @@
     "test-results/**",
     "src/renderer/src/theme/tokens.*",
     "src-tauri/src/commands/welcome_seed.json",
+    "src/renderer/src/welcome/markdown-example.md",
     "tests/core/fixtures/html-import/**"
   ]
 }

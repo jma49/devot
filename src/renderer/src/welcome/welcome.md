@@ -23,7 +23,7 @@ Each note has four views: _Show Write Mode_, _Show Editor_, _Show Editor and Pre
 | Bulleted, numbered, task list | {{key:format.bulletList}}, {{key:format.numberedList}}, {{key:format.taskList}} |
 | Quote                         | {{key:format.quote}}                                                            |
 
-Type `/` at the start of a line for a menu of everything you can insert, and `[[` to link to another note by its title. Paste or drop an image to attach it to the note. See the **Markdown example** note in this notebook for every kind of Markdown Devot understands.
+Type `/` at the start of a line for a menu of everything you can insert, and `[[` to link to another note by its title. Paste or drop an image to attach it to the note. See **The Long Way Home** note in this notebook for every kind of Markdown Devot understands.
 
 ## Find your way
 
@@ -41,4 +41,4 @@ Type `/` at the start of a line for a menu of everything you can insert, and `[[
 - Any note exports as Markdown, HTML or PDF from its menu, and a Markdown folder can be imported.
 - Notebooks are closed to AI tools until you switch _Allow AI Access_ on for a notebook.
 
-Have a look at the [Markdown example](devot://note/{{id:example}}) next.
+Have a look at [The Long Way Home](devot://note/{{id:example}}) next.
