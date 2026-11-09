@@ -299,6 +299,8 @@ it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust
   expect(script).toContain('xcodebuild test')
   expect(script).toContain('-scheme DevotStoreTests')
   expect(script).toContain('-maximum-test-execution-time-allowance 120')
+  // Every test gets the whole two minutes: xcodebuild retries no test that ran out of time.
+  expect(script).toContain('-default-test-execution-time-allowance 120')
 })
 
 it('launches the real iPhone app with its built UI in a simulator, switches the tabs and audits them', () => {

@@ -15,12 +15,13 @@ sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
 log=$(mktemp)
 start=$(date '+%Y-%m-%d %H:%M:%S')
 status=0
-# A test that hangs fails after two minutes instead of holding the job to its timeout. A test that
+# A test that hangs fails after two minutes instead of holding the job to its timeout; a purchase
+# took 82 s on a loaded runner, and xcodebuild reruns no test that ran out of time. A test that
 # fails once is run again: the simulator's StoreKit Test server answers some purchases with a server
 # error (AMSErrorDomain 305) on a loaded runner; a test that fails twice fails the job.
 xcodebuild test -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
   -destination "id=$device" -test-timeouts-enabled YES \
-  -default-test-execution-time-allowance 60 -maximum-test-execution-time-allowance 120 \
+  -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 120 \
   -retry-tests-on-failure -test-iterations 2 \
   >"$log" 2>&1 || status=$?
 grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" "$log" || tail -n 60 "$log"
