@@ -32,6 +32,8 @@ struct Inset {
     x: f64,
     y: f64,
     spacing: f64,
+    /// The buttons' height in the title bar, which AppKit keeps but changes on leaving full screen.
+    button_y: f64,
 }
 
 /// The views tao's inset moves: the three buttons and the title bar container two levels above
@@ -75,8 +77,10 @@ impl TitleBar {
         frame
     }
 
-    fn spacing(&self) -> f64 {
-        self.buttons[1].frame().origin.x - self.buttons[0].frame().origin.x
+    /// The gap between buttons and their height in the title bar, as AppKit first lays them out.
+    fn measure(&self) -> (f64, f64) {
+        let close = self.buttons[0].frame().origin;
+        (self.buttons[1].frame().origin.x - close.x, close.y)
     }
 
     fn button_x(inset: Inset, index: usize) -> f64 {
@@ -89,11 +93,10 @@ impl TitleBar {
         let have = self.container.frame();
         near(have.size.height, want.size.height)
             && near(have.origin.y, want.origin.y)
-            && self
-                .buttons
-                .iter()
-                .enumerate()
-                .all(|(i, button)| near(button.frame().origin.x, Self::button_x(inset, i)))
+            && self.buttons.iter().enumerate().all(|(i, button)| {
+                let origin = button.frame().origin;
+                near(origin.x, Self::button_x(inset, i)) && near(origin.y, inset.button_y)
+            })
     }
 
     /// tao's `inset_traffic_lights`, moving only what is off its place.
@@ -107,8 +110,8 @@ impl TitleBar {
         for (i, button) in self.buttons.iter().enumerate() {
             let origin = button.frame().origin;
             let x = Self::button_x(inset, i);
-            if !near(origin.x, x) {
-                button.setFrameOrigin(NSPoint::new(x, origin.y));
+            if !near(origin.x, x) || !near(origin.y, inset.button_y) {
+                button.setFrameOrigin(NSPoint::new(x, inset.button_y));
             }
         }
     }
@@ -121,8 +124,8 @@ struct Held {
     address: usize,
     x: f64,
     y: f64,
-    /// Measured when the buttons are first found in the window.
-    spacing: Option<f64>,
+    /// The buttons' spacing and height, measured when they are first found in the window.
+    layout: Option<(f64, f64)>,
     window_observers: Vec<Observer>,
     watched: Vec<Weak<NSView>>,
     view_observers: Vec<Observer>,
@@ -225,7 +228,7 @@ fn hold(window: &NSWindow, x: f64, y: f64) -> Result<(), &'static str> {
                 address,
                 x,
                 y,
-                spacing: None,
+                layout: None,
                 window_observers,
                 watched: Vec::new(),
                 view_observers: Vec::new(),
@@ -365,9 +368,9 @@ fn place(address: usize) {
     let found = HELD.with_borrow(|held| {
         held.iter()
             .find(|entry| entry.address == address)
-            .map(|entry| (entry.window.load(), entry.x, entry.y, entry.spacing))
+            .map(|entry| (entry.window.load(), entry.x, entry.y, entry.layout))
     });
-    let Some((window, x, y, spacing)) = found else {
+    let Some((window, x, y, layout)) = found else {
         return;
     };
     let Some(window) = window else {
@@ -380,22 +383,30 @@ fn place(address: usize) {
     let Some(bar) = TitleBar::of(&window) else {
         return;
     };
-    let spacing = spacing.unwrap_or_else(|| {
-        let spacing = bar.spacing();
+    let (spacing, button_y) = layout.unwrap_or_else(|| {
+        let layout = bar.measure();
         HELD.with_borrow_mut(|held| {
             if let Some(entry) = held.iter_mut().find(|entry| entry.address == address) {
-                entry.spacing = Some(spacing);
+                entry.layout = Some(layout);
             }
         });
-        spacing
+        layout
     });
-    let inset = Inset { x, y, spacing };
+    let inset = Inset {
+        x,
+        y,
+        spacing,
+        button_y,
+    };
     watch(address, &bar);
     if bar.in_place(&window, inset) || !within_budget(address) {
         return;
     }
     bar.apply(&window, inset);
     APPLIED.set(APPLIED.get() + 1);
+    // AppKit can move a button while this check holds the others back; a check on the next turn
+    // puts it back.
+    later(move || check(address));
 }
 
 // AppKit replaces these views on some layouts, so the observers follow the new ones.
@@ -510,6 +521,7 @@ pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
         x: 20.0,
         y: 28.0,
         spacing,
+        button_y: system[0].y,
     };
     if bar.in_place(&window, inset) {
         return Err("E_TRAFFIC_LIGHTS_TEST_SYSTEM_PLACE_IS_INSET");
@@ -536,6 +548,43 @@ pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
         }
         if APPLIED.get() != applied + 1 {
             return Err("E_TRAFFIC_LIGHTS_NOT_APPLIED_ONCE");
+        }
+        // Leaving full screen, AppKit keeps the title bar's height but raises the buttons in it.
+        for (i, button) in bar.buttons.iter().enumerate() {
+            button.setFrameOrigin(NSPoint::new(
+                TitleBar::button_x(inset, i),
+                inset.button_y + 10.0,
+            ));
+        }
+        if !bar.in_place(&window, inset) {
+            return Err("E_TRAFFIC_LIGHTS_RAISED_BUTTONS_STAYED");
+        }
+        let address = std::ptr::from_ref(&*window) as usize;
+        let close = bar.buttons[0].clone();
+        let close_origin = system[0];
+        let moved = Cell::new(false);
+        let block = RcBlock::new(move |_: NonNull<NSNotification>| {
+            if !moved.get() && CHECKING.with_borrow(|checking| checking.contains(&address)) {
+                moved.set(true);
+                close.setFrameOrigin(close_origin);
+            }
+        });
+        // SAFETY: the name is an AppKit string constant and the button live; the token is removed
+        // below.
+        let nested = unsafe {
+            NSNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
+                Some(NSViewFrameDidChangeNotification),
+                Some(&bar.buttons[2]),
+                None,
+                &block,
+            )
+        };
+        bar.buttons[2].setFrameOrigin(system[2]);
+        pump(0.05);
+        // SAFETY: a token `addObserverForName:object:queue:usingBlock:` returned.
+        unsafe { NSNotificationCenter::defaultCenter().removeObserver(nested.as_ref()) };
+        if !bar.in_place(&window, inset) {
+            return Err("E_TRAFFIC_LIGHTS_MOVED_DURING_CHECK_STAYED");
         }
         let applied = APPLIED.get();
         // SAFETY: an AppKit string constant.
