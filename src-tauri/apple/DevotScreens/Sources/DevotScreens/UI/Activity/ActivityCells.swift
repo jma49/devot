@@ -112,6 +112,7 @@ final class HeatmapCell: UICollectionViewListCell {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        paintAsCard()
         title.text = L10n.phoneActivityWriting()
         title.accessibilityTraits = .header
         span.text = L10n.phoneActivitySpan(weeks: String(ActivityWriting.weeks))
@@ -184,6 +185,9 @@ final class FiguresCell: UICollectionViewListCell {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        paintAsCard()
+        period.backgroundColor = Tokens.Color.phoneSegment
+        period.selectedSegmentTintColor = Tokens.Color.phoneSegmentSelected
         period.accessibilityLabel = L10n.phoneActivityPeriod()
         period.addAction(UIAction { [weak self] _ in
             guard let self else { return }

@@ -52,6 +52,7 @@ final class ActivityScreen: ListScreen, UICollectionViewDelegate {
         }
         let note = UICollectionView.CellRegistration<UICollectionViewListCell, Item> { cell, _, item in
             guard case .note(let ranked, let place) = item else { return }
+            cell.paintAsCard()
             var content = UIListContentConfiguration.valueCell()
             content.image = UIImage(systemName: "\(place).circle")
             content.imageProperties.tintColor = Tokens.Color.phoneTextSecondary
@@ -66,6 +67,7 @@ final class ActivityScreen: ListScreen, UICollectionViewDelegate {
             cell.accessories = [.disclosureIndicator()]
         }
         let empty = UICollectionView.CellRegistration<UICollectionViewListCell, Item> { cell, _, _ in
+            cell.paintAsCard()
             var content = cell.defaultContentConfiguration()
             content.text = L10n.phoneActivityNoGrowth()
             content.textProperties.color = Tokens.Color.phoneTextSecondary

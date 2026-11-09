@@ -57,6 +57,7 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         let cells = UICollectionView.CellRegistration<UICollectionViewListCell, Item> { [weak self] cell, _, item in
+            cell.paintAsCard()
             self?.configure(cell, item)
         }
         data = UICollectionViewDiffableDataSource(collectionView: collection) { collection, path, item in

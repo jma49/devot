@@ -37,6 +37,7 @@ final class TemplatePicker: UIViewController, UICollectionViewDelegate {
         collection.delegate = self
         view.addSubview(collection)
         let rows = UICollectionView.CellRegistration<UICollectionViewListCell, String> { [weak self] cell, _, id in
+            cell.paintAsCard()
             var content = cell.defaultContentConfiguration()
             let note = self?.source.row(id)
             content.text = note.map { NoteCell.title($0, excerpt: self?.context.excerpts.excerpt($0)) }
