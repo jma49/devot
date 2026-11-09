@@ -80,12 +80,11 @@ final class SettingsTests: XCTestCase {
     }
 
     func testThePurchaseSheetsCloseButtonSitsClearOfItsTopCorner() {
-        launch(["-DevotLicenceFixture", "K1"])
+        // A1 is the App Store build with the trial still available; a direct build buys on the web instead.
+        launch(["-DevotLicenceFixture", "A1"])
         row(L10n.settingsPaneLicence()).tap()
-        let buy = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", L10n.licenceSettingsBuyPro(), L10n.licenceSettingsBuy())
-        ).firstMatch
-        XCTAssertTrue(buy.waitForExistence(timeout: 10), "a locked licence offers Devot Pro")
+        let buy = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", L10n.licenceSettingsBuyPro())).firstMatch
+        XCTAssertTrue(buy.waitForExistence(timeout: 10), "the App Store build offers Devot Pro")
         buy.tap()
         let close = app.buttons["purchase.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 10), "the purchase sheet rises")
