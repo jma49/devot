@@ -77,10 +77,19 @@ impl TitleBar {
         frame
     }
 
-    /// The gap between buttons and their height in the title bar, as AppKit first lays them out.
+    /// The gap between buttons and their height in the title bar as AppKit lays them out: centred
+    /// in the system's bar, then kept from the bottom as tao grows it, or from the top once AppKit
+    /// raises them, so the smaller margin is the system's.
     fn measure(&self) -> (f64, f64) {
-        let close = self.buttons[0].frame().origin;
-        (self.buttons[1].frame().origin.x - close.x, close.y)
+        let close = self.buttons[0].frame();
+        // SAFETY: main thread; `superview` reads the view tree.
+        let bar_height = unsafe { self.buttons[0].superview() }
+            .map_or(close.origin.y * 2.0 + close.size.height, |bar| {
+                bar.frame().size.height
+            });
+        let above = bar_height - close.origin.y - close.size.height;
+        let spacing = self.buttons[1].frame().origin.x - close.origin.x;
+        (spacing, close.origin.y.min(above))
     }
 
     fn button_x(inset: Inset, index: usize) -> f64 {
@@ -608,7 +617,6 @@ pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
         if !bar.in_place(&window, inset) {
             return Err("E_TRAFFIC_LIGHTS_STAYED_MOVED_AFTER_EVENTS");
         }
-        let address = std::ptr::from_ref(&*window) as usize;
         CHECKING.with_borrow_mut(|checking| checking.push(address));
         for (button, origin) in bar.buttons.iter().zip(&system) {
             button.setFrameOrigin(*origin);
