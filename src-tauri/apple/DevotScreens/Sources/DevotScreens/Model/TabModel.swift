@@ -80,8 +80,8 @@ struct TabModel {
         on ? "!" : nil
     }
 
-    /// Every tab draws its filled symbol, selected or not (`design/icons/symbols.json`): the selected one is
-    /// told by the accent and the bar's glass, as the system's own apps do.
+    /// Every tab draws its filled symbol (`phone.tab.*.fill` in `design/icons/symbols.json`), selected or
+    /// not: the selected one is told by the accent and the bar's glass, as the system's own apps do.
     static func symbol(_ tab: Tab) -> String {
         switch tab {
         case .notes: "doc.text.fill"
