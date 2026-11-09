@@ -473,6 +473,8 @@
   --color-phone-bar: rgb(250 250 250 / 0.78);
   --color-phone-background: #fafafa;
   --color-phone-card: #f0f0f2;
+  --color-phone-segment: rgb(118 118 128 / 0.12);
+  --color-phone-segment-selected: #ffffff;
   --color-phone-swipe-surface: #eeeef0;
   --color-phone-pressed: rgb(0 0 0 / 0.05);
   --color-phone-match: rgb(245 159 10 / 0.28);
@@ -703,6 +705,8 @@
     --color-phone-bar: rgb(0 0 0 / 0.6);
     --color-phone-background: #000000;
     --color-phone-card: #1c1c1e;
+    --color-phone-segment: rgb(118 118 128 / 0.24);
+    --color-phone-segment-selected: #636366;
     --color-phone-swipe-surface: #2a2a2d;
     --color-phone-pressed: rgb(255 255 255 / 0.07);
     --color-phone-match: rgb(245 159 10 / 0.35);
@@ -934,6 +938,8 @@
   --color-phone-bar: rgb(0 0 0 / 0.6);
   --color-phone-background: #000000;
   --color-phone-card: #1c1c1e;
+  --color-phone-segment: rgb(118 118 128 / 0.24);
+  --color-phone-segment-selected: #636366;
   --color-phone-swipe-surface: #2a2a2d;
   --color-phone-pressed: rgb(255 255 255 / 0.07);
   --color-phone-match: rgb(245 159 10 / 0.35);
@@ -1164,6 +1170,8 @@
   --color-phone-bar: rgb(250 250 250 / 0.78);
   --color-phone-background: #fafafa;
   --color-phone-card: #f0f0f2;
+  --color-phone-segment: rgb(118 118 128 / 0.12);
+  --color-phone-segment-selected: #ffffff;
   --color-phone-swipe-surface: #eeeef0;
   --color-phone-pressed: rgb(0 0 0 / 0.05);
   --color-phone-match: rgb(245 159 10 / 0.28);
@@ -1394,6 +1402,8 @@
   --color-phone-bar: rgb(250 249 245 / 0.78);
   --color-phone-background: #faf9f5;
   --color-phone-card: #f0eee6;
+  --color-phone-segment: rgb(120 117 106 / 0.12);
+  --color-phone-segment-selected: #ffffff;
   --color-phone-swipe-surface: rgb(31 30 29 / 0.05);
   --color-phone-pressed: rgb(31 30 29 / 0.06);
   --color-phone-match: rgb(245 159 10 / 0.28);
@@ -1624,6 +1634,8 @@
     --color-phone-bar: rgb(31 30 29 / 0.6);
     --color-phone-background: #1f1e1d;
     --color-phone-card: #30302e;
+    --color-phone-segment: rgb(138 135 124 / 0.24);
+    --color-phone-segment-selected: #5c5a55;
     --color-phone-swipe-surface: #353533;
     --color-phone-pressed: rgb(250 249 245 / 0.08);
     --color-phone-match: rgb(245 159 10 / 0.35);
@@ -1855,6 +1867,8 @@
   --color-phone-bar: rgb(31 30 29 / 0.6);
   --color-phone-background: #1f1e1d;
   --color-phone-card: #30302e;
+  --color-phone-segment: rgb(138 135 124 / 0.24);
+  --color-phone-segment-selected: #5c5a55;
   --color-phone-swipe-surface: #353533;
   --color-phone-pressed: rgb(250 249 245 / 0.08);
   --color-phone-match: rgb(245 159 10 / 0.35);
@@ -2085,6 +2099,8 @@
   --color-phone-bar: rgb(250 249 245 / 0.78);
   --color-phone-background: #faf9f5;
   --color-phone-card: #f0eee6;
+  --color-phone-segment: rgb(120 117 106 / 0.12);
+  --color-phone-segment-selected: #ffffff;
   --color-phone-swipe-surface: rgb(31 30 29 / 0.05);
   --color-phone-pressed: rgb(31 30 29 / 0.06);
   --color-phone-match: rgb(245 159 10 / 0.28);
@@ -2312,6 +2328,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(245 196 216 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 0%, rgb(248 216 227 / 0.7) 50%, color-mix(in srgb, rgb(253 238 220 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 100%);
   --color-phone-background: #fcedf3;
   --color-phone-card: rgb(255 255 255 / 0.3);
+  --color-phone-segment: rgb(184 58 104 / 0.1);
+  --color-phone-segment-selected: rgb(255 255 255 / 0.9);
   --color-phone-separator: rgb(120 40 75 / 0.13);
   --color-phone-text-secondary: #5f4651;
   --color-phone-text-faint: #6a4f5b;
@@ -2323,6 +2341,8 @@
     --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(74 34 54 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 0%, rgb(58 31 44 / 0.6) 50%, color-mix(in srgb, rgb(61 44 37 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 100%);
     --color-phone-background: #1e1219;
     --color-phone-card: rgb(238 127 166 / 0.08);
+    --color-phone-segment: rgb(238 127 166 / 0.12);
+    --color-phone-segment-selected: rgb(238 127 166 / 0.3);
     --color-phone-separator: rgb(255 210 230 / 0.12);
     --color-phone-text-secondary: #c9adba;
     --color-phone-text-faint: #bb9fad;
@@ -2335,6 +2355,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(74 34 54 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 0%, rgb(58 31 44 / 0.6) 50%, color-mix(in srgb, rgb(61 44 37 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 100%);
   --color-phone-background: #1e1219;
   --color-phone-card: rgb(238 127 166 / 0.08);
+  --color-phone-segment: rgb(238 127 166 / 0.12);
+  --color-phone-segment-selected: rgb(238 127 166 / 0.3);
   --color-phone-separator: rgb(255 210 230 / 0.12);
   --color-phone-text-secondary: #c9adba;
   --color-phone-text-faint: #bb9fad;
@@ -2346,6 +2368,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(245 196 216 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 0%, rgb(248 216 227 / 0.7) 50%, color-mix(in srgb, rgb(253 238 220 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 100%);
   --color-phone-background: #fcedf3;
   --color-phone-card: rgb(255 255 255 / 0.3);
+  --color-phone-segment: rgb(184 58 104 / 0.1);
+  --color-phone-segment-selected: rgb(255 255 255 / 0.9);
   --color-phone-separator: rgb(120 40 75 / 0.13);
   --color-phone-text-secondary: #5f4651;
   --color-phone-text-faint: #6a4f5b;
@@ -2357,6 +2381,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(196 216 247 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 0%, rgb(216 227 248 / 0.7) 50%, color-mix(in srgb, rgb(198 229 242 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 100%);
   --color-phone-background: #eef2fd;
   --color-phone-card: rgb(255 255 255 / 0.3);
+  --color-phone-segment: rgb(69 83 201 / 0.1);
+  --color-phone-segment-selected: rgb(255 255 255 / 0.9);
   --color-phone-separator: rgb(40 60 130 / 0.13);
   --color-phone-text-secondary: #485069;
   --color-phone-text-faint: #4f5770;
@@ -2368,6 +2394,8 @@
     --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(30 47 80 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 0%, rgb(27 40 65 / 0.6) 50%, color-mix(in srgb, rgb(22 58 68 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 100%);
     --color-phone-background: #11141d;
     --color-phone-card: rgb(165 147 245 / 0.08);
+    --color-phone-segment: rgb(165 147 245 / 0.12);
+    --color-phone-segment-selected: rgb(165 147 245 / 0.3);
     --color-phone-separator: rgb(200 215 255 / 0.12);
     --color-phone-text-secondary: #a9b1cb;
     --color-phone-text-faint: #9ea7c2;
@@ -2380,6 +2408,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(30 47 80 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 0%, rgb(27 40 65 / 0.6) 50%, color-mix(in srgb, rgb(22 58 68 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 100%);
   --color-phone-background: #11141d;
   --color-phone-card: rgb(165 147 245 / 0.08);
+  --color-phone-segment: rgb(165 147 245 / 0.12);
+  --color-phone-segment-selected: rgb(165 147 245 / 0.3);
   --color-phone-separator: rgb(200 215 255 / 0.12);
   --color-phone-text-secondary: #a9b1cb;
   --color-phone-text-faint: #9ea7c2;
@@ -2391,6 +2421,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(196 216 247 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 0%, rgb(216 227 248 / 0.7) 50%, color-mix(in srgb, rgb(198 229 242 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 100%);
   --color-phone-background: #eef2fd;
   --color-phone-card: rgb(255 255 255 / 0.3);
+  --color-phone-segment: rgb(69 83 201 / 0.1);
+  --color-phone-segment-selected: rgb(255 255 255 / 0.9);
   --color-phone-separator: rgb(40 60 130 / 0.13);
   --color-phone-text-secondary: #485069;
   --color-phone-text-faint: #4f5770;
@@ -2402,6 +2434,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(201 230 210 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 0%, rgb(220 236 214 / 0.7) 50%, color-mix(in srgb, rgb(218 233 191 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 100%);
   --color-phone-background: #edf5ea;
   --color-phone-card: rgb(255 255 255 / 0.3);
+  --color-phone-segment: rgb(31 116 104 / 0.1);
+  --color-phone-segment-selected: rgb(255 255 255 / 0.9);
   --color-phone-separator: rgb(40 90 55 / 0.14);
   --color-phone-text-secondary: #4c5c51;
   --color-phone-text-faint: #506055;
@@ -2413,6 +2447,8 @@
     --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(30 58 42 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 0%, rgb(29 42 34 / 0.6) 50%, color-mix(in srgb, rgb(47 55 32 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 100%);
     --color-phone-background: #111712;
     --color-phone-card: rgb(92 192 176 / 0.08);
+    --color-phone-segment: rgb(92 192 176 / 0.12);
+    --color-phone-segment-selected: rgb(92 192 176 / 0.3);
     --color-phone-separator: rgb(210 240 220 / 0.12);
     --color-phone-text-secondary: #a8b9ad;
     --color-phone-text-faint: #9caea1;
@@ -2425,6 +2461,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(30 58 42 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 0%, rgb(29 42 34 / 0.6) 50%, color-mix(in srgb, rgb(47 55 32 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 100%);
   --color-phone-background: #111712;
   --color-phone-card: rgb(92 192 176 / 0.08);
+  --color-phone-segment: rgb(92 192 176 / 0.12);
+  --color-phone-segment-selected: rgb(92 192 176 / 0.3);
   --color-phone-separator: rgb(210 240 220 / 0.12);
   --color-phone-text-secondary: #a8b9ad;
   --color-phone-text-faint: #9caea1;
@@ -2436,6 +2474,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(201 230 210 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 0%, rgb(220 236 214 / 0.7) 50%, color-mix(in srgb, rgb(218 233 191 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 100%);
   --color-phone-background: #edf5ea;
   --color-phone-card: rgb(255 255 255 / 0.3);
+  --color-phone-segment: rgb(31 116 104 / 0.1);
+  --color-phone-segment-selected: rgb(255 255 255 / 0.9);
   --color-phone-separator: rgb(40 90 55 / 0.14);
   --color-phone-text-secondary: #4c5c51;
   --color-phone-text-faint: #506055;
@@ -2447,6 +2487,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(249 218 149 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 0%, rgb(252 211 170 / 0.7) 50%, color-mix(in srgb, rgb(255 198 160 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 100%);
   --color-phone-background: #fcefe4;
   --color-phone-card: rgb(255 255 255 / 0.3);
+  --color-phone-segment: rgb(168 86 15 / 0.1);
+  --color-phone-segment-selected: rgb(255 255 255 / 0.9);
   --color-phone-separator: rgb(120 60 30 / 0.13);
   --color-phone-text-secondary: #5e4c43;
   --color-phone-text-faint: #665349;
@@ -2458,6 +2500,8 @@
     --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(79 59 14 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 0%, rgb(74 44 20 / 0.6) 50%, color-mix(in srgb, rgb(99 36 25 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 100%);
     --color-phone-background: #1d140c;
     --color-phone-card: rgb(243 154 82 / 0.08);
+    --color-phone-segment: rgb(243 154 82 / 0.12);
+    --color-phone-segment-selected: rgb(243 154 82 / 0.3);
     --color-phone-separator: rgb(255 225 205 / 0.12);
     --color-phone-text-secondary: #c5b0a6;
     --color-phone-text-faint: #baa499;
@@ -2470,6 +2514,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(79 59 14 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 0%, rgb(74 44 20 / 0.6) 50%, color-mix(in srgb, rgb(99 36 25 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 100%);
   --color-phone-background: #1d140c;
   --color-phone-card: rgb(243 154 82 / 0.08);
+  --color-phone-segment: rgb(243 154 82 / 0.12);
+  --color-phone-segment-selected: rgb(243 154 82 / 0.3);
   --color-phone-separator: rgb(255 225 205 / 0.12);
   --color-phone-text-secondary: #c5b0a6;
   --color-phone-text-faint: #baa499;
@@ -2481,6 +2527,8 @@
   --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(249 218 149 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 0%, rgb(252 211 170 / 0.7) 50%, color-mix(in srgb, rgb(255 198 160 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 100%);
   --color-phone-background: #fcefe4;
   --color-phone-card: rgb(255 255 255 / 0.3);
+  --color-phone-segment: rgb(168 86 15 / 0.1);
+  --color-phone-segment-selected: rgb(255 255 255 / 0.9);
   --color-phone-separator: rgb(120 60 30 / 0.13);
   --color-phone-text-secondary: #5e4c43;
   --color-phone-text-faint: #665349;

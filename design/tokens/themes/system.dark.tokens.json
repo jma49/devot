@@ -64,6 +64,25 @@
         },
         "$description": "A grouped page's card."
       },
+      "segment": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4627, 0.4627, 0.502],
+          "hex": "#767680",
+          "alpha": 0.24
+        },
+        "$description": "A segmented control's track."
+      },
+      "segment-selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3882, 0.3882, 0.4],
+          "hex": "#636366"
+        },
+        "$description": "A segmented control's chosen segment."
+      },
       "swipe-surface": {
         "$type": "color",
         "$value": {

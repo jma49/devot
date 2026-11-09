@@ -264,6 +264,13 @@ export const PHONE_THEME_COLOURS: Readonly<Record<string, string>> = {
   accent: 'color.accent.fill',
   'accent-mark': 'color.accent.text',
   'on-accent': 'color.accent.on-fill',
+  'heat-0': 'color.activity.level-0',
+  'heat-1': 'color.activity.level-1',
+  'heat-2': 'color.activity.level-2',
+  'heat-3': 'color.activity.level-3',
+  'heat-4': 'color.activity.level-4',
+  segment: 'color.phone.segment',
+  'segment-selected': 'color.phone.segment-selected',
 }
 const PHONE_THEME_GLOW = ['glow-start', 'glow-end']
 
