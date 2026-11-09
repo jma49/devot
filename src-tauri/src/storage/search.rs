@@ -518,21 +518,31 @@ impl Store {
         mut stop: impl FnMut() -> bool + Send + 'static,
     ) -> Result<u32> {
         let stopped = Arc::new(AtomicBool::new(false));
+        let armed = Arc::new(AtomicBool::new(true));
         let seen = Arc::clone(&stopped);
-        let tx = self.conn.transaction()?;
-        tx.progress_handler(
+        let live = Arc::clone(&armed);
+        // rusqlite sets the handler only on the connection, so it goes on before the transaction
+        // and is disarmed before the transaction ends, so nothing stops its commit or rollback.
+        self.conn.progress_handler(
             REBUILD_STOP_STEPS,
             Some(move || {
-                let now = stop();
+                let now = live.load(Ordering::Relaxed) && stop();
                 if now {
                     seen.store(true, Ordering::Relaxed);
                 }
                 now
             }),
         )?;
+        let outcome = self.rebuild_in_transaction(&stopped, &armed);
+        self.conn
+            .progress_handler(REBUILD_STOP_STEPS, None::<fn() -> bool>)?;
+        outcome
+    }
+
+    fn rebuild_in_transaction(&mut self, stopped: &AtomicBool, armed: &AtomicBool) -> Result<u32> {
+        let tx = self.conn.transaction()?;
         let rebuilt = rebuild_checked(&tx);
-        // Off before the transaction ends, so nothing stops its commit or rollback.
-        tx.progress_handler(REBUILD_STOP_STEPS, None::<fn() -> bool>)?;
+        armed.store(false, Ordering::Relaxed);
         if stopped.load(Ordering::Relaxed) {
             return Err(StorageError::RebuildStopped);
         }
