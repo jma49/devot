@@ -114,6 +114,13 @@ run_tests() {
     -retry-tests-on-failure -test-iterations 2 \
     -resultBundlePath "$results" $selection >"$log" 2>&1 || status=$?
   grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit|Evidence: " "$log" || tail -n 60 "$log"
+  # A green run whose log still has a failed test passed it on the retry: listed so it is fixed.
+  if [ "$status" -eq 0 ]; then
+    sed -n "s/^Test Case '-\[\(.*\)\]' failed.*/\1/p" "$log" | sort -u | while read -r test; do
+      echo "::warning title=Flaky iPhone UI test::$test"
+      [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "- Flaky (passed on retry): $test" >>"$GITHUB_STEP_SUMMARY"
+    done
+  fi
   rm -f "$log"
   # The app's own log holds codes and IDs only (src-tauri/src/logs.rs); its warnings say why a screen stayed empty.
   if [ "$status" -ne 0 ]; then

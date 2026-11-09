@@ -248,6 +248,8 @@ jobs:
           name: ui-test-dist
           path: dist-test
       - run: pnpm test:ui --add-reporter=json --shard=${{ matrix.partitioned && '1/1' || format('{0}/{1}', matrix.shard, matrix.shards) }}
+      - if: ${{ !cancelled() }}
+        run: node scripts/ci/playwright-flaky.ts test-results/report.json
       - if: ${{ !cancelled() && github.ref == 'refs/heads/main' && matrix.shard == 1 && matrix.project == 'webkit' && steps.apt.outputs.cache-hit != 'true' }}
         run: mkdir -p ~/apt-archives && find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/apt-archives {} +
       - if: ${{ !cancelled() && github.ref == 'refs/heads/main' && matrix.shard == 1 && matrix.project == 'webkit' && steps.apt.outputs.cache-hit != 'true' }}

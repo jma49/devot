@@ -19,5 +19,12 @@ status=0
 xcodebuild test -project DevotScreensTests.xcodeproj -scheme DevotScreensTests \
   -destination "id=$device" -retry-tests-on-failure -test-iterations 2 >"$log" 2>&1 || status=$?
 grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" "$log" || tail -n 60 "$log"
+# A green run whose log still has a failed test passed it on the retry: listed so it is fixed.
+if [ "$status" -eq 0 ]; then
+  sed -n "s/^Test Case '-\[\(.*\)\]' failed.*/\1/p" "$log" | sort -u | while read -r test; do
+    echo "::warning title=Flaky screens test::$test"
+    [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "- Flaky (passed on retry): $test" >>"$GITHUB_STEP_SUMMARY"
+  done
+fi
 rm -f "$log"
 exit "$status"

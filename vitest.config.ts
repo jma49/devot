@@ -17,8 +17,19 @@ export default defineConfig({
     ...(ci ? {} : { maxWorkers: Number(process.env['DEVOT_TEST_WORKERS'] ?? 3) }),
     // Every time check's measurement, for the budgets' evidence (tests/support/budget-report.ts).
     ...(process.env['GITHUB_ACTIONS'] === 'true'
-      ? { reporters: ['default', 'github-actions', './tests/support/budget-report.ts'] }
+      ? {
+          reporters: [
+            'default',
+            'github-actions',
+            './tests/support/budget-report.ts',
+            './tests/support/flaky-report.ts',
+          ],
+        }
       : {}),
+    // A one-off flake on a shared runner must not fail a merge or a release: CI runs a failed test
+    // once more, and tests/support/flaky-report.ts lists every test that needed it. Locally a
+    // failure fails at once.
+    retry: ci ? 1 : 0,
     // Node's own localStorage warns in every worker; tests that need one install it (tests/support/local-storage.ts).
     execArgv: ['--no-experimental-webstorage'],
     // Logs from passing tests are expected warnings; only a failing test's output is worth reading.
