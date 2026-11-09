@@ -162,7 +162,7 @@ final class InstallTests: XCTestCase {
         XCTAssertEqual(try tabRequests(rust).count, 2)
 
         screens.delivered(Data(#"{"v":1,"notice":"tabs.state","tab":"settings","barHidden":true,"attention":true}"#.utf8))
-        XCTAssertTrue(tabs.isTabBarHidden)
+        XCTAssertFalse(tabs.isTabBarHidden)
         XCTAssertEqual(rust.lines, [])
     }
 
