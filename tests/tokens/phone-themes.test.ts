@@ -24,6 +24,13 @@ const SLOTS = [
   'glow-end',
   'background',
   'card',
+  'heat-0',
+  'heat-1',
+  'heat-2',
+  'heat-3',
+  'heat-4',
+  'segment',
+  'segment-selected',
   'separator',
   'text-secondary',
   'text-faint',
@@ -90,6 +97,19 @@ describe("the iPhone's theme tokens", () => {
     'give %s %s every slot',
     (id, scheme) => {
       expect(Object.keys(own(id, scheme)).sort()).toEqual([...SLOTS].sort())
+    },
+  )
+
+  it.each(GRADIENT_THEMES.flatMap((id) => SCHEMES.map((scheme) => [id, scheme] as const)))(
+    "shade %s %s's heatmap in its accent, stronger at each level",
+    (id, scheme) => {
+      const slots = own(id, scheme)
+      const levels = [0, 1, 2, 3, 4].map((level) => parseColor(slots[`heat-${level}`]!))
+      for (const level of levels) expect(level.rgb).toEqual(parseColor(slots.accent!).rgb)
+      const alphas = levels.map((level) => level.alpha)
+      expect(alphas).toEqual([...alphas].sort((a, b) => a - b))
+      expect(new Set(alphas).size).toBe(levels.length)
+      expect(alphas.at(-1)).toBe(1)
     },
   )
 

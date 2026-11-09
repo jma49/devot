@@ -59,8 +59,10 @@ Plain lists sit at `size.phone-list-edge` (x 20 to 370), with text at `size.phon
 A section head (`size.phone-section-head`, drawn 40 in a 44 target) has the title, a hairline and a chevron that turns when the section is collapsed; collapsing lasts the session.
 
 Grouped pages: cards inset 16, `radius.phone-card`, `size.phone-card-inset` around their rows, no separators. Rows are 44 with `size.phone-row-pad`, and a pressed row fills to `radius.phone-row-press`. A row's value sits beside its label while both fit and goes under it when they don't, so neither breaks a letter at a time; on the Settings root it always goes under at the accessibility sizes. The Settings screen and its panes are the exception: they follow Phone grouped lists in `design/layout.md`, with `radius.phone-grouped-card`, separators and titles on the card's 16 keyline.
+A UIKit list's grouped rows paint `color.phone.card` themselves (`paintAsCard`), as UIKit's own grouped grey ignores the theme.
 
 Activity: "Week" capsule, then a card of the last 15 weeks (`size.phone-heat-cell` days, `radius.phone-heat-cell`, `size.phone-heat-gap` apart, in `color.activity.level-*`, a month over the week it starts, the current month's included, a name in the last week ending at the grid's edge, a less-more legend of `size.phone-heat-legend`); three stat cards, which stack as text grows; then the ranked notes under a section head, their growth in `color.phone.grow`. The capsule's menu offers This week and Last week and changes the stats and the ranking only, never the heatmap. VoiceOver reads the heatmap as one summary, not 105 cells.
+On the iPhone a gradient theme shades the heatmap in its own accent at rising strength (`heat-0` to `heat-4` in `tokens/phone-themes.tokens.json`, in place of `color.activity.level-*`), and tints the week's segmented control (`segment`, `segment-selected`) the same way.
 
 Times, counts and stats use `.phone-figures`: the UI font with tabular figures.
 A notebook's path and the Mac key use `.phone-mono`, the mono font.

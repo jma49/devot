@@ -39,6 +39,68 @@
           },
           "$description": "A grouped card: translucent, so the glow shows through it without a band."
         },
+        "heat-0": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7216, 0.2275, 0.4078],
+            "hex": "#b83a68",
+            "alpha": 0.08
+          },
+          "$description": "An idle day on the Activity heatmap, in place of color.activity.level-0: the accent, faint."
+        },
+        "heat-1": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7216, 0.2275, 0.4078],
+            "hex": "#b83a68",
+            "alpha": 0.25
+          },
+          "$description": "A day at writing level 1 on the Activity heatmap, in place of color.activity.level-1: the accent, stronger with each level."
+        },
+        "heat-2": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7216, 0.2275, 0.4078],
+            "hex": "#b83a68",
+            "alpha": 0.45
+          },
+          "$description": "A day at writing level 2 on the Activity heatmap, in place of color.activity.level-2: the accent, stronger with each level."
+        },
+        "heat-3": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7216, 0.2275, 0.4078],
+            "hex": "#b83a68",
+            "alpha": 0.7
+          },
+          "$description": "A day at writing level 3 on the Activity heatmap, in place of color.activity.level-3: the accent, stronger with each level."
+        },
+        "heat-4": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7216, 0.2275, 0.4078],
+            "hex": "#b83a68"
+          },
+          "$description": "A day at writing level 4 on the Activity heatmap, in place of color.activity.level-4: the accent, stronger with each level."
+        },
+        "segment": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7216, 0.2275, 0.4078],
+            "hex": "#b83a68",
+            "alpha": 0.1
+          },
+          "$description": "A segmented control's track, in place of color.phone.segment: tinted toward the theme."
+        },
+        "segment-selected": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1.0, 1.0, 1.0],
+            "hex": "#ffffff",
+            "alpha": 0.9
+          },
+          "$description": "A segmented control's chosen segment, in place of color.phone.segment-selected."
+        },
         "separator": {
           "$value": {
             "colorSpace": "srgb",
@@ -127,6 +189,61 @@
             "components": [0.9333, 0.498, 0.651],
             "hex": "#ee7fa6",
             "alpha": 0.08
+          }
+        },
+        "heat-0": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.498, 0.651],
+            "hex": "#ee7fa6",
+            "alpha": 0.1
+          }
+        },
+        "heat-1": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.498, 0.651],
+            "hex": "#ee7fa6",
+            "alpha": 0.25
+          }
+        },
+        "heat-2": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.498, 0.651],
+            "hex": "#ee7fa6",
+            "alpha": 0.45
+          }
+        },
+        "heat-3": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.498, 0.651],
+            "hex": "#ee7fa6",
+            "alpha": 0.7
+          }
+        },
+        "heat-4": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.498, 0.651],
+            "hex": "#ee7fa6"
+          }
+        },
+        "segment": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.498, 0.651],
+            "hex": "#ee7fa6",
+            "alpha": 0.12
+          }
+        },
+        "segment-selected": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9333, 0.498, 0.651],
+            "hex": "#ee7fa6",
+            "alpha": 0.3
           }
         },
         "separator": {
@@ -218,6 +335,68 @@
           },
           "$description": "A grouped card: translucent, so the glow shows through it without a band."
         },
+        "heat-0": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2706, 0.3255, 0.7882],
+            "hex": "#4553c9",
+            "alpha": 0.08
+          },
+          "$description": "An idle day on the Activity heatmap, in place of color.activity.level-0: the accent, faint."
+        },
+        "heat-1": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2706, 0.3255, 0.7882],
+            "hex": "#4553c9",
+            "alpha": 0.25
+          },
+          "$description": "A day at writing level 1 on the Activity heatmap, in place of color.activity.level-1: the accent, stronger with each level."
+        },
+        "heat-2": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2706, 0.3255, 0.7882],
+            "hex": "#4553c9",
+            "alpha": 0.45
+          },
+          "$description": "A day at writing level 2 on the Activity heatmap, in place of color.activity.level-2: the accent, stronger with each level."
+        },
+        "heat-3": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2706, 0.3255, 0.7882],
+            "hex": "#4553c9",
+            "alpha": 0.7
+          },
+          "$description": "A day at writing level 3 on the Activity heatmap, in place of color.activity.level-3: the accent, stronger with each level."
+        },
+        "heat-4": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2706, 0.3255, 0.7882],
+            "hex": "#4553c9"
+          },
+          "$description": "A day at writing level 4 on the Activity heatmap, in place of color.activity.level-4: the accent, stronger with each level."
+        },
+        "segment": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.2706, 0.3255, 0.7882],
+            "hex": "#4553c9",
+            "alpha": 0.1
+          },
+          "$description": "A segmented control's track, in place of color.phone.segment: tinted toward the theme."
+        },
+        "segment-selected": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1.0, 1.0, 1.0],
+            "hex": "#ffffff",
+            "alpha": 0.9
+          },
+          "$description": "A segmented control's chosen segment, in place of color.phone.segment-selected."
+        },
         "separator": {
           "$value": {
             "colorSpace": "srgb",
@@ -306,6 +485,61 @@
             "components": [0.6471, 0.5765, 0.9608],
             "hex": "#a593f5",
             "alpha": 0.08
+          }
+        },
+        "heat-0": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6471, 0.5765, 0.9608],
+            "hex": "#a593f5",
+            "alpha": 0.1
+          }
+        },
+        "heat-1": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6471, 0.5765, 0.9608],
+            "hex": "#a593f5",
+            "alpha": 0.25
+          }
+        },
+        "heat-2": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6471, 0.5765, 0.9608],
+            "hex": "#a593f5",
+            "alpha": 0.45
+          }
+        },
+        "heat-3": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6471, 0.5765, 0.9608],
+            "hex": "#a593f5",
+            "alpha": 0.7
+          }
+        },
+        "heat-4": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6471, 0.5765, 0.9608],
+            "hex": "#a593f5"
+          }
+        },
+        "segment": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6471, 0.5765, 0.9608],
+            "hex": "#a593f5",
+            "alpha": 0.12
+          }
+        },
+        "segment-selected": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6471, 0.5765, 0.9608],
+            "hex": "#a593f5",
+            "alpha": 0.3
           }
         },
         "separator": {
@@ -397,6 +631,68 @@
           },
           "$description": "A grouped card: translucent, so the glow shows through it without a band."
         },
+        "heat-0": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1216, 0.4549, 0.4078],
+            "hex": "#1f7468",
+            "alpha": 0.08
+          },
+          "$description": "An idle day on the Activity heatmap, in place of color.activity.level-0: the accent, faint."
+        },
+        "heat-1": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1216, 0.4549, 0.4078],
+            "hex": "#1f7468",
+            "alpha": 0.25
+          },
+          "$description": "A day at writing level 1 on the Activity heatmap, in place of color.activity.level-1: the accent, stronger with each level."
+        },
+        "heat-2": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1216, 0.4549, 0.4078],
+            "hex": "#1f7468",
+            "alpha": 0.45
+          },
+          "$description": "A day at writing level 2 on the Activity heatmap, in place of color.activity.level-2: the accent, stronger with each level."
+        },
+        "heat-3": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1216, 0.4549, 0.4078],
+            "hex": "#1f7468",
+            "alpha": 0.7
+          },
+          "$description": "A day at writing level 3 on the Activity heatmap, in place of color.activity.level-3: the accent, stronger with each level."
+        },
+        "heat-4": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1216, 0.4549, 0.4078],
+            "hex": "#1f7468"
+          },
+          "$description": "A day at writing level 4 on the Activity heatmap, in place of color.activity.level-4: the accent, stronger with each level."
+        },
+        "segment": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1216, 0.4549, 0.4078],
+            "hex": "#1f7468",
+            "alpha": 0.1
+          },
+          "$description": "A segmented control's track, in place of color.phone.segment: tinted toward the theme."
+        },
+        "segment-selected": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1.0, 1.0, 1.0],
+            "hex": "#ffffff",
+            "alpha": 0.9
+          },
+          "$description": "A segmented control's chosen segment, in place of color.phone.segment-selected."
+        },
         "separator": {
           "$value": {
             "colorSpace": "srgb",
@@ -485,6 +781,61 @@
             "components": [0.3608, 0.7529, 0.6902],
             "hex": "#5cc0b0",
             "alpha": 0.08
+          }
+        },
+        "heat-0": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3608, 0.7529, 0.6902],
+            "hex": "#5cc0b0",
+            "alpha": 0.1
+          }
+        },
+        "heat-1": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3608, 0.7529, 0.6902],
+            "hex": "#5cc0b0",
+            "alpha": 0.25
+          }
+        },
+        "heat-2": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3608, 0.7529, 0.6902],
+            "hex": "#5cc0b0",
+            "alpha": 0.45
+          }
+        },
+        "heat-3": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3608, 0.7529, 0.6902],
+            "hex": "#5cc0b0",
+            "alpha": 0.7
+          }
+        },
+        "heat-4": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3608, 0.7529, 0.6902],
+            "hex": "#5cc0b0"
+          }
+        },
+        "segment": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3608, 0.7529, 0.6902],
+            "hex": "#5cc0b0",
+            "alpha": 0.12
+          }
+        },
+        "segment-selected": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3608, 0.7529, 0.6902],
+            "hex": "#5cc0b0",
+            "alpha": 0.3
           }
         },
         "separator": {
@@ -576,6 +927,68 @@
           },
           "$description": "A grouped card: translucent, so the glow shows through it without a band."
         },
+        "heat-0": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6588, 0.3373, 0.0588],
+            "hex": "#a8560f",
+            "alpha": 0.08
+          },
+          "$description": "An idle day on the Activity heatmap, in place of color.activity.level-0: the accent, faint."
+        },
+        "heat-1": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6588, 0.3373, 0.0588],
+            "hex": "#a8560f",
+            "alpha": 0.25
+          },
+          "$description": "A day at writing level 1 on the Activity heatmap, in place of color.activity.level-1: the accent, stronger with each level."
+        },
+        "heat-2": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6588, 0.3373, 0.0588],
+            "hex": "#a8560f",
+            "alpha": 0.45
+          },
+          "$description": "A day at writing level 2 on the Activity heatmap, in place of color.activity.level-2: the accent, stronger with each level."
+        },
+        "heat-3": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6588, 0.3373, 0.0588],
+            "hex": "#a8560f",
+            "alpha": 0.7
+          },
+          "$description": "A day at writing level 3 on the Activity heatmap, in place of color.activity.level-3: the accent, stronger with each level."
+        },
+        "heat-4": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6588, 0.3373, 0.0588],
+            "hex": "#a8560f"
+          },
+          "$description": "A day at writing level 4 on the Activity heatmap, in place of color.activity.level-4: the accent, stronger with each level."
+        },
+        "segment": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6588, 0.3373, 0.0588],
+            "hex": "#a8560f",
+            "alpha": 0.1
+          },
+          "$description": "A segmented control's track, in place of color.phone.segment: tinted toward the theme."
+        },
+        "segment-selected": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1.0, 1.0, 1.0],
+            "hex": "#ffffff",
+            "alpha": 0.9
+          },
+          "$description": "A segmented control's chosen segment, in place of color.phone.segment-selected."
+        },
         "separator": {
           "$value": {
             "colorSpace": "srgb",
@@ -664,6 +1077,61 @@
             "components": [0.9529, 0.6039, 0.3216],
             "hex": "#f39a52",
             "alpha": 0.08
+          }
+        },
+        "heat-0": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9529, 0.6039, 0.3216],
+            "hex": "#f39a52",
+            "alpha": 0.1
+          }
+        },
+        "heat-1": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9529, 0.6039, 0.3216],
+            "hex": "#f39a52",
+            "alpha": 0.25
+          }
+        },
+        "heat-2": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9529, 0.6039, 0.3216],
+            "hex": "#f39a52",
+            "alpha": 0.45
+          }
+        },
+        "heat-3": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9529, 0.6039, 0.3216],
+            "hex": "#f39a52",
+            "alpha": 0.7
+          }
+        },
+        "heat-4": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9529, 0.6039, 0.3216],
+            "hex": "#f39a52"
+          }
+        },
+        "segment": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9529, 0.6039, 0.3216],
+            "hex": "#f39a52",
+            "alpha": 0.12
+          }
+        },
+        "segment-selected": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.9529, 0.6039, 0.3216],
+            "hex": "#f39a52",
+            "alpha": 0.3
           }
         },
         "separator": {

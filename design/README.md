@@ -84,6 +84,7 @@ Tags may take one colour from a fixed palette of eight: red, orange, yellow, gre
 ## Activity heatmap
 
 The Activity sheet shades each day from five theme colours, `color.activity.level-0` (an idle day) to `level-4` (the most writing), in light and dark: a warm neutral, then Devot teal at increasing strength. They are Devot's own teal, not the system accent, so the scale reads the same whatever accent the user picked.
+On the iPhone a gradient theme replaces them with its own accent at the same rising strengths (`design/phone.md`, Activity).
 
 ## QR codes
 
