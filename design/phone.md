@@ -188,7 +188,7 @@ Text follows the system's text size, up to the largest accessibility size.
 
 ## Icons
 
-SF Symbols only, through `symbol_png` (ADR 0001), monochrome in the text colour. A device is drawn with a generic shape (`phone.devices`), never a symbol that depicts an Apple product. Settings and Library rows have no coloured tile: a `size.icon-phone-row` line icon sits in a `size.phone-row-icon` column, a tag in the same column shows a dot in its colour. A selected tab uses its `.fill` symbol. The synced double tick is `check` drawn twice.
+SF Symbols only, through `symbol_png` (ADR 0001), monochrome in the text colour. A device is drawn with a generic shape (`phone.devices`), never a symbol that depicts an Apple product. Settings and Library rows have no coloured tile: a `size.icon-phone-row` line icon sits in a `size.phone-row-icon` column, a tag in the same column shows a dot in its colour. Every tab uses its `.fill` symbol, selected or not; the accent and the bar's glass mark the selected one. The synced double tick is `check` drawn twice.
 
 Weights: `regular` at 18 pt and above, and `medium` for chevrons of 14 pt and below, the closest symbol weights to the design's 1.8 and 2.2 strokes.
 
