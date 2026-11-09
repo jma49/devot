@@ -13,7 +13,7 @@
 # (scripts/ci/iphone-ui-shards.ts); DEVOT_UI_TESTS holds any other xcodebuild selection, such as
 # -only-testing:DevotUITests/TabsTests.
 # The simulator is scripts/ci/iphone-simulator.ts's pick; DEVOT_UI_SIMULATOR, or DEVOT_SIMULATOR,
-# picks one by UDID instead.
+# picks one by UDID instead. DEVOT_UI_WAIT_SCALE multiplies the tests' waits (CI sets 3).
 set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 bundle=${DEVOT_UI_BUILD:-$root/test-results/iphone-ui-build}
@@ -107,6 +107,8 @@ run_tests() {
   rm -rf "$results"
   mkdir -p "$(dirname "$results")"
   status=0
+  # xcodebuild hands TEST_RUNNER_-prefixed variables to the tests without the prefix (Tests/Waits.swift).
+  export TEST_RUNNER_DEVOT_UI_WAIT_SCALE="${DEVOT_UI_WAIT_SCALE:-1}"
   # A test that fails once is run again, so a one-off simulator stall does not fail the job; a test
   # that fails twice fails it, and the log lists the first failure either way.
   # shellcheck disable=SC2086

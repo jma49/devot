@@ -90,10 +90,11 @@ export const test = base.extend<{ install: 'kept' | 'new' }>({
   page: async ({ page, install }, use) => {
     await mockTauri(page)
     if (install === 'kept') {
+      // Set on every load, not only when missing: a spec that clears localStorage on the live page
+      // races the app, which derives a first-launch default (Write) for the empty key before the
+      // reload, and that Write outlived the reload (keyboard-nav, Cmd+Return left the note in Write).
       await page.addInitScript(() => {
-        const w = window
-        if (w.localStorage.getItem('devot.defaultMode') === null)
-          w.localStorage.setItem('devot.defaultMode', 'edit')
+        window.localStorage.setItem('devot.defaultMode', 'edit')
       })
     }
     const rebundled: string[] = []

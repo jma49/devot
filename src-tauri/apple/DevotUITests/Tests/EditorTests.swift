@@ -12,7 +12,7 @@ final class EditorTests: XCTestCase {
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
         app.launch()
         // A cold debug build starts slowly on a CI simulator.
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 120))
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: waitLimit(120)))
     }
 
     private var page: XCUIElement { app.webViews.firstMatch }
@@ -23,14 +23,6 @@ final class EditorTests: XCTestCase {
     }
     /// A note hides the tab bar, which may then be gone from the tree, where `isHittable` would fail.
     private var tabBarShown: Bool { tabBar.exists && tabBar.isHittable }
-
-    private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 5) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition(), Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        return condition()
-    }
 
     /// A slow drag from 2 pt inside the left edge, where only the system's back swipe starts. On a
     /// loaded simulator UIKit turns back most fast synthesized drags even in an app of plain view
@@ -66,19 +58,19 @@ final class EditorTests: XCTestCase {
     /// label holds its title and second line.
     private func openExample() {
         let notes = tabBar.buttons[L10n.phoneTabNotes()]
-        XCTAssertTrue(notes.waitForExistence(timeout: 10))
+        XCTAssertTrue(notes.waitForExistence(timeout: waitLimit(10)))
         notes.tapOnceHittable()
         let row = app.collectionViews.cells.containing(
             NSPredicate(format: "label == %@", L10n.welcomeExampleTitle())
         ).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "the welcome example is listed")
+        XCTAssertTrue(row.waitForExistence(timeout: waitLimit(30)), "the welcome example is listed")
         XCTAssertTrue(waitUntil { row.isHittable }, "the welcome example's row is on screen")
         keepScreen("the Notes list")
         row.tap()
-        let pushed = noteBar.waitForExistence(timeout: 10)
+        let pushed = noteBar.waitForExistence(timeout: waitLimit(10))
         keepScreen("the row tapped")
         XCTAssertTrue(pushed, "the row pushes its note")
-        XCTAssertTrue(app.otherElements["editor.cover"].waitForNonExistence(timeout: 5), "the cover fades")
+        XCTAssertTrue(app.otherElements["editor.cover"].waitForNonExistence(timeout: waitLimit(5)), "the cover fades")
         XCTAssertTrue(waitUntil { !tabBarShown }, "the note hides the tab bar")
         keepScreen("the example open")
     }
@@ -88,14 +80,14 @@ final class EditorTests: XCTestCase {
 
         edgeSwipe(by: 60, velocity: Self.crawl)
         keepScreen("a short swipe")
-        XCTAssertTrue(noteBar.waitForExistence(timeout: 5), "a swipe turned back keeps the note")
+        XCTAssertTrue(noteBar.waitForExistence(timeout: waitLimit(5)), "a swipe turned back keeps the note")
         XCTAssertFalse(tabBarShown)
 
         edgeSwipe(by: app.frame.width * 0.8)
         let listShown = waitUntil { tabBarShown }
         keepScreen("a full swipe")
         XCTAssertTrue(listShown, "a full swipe brings the list and its tab bar back")
-        XCTAssertTrue(noteBar.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(noteBar.waitForNonExistence(timeout: waitLimit(5)))
 
         openExample()
     }
@@ -105,13 +97,13 @@ final class EditorTests: XCTestCase {
         let link = page.links[L10n.welcomeTitle()].firstMatch
         XCTAssertTrue(scrollUntil { link.exists && link.isHittable })
         link.tap()
-        let replaced = link.waitForNonExistence(timeout: 10)
+        let replaced = link.waitForNonExistence(timeout: waitLimit(10))
         keepScreen("the link followed")
         XCTAssertTrue(replaced, "the welcome note replaced the example")
         XCTAssertTrue(noteBar.exists)
 
         edgeSwipe(by: app.frame.width * 0.8)
-        let back = link.waitForExistence(timeout: 10)
+        let back = link.waitForExistence(timeout: waitLimit(10))
         keepScreen("a full swipe on the linked note")
         XCTAssertTrue(back, "back on the example")
         XCTAssertTrue(noteBar.exists)

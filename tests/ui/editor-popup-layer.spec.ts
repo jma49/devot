@@ -102,5 +102,7 @@ test('the slash menu keeps its blur, with no masked ancestor, while the note is 
   expect(await slashMenu(page).evaluate((el) => getComputedStyle(el).backdropFilter)).toContain(
     'blur(',
   )
-  expect(await maskingAncestors(slashMenu(page))).toEqual([])
+  // At the foot of a scrolled note the menu first opens below the caret, past the window, and moves
+  // above it on CodeMirror's next measure: a check made in between saw BODY and HTML clip it.
+  await expect.poll(() => maskingAncestors(slashMenu(page))).toEqual([])
 })

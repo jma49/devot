@@ -413,6 +413,8 @@ jobs:
     timeout-minutes: 50
     env:
       DEVOT_UI_SHARD: smoke
+      # The tests' waits are sized on an idle simulator; this runner's load stretches them (Tests/Waits.swift).
+      DEVOT_UI_WAIT_SCALE: '3'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: sh scripts/ci/xcode.sh
@@ -519,6 +521,7 @@ jobs:
         shard: [settings, rest]
     env:
       DEVOT_UI_SHARD: ${{ matrix.shard }}
+      DEVOT_UI_WAIT_SCALE: '3'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:

@@ -94,9 +94,6 @@ Every PR must test the logic it changes, which review checks.
 
 - GitHub Actions on hosted Linux and macOS runners of the standard size, free for a public repository: quick static checks (`web-checks`: `pnpm deps:audit`, tokens, format, lint, type check), unit and integration tests in their own job, UI tests (`ui`: Playwright WebKit in up to fourteen measured development shards, balanced by recorded durations, plus a separate production CSP job, two workers per runner), and Rust checks split between a compile/test job (`rust-check`: fmt, clippy, tests), the iPhone jobs below, which also run clippy on the macOS host and for the iOS simulator (`iphone-build`), a `macos-26` job for the signing scripts' tests and the StoreKit tests (`mac-tests`, in both the `web` and the `rust` gate), and a parallel manifest-only `deny` job, all started together.
   The required `web`, `rust` and `policy` gates sum up their actual jobs and write the results to the run summary.
-- A one-off flake on a shared runner must not fail a merge or a release, and a flaky test must not be forgotten: on CI, Vitest (`retry` in `vitest.config.ts`), Playwright (`retries`) and the XCUITests (`-retry-tests-on-failure -test-iterations 2`) run a failed test once more, and a test that fails twice fails the job.
-  A test that passed only on its retry is listed as a "Flaky" warning annotation and in the job summary (`tests/support/flaky-report.ts`, `scripts/ci/playwright-flaky.ts`, the iPhone test scripts), to be fixed; no test is skipped or quarantined to make a run green.
-  Locally a failure fails at once.
   `pnpm check` runs the same steps in one go (`pnpm deps:audit` and `cargo deny check` are the dependency checks: `pnpm audit` for npm, advisories, licences and sources for Rust), and a policy test (`tests/policy/ci-config.test.ts`) fails when the two drift apart. macOS-only code is behind `cfg(target_os = "macos")`: `iphone-build` compiles and lints it on every pull request that needs the Rust jobs, and the `pre-push` hook compiles and tests it locally when a push changes Rust or Cargo files.
 - The account runs at most five macOS jobs at once, and the jobs waiting for one were the slowest part of a run, so CI keeps to five macOS jobs on a full run and three on a pull request: work that needs the same runner image shares a job.
 - The iPhone jobs (`ios-app`, `iphone-build`, `iphone-ui`) and the App Store build run on the `xcode-27` runner image with Xcode 27.2, and the simulator jobs test on an iPhone 17 with iOS 27.2, the toolchain of local development.
@@ -142,6 +139,23 @@ Every PR must test the logic it changes, which review checks.
 - The dependency checks run on every pull request that changes code, on a run started by hand and in `pnpm check`.
   There is no scheduled run yet, so a new advisory on an unchanged dependency shows up with the next such run.
 - The other macOS jobs (full-app end-to-end, performance, GPU power) come in phase 2.
+
+## Flaky tests
+
+A one-off flake on a shared runner must not fail a merge or a release, and a flaky test must not be forgotten.
+
+- On CI, Vitest (`retry` in `vitest.config.ts`), Playwright (`retries`) and the XCUITests (`-retry-tests-on-failure -test-iterations 2` in the iPhone, screens and StoreKit test scripts) run a failed test once more; a test that fails twice fails the job.
+  Locally a failure fails at once.
+- A test that passed only on its retry is listed as a "Flaky" warning annotation and in the job summary (`tests/support/flaky-report.ts`, `scripts/ci/playwright-flaky.ts`, the test scripts).
+- After each CI run on main and in the merge queue, `.github/workflows/flaky-tracker.yml` opens an issue labelled `flaky` for each such test, or comments on the one it has (`scripts/ci/flaky-tracker.ts`); the number of comments ranks which to fix first.
+  Pull request runs are left out, since a flake there may be the pull request's own change.
+- A flaky test is fixed at its cause, and the pull request that fixes it closes its issue; no test is skipped, disabled or quarantined to make a run green.
+- The causes found so far, and the rule each left:
+  - A check made before the page settled: a test waits for the state it asserts (`expect.poll`, `toHave…`), never reads it once right after an action.
+  - A spec that changes `localStorage` on the live page races the app's own writes; what a spec needs on every load goes in an init script (`tests/ui/fixtures.ts`).
+  - The iPhone UI tests' waits were sized on an idle simulator, and the `xcode-27` runner's load stays in the hundreds; every wait goes through `waitLimit` (`src-tauri/apple/DevotUITests/Tests/Waits.swift`), which CI multiplies by `DEVOT_UI_WAIT_SCALE` (3), and a policy test refuses a bare number.
+  - A product time limit (a parse budget) that a slow machine reaches is measured with `expectWithinBudget`, which allows for the hosted runner, instead of being asserted as if it never ran out.
+  - StoreKit Test's local server answers some purchases with a server error (AMSErrorDomain 305) on a loaded runner; the retry covers it.
 
 ## Workflow
 
