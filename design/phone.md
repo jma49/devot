@@ -106,7 +106,7 @@ General always lists Default Notebook, and Send Crash Reports where the build ca
 With the native screens installed Settings is the system's (`docs/specs/iphone-screens.md`, Settings): a navigation stack under a large title, the system's search field under it and Pair a device (`qrcode.viewfinder`) as its one bar button.
 The root is the same groups in an inset grouped list on `color.phone.background`, its cards on `color.phone.card`, labels 16/23 and descriptions, values and footers 14/19, both scaled with Dynamic Type.
 The list ends `size.phone-tab-edge` above the tab bar, so at its foot the build footer, in `color.phone.text-secondary` like every footer, is clear of the bar's scroll edge effect.
-The app row has a bird symbol on an `color.accent.fill` tile in the dove's place, as SF Symbols has no dove.
+The app row shows the app icon itself, and the lens circles show the dove, both from `design/app-icon/` copied into the screens' asset catalog.
 Search results come in one section per pane, at most twelve, and No matching settings is the system's empty view.
 Every pane is a native page: General, Appearance, Editing, Preview, Sync, AI and License.
 Native Sync draws its buttons as full-width action rows, the "You" badge on `color.phone.lens`, and the QR code on `color.qr-ground` with `color.qr-module`.
@@ -138,7 +138,7 @@ Sheets: the pickers, the trial and short messages rise from the bottom edge, the
 
 Detail sheet, for the trial and a failed suggestion: a sheet with a `color.phone.lens` circle holding the info icon, a 20 bold title, the body 16/24 in `color.phone.text-secondary`, and a full-width glass Done, `size.phone-sheet-done` high.
 
-Purchase sheet (App Store builds): its head is the dove in a `color.phone.lens` circle, a 20 bold title and the glass close circle on the trailing edge, a 44 target that closes it as Escape and a drag down do.
+Purchase sheet (App Store builds): its head is the dove in a `color.phone.lens` circle, a 20 bold title and the glass close circle on the trailing edge, a 44 target that closes it as Escape and a drag down do, inset from the sheet's top as far as from its side so it clears the rounded corner.
 The title is Devot Pro, and says the trial has ended once it has.
 Under it, three lines of what Devot Pro unlocks, each with a check in `color.accent.text`, in the grouped row's text sizes: 16/23 in the body colour, and under the first, 14/19 in `color.phone.text-secondary`, that reading and search stay free.
 Then one filled action, `size.phone-sheet-done` high: Try Free while the trial is available, with Buy Once and StoreKit's price as a 44 accent text button under it; once the trial has ended, Buy Devot Pro with the price is the filled action and the trial is gone.
@@ -188,7 +188,7 @@ Text follows the system's text size, up to the largest accessibility size.
 
 ## Icons
 
-SF Symbols only, through `symbol_png` (ADR 0001), monochrome in the text colour. A device is drawn with a generic shape (`phone.devices`), never a symbol that depicts an Apple product. Settings and Library rows have no coloured tile: a `size.icon-phone-row` line icon sits in a `size.phone-row-icon` column, a tag in the same column shows a dot in its colour. A selected tab uses its `.fill` symbol. The synced double tick is `check` drawn twice.
+SF Symbols only, through `symbol_png` (ADR 0001), monochrome in the text colour. A device is drawn with a generic shape (`phone.devices`), never a symbol that depicts an Apple product. Settings and Library rows have no coloured tile: a `size.icon-phone-row` line icon sits in a `size.phone-row-icon` column, a tag in the same column shows a dot in its colour. Every tab uses its `.fill` symbol, selected or not; the accent and the bar's glass mark the selected one. The synced double tick is `check` drawn twice.
 
 Weights: `regular` at 18 pt and above, and `medium` for chevrons of 14 pt and below, the closest symbol weights to the design's 1.8 and 2.2 strokes.
 

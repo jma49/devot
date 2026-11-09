@@ -101,8 +101,11 @@ struct PurchaseSheet: View {
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
                 .accessibilityLabel(L10n.phoneClose())
+                .accessibilityIdentifier("purchase.close")
             }
-            SheetLens(symbol: "bird")
+            // As far in from the sheet's top as from its side, so the button clears the rounded corner.
+            .padding(.top, Tokens.Size.phoneGroupedPadX)
+            SheetLens.dove
             Text(gateHeading ?? offer.heading).font(.title3.bold()).multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
             VStack(alignment: .leading, spacing: SheetMetrics.gap / 2) {

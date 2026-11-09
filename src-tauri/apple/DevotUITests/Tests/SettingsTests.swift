@@ -79,6 +79,31 @@ final class SettingsTests: XCTestCase {
         }
     }
 
+    func testThePurchaseSheetsCloseButtonSitsClearOfItsTopCorner() {
+        // A1 is the App Store build with the trial still available; a direct build buys on the web instead.
+        launch(["-DevotLicenceFixture", "A1"])
+        row(L10n.settingsPaneLicence()).tap()
+        let buy = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", L10n.licenceSettingsBuyPro())).firstMatch
+        XCTAssertTrue(buy.waitForExistence(timeout: 10), "the App Store build offers Devot Pro")
+        buy.tap()
+        let close = app.buttons["purchase.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "the purchase sheet rises")
+        let restore = app.buttons[L10n.phonePurchaseRestore()]
+        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "the purchase sheet"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        // The sheet's own frame is not exposed, so the inset is measured from the screen's edge; the kept
+        // screenshot shows the top.
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(window.maxX - close.frame.maxX, 16, "the button keeps the side inset")
+        XCTAssertTrue(close.isHittable)
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5), "the button closes the sheet")
+    }
+
     private func openAppearance() {
         row(L10n.settingsPaneAppearance()).tap()
         XCTAssertTrue(app.navigationBars[L10n.settingsPaneAppearance()].waitForExistence(timeout: 10))

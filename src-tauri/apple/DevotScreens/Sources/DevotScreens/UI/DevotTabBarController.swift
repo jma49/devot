@@ -24,7 +24,6 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
             let item = UITab(title: "", image: UIImage(systemName: TabModel.symbol(tab)), identifier: tab.rawValue) { _ in
                 navigation
             }
-            if #available(iOS 26.1, *) { item.selectedImage = UIImage(systemName: TabModel.symbol(tab) + ".fill") }
             item.accessibilityLabel = Self.name(tab)
             item.accessibilityIdentifier = tab.rawValue
             items[tab] = item

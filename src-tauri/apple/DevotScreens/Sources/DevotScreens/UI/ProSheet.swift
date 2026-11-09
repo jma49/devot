@@ -62,7 +62,7 @@ struct ProSheet: View {
     var body: some View {
         let content = ProSheetContent(kind)
         VStack(spacing: SheetMetrics.gap) {
-            SheetLens(symbol: "bird")
+            SheetLens.dove
             Text(content.title).sheetTitle().multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($titleFocused)
