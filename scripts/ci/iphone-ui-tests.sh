@@ -6,8 +6,8 @@
 # - `test` installs that app on an iPhone simulator and runs the tests from that folder
 #   (test-without-building). The test launches the app by its bundle ID, since Tauri's Xcode project
 #   builds Rust only under the Tauri CLI.
-# - `settle` (CI) installs the app on the booted simulator, starts it once and waits for the
-#   machine to calm down, so the tests do not start on a simulator still busy with its first boot.
+# - `settle` (CI) installs the app on the booted simulator and starts it once, until its web view
+#   has started, so the tests do not meet WebKit's slow first start.
 # With no argument it runs build and test. XcodeGen makes the test project from DevotUITests/project.yml; it is
 # generated here and never committed. DEVOT_UI_SHARD runs one shard of the tests
 # (scripts/ci/iphone-ui-shards.ts); DEVOT_UI_TESTS holds any other xcodebuild selection, such as
@@ -62,11 +62,11 @@ need_build() {
   fi
 }
 
-# A cold-booted simulator keeps a CI runner busy for minutes, and WebKit's first start in it is the
-# slowest part: tests started then found an empty web view and missed their waits. The app is
-# started once, and the tests wait until the one-minute load is under the core count, for at most
-# DEVOT_UI_SETTLE seconds (240). The xcode-27 runner's load stays in the hundreds on 3 cores for
-# all of it (PR #790), so there it is a 4 minute wait; a local run with a booted phone goes on at once.
+# WebKit's first start in a freshly booted simulator is the slowest part: tests started before it
+# found an empty web view and missed their waits. The app is started once and the tests go on as
+# soon as its web view has made its WebKit folders, for at most DEVOT_UI_SETTLE seconds (120). The
+# xcode-27 runner's load stays in the hundreds on 3 cores (PR #790), so waiting for a calm machine
+# was a fixed 4 minute sleep.
 settle() {
   need_build
   device=$(simulator)
@@ -74,22 +74,21 @@ settle() {
   xcrun simctl install "$device" "$bundle/Devot.app"
   app_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$bundle/Devot.app/Info.plist")
   xcrun simctl launch "$device" "$app_id" >/dev/null
-  cores=$(sysctl -n hw.ncpu)
-  limit=${DEVOT_UI_SETTLE:-240}
+  data=$(xcrun simctl get_app_container "$device" "$app_id" data)
+  limit=${DEVOT_UI_SETTLE:-120}
   waited=0
-  while :; do
-    load=$(sysctl -n vm.loadavg | awk '{ print $2 }')
-    awk -v load="$load" -v cores="$cores" 'BEGIN { exit !(load < cores) }' && break
+  until [ -n "$(find "$data/Library" -maxdepth 3 -type d -name WebKit 2>/dev/null | head -n 1)" ]; do
     if [ "$waited" -ge "$limit" ]; then
-      echo "settle: still busy after ${waited}s; testing anyway"
+      echo "settle: no web view after ${waited}s; testing anyway"
       break
     fi
-    [ $((waited % 60)) -eq 0 ] && echo "settle: load $load on $cores cores after ${waited}s"
-    sleep 15
-    waited=$((waited + 15))
+    sleep 5
+    waited=$((waited + 5))
   done
+  # The first page load runs on after the folders appear.
+  sleep 10
   xcrun simctl terminate "$device" "$app_id" >/dev/null 2>&1 || true
-  echo "settle: load $load on $cores cores after ${waited}s"
+  echo "settle: web view started after ${waited}s"
 }
 
 run_tests() {

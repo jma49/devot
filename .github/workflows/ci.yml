@@ -58,6 +58,7 @@ jobs:
       rust: ${{ steps.diff.outputs.rust }}
       docs_only: ${{ steps.diff.outputs.docs_only }}
       iphone_ui: ${{ steps.diff.outputs.iphone_ui }}
+      iphone_ui_full: ${{ steps.diff.outputs.iphone_ui_full }}
       ui: ${{ steps.diff.outputs.ui }}
       ui_matrix: ${{ steps.diff.outputs.ui_matrix }}
     steps:
@@ -78,8 +79,10 @@ jobs:
           if [ "$EVENT" = pull_request ]; then
             git diff --no-renames --name-only HEAD^1 HEAD | sh scripts/ci/changed-code.sh >> "$GITHUB_OUTPUT"
             git diff --no-renames --name-only HEAD^1 HEAD | node scripts/ci/ui-plan.ts >> "$GITHUB_OUTPUT"
+            echo iphone_ui_full=false >> "$GITHUB_OUTPUT"
           else
             printf 'web=true\nrust=true\ndocs_only=false\niphone_ui=true\n' >> "$GITHUB_OUTPUT"
+            echo iphone_ui_full=true >> "$GITHUB_OUTPUT"
             node scripts/ci/ui-plan.ts --full </dev/null >> "$GITHUB_OUTPUT"
           fi
 
@@ -269,15 +272,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The signing scripts' tests need Apple's tools and skip on the Linux runners.
-  # A change to scripts/ or tests/ counts as a web change, so a Rust-only one
-  # skips them.
-  mac-scripts:
-    name: macOS script tests
+  # The tests that need a Mac but no iPhone image share one macos-26 runner, since the account runs
+  # five macOS jobs at a time. The signing scripts' tests need Apple's tools and skip on the Linux
+  # runners; a change to scripts/ or tests/ counts as a web change, so a Rust-only one skips them.
+  # StoreKit Test hung under xcodebuild on the xcode-27 image's iOS 27 simulators (CI run
+  # 42469038809) and on iOS 27.2 locally, and is broken on iOS 26.4 and 26.5, so the StoreKit bridge
+  # is tested on macos-26's iOS 26.2, where it passes. It builds with the iOS 27 SDK in iphone-build.
+  mac-tests:
+    name: macOS tests
     needs: changes
-    if: needs.changes.outputs.web != 'false' && needs.changes.outputs.docs_only != 'true'
+    if: (needs.changes.outputs.web != 'false' || needs.changes.outputs.rust != 'false') && needs.changes.outputs.docs_only != 'true'
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
@@ -285,15 +291,21 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm vitest run tests/scripts/macos- tests/scripts/ios-
+      - if: needs.changes.outputs.web != 'false'
+        run: pnpm install --frozen-lockfile
+      - if: needs.changes.outputs.web != 'false'
+        run: pnpm vitest run tests/scripts/macos- tests/scripts/ios-
+      - if: ${{ !cancelled() && needs.changes.outputs.rust != 'false' }}
+        run: brew install xcodegen
+      - if: ${{ !cancelled() && needs.changes.outputs.rust != 'false' }}
+        run: sh scripts/ci/devot-store-tests.sh
 
   # The required web check. It runs even when the jobs it sums up were
   # skipped (a pull request without web changes) and fails when any of them,
   # or the change detection, failed or was cancelled. A failed UI build skips
   # the shards, so the gate reads the build's result too.
   web:
-    needs: [changes, web-checks, unit-tests, ui-build, ui, mac-scripts]
+    needs: [changes, web-checks, unit-tests, ui-build, ui, mac-tests]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -304,12 +316,12 @@ jobs:
           TESTS: ${{ needs.unit-tests.result }}
           UI_BUILD: ${{ needs.ui-build.result }}
           UI: ${{ needs.ui.result }}
-          MAC: ${{ needs.mac-scripts.result }}
+          MAC: ${{ needs.mac-tests.result }}
         run: |
-          echo "changes=$CHANGES web-checks=$CHECKS unit-tests=$TESTS ui-build=$UI_BUILD ui=$UI mac-scripts=$MAC"
+          echo "changes=$CHANGES web-checks=$CHECKS unit-tests=$TESTS ui-build=$UI_BUILD ui=$UI mac-tests=$MAC"
           {
             printf '### Web merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Quick checks' "$CHECKS" 'Unit and integration tests' "$TESTS" 'UI test build' "$UI_BUILD" 'UI regression tests' "$UI" 'macOS script tests' "$MAC"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Quick checks' "$CHECKS" 'Unit and integration tests' "$TESTS" 'UI test build' "$UI_BUILD" 'UI regression tests' "$UI" 'macOS tests' "$MAC"
           } >> "$GITHUB_STEP_SUMMARY"
           for result in "$CHANGES" "$CHECKS" "$TESTS" "$UI_BUILD" "$UI" "$MAC"; do
             case "$result" in
@@ -357,39 +369,9 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
 
-  # The Mac's and the phone's `cfg` branches compile only against Apple's SDK:
-  # rust-check on Linux leaves out native/macos/ and the other macOS code.
-  ios-check:
-    name: macOS and iOS compile
-    needs: changes
-    if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
-    runs-on: xcode-27
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: src-tauri
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - run: sh ../scripts/ci/xcode.sh
-      # The generated Swift tokens and strings on their own; ios-app compiles the whole package.
-      - run: xcrun --sdk iphonesimulator swiftc -typecheck -swift-version 6 -warnings-as-errors -target arm64-apple-ios26.0-simulator apple/DevotScreens/Sources/DevotScreens/Generated/*.swift
-      # The typecheck never runs L10n's placeholder filling; this checks it against the page's cases.
-      - run: swiftc -swift-version 6 -warnings-as-errors -o "$RUNNER_TEMP/strings-check" apple/DevotScreens/Sources/DevotScreens/Generated/Strings.swift apple/DevotScreens/Checks/main.swift && "$RUNNER_TEMP/strings-check"
-      # A placeholder for the UI, as in rust-check.
-      - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
-        working-directory: .
-      - run: rustup toolchain install
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          workspaces: src-tauri
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings
-      # The input bar's Objective-C runtime tests run only on an Apple host.
-      - run: cargo test --lib input_accessory
-
   # The Swift packages (src-tauri/apple/DevotStore and DevotScreens): their tests in host apps on an
   # iPhone simulator, as StoreKit Test and UIKit need. iphone-build builds the app that links them.
+  # The release check builds the screens package twice more, so pull requests leave it to the merge queue.
   ios-app:
     name: iPhone screens tests
     needs: changes
@@ -412,44 +394,38 @@ jobs:
           nohup xcrun simctl boot "$device" >>"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
       - run: sh scripts/ci/devot-screens-tests.sh
       # The spike harness is built into a debug app only (docs/specs/iphone-screens.md, Spikes).
-      - run: sh scripts/ci/devot-screens-release-check.sh
-
-  # StoreKit Test hung under xcodebuild on the xcode-27 image's iOS 27 simulators (CI run
-  # 42469038809) and on iOS 27.2 locally, and is broken on iOS 26.4 and 26.5, so the StoreKit bridge
-  # is tested on macos-26's iOS 26.2, where it passes. It builds with the iOS 27 SDK in iphone-build.
-  storekit:
-    name: StoreKit tests
-    needs: changes
-    if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
-    runs-on: macos-26
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - run: brew install xcodegen
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: 24
-          package-manager-cache: false
-      - run: sh scripts/ci/devot-store-tests.sh
+      - if: github.event_name != 'pull_request'
+        run: sh scripts/ci/devot-screens-release-check.sh
 
   # The iPhone app for the simulator, with the release UI build: the only build that links the
   # Swift packages and Rust's calls into them. When the UI test runs, this job also builds its test
-  # runner and hands both to the iphone-ui jobs as one artifact, so each run builds the app once.
+  # runner, hands both to the iphone-ui shards as one artifact on full runs, and runs the smoke shard
+  # itself, on a simulator that boots during the build. The Mac's and the phone's `cfg` branches,
+  # which compile only against Apple's SDK, are checked here too, while that simulator settles:
+  # rust-check on Linux leaves out native/macos/ and the other macOS code.
   iphone-build:
     name: iPhone app build
     needs: changes
     if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: xcode-27
-    timeout-minutes: 45
+    timeout-minutes: 50
+    env:
+      DEVOT_UI_SHARD: smoke
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: sh scripts/ci/xcode.sh
-      - run: brew install xcodegen
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: pnpm
+      - name: Boot the iPhone simulator
+        if: needs.changes.outputs.iphone_ui != 'false'
+        run: |
+          device=$(xcrun simctl list devices available --json | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
+          echo "DEVOT_SIMULATOR=$device" >> "$GITHUB_ENV"
+          nohup xcrun simctl boot "$device" >"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
+      - run: brew install xcodegen
       # pnpm checks the lockfile against its supply-chain policies with registry metadata, which
       # this image fetched in 4-5 min; its metadata cache keeps the verdict for an unchanged lockfile.
       - id: pnpm-cache-path
@@ -478,12 +454,13 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # Tauri's beforeBuildCommand builds the release UI, which the app embeds.
       - run: pnpm tauri ios build --debug --target aarch64-sim
-      - if: needs.changes.outputs.iphone_ui != 'false'
+      - id: runner
+        if: needs.changes.outputs.iphone_ui != 'false'
         run: sh scripts/ci/iphone-ui-tests.sh build
       # tar keeps the bundles' symbolic links and file modes, which the artifact's zip would not.
-      - if: needs.changes.outputs.iphone_ui != 'false'
+      - if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.iphone_ui_full != 'false'
         run: tar -C test-results -cf - iphone-ui-build | zstd -T0 -10 -q -o "$RUNNER_TEMP/iphone-ui-build.tar.zst"
-      - if: needs.changes.outputs.iphone_ui != 'false'
+      - if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.iphone_ui_full != 'false'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: iphone-ui-build
@@ -491,23 +468,53 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
+      - if: needs.changes.outputs.iphone_ui != 'false'
+        run: sh scripts/ci/iphone-ui-tests.sh settle
+      # The generated Swift tokens and strings on their own; ios-app compiles the whole package.
+      - if: ${{ !cancelled() }}
+        run: xcrun --sdk iphonesimulator swiftc -typecheck -swift-version 6 -warnings-as-errors -target arm64-apple-ios26.0-simulator apple/DevotScreens/Sources/DevotScreens/Generated/*.swift
+        working-directory: src-tauri
+      # The typecheck never runs L10n's placeholder filling; this checks it against the page's cases.
+      - if: ${{ !cancelled() }}
+        run: swiftc -swift-version 6 -warnings-as-errors -o "$RUNNER_TEMP/strings-check" apple/DevotScreens/Sources/DevotScreens/Generated/Strings.swift apple/DevotScreens/Checks/main.swift && "$RUNNER_TEMP/strings-check"
+        working-directory: src-tauri
+      - if: ${{ !cancelled() }}
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
+      - if: ${{ !cancelled() }}
+        run: cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings
+        working-directory: src-tauri
+      # The input bar's Objective-C runtime tests run only on an Apple host.
+      - if: ${{ !cancelled() }}
+        run: cargo test --lib input_accessory
+        working-directory: src-tauri
+      - if: ${{ !cancelled() && steps.runner.outcome == 'success' }}
+        run: sh scripts/ci/iphone-ui-tests.sh test
+      - if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: iphone-ui-xcresult-smoke
+          path: test-results/iphone-ui.xcresult/
+          if-no-files-found: ignore
+          retention-days: 7
 
   # The shipping iPhone app, with the release UI build, launched in a simulator: the XCUITests
   # (src-tauri/apple/DevotUITests) switch every tab of the native tab bar, run the system's
   # accessibility audit and go through the screens. They run for the native screens, the phone page
-  # and the app project (scripts/ci/changed-code.sh), from iphone-build's app and test runner,
-  # split into shards that run side by side (scripts/ci/iphone-ui-shards.ts).
+  # and the app project (scripts/ci/changed-code.sh). A pull request runs only the smoke shard, in
+  # iphone-build; the merge queue, main and manual runs also run the other shards here, from
+  # iphone-build's app and test runner, side by side (scripts/ci/iphone-ui-shards.ts).
   iphone-ui:
     name: iPhone UI test (${{ matrix.shard }})
     needs: [changes, iphone-build]
-    if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.iphone_ui_full != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: xcode-27
     # A slow xcode-27 runner spends up to 10 minutes on the download and the settle before a test runs.
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [settings-1, settings-2, editor, editor-bars, links, rest]
+        shard: [settings, rest]
     env:
       DEVOT_UI_SHARD: ${{ matrix.shard }}
     steps:
@@ -556,15 +563,27 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: rustup toolchain install
       # Built from crates.io: cargo-deny-action fetched the tool from a GitHub release download,
-      # which stopped serving the archive (#792).
-      - run: cargo install --locked cargo-deny@0.20.2
+      # which stopped serving the archive (#792). The build takes two minutes, so the binary is kept per version.
+      - id: deny-bin
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-0.20.2-${{ runner.os }}-${{ runner.arch }}
+      - if: steps.deny-bin.outputs.cache-hit != 'true'
+        run: cargo install --locked cargo-deny@0.20.2
+      - if: steps.deny-bin.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: ${{ steps.deny-bin.outputs.cache-primary-key }}
       - run: cargo deny check
 
   # Required check for Rust. It runs even when a Rust job was skipped and
-  # fails when the change detection, compilation, tests, the iPhone app build,
-  # any iPhone UI test shard or the deny check failed.
+  # fails when the change detection, compilation, tests, the macOS tests, the
+  # iPhone app build with its compile checks and smoke shard, any iPhone UI test
+  # shard or the deny check failed.
   rust:
-    needs: [changes, rust-check, ios-check, ios-app, storekit, iphone-build, iphone-ui, deny]
+    needs: [changes, rust-check, ios-app, mac-tests, iphone-build, iphone-ui, deny]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -572,19 +591,18 @@ jobs:
       - env:
           CHANGES: ${{ needs.changes.result }}
           RUST: ${{ needs.rust-check.result }}
-          IOS: ${{ needs.ios-check.result }}
           IOS_APP: ${{ needs.ios-app.result }}
-          STOREKIT: ${{ needs.storekit.result }}
+          MAC: ${{ needs.mac-tests.result }}
           IPHONE_BUILD: ${{ needs.iphone-build.result }}
           IPHONE_UI: ${{ needs.iphone-ui.result }}
           DENY: ${{ needs.deny.result }}
         run: |
-          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP storekit=$STOREKIT iphone-build=$IPHONE_BUILD iphone-ui=$IPHONE_UI deny=$DENY"
+          echo "changes=$CHANGES rust-check=$RUST ios-app=$IOS_APP mac-tests=$MAC iphone-build=$IPHONE_BUILD iphone-ui=$IPHONE_UI deny=$DENY"
           {
             printf '### Rust merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone screens tests' "$IOS_APP" 'StoreKit tests' "$STOREKIT" 'iPhone app build' "$IPHONE_BUILD" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'iPhone screens tests' "$IOS_APP" 'macOS tests' "$MAC" 'iPhone app build' "$IPHONE_BUILD" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$STOREKIT" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"; do
+          for result in "$CHANGES" "$RUST" "$IOS_APP" "$MAC" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac

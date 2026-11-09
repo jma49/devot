@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { REST, SHARDS, selection } from '../../scripts/ci/iphone-ui-shards'
+import { REST, SHARDS, SMOKE, selection } from '../../scripts/ci/iphone-ui-shards'
 
 const tests = 'src-tauri/apple/DevotUITests/Tests'
 
@@ -48,8 +48,8 @@ it('lists only tests that exist, each once, and leaves the rest shard something 
 })
 
 it('selects a listed shard by its tests and the rest shard by skipping every listed one', () => {
-  expect(selection('editor')).toEqual(
-    (SHARDS['editor'] ?? []).map((test) => `-only-testing:DevotUITests/${test}`),
+  expect(selection(SMOKE)).toEqual(
+    (SHARDS[SMOKE] ?? []).map((test) => `-only-testing:DevotUITests/${test}`),
   )
   const rest = selection(REST)
   expect(rest).toHaveLength(Object.values(SHARDS).flat().length)
@@ -57,13 +57,25 @@ it('selects a listed shard by its tests and the rest shard by skipping every lis
   expect(() => selection('nope')).toThrow('E_UI_SHARD_UNKNOWN shard=nope')
 })
 
-it("gives every shard a job of CI's iPhone UI test matrix, which never stops the others", () => {
+it("runs the smoke shard in the iPhone app build and every other shard in CI's matrix, which never stops the others", () => {
   const ci = parse(readFileSync('.github/workflows/ci.yml', 'utf8')) as {
-    jobs: Record<string, { strategy: { 'fail-fast': boolean; matrix: { shard: string[] } } }>
+    jobs: Record<
+      string,
+      {
+        env?: Record<string, string>
+        strategy: { 'fail-fast': boolean; matrix: { shard: string[] } }
+      }
+    >
   }
   const strategy = ci.jobs['iphone-ui']!.strategy
   expect(strategy['fail-fast']).toBe(false)
-  expect(strategy.matrix.shard).toEqual([...Object.keys(SHARDS), REST])
+  expect(strategy.matrix.shard).toEqual([
+    ...Object.keys(SHARDS).filter((shard) => shard !== SMOKE),
+    REST,
+  ])
+  expect(ci.jobs['iphone-build']!.env?.['DEVOT_UI_SHARD']).toBe(SMOKE)
+  // The smoke shard is the one pull requests run: it switches every tab and audits the bar.
+  expect(SHARDS[SMOKE]).toContain('TabsTests')
   const workflow = readFileSync('.github/workflows/ci.yml', 'utf8')
   expect(workflow).toContain('DEVOT_UI_SHARD: ${{ matrix.shard }}')
   expect(readFileSync('scripts/ci/iphone-ui-tests.sh', 'utf8')).toContain(

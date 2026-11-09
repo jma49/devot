@@ -64,7 +64,8 @@ final class EditorBarsTests: XCTestCase {
 
     func testTheFormattingBarRidesTheKeyboardAndHideKeyboardLowersIt() {
         newNote(typing: "Bars ride the keyboard")
-        XCTAssertTrue(formatting.waitForExistence(timeout: 5), "the formatting bar is up with the keyboard")
+        // The bar comes up after the keyboard's own animation, which a loaded CI simulator stretches past 5 s.
+        XCTAssertTrue(formatting.waitForExistence(timeout: 15), "the formatting bar is up with the keyboard")
         XCTAssertTrue(waitUntil { formatting.frame.maxY <= keyboard.frame.minY + 1 }, "it sits above the keyboard")
         XCTAssertTrue(waitUntil { !findButton.exists || !findButton.isHittable }, "the bottom toolbar steps aside")
         let bold = formatting.buttons[L10n.formatBold()]
