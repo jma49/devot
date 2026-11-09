@@ -320,15 +320,24 @@ it('launches the real iPhone app with its built UI in a simulator, switches the 
     'name: iphone-ui-xcresult-smoke',
   )
   // A full run's shards start only once iphone-build ends: it boots no simulator and runs no test then.
+  // A pull request's simulator boots after the build and the compile checks: a booting simulator kept
+  // the 3-core runner busy and made them several times slower.
   const buildSteps = (parse(workflow) as Workflow).jobs['iphone-build']!.steps
-  const pullRequestOnly =
-    "needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.iphone_ui_full == 'false'"
-  expect(buildSteps.find((step) => step.run?.includes('xcrun simctl boot'))?.if).toBe(
-    pullRequestOnly,
-  )
-  expect(
-    buildSteps.find((step) => step.run === 'sh scripts/ci/iphone-ui-tests.sh settle')?.if,
-  ).toBe(pullRequestOnly)
+  const smokeOnly =
+    "${{ !cancelled() && steps.runner.outcome == 'success' && needs.changes.outputs.iphone_ui_full == 'false' }}"
+  const at = (find: (step: Step) => boolean) => buildSteps.findIndex(find)
+  const boot = at((step) => step.run?.includes('xcrun simctl boot') ?? false)
+  const settle = at((step) => step.run === 'sh scripts/ci/iphone-ui-tests.sh settle')
+  for (const index of [boot, settle]) expect(buildSteps[index]?.if).toBe(smokeOnly)
+  for (const command of [
+    'pnpm tauri ios build --debug --target aarch64-sim',
+    'cargo test --lib input_accessory',
+  ]) {
+    expect({ command, beforeBoot: at((step) => step.run === command) < boot }).toEqual({
+      command,
+      beforeBoot: true,
+    })
+  }
   expect(commands(build)).toEqual(
     expect.arrayContaining(['brew install xcodegen', 'sh scripts/ci/iphone-ui-tests.sh build']),
   )

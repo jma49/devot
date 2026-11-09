@@ -401,8 +401,8 @@ jobs:
 
   # The iPhone app for the simulator, with the release UI build: the only build that links the
   # Swift packages and Rust's calls into them. When the UI test runs, this job also builds its test
-  # runner. On a pull request it runs the smoke shard itself, on a simulator that boots during the
-  # build; on a full run it hands both to the iphone-ui shards as one artifact, and the shards start
+  # runner. On a pull request it runs the smoke shard itself, on a simulator it boots once the build
+  # and the compile checks are done; on a full run it hands both to the iphone-ui shards as one artifact, and the shards start
   # only once this job ends, so nothing waits behind the upload but the compile checks. The Mac's and
   # the phone's `cfg` branches, which compile only against Apple's SDK, are checked here: rust-check
   # on Linux leaves out native/macos/ and the other macOS code.
@@ -424,12 +424,6 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - name: Boot the iPhone simulator
-        if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.iphone_ui_full == 'false'
-        run: |
-          device=$(xcrun simctl list devices available --json | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
-          echo "DEVOT_SIMULATOR=$device" >> "$GITHUB_ENV"
-          nohup xcrun simctl boot "$device" >"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
       - run: brew install xcodegen
       # pnpm checks the lockfile against its supply-chain policies with registry metadata, which
       # this image fetched in 4-5 min; its metadata cache keeps the verdict for an unchanged lockfile.
@@ -473,8 +467,6 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
-      - if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.iphone_ui_full == 'false'
-        run: sh scripts/ci/iphone-ui-tests.sh settle
       # The generated Swift tokens and strings on their own; ios-app compiles the whole package.
       - if: ${{ !cancelled() }}
         run: xcrun --sdk iphonesimulator swiftc -typecheck -swift-version 6 -warnings-as-errors -target arm64-apple-ios26.0-simulator apple/DevotScreens/Sources/DevotScreens/Generated/*.swift
@@ -493,6 +485,16 @@ jobs:
       - if: ${{ !cancelled() }}
         run: cargo test --lib input_accessory
         working-directory: src-tauri
+      # The simulator boots only now: booting it during the build kept this 3-core runner's load in the
+      # hundreds and made brew, the app build and clippy several times slower (PR #879).
+      - name: Boot the iPhone simulator
+        if: ${{ !cancelled() && steps.runner.outcome == 'success' && needs.changes.outputs.iphone_ui_full == 'false' }}
+        run: |
+          device=$(xcrun simctl list devices available --json | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
+          echo "DEVOT_SIMULATOR=$device" >> "$GITHUB_ENV"
+          nohup xcrun simctl boot "$device" >"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
+      - if: ${{ !cancelled() && steps.runner.outcome == 'success' && needs.changes.outputs.iphone_ui_full == 'false' }}
+        run: sh scripts/ci/iphone-ui-tests.sh settle
       - if: ${{ !cancelled() && steps.runner.outcome == 'success' && needs.changes.outputs.iphone_ui_full == 'false' }}
         run: sh scripts/ci/iphone-ui-tests.sh test
       - if: failure()

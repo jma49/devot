@@ -19,6 +19,16 @@ final class NewNoteTests: XCTestCase {
         notes.tapOnceHittable()
     }
 
+    /// An app that will not stop fails the test that left it so, not the next test's launch: on CI the
+    /// launch after the locked New Note test failed with "Failed to terminate" (run 42628919494).
+    override func tearDown() async throws {
+        if let app {
+            app.terminate()
+            XCTAssertTrue(app.wait(for: .notRunning, timeout: waitLimit(10)), "the app stops")
+        }
+        try await super.tearDown()
+    }
+
     /// The note's own bar, told from a list's by its Info button.
     private var noteBar: XCUIElement {
         app.navigationBars.containing(NSPredicate(format: "label == %@", L10n.phoneInfoTitle())).firstMatch

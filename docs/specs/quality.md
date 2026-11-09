@@ -108,7 +108,7 @@ Every PR must test the logic it changes, which review checks.
   The check that the spike harness is absent from the Release build (`scripts/ci/devot-screens-release-check.sh`) builds the package twice more, so it runs in the merge queue, on main and in manual runs, not on pull requests.
 - `iphone-build`, a macOS job in the `rust` gate, builds the iPhone app for the simulator with the release UI (`pnpm tauri ios build`, whose `beforeBuildCommand` is `pnpm ui:release`), the only build that links the packages, once per run.
   When the UI test runs, it builds the XCUITest runner (`scripts/ci/iphone-ui-tests.sh build`, `xcodebuild build-for-testing`).
-  On a pull request it boots its simulator before the build and runs the smoke shard itself after the compile checks.
+  On a pull request it runs the smoke shard itself, on a simulator it boots only after the build and the compile checks: a simulator booting alongside them kept the 3-core runner's load in the hundreds and made the app build and clippy two to eight times slower.
   On a full run it boots none and runs no test: it uploads the runner, its `.xctestrun` and the app as one zstd-compressed tar, the `iphone-ui-build` artifact (about 32 MB, kept 1 day), for the `iphone-ui` shards, which start only once the whole job has ended.
   It also runs the Mac's and the phone's compile checks: clippy for the macOS host and for `aarch64-apple-ios-sim`, the input bar's tests, and the generated Swift's typecheck; they run even after a failed app build.
   Its Rust cache (`shared-key: iphone-sim`, keyed by the Xcode build that `scripts/ci/xcode.sh` reports) is saved from main only, so a pull request never writes a cache a later run builds on; the release and App Store builds use caches of their own and save none.
@@ -157,6 +157,7 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
   - A screens test that read the page's requests once after a fixed run-loop turn missed them on a loaded runner; it waits for them (`settle(until:)`).
   - The iPhone UI tests' waits were sized on an idle simulator, and the `xcode-27` runner's load stays in the hundreds; every wait goes through `waitLimit` (`src-tauri/apple/DevotUITests/Tests/Waits.swift`), which CI multiplies by `DEVOT_UI_WAIT_SCALE` (3), and a policy test refuses a bare number.
   - A product time limit (a parse budget) that a slow machine reaches is measured with `expectWithinBudget`, which allows for the hosted runner, instead of being asserted as if it never ran out.
+  - A time check's budget is written for a developer's Mac; a machine that is slower without being overloaded (a cloud container, where the load stays under the core count) sets `DEVOT_BUDGET_SCALE`, which stretches every budget by up to the hosted runner's factor (`tests/support/budget.ts`).
   - StoreKit Test's local server answers some purchases with a server error (AMSErrorDomain 305) on a loaded runner; the retry covers it.
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 

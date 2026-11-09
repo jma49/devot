@@ -71,6 +71,16 @@ describe('the budget scale', () => {
     expect(budgetScale({ CI: 'true', RUNNER_OS: 'Linux' })).toBe(HOSTED_RUNNER_SCALE)
   })
 
+  it('stretches by DEVOT_BUDGET_SCALE on a machine that says it is slower, never below 1 or past the hosted scale', () => {
+    expect(budgetScale({ DEVOT_BUDGET_SCALE: '3' })).toBe(3)
+    expect(budgetScale({ DEVOT_BUDGET_SCALE: '0.5' })).toBe(1)
+    expect(budgetScale({ DEVOT_BUDGET_SCALE: '50' })).toBe(HOSTED_RUNNER_SCALE)
+    expect(budgetScale({ DEVOT_BUDGET_SCALE: 'fast' })).toBe(1)
+    expect(budgetScale({ CI: 'true', GITHUB_ACTIONS: 'true', DEVOT_BUDGET_SCALE: '2' })).toBe(
+      HOSTED_RUNNER_SCALE,
+    )
+  })
+
   it('moves the limit of a budget, which a regression of several times still exceeds', () => {
     setBudgetScale(HOSTED_RUNNER_SCALE)
     setOverloadProbe(() => false)
