@@ -13,6 +13,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     private(set) var listRoots: [Tab: ListScreen] = [:]
     private(set) var navigations: [Tab: UINavigationController] = [:]
     private(set) var items: [Tab: UITab] = [:]
+    private var pageHidesBar = false
 
     init() {
         settings = SettingsScreens()
@@ -119,6 +120,19 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     func select(_ tab: Tab) {
         guard let item = items[tab], item !== selectedTab else { return }
         selectedTab = item
+        followBar()
+    }
+
+    func hideBarForPage(_ hidden: Bool) {
+        pageHidesBar = hidden
+        followBar()
+    }
+
+    /// The page hides the bar only over a note's screen: a tab it sends the person to from a note
+    /// keeps the bar, or nothing would lead back.
+    func followBar() {
+        let hidden = pageHidesBar && shownNavigation?.topViewController is EditorScreen
+        if isTabBarHidden != hidden { setTabBarHidden(hidden, animated: true) }
     }
 
     /// A saved search from the Library: the Search tab at its root, run without raising the keyboard.

@@ -67,6 +67,7 @@ final class Screens: SettingsBridge {
             // A bar item gives no touch-down, so the warning is made ready while a list shows locked.
             if gate.locked() { haptics.prepare(.gateSheet) }
             run(tabModel.appeared(tab))
+            root.tabs.followBar()
         }
         root.tabs.onReselect = { [weak self] tab in
             guard let self else { return }
@@ -234,7 +235,7 @@ final class Screens: SettingsBridge {
             case .show(let tab): ask(.tabsShow, tab, answered: true)
             case .popToRoot(let tab): ask(.tabsPopToRoot, tab, answered: false)
             case .select(let tab): root.tabs.select(tab)
-            case .hideBar(let hidden): root.tabs.setTabBarHidden(hidden, animated: true)
+            case .hideBar(let hidden): root.tabs.hideBarForPage(hidden)
             case .badge(let on): root.tabs.setAttention(on)
             }
         }
@@ -468,6 +469,7 @@ final class Screens: SettingsBridge {
             appeared: { [weak self] tab in
                 guard let self else { return }
                 run(tabModel.appeared(tab))
+                root.tabs.followBar()
             },
             focus: { [weak self] screen, typed in
                 self?.request(.editorFocus, typed.isEmpty ? [:] : ["typed": .string(typed)]) { outcome in

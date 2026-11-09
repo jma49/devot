@@ -292,6 +292,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - The page sends `tabs.state` whenever one of its fields changes; it is idempotent, and Swift applies only what differs.
 - Swift selects the page's tab when the page changes tab itself (All Notes from the Library, the gate's licence pane), but ignores the page's tab while a `tabs.show` is unanswered, so a stale notice never undoes a tap.
 - The bar hides over a note, search or a sheet the page draws over the whole screen, since those cover where the bar sits, and stays over a pushed list or pane.
+- Swift hides it only while an editor screen is on top of the shown tab, so a tab the page sends the person to from a note (the Devot Pro prompt's License button) keeps the bar and the way back.
 - Settings shows the web shell's `!` badge while the licence needs attention, with "Needs attention" as its VoiceOver value.
 - Every tab's root is native, so the web view rests in `WebStage` unless an editor screen holds it; a tab switch or a pop to a list moves it to the stage without taking it out of the window.
   The stage hides it from VoiceOver and the accessibility audit, which would otherwise reach the page drawn behind the native Settings.

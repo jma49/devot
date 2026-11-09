@@ -128,6 +128,17 @@ final class TabBarTests: XCTestCase {
         XCTAssertEqual(tabs.settings.navigation.viewControllers.count, 2)
     }
 
+    func testTheBarTheNoteHidStaysForATabOpenedFromIt() throws {
+        let tabs = controller()
+        tabs.loadViewIfNeeded()
+        tabs.hideBarForPage(true)
+        XCTAssertFalse(tabs.isTabBarHidden)
+        tabs.settings.router.inFront = { false }
+        tabs.settings.router.open(.licence(.focusKey))
+        XCTAssertEqual(tabs.selected, .settings)
+        XCTAssertFalse(tabs.isTabBarHidden)
+    }
+
     func testReportsOnlyTheSelectedTabTappedAgain() throws {
         let tabs = controller()
         var reselected: [Tab] = []
