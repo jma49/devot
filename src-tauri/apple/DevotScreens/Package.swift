@@ -11,7 +11,7 @@ let package = Package(
     targets: [
         .target(
             name: "DevotScreens",
-            resources: [.process("Generated/Localizable.xcstrings")]
+            resources: [.process("Generated/Localizable.xcstrings"), .process("Resources/Brand.xcassets")]
         )
     ]
 )

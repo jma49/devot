@@ -204,15 +204,28 @@ enum SheetMetrics {
 
 /// The sheet's round head: a symbol on the lens colour.
 struct SheetLens: View {
-    let symbol: String
+    let symbol: String?
+
+    init(symbol: String) { self.symbol = symbol }
+
+    /// The lens with Devot's dove in place of a symbol.
+    static var dove: SheetLens { SheetLens(nil) }
+
+    private init(_ symbol: String?) { self.symbol = symbol }
 
     var body: some View {
-        Image(systemName: symbol)
-            .font(.title2)
-            .foregroundStyle(Color(Tokens.Color.accentText))
+        mark
             .frame(width: SheetMetrics.lens, height: SheetMetrics.lens)
             .background(Circle().fill(Color(Tokens.Color.phoneLens)))
             .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var mark: some View {
+        if let symbol {
+            Image(systemName: symbol).font(.title2).foregroundStyle(Color(Tokens.Color.accentText))
+        } else {
+            Image(Brand.dove, bundle: .module).resizable().scaledToFit().padding(SheetMetrics.lens / 4)
+        }
     }
 }
 
