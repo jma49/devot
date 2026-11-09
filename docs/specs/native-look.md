@@ -25,6 +25,8 @@ Part of the [design system](design-system.md).
   The main windows and Settings place their traffic lights at `trafficLightPosition` (20, 28: `tauri.conf.json`, `TRAFFIC_LIGHTS` in `settings.rs`), and the buttons stay there.
   AppKit moves them back to the system's place whenever it lays the title bar out again (key and main state, activation, screen and backing scale changes, appearance, title), while tao puts them back only when its view draws and after full screen.
   So `native::macos::keep_traffic_lights` observes the frames of the three buttons and the title bar views above them, and the window's and the app's notifications, and applies tao's inset again at once whenever a button is off its place.
+  Leaving full screen, AppKit also raises the buttons inside the title bar, so the inset keeps them at the system's margin (the smaller of the gaps above and below them, which holds even for a window that opens in full screen), along with their spacing.
+  A button AppKit moves while a placement is under way is put back by a second check on the next turn of the run loop.
   It never moves a button that is in place, gives way after 120 placements in a second rather than fight AppKit, leaves a window in full screen alone, and lets a window go when it closes.
   A titled window is held from the moment it is built, even while its buttons are elsewhere (full screen), and a notification posted on another thread is handled on the main thread.
 - macOS type scale: body 13 pt, captions 11 pt, sidebar rows 28 px.
