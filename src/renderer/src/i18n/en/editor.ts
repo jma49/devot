@@ -42,7 +42,7 @@ export const messages = {
   'mode.focus': 'Focus Mode',
   'welcome.book': 'Getting started',
   'welcome.title': 'Welcome to Devot',
-  'welcome.exampleTitle': 'Markdown example',
+  'welcome.exampleTitle': '🕊️ The Long Way Home',
   'welcome.imageName': 'Sample picture.png',
   'mode.focusTitle': 'Focus Mode',
   'preview.label': 'Preview',
