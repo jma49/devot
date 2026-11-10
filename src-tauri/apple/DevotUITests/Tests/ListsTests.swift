@@ -11,9 +11,9 @@ final class ListsTests: XCTestCase {
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
         app.launch()
         // A cold debug build starts slowly on a CI simulator.
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 120))
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: waitLimit(120)))
         let notes = app.tabBars.firstMatch.buttons[L10n.phoneTabNotes()]
-        XCTAssertTrue(notes.waitForExistence(timeout: 10))
+        XCTAssertTrue(notes.waitForExistence(timeout: waitLimit(10)))
         notes.tapOnceHittable()
     }
 
@@ -22,14 +22,6 @@ final class ListsTests: XCTestCase {
     }
 
     private var pinned: Bool { (row.value as? String)?.contains(L10n.sidebarPinned()) ?? false }
-
-    private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 5) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition(), Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        return condition()
-    }
 
     private func keepScreen(_ step: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
@@ -49,14 +41,14 @@ final class ListsTests: XCTestCase {
 
     private func tapAction(_ name: String) {
         let action = app.buttons[name]
-        XCTAssertTrue(action.waitForExistence(timeout: 5), "the swipe uncovers \(name)")
+        XCTAssertTrue(action.waitForExistence(timeout: waitLimit(5)), "the swipe uncovers \(name)")
         keepScreen("\(name) uncovered")
         action.tap()
     }
 
     /// The welcome note starts pinned; the test leaves it as it found it.
     func testTheLeadingSwipeTogglesThePinAndBack() {
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "the welcome note is listed")
+        XCTAssertTrue(row.waitForExistence(timeout: waitLimit(30)), "the welcome note is listed")
         let was = pinned
         for (name, now) in [(was ? L10n.noteUnpin() : L10n.phoneActionPin(), !was), (was ? L10n.phoneActionPin() : L10n.noteUnpin(), was)] {
             uncover(leading: true)
@@ -67,19 +59,19 @@ final class ListsTests: XCTestCase {
 
     /// The toast stays only `motion.duration.phone-toast`, too short for an accessibility audit.
     func testATrashFromTheSwipeIsOfferedBackAndUndoRestoresTheRow() {
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "the welcome note is listed")
+        XCTAssertTrue(row.waitForExistence(timeout: waitLimit(30)), "the welcome note is listed")
         uncover(leading: false)
         tapAction(L10n.phoneActionTrash())
         let toast = app.otherElements["devot.toast"]
-        XCTAssertTrue(toast.waitForExistence(timeout: 5), "the trash offers an undo")
+        XCTAssertTrue(toast.waitForExistence(timeout: waitLimit(5)), "the trash offers an undo")
         XCTAssertTrue(app.staticTexts[L10n.phoneToastTrashed()].exists)
-        XCTAssertTrue(row.waitForNonExistence(timeout: 5), "the row leaves the list")
+        XCTAssertTrue(row.waitForNonExistence(timeout: waitLimit(5)), "the row leaves the list")
         keepScreen("the undo toast")
         let undo = app.buttons["devot.toast.undo"]
         XCTAssertTrue(undo.isHittable)
         undo.tap()
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "Undo puts the note back")
-        XCTAssertTrue(toast.waitForNonExistence(timeout: 5), "the toast goes once taken")
+        XCTAssertTrue(row.waitForExistence(timeout: waitLimit(10)), "Undo puts the note back")
+        XCTAssertTrue(toast.waitForNonExistence(timeout: waitLimit(5)), "the toast goes once taken")
         keepScreen("the note restored")
     }
 }

@@ -507,6 +507,8 @@ describe('the exchange', () => {
 })
 
 describe('rate limits', () => {
+  // Each test makes 45 to 110 signed exchanges: a loaded CI runner can pass the default 5 s, and a
+  // timed-out test keeps writing to the shared database under the next one, its own retry included.
   it('allows 30 an hour per IP, counted after the JWS checks out and before Apple', async () => {
     const forged = await signJws(transaction(), await chain())
     for (let i = 0; i < 40; i++) await exchange(forged)
@@ -525,10 +527,8 @@ describe('rate limits', () => {
     expect(apple.calls).toHaveLength(APP_STORE_LIMITS.exchangePerIp)
     clock = new Date(NOW.getTime() + 3_600_000)
     expect((await exchange(jws)).status).toBe(200)
-  })
+  }, 20_000)
 
-  // About 45 signed exchanges: a loaded CI runner can pass the default 5 s, and a timed-out
-  // test keeps writing to the shared database under the next one.
   it('allows 10 an hour per purchase, and an over-limit IP spends none of it', async () => {
     for (let i = 0; i < APP_STORE_LIMITS.exchangePerIp; i++) {
       const id = `40000000000${String(i).padStart(2, '0')}`

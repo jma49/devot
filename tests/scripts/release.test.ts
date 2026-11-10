@@ -377,15 +377,14 @@ describe('signing the updater bundle', () => {
 })
 
 describe('release provenance', () => {
-  const merged = { mergedPr: 423, mergeTree: 'tree-a', headTree: 'tree-a', ciGreen: true }
+  const merged = { mergedPr: 423, ciGreen: true }
 
-  it('accepts a merged pull request whose tree and CI match the tag', () => {
+  it('accepts a merged pull request whose merge commit passed a full CI run', () => {
     expect(() => releaseGate(merged)).not.toThrow()
   })
 
   it.each([
     [{ ...merged, mergedPr: null }, 'E_RELEASE_NO_MERGED_PR'],
-    [{ ...merged, headTree: 'tree-b' }, 'E_RELEASE_TREE_MISMATCH'],
     [{ ...merged, ciGreen: false }, 'E_RELEASE_CI_NOT_GREEN'],
   ] as const)('refuses a tag that did not pass the documented gate', (input, code) => {
     expect(() => releaseGate(input)).toThrow(code)

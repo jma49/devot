@@ -95,7 +95,7 @@ const PARSE_STEP = 20_000
  * Parse budget for a block command, which needs the whole selection and the block after it.
  * Each step must still finish within `COMMAND_PARSE_MS`: a stalled parser is not waited for.
  */
-const BLOCK_PARSE_MS = 4 * COMMAND_PARSE_MS
+export const BLOCK_PARSE_MS = 4 * COMMAND_PARSE_MS
 
 /**
  * Renumbering and moving an item's children reach past the selection, up to the top-level block

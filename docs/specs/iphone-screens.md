@@ -300,7 +300,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - The view overrides `safeAreaInsets` because the tab bar's inset can reach it through its superview, which a negative `additionalSafeAreaInsets` does not take back (on iOS 26.5 each screen kept the bar's 49 points).
 - The bar's tint is `color.accent.text` and it is never minimised on scroll.
   Glass Transparency reaches it only below 0, through the scroll edge effect (spike: bar tint).
-- The host-app XCTests check the bar's items, the web view's moves and the key window; the `iphone-ui` CI job's XCUITest (`src-tauri/apple/DevotUITests/Tests/TabsTests.swift`) launches the real app, switches all four tabs by their names and runs the accessibility audit on the bar (docs/specs/quality.md, CI).
+- The host-app XCTests check the bar's items, the web view's moves and the key window; the iPhone UI test's smoke shard, which every run that tests the app runs (`src-tauri/apple/DevotUITests/Tests/TabsTests.swift`), launches the real app, switches all four tabs by their names and runs the accessibility audit on the bar (docs/specs/quality.md, CI).
 
 ### Routes
 

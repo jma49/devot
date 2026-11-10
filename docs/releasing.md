@@ -17,12 +17,16 @@ Releases are stable from 1.0.0 on; a beta is an optional preview of the next ver
 
 Release only when both are true:
 
-1. CI checked exactly the tagged commit's tree: either the merge queue's run on that merge commit passed (the usual way, since pull requests merge through the queue), or CI is green on the head commit of the pull request that was merged and the tree of `main` equals that head's tree (`git diff --quiet <head commit> origin/main`).
-2. The tag is a merged pull request's merge commit on `main`.
+1. The tag is a merged pull request's merge commit on `main`.
+2. A full CI run passed on that very commit: main's run on it, the merge queue's, or a manual run of the CI workflow.
+   The pull request's own run does not count: it runs only what the pull request's files need, and of the iPhone UI tests only the smoke shard (docs/specs/quality.md, CI).
 
-The release workflow checks this before it builds. It fails with `E_RELEASE_NO_MERGED_PR`, `E_RELEASE_TREE_MISMATCH` or `E_RELEASE_CI_NOT_GREEN` otherwise, so a release cannot be made from a commit CI never checked.
+The release workflow checks this before it builds.
+It fails with `E_RELEASE_NO_MERGED_PR` or `E_RELEASE_CI_NOT_GREEN` otherwise, so a release cannot be made from a commit a full run never passed on.
 
-A pull request merged outside the queue whose branch was behind `main` fails the tree check: its merge commit also holds what `main` gained meanwhile. Merge through the queue, or bring the branch up to date with `main` before merging a pull request you mean to release.
+When main's run on the commit is still going, wait for it and run the failed `verify` job again.
+When it failed, CI has already run its failed jobs again once (docs/specs/quality.md, Flaky tests); a run that is still red is a real failure to fix first.
+When a newer push cancelled it, release the newer commit once its run has passed, or start a manual CI run on `main` while the commit is its head.
 
 ## Release
 

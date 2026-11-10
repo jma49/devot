@@ -13,10 +13,20 @@ final class NewNoteTests: XCTestCase {
         app.launchArguments = arguments
         app.launch()
         // A cold debug build starts slowly on a CI simulator.
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 120))
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: waitLimit(120)))
         let notes = app.tabBars.firstMatch.buttons[L10n.phoneTabNotes()]
-        XCTAssertTrue(notes.waitForExistence(timeout: 10))
+        XCTAssertTrue(notes.waitForExistence(timeout: waitLimit(10)))
         notes.tapOnceHittable()
+    }
+
+    /// An app that will not stop fails the test that left it so, not the next test's launch: on CI the
+    /// launch after the locked New Note test failed with "Failed to terminate" (run 42628919494).
+    override func tearDown() async throws {
+        if let app {
+            app.terminate()
+            XCTAssertTrue(app.wait(for: .notRunning, timeout: waitLimit(10)), "the app stops")
+        }
+        try await super.tearDown()
     }
 
     /// The note's own bar, told from a list's by its Info button.
@@ -28,14 +38,6 @@ final class NewNoteTests: XCTestCase {
     /// The native list's cells: its section heads and one row per listed note.
     private var rows: XCUIElementQuery { app.collectionViews.firstMatch.cells }
 
-    private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 5) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition(), Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        return condition()
-    }
-
     private func keepScreen(_ step: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = step
@@ -45,29 +47,29 @@ final class NewNoteTests: XCTestCase {
 
     func testNewNotePushesTheEditorWithTheKeyboardUpAndBackLeavesNoEmptyNote() {
         launch()
-        XCTAssertTrue(newNote.waitForExistence(timeout: 30), "the Notes list offers New Note")
+        XCTAssertTrue(newNote.waitForExistence(timeout: waitLimit(30)), "the Notes list offers New Note")
         XCTAssertTrue(waitUntil { rows.count > 0 }, "the welcome example is listed")
         let listed = rows.count
         newNote.tap()
-        XCTAssertTrue(noteBar.waitForExistence(timeout: 10), "New Note pushes the editor")
-        XCTAssertTrue(app.otherElements["editor.cover"].waitForNonExistence(timeout: 5), "the cover fades")
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "the body takes the caret")
+        XCTAssertTrue(noteBar.waitForExistence(timeout: waitLimit(10)), "New Note pushes the editor")
+        XCTAssertTrue(app.otherElements["editor.cover"].waitForNonExistence(timeout: waitLimit(5)), "the cover fades")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: waitLimit(5)), "the body takes the caret")
         keepScreen("the new note")
         RunLoop.current.run(until: Date().addingTimeInterval(1.5))
         keepScreen("the new note settled")
         noteBar.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(noteBar.waitForNonExistence(timeout: 10), "Back returns to the list")
+        XCTAssertTrue(noteBar.waitForNonExistence(timeout: waitLimit(10)), "Back returns to the list")
         XCTAssertTrue(waitUntil({ rows.count == listed }, timeout: 10), "the untouched note is not kept")
         keepScreen("back on the list")
     }
 
     func testALockedNewNoteShowsTheProSheetAndNoEditor() throws {
         launch(["-DevotLicenceFixture", "K1"])
-        XCTAssertTrue(newNote.waitForExistence(timeout: 30), "the Notes list offers New Note")
+        XCTAssertTrue(newNote.waitForExistence(timeout: waitLimit(30)), "the Notes list offers New Note")
         XCTAssertTrue(waitUntil { newNote.isHittable })
         newNote.tap()
         let title = app.staticTexts[L10n.phonePurchaseEnded()]
-        XCTAssertTrue(title.waitForExistence(timeout: 10), "the Pro sheet rises")
+        XCTAssertTrue(title.waitForExistence(timeout: waitLimit(10)), "the Pro sheet rises")
         XCTAssertFalse(noteBar.exists, "no editor is pushed")
         XCTAssertFalse(app.otherElements["editor.cover"].exists)
         keepScreen("the Pro sheet")
@@ -104,7 +106,7 @@ final class NewNoteTests: XCTestCase {
             return false
         }
         notNow.tap()
-        XCTAssertTrue(title.waitForNonExistence(timeout: 5), "Not Now closes the sheet")
+        XCTAssertTrue(title.waitForNonExistence(timeout: waitLimit(5)), "Not Now closes the sheet")
         XCTAssertFalse(noteBar.exists, "nothing runs after Not Now")
     }
 }

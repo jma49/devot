@@ -1,0 +1,47 @@
+#!/bin/sh
+# Stands in for xcodebuild while `pnpm tauri` runs (package.json puts this folder first on PATH).
+# CI's simulator build of the iPhone app makes the file `ci-simulator-build` beside this shim
+# (Tauri starts xcodebuild with an environment of its own, so a variable would not arrive). With it:
+# - a simulator build leaves out the Intel simulator's architecture, which the Swift packages were
+#   otherwise compiled for too, though only the Apple silicon simulator runs the app;
+# - a simulator archive is made of the app the build just left in Xcode's derived data.
+#   `tauri ios build` archives after it builds, which builds everything a second time, and for a
+#   simulator it only takes the app out of the archive.
+# Any other call, and every call without the file, goes to xcodebuild as it is.
+self=$(cd "$(dirname "$0")" && pwd)
+PATH=$(printf %s "$PATH" | tr ':' '\n' | grep -vxF "$self" | paste -sd: -)
+if [ -e "$self/ci-simulator-build" ]; then
+  action=
+  archive=
+  configuration=
+  sdk=
+  previous=
+  for argument in "$@"; do
+    case "$previous" in
+      -archivePath) archive=$argument ;;
+      -configuration) configuration=$argument ;;
+      -sdk) sdk=$argument ;;
+    esac
+    case "$argument" in
+      build | archive) action=$argument ;;
+    esac
+    previous=$argument
+  done
+  if [ "$sdk" = iphonesimulator ] && [ "$action" = build ]; then
+    echo "xcodebuild shim: simulator build without the Intel slice"
+    exec xcodebuild "$@" EXCLUDED_ARCHS=x86_64
+  fi
+  if [ "$sdk" = iphonesimulator ] && [ "$action" = archive ] && [ -n "$archive" ] && [ -n "$configuration" ]; then
+    app=$(find "$HOME/Library/Developer/Xcode/DerivedData" -type d \
+      -path "*/Build/Products/$configuration-iphonesimulator/*.app" -prune 2>/dev/null | head -n 1)
+    if [ -z "$app" ]; then
+      echo "E_IOS_ARCHIVE_NO_BUILD: no $configuration simulator app in Xcode's derived data to archive" >&2
+      exit 1
+    fi
+    mkdir -p "${archive%.xcarchive}.xcarchive/Products/Applications"
+    cp -R "$app" "${archive%.xcarchive}.xcarchive/Products/Applications/"
+    echo "xcodebuild shim: archive made of $app, built a moment ago"
+    exit 0
+  fi
+fi
+exec xcodebuild "$@"

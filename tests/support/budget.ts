@@ -13,10 +13,17 @@ import { expect } from 'vitest'
 
 export const HOSTED_RUNNER_SCALE = 5
 
+/**
+ * The factor every budget's limit is stretched by: the hosted scale on a GitHub-hosted runner, else
+ * `DEVOT_BUDGET_SCALE` for a machine slower than the Mac the budgets are written for (a cloud
+ * container that is not overloaded but slower), between 1 and the hosted scale.
+ */
 export function budgetScale(env: Readonly<Record<string, string | undefined>>): number {
   const hosted =
     Boolean(env['CI']) && (env['GITHUB_ACTIONS'] === 'true' || Boolean(env['RUNNER_OS']))
-  return hosted ? HOSTED_RUNNER_SCALE : 1
+  if (hosted) return HOSTED_RUNNER_SCALE
+  const asked = Number(env['DEVOT_BUDGET_SCALE'])
+  return Number.isFinite(asked) ? Math.min(Math.max(asked, 1), HOSTED_RUNNER_SCALE) : 1
 }
 
 const PROBE = Symbol.for('devot.test.overloaded')

@@ -13,7 +13,7 @@ final class DeepLinkTests: XCTestCase {
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
         app.launch()
         // A cold debug build starts slowly on a CI simulator.
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 120))
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: waitLimit(120)))
     }
 
     /// The note's own bar, told from a list's by its Info button.
@@ -30,24 +30,24 @@ final class DeepLinkTests: XCTestCase {
 
     func testANoteLinkOpensTheNoteOverTheNotesList() {
         app.open(example)
-        XCTAssertTrue(noteBar.waitForExistence(timeout: 30), "the link lands in the editor")
+        XCTAssertTrue(noteBar.waitForExistence(timeout: waitLimit(30)), "the link lands in the editor")
         keepScreen("linked note")
         noteBar.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.navigationBars[L10n.phoneTabNotes()].waitForExistence(timeout: 10), "Back lands on Notes")
+        XCTAssertTrue(app.navigationBars[L10n.phoneTabNotes()].waitForExistence(timeout: waitLimit(10)), "Back lands on Notes")
     }
 
     func testTheStackComesBackAfterTheAppLeftTheFrontAndWasRelaunched() {
         app.open(example)
-        XCTAssertTrue(noteBar.waitForExistence(timeout: 30))
+        XCTAssertTrue(noteBar.waitForExistence(timeout: waitLimit(30)))
         XCUIDevice.shared.press(.home)
-        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10) || app.wait(for: .runningBackgroundSuspended, timeout: 10))
+        XCTAssertTrue(app.wait(for: .runningBackground, timeout: waitLimit(10)) || app.wait(for: .runningBackgroundSuspended, timeout: waitLimit(10)))
         // The record reaches the preferences store a moment after the app leaves; a kill before that reads as a crash.
-        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "the app stays in the background")], timeout: 5)
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "the app stays in the background")], timeout: waitLimit(5))
         app.terminate()
         app.launch()
-        XCTAssertTrue(noteBar.waitForExistence(timeout: 120), "the note is on top again")
+        XCTAssertTrue(noteBar.waitForExistence(timeout: waitLimit(120)), "the note is on top again")
         keepScreen("restored note")
         noteBar.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.navigationBars[L10n.phoneTabNotes()].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars[L10n.phoneTabNotes()].waitForExistence(timeout: waitLimit(10)))
     }
 }

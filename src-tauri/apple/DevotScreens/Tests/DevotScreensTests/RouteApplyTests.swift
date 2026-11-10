@@ -68,7 +68,7 @@ final class RouteApplyTests: XCTestCase {
 
     func testALicenceLinkFillsTheKeyInAndSubmitsNothing() throws {
         harness.deliver(#"{"v":1,"notice":"route","route":"licence","prefill":"devot1.abc.def"}"#)
-        harness.settle()
+        harness.settle(until: { harness.navigation(.settings).topViewController?.restorationIdentifier == "licence" })
         XCTAssertEqual(screens.root.tabs.selected, .settings)
         XCTAssertEqual(harness.navigation(.settings).topViewController?.restorationIdentifier, "licence")
         XCTAssertFalse(harness.directs().contains { $0.op == .licenceSet }, "only the owner's Add submits a key")

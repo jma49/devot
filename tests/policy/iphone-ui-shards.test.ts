@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { REST, SHARDS, selection } from '../../scripts/ci/iphone-ui-shards'
+import { matrix, REST, SHARDS, SMOKE, selection } from '../../scripts/ci/iphone-ui-shards'
 
 const tests = 'src-tauri/apple/DevotUITests/Tests'
 
@@ -48,8 +48,8 @@ it('lists only tests that exist, each once, and leaves the rest shard something 
 })
 
 it('selects a listed shard by its tests and the rest shard by skipping every listed one', () => {
-  expect(selection('editor')).toEqual(
-    (SHARDS['editor'] ?? []).map((test) => `-only-testing:DevotUITests/${test}`),
+  expect(selection(SMOKE)).toEqual(
+    (SHARDS[SMOKE] ?? []).map((test) => `-only-testing:DevotUITests/${test}`),
   )
   const rest = selection(REST)
   expect(rest).toHaveLength(Object.values(SHARDS).flat().length)
@@ -57,14 +57,34 @@ it('selects a listed shard by its tests and the rest shard by skipping every lis
   expect(() => selection('nope')).toThrow('E_UI_SHARD_UNKNOWN shard=nope')
 })
 
-it("gives every shard a job of CI's iPhone UI test matrix, which never stops the others", () => {
+it('runs the smoke shard alone on a pull request and every shard on a full run, none of which stops the others', () => {
+  expect(matrix('pull_request')).toEqual([SMOKE])
+  expect(matrix('full')).toEqual([...Object.keys(SHARDS), REST])
+  expect(() => matrix('nightly')).toThrow('E_UI_SHARD_RUN run=nightly')
+  // The smoke shard is the one pull requests run: it switches every tab, audits the bar and opens a note.
+  expect(SHARDS[SMOKE]).toContain('TabsTests')
   const ci = parse(readFileSync('.github/workflows/ci.yml', 'utf8')) as {
-    jobs: Record<string, { strategy: { 'fail-fast': boolean; matrix: { shard: string[] } } }>
+    jobs: Record<
+      string,
+      {
+        env?: Record<string, string>
+        strategy: { 'fail-fast': boolean; matrix: { shard: string } }
+      }
+    >
   }
   const strategy = ci.jobs['iphone-ui']!.strategy
   expect(strategy['fail-fast']).toBe(false)
-  expect(strategy.matrix.shard).toEqual([...Object.keys(SHARDS), REST])
+  // The changes job writes the list; without it, the matrix is the full one.
+  expect(strategy.matrix.shard).toBe(
+    `\${{ fromJSON(needs.changes.outputs.iphone_ui_shards || '${JSON.stringify(matrix('full'))}') }}`,
+  )
   const workflow = readFileSync('.github/workflows/ci.yml', 'utf8')
+  expect(workflow).toContain(
+    'echo "iphone_ui_shards=$(node scripts/ci/iphone-ui-shards.ts --matrix pull_request)" >> "$GITHUB_OUTPUT"',
+  )
+  expect(workflow).toContain(
+    'echo "iphone_ui_shards=$(node scripts/ci/iphone-ui-shards.ts --matrix full)" >> "$GITHUB_OUTPUT"',
+  )
   expect(workflow).toContain('DEVOT_UI_SHARD: ${{ matrix.shard }}')
   expect(readFileSync('scripts/ci/iphone-ui-tests.sh', 'utf8')).toContain(
     'selection=$(node "$root/scripts/ci/iphone-ui-shards.ts" "$DEVOT_UI_SHARD")',

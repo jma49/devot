@@ -6,14 +6,14 @@
 # - `test` installs that app on an iPhone simulator and runs the tests from that folder
 #   (test-without-building). The test launches the app by its bundle ID, since Tauri's Xcode project
 #   builds Rust only under the Tauri CLI.
-# - `settle` (CI) installs the app on the booted simulator, starts it once and waits for the
-#   machine to calm down, so the tests do not start on a simulator still busy with its first boot.
+# - `settle` (CI) installs the app on the booted simulator and starts it once, until its web view
+#   has started, so the tests do not meet WebKit's slow first start.
 # With no argument it runs build and test. XcodeGen makes the test project from DevotUITests/project.yml; it is
 # generated here and never committed. DEVOT_UI_SHARD runs one shard of the tests
 # (scripts/ci/iphone-ui-shards.ts); DEVOT_UI_TESTS holds any other xcodebuild selection, such as
 # -only-testing:DevotUITests/TabsTests.
 # The simulator is scripts/ci/iphone-simulator.ts's pick; DEVOT_UI_SIMULATOR, or DEVOT_SIMULATOR,
-# picks one by UDID instead.
+# picks one by UDID instead. DEVOT_UI_WAIT_SCALE multiplies the tests' waits (CI sets 3).
 set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 bundle=${DEVOT_UI_BUILD:-$root/test-results/iphone-ui-build}
@@ -62,34 +62,36 @@ need_build() {
   fi
 }
 
-# A cold-booted simulator keeps a CI runner busy for minutes, and WebKit's first start in it is the
-# slowest part: tests started then found an empty web view and missed their waits. The app is
-# started once, and the tests wait until the one-minute load is under the core count, for at most
-# DEVOT_UI_SETTLE seconds (240). The xcode-27 runner's load stays in the hundreds on 3 cores for
-# all of it (PR #790), so there it is a 4 minute wait; a local run with a booted phone goes on at once.
+# WebKit's first start in a freshly booted simulator is the slowest part: tests started before it
+# found an empty web view and missed their waits. The app is started once and the tests go on as
+# soon as its web view has made its WebKit folders, for at most DEVOT_UI_SETTLE seconds (120). The
+# xcode-27 runner's load stays in the hundreds on 3 cores (PR #790), so waiting for a calm machine
+# was a fixed 4 minute sleep.
 settle() {
   need_build
   device=$(simulator)
+  began=$(date +%s)
   sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
+  echo "settle: simulator booted, $(($(date +%s) - began))s into the step"
   xcrun simctl install "$device" "$bundle/Devot.app"
   app_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$bundle/Devot.app/Info.plist")
   xcrun simctl launch "$device" "$app_id" >/dev/null
-  cores=$(sysctl -n hw.ncpu)
-  limit=${DEVOT_UI_SETTLE:-240}
+  echo "settle: app launched, $(($(date +%s) - began))s into the step"
+  data=$(xcrun simctl get_app_container "$device" "$app_id" data)
+  limit=${DEVOT_UI_SETTLE:-120}
   waited=0
-  while :; do
-    load=$(sysctl -n vm.loadavg | awk '{ print $2 }')
-    awk -v load="$load" -v cores="$cores" 'BEGIN { exit !(load < cores) }' && break
+  until [ -n "$(find "$data/Library" -maxdepth 3 -type d -name WebKit 2>/dev/null | head -n 1)" ]; do
     if [ "$waited" -ge "$limit" ]; then
-      echo "settle: still busy after ${waited}s; testing anyway"
+      echo "settle: no web view after ${waited}s; testing anyway"
       break
     fi
-    [ $((waited % 60)) -eq 0 ] && echo "settle: load $load on $cores cores after ${waited}s"
-    sleep 15
-    waited=$((waited + 15))
+    sleep 5
+    waited=$((waited + 5))
   done
+  # The first page load runs on after the folders appear.
+  sleep 10
   xcrun simctl terminate "$device" "$app_id" >/dev/null 2>&1 || true
-  echo "settle: load $load on $cores cores after ${waited}s"
+  echo "settle: web view started after ${waited}s"
 }
 
 run_tests() {
@@ -108,13 +110,38 @@ run_tests() {
   rm -rf "$results"
   mkdir -p "$(dirname "$results")"
   status=0
+  # xcodebuild hands TEST_RUNNER_-prefixed variables to the tests without the prefix (Tests/Waits.swift).
+  export TEST_RUNNER_DEVOT_UI_WAIT_SCALE="${DEVOT_UI_WAIT_SCALE:-1}"
   # A test that fails once is run again, so a one-off simulator stall does not fail the job; a test
   # that fails twice fails it, and the log lists the first failure either way.
+  shown="^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit|Evidence: |Restarting after|uncaught exception"
   # shellcheck disable=SC2086
   xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" \
     -retry-tests-on-failure -test-iterations 2 \
     -resultBundlePath "$results" $selection >"$log" 2>&1 || status=$?
-  grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit|Evidence: " "$log" || tail -n 60 "$log"
+  grep -E "$shown" "$log" || tail -n 60 "$log"
+  # A failed UI test ends the test process, and xcodebuild goes on with the tests that are left
+  # without running it again (scripts/ci/xctest-retry.ts): those tests get their second run here.
+  again=
+  [ "$status" -eq 0 ] || again=$(node "$root/scripts/ci/xctest-retry.ts" "$log")
+  if [ -n "$again" ]; then
+    echo "retry: $again"
+    retry_results="$root/test-results/iphone-ui-retry.xcresult"
+    rm -rf "$retry_results"
+    status=0
+    # shellcheck disable=SC2086
+    xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" \
+      -resultBundlePath "$retry_results" $again >"$log.retry" 2>&1 || status=$?
+    grep -E "$shown" "$log.retry" || tail -n 60 "$log.retry"
+    rm -f "$log.retry"
+  fi
+  # A green run whose log still has a failed test passed it on the retry: listed so it is fixed.
+  if [ "$status" -eq 0 ]; then
+    sed -n "s/^Test Case '-\[\(.*\)\]' failed.*/\1/p" "$log" | sort -u | while read -r test; do
+      echo "::warning title=Flaky iPhone UI test::$test"
+      [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "- Flaky (passed on retry): $test" >>"$GITHUB_STEP_SUMMARY"
+    done
+  fi
   rm -f "$log"
   # The app's own log holds codes and IDs only (src-tauri/src/logs.rs); its warnings say why a screen stayed empty.
   if [ "$status" -ne 0 ]; then

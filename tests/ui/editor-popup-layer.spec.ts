@@ -14,7 +14,11 @@ async function newNote(page: Page, text: string) {
   await page.keyboard.insertText(text)
 }
 
-/** Every ancestor of a popup up to the root, across the editor's shadow boundary, that masks or clips what it paints. */
+/**
+ * Every ancestor of a popup up to the root, across the editor's shadow boundary, that masks or clips
+ * what it paints. A popup is placed on CodeMirror's next measure, and until then it can lie past
+ * the panes or the window, which clip it: a check polls this instead of reading it once.
+ */
 const maskingAncestors = (popup: Locator) =>
   popup.evaluate((el) => {
     const found: string[] = []
@@ -53,7 +57,7 @@ test('the format bar over the first line is drawn whole above the panes, over th
   const bar = (await formatBar(page).boundingBox())!
   const panes = (await page.locator('.panes').boundingBox())!
   expect(bar.y).toBeLessThan(panes.y)
-  expect(await maskingAncestors(formatBar(page))).toEqual([])
+  await expect.poll(() => maskingAncestors(formatBar(page))).toEqual([])
   const onTop = await formatBar(page).evaluate(
     (el, [x, y]) => {
       const hit = document.elementFromPoint(x, y)
@@ -77,7 +81,7 @@ test('in Split the format bar has no masked ancestor and the panes stay unmasked
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('Shift+ControlOrMeta+ArrowRight')
   await expect(formatBar(page)).toBeVisible()
-  expect(await maskingAncestors(formatBar(page))).toEqual([])
+  await expect.poll(() => maskingAncestors(formatBar(page))).toEqual([])
   await expect(page.locator('.panes')).toHaveCSS('mask-image', 'none')
   await expect(page.locator('.editor')).toHaveCSS('mask-image', 'none')
 })
@@ -88,7 +92,7 @@ test('the link tooltip has no masked ancestor', async ({ page }) => {
   for (let n = 0; n < 6; n++) await page.keyboard.press('ArrowRight')
   const tip = page.locator('.cm-link-tip')
   await expect(tip.getByRole('button', { name: 'Open URL' })).toBeVisible()
-  expect(await maskingAncestors(tip)).toEqual([])
+  await expect.poll(() => maskingAncestors(tip)).toEqual([])
 })
 
 test('the slash menu keeps its blur, with no masked ancestor, while the note is scrolled', async ({
@@ -102,5 +106,5 @@ test('the slash menu keeps its blur, with no masked ancestor, while the note is 
   expect(await slashMenu(page).evaluate((el) => getComputedStyle(el).backdropFilter)).toContain(
     'blur(',
   )
-  expect(await maskingAncestors(slashMenu(page))).toEqual([])
+  await expect.poll(() => maskingAncestors(slashMenu(page))).toEqual([])
 })

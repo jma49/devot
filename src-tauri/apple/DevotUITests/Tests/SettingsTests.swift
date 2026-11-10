@@ -18,9 +18,9 @@ final class SettingsTests: XCTestCase {
         app.launch()
         let bar = app.tabBars.firstMatch
         // A cold debug build starts slowly on a CI simulator.
-        XCTAssertTrue(bar.waitForExistence(timeout: 120))
+        XCTAssertTrue(bar.waitForExistence(timeout: waitLimit(120)))
         bar.buttons[L10n.phoneTabSettings()].tapOnceHittable()
-        XCTAssertTrue(app.navigationBars[L10n.settingsTitle()].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars[L10n.settingsTitle()].waitForExistence(timeout: waitLimit(10)))
     }
 
     /// The root is taller than the screen: a row under the tab bar is scrolled up to before it is tapped.
@@ -35,7 +35,7 @@ final class SettingsTests: XCTestCase {
 
     private func back() {
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.navigationBars[L10n.settingsTitle()].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars[L10n.settingsTitle()].waitForExistence(timeout: waitLimit(10)))
     }
 
     func testOpensEveryNativePaneAndComesBackToTheRoot() {
@@ -45,9 +45,9 @@ final class SettingsTests: XCTestCase {
         ]
         for pane in panes {
             let open = row(pane)
-            XCTAssertTrue(open.waitForExistence(timeout: 10), pane)
+            XCTAssertTrue(open.waitForExistence(timeout: waitLimit(10)), pane)
             open.tap()
-            XCTAssertTrue(app.navigationBars[pane].waitForExistence(timeout: 10), pane)
+            XCTAssertTrue(app.navigationBars[pane].waitForExistence(timeout: waitLimit(10)), pane)
             back()
         }
     }
@@ -56,14 +56,14 @@ final class SettingsTests: XCTestCase {
         row(L10n.settingsPaneEditing()).tap()
         let toggle = app.switches.matching(NSPredicate(format: "label BEGINSWITH %@", L10n.editorSettingsLineNumbers()))
             .firstMatch
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+        XCTAssertTrue(toggle.waitForExistence(timeout: waitLimit(10)))
         let before = try XCTUnwrap(toggle.value as? String)
         // A SwiftUI toggle in a list is a row whose knob is a switch inside it; the row's text does not toggle it.
         let knob = toggle.switches.firstMatch.exists ? toggle.switches.firstMatch : toggle
         for expected in [before == "1" ? "0" : "1", before] {
             knob.tap()
             let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: toggle)
-            XCTAssertEqual(XCTWaiter().wait(for: [changed], timeout: 5), .completed)
+            XCTAssertEqual(XCTWaiter().wait(for: [changed], timeout: waitLimit(5)), .completed)
         }
         back()
     }
@@ -71,11 +71,11 @@ final class SettingsTests: XCTestCase {
     func testTheAppRowOpensTheTrialSheetWhileATrialRunsAndLicenseOtherwise() {
         app.descendants(matching: .any)["settings-app"].tap()
         let done = app.buttons["trial-done"]
-        if done.waitForExistence(timeout: 5) {
+        if done.waitForExistence(timeout: waitLimit(5)) {
             done.tap()
-            XCTAssertTrue(done.waitForNonExistence(timeout: 10))
+            XCTAssertTrue(done.waitForNonExistence(timeout: waitLimit(10)))
         } else {
-            XCTAssertTrue(app.navigationBars[L10n.settingsPaneLicence()].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.navigationBars[L10n.settingsPaneLicence()].waitForExistence(timeout: waitLimit(10)))
         }
     }
 
@@ -84,12 +84,12 @@ final class SettingsTests: XCTestCase {
         launch(["-DevotLicenceFixture", "A1"])
         row(L10n.settingsPaneLicence()).tap()
         let buy = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", L10n.licenceSettingsBuyPro())).firstMatch
-        XCTAssertTrue(buy.waitForExistence(timeout: 10), "the App Store build offers Devot Pro")
+        XCTAssertTrue(buy.waitForExistence(timeout: waitLimit(10)), "the App Store build offers Devot Pro")
         buy.tap()
         let close = app.buttons["purchase.close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "the purchase sheet rises")
+        XCTAssertTrue(close.waitForExistence(timeout: waitLimit(10)), "the purchase sheet rises")
         let restore = app.buttons[L10n.phonePurchaseRestore()]
-        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        XCTAssertTrue(restore.waitForExistence(timeout: waitLimit(5)))
         RunLoop.current.run(until: Date().addingTimeInterval(1))
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "the purchase sheet"
@@ -101,12 +101,12 @@ final class SettingsTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(window.maxX - close.frame.maxX, 16, "the button keeps the side inset")
         XCTAssertTrue(close.isHittable)
         close.tap()
-        XCTAssertTrue(close.waitForNonExistence(timeout: 5), "the button closes the sheet")
+        XCTAssertTrue(close.waitForNonExistence(timeout: waitLimit(5)), "the button closes the sheet")
     }
 
     private func openAppearance() {
         row(L10n.settingsPaneAppearance()).tap()
-        XCTAssertTrue(app.navigationBars[L10n.settingsPaneAppearance()].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars[L10n.settingsPaneAppearance()].waitForExistence(timeout: waitLimit(10)))
     }
 
     /// Scrolls the pane until `element` shows whole between the bars, down the pane or back up it, and
@@ -203,12 +203,12 @@ final class SettingsTests: XCTestCase {
         let dark = app.buttons[L10n.phoneSettingsAppearanceThemeDark(theme: ember)]
         // The card's middle is between its swatches; its name is the card's alone.
         card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)).tap()
-        XCTAssertTrue(light.wait(for: \.isSelected, toEqual: true, timeout: 5))
-        XCTAssertTrue(dark.wait(for: \.isSelected, toEqual: true, timeout: 5))
+        XCTAssertTrue(light.wait(for: \.isSelected, toEqual: true, timeout: waitLimit(5)))
+        XCTAssertTrue(dark.wait(for: \.isSelected, toEqual: true, timeout: waitLimit(5)))
         XCTAssertTrue(card.isSelected)
         let standard = scrolled(to: app.buttons[L10n.appearanceSettingsThemeDefault()], back: true)
         standard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)).tap()
-        XCTAssertTrue(light.wait(for: \.isSelected, toEqual: false, timeout: 5))
+        XCTAssertTrue(light.wait(for: \.isSelected, toEqual: false, timeout: waitLimit(5)))
         XCTAssertFalse(dark.isSelected)
     }
 
@@ -228,7 +228,7 @@ final class SettingsTests: XCTestCase {
         slide(kept, to: 1.2)
         let reached = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", Self.signed(100)), object: kept)
-        XCTAssertEqual(XCTWaiter().wait(for: [reached], timeout: 10), .completed)
+        XCTAssertEqual(XCTWaiter().wait(for: [reached], timeout: waitLimit(10)), .completed)
         launch()
         openAppearance()
         XCTAssertEqual(transparency().value as? String, Self.signed(100))
