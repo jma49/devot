@@ -1,0 +1,37 @@
+#!/bin/sh
+# Stands in for xcodebuild while `pnpm tauri` runs (package.json puts this folder first on PATH).
+# `tauri ios build` builds the app and then archives it, which builds all of it a second time
+# (1 min 50 s of a 4 min 45 s step on CI), and for a simulator it only takes the app out of the
+# archive. With DEVOT_IOS_SKIP_ARCHIVE=1, which CI's simulator build sets, the archive is made of
+# the app the build just left in Xcode's derived data; any other call goes to xcodebuild as it is.
+self=$(cd "$(dirname "$0")" && pwd)
+PATH=$(printf %s "$PATH" | tr ':' '\n' | grep -vxF "$self" | paste -sd: -)
+if [ "${DEVOT_IOS_SKIP_ARCHIVE:-}" = 1 ]; then
+  archiving=false
+  archive=
+  configuration=
+  sdk=
+  previous=
+  for argument in "$@"; do
+    case "$previous" in
+      -archivePath) archive=$argument ;;
+      -configuration) configuration=$argument ;;
+      -sdk) sdk=$argument ;;
+    esac
+    [ "$argument" = archive ] && archiving=true
+    previous=$argument
+  done
+  if [ "$archiving" = true ] && [ "$sdk" = iphonesimulator ] && [ -n "$archive" ] && [ -n "$configuration" ]; then
+    app=$(find "$HOME/Library/Developer/Xcode/DerivedData" -type d \
+      -path "*/Build/Products/$configuration-iphonesimulator/*.app" -prune 2>/dev/null | head -n 1)
+    if [ -z "$app" ]; then
+      echo "E_IOS_ARCHIVE_NO_BUILD: no $configuration simulator app in Xcode's derived data to archive" >&2
+      exit 1
+    fi
+    mkdir -p "${archive%.xcarchive}.xcarchive/Products/Applications"
+    cp -R "$app" "${archive%.xcarchive}.xcarchive/Products/Applications/"
+    echo "archive: took $app, built a moment ago, instead of building it again"
+    exit 0
+  fi
+fi
+exec xcodebuild "$@"

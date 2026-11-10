@@ -70,10 +70,13 @@ need_build() {
 settle() {
   need_build
   device=$(simulator)
+  began=$(date +%s)
   sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
+  echo "settle: simulator booted, $(($(date +%s) - began))s into the step"
   xcrun simctl install "$device" "$bundle/Devot.app"
   app_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$bundle/Devot.app/Info.plist")
   xcrun simctl launch "$device" "$app_id" >/dev/null
+  echo "settle: app launched, $(($(date +%s) - began))s into the step"
   data=$(xcrun simctl get_app_container "$device" "$app_id" data)
   limit=${DEVOT_UI_SETTLE:-120}
   waited=0

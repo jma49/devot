@@ -97,10 +97,5 @@ it("scales every wait of the iPhone UI test by CI's factor, so a loaded runner d
   const ci = parse(read('.github/workflows/ci.yml')) as {
     jobs: Record<string, { env?: Record<string, string> }>
   }
-  for (const name of ['iphone-build', 'iphone-ui']) {
-    expect({ name, scale: ci.jobs[name]!.env?.['DEVOT_UI_WAIT_SCALE'] }).toEqual({
-      name,
-      scale: '3',
-    })
-  }
+  expect(ci.jobs['iphone-ui']!.env?.['DEVOT_UI_WAIT_SCALE']).toBe('3')
 })

@@ -3,7 +3,8 @@
 # UIKit needs an app with a window scene, so XcodeGen makes a test project with an empty host app
 # from TestHost/project.yml; the project is generated here and never committed.
 # The simulator is scripts/ci/iphone-simulator.ts's pick; DEVOT_SCREENS_SIMULATOR, or DEVOT_SIMULATOR,
-# picks one by UDID instead.
+# picks one by UDID instead. DEVOT_SCREENS_PART, as `1/2`, runs that part of the test classes
+# (scripts/ci/screens-shards.ts).
 set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root/src-tauri/apple/DevotScreens/TestHost"
@@ -16,8 +17,13 @@ log=$(mktemp)
 status=0
 # A test that fails once is run again, so a one-off stall on a loaded runner does not fail the job;
 # a test that fails twice does.
+selection=
+if [ -n "${DEVOT_SCREENS_PART:-}" ]; then
+  selection=$(node "$root/scripts/ci/screens-shards.ts" "$DEVOT_SCREENS_PART")
+fi
+# shellcheck disable=SC2086
 xcodebuild test -project DevotScreensTests.xcodeproj -scheme DevotScreensTests \
-  -destination "id=$device" -retry-tests-on-failure -test-iterations 2 >"$log" 2>&1 || status=$?
+  -destination "id=$device" -retry-tests-on-failure -test-iterations 2 $selection >"$log" 2>&1 || status=$?
 grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" "$log" || tail -n 60 "$log"
 # A green run whose log still has a failed test passed it on the retry: listed so it is fixed.
 if [ "$status" -eq 0 ]; then
