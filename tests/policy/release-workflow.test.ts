@@ -68,13 +68,22 @@ describe('the release workflow', () => {
     const gate = step('Check the merged pull request passed CI')
     expect(gate).toContain('release.ts ci-gate')
     expect(gate).toContain('merge_commit_sha')
-    expect(gate).toContain('.tree.sha')
-    expect(gate).toContain('conclusion == "success"')
-    expect(gate).toContain('event=pull_request')
-    expect(gate).toContain('.event == "pull_request"')
-    expect(gate).toContain('event=merge_group&per_page=100')
-    expect(gate).toMatch(/head_sha=\$sha&event=merge_group/)
+    // A pull request's own run tests only what its files need, so it does not count: the run
+    // that does is a full one on the tagged commit itself.
+    expect(gate).toContain('ci.yml/runs?head_sha=$sha&per_page=100')
+    expect(gate).toContain('.conclusion == "success"')
+    expect(gate).toContain('(.event == "push" and .head_branch == "main")')
     expect(gate).toContain('.event == "merge_group"')
+    expect(gate).toContain('.event == "workflow_dispatch"')
+    expect(gate).not.toContain('pull_request"')
+    expect(gate).toContain('release.ts ci-gate "$pr" "$green"')
+    const script = (text: string) =>
+      text.slice(
+        text.indexOf('sha=$(git rev-parse HEAD)'),
+        text.indexOf('then run this job again.'),
+      )
+    expect(script(gate).length).toBeGreaterThan(500)
+    expect(script(readFileSync('.github/workflows/app-store.yml', 'utf8'))).toBe(script(gate))
     expect(workflow.indexOf('- name: Check the merged pull request passed CI')).toBeLessThan(
       workflow.indexOf('- name: Build'),
     )

@@ -64,8 +64,8 @@ jobs:
           node-version: 24
           package-manager-cache: false
       # The documented gate, checked rather than remembered: the tag is a
-      # merged pull request's merge commit, the tree is that pull request
-      # head's tree, and CI passed on that head (docs/releasing.md).
+      # merged pull request's merge commit, and a full CI run passed on that
+      # commit (docs/releasing.md).
       - name: Check the merged pull request passed CI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -79,24 +79,16 @@ jobs:
             echo "::error::E_RELEASE_NO_MERGED_PR: $TAG is not a merged pull request's merge commit."
             exit 1
           fi
-          head=$(jq -r --arg sha "$sha" \
-            '[.[] | select(.merged_at != null and .merge_commit_sha == $sha)] | first | .head.sha' <<< "$prs")
-          merge_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$sha" --jq .tree.sha)
-          head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$head" --jq .tree.sha)
-          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$head&event=pull_request&per_page=100")
-          green=$(jq -r --arg head "$head" \
-            'any(.workflow_runs[]; .head_sha == $head and .event == "pull_request" and .conclusion == "success")' \
+          # A pull request's own run tests only what its files need, so the run that counts is a
+          # full one on this very commit: main's, the merge queue's or a manual one. A failed run
+          # that passed when its failed jobs were run again counts, as its latest attempt.
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&per_page=100")
+          green=$(jq -r --arg sha "$sha" \
+            'any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success" and
+              ((.event == "push" and .head_branch == "main") or .event == "merge_group" or .event == "workflow_dispatch"))' \
             <<< "$runs")
-          # A merge through the merge queue was tested as this very commit.
-          queued=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=merge_group&per_page=100")
-          if jq -e --arg sha "$sha" \
-            'any(.workflow_runs[]; .head_sha == $sha and .event == "merge_group" and .conclusion == "success")' \
-            <<< "$queued" > /dev/null; then
-            head_tree=$merge_tree
-            green=true
-          fi
-          node scripts/release/release.ts ci-gate "$pr" "$merge_tree" "$head_tree" "$green" || {
-            echo "::error::CI has not passed on pull request #$pr's head ($head), or its tree differs from the tag."
+          node scripts/release/release.ts ci-gate "$pr" "$green" || {
+            echo "::error::No full CI run has passed on $sha (pull request #$pr). Wait for main's run on it, or run its failed jobs again, then run this job again."
             exit 1
           }
 

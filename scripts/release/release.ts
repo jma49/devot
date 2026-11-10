@@ -288,17 +288,11 @@ export function signFile(
 
 /**
  * The documented release gate: the tagged commit is a merged pull request's
- * merge commit, its tree is that pull request head's tree, and CI passed on
- * that head. Throws a code naming the first condition that fails.
+ * merge commit, and a full CI run passed on that commit. Throws a code naming
+ * the first condition that fails.
  */
-export function releaseGate(input: {
-  mergedPr: number | null
-  mergeTree: string
-  headTree: string
-  ciGreen: boolean
-}) {
+export function releaseGate(input: { mergedPr: number | null; ciGreen: boolean }) {
   if (input.mergedPr === null) throw new Error('E_RELEASE_NO_MERGED_PR')
-  if (input.mergeTree !== input.headTree) throw new Error('E_RELEASE_TREE_MISMATCH')
   if (!input.ciGreen) throw new Error('E_RELEASE_CI_NOT_GREEN')
 }
 
@@ -367,11 +361,11 @@ function main(args: string[]) {
     console.log('The signature matches the public key.')
     return
   }
-  if (command === 'ci-gate' && tag && rest.length === 3) {
-    const [mergeTree, headTree, ciGreen] = rest as [string, string, string]
+  if (command === 'ci-gate' && tag && rest.length === 1) {
+    const [ciGreen] = rest as [string]
     if (ciGreen !== 'true' && ciGreen !== 'false') throw new Error('E_RELEASE_CI_UNKNOWN')
-    releaseGate({ mergedPr: Number(tag), mergeTree, headTree, ciGreen: ciGreen === 'true' })
-    console.log('The tagged commit is a merged pull request whose CI passed.')
+    releaseGate({ mergedPr: Number(tag), ciGreen: ciGreen === 'true' })
+    console.log('The tagged commit is a merged pull request that passed a full CI run.')
     return
   }
   throw new Error(
