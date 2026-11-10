@@ -24,14 +24,20 @@ export async function waitFor(
   look: () => Promise<Seen>,
   options: { readonly everyMs: number; readonly limitMs: number },
   sleep: (ms: number) => Promise<void>,
+  missed: (error: unknown) => void = () => {},
 ): Promise<{ verdict: Verdict; waitedMs: number; conclusion: string | undefined }> {
   let waitedMs = 0
   for (;;) {
-    const seen = await look()
-    const now = verdict(seen)
-    if (now !== 'wait' || waitedMs >= options.limitMs) {
-      return { verdict: now, waitedMs, conclusion: seen.conclusion }
-    }
+    const last = waitedMs >= options.limitMs
+    // A request that fails is asked again on the next turn: on main a shard failed on one
+    // "fetch failed" while its simulator booted, with the artifact ready half a minute later.
+    const seen = await look().catch((error: unknown) => {
+      if (last) throw error
+      missed(error)
+      return undefined
+    })
+    const now = seen ? verdict(seen) : 'wait'
+    if (now !== 'wait' || last) return { verdict: now, waitedMs, conclusion: seen?.conclusion }
     await sleep(options.everyMs)
     waitedMs += options.everyMs
   }
@@ -47,6 +53,14 @@ async function api<T>(path: string): Promise<T> {
   })
   if (!response.ok) throw new Error(`E_WAIT_ARTIFACT_API status=${response.status} path=${path}`)
   return (await response.json()) as T
+}
+
+/** An error's code or name, never its text: a failed request's message can hold the URL. */
+function code(error: unknown): string {
+  const text = error instanceof Error ? error.message : ''
+  return (
+    /^E_[A-Z_]+( status=\d+)?/.exec(text)?.[0] ?? (error instanceof Error ? error.name : 'error')
+  )
 }
 
 async function main() {
@@ -70,9 +84,12 @@ async function main() {
     )
     return { artifact: again.total_count > 0, conclusion: ended }
   }
-  const result = await waitFor(look, { everyMs: 10_000, limitMs: 40 * 60_000 }, (ms) => {
-    return new Promise((done) => setTimeout(done, ms))
-  })
+  const result = await waitFor(
+    look,
+    { everyMs: 10_000, limitMs: 40 * 60_000 },
+    (ms) => new Promise((done) => setTimeout(done, ms)),
+    (error) => console.log(`${artifact}: a request failed (${code(error)}), asking again`),
+  )
   const seconds = Math.round(result.waitedMs / 1000)
   if (result.verdict === 'ready') return console.log(`${artifact}: ready after ${seconds}s`)
   const why = result.verdict === 'failed' ? `job=${result.conclusion}` : 'timeout'

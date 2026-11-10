@@ -46,6 +46,19 @@ it('takes only the "Flaky" warnings of a job, whatever reporter wrote them', () 
   ])
 })
 
+it("reads a test's name as it was written, not as the annotation escaped it", () => {
+  const escaped =
+    'ui/a.spec.ts &gt; keeps &quot;a &amp; b&quot; &lt;in&gt; order &#39;x&#39; [webkit]'
+  const [found] = sightings('UI (webkit, 2/14)', [
+    { annotation_level: 'warning', title: 'Flaky UI test', message: escaped },
+  ])
+  expect(found?.test).toBe(`ui/a.spec.ts > keeps "a & b" <in> order 'x' [webkit]`)
+  // The first issue the tracker opened carries the escaped name: a later sighting still finds it.
+  const open = [{ number: 888, title: issueTitle('ui/a.spec.ts &gt; keeps [webkit]') }]
+  const again = { test: 'ui/a.spec.ts > keeps [webkit]', kind: 'Flaky UI test', job: 'UI' }
+  expect(plan([again], open)).toEqual([{ sighting: again, issue: 888 }])
+})
+
 it('names one issue per test, short enough for GitHub', () => {
   expect(issueTitle('tests/b.test.ts > saves')).toBe('Flaky test: tests/b.test.ts > saves')
   expect(issueTitle('x'.repeat(400)).length).toBe(250)
