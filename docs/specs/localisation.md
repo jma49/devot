@@ -12,7 +12,7 @@ Part of the [architecture overview](../architecture.md).
   Each key is one static function of `enum L10n`, named in camel case (`phone.tab.notes` is `L10n.phoneTabNotes()`), that takes the message's placeholders as labelled `String` arguments in the order they appear.
   The text is the iPhone's wording where it has its own (`src/renderer/src/i18n/phone.ts`), which may use only the message's own placeholders.
   `L10n` looks the key up in the string catalog with the English as its fallback, then fills the placeholders in one pass as `format` does; the catalog keeps `{name}` placeholders as they are, so a translation is written as on the page.
-  The `iphone-build` CI job runs that filling against the page's `format` cases (`src-tauri/apple/DevotScreens/Checks/main.swift`).
+  The `ios-check` CI job runs that filling against the page's `format` cases (`src-tauri/apple/DevotScreens/Checks/main.swift`).
   A placeholder name must start with a letter or an underscore, since it becomes a Swift argument label (`E_I18N_PLACEHOLDER_NAME`).
   The `DevotScreens` package declares English as its default localisation and the string catalog as a resource.
   Swift never inlines a user-facing string, and Swift tests write CJK with `\u{...}` escapes.
