@@ -54,7 +54,8 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
         .try_state::<std::sync::Arc<crate::editor_settings::EditorSettingsStore>>()
         .and_then(|store| store.get().ok())
         .and_then(|stored| stored.settings.appearance.window_theme());
-    let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(page.into()));
+    let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(page.into()))
+        .disable_drag_drop_handler();
     // The same WebKit store as the main window (`data_folder`).
     if let Some(store) = crate::data_folder::this_build_web_data_store() {
         builder = builder.data_store_identifier(store);

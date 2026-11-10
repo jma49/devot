@@ -302,7 +302,8 @@ pub fn open(app: &AppHandle, id: &str) -> Result<(), &'static str> {
     let theme = stored
         .as_ref()
         .and_then(|stored| stored.settings.appearance.window_theme());
-    let mut builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(PAGE.into()));
+    let mut builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(PAGE.into()))
+        .disable_drag_drop_handler();
     // The same WebKit store as the main window (`data_folder`).
     if let Some(store) = crate::data_folder::this_build_web_data_store() {
         builder = builder.data_store_identifier(store);
