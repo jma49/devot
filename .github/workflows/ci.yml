@@ -375,12 +375,13 @@ jobs:
       - run: cargo test
 
   # The Mac's and the phone's `cfg` branches compile only against Apple's SDK: rust-check on Linux
-  # leaves out native/macos/ and the other macOS code. A job of its own, beside the app build: after
-  # it, these checks kept everything that waits for the app three minutes longer.
+  # leaves out native/macos/ and the other macOS code. It starts once the app build has ended, on
+  # the runner that frees, also after a failed build: the account runs five macOS jobs at a time,
+  # and as a sixth job from the start it kept another waiting, once the smoke shard for four minutes.
   ios-check:
     name: macOS and iOS compile
-    needs: changes
-    if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
+    needs: [changes, iphone-build]
+    if: ${{ !cancelled() && needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true' }}
     runs-on: xcode-27
     timeout-minutes: 30
     defaults:

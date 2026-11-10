@@ -67,9 +67,20 @@ it('every cargo step of the CI rust job is a step of pnpm rust:check', () => {
 })
 
 it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () => {
-  // No other job builds the Mac's or the phone's `cfg` branches, and they need Apple's SDK. A job
-  // of its own: after the app build, these checks held up everything that waits for the app.
+  // No other job builds the Mac's or the phone's `cfg` branches, and they need Apple's SDK.
   const ios = job('ios-check')
+  // Five macOS jobs run at a time: this one takes the app build's runner once that has ended,
+  // failed or not, so a pull request never has a sixth job waiting.
+  const parsed = (parse(workflow) as { jobs: Record<string, { needs?: string[]; if?: string }> })
+    .jobs
+  expect(parsed['ios-check']!.needs).toEqual(['changes', 'iphone-build'])
+  expect(parsed['ios-check']!.if).toBe(
+    "${{ !cancelled() && needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true' }}",
+  )
+  const startTogether = ['mac-tests', 'ios-app', 'iphone-build', 'iphone-ui']
+  for (const name of startTogether) {
+    expect({ name, needs: parsed[name]!.needs }).toEqual({ name, needs: 'changes' })
+  }
   expect(commands(ios)).toContain('cargo clippy --all-targets -- -D warnings')
   expect(ios).toContain("needs.changes.outputs.rust != 'false'")
   expect(ios).toContain("needs.changes.outputs.docs_only != 'true'")
