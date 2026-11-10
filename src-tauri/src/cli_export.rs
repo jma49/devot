@@ -185,6 +185,7 @@ pub(crate) fn run(request: Export) -> i32 {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()))
+                .disable_drag_drop_handler()
                 .visible(false)
                 .incognito(true)
                 .on_navigation(crate::navigation::app_pages_only(

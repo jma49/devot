@@ -257,6 +257,15 @@ final class SyncPaneModel {
         }
     }
 
+    /// A pairing link opened from outside: it waits in Join With a Code, on the relay path when it
+    /// names a relay, and Join still asks before it uses that relay.
+    func prefill(join link: String) {
+        code = link
+        guard SyncLinks.relay(link) != nil else { return }
+        path = .another
+        relayChosen = true
+    }
+
     func join(recovery byKey: Bool, icloud: Bool) {
         let text = byKey ? recovery : code
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty, !busy, !locked else { return }

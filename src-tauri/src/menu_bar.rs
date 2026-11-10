@@ -261,7 +261,8 @@ pub fn open_quick_capture(app: &AppHandle) {
         .try_state::<Arc<EditorSettingsStore>>()
         .and_then(|store| store.get().ok())
         .and_then(|stored| stored.settings.appearance.window_theme());
-    let mut builder = WebviewWindowBuilder::new(app, QUICK_CAPTURE, WebviewUrl::App(PAGE.into()));
+    let mut builder = WebviewWindowBuilder::new(app, QUICK_CAPTURE, WebviewUrl::App(PAGE.into()))
+        .disable_drag_drop_handler();
     // The same WebKit store as the main window (`data_folder`): its notebook list and the draft.
     if let Some(store) = crate::data_folder::this_build_web_data_store() {
         builder = builder.data_store_identifier(store);

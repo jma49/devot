@@ -74,6 +74,16 @@ final class RouteApplyTests: XCTestCase {
         XCTAssertFalse(harness.directs().contains { $0.op == .licenceSet }, "only the owner's Add submits a key")
     }
 
+    func testAPairingLinkOpensSyncAndJoinsNothing() throws {
+        let link = "devot://pair?relay=https%3A%2F%2Frelay.example.test&code=ABCD"
+        harness.deliver(#"{"v":1,"notice":"route","route":"pair","link":"\#(link)"}"#)
+        harness.settle(until: { harness.navigation(.settings).topViewController?.restorationIdentifier == "sync" })
+        XCTAssertEqual(screens.root.tabs.selected, .settings)
+        XCTAssertEqual(harness.navigation(.settings).topViewController?.restorationIdentifier, "sync")
+        let sent = harness.directs().contains { $0.op == .syncJoinCode || $0.op == .syncSet }
+        XCTAssertFalse(sent, "only the owner's Join sends the code")
+    }
+
     func testTodayAsksThePageForItsNoteThenShowsIt() throws {
         harness.deliver(#"{"v":1,"notice":"route","route":"today"}"#)
         XCTAssertEqual(harness.requests().last?.op, .noteToday)

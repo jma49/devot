@@ -133,6 +133,28 @@ final class SyncPaneModelTests: XCTestCase {
         XCTAssertEqual(model.announcement, catalog("syncSettings.joined"))
     }
 
+    func testAPairingLinkFromOutsideWaitsInJoinAndJoinStillAsksAboutItsRelay() {
+        let (model, bridge) = model()
+        let link = "devot://pair?code=ABCD&relay=https%3A%2F%2Frelay.example.test"
+        model.prefill(join: link)
+        XCTAssertEqual(model.code, link)
+        XCTAssertEqual(model.path, .another)
+        XCTAssertEqual(model.relayChosen, true)
+        XCTAssertTrue(bridge.sent.isEmpty, "only the owner's Join sends the code")
+        model.join(recovery: false, icloud: false)
+        XCTAssertEqual(model.confirm, .linkRelay("https://relay.example.test"))
+        XCTAssertTrue(bridge.sent.isEmpty)
+    }
+
+    func testAnICloudPairingLinkFromOutsideLeavesTheTransportAsItIs() {
+        let (model, bridge) = model()
+        model.prefill(join: "devot://pair?via=icloud&code=ABCD")
+        XCTAssertEqual(model.code, "devot://pair?via=icloud&code=ABCD")
+        XCTAssertNil(model.path)
+        XCTAssertNil(model.relayChosen)
+        XCTAssertTrue(bridge.sent.isEmpty)
+    }
+
     func testALinkToAnUnsafeRelayIsRefusedWithoutAsking() {
         let (model, bridge) = model()
         model.code = "devot://pair?code=ABCD&relay=http%3A%2F%2Frelay.example.test"

@@ -543,6 +543,8 @@ final class Screens: SettingsBridge {
             }
         case .licence(let prefill):
             root.tabs.settings.router.open(.licence(prefill.map(LicenceEntry.prefill) ?? .plain))
+        case .pair(let link):
+            root.tabs.settings.router.open(.sync(anchor: nil, join: link))
         case .mode(let mode):
             guard shownNavigation?.topViewController is EditorScreen else { return }
             askEditor(.editorSetMode, ["mode": .string(mode.rawValue)])

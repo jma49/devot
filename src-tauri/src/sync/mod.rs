@@ -31,6 +31,11 @@ pub(crate) use record::{MAX_CHUNK_BYTES, MAX_RECORD_BYTES, chunk_count};
 pub(crate) use vault::VaultId;
 pub(crate) use vault::{Vault, enrollment_verifier};
 
+/// Whether `text` is a whole pairing link (`devot://pair?…`) that Join With a Code would take.
+pub(crate) fn is_pairing_link(text: &str) -> bool {
+    text.starts_with("devot://pair?") && pairing::read(text).is_ok()
+}
+
 /// A pairing code on show stops working when the Settings window that shows it goes away, which
 /// runs no page cleanup.
 pub(crate) fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {

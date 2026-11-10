@@ -54,6 +54,21 @@ final class EditorBarsTests: XCTestCase {
         app.typeText(text)
     }
 
+    /// #885: the first key typed scrolled the caret's line under the navigation bar.
+    func testTheLineTypedStaysBetweenTheNavigationBarAndTheKeyboard() {
+        let line = "The caret stays in view"
+        newNote(typing: line)
+        XCTAssertTrue(formatting.waitForExistence(timeout: waitLimit(5)))
+        let typed = app.webViews.firstMatch.staticTexts
+            .containing(NSPredicate(format: "label CONTAINS %@", line)).firstMatch
+        XCTAssertTrue(typed.waitForExistence(timeout: waitLimit(5)), "the line typed is on the page")
+        let inView = waitUntil {
+            typed.frame.minY >= noteBar.frame.maxY - 1 && typed.frame.maxY <= formatting.frame.minY + 1
+        }
+        if !inView { keepScreen("line typed out of view") }
+        XCTAssertTrue(inView, "the line typed shows between the navigation bar and the formatting bar")
+    }
+
     func testTheFormattingBarRidesTheKeyboardAndHideKeyboardLowersIt() {
         newNote(typing: "Bars ride the keyboard")
         XCTAssertTrue(formatting.waitForExistence(timeout: waitLimit(5)), "the formatting bar is up with the keyboard")
