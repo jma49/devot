@@ -9,7 +9,7 @@ use serde_json::{Map, Value, json};
 
 use super::message::{Mode, ROUTE_NOTICE, VERSION};
 use crate::commands::notes::valid_note_id;
-use crate::deep_link::{LicenceKey, Link};
+use crate::deep_link::{LicenceKey, Link, PairingLink};
 
 /// A tab a route can show.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -44,6 +44,8 @@ pub enum Route {
     Licence { prefill: Option<LicenceKey> },
     /// The editor's mode, when a note is on top; nothing otherwise.
     Mode { mode: Mode },
+    /// Settings > Sync with the pairing link in Join With a Code, waiting for the owner's Join.
+    Pair { link: PairingLink },
 }
 
 /// The route of a link Rust has parsed, or none for a link the phone does nothing with.
@@ -61,6 +63,7 @@ pub fn route(link: &Link) -> Option<Route> {
             prefill: key.clone(),
         }),
         Link::Command { id } => command(id),
+        Link::Pair { link } => Some(Route::Pair { link: link.clone() }),
     }
 }
 
@@ -220,6 +223,24 @@ mod tests {
                 mode: Mode::Preview
             }),
             json!({ "v": 1, "notice": "route", "route": "mode", "mode": "preview" })
+        );
+    }
+
+    const PAIR: &str =
+        "devot://pair?relay=https%3A%2F%2Frelay.example.com&code=0400E3GN3GHJMC9R7X34TN2VC9MNJTDF";
+
+    #[test]
+    fn a_pairing_link_opens_join_with_its_link_and_never_shows_it_when_debugged() {
+        let Ok(pair) = parse(PAIR, "devot") else {
+            panic!("a pairing link")
+        };
+        let Some(route) = route(&pair) else {
+            panic!("a route")
+        };
+        assert!(!format!("{pair:?}{route:?}").contains("0400"));
+        assert_eq!(
+            notice(&route),
+            json!({ "v": 1, "notice": "route", "route": "pair", "link": PAIR })
         );
     }
 

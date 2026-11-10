@@ -27,6 +27,8 @@ enum LinkRoute: Equatable, Sendable {
     case licence(prefill: String?)
     /// The editor's mode, when a note is on top.
     case mode(NoteMode)
+    /// Settings > Sync with a pairing link in Join With a Code, never joined until the owner taps Join.
+    case pair(link: String)
 
     init?(_ fields: [String: JSONValue]) {
         switch fields["route"]?.string {
@@ -53,6 +55,9 @@ enum LinkRoute: Equatable, Sendable {
         case "mode":
             guard let name = fields["mode"]?.string, let mode = NoteMode(rawValue: name) else { return nil }
             self = .mode(mode)
+        case "pair":
+            guard let link = fields["link"]?.string, link.hasPrefix("devot://pair?") else { return nil }
+            self = .pair(link: link)
         default: return nil
         }
     }

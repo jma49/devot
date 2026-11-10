@@ -312,6 +312,7 @@ A route names screens by kind and ID only, and Swift builds them.
 | `devot://note/<id>`                         | `{ route: "stack", tab: "notes", stack: [{ kind: "editor", noteId }] }` | the Notes tab with the note's editor over its list                     |
 | `devot://today`                             | `{ route: "today" }`                                                    | asks the page (`note.today`), then shows that note as a note link does |
 | `devot://license?key=…`                     | `{ route: "licence", prefill }`                                         | Settings > License with the key in its field, waiting for Add          |
+| `devot://pair?…`                            | `{ route: "pair", link }`                                               | Settings > Sync with the link in Join With a Code, waiting for Join    |
 | `devot://command/view.allNotes`             | `{ route: "stack", tab: "notes", stack: [] }`                           | the Notes tab at its root                                              |
 | `devot://command/view.trash`                | `{ route: "stack", tab: "library", stack: [{ kind: "trash" }] }`        | the Trash over the Library                                             |
 | `devot://command/view.edit`, `view.preview` | `{ route: "mode", mode }`                                               | the shown note's mode; nothing when no note is on top                  |
@@ -319,6 +320,9 @@ A route names screens by kind and ID only, and Swift builds them.
 - Every other command, an import and a note link whose ID is not a canonical UUIDv7 have no route: Rust logs `I_SCREENS_LINK_UNROUTED` and Swift hears nothing.
 - `devot://license?key=` only fills the License page's field and is never submitted: the owner's Add submits it, as a typed key.
   A key that failed Rust's check routes with `prefill: null`, so the page opens empty.
+- `devot://pair?…`, the link a pairing's QR code holds, is what the system camera opens; Rust takes it only when Join With a Code would (`sync::pairing::read`), else refuses it as `E_URL_PAIR`.
+  It only fills Join With a Code, on the relay path when the link names a relay, and is never sent: the owner's Join sends it, and still asks before it uses a relay the device has not saved.
+  On the Mac a pairing link from outside is refused (`E_URL_PAIR_ELSEWHERE`): it is copied into Join With a Code there.
 - A link never passes the Pro gate: a route only shows screens, and `note.today` makes today's note only while editing is allowed (`openTodaysNote` with `create` set to the page's licence snapshot), else answers `E_LICENCE_REQUIRED`, which Swift logs as `W_PHONE_WRITE_LOCKED op=note.today code=…` and hands to the gate's sheet.
   Today's note that exists already opens while editing is locked, since reading is free.
 - A stack route reads `direct.lists.titles` for its editors first; a note no longer live ends the stack below it (`I_SCREENS_ROUTE_NOTE_GONE`), so the tab opens at its root.

@@ -19,7 +19,8 @@ enum SettingsPage: Equatable {
     case appearance
     case editing
     case preview
-    case sync(anchor: PaneAnchor?)
+    /// `join`: a pairing link opened from outside, waiting in Join With a Code.
+    case sync(anchor: PaneAnchor?, join: String? = nil)
     case ai
     case licence(LicenceEntry)
 

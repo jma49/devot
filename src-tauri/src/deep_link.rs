@@ -2,11 +2,14 @@
 //! in tauri.conf.json): `devot://note/<id>` opens the note, `devot://command/<id>` runs one of
 //! [`URL_COMMANDS`], `devot://today` opens today's note (made once a day when missing, so a page
 //! opening it over and over makes one note) and `devot://licence?key=<key>` offers a licence key, checked here first; the
-//! window asks before it replaces a licence the device holds. Debug builds answer to `devot-dev://` instead ([`SCHEME`]), so a development
+//! window asks before it replaces a licence the device holds.
+//! On the iPhone `devot://pair?…`, the link a pairing's QR code holds, opens Settings > Sync with
+//! the link in Join With a Code, joined only once the owner taps Join; elsewhere it is refused.
+//! Debug builds answer to `devot-dev://` instead ([`SCHEME`]), so a development
 //! bundle never takes the links meant for an installed Devot; on the iPhone, where a development
 //! build replaces the installed app, every build answers to `devot://`.
 //! Every URL is checked here, whole, before the page sees anything of it: the page gets a [`Link`],
-//! never the URL. A refused URL is logged by its code alone (`W_DEEP_LINK_REFUSED`), never its
+//! never the URL (but a pairing link, checked whole, which Join With a Code reads). A refused URL is logged by its code alone (`W_DEEP_LINK_REFUSED`), never its
 //! text.
 //! `devot://file/<id>` names attachments inside the window
 //! (`register_asynchronous_uri_scheme_protocol` in lib.rs); that protocol lives in the web view
@@ -62,6 +65,8 @@ pub(crate) const URL_COMMANDS: &[&str] = &[
 const MAX_URL_LEN: usize = 96;
 /// A licence key, every character of it percent-encoded, after `devot-dev://licence?key=`.
 const MAX_LICENCE_URL_LEN: usize = 32 + 3 * crate::licence::MAX_LENGTH;
+/// As long as Join With a Code reads (`sync::pairing::read`).
+const MAX_PAIR_URL_LEN: usize = 4096;
 const MAX_PER_EVENT: usize = 4;
 const MAX_HELD: usize = 16;
 /// Files handed over by the `devot` command, apart from URLs: they come only over the user's own
@@ -91,6 +96,10 @@ pub enum Link {
         offer: Option<crate::licence::Offer>,
         code: Option<&'static str>,
     },
+    /// A pairing link, checked whole; the code in it joins nothing until the owner taps Join.
+    Pair {
+        link: PairingLink,
+    },
 }
 
 impl Link {
@@ -114,6 +123,18 @@ impl LicenceKey {
 impl std::fmt::Debug for LicenceKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("LicenceKey(..)")
+    }
+}
+
+/// `Debug` never shows the link: its code opens the vault's key while the pairing lasts.
+#[derive(Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(test, derive(serde::Deserialize))]
+#[serde(transparent)]
+pub struct PairingLink(String);
+
+impl std::fmt::Debug for PairingLink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PairingLink(..)")
     }
 }
 
@@ -151,8 +172,8 @@ fn licence_link(query: &str) -> Result<Link, &'static str> {
     })
 }
 
-/// Exact: no query (but a licence link's one `key`), fragment, escapes (but in that key), trailing
-/// slash or other case. Returns the code of the refusal otherwise.
+/// Exact: no query (but a licence link's one `key` and a pairing link's), fragment, escapes (but in
+/// those), trailing slash or other case. Returns the code of the refusal otherwise.
 pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
     let rest = url
         .strip_prefix(scheme)
@@ -162,6 +183,17 @@ pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
             return Err("E_URL_TOO_LONG");
         }
         return licence_link(query);
+    }
+    if rest.is_some_and(|rest| rest.starts_with("pair?")) {
+        if url.len() > MAX_PAIR_URL_LEN {
+            return Err("E_URL_TOO_LONG");
+        }
+        if url.contains('#') || !crate::sync::is_pairing_link(url) {
+            return Err("E_URL_PAIR");
+        }
+        return Ok(Link::Pair {
+            link: PairingLink(url.to_owned()),
+        });
     }
     if url.len() > MAX_URL_LEN {
         return Err("E_URL_TOO_LONG");
@@ -427,13 +459,21 @@ fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
 }
 
 fn link_of(url: &str, licence: Option<&crate::licence::Licence>) -> Option<Link> {
-    match parse(url, SCHEME) {
+    match parse(url, SCHEME).and_then(taken_here) {
         Ok(Link::Licence { key: Some(key), .. }) => Some(checked(key, licence)),
         Ok(link) => Some(link),
         Err(code) => {
             log::warn!("W_DEEP_LINK_REFUSED {code}");
             None
         }
+    }
+}
+
+/// Only the iPhone's Sync page takes a pairing link from outside (#886).
+fn taken_here(link: Link) -> Result<Link, &'static str> {
+    match link {
+        Link::Pair { .. } if !cfg!(target_os = "ios") => Err("E_URL_PAIR_ELSEWHERE"),
+        link => Ok(link),
     }
 }
 
@@ -821,6 +861,66 @@ mod tests {
             parse(&format!("devot-dev://licence?key={key}"), "devot"),
             Err("E_URL_TOO_LONG")
         );
+    }
+
+    const PAIR_CODE: &str = "0400E3GN3GHJMC9R7X34TN2VC9MNJTDF";
+
+    #[test]
+    fn reads_a_pairing_link_whole() {
+        for url in [
+            format!("devot://pair?relay=https%3A%2F%2Frelay.example.com&code={PAIR_CODE}"),
+            format!("devot://pair?relay=http%3A%2F%2Flocalhost%3A8787&code={PAIR_CODE}"),
+            format!("devot://pair?via=icloud&code={PAIR_CODE}"),
+        ] {
+            assert_eq!(
+                parse(&url, "devot"),
+                Ok(Link::Pair {
+                    link: PairingLink(url.clone())
+                }),
+                "{url}"
+            );
+        }
+    }
+
+    #[test]
+    fn refuses_a_pairing_link_that_join_would_not_take() {
+        let wrong = PAIR_CODE.replace("0400", "0401");
+        for url in [
+            format!("devot://pair?relay=http%3A%2F%2Frelay.example.com&code={PAIR_CODE}"),
+            format!("devot://pair?code={PAIR_CODE}"),
+            "devot://pair?relay=https%3A%2F%2Frelay.example.com".to_owned(),
+            format!("devot://pair?relay=https%3A%2F%2Frelay.example.com&code={wrong}"),
+            format!("devot://pair?relay=https%3A%2F%2Frelay.example.com&code={PAIR_CODE}&x=1"),
+            format!("devot://pair?relay=https%3A%2F%2Frelay.example.com&code={PAIR_CODE}#x"),
+        ] {
+            assert_eq!(parse(&url, "devot"), Err("E_URL_PAIR"), "{url}");
+        }
+        let long = format!(
+            "devot://pair?relay=https%3A%2F%2Frelay.example.com%2F{}&code={PAIR_CODE}",
+            "a".repeat(MAX_PAIR_URL_LEN)
+        );
+        assert_eq!(parse(&long, "devot"), Err("E_URL_TOO_LONG"));
+        assert_eq!(
+            parse(
+                &format!("devot-dev://pair?via=icloud&code={PAIR_CODE}"),
+                "devot-dev"
+            ),
+            Err("E_URL_PAIR")
+        );
+    }
+
+    #[test]
+    fn a_pairing_link_reaches_only_the_iphone() {
+        let pair = Link::Pair {
+            link: PairingLink(format!("devot://pair?via=icloud&code={PAIR_CODE}")),
+        };
+        let taken = if cfg!(target_os = "ios") {
+            Ok(pair.clone())
+        } else {
+            Err("E_URL_PAIR_ELSEWHERE")
+        };
+        assert_eq!(taken_here(pair), taken);
+        assert_eq!(taken_here(Link::Today), Ok(Link::Today));
     }
 
     #[test]

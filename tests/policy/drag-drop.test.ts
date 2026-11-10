@@ -27,8 +27,7 @@ describe("Tauri's drag and drop handler", () => {
       app: { windows: { label: string; dragDropEnabled?: boolean }[] }
     }
     expect(config.app.windows.length).toBeGreaterThan(0)
-    for (const window of config.app.windows)
-      expect(window.dragDropEnabled, window.label).toBe(false)
+    expect(config.app.windows.filter((window) => window.dragDropEnabled !== false)).toEqual([])
   })
 
   it('is off for every window built in Rust', () => {

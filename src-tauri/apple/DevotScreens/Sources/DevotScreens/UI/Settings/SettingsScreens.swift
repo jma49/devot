@@ -115,8 +115,8 @@ final class SettingsScreens {
             SettingsHosting(title: L10n.settingsPaneEditing(), EditingPane(store: store, router: router))
         case .preview:
             SettingsHosting(title: L10n.settingsPanePreview(), PreviewPane(store: store))
-        case .sync(let anchor):
-            sync(anchor)
+        case .sync(let anchor, let join):
+            sync(anchor, join: join)
         case .ai:
             SettingsHosting(
                 title: L10n.settingsPaneAi(),
@@ -130,8 +130,9 @@ final class SettingsScreens {
         }
     }
 
-    private func sync(_ anchor: PaneAnchor?) -> UIViewController {
+    private func sync(_ anchor: PaneAnchor?, join: String?) -> UIViewController {
         let model = SyncPaneModel(store: store)
+        if let join { model.prefill(join: join) }
         let screen = SettingsHosting(
             title: L10n.settingsPaneSync(),
             SyncPane(store: store, model: model, anchor: anchor) { [weak self] in self?.buy() })
