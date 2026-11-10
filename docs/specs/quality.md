@@ -181,6 +181,7 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
   - A product time limit (a parse budget) that a slow machine reaches is measured with `expectWithinBudget`, which allows for the hosted runner, instead of being asserted as if it never ran out.
   - A time check's budget is written for a developer's Mac; a machine that is slower without being overloaded (a cloud container, where the load stays under the core count) sets `DEVOT_BUDGET_SCALE`, which stretches every budget by up to the hosted runner's factor (`tests/support/budget.ts`).
   - A test that runs out of time is not stopped: it keeps writing to what it shares with the next test, and with its own retry, which then fails on state the first attempt is still changing (a rate limit's count); a test with many signed requests gets a time limit a loaded runner stays under.
+    Vitest's own limits, 5 s for a test and 10 s for a hook, are sized for a developer's Mac like the budgets, so `vitest.config.ts` stretches them by the budgets' factor: five times on a hosted runner, `DEVOT_BUDGET_SCALE` on a slower machine.
   - StoreKit Test's local server answers some purchases with a server error (AMSErrorDomain 305) on a loaded runner; the retry covers it.
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 

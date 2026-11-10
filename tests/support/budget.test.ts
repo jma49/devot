@@ -115,3 +115,11 @@ describe('the record of a time check', () => {
     expect(budgetChecks(undefined)).toEqual([])
   })
 })
+
+describe('the time a test may take', () => {
+  it("is stretched like a budget: Vitest's defaults are sized for a developer's Mac too", async () => {
+    const { default: config } = await import('../../vitest.config')
+    const scale = budgetScale(process.env)
+    expect(config.test).toMatchObject({ testTimeout: 5000 * scale, hookTimeout: 10_000 * scale })
+  })
+})
