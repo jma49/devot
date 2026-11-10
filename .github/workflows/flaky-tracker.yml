@@ -3,6 +3,8 @@ name: Flaky tracker
 # After each CI run on main or in the merge queue, every test that passed only on CI's retry gets
 # an open issue labelled `flaky`, or a comment on the one it has (scripts/ci/flaky-tracker.ts).
 # Pull request runs are left out: a flake there may be the pull request's own change.
+# A failed run on main has its failed jobs run again, once (hence actions: write), and the
+# "CI health" issue carries main's pass rate.
 on:
   workflow_run:
     workflows: [CI]
@@ -16,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      actions: read
+      actions: write
       checks: read
       issues: write
     steps:
@@ -31,4 +33,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         run: node scripts/ci/flaky-tracker.ts

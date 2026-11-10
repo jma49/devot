@@ -2,12 +2,21 @@ import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { parse } from 'yaml'
 import {
+  failedJobs,
+  GATES,
+  health,
+  healthBody,
+  HEALTH_TITLE,
   issueTitle,
+  JOB_KIND,
   LABEL,
   newIssueBody,
   plan,
+  redNote,
+  rerunSightings,
   sightingNote,
   sightings,
+  verdict,
 } from '../../scripts/ci/flaky-tracker'
 
 const read = (path: string) => readFileSync(path, 'utf8')
@@ -67,20 +76,107 @@ it('says where the flake was seen and how the issue is closed', () => {
   expect(body).toContain('Close this issue with the pull request that fixes it.')
 })
 
+it('runs the failed jobs of a run on main again once, then reports the run as red', () => {
+  expect(verdict('push', 'failure', 1)).toBe('rerun')
+  expect(verdict('push', 'timed_out', 1)).toBe('rerun')
+  expect(verdict('push', 'failure', 2)).toBe('red')
+  expect(verdict('push', 'success', 1)).toBe('none')
+  expect(verdict('push', 'cancelled', 1)).toBe('none')
+  expect(verdict('merge_group', 'failure', 1)).toBe('none')
+})
+
+it('tracks a job that passed only when it was run again, and never a gate', () => {
+  const before = [
+    { id: 1, name: 'iPhone UI test (editor)', conclusion: 'failure' },
+    { id: 2, name: 'deny', conclusion: 'timed_out' },
+    { id: 3, name: 'rust', conclusion: 'failure' },
+    { id: 4, name: 'policy', conclusion: 'success' },
+  ]
+  expect(failedJobs(before)).toEqual(['iPhone UI test (editor)', 'deny'])
+  const now = [
+    { id: 5, name: 'iPhone UI test (editor)', conclusion: 'success' },
+    { id: 6, name: 'deny', conclusion: 'failure' },
+    { id: 7, name: 'rust', conclusion: 'success' },
+    { id: 4, name: 'policy', conclusion: 'success' },
+  ]
+  const job = 'iPhone UI test (editor)'
+  expect(rerunSightings(before, now)).toEqual([{ test: job, kind: JOB_KIND, job }])
+  expect(issueTitle(job, JOB_KIND)).toBe('Flaky job: iPhone UI test (editor)')
+  const open = [{ number: 7, title: 'Flaky job: iPhone UI test (editor)' }]
+  expect(plan(rerunSightings(before, now), open)[0]?.issue).toBe(7)
+  expect(redNote(failedJobs(now), 'https://github.com/o/r/actions/runs/1', '0123456789')).toBe(
+    'main is red after its failed jobs ran again: https://github.com/o/r/actions/runs/1 at 0123456. Failed: deny.',
+  )
+  const ci = parse(read('.github/workflows/ci.yml')) as { jobs: Record<string, unknown> }
+  for (const gate of GATES) expect(Object.keys(ci.jobs)).toContain(gate)
+})
+
+it("gives main's pass rate, with and without the second attempt, and the flaky tests most seen first", () => {
+  const run = (conclusion: string | null, run_attempt: number, id: number) => ({
+    conclusion,
+    run_attempt,
+    html_url: `https://github.com/o/r/actions/runs/${id}`,
+  })
+  const runs = [
+    run('success', 1, 1),
+    run('success', 2, 2),
+    run('failure', 2, 3),
+    run('cancelled', 1, 4),
+    run('success', 1, 5),
+  ]
+  expect(health(runs)).toEqual({
+    finished: 4,
+    green: 3,
+    first: 2,
+    red: ['https://github.com/o/r/actions/runs/3'],
+  })
+  const body = healthBody(
+    runs,
+    [
+      { number: 3, title: HEALTH_TITLE, comments: 9 },
+      { number: 12, title: 'Flaky test: a', comments: 0 },
+      { number: 13, title: 'Flaky job: deny', comments: 4 },
+    ],
+    'https://github.com/o/r/actions/runs/5',
+  )
+  expect(body).toContain(
+    "Of main's last 4 finished CI runs, 3 passed (75 %), 2 of them on the first attempt (50 %).",
+  )
+  expect(body).toContain('- https://github.com/o/r/actions/runs/3')
+  expect(body.indexOf('- #13, seen 5 time(s)')).toBeGreaterThan(0)
+  expect(body.indexOf('- #13, seen 5 time(s)')).toBeLessThan(body.indexOf('- #12, seen 1 time(s)'))
+  expect(body).not.toContain('#3,')
+  expect(healthBody([], [], 'u')).toContain("Of main's last 0 finished CI runs, 0 passed (0 %)")
+})
+
 it('tracks the flakes of main and the merge queue only, with no more access than it needs', () => {
   const workflow = parse(read('.github/workflows/flaky-tracker.yml')) as {
     on: { workflow_run: { workflows: string[]; types: string[] } }
     permissions: Record<string, string>
-    jobs: { track: { if: string; permissions: Record<string, string>; steps: { run?: string }[] } }
+    jobs: {
+      track: {
+        if: string
+        permissions: Record<string, string>
+        steps: { run?: string; env?: Record<string, string> }[]
+      }
+    }
   }
   expect(workflow.on.workflow_run).toEqual({ workflows: ['CI'], types: ['completed'] })
   expect(workflow.permissions).toEqual({})
   const track = workflow.jobs.track
-  expect(track.permissions).toEqual({ actions: 'read', checks: 'read', issues: 'write' })
+  expect(track.permissions).toEqual({ actions: 'write', checks: 'read', issues: 'write' })
   expect(track.if).toContain("github.event.workflow_run.head_branch == 'main'")
   expect(track.if).toContain("github.event.workflow_run.event == 'merge_group'")
   expect(track.if).not.toContain('pull_request')
   expect(track.steps.at(-1)?.run).toBe('node scripts/ci/flaky-tracker.ts')
+  expect(Object.keys(track.steps.at(-1)?.env ?? {})).toEqual([
+    'GITHUB_TOKEN',
+    'RUN_ID',
+    'RUN_SHA',
+    'RUN_ATTEMPT',
+    'RUN_EVENT',
+    'RUN_CONCLUSION',
+  ])
   expect(LABEL).toBe('flaky')
   // Every flaky reporter's warning title starts with "Flaky", which is what the tracker reads.
   for (const file of [

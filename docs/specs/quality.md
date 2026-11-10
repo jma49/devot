@@ -160,6 +160,11 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
 - A test that passed only on its retry is listed as a "Flaky" warning annotation and in the job summary (`tests/support/flaky-report.ts`, `scripts/ci/playwright-flaky.ts`, the test scripts).
 - After each CI run on main and in the merge queue, `.github/workflows/flaky-tracker.yml` opens an issue labelled `flaky` for each such test, or comments on the one it has (`scripts/ci/flaky-tracker.ts`); the number of comments ranks which to fix first.
   Pull request runs are left out, since a flake there may be the pull request's own change.
+- A run on main that failed has its failed jobs run again, once, by the same workflow: what a test's retry cannot cover (a download, a runner, a simulator that did not start) must not leave main red.
+  A job that passed only then gets a `Flaky job: …` issue the same way.
+  A run that is still red is a real failure: the workflow says so in a comment on the `CI health` issue, with the failed jobs.
+- The `CI health` issue is rewritten after each run on main: how many of main's last 30 finished runs passed, how many of those on the first attempt, the red runs, and the open flaky issues with the most seen first.
+  The first-attempt rate falling, or an issue's count rising, is the signal to fix a flake before it costs a release.
 - A flaky test is fixed at its cause, and the pull request that fixes it closes its issue; no test is skipped, disabled or quarantined to make a run green.
 - The causes found so far, and the rule each left:
   - A check made before the page settled: a test waits for the state it asserts (`expect.poll`, `toHave…`), never reads it once right after an action.
