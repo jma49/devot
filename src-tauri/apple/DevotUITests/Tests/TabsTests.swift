@@ -4,19 +4,6 @@ import XCTest
 /// The installed Devot app (scripts/ci/iphone-ui-tests.sh), with its native tab bar over the page.
 @MainActor
 final class TabsTests: XCTestCase {
-    // Temporary probe, removed before this pull request merges: the set-up is async as in the
-    // classes whose failed tests were never run again, and the probe fails on its first run only.
-    override func setUp() async throws {}
-
-    func testProbeFailsOnItsFirstRun() {
-        continueAfterFailure = false
-        let marker = NSTemporaryDirectory() + "devot-retry-probe"
-        if !FileManager.default.fileExists(atPath: marker) {
-            FileManager.default.createFile(atPath: marker, contents: nil)
-            XCTFail("probe: the first run fails")
-        }
-    }
-
     func testSwitchesEveryTabAndTheTabBarPassesTheAccessibilityAudit() throws {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")

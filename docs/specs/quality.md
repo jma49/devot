@@ -161,6 +161,7 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
 - On CI, Vitest (`retry` in `vitest.config.ts`), Playwright (`retries`) and the XCUITests (`-retry-tests-on-failure -test-iterations 2` in the iPhone, screens and StoreKit test scripts) run a failed test once more; a test that fails twice fails the job.
   Locally a failure fails at once.
   A failed iPhone UI test ends the test process, and xcodebuild then goes on with the tests that are left without running the failed one again: on main, 10 of the 11 shards with a failed test lost their retry that way.
+  A test made to fail on its first run showed it on CI: after the failure xcodebuild logged `Restarting after unexpected exit, crash, or test timeout` and went on to the next test.
   So `scripts/ci/iphone-ui-tests.sh` runs the tests that failed once and were not run again in a second xcodebuild run (`scripts/ci/xctest-retry.ts` reads them from the log), and the job passes when they pass there.
 - A test that passed only on its retry is listed as a "Flaky" warning annotation and in the job summary (`tests/support/flaky-report.ts`, `scripts/ci/playwright-flaky.ts`, the test scripts).
 - After each CI run on main and in the merge queue, `.github/workflows/flaky-tracker.yml` opens an issue labelled `flaky` for each such test, or comments on the one it has (`scripts/ci/flaky-tracker.ts`); the number of comments ranks which to fix first.
