@@ -234,7 +234,18 @@ const insetOf = (name: string): number => {
 /** Room covered at the foot of the window, read when the margin is: the trial-ended bar (TrialNotices.tsx) and, on the iPhone, the keyboard with the formatting bar (phone/screens/pageScroll.ts). */
 function footInset(): number {
   if (typeof document === 'undefined') return 0
-  return insetOf('--trial-bar-inset') + insetOf('--editor-foot-inset')
+  return insetOf('--trial-bar-inset') + coveredInView(insetOf('--editor-foot-inset'))
+}
+
+/**
+ * The part of `covered`, measured up from the window's foot, that CodeMirror still counts as
+ * visible: it scrolls the page within the visual viewport, which WebKit may already end above the
+ * keyboard, and counting the keyboard twice scrolled the caret off the top (issue 885).
+ */
+function coveredInView(covered: number): number {
+  const viewport = typeof window === 'undefined' ? null : window.visualViewport
+  if (covered <= 0 || !viewport) return covered
+  return Math.min(covered, Math.max(0, viewport.height - (window.innerHeight - covered)))
 }
 const whitespaceTheme = EditorView.theme({
   '.cm-highlightSpace': {

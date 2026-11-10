@@ -41,6 +41,7 @@ const footMargin = (view: EditorView) =>
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   setFootInset(0)
   pageScrolls(false)
   document.body.innerHTML = ''
@@ -61,6 +62,22 @@ describe('the keyboard insets Swift sends', () => {
     await handlers['editor.insets']!({ bottom: 0, duration: 0.25, curve: 7 })
     expect(document.documentElement.style.getPropertyValue('--editor-foot-inset')).toBe('')
     expect(footMargin(view)).toBe(before)
+  })
+
+  // Issue #885: WebKit ends the visual viewport above the keyboard, so counting the keyboard again
+  // scrolled the caret's line under the navigation bar on the first key typed.
+  it('keep the caret clear of the keyboard without counting what the visual viewport leaves out', () => {
+    const { view } = editor('one\ntwo')
+    const before = footMargin(view)
+    const viewport = (height: number) =>
+      vi.stubGlobal('visualViewport', { height } as VisualViewport)
+    setFootInset(400)
+    viewport(window.innerHeight - 400)
+    expect(footMargin(view)).toBe(before)
+    viewport(window.innerHeight - 340)
+    expect(footMargin(view)).toBe(before + 60)
+    viewport(window.innerHeight)
+    expect(footMargin(view)).toBe(before + 400)
   })
 
   it('refuses a negative or endless inset', async () => {
