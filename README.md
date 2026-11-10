@@ -11,7 +11,7 @@
 [![Platform: macOS 26+, Apple Silicon](https://img.shields.io/badge/platform-macOS%2026%2B%20%C2%B7%20Apple%20Silicon-lightgrey)](#download)
 [![CI](https://github.com/jma49/devot/actions/workflows/ci.yml/badge.svg)](https://github.com/jma49/devot/actions/workflows/ci.yml)
 
-[Website](https://devot.online) · [Download](#download) · [Features](#features) · [AI tools](#claude-and-other-mcp-clients) · [Development](docs/development.md)
+[Website](https://devot.online) · [Docs](https://devot.online/docs) · [Download](#download) · [Features](#features) · [AI tools](#claude-and-other-mcp-clients) · [Development](docs/development.md)
 
 </div>
 
@@ -140,7 +140,7 @@ The folder is written by Devot and never read back: edit notes in Devot.
 
 ## Claude and other MCP clients
 
-Claude Code, Codex, Claude Desktop and other MCP clients can work with your notes through Devot. Nothing else needs to be installed: clients run a small bridge inside Devot's own binary, which talks to the running app on this Mac only. Changes appear within a moment, merged into a note you are editing without moving the caret or touching your undo history.
+Claude Code, Codex, Claude Desktop and other MCP clients can work with your notes through Devot. Nothing else needs to be installed: clients run a small bridge inside Devot's own binary, which talks to the running app on this Mac only. Changes appear within a moment, merged into a note you are editing without moving the caret or touching your undo history. The [AI tools guide](https://devot.online/docs/ai-tools) has the same setup step by step.
 
 **Only notebooks with Allow AI Access on are visible.** Right-click a notebook in the sidebar and choose Allow AI Access; a sparkle marks the notebooks that have it. The switch is per notebook: a sub-notebook needs its own. Notes in the Trash and notes in no notebook are never visible.
 
