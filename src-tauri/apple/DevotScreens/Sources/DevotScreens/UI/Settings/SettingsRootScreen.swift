@@ -118,10 +118,10 @@ struct SettingsRootView: View {
             }
         } label: {
             HStack(spacing: Tokens.Size.phoneGroupedGap) {
-                Image(systemName: "bird.fill")
-                    .foregroundStyle(Color(Tokens.Color.accentOnFill))
+                Image(Brand.appMark, bundle: .module)
+                    .resizable()
                     .frame(width: Tokens.Size.phoneTarget, height: Tokens.Size.phoneTarget)
-                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.phoneGroupedCard / 2).fill(Color(Tokens.Color.accentFill)))
+                    .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.phoneGroupedCard / 2, style: .continuous))
                     .accessibilityHidden(true)
                 RowText(title: L10n.phoneSettingsAppName(), detail: summary.isEmpty ? nil : summary)
                 Spacer(minLength: 0)

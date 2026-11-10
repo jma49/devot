@@ -20,7 +20,6 @@ final class TabBarTests: XCTestCase {
         XCTAssertEqual(content.map(\.accessibilityLabel), names)
         for item in content {
             XCTAssertNotNil(item.image)
-            if #available(iOS 26.1, *) { XCTAssertNotNil(item.selectedImage) }
         }
         let search = try XCTUnwrap(items.last as? UISearchTab)
         XCTAssertTrue(search === tabs.searchTab)
@@ -41,11 +40,10 @@ final class TabBarTests: XCTestCase {
         tabs.toasts.dismissNow()
     }
 
-    func testTheSymbolsAreTheWebTabBarsWithTheirFilledVariantWhenSelected() {
-        XCTAssertEqual(TabModel.tabs.map(TabModel.symbol), ["doc.text", "folder", "chart.bar", "gearshape"])
+    func testEveryTabDrawsItsFilledSymbolSelectedOrNot() {
+        XCTAssertEqual(TabModel.tabs.map(TabModel.symbol), ["doc.text.fill", "folder.fill", "chart.bar.fill", "gearshape.fill"])
         for tab in TabModel.tabs {
             XCTAssertNotNil(UIImage(systemName: TabModel.symbol(tab)))
-            XCTAssertNotNil(UIImage(systemName: TabModel.symbol(tab) + ".fill"))
         }
     }
 

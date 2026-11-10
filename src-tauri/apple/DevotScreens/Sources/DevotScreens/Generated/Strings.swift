@@ -1635,7 +1635,7 @@ public enum L10n {
   }
 
   public static func welcomeExampleTitle() -> String {
-    text("welcome.exampleTitle", "Markdown example")
+    text("welcome.exampleTitle", "🕊️ The Long Way Home")
   }
 
   public static func welcomeImageName() -> String {

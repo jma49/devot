@@ -151,40 +151,43 @@ final class EditorTests: XCTestCase {
         // WebKit hands each drawn <math> to accessibility as an element without a label (VoiceOver
         // reads it through the math API): a bare leaf on iOS 26, and on iOS 27 a tree whose text leaves
         // are its tokens, here the formula's glyphs in reading order. TeX left as text is one run.
-        func isFormula(_ node: XCUIElementSnapshot, drawing glyphs: String) -> Bool {
+        func isFormula(_ node: XCUIElementSnapshot, drawing glyphs: (String) -> Bool) -> Bool {
             guard node.elementType == .other, node.label.isEmpty, !node.frame.isEmpty else { return false }
             if node.children.isEmpty { return true }
             let tokens = flattened(node).filter { $0.elementType == .staticText }.map(\.label)
-            return tokens.count > 1 && tokens.joined() == glyphs
+            return tokens.count > 1 && glyphs(tokens.joined())
         }
         let tree = try page.snapshot()
         let found = path(in: tree) { $0.elementType == .staticText && $0.label == sentence }
         let paragraph = found.count >= 3 ? found[found.count - 2] : nil
         let body = found.count >= 3 ? found[found.count - 3].children : []
-        let inline = paragraph?.children.filter { isFormula($0, drawing: "E=mc2") } ?? []
-        // The note's blocks between the sentence's paragraph and the Diagrams heading.
+        let inline = paragraph?.children.filter { isFormula($0, drawing: { $0 == "E=mc2" }) } ?? []
+        // The note's blocks between the sentence's paragraph and the next one.
         let after = body.firstIndex { $0 as AnyObject === paragraph as AnyObject }
             .map { $0 + 1 } ?? body.endIndex
-        let display = Array(body[after...].prefix { $0.label != "Diagrams" })
+        let next = "The great-circle distance home"
+        let display = Array(body[after...].prefix { block in
+            block.label != "Diagrams" && !flattened(block).contains { $0.label.hasPrefix(next) }
+        })
         let nodes = flattened(tree)
         func shown(_ text: String) -> Int {
             nodes.filter { $0.label.contains(text) }.count
         }
-        let tex = shown("\\int") + shown("mc^2") + shown("$E")
-        let displayed = display.count == 1 && isFormula(display[0], drawing: "\u{222B}01x2dx=13")
+        let tex = shown("\\frac") + shown("mc^2") + shown("$E")
+        let displayed = display.count == 1 && isFormula(display[0], drawing: { $0.contains("48") })
         let drawn = inline.count == 1 && displayed
         if !reached || !drawn || tex > 0 { keepTree(from: sentence) }
         XCTAssertTrue(reached, "the Math section is on screen")
         XCTAssertEqual(inline.count, 1, "the inline formula is drawn in its sentence")
-        XCTAssertEqual(display.count, 1, "one block between the sentence and the Diagrams heading")
+        XCTAssertEqual(display.count, 1, "one block between the sentence and the next paragraph")
         XCTAssertTrue(displayed, "the display formula is drawn on its own line")
-        XCTAssertEqual(shown("\\int"), 0, "no display formula left as TeX")
+        XCTAssertEqual(shown("\\frac"), 0, "no formula left as TeX")
         XCTAssertEqual(shown("mc^2"), 0, "no inline formula left as TeX")
         XCTAssertEqual(shown("$E"), 0, "no inline formula left between dollar signs")
 
         let diagrams = page.images.matching(NSPredicate(format: "label BEGINSWITH %@", L10n.mermaidLabel()))
-        // Mermaid, PlantUML and Markmap in the example's Diagrams section.
-        XCTAssertTrue(scrollUntil { diagrams.count >= 3 }, "found \(diagrams.count) diagrams")
-        XCTAssertEqual(diagrams.count, 3)
+        // Two Mermaid diagrams, PlantUML and Markmap in the example's Diagrams section.
+        XCTAssertTrue(scrollUntil { diagrams.count >= 4 }, "found \(diagrams.count) diagrams")
+        XCTAssertEqual(diagrams.count, 4)
     }
 }

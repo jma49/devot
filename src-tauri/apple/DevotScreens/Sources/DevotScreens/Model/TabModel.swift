@@ -80,13 +80,14 @@ struct TabModel {
         on ? "!" : nil
     }
 
-    /// The outline symbol; the selected tab takes its `.fill` variant, as `design/icons/symbols.json` lists.
+    /// Every tab draws its filled symbol (`phone.tab.*.fill` in `design/icons/symbols.json`), selected or
+    /// not: the selected one is told by the accent and the bar's glass, as the system's own apps do.
     static func symbol(_ tab: Tab) -> String {
         switch tab {
-        case .notes: "doc.text"
-        case .library: "folder"
-        case .activity: "chart.bar"
-        case .settings: "gearshape"
+        case .notes: "doc.text.fill"
+        case .library: "folder.fill"
+        case .activity: "chart.bar.fill"
+        case .settings: "gearshape.fill"
         case .search: "magnifyingglass"
         }
     }

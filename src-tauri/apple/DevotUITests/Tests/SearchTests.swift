@@ -29,7 +29,7 @@ final class SearchTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: waitLimit(5)), "the circle raises the keyboard")
         let title = L10n.welcomeExampleTitle()
         // A word only the welcome example's body has (src/renderer/src/welcome/markdown-example.md).
-        let body = "Superscripts"
+        let body = "haversine"
         field.typeText(body)
         let row = app.collectionViews.cells.matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: waitLimit(15)), "the welcome example is found by its body")
