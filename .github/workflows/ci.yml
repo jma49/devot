@@ -53,6 +53,10 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # last-green.ts asks for main's runs that passed.
+      actions: read
     outputs:
       web: ${{ steps.diff.outputs.web }}
       rust: ${{ steps.diff.outputs.rust }}
@@ -76,12 +80,19 @@ jobs:
       - id: diff
         env:
           EVENT: ${{ github.event_name }}
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
+        # A push to main is compared with main's last run that passed (scripts/ci/main-plan.sh);
+        # without one, and in the merge queue or a manual run, everything runs.
         run: |
           if [ "$EVENT" = pull_request ]; then
             git diff --no-renames --name-only HEAD^1 HEAD | sh scripts/ci/changed-code.sh >> "$GITHUB_OUTPUT"
             git diff --no-renames --name-only HEAD^1 HEAD | node scripts/ci/ui-plan.ts >> "$GITHUB_OUTPUT"
             echo "iphone_ui_shards=$(node scripts/ci/iphone-ui-shards.ts --matrix pull_request)" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = push ] && base=$(node scripts/ci/last-green.ts) && [ -n "$base" ] && git fetch --no-tags --depth=1 origin "$base"; then
+            git diff --no-renames --name-only "$base" HEAD | sh scripts/ci/main-plan.sh >> "$GITHUB_OUTPUT"
+            echo "iphone_ui_shards=$(node scripts/ci/iphone-ui-shards.ts --matrix full)" >> "$GITHUB_OUTPUT"
+            node scripts/ci/ui-plan.ts --full </dev/null >> "$GITHUB_OUTPUT"
           else
             printf 'web=true\nrust=true\ndocs_only=false\niphone_ui=true\nscreens=true\nstorekit=true\n' >> "$GITHUB_OUTPUT"
             echo "iphone_ui_shards=$(node scripts/ci/iphone-ui-shards.ts --matrix full)" >> "$GITHUB_OUTPUT"

@@ -99,6 +99,9 @@ Every PR must test the logic it changes, which review checks.
   The account runs at most five macOS jobs at once, and a job waiting for one of them, or waiting behind another job's steps, was the slowest part of a run.
   So a pull request runs at most five macOS jobs at a time, each under ten minutes: `iphone-build`, one `iphone-ui` shard, `mac-tests` and, only when their own inputs change, the two `ios-app` jobs start together, and `ios-check` takes `iphone-build`'s runner once that has ended.
   A full run (the merge queue, main, a manual run) tests everything and has more jobs than runners, so it takes about twice as long.
+  A push to main is compared with main's last run that passed, not with its parent, since a newer push cancels main's run and the parent may never have been tested (`scripts/ci/last-green.ts`, `scripts/ci/main-plan.sh`).
+  When nothing but documentation changed since then, it runs only the always-on gates; otherwise it runs in full, less the tests of a Swift package nothing touched.
+  The five macOS runners are shared by every run of the account, so a documentation commit on main that ran in full held up the pull requests behind it for half an hour.
 - The iPhone jobs (`ios-check`, `ios-app`, `iphone-build`, `iphone-ui`) and the App Store build run on the `xcode-27` runner image with Xcode 27.2, and the simulator jobs test on an iPhone 17 with iOS 27.2, the toolchain of local development.
   The StoreKit tests are the exception: they run in `mac-tests` on `macos-26`, on iOS 26.2, because StoreKit Test hangs under xcodebuild on the iOS 27 simulators (iOS 27.2 never returns from a purchase given a simulated error and sends no transaction update for a refund) and is broken on iOS 26.4 and 26.5 (`scripts/ci/iphone-simulator.ts --storekit` lists the broken versions).
   A StoreKit test that hangs fails after two minutes.
