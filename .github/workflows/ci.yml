@@ -581,49 +581,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Temporary, removed before this pull request merges: measures what a cached simulator would
-  # save. It boots the phone cold, then again on the same machine, and a later run boots it from
-  # the data folder this one cached. It runs after the smoke shard, so it takes no runner from it.
-  simulator-probe:
-    name: Simulator boot probe
-    needs: [changes, iphone-ui]
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.changes.outputs.iphone_ui != 'false' }}
-    runs-on: xcode-27
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          sparse-checkout: scripts/ci
-      - run: sh scripts/ci/xcode.sh
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: 24
-          package-manager-cache: false
-      - id: device
-        run: |
-          device=$(xcrun simctl list devices available --json | node scripts/ci/iphone-simulator.ts --os "$DEVOT_IOS")
-          echo "id=$device" >> "$GITHUB_OUTPUT"
-          echo "image=${ImageVersion:-none}" >> "$GITHUB_OUTPUT"
-          du -sh "$HOME/Library/Developer/CoreSimulator/Devices/$device" || true
-      - id: cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/Library/Developer/CoreSimulator/Devices/${{ steps.device.outputs.id }}/data
-          key: simulator-probe-${{ steps.device.outputs.image }}-${{ steps.device.outputs.id }}
-      - name: Boot (cache hit ${{ steps.cache.outputs.cache-hit || 'false' }})
-        env:
-          DEVICE: ${{ steps.device.outputs.id }}
-        run: sh scripts/ci/simulator-probe.sh first
-      - name: Boot again on the same machine
-        env:
-          DEVICE: ${{ steps.device.outputs.id }}
-        run: sh scripts/ci/simulator-probe.sh again
-      - if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/Library/Developer/CoreSimulator/Devices/${{ steps.device.outputs.id }}/data
-          key: simulator-probe-${{ steps.device.outputs.image }}-${{ steps.device.outputs.id }}
-
   # Cargo-deny reads the manifest and lockfile, not the built app. It runs in
   # parallel with the compile-heavy job and does not pull the UI or apt stack.
   deny:
