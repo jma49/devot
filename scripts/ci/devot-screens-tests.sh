@@ -11,26 +11,18 @@ cd "$root/src-tauri/apple/DevotScreens/TestHost"
 xcodegen generate --quiet
 device=${DEVOT_SCREENS_SIMULATOR:-${DEVOT_SIMULATOR:-$(xcrun simctl list devices available --json |
   node "$root/scripts/ci/iphone-simulator.ts")}}
+# CI boots the simulator early, in the background; this waits for it, or boots it.
+sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
+log=$(mktemp)
+status=0
+# A test that fails once is run again, so a one-off stall on a loaded runner does not fail the job;
+# a test that fails twice does.
 selection=
 if [ -n "${DEVOT_SCREENS_PART:-}" ]; then
   selection=$(node "$root/scripts/ci/screens-shards.ts" "$DEVOT_SCREENS_PART")
 fi
-log=$(mktemp)
-# CI boots the simulator early, in the background, which takes five to six minutes: the tests are
-# built meanwhile, and only then is the boot waited for, or made.
-if ! xcodebuild build-for-testing -project DevotScreensTests.xcodeproj -scheme DevotScreensTests \
-  -destination "id=$device" >"$log" 2>&1; then
-  grep -E "error: " "$log" || tail -n 60 "$log"
-  rm -f "$log"
-  echo "E_SCREENS_TESTS_BUILD_FAILED" >&2
-  exit 1
-fi
-sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
-status=0
-# A test that fails once is run again, so a one-off stall on a loaded runner does not fail the job;
-# a test that fails twice does.
 # shellcheck disable=SC2086
-xcodebuild test-without-building -project DevotScreensTests.xcodeproj -scheme DevotScreensTests \
+xcodebuild test -project DevotScreensTests.xcodeproj -scheme DevotScreensTests \
   -destination "id=$device" -retry-tests-on-failure -test-iterations 2 $selection >"$log" 2>&1 || status=$?
 grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" "$log" || tail -n 60 "$log"
 # A green run whose log still has a failed test passed it on the retry: listed so it is fixed.

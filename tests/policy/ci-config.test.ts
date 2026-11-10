@@ -149,21 +149,15 @@ it('builds and tests the iPhone app with the pinned Xcode on its iOS simulator, 
     expect({ script, bare: text.includes('bootstatus') }).toEqual({ script, bare: false })
     expect(text).toContain('sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"')
   }
-  // The boot takes minutes: the package's tests are built during it, and it is waited for only then.
+  // A simulator's boot takes every core for minutes: tests built beside it took 13 to 14 minutes
+  // against 9 to 11, so each script waits for the boot and builds after it.
   for (const script of ['devot-store-tests.sh', 'devot-screens-tests.sh']) {
     const text = read(`scripts/ci/${script}`)
-    const order = [
-      'xcodebuild build-for-testing',
-      'iphone-simulator-ready.sh',
-      'xcodebuild test-without-building',
-    ]
-    expect({
+    expect({ script, during: text.includes('build-for-testing') }).toEqual({
       script,
-      order: order.map((part) => text.indexOf(part)).every((at, i, all) => at > (all[i - 1] ?? -1)),
-    }).toEqual({
-      script,
-      order: true,
+      during: false,
     })
+    expect(text.indexOf('iphone-simulator-ready.sh')).toBeLessThan(text.indexOf('xcodebuild test '))
   }
   expect(read('scripts/ci/iphone-simulator-ready.sh')).toContain(
     'xcrun simctl bootstatus "$1" -b >/dev/null 2>&1 || xcrun simctl bootstatus "$1" -b >/dev/null',

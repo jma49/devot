@@ -10,24 +10,16 @@ cd "$root/src-tauri/apple/DevotStore/TestHost"
 xcodegen generate --quiet
 device=${DEVOT_STORE_SIMULATOR:-${DEVOT_SIMULATOR:-$(xcrun simctl list devices available --json |
   node "$root/scripts/ci/iphone-simulator.ts" --storekit)}}
-log=$(mktemp)
-# The tests are built while the simulator boots, which takes minutes; only then is the boot waited for.
-xcrun simctl boot "$device" >/dev/null 2>&1 &
-if ! xcodebuild build-for-testing -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
-  -destination "id=$device" >"$log" 2>&1; then
-  grep -E "error: " "$log" || tail -n 60 "$log"
-  rm -f "$log"
-  echo "E_STORE_TESTS_BUILD_FAILED" >&2
-  exit 1
-fi
+# CI boots the simulator early, in the background; this waits for it, or boots it.
 sh "$root/scripts/ci/iphone-simulator-ready.sh" "$device"
+log=$(mktemp)
 start=$(date '+%Y-%m-%d %H:%M:%S')
 status=0
 # A test that hangs fails after two minutes instead of holding the job to its timeout; a purchase
 # took 82 s on a loaded runner, and xcodebuild reruns no test that ran out of time. A test that
 # fails once is run again: the simulator's StoreKit Test server answers some purchases with a server
 # error (AMSErrorDomain 305) on a loaded runner; a test that fails twice fails the job.
-xcodebuild test-without-building -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
+xcodebuild test -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
   -destination "id=$device" -test-timeouts-enabled YES \
   -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 120 \
   -retry-tests-on-failure -test-iterations 2 \
