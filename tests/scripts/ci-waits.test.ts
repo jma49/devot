@@ -1,5 +1,13 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { parts, selection, testClasses } from '../../scripts/ci/screens-shards'
@@ -65,43 +73,50 @@ it('splits the screens tests into parts that together run every class once, and 
   }
 })
 
-function shim(home: string, env: Record<string, string>, args: string[]) {
+function shim(home: string, marked: boolean, args: string[]) {
+  const shims = join(home, 'shims')
   const bin = join(home, 'bin')
+  mkdirSync(shims, { recursive: true })
   mkdirSync(bin, { recursive: true })
+  copyFileSync('scripts/shims/xcodebuild', join(shims, 'xcodebuild'))
+  chmodSync(join(shims, 'xcodebuild'), 0o755)
+  if (marked) writeFileSync(join(shims, 'ci-simulator-build'), '')
+  else rmSync(join(shims, 'ci-simulator-build'), { force: true })
   const real = join(bin, 'xcodebuild')
   writeFileSync(real, '#!/bin/sh\necho "real $*"\n')
   chmodSync(real, 0o755)
-  return spawnSync('sh', ['scripts/shims/xcodebuild', ...args], {
-    env: {
-      PATH: `${join(process.cwd(), 'scripts/shims')}:${bin}:${process.env['PATH']}`,
-      HOME: home,
-      ...env,
-    },
+  // Tauri starts xcodebuild with little more than PATH and HOME.
+  return spawnSync('xcodebuild', args, {
+    env: { PATH: `${shims}:${bin}:/usr/bin:/bin`, HOME: home },
     encoding: 'utf8',
   })
 }
 
-it("makes a simulator archive of the app the build left, only when CI's build asks for it", () => {
+it("makes a simulator archive of the app the build left, only in CI's simulator build", () => {
   const home = tempDir('devot-xcodebuild-shim-')
   const products = join(home, 'Library/Developer/Xcode/DerivedData/devot-abc/Build/Products')
   mkdirSync(join(products, 'debug-iphonesimulator/Devot.app'), { recursive: true })
   writeFileSync(join(products, 'debug-iphonesimulator/Devot.app/Info.plist'), 'built')
   const archive = join(home, 'archives/devot_iOS')
   const args = ['-scheme', 'devot_iOS', '-sdk', 'iphonesimulator', '-configuration', 'debug']
+  const building = [...args, 'build']
   const archiving = [...args, 'archive', '-archivePath', archive]
 
-  // Without the variable, and for a build, xcodebuild runs as it is.
-  expect(shim(home, {}, archiving).stdout).toBe(`real ${archiving.join(' ')}\n`)
-  const build = shim(home, { DEVOT_IOS_SKIP_ARCHIVE: '1' }, [...args, 'build'])
-  expect(build.stdout).toBe(`real ${[...args, 'build'].join(' ')}\n`)
-  // A device archive is the build that ships: never taken from an earlier build.
-  const device = archiving.map((a) => (a === 'iphonesimulator' ? 'iphoneos' : a))
-  expect(shim(home, { DEVOT_IOS_SKIP_ARCHIVE: '1' }, device).stdout).toBe(
-    `real ${device.join(' ')}\n`,
+  // Without the file, xcodebuild runs as it is.
+  expect(shim(home, false, archiving).stdout).toBe(`real ${archiving.join(' ')}\n`)
+  expect(shim(home, false, building).stdout).toBe(`real ${building.join(' ')}\n`)
+  // With it, a simulator build leaves the Intel slice out.
+  expect(shim(home, true, building).stdout).toContain(
+    `real ${building.join(' ')} EXCLUDED_ARCHS=x86_64\n`,
   )
+  // A device build or archive is what ships: never changed, never taken from an earlier build.
+  const device = (list: string[]) => list.map((a) => (a === 'iphonesimulator' ? 'iphoneos' : a))
+  for (const call of [device(building), device(archiving)]) {
+    expect(shim(home, true, call).stdout).toBe(`real ${call.join(' ')}\n`)
+  }
   expect(existsSync(`${archive}.xcarchive`)).toBe(false)
 
-  const made = shim(home, { DEVOT_IOS_SKIP_ARCHIVE: '1' }, archiving)
+  const made = shim(home, true, archiving)
   expect(made.status).toBe(0)
   expect(made.stdout).not.toContain('real ')
   expect(
@@ -109,28 +124,26 @@ it("makes a simulator archive of the app the build left, only when CI's build as
   ).toBe('built')
 
   const empty = tempDir('devot-xcodebuild-shim-')
-  const none = shim(empty, { DEVOT_IOS_SKIP_ARCHIVE: '1' }, archiving)
+  const none = shim(empty, true, archiving)
   expect(none.status).toBe(1)
   expect(none.stderr).toContain('E_IOS_ARCHIVE_NO_BUILD')
 })
 
-it("CI's simulator build skips the archive and the Intel slices, and no shipping build does", () => {
+it("only CI's simulator build turns the shim on, with a file no checkout has", () => {
   const ci = readFileSync('.github/workflows/ci.yml', 'utf8')
   const build = /^ {2}iphone-build:\n((?: {4,}.*\n|\n)*)/m.exec(ci)?.[1] ?? ''
-  expect(build).toContain("DEVOT_IOS_SKIP_ARCHIVE: '1'")
-  expect(build).toContain('echo \'EXCLUDED_ARCHS = x86_64\' > "$RUNNER_TEMP/simulator.xcconfig"')
-  expect(build).toContain(
-    'echo "XCODE_XCCONFIG_FILE=$RUNNER_TEMP/simulator.xcconfig" >> "$GITHUB_ENV"',
-  )
-  expect(ci.split('DEVOT_IOS_SKIP_ARCHIVE')).toHaveLength(2)
-  for (const file of ['release.yml', 'app-store.yml']) {
+  const mark = 'run: touch scripts/shims/ci-simulator-build'
+  expect(build.indexOf(mark)).toBeGreaterThan(-1)
+  expect(build.indexOf(mark)).toBeLessThan(build.indexOf('run: pnpm tauri ios build'))
+  for (const file of ['ci.yml', 'release.yml', 'app-store.yml']) {
     const text = readFileSync(`.github/workflows/${file}`, 'utf8')
-    expect({ file, skips: /DEVOT_IOS_SKIP_ARCHIVE|XCODE_XCCONFIG_FILE/.test(text) }).toEqual({
+    expect({ file, marks: text.split('ci-simulator-build').length - 1 }).toEqual({
       file,
-      skips: false,
+      marks: file === 'ci.yml' ? 1 : 0,
     })
   }
-  expect(
-    execFileSync('git', ['ls-files', '-s', 'scripts/shims/xcodebuild'], { encoding: 'utf8' }),
-  ).toMatch(/^100755 /)
+  expect(readFileSync('.gitignore', 'utf8')).toContain('\nscripts/shims/ci-simulator-build\n')
+  const tracked = execFileSync('git', ['ls-files', '-s', 'scripts/shims'], { encoding: 'utf8' })
+  expect(tracked).toMatch(/^100755 \S+ 0\tscripts\/shims\/xcodebuild$/m)
+  expect(tracked).not.toContain('ci-simulator-build')
 })

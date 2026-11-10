@@ -46,3 +46,6 @@ dist-bench-app/
 
 # Screenshots an agent saves while it works
 Claude outputs/
+
+# What CI makes to turn on scripts/shims/xcodebuild for its simulator build.
+scripts/shims/ci-simulator-build

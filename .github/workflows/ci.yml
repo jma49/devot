@@ -453,18 +453,13 @@ jobs:
     if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: xcode-27
     timeout-minutes: 45
-    env:
-      # `tauri ios build` archives the app after building it, which builds it again; the archive is
-      # made of the built app instead (scripts/shims/xcodebuild).
-      DEVOT_IOS_SKIP_ARCHIVE: '1'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: sh scripts/ci/xcode.sh
-      # Only the Apple silicon simulator runs the app: without this, xcodebuild compiles the Swift
-      # packages for Intel simulators too. xcodebuild reads the file this variable names.
-      - run: |
-          echo 'EXCLUDED_ARCHS = x86_64' > "$RUNNER_TEMP/simulator.xcconfig"
-          echo "XCODE_XCCONFIG_FILE=$RUNNER_TEMP/simulator.xcconfig" >> "$GITHUB_ENV"
+      # `tauri ios build` archives the app after building it, which builds it again, and compiles
+      # the Swift packages for Intel simulators too; with this file, scripts/shims/xcodebuild makes
+      # the archive of the built app and leaves the Intel slice out.
+      - run: touch scripts/shims/ci-simulator-build
       - run: brew install xcodegen
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
