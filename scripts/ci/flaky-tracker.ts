@@ -21,7 +21,7 @@ const HEALTH_RUNS = 30
 export type Annotation = { annotation_level: string; title: string | null; message: string }
 export type Sighting = { test: string; kind: string; job: string }
 export type Issue = { number: number; title: string; comments?: number }
-export type Job = { id: number; name: string; conclusion: string | null; run_attempt?: number }
+export type Job = { id: number; name: string; conclusion: string | null }
 export type Run = { conclusion: string | null; run_attempt: number; html_url: string }
 
 const ENTITIES: Readonly<Record<string, string>> = {
@@ -53,6 +53,19 @@ const failed = (job: Job) => job.conclusion === 'failure' || job.conclusion === 
 
 export function failedJobs(jobs: readonly Job[]): string[] {
   return jobs.filter((job) => failed(job) && !GATES.includes(job.name)).map((job) => job.name)
+}
+
+/**
+ * The jobs an attempt ran itself: all of the first one's, and of a later one's those the attempt
+ * before did not pass. GitHub lists the jobs a re-run kept under the new attempt's number too, and
+ * their annotations were counted when they ran.
+ */
+export function ranIn(jobs: readonly Job[], before: readonly Job[] | undefined): Job[] {
+  if (!before) return [...jobs]
+  const passed = new Set(
+    before.filter((job) => job.conclusion === 'success').map((job) => job.name),
+  )
+  return jobs.filter((job) => !passed.has(job.name))
 }
 
 /** The jobs that failed on the attempt before and passed when they were run again. */
@@ -157,17 +170,15 @@ async function main() {
   const jobsOf = async (path: string) =>
     (await api<{ jobs: Job[] }>(`${path}/jobs?per_page=100`)).jobs
   const jobs = await jobsOf(`${runs}/attempts/${attempt}`)
+  const before = attempt > 1 ? await jobsOf(`${runs}/attempts/${attempt - 1}`) : undefined
   const found: Sighting[] = []
-  // A job this attempt did not run again keeps the annotations an earlier attempt already counted.
-  for (const job of jobs.filter((each) => (each.run_attempt ?? attempt) === attempt)) {
+  for (const job of ranIn(jobs, before)) {
     const annotations = await api<Annotation[]>(
       `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`,
     )
     found.push(...sightings(job.name, annotations))
   }
-  if (attempt > 1) {
-    found.push(...rerunSightings(await jobsOf(`${runs}/attempts/${attempt - 1}`), jobs))
-  }
+  if (before) found.push(...rerunSightings(before, jobs))
   console.log(`flaky-tracker: ${found.length} sighting(s) in run ${run} attempt ${attempt}`)
   const issues = `/repos/${repo}/issues`
   const open = await api<Issue[]>(`${issues}?labels=${LABEL}&state=open&per_page=100`)

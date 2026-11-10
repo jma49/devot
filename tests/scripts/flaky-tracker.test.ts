@@ -12,6 +12,7 @@ import {
   LABEL,
   newIssueBody,
   plan,
+  ranIn,
   redNote,
   rerunSightings,
   sightingNote,
@@ -96,6 +97,22 @@ it('runs the failed jobs of a run on main again once, then reports the run as re
   expect(verdict('push', 'success', 1)).toBe('none')
   expect(verdict('push', 'cancelled', 1)).toBe('none')
   expect(verdict('merge_group', 'failure', 1)).toBe('none')
+})
+
+it('reads on a later attempt only the jobs that attempt ran, whatever number GitHub gives the rest', () => {
+  // Main's first re-run listed every job under attempt 2, the ones it kept included.
+  const before = [
+    { id: 1, name: 'UI (webkit, 2/14)', conclusion: 'success', run_attempt: 1 },
+    { id: 2, name: 'iPhone UI test (smoke)', conclusion: 'failure', run_attempt: 1 },
+    { id: 3, name: 'rust', conclusion: 'failure', run_attempt: 1 },
+  ]
+  const now = [
+    { id: 1, name: 'UI (webkit, 2/14)', conclusion: 'success', run_attempt: 2 },
+    { id: 4, name: 'iPhone UI test (smoke)', conclusion: 'success', run_attempt: 2 },
+    { id: 5, name: 'rust', conclusion: 'success', run_attempt: 2 },
+  ]
+  expect(ranIn(now, before).map((job) => job.name)).toEqual(['iPhone UI test (smoke)', 'rust'])
+  expect(ranIn(before, undefined)).toEqual(before)
 })
 
 it('tracks a job that passed only when it was run again, and never a gate', () => {
