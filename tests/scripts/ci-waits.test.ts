@@ -52,6 +52,32 @@ it('waits for the artifact while its job runs and stops when the job ended witho
   expect(never).toEqual({ verdict: 'wait', waitedMs: 30, conclusion: undefined })
 })
 
+it('asks again after a request that failed, and gives up only at the limit', async () => {
+  const sleep = () => Promise.resolve()
+  const answers: (() => Promise<{ artifact: boolean; conclusion: undefined }>)[] = [
+    () => Promise.reject(new TypeError('fetch failed')),
+    () => Promise.resolve({ artifact: false, conclusion: undefined }),
+    () => Promise.reject(new Error('E_WAIT_ARTIFACT_API status=502')),
+    () => Promise.resolve({ artifact: true, conclusion: undefined }),
+  ]
+  const missed: unknown[] = []
+  const ready = await waitFor(
+    () => answers.shift()!(),
+    { everyMs: 10, limitMs: 100 },
+    sleep,
+    (error) => missed.push(error),
+  )
+  expect(ready).toEqual({ verdict: 'ready', waitedMs: 30, conclusion: undefined })
+  expect(missed).toHaveLength(2)
+  await expect(
+    waitFor(
+      () => Promise.reject(new TypeError('fetch failed')),
+      { everyMs: 10, limitMs: 20 },
+      sleep,
+    ),
+  ).rejects.toThrow('fetch failed')
+})
+
 it('splits the screens tests into parts that together run every class once, and more', () => {
   const classes = testClasses('src-tauri/apple/DevotScreens/Tests/DevotScreensTests')
   expect(classes.length).toBeGreaterThan(40)

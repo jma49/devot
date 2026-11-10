@@ -24,10 +24,23 @@ export type Issue = { number: number; title: string; comments?: number }
 export type Job = { id: number; name: string; conclusion: string | null; run_attempt?: number }
 export type Run = { conclusion: string | null; run_attempt: number; html_url: string }
 
+const ENTITIES: Readonly<Record<string, string>> = {
+  '&gt;': '>',
+  '&lt;': '<',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&amp;': '&',
+}
+
+/** GitHub hands an annotation's message back with its HTML characters escaped. */
+function plain(text: string): string {
+  return text.replace(/&(gt|lt|quot|#39|amp);/g, (entity) => ENTITIES[entity] ?? entity)
+}
+
 export function sightings(job: string, annotations: readonly Annotation[]): Sighting[] {
   return annotations
     .filter((a) => a.annotation_level === 'warning' && (a.title ?? '').startsWith('Flaky'))
-    .map((a) => ({ test: a.message.trim(), kind: a.title ?? 'Flaky', job }))
+    .map((a) => ({ test: plain(a.message).trim(), kind: a.title ?? 'Flaky', job }))
     .filter((s) => s.test.length > 0)
 }
 
@@ -108,7 +121,7 @@ export function newIssueBody(sighting: Sighting, runUrl: string, sha: string): s
 
 /** For each sighting, the open issue that already tracks its test, or none. */
 export function plan(found: readonly Sighting[], open: readonly Issue[]) {
-  const byTitle = new Map(open.map((issue) => [issue.title, issue.number]))
+  const byTitle = new Map(open.map((issue) => [plain(issue.title), issue.number]))
   const seen = new Set<string>()
   return found
     .filter((s) => !seen.has(s.test) && seen.add(s.test))
