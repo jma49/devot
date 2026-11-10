@@ -389,10 +389,11 @@ it('launches the real iPhone app with its built UI in a simulator, switches the 
   // A failing run keeps its result bundle, with each test's attachments, as the evidence.
   expect(script).toContain('results="$root/test-results/iphone-ui.xcresult"')
   expect(script).toContain('-resultBundlePath "$results"')
+  expect(script).toContain('retry_results="$root/test-results/iphone-ui-retry.xcresult"')
   const upload = ui.slice(ui.indexOf('- if: failure()'))
   expect(upload).toMatch(/^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # v/m)
   expect(upload).toContain('name: iphone-ui-xcresult-${{ matrix.shard }}')
-  expect(upload).toContain('path: test-results/iphone-ui.xcresult/')
+  expect(upload).toContain('path: test-results/iphone-ui*.xcresult/')
   const tests = read('src-tauri/apple/DevotUITests/Tests/TabsTests.swift')
   expect(tests).toContain('performAccessibilityAudit')
   for (const tab of ['Notes', 'Library', 'Activity', 'Settings']) {

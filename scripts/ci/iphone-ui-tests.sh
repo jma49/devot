@@ -114,11 +114,27 @@ run_tests() {
   export TEST_RUNNER_DEVOT_UI_WAIT_SCALE="${DEVOT_UI_WAIT_SCALE:-1}"
   # A test that fails once is run again, so a one-off simulator stall does not fail the job; a test
   # that fails twice fails it, and the log lists the first failure either way.
+  shown="^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit|Evidence: |Restarting after|uncaught exception"
   # shellcheck disable=SC2086
   xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" \
     -retry-tests-on-failure -test-iterations 2 \
     -resultBundlePath "$results" $selection >"$log" 2>&1 || status=$?
-  grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit|Evidence: " "$log" || tail -n 60 "$log"
+  grep -E "$shown" "$log" || tail -n 60 "$log"
+  # A failed UI test ends the test process, and xcodebuild goes on with the tests that are left
+  # without running it again (scripts/ci/xctest-retry.ts): those tests get their second run here.
+  again=
+  [ "$status" -eq 0 ] || again=$(node "$root/scripts/ci/xctest-retry.ts" "$log")
+  if [ -n "$again" ]; then
+    echo "retry: $again"
+    retry_results="$root/test-results/iphone-ui-retry.xcresult"
+    rm -rf "$retry_results"
+    status=0
+    # shellcheck disable=SC2086
+    xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" \
+      -resultBundlePath "$retry_results" $again >"$log.retry" 2>&1 || status=$?
+    grep -E "$shown" "$log.retry" || tail -n 60 "$log.retry"
+    rm -f "$log.retry"
+  fi
   # A green run whose log still has a failed test passed it on the retry: listed so it is fixed.
   if [ "$status" -eq 0 ]; then
     sed -n "s/^Test Case '-\[\(.*\)\]' failed.*/\1/p" "$log" | sort -u | while read -r test; do
