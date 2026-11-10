@@ -84,12 +84,12 @@ final class SettingsTests: XCTestCase {
         launch(["-DevotLicenceFixture", "A1"])
         row(L10n.settingsPaneLicence()).tap()
         let buy = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", L10n.licenceSettingsBuyPro())).firstMatch
-        XCTAssertTrue(buy.waitForExistence(timeout: 10), "the App Store build offers Devot Pro")
+        XCTAssertTrue(buy.waitForExistence(timeout: waitLimit(10)), "the App Store build offers Devot Pro")
         buy.tap()
         let close = app.buttons["purchase.close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "the purchase sheet rises")
+        XCTAssertTrue(close.waitForExistence(timeout: waitLimit(10)), "the purchase sheet rises")
         let restore = app.buttons[L10n.phonePurchaseRestore()]
-        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        XCTAssertTrue(restore.waitForExistence(timeout: waitLimit(5)))
         RunLoop.current.run(until: Date().addingTimeInterval(1))
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "the purchase sheet"
@@ -101,7 +101,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(window.maxX - close.frame.maxX, 16, "the button keeps the side inset")
         XCTAssertTrue(close.isHittable)
         close.tap()
-        XCTAssertTrue(close.waitForNonExistence(timeout: 5), "the button closes the sheet")
+        XCTAssertTrue(close.waitForNonExistence(timeout: waitLimit(5)), "the button closes the sheet")
     }
 
     private func openAppearance() {
