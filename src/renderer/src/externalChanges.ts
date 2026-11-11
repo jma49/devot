@@ -5,7 +5,7 @@
 // and reloads its lists (app/useExternalMerge.ts). A write that knows the only
 // notes it changed (an HTTP API append, say) names them, and only their rows
 // are read again.
-import { useEffect, useRef } from 'react'
+import { useEffect, useInsertionEffect, useRef } from 'react'
 import { listenHere, unlistenLater } from './windowEvents'
 
 export const DB_CHANGED = 'devot:db-changed'
@@ -46,8 +46,10 @@ export function useExternalChanges(
 ) {
   const latest = useRef(onChange)
   const missed = useRef(false)
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = onChange
+  })
+  useEffect(() => {
     if (onChange && missed.current) {
       missed.current = false
       window.dispatchEvent(dbChanged())

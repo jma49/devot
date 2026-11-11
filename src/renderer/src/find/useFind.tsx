@@ -6,6 +6,7 @@
 import {
   useCallback,
   useEffect,
+  useInsertionEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -69,7 +70,7 @@ export function useFind({ mode, noteOpen, editing, editor, preview }: Input): {
   }, [target])
 
   const closeRef = useRef(close)
-  useEffect(() => {
+  useInsertionEffect(() => {
     closeRef.current = close
   })
   // While the bar is open: listen to the pane, and take its marks away when
@@ -148,7 +149,7 @@ export function useFind({ mode, noteOpen, editing, editor, preview }: Input): {
   // CodeMirror's search). The toggles only act while the bar is open. Keys an
   // input method composes with are its own.
   const latest = useRef({ run, open, noteOpen, target })
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = { run, open, noteOpen, target }
   })
   useEffect(() => {

@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useInsertionEffect,
   useLayoutEffect,
   useReducer,
   useRef,
@@ -82,7 +83,7 @@ export function QuickTag(props: {
   const changeDraft = (next: string) => send({ kind: 'type', text: next })
   const limit = useNameLimit(draft, MAX_TAG_NAME_CHARS, changeDraft)
 
-  useEffect(() => {
+  useInsertionEffect(() => {
     onCloseRef.current = props.onClose
   })
   useLayoutEffect(() => {

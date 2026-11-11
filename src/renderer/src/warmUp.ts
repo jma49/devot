@@ -1,5 +1,5 @@
 import { LanguageDescription } from '@codemirror/language'
-import { useEffect, useRef } from 'react'
+import { useEffect, useInsertionEffect, useRef } from 'react'
 import { languages as editorLanguages } from '@codemirror/language-data'
 import type { WarmFeatures } from '../../core/preview/warmFeatures'
 import type { Core } from './core-client'
@@ -79,7 +79,7 @@ export function useWarmUp(
   schedule: Idle = idle,
 ): void {
   const latest = useRef({ text, listed })
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = { text, listed }
   })
   const warmed = useRef(false)

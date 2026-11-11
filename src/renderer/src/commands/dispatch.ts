@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useInsertionEffect, useRef } from 'react'
 import { earlyKeysWaiting } from '../editor/earlyKeys'
 import { isImeKey } from '../ime'
 import { listenHere, unlistenLater } from '../windowEvents'
@@ -49,7 +49,7 @@ export function useKeyLayout() {
 export function useWindowCommands(handlers: CommandHandlers) {
   useKeyLayout()
   const latest = useRef(handlers)
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = handlers
   })
   useEffect(() => {
@@ -101,9 +101,7 @@ export function useMenuEvent(
   run: (payload: unknown) => void,
 ) {
   const latest = useRef(run)
-  // With the render it belongs to: a passive effect runs after the paint, and a second pick in
-  // between ran the handler of the render before, which toggled what was no longer on screen.
-  useLayoutEffect(() => {
+  useInsertionEffect(() => {
     latest.current = run
   })
   useEffect(() => {

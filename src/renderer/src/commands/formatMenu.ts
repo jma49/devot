@@ -26,7 +26,7 @@
 // dropped once, as an echo of the format just run. A held key repeats
 // through the menu, as menu key equivalents do.
 import { invoke } from '../ipc'
-import { useEffect, useRef } from 'react'
+import { useEffect, useInsertionEffect, useRef } from 'react'
 import type { FormatId } from '../editor/formats'
 import { queueMenuCall, syncCommandMenu } from './commandMenu'
 import { inEditor, useMenuEvent } from './dispatch'
@@ -78,7 +78,7 @@ const editorHasKeyboard = (focused: EventTarget | null = document.activeElement)
 
 export function useFormatMenu(handlers: CommandHandlers) {
   const latest = useRef(handlers)
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = handlers
   })
 

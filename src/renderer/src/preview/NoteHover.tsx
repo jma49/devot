@@ -3,7 +3,14 @@
 // The card sits over the link (under it when there is no room), kept inside
 // the window, and goes when the pointer leaves, a button is pressed or the
 // pane scrolls.
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import {
+  useEffect,
+  useInsertionEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react'
 import { noteIdOf } from '../../../core/links'
 import { noteCardDom } from '../noteCard'
 import type { LoadPreview, NotePreview } from '../notePreview'
@@ -34,7 +41,7 @@ export function NoteHover({
   const [shown, setShown] = useState<Shown>()
   const card = useRef<HTMLDivElement | null>(null)
   const loadRef = useRef(load)
-  useEffect(() => {
+  useInsertionEffect(() => {
     loadRef.current = load
   })
   useEffect(() => {

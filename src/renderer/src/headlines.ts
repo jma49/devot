@@ -2,7 +2,7 @@
 // body (see `headline` in core/extract.ts). It is looked up for the rows
 // that show only, by the core, and kept until the note is written again; the
 // title is never filled in with it.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useInsertionEffect, useMemo, useRef, useState } from 'react'
 import type { NoteSummary } from '../../core'
 import { errorCode } from '../../core/errors'
 import { t } from './i18n'
@@ -130,8 +130,10 @@ export function useHeadlines<V = string>(
   }
   const pending = useRef(new PendingReads<HeadlineLoader<V>>())
   const latest = useRef(load)
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = load
+  })
+  useEffect(() => {
     if (!load) return
     const keyOf = (n: NoteSummary) => `${n.id}@${n.updatedAt}`
     const stale = staleHeadlines(notes, cache, all)

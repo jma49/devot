@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useInsertionEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { TAG_COLORS, type TagColorValue } from '../../core/storage'
 import { isCustomTagColor } from '../../core/tags'
@@ -68,7 +75,7 @@ export function TagMenu(props: {
     if (giveBack && returnTo.current instanceof HTMLElement) returnTo.current.focus()
   }
   const closeRef = useRef(close)
-  useEffect(() => {
+  useInsertionEffect(() => {
     closeRef.current = close
   })
 

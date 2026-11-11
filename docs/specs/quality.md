@@ -188,6 +188,8 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
   - A menu item's handler was kept for its listener in a passive effect, which runs after the paint: a second pick right after the first one's change was on screen ran the handler of the render before, so the sidebar's second toggle showed what was already shown (docs/specs/stateful-code.md, One value, one owner).
   - An iPhone note is on screen before its text reaches accessibility: on a loaded runner the web view's tree held no text through thirty swipes, while the screenshot showed the note drawn.
     The editor tests wait for the text before they swipe and name its absence; why the tree stays empty is not known, and the kept result bundle is there for the next time.
+  - A StoreKit test cleared a purchase, bought again and read the product's entitlement, and the cleared purchase was still listed for a moment: it waits for the entitlement of the new transaction.
+  - After a restore from the history bar the editor is owed the keyboard once the overlay has gone; the flag that said so did not say for which note, so a note opened in between took the keyboard. The flag holds the note, and another note drops it (#902).
   - StoreKit Test's local server answers some purchases with a server error (AMSErrorDomain 305) on a loaded runner; the retry covers it.
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 

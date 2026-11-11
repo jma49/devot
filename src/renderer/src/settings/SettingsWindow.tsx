@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useInsertionEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 import { Icon } from '../icons/Icon'
 import { t } from '../i18n'
 import { listenHere, unlistenLater } from '../windowEvents'
@@ -110,7 +117,7 @@ export function SettingsWindow() {
   }, [pane])
 
   const latestShow = useRef(show)
-  useEffect(() => {
+  useInsertionEffect(() => {
     latestShow.current = show
   })
 

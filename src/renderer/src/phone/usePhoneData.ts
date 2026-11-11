@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useInsertionEffect, useRef, useState } from 'react'
 import type { TakenIn } from '../../../core'
 import type {
   BookRecord,
@@ -73,7 +73,7 @@ export type PhoneStore = PhoneData & {
 export function usePhoneData(onListed: () => void = () => {}): PhoneStore {
   const [data, setData] = useState<PhoneData>(EMPTY)
   const listedRef = useRef(onListed)
-  useEffect(() => {
+  useInsertionEffect(() => {
     listedRef.current = onListed
   })
   const coreRef = useRef<Core | null>(null)
