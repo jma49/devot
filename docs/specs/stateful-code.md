@@ -28,8 +28,9 @@ One transition function changes it, and every caller goes through that function.
 Illegal combinations then cannot be written, and a review can read every transition in one place.
 Examples: the sync engine's connection and pass (#798), the date picker's open and saving (#833), a backup restore (#858), what is speaking (#846), a note window's live, trashed or purged state (#809).
 
-A handler that reads a render's state and is kept in a ref for a long-lived listener is a copy of that state, so it is replaced in a layout effect, in the commit that puts the render on screen.
-Replaced in a passive effect, it is still the one before for as long as the paint takes, and an event in between acts on what is no longer shown (#893: `useMenuEvent`).
+A handler or a value that reads a render's state and is kept in a ref for what outlives the render (a listener, a timer, the answer to a request) is a copy of that state, so it is replaced at commit, in an insertion effect, as `useStable` does (`src/renderer/src/stable.ts`).
+Replaced in a passive effect, it is still the one before for as long as the paint takes, and an event in between acts on what is no longer shown (#893: the sidebar's menu item and the window's keys).
+A policy test refuses a `latest` ref set in a passive effect (`tests/policy/latest-handler.test.ts`).
 
 ## Answers carry who asked
 

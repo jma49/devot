@@ -14,7 +14,7 @@
 // place and is not touched, and nothing happens while another element has
 // the keyboard or a sheet is open (sheets give the keyboard back themselves,
 // see sheet.ts; the hook covers what they cannot).
-import { useEffect, useRef } from 'react'
+import { useEffect, useInsertionEffect, useRef } from 'react'
 import { sheetOpen } from './commands/dispatch'
 import { areaOf, areaTargets, type Area } from './areas'
 
@@ -67,7 +67,7 @@ function rowElement(key: string): HTMLElement | undefined {
 /** `editor` gives the open editor, for the editor area's target (`areaTargets`). */
 export function useFocusRescue(editor: () => { focus: () => void } | null): void {
   const latest = useRef(editor)
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = editor
   })
   useEffect(() => {

@@ -1,6 +1,6 @@
 // For the phone shell's tests only: the real core over the UI tests' storage (storage/memory.ts),
 // the lists it reads, and an editor stand-in that records the keyboard it is given.
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useInsertionEffect, useRef, useState, type RefObject } from 'react'
 import { createBookService } from '../../../core/books'
 import { duplicateNote } from '../../../core/duplicate'
 import { openTodaysNote, type DailyNotesSettings } from '../../../core/dailyNotes'
@@ -128,7 +128,7 @@ export function TestEditor({
   handleRef?: RefObject<EditorHandle | null>
 }) {
   const latest = useRef(props)
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = props
   })
   useEffect(() => {

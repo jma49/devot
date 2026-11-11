@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useInsertionEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 // Imported directly (not through the core index) so the main bundle does not
 // pull in the rest of the core.
 import { ACTIVITY_LEVELS, DAY_MS, weekday, type ActivityHeatmap } from '../../core/activity'
@@ -15,7 +23,7 @@ const SHOW_ACTIVITY = 'devot:show-activity'
 
 export function useActivityMenu(open: () => void) {
   const latest = useRef(open)
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = open
   })
   useEffect(() => {

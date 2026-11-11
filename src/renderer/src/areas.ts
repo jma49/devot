@@ -6,7 +6,7 @@
 // editor Tab indents and moves between table cells. Escape then Tab (or
 // Shift+Tab) in the editor works too: CodeMirror leaves the next Tab alone
 // for two seconds after Escape, and it moves on like a pane's Tab.
-import { useEffect, useRef } from 'react'
+import { useEffect, useInsertionEffect, useRef } from 'react'
 import { sheetOpen } from './commands/dispatch'
 import { commandMatches } from './commands/registry'
 import { isImeKey } from './ime'
@@ -96,7 +96,7 @@ function paneOf(e: KeyboardEvent): Area | undefined {
  */
 export function usePaneTab(move: (step: 1 | -1, from: Area) => void) {
   const latest = useRef(move)
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = move
   })
   useEffect(() => {

@@ -1,7 +1,15 @@
 // Plugins in the main window (ADR 0005): their frames, the host that speaks to them, and what they contribute: palette entries,
 // keys, preview renderers, menu bar picks (`devot://plugin-action`), import and export formats, and the sheet a plugin's UI shows in.
 import * as Comlink from 'comlink'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useInsertionEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import type { InstalledPlugin } from '../../../core/plugins'
 import type { PluginRendererSpec } from '../../../core/preview'
 import { errorCode } from '../../../core/errors'
@@ -67,7 +75,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   const frames = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
   const latest = useRef({ core, app, plugins })
-  useEffect(() => {
+  useInsertionEffect(() => {
     latest.current = { core, app, plugins }
   })
 
