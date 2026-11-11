@@ -135,6 +135,10 @@ final class SettingsTests: XCTestCase {
         let failed = app.staticTexts
             .matching(NSPredicate(format: "label BEGINSWITH %@", L10n.syncSettingsJoinFailed())).firstMatch
         XCTAssertTrue(failed.waitForExistence(timeout: waitLimit(30)), "the join was tried")
+        // A new pane reads what was saved, with the keyboard down: over the pane it covers the Relay field.
+        back()
+        row(L10n.settingsPaneSync()).tap()
+        app.buttons[L10n.syncSettingsSetupAnother()].tapOnceHittable()
         XCTAssertEqual(scrolled(to: relayField).value as? String, Self.linkRelay, "the link's relay is saved")
         forgetTheRelay()
     }
