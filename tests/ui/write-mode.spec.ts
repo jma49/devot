@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test, openApp } from './fixtures'
+import { expectSource, inEditMode } from './writeSource'
 
 // Write mode (src/renderer/src/editor/write): an element without the caret shows no Markdown marks,
 // the elements the selection meets show their source. The note's text is read through Edit mode, which shows
@@ -26,17 +27,6 @@ const runCommand = (page: Page, id: string) =>
     },
     { kind: 'command', id },
   )
-
-/** The note's Markdown, read in Edit mode; Write mode comes back after. */
-async function source(page: Page): Promise<string[]> {
-  await runCommand(page, 'view.edit')
-  await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Edit')
-  const text = await lines(page)
-  await runCommand(page, 'view.write')
-  await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
-  await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
-  return text
-}
 
 async function createNote(page: Page, title: string, text = '') {
   const before = await noteRows(page).count()
@@ -246,7 +236,7 @@ test.describe('a new install', () => {
     await page.keyboard.insertText(' **more**')
     await page.keyboard.press('ControlOrMeta+End')
     await expect.poll(() => lines(page)).toContainEqual('Plan more')
-    expect(await source(page)).toEqual(['# Plan **more**', ...text.slice(1)])
+    await expectSource(page, ['# Plan **more**', ...text.slice(1)])
   })
 
   test('draws a highlight, a footnote and inline code without their marks, and [[text]] as plain text', async ({
@@ -297,7 +287,7 @@ test.describe('a new install', () => {
       )
     expect(lined).toBe(0)
     await expect(page.locator('.cm-wm-plain').first()).toBeAttached()
-    expect(await source(page)).toEqual(text)
+    await expectSource(page, text)
   })
 
   test('draws an emoji, a key and raised and lowered text as the preview does, one source under the caret', async ({
@@ -323,7 +313,7 @@ test.describe('a new install', () => {
     await page.locator('.cm-wm-inline').first().click()
     await expect.poll(() => lines(page)).toEqual(['Party :tada: then Cmd N, x2 and H2O', '', 'End'])
     expect((await heights())[0]).toBe(drawn)
-    expect(await source(page)).toEqual(text)
+    await expectSource(page, text)
   })
 
   test('shows a horizontal rule as source only while the caret is on it', async ({ page }) => {
@@ -360,7 +350,7 @@ test.describe('a new install', () => {
     const o = await charBox(page, 0, 'bold', 1)
     await page.mouse.click(o.x + 1, o.y + o.height / 2)
     await page.keyboard.insertText('Z')
-    expect(await source(page)).toEqual(['**bZold** and more', 'other'])
+    await expectSource(page, ['**bZold** and more', 'other'])
   })
 
   test('double-clicks the word under the pointer, not the one the marks moved there', async ({
@@ -372,7 +362,7 @@ test.describe('a new install', () => {
     const word = await charBox(page, 0, 'text', 1)
     await page.mouse.dblclick(word.x + 1, word.y + word.height / 2)
     await page.keyboard.insertText('X')
-    expect(await source(page)).toEqual(['**Some X** here', 'other'])
+    await expectSource(page, ['**Some X** here', 'other'])
   })
 
   test('moves the caret by visible character into a line without its marks', async ({ page }) => {
@@ -383,7 +373,7 @@ test.describe('a new install', () => {
     await page.keyboard.press('ArrowRight')
     await page.keyboard.press('ArrowUp')
     await page.keyboard.insertText('Q')
-    expect(await source(page)).toEqual(['**aQa**aa', 'aaaa'])
+    await expectSource(page, ['**aQa**aa', 'aaaa'])
   })
 
   test('types at every caret of several and undoes as one step', async ({ page }) => {
@@ -400,7 +390,7 @@ test.describe('a new install', () => {
     await page.keyboard.insertText('dog')
     await expect.poll(() => lines(page)).toEqual(['**dog** one', '# dog two', '- dog three'])
     await page.keyboard.press('ControlOrMeta+KeyZ')
-    expect(await source(page)).toEqual(['**cat** one', '# cat two', '- cat three'])
+    await expectSource(page, ['**cat** one', '# cat two', '- cat three'])
   })
 
   test('finds and replaces text on lines without their marks', async ({ page }) => {
@@ -417,7 +407,7 @@ test.describe('a new install', () => {
     await findBar(page).getByRole('textbox', { name: 'Replace' }).press('Enter')
     await findBar(page).getByRole('textbox', { name: 'Replace' }).press('Escape')
     await body(page).click()
-    expect(await source(page)).toEqual(['a **dog** here', 'no', '# dog'])
+    await expectSource(page, ['a **dog** here', 'no', '# dog'])
   })
 
   test('ticks a task from its checkbox without moving the caret', async ({ page }) => {
@@ -435,7 +425,7 @@ test.describe('a new install', () => {
     await page.keyboard.press('ArrowUp')
     await expect(boxes).toHaveCount(2)
     await expect.poll(() => lines(page)).toEqual(['write', 'read', 'end!'])
-    expect(await source(page)).toEqual(['- [x] write', '- [x] read', 'end!'])
+    await expectSource(page, ['- [x] write', '- [x] read', 'end!'])
   })
 
   test('draws a done and an open task box alike, on the list mark column and the text centre', async ({
@@ -511,7 +501,7 @@ test.describe('a new install', () => {
       await compose(page, 0, 4, ['k', KA, KAN])
       await compose(page, 0, 5, [JI])
       await expect.poll(() => lines(page)).toEqual([`**bo${KAN}${JI}ld**`, 'next'])
-      expect(await source(page)).toEqual([`**bo${KAN}${JI}ld**`, 'next'])
+      await expectSource(page, [`**bo${KAN}${JI}ld**`, 'next'])
     })
 
     test('composing at the start of a heading keeps every character in order', async ({ page }) => {
@@ -522,7 +512,7 @@ test.describe('a new install', () => {
       await compose(page, 0, 3, [JI])
       await page.keyboard.press('Enter')
       await expect.poll(() => lines(page)).toEqual([`${KAN}${JI}`, ''])
-      expect(await source(page)).toEqual([`# ${KAN}${JI}`, ''])
+      await expectSource(page, [`# ${KAN}${JI}`, ''])
     })
 
     test('composing after a list marker keeps every character in order', async ({ page }) => {
@@ -532,7 +522,7 @@ test.describe('a new install', () => {
       await compose(page, 0, 2, ['k', KA, KAN])
       await compose(page, 0, 3, [JI])
       await expect.poll(() => lines(page)).toEqual([`- ${KAN}${JI}`])
-      expect(await source(page)).toEqual([`- ${KAN}${JI}`])
+      await expectSource(page, [`- ${KAN}${JI}`])
     })
   })
 })
@@ -575,7 +565,7 @@ test.describe('switching between Write and Edit', () => {
     await body(page).focus()
     await page.keyboard.insertText('!')
     // Only the lines near the view are drawn.
-    expect(await source(page)).toContainEqual(`${text[101]}!`)
+    await inEditMode(page, (read) => expect.poll(read).toContainEqual(`${text[101]}!`))
   })
 
   test('comes back to Write from Preview', async ({ page }) => {
