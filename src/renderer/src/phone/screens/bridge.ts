@@ -49,8 +49,16 @@ export function startScreensBridge(handlers: ScreensHandlers = SCREENS_HANDLERS)
       libraryListed: () => {},
       stop: () => {},
     }
+  // Rust runs each `screens_post` as a task of its own, so two in flight reach Swift in either
+  // order, a note's `edit` mode before its `preview`. One is sent at a time.
+  let sent: Promise<unknown> = Promise.resolve()
+  const send = (message: unknown): Promise<unknown> => {
+    const posted = sent.then(() => invoke('screens_post', { message: JSON.stringify(message) }))
+    sent = posted.catch(() => {})
+    return posted
+  }
   const post = (reply: ScreensReply) =>
-    invoke('screens_post', { message: JSON.stringify(reply) }).catch((error: unknown) =>
+    send(reply).catch((error: unknown) =>
       console.warn(`W_SCREENS_POST_FAILED id=${reply.id} code=${errorCode(error)}`),
     )
   const run = async (payload: unknown) => {
@@ -77,7 +85,7 @@ export function startScreensBridge(handlers: ScreensHandlers = SCREENS_HANDLERS)
   let attached = false
   const notify = (notice: ScreensNotice) => {
     if (!attached || listening.stopped()) return
-    invoke('screens_post', { message: JSON.stringify(noticed(notice)) }).catch((error: unknown) =>
+    send(noticed(notice)).catch((error: unknown) =>
       console.warn(`W_SCREENS_NOTICE_FAILED notice=${notice.notice} code=${errorCode(error)}`),
     )
   }
