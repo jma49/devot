@@ -1,6 +1,6 @@
 import {
   useCallback,
-  useEffect,
+  useInsertionEffect,
   useRef,
   type Dispatch,
   type RefObject,
@@ -94,7 +94,7 @@ export function useViewChanges({
     if (parent === null) leaveWorkspace()
     else openWorkspace(parent)
   }
-  useEffect(() => {
+  useInsertionEffect(() => {
     showLibraryRef.current = showLibrary
   })
   // Typing a search in the Trash or Templates leaves it: neither is searched.

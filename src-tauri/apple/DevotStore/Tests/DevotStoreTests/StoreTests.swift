@@ -83,7 +83,8 @@ final class StoreTests: XCTestCase {
         session.clearTransactions()
         let tenDaysAgo = Date().addingTimeInterval(-10 * 24 * 3600)
         try await session.buyProduct(identifier: Store.trial, options: [.purchaseDate(tenDaysAgo)])
-        let restored = try await entitlement(Store.trial)
+        // The cleared purchase can still be listed for a moment: the entitlement is the new one's.
+        let restored = try await entitlement(Store.trial) { $0.transactionId != trial.transactionId }
         XCTAssertLessThan(abs(restored.originalPurchaseDate - milliseconds(tenDaysAgo)), 60_000)
     }
 
@@ -259,9 +260,14 @@ final class StoreTests: XCTestCase {
     }
 
     // A purchase made with session.buyProduct reaches the entitlements after the call returns.
-    private func entitlement(_ productID: String) async throws -> TransactionReply {
+    private func entitlement(
+        _ productID: String, where match: (TransactionReply) -> Bool = { _ in true }
+    ) async throws -> TransactionReply {
         for _ in 0..<300 {
-            if let held = await Store.entitlements().transactions?.first(where: { $0.productId == productID }) {
+            let held = await Store.entitlements().transactions?.first {
+                $0.productId == productID && match($0)
+            }
+            if let held {
                 return held
             }
             try await Task.sleep(nanoseconds: 100_000_000)

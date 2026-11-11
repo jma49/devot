@@ -2,6 +2,7 @@ import { invoke } from '../ipc'
 import {
   useCallback,
   useEffect,
+  useInsertionEffect,
   useMemo,
   useRef,
   useState,
@@ -452,7 +453,7 @@ export function Preview({
     [read, loadedEmbeds, remoteImages, frontMatterInInfo],
   )
   const input = useRef<RenderInput>({ read, loadedEmbeds, remoteImages, frontMatterInInfo })
-  useEffect(() => {
+  useInsertionEffect(() => {
     input.current = { read, loadedEmbeds, remoteImages, frontMatterInInfo }
   })
   useEffect(() => text.subscribe(() => render.current?.(input.current)), [text])

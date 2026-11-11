@@ -70,7 +70,7 @@ export function useFind({ mode, noteOpen, editing, editor, preview }: Input): {
   }, [target])
 
   const closeRef = useRef(close)
-  useEffect(() => {
+  useInsertionEffect(() => {
     closeRef.current = close
   })
   // While the bar is open: listen to the pane, and take its marks away when

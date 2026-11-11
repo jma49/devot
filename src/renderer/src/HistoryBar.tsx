@@ -1,10 +1,11 @@
 import {
   useEffect,
-  type CSSProperties,
-  type FocusEvent,
+  useInsertionEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
+  type FocusEvent,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
@@ -225,7 +226,7 @@ export function useHistoryBar(props: {
   const { core, noteId, enabled } = props
   // The note the bar is on now, for a restore that answers after another note opened.
   const noteIdNow = useRef(noteId)
-  useEffect(() => {
+  useInsertionEffect(() => {
     noteIdNow.current = noteId
   }, [noteId])
   const locale = currentLocale()
@@ -239,7 +240,8 @@ export function useHistoryBar(props: {
   const [past, setPast] = useState<Past>()
   const [reload, setReload] = useState(0)
   const [now, setNow] = useState(() => Date.now())
-  const restored = useRef(false)
+  // The note a restore has just changed and whose editor is owed the keyboard.
+  const restored = useRef<string | undefined>(undefined)
   const handle = useRef<HTMLDivElement>(null)
   const track = useRef<HTMLDivElement>(null)
   const barRef = useRef<HTMLDivElement>(null)
@@ -315,9 +317,11 @@ export function useHistoryBar(props: {
 
   const { onRestored } = props
   useEffect(() => {
-    if (!restored.current || past !== undefined) return
-    restored.current = false
-    onRestored()
+    const owed = restored.current
+    if (owed === undefined || (owed === noteId && past !== undefined)) return
+    restored.current = undefined
+    // Another note opened before the overlay had gone: the keyboard stays where it went.
+    if (owed === noteId) onRestored()
   })
 
   const loaded = showing ? texts.get(step.id) : undefined
@@ -376,7 +380,7 @@ export function useHistoryBar(props: {
       if (noteIdNow.current !== noteId) return
       props.onApply(noteId, update)
       back()
-      restored.current = true
+      restored.current = noteId
       setReload((n) => n + 1)
     } catch (e) {
       if (noteIdNow.current === noteId)
@@ -393,7 +397,7 @@ export function useHistoryBar(props: {
       if (noteIdNow.current !== noteId) return
       props.onApply(noteId, update)
       back()
-      restored.current = true
+      restored.current = noteId
       setReload((n) => n + 1)
     } catch (e) {
       if (noteIdNow.current === noteId)

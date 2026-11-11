@@ -1,6 +1,6 @@
 // What a main window and a note window share in saving their notes (saving.ts): the notice's
 // problems and the quit and close guards, saving as the page goes, and at the end of the trial.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useInsertionEffect, useRef, useState } from 'react'
 import type { SaveProblem } from '../../core'
 import { errorCode } from '../../core/errors'
 import type { Core } from './core-client'
@@ -141,7 +141,7 @@ export function useSaveOnHide(core: Core | undefined) {
  */
 export function useSaveAtTrialEnd(editing: boolean, core: Core | undefined, first?: () => void) {
   const before = useRef(first)
-  useEffect(() => {
+  useInsertionEffect(() => {
     before.current = first
   })
   const wasEditing = useRef(editing)

@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useInsertionEffect, useRef } from 'react'
 import type { Core } from '../../core-client'
 import { syncSnapshot } from '../../sync'
 
 /** Installs the spike harness's page probes (spikes.ts) in a debug build. */
 export function useSpikes(core: Core | null): void {
   const current = useRef(core)
-  useEffect(() => {
+  useInsertionEffect(() => {
     current.current = core
   })
   useEffect(() => {

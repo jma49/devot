@@ -3,7 +3,7 @@
 // before it pops up, the menu shows, hides, relabels and checks its items
 // for the thing that was right-clicked.
 import type { CheckMenuItem, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useInsertionEffect, useRef } from 'react'
 import { shortcutAccelerator } from './commands/keys'
 import { changesNotes, command, commandKeys, type CommandId } from './commands/registry'
 import { currentKeymap } from './commands/shortcutSettings'
@@ -271,7 +271,7 @@ export function useContextMenu<A extends string, T>(
 ) {
   const spec = useRef({ name, groups, api })
   const pick = useRef(onPick)
-  useEffect(() => {
+  useInsertionEffect(() => {
     pick.current = onPick
   }, [onPick])
   const menu = useRef<Promise<ContextMenu<T>>>(undefined)
