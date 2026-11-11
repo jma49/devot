@@ -47,7 +47,13 @@ final class EditorTests: XCTestCase {
         add(attachment)
     }
 
+    /// Swipes the note up until `found`. A note is on screen before its text reaches accessibility:
+    /// on a loaded runner the web view's tree held no text through thirty swipes of a drawn note,
+    /// so the text is waited for first, and its absence is the failure the log names.
     private func scrollUntil(_ found: () -> Bool, swipes: Int = 30) -> Bool {
+        let text = page.staticTexts.firstMatch.waitForExistence(timeout: waitLimit(20))
+        if !text { keepTree(from: "WebView") }
+        XCTAssertTrue(text, "the note's text reaches accessibility")
         for _ in 0..<swipes where !found() {
             page.swipeUp(velocity: .slow)
         }

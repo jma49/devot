@@ -141,6 +141,11 @@ run_tests() {
       echo "::warning title=Flaky iPhone UI test::$test"
       [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "- Flaky (passed on retry): $test" >>"$GITHUB_STEP_SUMMARY"
     done
+    # CI keeps the result bundle of a run that needed a retry too: the failed attempt's screens and
+    # trees are the only evidence of a flake, and a green job used to drop them.
+    if grep -q "^Test Case .* failed" "$log" && [ -n "${GITHUB_OUTPUT:-}" ]; then
+      echo "flaky=true" >>"$GITHUB_OUTPUT"
+    fi
   fi
   rm -f "$log"
   # The app's own log holds codes and IDs only (src-tauri/src/logs.rs); its warnings say why a screen stayed empty.
