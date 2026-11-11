@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { decodePng } from '../support/png'
 import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
+import { expectSource, inEditMode } from './writeSource'
 
 // Write mode's tables (src/renderer/src/editor/write/tableGrid.ts): a table shows as a grid and the
 // caret edits its cells in place; the note's Markdown, read through Edit mode, stays a formatted GFM
@@ -14,29 +15,7 @@ const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
 const cells = (page: Page) => page.locator('.cm-wm-cell')
-const modes = (page: Page) => page.getByRole('group', { name: 'View mode' })
-const writeButton = (page: Page) =>
-  page.locator('.editor-toolbar').getByRole('button', { name: 'Write Mode', exact: true })
 const bar = (page: Page) => page.getByRole('toolbar', { name: 'Table', exact: true })
-
-const runCommand = (page: Page, id: string) =>
-  page.evaluate(
-    (detail) => {
-      const w = window
-      w.dispatchEvent(new w.CustomEvent('devot:open-url', { detail }))
-    },
-    { kind: 'command', id },
-  )
-
-async function source(page: Page): Promise<string[]> {
-  await runCommand(page, 'view.edit')
-  await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Edit')
-  const text = await lines(page)
-  await runCommand(page, 'view.write')
-  await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
-  await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
-  return text
-}
 
 async function createNote(page: Page, title: string, text: string) {
   const before = await noteRows(page).count()
@@ -132,7 +111,7 @@ test('draws a table as a grid and types in a cell', async ({ page }) => {
   await intoCell(page, 'Tea')
   await page.keyboard.type(' pot|x')
   await expect.poll(() => lines(page)).toEqual(['Above', '', 'ItemQty', 'Tea pot|x2'])
-  expect(await source(page)).toEqual([
+  await expectSource(page, [
     'Above',
     '',
     '| Item       | Qty |',
@@ -140,7 +119,7 @@ test('draws a table as a grid and types in a cell', async ({ page }) => {
     '| Tea pot\\|x |   2 |',
   ])
   await page.keyboard.press('ControlOrMeta+KeyZ')
-  expect(await source(page)).toEqual(['Above', '', TABLE.split('\n')].flat())
+  await expectSource(page, ['Above', '', TABLE.split('\n')].flat())
 })
 
 test('Tab, Shift+Tab and Return move through the grid', async ({ page }) => {
@@ -156,7 +135,7 @@ test('Tab, Shift+Tab and Return move through the grid', async ({ page }) => {
   await page.keyboard.type('1')
   await expect(cells(page)).toHaveCount(6)
   await expect.poll(() => lines(page)).toEqual([...ABOVE, 'ItemQty', 'Teas20', 'Milk1'])
-  expect(await source(page)).toEqual([
+  await expectSource(page, [
     ...ABOVE,
     '| Item | Qty |',
     '| ---- | --: |',
@@ -175,12 +154,7 @@ test('moves a column from the table bar and keeps the caret in its cell', async 
   await body(page).focus()
   await page.keyboard.type('s')
   await expect.poll(() => lines(page)).toEqual([...ABOVE, 'QtysItem', '2Tea'])
-  expect(await source(page)).toEqual([
-    ...ABOVE,
-    '| Qtys | Item |',
-    '| ---: | ---- |',
-    '|    2 | Tea  |',
-  ])
+  await expectSource(page, [...ABOVE, '| Qtys | Item |', '| ---: | ---- |', '|    2 | Tea  |'])
 })
 
 test('fits every column to its widest cell on first draw, before the caret enters the table', async ({
@@ -235,7 +209,7 @@ test('keeps every grid in its columns across notes, modes and a root that lost t
   await expect.poll(() => rowColumns(page)).toEqual([2, 2])
   await noteRows(page).filter({ hasText: 'Wide' }).click()
   await expect.poll(() => rowColumns(page)).toEqual([3, 3])
-  await source(page)
+  await inEditMode(page, async () => {})
   await expect.poll(() => rowColumns(page)).toEqual([3, 3])
   await noteRows(page).filter({ hasText: 'Narrow' }).click()
   await expect.poll(() => rowColumns(page)).toEqual([2, 2])
@@ -379,7 +353,7 @@ test('composing in a cell keeps every character in order', async ({ page }) => {
   await expect.poll(() => lines(page)).toEqual([...ABOVE, 'ItemQty', `Tea${KAN}2`])
   await page.keyboard.type('x')
   await expect.poll(() => lines(page)).toEqual([...ABOVE, 'ItemQty', `Tea${KAN}x2`])
-  expect(await source(page)).toEqual([
+  await expectSource(page, [
     ...ABOVE,
     '| Item   | Qty |',
     '| ------ | --: |',

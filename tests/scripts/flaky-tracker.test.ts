@@ -17,6 +17,7 @@ import {
   sightingNote,
   sightings,
   verdict,
+  withOpened,
 } from '../../scripts/ci/flaky-tracker'
 
 const read = (path: string) => readFileSync(path, 'utf8')
@@ -46,17 +47,14 @@ it('takes only the "Flaky" warnings of a job, whatever reporter wrote them', () 
   ])
 })
 
-it("reads a test's name as it was written, not as the annotation escaped it", () => {
-  const escaped =
-    'ui/a.spec.ts &gt; keeps &quot;a &amp; b&quot; &lt;in&gt; order &#39;x&#39; [webkit]'
-  const [found] = sightings('UI (webkit, 2/14)', [
-    { annotation_level: 'warning', title: 'Flaky UI test', message: escaped },
-  ])
-  expect(found?.test).toBe(`ui/a.spec.ts > keeps "a & b" <in> order 'x' [webkit]`)
-  // The first issue the tracker opened carries the escaped name: a later sighting still finds it.
-  const open = [{ number: 888, title: issueTitle('ui/a.spec.ts &gt; keeps [webkit]') }]
-  const again = { test: 'ui/a.spec.ts > keeps [webkit]', kind: 'Flaky UI test', job: 'UI' }
-  expect(plan([again], open)).toEqual([{ sighting: again, issue: 888 }])
+it('lists an issue the run just opened although GitHub does not list it yet', () => {
+  const listed = [{ number: 888, title: 'Flaky test: a', comments: 2 }]
+  const opened = [
+    { number: 888, title: 'Flaky test: a', comments: 0 },
+    { number: 892, title: 'Flaky test: b', comments: 0 },
+  ]
+  expect(withOpened(listed, opened)).toEqual([listed[0], opened[1]])
+  expect(healthBody([], withOpened(listed, opened), 'u')).toContain('- #892, seen 1 time(s)')
 })
 
 it('names one issue per test, short enough for GitHub', () => {

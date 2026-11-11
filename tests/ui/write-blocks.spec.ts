@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect, test, openApp } from './fixtures'
+import { expectSource } from './writeSource'
 
 // Write mode's rendered blocks (src/renderer/src/editor/write/rendered.ts): images, formulas and
 // diagrams show as the preview shows them, a caret in one shows its source over the rendering, and
@@ -13,9 +14,6 @@ const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).ge
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
-const modes = (page: Page) => page.getByRole('group', { name: 'View mode' })
-const writeButton = (page: Page) =>
-  page.locator('.editor-toolbar').getByRole('button', { name: 'Write Mode', exact: true })
 const viewer = (page: Page) => page.getByRole('dialog', { name: /^Image Viewer/ })
 
 /** Whether the bottom of `upper` is at or above the top of `lower`. */
@@ -33,16 +31,6 @@ const runCommand = (page: Page, id: string) =>
     },
     { kind: 'command', id },
   )
-
-async function source(page: Page): Promise<string[]> {
-  await runCommand(page, 'view.edit')
-  await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Edit')
-  const text = await lines(page)
-  await runCommand(page, 'view.write')
-  await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
-  await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
-  return text
-}
 
 async function createNote(page: Page, title: string, text: string) {
   const before = await noteRows(page).count()
@@ -92,7 +80,7 @@ test('a formula shows its source over its rendering while the caret is in it', a
   await expect(math).toHaveClass(/cm-wm-block-open/)
   await page.keyboard.press('ArrowUp')
   await expect(math).not.toHaveClass(/cm-wm-block-open/)
-  expect(await source(page)).toEqual(['Before', '', '$$', 'x^2 + 1', '$$', '', 'After'])
+  await expectSource(page, ['Before', '', '$$', 'x^2 + 1', '$$', '', 'After'])
 })
 
 /** How far each `(` of a formula is drawn left of its own box: a bracket hung into the digit before it. */
@@ -139,7 +127,7 @@ test('inline math shows as the preview draws it, and its source while the caret 
 
   await page.keyboard.press('ArrowDown')
   await expect(formula).toHaveCount(1)
-  expect(await source(page)).toEqual(['Top $a_8^2 + b^2 = c^2$ end', 'Next'])
+  await expectSource(page, ['Top $a_8^2 + b^2 = c^2$ end', 'Next'])
 })
 
 test('an image shows its Markdown over it from a click, and opens on a double click', async ({
@@ -232,7 +220,7 @@ test('an image is entered by the arrows, selected by Backspace and deleted by th
   await page.keyboard.press('Backspace')
   await expect(image).toHaveCount(0)
   await expect.poll(() => lines(page)).toEqual(['Top', 'End!'])
-  expect(await source(page)).toEqual(['Top', 'End!'])
+  await expectSource(page, ['Top', 'End!'])
 })
 
 test('a diagram shows drawn, and a click shows its source over it', async ({ page }) => {
@@ -277,7 +265,7 @@ test('a code block hides its fences, keeping their lines, and names its language
   expect(await tops(page)).toEqual(before)
   await page.locator('.cm-line', { hasText: 'After' }).click()
   await expect(language).toHaveCount(1)
-  expect(await source(page)).toEqual(text)
+  await expectSource(page, text)
 })
 
 test('an alert reads upright with its title in its colour; a plain quote stays italic', async ({

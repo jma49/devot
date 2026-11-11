@@ -143,6 +143,7 @@ Every PR must test the logic it changes, which review checks.
   Under the navigation bar, once the list has scrolled beneath it, the edge effect and the shadow of Pair a Device's glass reach 33 pt below the bar's frame (measured on the iOS 26.5 screenshot: the page differs from `color.phone.background` down to y = 148 under a bar ending at 116).
   They are the only jobs that run the shipping app, so it is what catches a web view that fails to move between the tabs or a tab item without a name.
   A failed shard, the smoke shard included, uploads its result bundle as the `iphone-ui-xcresult-<shard>` artifact, with each audit issue's element and the screenshots.
+  So does a shard whose test passed only on its retry: the failed attempt's screens and trees are the only evidence of the flake, and a green job dropped them.
   A pull request runs it only when it changes `src-tauri/apple/`, `src-tauri/gen/apple/`, `src-tauri/src/native/ios/`, a `screens/` folder, `src/renderer/src/phone/` or the scripts that run it (`scripts/ci/changed-code.sh`); every other run includes it.
 - CI runs on every pull request, every push to main, or when started by hand.
   A pull request runs only the jobs its changed files need: `scripts/ci/changed-code.sh` says which paths need the web and the Rust jobs, and `scripts/ci/ui-plan.ts` picks the UI specs (docs/development.md, Targeted UI CI).
@@ -183,6 +184,10 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
   - A test that runs out of time is not stopped: it keeps writing to what it shares with the next test, and with its own retry, which then fails on state the first attempt is still changing (a rate limit's count); a test with many signed requests gets a time limit a loaded runner stays under.
     Vitest's own limits, 5 s for a test and 10 s for a hook, are sized for a developer's Mac like the budgets, so `vitest.config.ts` stretches them by the budgets' factor: five times on a hosted runner, `DEVOT_BUDGET_SCALE` on a slower machine.
   - A shard that waits for the app build asked GitHub for the run's artifacts every ten seconds and stopped at the first request that failed (`fetch failed`, while its simulator booted); a failed request is asked again on the next turn (`scripts/ci/wait-for-artifact.ts`).
+  - The Write mode specs read the note's Markdown once after the switch to Edit mode, and the editor's lines follow the Edit button by a frame or more (a table's delimiter row came back after its other rows): they poll the lines through one helper (`tests/ui/writeSource.ts`).
+  - A menu item's handler was kept for its listener in a passive effect, which runs after the paint: a second pick right after the first one's change was on screen ran the handler of the render before, so the sidebar's second toggle showed what was already shown (docs/specs/stateful-code.md, One value, one owner).
+  - An iPhone note is on screen before its text reaches accessibility: on a loaded runner the web view's tree held no text through thirty swipes, while the screenshot showed the note drawn.
+    The editor tests wait for the text before they swipe and name its absence; why the tree stays empty is not known, and the kept result bundle is there for the next time.
   - StoreKit Test's local server answers some purchases with a server error (AMSErrorDomain 305) on a loaded runner; the retry covers it.
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 

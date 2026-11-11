@@ -572,8 +572,10 @@ jobs:
       - run: mkdir -p test-results && zstd -dc "$RUNNER_TEMP/iphone-ui-build.tar.zst" | tar -C test-results -xf -
       - name: Let the simulator settle
         run: sh scripts/ci/iphone-ui-tests.sh settle
-      - run: sh scripts/ci/iphone-ui-tests.sh test
-      - if: failure()
+      - id: tests
+        run: sh scripts/ci/iphone-ui-tests.sh test
+      # A test that passed only on its retry leaves the job green: its failed attempt is kept too.
+      - if: ${{ failure() || steps.tests.outputs.flaky == 'true' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: iphone-ui-xcresult-${{ matrix.shard }}

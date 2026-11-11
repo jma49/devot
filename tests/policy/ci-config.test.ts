@@ -380,11 +380,16 @@ it('launches the real iPhone app with its built UI in a simulator, switches the 
   expect(script).toContain(
     'xcodebuild build-for-testing -project DevotUITests.xcodeproj -scheme DevotUITests',
   )
-  // A failing run keeps its result bundle, with each test's attachments, as the evidence.
+  // A failing run keeps its result bundle, with each test's attachments, as the evidence, and so
+  // does a run a retry made green: the failed attempt is all there is to tell why a test flaked.
   expect(script).toContain('results="$root/test-results/iphone-ui.xcresult"')
   expect(script).toContain('-resultBundlePath "$results"')
   expect(script).toContain('retry_results="$root/test-results/iphone-ui-retry.xcresult"')
-  const upload = ui.slice(ui.indexOf('- if: failure()'))
+  expect(ui).toContain('- id: tests\n        run: sh scripts/ci/iphone-ui-tests.sh test')
+  expect(script).toContain('echo "flaky=true" >>"$GITHUB_OUTPUT"')
+  const upload = ui.slice(
+    ui.indexOf("- if: ${{ failure() || steps.tests.outputs.flaky == 'true' }}"),
+  )
   expect(upload).toMatch(/^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # v/m)
   expect(upload).toContain('name: iphone-ui-xcresult-${{ matrix.shard }}')
   expect(upload).toContain('path: test-results/iphone-ui*.xcresult/')

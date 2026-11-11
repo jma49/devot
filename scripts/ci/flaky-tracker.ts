@@ -24,23 +24,10 @@ export type Issue = { number: number; title: string; comments?: number }
 export type Job = { id: number; name: string; conclusion: string | null; run_attempt?: number }
 export type Run = { conclusion: string | null; run_attempt: number; html_url: string }
 
-const ENTITIES: Readonly<Record<string, string>> = {
-  '&gt;': '>',
-  '&lt;': '<',
-  '&quot;': '"',
-  '&#39;': "'",
-  '&amp;': '&',
-}
-
-/** GitHub hands an annotation's message back with its HTML characters escaped. */
-function plain(text: string): string {
-  return text.replace(/&(gt|lt|quot|#39|amp);/g, (entity) => ENTITIES[entity] ?? entity)
-}
-
 export function sightings(job: string, annotations: readonly Annotation[]): Sighting[] {
   return annotations
     .filter((a) => a.annotation_level === 'warning' && (a.title ?? '').startsWith('Flaky'))
-    .map((a) => ({ test: plain(a.message).trim(), kind: a.title ?? 'Flaky', job }))
+    .map((a) => ({ test: a.message.trim(), kind: a.title ?? 'Flaky', job }))
     .filter((s) => s.test.length > 0)
 }
 
@@ -119,9 +106,18 @@ export function newIssueBody(sighting: Sighting, runUrl: string, sha: string): s
   ].join('\n')
 }
 
+/**
+ * The open issues with the ones this run just opened: GitHub's list of issues lags a new issue by
+ * seconds, and the health issue written right after left them out until the next run.
+ */
+export function withOpened(listed: readonly Issue[], opened: readonly Issue[]): Issue[] {
+  const known = new Set(listed.map((issue) => issue.number))
+  return [...listed, ...opened.filter((issue) => !known.has(issue.number))]
+}
+
 /** For each sighting, the open issue that already tracks its test, or none. */
 export function plan(found: readonly Sighting[], open: readonly Issue[]) {
-  const byTitle = new Map(open.map((issue) => [plain(issue.title), issue.number]))
+  const byTitle = new Map(open.map((issue) => [issue.title, issue.number]))
   const seen = new Set<string>()
   return found
     .filter((s) => !seen.has(s.test) && seen.add(s.test))
@@ -173,6 +169,7 @@ async function main() {
   const open = await api<Issue[]>(`${issues}?labels=${LABEL}&state=open&per_page=100`)
   const post = (path: string, body: unknown, method = 'POST') =>
     api<Issue>(path, { method, body: JSON.stringify(body) })
+  const opened: Issue[] = []
   for (const { sighting, issue } of plan(found, open)) {
     if (issue) {
       await post(`${issues}/${issue}/comments`, { body: sightingNote(sighting, runUrl, sha) })
@@ -183,6 +180,7 @@ async function main() {
         body: newIssueBody(sighting, runUrl, sha),
         labels: [LABEL, 'bug'],
       })
+      opened.push({ number: made.number, title: made.title, comments: 0 })
       console.log(`flaky-tracker: issue ${made.number} opened`)
     }
   }
@@ -198,7 +196,10 @@ async function main() {
   const last = await api<{ workflow_runs: Run[] }>(
     `/repos/${repo}/actions/workflows/ci.yml/runs?branch=main&event=push&status=completed&per_page=${HEALTH_RUNS}`,
   )
-  const tracked = await api<Issue[]>(`${issues}?labels=${LABEL}&state=open&per_page=100`)
+  const tracked = withOpened(
+    await api<Issue[]>(`${issues}?labels=${LABEL}&state=open&per_page=100`),
+    opened,
+  )
   const body = healthBody(last.workflow_runs, tracked, runUrl)
   const board =
     tracked.find((issue) => issue.title === HEALTH_TITLE)?.number ??
