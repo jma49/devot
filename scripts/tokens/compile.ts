@@ -1,4 +1,5 @@
 // Compiles DTCG design tokens into CSS custom properties and TS constants; `build.ts` does the file I/O.
+import { grainTile } from './grain.ts'
 
 export type TokenTree = { [key: string]: TokenTree | Token | unknown }
 
@@ -220,7 +221,10 @@ function colourAt(stops: readonly GradientStop[], at: number): ColorValue {
 /** Settings > Appearance > Gradient, 0 to 100; a page that never sets it shows the design. */
 const GRADIENT_STRENGTH = 'calc(var(--gradient-strength, 100) * 1%)'
 
-/** Every stop mixed towards the gradient's middle colour: 100 is the design, 0 that colour alone. */
+/**
+ * Every stop mixed towards the gradient's middle colour: 100 is the design, 0 that colour alone.
+ * The grain lies over it, so the gradient shows no 8-bit steps.
+ */
 function backdropGradient(token: FlatToken): string {
   const stops = token.value as GradientStop[]
   const solid = cssColor(colourAt(stops, 0.5))
@@ -230,7 +234,7 @@ function backdropGradient(token: FlatToken): string {
       colour === solid ? colour : `color-mix(in srgb, ${colour} ${GRADIENT_STRENGTH}, ${solid})`
     return `${mix} ${round(s.position * 100)}%`
   })
-  return `linear-gradient(${BACKDROP_DEGREES}deg, ${mixed.join(', ')})`
+  return `var(--backdrop-grain), linear-gradient(${BACKDROP_DEGREES}deg, ${mixed.join(', ')})`
 }
 
 /**
@@ -357,6 +361,7 @@ export function compile(
     `/* ${HEADER} */`,
     ':root {',
     '  color-scheme: light dark;',
+    `  --backdrop-grain: image-set(url("${grainTile()}") 2x);`,
     ...shared.map((t) => `  ${cssVarName(t.path)}: ${cssValue(t)};`),
     ...lightDeclarations,
     '}',

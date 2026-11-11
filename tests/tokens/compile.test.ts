@@ -9,6 +9,7 @@ import {
   resolve,
   type TokenTree,
 } from '../../scripts/tokens/compile'
+import { grainTile } from '../../scripts/tokens/grain'
 
 const read = (path: string) => JSON.parse(readFileSync(path, 'utf8')) as TokenTree
 const base = read('design/tokens/base.tokens.json')
@@ -247,8 +248,8 @@ describe('token compiler', () => {
       expect(backdropThemes(backdrops)).toEqual([
         {
           id: 'dawn',
-          light: `linear-gradient(160deg, ${mixed('rgb(255 0 0 / 0.5)', 'rgb(128 128 0 / 0.5)')} 0%, ${mixed('rgb(0 255 0 / 0.5)', 'rgb(128 128 0 / 0.5)')} 100%)`,
-          dark: `linear-gradient(160deg, ${mixed('rgb(0 0 128 / 0.5)', 'rgb(0 64 64 / 0.5)')} 0%, ${mixed('rgb(0 128 0 / 0.5)', 'rgb(0 64 64 / 0.5)')} 100%)`,
+          light: `var(--backdrop-grain), linear-gradient(160deg, ${mixed('rgb(255 0 0 / 0.5)', 'rgb(128 128 0 / 0.5)')} 0%, ${mixed('rgb(0 255 0 / 0.5)', 'rgb(128 128 0 / 0.5)')} 100%)`,
+          dark: `var(--backdrop-grain), linear-gradient(160deg, ${mixed('rgb(0 0 128 / 0.5)', 'rgb(0 64 64 / 0.5)')} 0%, ${mixed('rgb(0 128 0 / 0.5)', 'rgb(0 64 64 / 0.5)')} 100%)`,
         },
       ])
     })
@@ -270,7 +271,7 @@ describe('token compiler', () => {
         },
       }
       expect(backdropThemes(three)[0]!.light).toBe(
-        `linear-gradient(160deg, ${mixed('rgb(255 0 0 / 0.5)', '#336699')} 0%, #336699 50%, ${mixed('rgb(0 255 0 / 0.5)', '#336699')} 100%)`,
+        `var(--backdrop-grain), linear-gradient(160deg, ${mixed('rgb(255 0 0 / 0.5)', '#336699')} 0%, #336699 50%, ${mixed('rgb(0 255 0 / 0.5)', '#336699')} 100%)`,
       )
     })
 
@@ -282,8 +283,14 @@ describe('token compiler', () => {
       expect(themed).not.toContain('--color-')
       expect(themed).toContain("[data-theme-preview='dawn'][data-appearance-preview='dark']")
       expect(themed).toContain(
-        `--backdrop: linear-gradient(160deg, ${mixed('rgb(0 0 128 / 0.5)', 'rgb(0 64 64 / 0.5)')} 0%`,
+        `--backdrop: var(--backdrop-grain), linear-gradient(160deg, ${mixed('rgb(0 0 128 / 0.5)', 'rgb(0 64 64 / 0.5)')} 0%`,
       )
+    })
+
+    // A gradient in 8-bit colour shows flat steps; the grain over it breaks them up.
+    it('lays the grain over every gradient, one speck to a screen pixel', () => {
+      const root = css.slice(css.indexOf(':root {'), css.indexOf('}'))
+      expect(root).toContain(`--backdrop-grain: image-set(url("${grainTile()}") 2x);`)
     })
 
     it('refuses a gradient theme without both appearances, or with an id that is not a plain word', () => {
