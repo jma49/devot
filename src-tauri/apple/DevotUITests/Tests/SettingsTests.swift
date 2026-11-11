@@ -104,6 +104,41 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(close.waitForNonExistence(timeout: waitLimit(5)), "the button closes the sheet")
     }
 
+    private static let linkRelay = "http://localhost:8787"
+
+    /// The joining path's Relay field; while it is empty its value is the placeholder.
+    private var relayField: XCUIElement { app.textFields["syncSettings.relay|false|"] }
+
+    /// Join asks about a link's relay only while none is saved, so one an earlier run saved goes first.
+    private func forgetTheRelay() {
+        let field = scrolled(to: relayField)
+        guard let saved = field.value as? String, saved == Self.linkRelay else { return }
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: saved.count) + "\n")
+        XCTAssertTrue(waitUntil { (field.value as? String) != saved }, "the Relay field is empty again")
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+    }
+
+    /// #886. The alert's button is tapped through the app: a touch sent by another app's coordinates
+    /// makes XCTest's interruption handler tap Cancel first.
+    func testUseThisRelaySavesTheLinksRelayAndTriesTheJoin() {
+        row(L10n.settingsPaneSync()).tap()
+        app.buttons[L10n.syncSettingsSetupAnother()].tapOnceHittable()
+        forgetTheRelay()
+        let code = scrolled(to: app.textFields["syncSettings.joinCode|false|code"], back: true)
+        code.tap()
+        code.typeText("devot://pair?relay=http%3A%2F%2Flocalhost%3A8787&code=0400E3GN3GHJMC9R7X34TN2VC9MNJTDF")
+        // The row's Join while the field still holds the keyboard, as after a paste.
+        app.buttons[L10n.syncSettingsJoinCode()].tap()
+        app.alerts.buttons[L10n.syncSettingsLinkRelayButton()].tapOnceHittable()
+        // No relay answers there, so the join that follows fails and the pane says so.
+        let failed = app.staticTexts
+            .matching(NSPredicate(format: "label BEGINSWITH %@", L10n.syncSettingsJoinFailed())).firstMatch
+        XCTAssertTrue(failed.waitForExistence(timeout: waitLimit(30)), "the join was tried")
+        XCTAssertEqual(scrolled(to: relayField).value as? String, Self.linkRelay, "the link's relay is saved")
+        forgetTheRelay()
+    }
+
     private func openAppearance() {
         row(L10n.settingsPaneAppearance()).tap()
         XCTAssertTrue(app.navigationBars[L10n.settingsPaneAppearance()].waitForExistence(timeout: waitLimit(10)))
