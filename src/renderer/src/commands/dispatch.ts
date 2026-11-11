@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { earlyKeysWaiting } from '../editor/earlyKeys'
 import { isImeKey } from '../ime'
 import { listenHere, unlistenLater } from '../windowEvents'
@@ -101,7 +101,9 @@ export function useMenuEvent(
   run: (payload: unknown) => void,
 ) {
   const latest = useRef(run)
-  useEffect(() => {
+  // With the render it belongs to: a passive effect runs after the paint, and a second pick in
+  // between ran the handler of the render before, which toggled what was no longer on screen.
+  useLayoutEffect(() => {
     latest.current = run
   })
   useEffect(() => {
