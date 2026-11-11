@@ -87,7 +87,12 @@ describe('the native screens bridge', () => {
     })
     await bridge.installed
     tauri.emit(SCREENS_EVENT, { v: 1, id: 3, op: 'ping', args: {} })
-    tauri.emit(SCREENS_EVENT, { v: 1, id: 4, op: 'excerpts', args: { ids: ['a', 'b'] } })
+    tauri.emit(SCREENS_EVENT, {
+      v: 1,
+      id: 4,
+      op: 'excerpts',
+      args: { ids: ['a', 'b'] },
+    })
     await settle()
     finish({ late: true })
     await settle()
@@ -128,7 +133,12 @@ describe('the native screens bridge', () => {
     })
     await bridge.installed
     tauri.emit(SCREENS_EVENT, { v: 1, id: 1, op: 'ping', args: {} })
-    tauri.emit(SCREENS_EVENT, { v: 1, id: 2, op: 'search', args: { query: 'x', scope: 'all' } })
+    tauri.emit(SCREENS_EVENT, {
+      v: 1,
+      id: 2,
+      op: 'search',
+      args: { query: 'x', scope: 'all' },
+    })
     await settle()
     expect(posted).toStrictEqual([
       { v: 1, id: 1, ok: false, code: 'E_LICENCE_REQUIRED' },
@@ -151,7 +161,12 @@ describe('the native screens bridge', () => {
     expect(tauri.invoked).not.toContain('screens_take')
   })
 
-  const notice = { notice: 'tabs.state', tab: 'notes', barHidden: true, attention: false } as const
+  const notice = {
+    notice: 'tabs.state',
+    tab: 'notes',
+    barHidden: true,
+    attention: false,
+  } as const
 
   it('sends a notice once the screens are known to be installed', async () => {
     const { bridge, posted } = start()
@@ -161,6 +176,51 @@ describe('the native screens bridge', () => {
     bridge.notify(notice)
     await settle()
     expect(posted).toStrictEqual([{ v: 1, ...notice }])
+  })
+
+  it('posts one message at a time, so two notices reach the screens in the order sent', async () => {
+    const posted: unknown[] = []
+    const answers: (() => void)[] = []
+    tauri = mockTauri((cmd, args) => {
+      if (cmd === 'screens_take') return { installed: true, pending: [] }
+      if (cmd !== 'screens_post') return null
+      posted.push(JSON.parse(args['message'] as string))
+      return new Promise<null>((resolve) => answers.push(() => resolve(null)))
+    })
+    const bridge = startScreensBridge()
+    stop = bridge.stop
+    await bridge.installed
+    const mode = (shown: 'edit' | 'preview') =>
+      ({ notice: 'editor.mode', noteId: 'n1', mode: shown }) as const
+    bridge.notify(mode('preview'))
+    bridge.notify(mode('edit'))
+    await settle()
+    expect(posted).toStrictEqual([{ v: 1, ...mode('preview') }])
+    answers[0]!()
+    await settle()
+    expect(posted).toStrictEqual([
+      { v: 1, ...mode('preview') },
+      { v: 1, ...mode('edit') },
+    ])
+  })
+
+  it('goes on posting after a post that failed', async () => {
+    const posted: unknown[] = []
+    tauri = mockTauri((cmd, args) => {
+      if (cmd === 'screens_take') return { installed: true, pending: [] }
+      if (cmd !== 'screens_post') return null
+      posted.push(JSON.parse(args['message'] as string))
+      if (posted.length === 1) throw new Error('E_SCREENS_NOT_INSTALLED')
+      return null
+    })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const bridge = startScreensBridge()
+    stop = bridge.stop
+    await bridge.installed
+    bridge.notify(notice)
+    bridge.notify(notice)
+    await settle()
+    expect(posted).toHaveLength(2)
   })
 
   it('drops every notice without the screens', async () => {

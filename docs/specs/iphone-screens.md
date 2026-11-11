@@ -74,6 +74,8 @@ In stage 0 the root was empty and transparent and passed every touch through, so
   Rust hands Swift its own `call` and `log` functions at install, so Rust exports no symbol and Swift needs no header.
 - `build.rs` lists the package's C symbols beside the store's, so Cargo's iOS library, which holds no Swift, still links.
 - A buffer passed either way is valid only until the call that received it returns, so each side copies it first.
+- The page posts one message at a time (`bridge.ts`): `screens_post` runs as a task of its own in Rust, so two posts in flight could reach Swift in either order.
+  Swift takes a notice as the latest word, so a note's `editor.mode` notices out of order left the screen in the mode before.
 - Rust keeps at most 1024 requests waiting, and refuses more with `E_SCREENS_BUSY`.
 - A panic in Rust on a request's way abandons it, and Swift hears `E_SCREENS_INTERNAL` unless it was answered already, so no request waits for ever.
 - A request that comes before the page listens waits in Rust until the page calls `screens_take`; one that comes later goes out as the event at once.
