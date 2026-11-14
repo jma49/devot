@@ -19,6 +19,18 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 bundle=${DEVOT_UI_BUILD:-$root/test-results/iphone-ui-build}
 step=${1:-all}
 
+# XCTest records the screen through every UI test by default. On the loaded xcode-27 runner, the
+# recording among the simulator's other work, its report that the app had stopped came 111 s late and
+# the next launch failed with "Failed to terminate" (#880, #895). Screenshots keep a failure's evidence.
+capture_screenshots() {
+  file=$1
+  targets=$(plutil -convert json -o - "$file" | node "$root/scripts/ci/xctestrun-targets.ts")
+  for target in $targets; do
+    plutil -replace "$target.PreferredScreenCaptureFormat" -string screenshots "$file"
+    echo "screen capture: screenshots for $target"
+  done
+}
+
 build_runner() {
   # Tauri leaves a simulator build under gen/apple/build; Xcode's derived data is the fallback.
   app=$(find "$root/src-tauri/gen/apple/build" "$HOME/Library/Developer/Xcode/DerivedData" \
@@ -43,6 +55,7 @@ build_runner() {
   rm -rf "$bundle"
   mkdir -p "$bundle/Debug-iphonesimulator"
   cp "$work"/Build/Products/*.xctestrun "$bundle/"
+  capture_screenshots "$bundle"/*.xctestrun
   cp -R "$work"/Build/Products/Debug-iphonesimulator/*.app "$bundle/Debug-iphonesimulator/"
   cp -R "$app" "$bundle/Devot.app"
   rm -rf "$work"
