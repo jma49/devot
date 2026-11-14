@@ -221,8 +221,13 @@ describe('the signing script', () => {
       'spctl -a -t open --context context:primary-signature -vv "$dmg"',
     ])
       expect(script).toContain(check)
-    // Only the app's own signature, which is its main executable's, carries entitlements.
+    // Only the app's own signature, which is its main executable's, carries entitlements, and an
+    // app extension's carries the sandbox.
+    expect(script).toContain(
+      'extension_entitlements=$script_dir/../../src-tauri/macos/Extension.entitlements',
+    )
     expect(script.match(/^ *sign .*$/gm)).toEqual([
+      '    sign --options runtime --entitlements "$extension_entitlements" "$path"',
       '    sign --options runtime "$path"',
       '    sign --options runtime "$path"',
       '  sign --options runtime --entitlements "$entitlements" "$app"',

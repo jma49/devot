@@ -170,6 +170,15 @@ jobs:
               exit 1
               ;;
           esac
+          # The Share menu extension (macos-share-extension.sh), built for both and as the app.
+          appex=$app/Contents/PlugIns/DevotShare.appex
+          archs=$(lipo -archs "$appex/Contents/MacOS/DevotShare")
+          version=$(plutil -extract CFBundleVersion raw "$app/Contents/Info.plist")
+          if [ "$(plutil -extract CFBundleVersion raw "$appex/Contents/Info.plist")" != "$version" ] ||
+            [ "$(tr ' ' '\n' <<< "$archs" | sort | tr '\n' ' ')" != "arm64 x86_64 " ]; then
+            echo "::error::E_RELEASE_SHARE_EXTENSION: the share extension holds $archs, or is not version $version."
+            exit 1
+          fi
           minimum=$(plutil -extract LSMinimumSystemVersion raw "$app/Contents/Info.plist")
           expected=$(jq -r .bundle.macOS.minimumSystemVersion src-tauri/tauri.conf.json)
           if [ "$minimum" != "$expected" ]; then
