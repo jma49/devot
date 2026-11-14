@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		04E4DAFCC4D866473652700D /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F22CF8122C77E706CCFBC883 /* Security.framework */; };
 		08B3E11AD773EB5010495F66 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 09063CC32A7D2BA3819D47EA /* Metal.framework */; };
+		0C31024A8AC849D51D98982A /* DevotIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFD4600EB1DBB7E9DF5CFC5 /* DevotIntents.swift */; };
+		25E1B8ED4EDF843EC9036A8F /* DevotShareInbox in Frameworks */ = {isa = PBXBuildFile; productRef = E3384A62F9AA0E5A06965BE0 /* DevotShareInbox */; };
 		25FF7C6AD89BDF46F6776971 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2A194DD75CE5B8478FEF87CA /* MetalKit.framework */; };
 		312AE22B580698F3FB870669 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DFEA1C9C4F7A1C0534536CE /* UIKit.framework */; };
 		34A54B2346DC51B4E3B0211F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FBE599D35452B8F210FA9C16 /* LaunchScreen.storyboard */; };
@@ -16,9 +18,13 @@
 		3E34BD18E5D1C1D22C05726F /* DevotStore in Frameworks */ = {isa = PBXBuildFile; productRef = FD657620152FD640D421F37A /* DevotStore */; };
 		470CE83CF46A2744935494CE /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86C0A5EEB7F57A978B69D46B /* QuartzCore.framework */; };
 		546674A79B42722B61E813D2 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FB148315E9E9007B47A69EF /* CoreGraphics.framework */; };
+		61DE92643105B44EA10594EA /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B4DF711A32E3CD2FBF1FCAEC /* Localizable.xcstrings */; };
+		63180F3C7E604081AF654639 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 53EEE6D1ACF613BB3BF726D2 /* PrivacyInfo.xcprivacy */; };
 		84D39F170FCB0031DF95B612 /* DevotScreens in Frameworks */ = {isa = PBXBuildFile; productRef = 309BF505F888D5DDF1E52899 /* DevotScreens */; };
 		9A4A08D4EDBF06F8EFBE279B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B9DA79878C9798D58847E7E6 /* Assets.xcassets */; };
 		ABB68BE8FBA370A647E701F4 /* DevotShare in Frameworks */ = {isa = PBXBuildFile; productRef = 440D7A5594D0EF56A6AF14DF /* DevotShare */; };
+		B1E0D54AD1C0507B70B48B03 /* devot_Intents.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 28454B1E985189E1D675B8F0 /* devot_Intents.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B2238D7894AD52EE670FAEAE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CB2C8F4F24F6EE3B5E708F93 /* PrivacyInfo.xcprivacy */; };
 		CA324C894A36B2962666FBB4 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035412695E92F717A8D078A4 /* ShareViewController.swift */; };
 		D8EF8E9E103C36116C28BE20 /* devot_Share.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3234BC2ED5E59513882463C6 /* devot_Share.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		ECF71358197693DC8F914453 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 5DDA750A6E8107FB7348F968 /* assets */; };
@@ -28,6 +34,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		D5AD4DFC6325D3AFE688FD6F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A5E3CD870098CBBFFB0258C9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1462B1ADCBFB92523E3C56A0;
+			remoteInfo = devot_Intents;
+		};
 		EA5579B619AADF24DF7E492D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A5E3CD870098CBBFFB0258C9 /* Project object */;
@@ -47,6 +60,17 @@
 				D8EF8E9E103C36116C28BE20 /* devot_Share.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A11DA042ED3B09F91F3C8600 /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				B1E0D54AD1C0507B70B48B03 /* devot_Intents.appex in Embed ExtensionKit Extensions */,
+			);
+			name = "Embed ExtensionKit Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -92,6 +116,7 @@
 		2550186E7F08B17CC17199A7 /* pdf.rs */ = {isa = PBXFileReference; path = pdf.rs; sourceTree = "<group>"; };
 		257BCF78A32E169638023C62 /* editor_menu.rs */ = {isa = PBXFileReference; path = editor_menu.rs; sourceTree = "<group>"; };
 		260911362EED5E5B7E7619DD /* app_store.rs */ = {isa = PBXFileReference; path = app_store.rs; sourceTree = "<group>"; };
+		28454B1E985189E1D675B8F0 /* devot_Intents.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = devot_Intents.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2846078CE97EE1A3A7B2163B /* updates.rs */ = {isa = PBXFileReference; path = updates.rs; sourceTree = "<group>"; };
 		28D758DA2F97820165CF5912 /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		2A194DD75CE5B8478FEF87CA /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
@@ -121,6 +146,7 @@
 		51CECA9F522076D3D2C88531 /* open.rs */ = {isa = PBXFileReference; path = open.rs; sourceTree = "<group>"; };
 		53594C7E6BB5FC9095E03383 /* notes.rs */ = {isa = PBXFileReference; path = notes.rs; sourceTree = "<group>"; };
 		53D6AFF3CFE520F6DB763247 /* books.rs */ = {isa = PBXFileReference; path = books.rs; sourceTree = "<group>"; };
+		53EEE6D1ACF613BB3BF726D2 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5438A33B6A3E20A14CAE1697 /* icloud_rotation_tests.rs */ = {isa = PBXFileReference; path = icloud_rotation_tests.rs; sourceTree = "<group>"; };
 		54798A7BCBAAD086ABFB466C /* navigation.rs */ = {isa = PBXFileReference; path = navigation.rs; sourceTree = "<group>"; };
 		5592F529CF83DD469863BF40 /* direct.rs */ = {isa = PBXFileReference; path = direct.rs; sourceTree = "<group>"; };
@@ -169,6 +195,7 @@
 		7A2C0A7B85E460435037661C /* screens.rs */ = {isa = PBXFileReference; path = screens.rs; sourceTree = "<group>"; };
 		7AAFA9FFA575F09BC1049A33 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		7AC74C574D8DAB7C8D065B3C /* keychain.rs */ = {isa = PBXFileReference; path = keychain.rs; sourceTree = "<group>"; };
+		7DFD4600EB1DBB7E9DF5CFC5 /* DevotIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevotIntents.swift; sourceTree = "<group>"; };
 		7E0ABDD7EEFE58ECE9C9096D /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		7FC89CFE4982A1E76FA9F396 /* connection.rs */ = {isa = PBXFileReference; path = connection.rs; sourceTree = "<group>"; };
 		7FEF8AE96CC1C2D4B51B5755 /* purge.rs */ = {isa = PBXFileReference; path = purge.rs; sourceTree = "<group>"; };
@@ -221,6 +248,7 @@
 		B491872A67E4156E9E4CC151 /* note_relay.rs */ = {isa = PBXFileReference; path = note_relay.rs; sourceTree = "<group>"; };
 		B4B6B2272A87132DDBC03AAD /* pasteboard.rs */ = {isa = PBXFileReference; path = pasteboard.rs; sourceTree = "<group>"; };
 		B4D80BB1E899E3A25BB3FA56 /* window.rs */ = {isa = PBXFileReference; path = window.rs; sourceTree = "<group>"; };
+		B4DF711A32E3CD2FBF1FCAEC /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		B4F2D9C21CAB0F8ED0676AF2 /* pending.rs */ = {isa = PBXFileReference; path = pending.rs; sourceTree = "<group>"; };
 		B64C32B9180B7F62B8DF1447 /* atomic_file.rs */ = {isa = PBXFileReference; path = atomic_file.rs; sourceTree = "<group>"; };
 		B7DEA7859D9821290A94C1BA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -243,6 +271,7 @@
 		C99FBAD81A03630F646B0749 /* startup.rs */ = {isa = PBXFileReference; path = startup.rs; sourceTree = "<group>"; };
 		CA112E9474AA7EF800053B96 /* records.rs */ = {isa = PBXFileReference; path = records.rs; sourceTree = "<group>"; };
 		CAA51DE8D84F9E63F2450FA6 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		CB2C8F4F24F6EE3B5E708F93 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		CB728A37B84E0AAFA85CAB88 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		CCCDEBDE7D3A3C53F996BC94 /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		CE1A4ACA0EFCE4C90F076BB3 /* saved_searches.rs */ = {isa = PBXFileReference; path = saved_searches.rs; sourceTree = "<group>"; };
@@ -260,6 +289,7 @@
 		D95D852F53E8003EEC478D75 /* cli_export.rs */ = {isa = PBXFileReference; path = cli_export.rs; sourceTree = "<group>"; };
 		DA47149C4DC9C5C56F51BC78 /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		DB960501F3151BCBA1659D5C /* net.rs */ = {isa = PBXFileReference; path = net.rs; sourceTree = "<group>"; };
+		DDF56BED4EE2B7A12157E7C4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DE39D3848442C761F1840F2B /* routes.rs */ = {isa = PBXFileReference; path = routes.rs; sourceTree = "<group>"; };
 		DE7A3D09503DDDDEA8C2A073 /* enrollment.rs */ = {isa = PBXFileReference; path = enrollment.rs; sourceTree = "<group>"; };
 		DF1ADB1A5EB41140217A9155 /* crash.rs */ = {isa = PBXFileReference; path = crash.rs; sourceTree = "<group>"; };
@@ -283,6 +313,7 @@
 		F576781B7DC91BB610CB65F9 /* payload.rs */ = {isa = PBXFileReference; path = payload.rs; sourceTree = "<group>"; };
 		F584E20712D9A153E50D9D2B /* devot_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = devot_iOS.entitlements; sourceTree = "<group>"; };
 		F5AFCCA60AE4D5A48BFB4684 /* folder.rs */ = {isa = PBXFileReference; path = folder.rs; sourceTree = "<group>"; };
+		F5FDEA0310B12FCE239FB625 /* devot_Intents.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = devot_Intents.entitlements; sourceTree = "<group>"; };
 		F965C6F1D1011C3876EEC2DF /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
 		FAEB8AECA31921C33CC9F12D /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		FB2EE5F54F680C94AAFF64D9 /* background.rs */ = {isa = PBXFileReference; path = background.rs; sourceTree = "<group>"; };
@@ -316,6 +347,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				ABB68BE8FBA370A647E701F4 /* DevotShare in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		786C757BA048BF475955082A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				25E1B8ED4EDF843EC9036A8F /* DevotShareInbox in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -394,6 +433,7 @@
 				5DDA750A6E8107FB7348F968 /* assets */,
 				B9DA79878C9798D58847E7E6 /* Assets.xcassets */,
 				FBE599D35452B8F210FA9C16 /* LaunchScreen.storyboard */,
+				9FAA687C0D837F0CC9AA2C33 /* devot_Intents */,
 				5846929235CC498D61C55187 /* devot_iOS */,
 				2FAB473608EF703DDCCB03BC /* devot_Share */,
 				17156B0292363AEC0DB4A11B /* Externals */,
@@ -448,6 +488,7 @@
 			children = (
 				85A842460950B4870381AAF2 /* devot_Share.entitlements */,
 				8C6C24303FF9AAFDD4F2BBE9 /* Info.plist */,
+				53EEE6D1ACF613BB3BF726D2 /* PrivacyInfo.xcprivacy */,
 				035412695E92F717A8D078A4 /* ShareViewController.swift */,
 			);
 			path = devot_Share;
@@ -633,9 +674,22 @@
 			path = licence;
 			sourceTree = "<group>";
 		};
+		9FAA687C0D837F0CC9AA2C33 /* devot_Intents */ = {
+			isa = PBXGroup;
+			children = (
+				F5FDEA0310B12FCE239FB625 /* devot_Intents.entitlements */,
+				7DFD4600EB1DBB7E9DF5CFC5 /* DevotIntents.swift */,
+				DDF56BED4EE2B7A12157E7C4 /* Info.plist */,
+				B4DF711A32E3CD2FBF1FCAEC /* Localizable.xcstrings */,
+				CB2C8F4F24F6EE3B5E708F93 /* PrivacyInfo.xcprivacy */,
+			);
+			path = devot_Intents;
+			sourceTree = "<group>";
+		};
 		A6F05E88AD6AEA7FB33B88DE /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				28454B1E985189E1D675B8F0 /* devot_Intents.appex */,
 				9C174E479226FAA145DCF6C6 /* devot_iOS.app */,
 				3234BC2ED5E59513882463C6 /* devot_Share.appex */,
 			);
@@ -800,14 +854,49 @@
 			path = plugins;
 			sourceTree = "<group>";
 		};
+		"TEMP_59392E3F-273D-4123-9921-2F40D1FFE7FB" /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = arm64;
+			sourceTree = "<group>";
+		};
+		"TEMP_9951C5C0-FEA9-471C-86B4-33FCDFC3DDC0" /* x86_64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = x86_64;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		1462B1ADCBFB92523E3C56A0 /* devot_Intents */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B497759E7F482FAC58E23F36 /* Build configuration list for PBXNativeTarget "devot_Intents" */;
+			buildPhases = (
+				869E2FBB013CAFF7844E2AD8 /* Sources */,
+				1E146FE35FC4BC0A52E33CEB /* Resources */,
+				786C757BA048BF475955082A /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = devot_Intents;
+			packageProductDependencies = (
+				E3384A62F9AA0E5A06965BE0 /* DevotShareInbox */,
+			);
+			productName = devot_Intents;
+			productReference = 28454B1E985189E1D675B8F0 /* devot_Intents.appex */;
+			productType = "com.apple.product-type.extensionkit-extension";
+		};
 		9E40F12618EC5CE179046D61 /* devot_Share */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = EA4D65BB93D0A203E89D7228 /* Build configuration list for PBXNativeTarget "devot_Share" */;
 			buildPhases = (
 				CFAE461BD9FC33F8BFB3BFD1 /* Sources */,
+				FAD874976C82EB735A3C8C43 /* Resources */,
 				4917B790CF425745DD0BC933 /* Frameworks */,
 			);
 			buildRules = (
@@ -831,11 +920,13 @@
 				804F8950139C823D41C298DD /* Resources */,
 				48B5513AD11968EBD775CB04 /* Frameworks */,
 				0BAAF6D27C4793543BA34105 /* Embed Foundation Extensions */,
+				A11DA042ED3B09F91F3C8600 /* Embed ExtensionKit Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				0103B93F5BEECF2813697D2B /* PBXTargetDependency */,
+				22727B3E7D7223E512B42C72 /* PBXTargetDependency */,
 			);
 			name = devot_iOS;
 			packageProductDependencies = (
@@ -879,11 +970,21 @@
 			targets = (
 				C4595DC2A23A54BFDD3DA19F /* devot_iOS */,
 				9E40F12618EC5CE179046D61 /* devot_Share */,
+				1462B1ADCBFB92523E3C56A0 /* devot_Intents */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		1E146FE35FC4BC0A52E33CEB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				61DE92643105B44EA10594EA /* Localizable.xcstrings in Resources */,
+				B2238D7894AD52EE670FAEAE /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		804F8950139C823D41C298DD /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -892,6 +993,14 @@
 				34A54B2346DC51B4E3B0211F /* LaunchScreen.storyboard in Resources */,
 				3A01A734AA75AC6EEE68CBDC /* PrivacyInfo.xcprivacy in Resources */,
 				ECF71358197693DC8F914453 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FAD874976C82EB735A3C8C43 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				63180F3C7E604081AF654639 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -930,6 +1039,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		869E2FBB013CAFF7844E2AD8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0C31024A8AC849D51D98982A /* DevotIntents.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CFAE461BD9FC33F8BFB3BFD1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -945,6 +1062,11 @@
 			isa = PBXTargetDependency;
 			target = 9E40F12618EC5CE179046D61 /* devot_Share */;
 			targetProxy = EA5579B619AADF24DF7E492D /* PBXContainerItemProxy */;
+		};
+		22727B3E7D7223E512B42C72 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1462B1ADCBFB92523E3C56A0 /* devot_Intents */;
+			targetProxy = D5AD4DFC6325D3AFE688FD6F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1009,6 +1131,24 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		4155C078C1E7BA27E7D3164E /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = devot_Intents/devot_Intents.entitlements;
+				INFOPLIST_FILE = devot_Intents/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot.intents;
+				PRODUCT_NAME = devot_Intents;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = debug;
 		};
@@ -1079,6 +1219,24 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot.share;
 				PRODUCT_NAME = devot_Share;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = release;
+		};
+		9F4CF24D3750F1A49C35CC86 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = devot_Intents/devot_Intents.entitlements;
+				INFOPLIST_FILE = devot_Intents/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot.intents;
+				PRODUCT_NAME = devot_Intents;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -1197,6 +1355,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = debug;
 		};
+		B497759E7F482FAC58E23F36 /* Build configuration list for PBXNativeTarget "devot_Intents" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4155C078C1E7BA27E7D3164E /* debug */,
+				9F4CF24D3750F1A49C35CC86 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
 		EA4D65BB93D0A203E89D7228 /* Build configuration list for PBXNativeTarget "devot_Share" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1231,6 +1398,10 @@
 		440D7A5594D0EF56A6AF14DF /* DevotShare */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DevotShare;
+		};
+		E3384A62F9AA0E5A06965BE0 /* DevotShareInbox */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DevotShareInbox;
 		};
 		FD657620152FD640D421F37A /* DevotStore */ = {
 			isa = XCSwiftPackageProductDependency;

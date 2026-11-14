@@ -6,6 +6,7 @@ import * as editor from './editor'
 import * as files from './files'
 import * as history from './history'
 import * as integrations from './integrations'
+import * as intents from './intents'
 import * as licence from './licence'
 import * as noteList from './noteList'
 import * as phone from './phone'
@@ -24,6 +25,7 @@ export const zhHans: Messages = {
   ...files.messages,
   ...history.messages,
   ...integrations.messages,
+  ...intents.messages,
   ...licence.messages,
   ...noteList.messages,
   ...phone.messages,

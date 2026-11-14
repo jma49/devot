@@ -13,6 +13,7 @@ import * as noteList from './noteList'
 import * as phone from './phone'
 import * as settings from './settings'
 import * as share from './share'
+import * as intents from './intents'
 import * as sidebar from './sidebar'
 import * as sync from './sync'
 
@@ -29,6 +30,7 @@ export const areas = {
   phone,
   settings,
   share,
+  intents,
   sidebar,
   sync,
 }
@@ -46,6 +48,7 @@ export const en = {
   ...phone.messages,
   ...settings.messages,
   ...share.messages,
+  ...intents.messages,
   ...sidebar.messages,
   ...sync.messages,
 } as const

@@ -4434,6 +4434,58 @@ public enum L10n {
     text("plugins.trialEnded", "Your Devot trial has ended, so a plugin cannot change notes. Add a license in Settings > License.")
   }
 
+  public static func intentAddTitle() -> String {
+    text("intent.add.title", "Add to Devot")
+  }
+
+  public static func intentAddDescription() -> String {
+    text("intent.add.description", "Adds a note to Devot. It appears in your notes the next time you open Devot.")
+  }
+
+  public static func intentFieldTitle() -> String {
+    text("intent.field.title", "Title")
+  }
+
+  public static func intentFieldText() -> String {
+    text("intent.field.text", "Text")
+  }
+
+  public static func intentFieldLink() -> String {
+    text("intent.field.link", "Link")
+  }
+
+  public static func intentAdded() -> String {
+    text("intent.added", "Added to Devot.")
+  }
+
+  public static func intentErrorEmpty() -> String {
+    text("intent.error.empty", "Add a title, some text or a link.")
+  }
+
+  public static func intentErrorLink() -> String {
+    text("intent.error.link", "The link must be a web address.")
+  }
+
+  public static func intentErrorTooLarge() -> String {
+    text("intent.error.tooLarge", "This is too long to add to Devot.")
+  }
+
+  public static func intentErrorFull() -> String {
+    text("intent.error.full", "Too many notes are waiting. Open Devot, then try again.")
+  }
+
+  public static func intentErrorSave() -> String {
+    text("intent.error.save", "Devot could not keep this. Try again.")
+  }
+
+  public static func intentTodayTitle() -> String {
+    text("intent.today.title", "Open Today's Note")
+  }
+
+  public static func intentTodayDescription() -> String {
+    text("intent.today.description", "Opens today's note in Devot.")
+  }
+
   public static func licenceSettingsTitle() -> String {
     text("licenceSettings.title", "License")
   }

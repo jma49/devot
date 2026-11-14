@@ -102,6 +102,9 @@ targets:
       - target: devot_Share
         embed: true
         codeSign: true
+      - target: devot_Intents
+        embed: true
+        codeSign: true
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework
@@ -150,3 +153,30 @@ targets:
     dependencies:
       - package: DevotShare
         product: DevotShare
+  # The Shortcuts actions (docs/specs/share-extension.md, Shortcuts): Add to Devot writes the same
+  # inbox the Share Extension does, so a Shortcut never starts the app in the background.
+  devot_Intents:
+    type: extensionkit-extension
+    platform: iOS
+    sources:
+      - path: devot_Intents
+    info:
+      path: devot_Intents/Info.plist
+      properties:
+        CFBundleDisplayName: Devot
+        CFBundleLocalizations: [en, zh-Hans]
+        CFBundleShortVersionString: 1.0.0
+        CFBundleVersion: "1.0.0"
+        EXAppExtensionAttributes:
+          EXExtensionPointIdentifier: com.apple.appintents-extension
+    settings:
+      base:
+        PRODUCT_NAME: devot_Intents
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.intents
+        CODE_SIGN_ENTITLEMENTS: devot_Intents/devot_Intents.entitlements
+        TARGETED_DEVICE_FAMILY: 1
+        SKIP_INSTALL: true
+        APPLICATION_EXTENSION_API_ONLY: true
+    dependencies:
+      - package: DevotShare
+        product: DevotShareInbox
