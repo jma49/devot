@@ -599,6 +599,8 @@ fn launch(
     background::enter(app, stored.settings.menu_bar);
     main_windows::build(app.handle(), MAIN_WINDOW, None).map_err(StartupError::new)?;
     native::configure_main_window(app);
+    #[cfg(target_os = "macos")]
+    capture_link::receive_services(app.handle());
     #[cfg(desktop)]
     menu_bar::apply(app.handle(), stored.settings.menu_bar);
     #[cfg(desktop)]

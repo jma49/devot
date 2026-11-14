@@ -16,6 +16,7 @@ mod icloud;
 mod pasteboard;
 mod pdf;
 mod print;
+mod services;
 mod symbols;
 mod system;
 mod text;
@@ -45,6 +46,7 @@ pub use print::{
     print_in_window, print_note, print_note_in_window, self_test_pdf_pages, self_test_print_jobs,
     self_test_print_note_to_pdf, self_test_print_to_pdf, system_paper, with_print_policy,
 };
+pub use services::{ServiceHandler, provide_services};
 pub use symbols::symbol_png;
 pub use system::{
     cf_array_strings, executable_of, memory_footprint, peer_uid, time_since_boot, user_temp_dir,
