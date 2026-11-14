@@ -156,6 +156,15 @@ describe('renderCardPreview', () => {
     expect(all.some((el) => el.properties['id'] !== undefined)).toBe(false)
   })
 
+  it('shows an embedded note as a link to it, not as an image', async () => {
+    const id = '0192a6f0-0000-7000-8000-00000000000a'
+    const tree = await renderCardPreview(`![Plan](devot://note/${id})`, labels)
+    const all = elements(tree.children)
+    expect(all.filter((el) => el.tagName === 'img')).toEqual([])
+    expect(all.filter((el) => classes(el).includes('card-placeholder'))).toEqual([])
+    expect(all.find((el) => el.tagName === 'a')?.properties['href']).toBe(`devot://note/${id}`)
+  })
+
   it('shows a placeholder for diagrams and never draws them', async () => {
     for (const language of ['mermaid', 'plantuml', 'puml', 'markmap']) {
       const tree = await renderCardPreview('```' + language + '\ngraph TD; A-->B\n```', labels)

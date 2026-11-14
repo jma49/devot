@@ -160,6 +160,7 @@ function sheets(
     aiAccess: marker('aiAccess'),
     clearAuthorship: marker('clearAuthorship'),
     activity: { core: undefined, open: true, close: () => {} },
+    graph: { core: undefined, open: true, focus: undefined, openNote: () => {}, close: () => {} },
     exported: marker('exported'),
     headerMenus: marker('headerMenus'),
     savedSearch: marker('savedSearch'),

@@ -16,7 +16,12 @@ import { tallyNote } from '../noteTally'
 import { useText, type TextStore } from '../textStore'
 import { useNoteInfoCommand } from './command'
 import type { NoteInfoData } from './infoCard'
-import { NoteInfoCard, type Backlink, type SetNoteDates } from './NoteInfoCard'
+import {
+  NoteInfoCard,
+  type Backlink,
+  type SetNoteDates,
+  type UnlinkedMention,
+} from './NoteInfoCard'
 import { summaryText } from './summary'
 
 /** Typing waits this long before the summary counts again. */
@@ -85,6 +90,44 @@ function useBacklinks(core: Core, noteId: string) {
   return { backlinks, reload: () => reload.current() }
 }
 
+/**
+ * The notes that name `noteId` without linking to it. A full-text search, so it runs only while the
+ * card is open: asked when it opens, again when the library changes, and dropped when it closes.
+ */
+function useMentions(core: Core, noteId: string, open: boolean) {
+  const [mentions, setMentions] = useState<UnlinkedMention[]>()
+  const reload = useRef(() => {})
+  useEffect(() => {
+    if (!open) return
+    let current = true
+    let asked = 0
+    const load = () => {
+      const mine = ++asked
+      core
+        .mentions(noteId)
+        .then(async (notes) => {
+          const names = await displayTitles((ids) => core.headlines(ids), notes)
+          if (current && mine === asked) {
+            setMentions(
+              notes.map((n) => ({ id: n.id, name: names.get(n.id) ?? '', excerpt: n.excerpt })),
+            )
+          }
+        })
+        .catch((e: unknown) => console.warn('W_MENTIONS_FAILED', noteId, errorCode(e)))
+    }
+    reload.current = load
+    load()
+    window.addEventListener(NOTES_LOADED, load)
+    return () => {
+      current = false
+      reload.current = () => {}
+      setMentions(undefined)
+      window.removeEventListener(NOTES_LOADED, load)
+    }
+  }, [core, noteId, open])
+  return { mentions, reload: () => reload.current() }
+}
+
 export interface NoteInfoSummaryProps {
   core: Core
   info: NoteInfoData
@@ -94,6 +137,8 @@ export interface NoteInfoSummaryProps {
   onOpenNote: (id: string) => void
   onSetDates?: SetNoteDates | undefined
   onApplyFrontMatter?: ((change: FrontMatterChange) => void) | undefined
+  /** Whether notes can be changed, so a mention can be made a link. */
+  canLinkMentions?: boolean | undefined
 }
 
 /**
@@ -107,6 +152,7 @@ export function NoteInfoSummary(props: NoteInfoSummaryProps) {
   const anchor = useRef<HTMLSpanElement>(null)
   const facts = useNoteFacts(core, markdown, note)
   const { backlinks, reload } = useBacklinks(core, info.noteId)
+  const mentions = useMentions(core, info.noteId, open)
   const now = useNow()
 
   const show = (next: boolean) => {
@@ -174,7 +220,23 @@ export function NoteInfoSummary(props: NoteInfoSummaryProps) {
           info={info}
           facts={facts}
           backlinks={backlinks}
+          mentions={mentions.mentions}
           onOpenNote={props.onOpenNote}
+          onLinkMention={
+            props.canLinkMentions
+              ? (id) =>
+                  void core.linkMention(id, info.noteId).then(
+                    () => {
+                      mentions.reload()
+                      reload()
+                    },
+                    (e: unknown) => {
+                      console.warn('W_MENTION_LINK_FAILED', id, errorCode(e))
+                      mentions.reload()
+                    },
+                  )
+              : undefined
+          }
           onSetDates={props.onSetDates}
           onApplyFrontMatter={props.onApplyFrontMatter}
           onClose={close}

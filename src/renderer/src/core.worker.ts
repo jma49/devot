@@ -132,7 +132,7 @@ const required = () => {
 const livePreview = createLivePreviewRenderer({
   renderPieces: (markdown, options, known) =>
     pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
-  linkTargets: (ids) => required().linkTargets(ids),
+  linkTargets: (ids, embeds) => required().linkTargets(ids, embeds),
   onTargetsFailed: () => console.warn('W_LINK_TARGETS_FAILED'),
   split: noteSplitter(),
 })
@@ -313,6 +313,9 @@ const coreApi = {
   listTrash: () => required().listTrash(),
   peekTrashed: (id: string) => required().peekTrashed(id),
   backlinks: (id: string) => required().backlinks(id),
+  mentions: (id: string) => required().mentions(id),
+  linkGraph: (focus?: string) => required().linkGraph(focus),
+  linkMention: (sourceId: string, targetId: string) => required().linkMention(sourceId, targetId),
   linkTargets: (ids: string[]) => required().linkTargets(ids),
   noteSummaries: (ids: string[]) => required().summaries(ids),
   purge: (id: string) => required().purge(id),

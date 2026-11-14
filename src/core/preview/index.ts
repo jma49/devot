@@ -34,6 +34,7 @@ import {
 } from './footnotes'
 import { createSlugger, headingIds, ID_PREFIX, slug as headingSlug } from './headingIds'
 import { remarkHighlightMarks } from './highlightMarks'
+import { createNoteEmbeds, NOTE_EMBEDS_ID, type RenderEmbedded } from './noteEmbeds'
 import { remarkSoftBreaks } from './softBreaks'
 import {
   createPluginRenderer,
@@ -107,13 +108,28 @@ const processor = remark().use(remarkFrontmatter, ['yaml']).freeze()
 const bodyProcessor = remark().freeze()
 const pluginProcessor = remark(pluginSchema).freeze()
 
+// An embedded note's body: its headings take no ids and its front matter was taken off already.
+const EMBEDDED_RENDERERS = BUILTIN_RENDERERS.filter(
+  (r) => r !== headingIds && r.id !== 'devot.frontmatter',
+)
+
+const renderEmbedded: RenderEmbedded = async (markdown, options) => {
+  const tree = await transformed(bodyProcessor, markdown, options, EMBEDDED_RENDERERS)
+  stripPositions(tree)
+  return tree.children
+}
+
+const WITH_EMBEDS = BUILTIN_RENDERERS.map((r) =>
+  r.id === NOTE_EMBEDS_ID ? createNoteEmbeds(renderEmbedded) : r,
+)
+
 export function createPreviewRegistry(
   options: {
     builtins?: boolean
     plugins?: { specs: readonly PluginRendererSpec[]; render: RenderPluginBlock }
   } = {},
 ): PreviewRegistry {
-  const builtins = options.builtins ? BUILTIN_RENDERERS : []
+  const builtins = options.builtins ? WITH_EMBEDS : []
   const plugins = options.plugins
   if (!plugins || plugins.specs.length === 0) return createRegistry(builtins)
   // A plugin's answer is rendered like note text, by the built-in renderers alone; its headings are named with the note's.

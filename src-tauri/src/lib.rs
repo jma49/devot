@@ -133,6 +133,7 @@ pub fn run() {
             commands::notes::note_put_meta,
             commands::notes::notes_search,
             commands::notes::note_backlinks,
+            commands::notes::note_link_graph,
             commands::notes::notes_trash_list,
             commands::notes::note_purge,
             commands::revisions::revision_put,

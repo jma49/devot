@@ -21,6 +21,22 @@ export function noteUri(id: string): string {
   return `devot://note/${id}`
 }
 
+const NOTE_EMBED =
+  /!\[(?:[^\]\\\n]|\\.)*\]\(devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12})\)/g
+
+/** Notes past this many embedded in one note show as links. */
+export const MAX_NOTE_EMBEDS = 20
+
+/** The notes `markdown` embeds (`![title](devot://note/<id>)`), sorted, at most MAX_NOTE_EMBEDS. */
+export function noteEmbeds(markdown: string): string[] {
+  const ids = new Set<string>()
+  for (const match of markdown.matchAll(NOTE_EMBED)) {
+    ids.add(match[1] as string)
+    if (ids.size === MAX_NOTE_EMBEDS) break
+  }
+  return [...ids].sort()
+}
+
 /** Undefined for any other address. */
 export function noteIdOf(href: string): string | undefined {
   return /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)?.[1]
@@ -34,6 +50,8 @@ export const linkText = (text: string) =>
 
 export const noteLink = (title: string, id: string): string =>
   `[${linkText(title)}](${noteUri(id)})`
+
+export const noteEmbed = (title: string, id: string): string => `!${noteLink(title, id)}`
 
 export const MAX_BACKLINKS = 200
 

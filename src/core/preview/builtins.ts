@@ -23,6 +23,7 @@ import { fillPlaceholders } from '../text'
 import { createCodeRenderer } from './code'
 import { glyph } from './glyphs'
 import { headingIds } from './headingIds'
+import { createNoteEmbeds } from './noteEmbeds'
 import { noteLinkChips } from './noteLinks'
 import { customTagColorProperties, tagColorClass } from '../tags'
 import type { TagColorValue } from '../storage'
@@ -408,6 +409,7 @@ export const BUILTIN_RENDERERS: readonly PreviewRenderer[] = [
   headingIds,
   swatches,
   images,
+  createNoteEmbeds(),
   links,
   noteLinkChips,
   videoEmbeds,

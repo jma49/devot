@@ -90,6 +90,7 @@
     "allow-activity-notes-list",
     "allow-notes-search",
     "allow-note-backlinks",
+    "allow-note-link-graph",
     "allow-file-put",
     "allow-files-copy",
     "allow-image-copy",
