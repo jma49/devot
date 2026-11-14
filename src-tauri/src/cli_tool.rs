@@ -68,7 +68,7 @@ fn install_command(link: &Path, script: &Path) -> Command {
             folder.as_os_str(),
             script.as_os_str(),
             link.as_os_str(),
-            OsStr::new(strings::CLI_INSTALL_PROMPT),
+            OsStr::new(strings::native().cli_install_prompt),
         ],
     )
 }
@@ -76,7 +76,10 @@ fn install_command(link: &Path, script: &Path) -> Command {
 fn uninstall_command(link: &Path) -> Command {
     osascript(
         UNINSTALL_SCRIPT,
-        &[link.as_os_str(), OsStr::new(strings::CLI_UNINSTALL_PROMPT)],
+        &[
+            link.as_os_str(),
+            OsStr::new(strings::native().cli_uninstall_prompt),
+        ],
     )
 }
 
@@ -352,7 +355,7 @@ mod tests {
                 p.bin.as_os_str(),
                 p.script.as_os_str(),
                 p.link.as_os_str(),
-                OsStr::new(strings::CLI_INSTALL_PROMPT),
+                OsStr::new(strings::native().cli_install_prompt),
             ]
         );
         assert_eq!(state_of(&p.link, Some(&p.script)), State::Absent);
@@ -391,7 +394,7 @@ mod tests {
                 OsStr::new("-e"),
                 OsStr::new(UNINSTALL_SCRIPT),
                 p.link.as_os_str(),
-                OsStr::new(strings::CLI_UNINSTALL_PROMPT),
+                OsStr::new(strings::native().cli_uninstall_prompt),
             ]
         );
     }

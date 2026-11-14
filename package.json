@@ -41,8 +41,8 @@
     "app-icon": "sh scripts/app-icon/build.sh",
     "grammars": "node scripts/preview/grammars.ts && oxfmt src/core/preview/grammars.ts",
     "tokens:check": "node scripts/tokens/build.ts --check",
-    "i18n:apple": "node scripts/i18n/apple.ts",
-    "i18n:apple:check": "node scripts/i18n/apple.ts --check",
+    "i18n:apple": "node scripts/i18n/apple.ts && node scripts/i18n/rust.ts",
+    "i18n:apple:check": "node scripts/i18n/apple.ts --check && node scripts/i18n/rust.ts --check",
     "bench": "node scripts/bench/run.ts",
     "bench:app": "bash scripts/bench/app.sh"
   },

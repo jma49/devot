@@ -419,7 +419,7 @@ pub fn export_name(title: &str, extension: &str) -> String {
         .collect();
     let stem = cleaned.trim().trim_start_matches('.');
     let stem = if stem.is_empty() {
-        crate::strings::UNTITLED
+        crate::strings::native().untitled
     } else {
         stem
     };
@@ -494,7 +494,7 @@ pub async fn plugin_install_pick(
     let dialog = window
         .dialog()
         .file()
-        .set_title(crate::strings::PLUGIN_INSTALL_TITLE);
+        .set_title(crate::strings::native().plugin_install_title);
     #[cfg(desktop)]
     let dialog = dialog.set_parent(&window);
     match kind {
@@ -505,7 +505,7 @@ pub async fn plugin_install_pick(
         #[cfg(mobile)]
         PickKind::Folder => return Err("E_PLUGIN_FOLDERS_UNSUPPORTED".into()),
         PickKind::Archive => dialog
-            .add_filter(crate::strings::PLUGIN_ARCHIVE_FILTER, &["zip"])
+            .add_filter(crate::strings::native().plugin_archive_filter, &["zip"])
             .pick_file(move |path| {
                 let _ = reply.send(path.map(|p| p.into_path()));
             }),
@@ -590,7 +590,7 @@ pub async fn plugin_import_pick(
     let dialog = window
         .dialog()
         .file()
-        .set_title(crate::strings::PLUGIN_IMPORT_TITLE)
+        .set_title(crate::strings::native().plugin_import_title)
         .add_filter(&found.title, &extensions);
     #[cfg(desktop)]
     let dialog = dialog.set_parent(&window);
@@ -631,7 +631,7 @@ pub async fn plugin_export_save(
     let dialog = window
         .dialog()
         .file()
-        .set_title(crate::strings::PLUGIN_EXPORT_TITLE)
+        .set_title(crate::strings::native().plugin_export_title)
         .set_file_name(export_name(&title, &found.extension))
         .add_filter(&found.title, &[found.extension.as_str()]);
     #[cfg(desktop)]
@@ -951,7 +951,7 @@ mod tests {
         assert_eq!(export_name("Plan: 2026/10", "org"), "Plan- 2026-10.org");
         assert_eq!(
             export_name("  ", "org"),
-            format!("{}.org", crate::strings::UNTITLED)
+            format!("{}.org", crate::strings::native().untitled)
         );
         assert_eq!(export_name(".hidden", "txt"), "hidden.txt");
     }

@@ -14,6 +14,10 @@ import {
   type CommandId,
 } from '../../src/renderer/src/commands/registry'
 import { en, type MessageKey } from '../../src/renderer/src/i18n/en'
+import { messages as native } from '../../src/renderer/src/i18n/en/native'
+import { zhHans } from '../../src/renderer/src/i18n/zh-Hans'
+import { messages as nativeZh } from '../../src/renderer/src/i18n/zh-Hans/native'
+import { fieldName } from '../../scripts/i18n/rust'
 
 // Rust builds menu accelerators from the registry's default keys and the window sets the effective ones
 // (`command_menu_set`); defaults must match, and the menu's own keys (Quit, Settings) must stay clear of every command.
@@ -24,7 +28,7 @@ const ids = new Map(
 )
 
 const accelerators = [
-  ...MENU.matchAll(/MenuItemBuilder::with_id\((\w+),[^)]*\)\s*\.accelerator\("([^"]+)"\)/g),
+  ...MENU.matchAll(/MenuItemBuilder::with_id\((\w+),[^;]*?\)\s*\.accelerator\("([^"]+)"\)/g),
 ].map((m) => ({ id: ids.get(m[1]!) ?? m[1]!, accelerator: m[2]! }))
 
 const asShortcut = (accelerator: string) =>
@@ -80,20 +84,17 @@ it('keeps the quick capture shortcut in line with Rust and clear of every comman
 
 // The Format menu holds no keys itself: the UI sets them from the registry (`formatMenuKeys`) while the editor has the keyboard.
 const FORMAT_MENU = readFileSync('src-tauri/src/format_menu.rs', 'utf8')
-const STRINGS = new Map(
-  [
-    ...readFileSync('src-tauri/src/strings.rs', 'utf8').matchAll(
-      /pub const (\w+): &str = "([^"]*)";/g,
-    ),
-  ].map((m) => [m[1]!, m[2]!]),
-)
+// Rust reads its menu text by field, one per key of the catalog's native area.
+const STRINGS = new Map(Object.entries(native).map(([key, text]) => [fieldName(key), text]))
+const CHINESE = new Map(Object.entries(nativeZh).map(([key, text]) => [fieldName(key), text]))
 // rustfmt may break a long item over several lines.
-const formatItems = [...FORMAT_MENU.matchAll(/\bitem\(\s*"([^"]+)",\s*strings::(\w+),?\s*\)/g)].map(
-  (m) => ({
-    id: m[1]!,
-    label: STRINGS.get(m[2]!),
-  }),
-)
+const formatItems = [
+  ...FORMAT_MENU.matchAll(/\bitem\(\s*"([^"]+)",\s*\|text\|\s*\{?\s*text\.(\w+)\s*\}?,?\s*\)/g),
+].map((m) => ({
+  id: m[1]!,
+  label: STRINGS.get(m[2]!),
+  chinese: CHINESE.get(m[2]!),
+}))
 const formatCommands = COMMANDS.filter((c) => formatOf(c.id) !== undefined).map((c) => c.id)
 
 it('has a Format menu item for each format command', () => {
@@ -102,13 +103,13 @@ it('has a Format menu item for each format command', () => {
 })
 
 it('labels the Format menu as the app labels the formats', () => {
-  for (const { id, label } of formatItems) {
+  for (const { id, label, chinese } of formatItems) {
     // Alerts sit in an Alert submenu, under the toolbar pop-up's names.
     const alert = /^format\.alert(\w+)$/.exec(id)?.[1]
     const key: MessageKey = alert
       ? (`alert.${alert.toLowerCase()}` as MessageKey)
       : command(id as CommandId).label
-    expect({ id, label }).toEqual({ id, label: en[key] })
+    expect({ id, label, chinese }).toEqual({ id, label: en[key], chinese: zhHans[key] })
   }
 })
 
@@ -171,9 +172,11 @@ it('sends the Format menu the keys its Rust tests accept', () => {
 
 // View > Hide Sidebar reads Show Sidebar while hidden, as the UI's command label does.
 it('labels View > Hide Sidebar as the app labels the command', () => {
-  expect(MENU).toMatch(/MenuItemBuilder::with_id\(SIDEBAR_ID, strings::HIDE_SIDEBAR\)/)
-  expect(STRINGS.get('HIDE_SIDEBAR')).toBe(en['command.hideSidebar'])
-  expect(STRINGS.get('SHOW_SIDEBAR')).toBe(en['command.showSidebar'])
+  expect(MENU).toMatch(/MenuItemBuilder::with_id\(SIDEBAR_ID, strings::native\(\)\.hide_sidebar\)/)
+  expect(STRINGS.get('hide_sidebar')).toBe(en['command.hideSidebar'])
+  expect(STRINGS.get('show_sidebar')).toBe(en['command.showSidebar'])
+  expect(CHINESE.get('hide_sidebar')).toBe(zhHans['command.hideSidebar'])
+  expect(CHINESE.get('show_sidebar')).toBe(zhHans['command.showSidebar'])
   expect(command('view.sidebar').label).toBe('command.hideSidebar')
 })
 
@@ -232,14 +235,16 @@ it('reserves the same keys in Rust', () => {
 })
 
 it('labels File > Open Today\u2019s Note as the palette does', () => {
-  expect(MENU).toMatch(/MenuItemBuilder::with_id\(OPEN_TODAY_ID, strings::OPEN_TODAY\)/)
-  expect(STRINGS.get('OPEN_TODAY')).toBe(en['command.openToday'])
+  expect(MENU).toMatch(/MenuItemBuilder::with_id\(OPEN_TODAY_ID, strings::native\(\)\.open_today\)/)
+  expect(STRINGS.get('open_today')).toBe(en['command.openToday'])
+  expect(CHINESE.get('open_today')).toBe(zhHans['command.openToday'])
 })
 
 // File > New Window is a menu item of Rust's own (it opens the window without asking a page), and
 // the palette's New Window runs the same.
 it('labels File > New Window as the app labels the command', () => {
-  expect(MENU).toMatch(/MenuItemBuilder::with_id\(NEW_WINDOW_ID, strings::NEW_WINDOW\)/)
-  expect(STRINGS.get('NEW_WINDOW')).toBe(en['command.newWindow'])
+  expect(MENU).toMatch(/MenuItemBuilder::with_id\(NEW_WINDOW_ID, strings::native\(\)\.new_window\)/)
+  expect(STRINGS.get('new_window')).toBe(en['command.newWindow'])
+  expect(CHINESE.get('new_window')).toBe(zhHans['command.newWindow'])
   expect(command('app.newWindow').keys).toEqual([])
 })

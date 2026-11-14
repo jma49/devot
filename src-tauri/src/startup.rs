@@ -83,18 +83,21 @@ pub struct Notice {
 
 fn says(code: &str) -> (&'static str, &'static str) {
     let kind = code.split(' ').next().unwrap_or(code);
-    let failed = strings::STARTUP_FAILED_TITLE;
+    let failed = strings::native().startup_failed_title;
     match kind {
-        "E_DATA_FOLDER_IN_USE" => (strings::STARTUP_IN_USE_TITLE, strings::STARTUP_IN_USE),
-        "E_STORAGE_SCHEMA_TOO_NEW" => (failed, strings::STARTUP_NEWER_SCHEMA),
-        "E_STORAGE_CORRUPT" => (failed, strings::STARTUP_CORRUPT),
-        "E_STORAGE_FULL" => (failed, strings::STARTUP_FULL),
+        "E_DATA_FOLDER_IN_USE" => (
+            strings::native().startup_in_use_title,
+            strings::native().startup_in_use,
+        ),
+        "E_STORAGE_SCHEMA_TOO_NEW" => (failed, strings::native().startup_newer_schema),
+        "E_STORAGE_CORRUPT" => (failed, strings::native().startup_corrupt),
+        "E_STORAGE_FULL" => (failed, strings::native().startup_full),
         "E_STORAGE_READONLY"
         | "E_STORAGE_IO"
         | "E_STORAGE_CANTOPEN"
-        | "E_DATA_FOLDER_UNWRITABLE" => (failed, strings::STARTUP_UNWRITABLE),
-        "E_STORAGE_BUSY" => (failed, strings::STARTUP_BUSY),
-        _ => (failed, strings::STARTUP_OTHER),
+        | "E_DATA_FOLDER_UNWRITABLE" => (failed, strings::native().startup_unwritable),
+        "E_STORAGE_BUSY" => (failed, strings::native().startup_busy),
+        _ => (failed, strings::native().startup_other),
     }
 }
 
@@ -104,7 +107,9 @@ fn notice(error: &StartupError, data_dir: Option<&Path>) -> Notice {
     let message = match data_dir {
         Some(dir) => format!(
             "{text}\n\n{}",
-            strings::STARTUP_FOLDER.replace("{folder}", &dir.display().to_string())
+            strings::native()
+                .startup_folder
+                .replace("{folder}", &dir.display().to_string())
         ),
         None => text.to_owned(),
     };
@@ -159,9 +164,11 @@ mod tests {
         let code = format!("E_STORAGE_SCHEMA_TOO_NEW v{}", SCHEMA_VERSION + 1);
         assert_eq!(error.code(), code);
         let notice = alert_for(&error, dir.path());
-        assert_eq!(notice.title, strings::STARTUP_FAILED_TITLE);
+        assert_eq!(notice.title, strings::native().startup_failed_title);
         assert!(
-            notice.message.starts_with(strings::STARTUP_NEWER_SCHEMA),
+            notice
+                .message
+                .starts_with(strings::native().startup_newer_schema),
             "{}",
             notice.message
         );
@@ -184,15 +191,19 @@ mod tests {
         let error = open_db(dir.path()).err().expect("refused");
         assert_eq!(error.code(), "E_STORAGE_CORRUPT");
         let notice = alert_for(&error, dir.path());
-        assert_eq!(notice.title, strings::STARTUP_FAILED_TITLE);
-        assert!(notice.message.starts_with(strings::STARTUP_CORRUPT));
+        assert_eq!(notice.title, strings::native().startup_failed_title);
+        assert!(
+            notice
+                .message
+                .starts_with(strings::native().startup_corrupt)
+        );
 
         let error = open_db(&dir.path().join("missing")).err().expect("refused");
         assert_eq!(error.code(), "E_STORAGE_CANTOPEN");
         assert!(
             alert_for(&error, dir.path())
                 .message
-                .starts_with(strings::STARTUP_UNWRITABLE)
+                .starts_with(strings::native().startup_unwritable)
         );
 
         // A data folder that cannot be made: a file stands where its parent goes.
@@ -202,7 +213,7 @@ mod tests {
         assert!(
             alert_for(&error, dir.path())
                 .message
-                .starts_with(strings::STARTUP_UNWRITABLE)
+                .starts_with(strings::native().startup_unwritable)
         );
     }
 
@@ -212,33 +223,33 @@ mod tests {
         for (code, title, says) in [
             (
                 "E_DATA_FOLDER_IN_USE",
-                strings::STARTUP_IN_USE_TITLE,
-                strings::STARTUP_IN_USE,
+                strings::native().startup_in_use_title,
+                strings::native().startup_in_use,
             ),
             (
                 "E_STORAGE_FULL",
-                strings::STARTUP_FAILED_TITLE,
-                strings::STARTUP_FULL,
+                strings::native().startup_failed_title,
+                strings::native().startup_full,
             ),
             (
                 "E_STORAGE_READONLY",
-                strings::STARTUP_FAILED_TITLE,
-                strings::STARTUP_UNWRITABLE,
+                strings::native().startup_failed_title,
+                strings::native().startup_unwritable,
             ),
             (
                 "E_STORAGE_IO",
-                strings::STARTUP_FAILED_TITLE,
-                strings::STARTUP_UNWRITABLE,
+                strings::native().startup_failed_title,
+                strings::native().startup_unwritable,
             ),
             (
                 "E_STORAGE_BUSY",
-                strings::STARTUP_FAILED_TITLE,
-                strings::STARTUP_BUSY,
+                strings::native().startup_failed_title,
+                strings::native().startup_busy,
             ),
             (
                 "E_MAIN_WINDOW_FAILED",
-                strings::STARTUP_FAILED_TITLE,
-                strings::STARTUP_OTHER,
+                strings::native().startup_failed_title,
+                strings::native().startup_other,
             ),
         ] {
             let notice = alert_for(&StartupError::new(code), dir.path());
@@ -250,7 +261,7 @@ mod tests {
         report(&StartupError::new("E_DATA_FOLDER_UNKNOWN"), None, |n| {
             shown.push(n.clone())
         });
-        assert_eq!(shown[0].message, strings::STARTUP_OTHER);
+        assert_eq!(shown[0].message, strings::native().startup_other);
     }
 
     #[test]
@@ -292,7 +303,7 @@ mod tests {
         assert_eq!(second.code(), "E_DATA_FOLDER_IN_USE");
         assert_eq!(
             alert_for(&second, dir.path()).title,
-            strings::STARTUP_IN_USE_TITLE
+            strings::native().startup_in_use_title
         );
         drop(first);
         assert!(

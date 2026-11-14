@@ -232,13 +232,13 @@ pub async fn font_import(
     let dialog = app
         .dialog()
         .file()
-        .set_title(crate::strings::FONT_IMPORT_TITLE);
+        .set_title(crate::strings::native().font_import_title);
     #[cfg(desktop)]
     let dialog = dialog.set_parent(&window);
     #[cfg(mobile)]
     drop(window);
     dialog
-        .add_filter(crate::strings::FONT_FILTER, &EXTENSIONS)
+        .add_filter(crate::strings::native().font_filter, &EXTENSIONS)
         .pick_file(move |path| {
             let _ = reply.send(path.map(|p| p.into_path()));
         });

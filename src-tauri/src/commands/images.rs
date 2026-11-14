@@ -127,9 +127,9 @@ pub async fn image_save(
     let dialog = window
         .dialog()
         .file()
-        .set_title(strings::SAVE_IMAGE_TITLE)
+        .set_title(strings::native().save_image_title)
         .set_file_name(save_name(&file.name, extension))
-        .add_filter(strings::SAVE_IMAGE_FILTER, &[extension]);
+        .add_filter(strings::native().save_image_filter, &[extension]);
     #[cfg(desktop)]
     let dialog = dialog.set_parent(&window);
     dialog.save_file(move |path| {

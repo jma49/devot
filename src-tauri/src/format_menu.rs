@@ -9,7 +9,7 @@
 //! out) when it does not, so a format key never shadows what the same key does elsewhere (Command-K
 //! opens the command palette outside the editor).
 
-use crate::strings;
+use crate::strings::{self, Native};
 use std::collections::HashMap;
 use tauri::menu::{MenuItem, MenuItemBuilder, Submenu, SubmenuBuilder};
 use tauri::{App, AppHandle, State, Wry};
@@ -18,63 +18,69 @@ pub const FORMAT_EVENT: &str = "devot://format";
 const ID_PREFIX: &str = "devot.";
 const MAX_ACCELERATOR_LEN: usize = 64;
 
+/// A menu title in the language shown.
+pub type Label = fn(&Native) -> &'static str;
+
 pub struct Item {
     pub command: &'static str,
-    pub label: &'static str,
+    pub label: Label,
 }
 
 pub enum Entry {
     Item(Item),
     Separator,
-    Submenu(&'static str, &'static [Item]),
+    Submenu(Label, &'static [Item]),
 }
 
-const fn item(command: &'static str, label: &'static str) -> Item {
+const fn item(command: &'static str, label: Label) -> Item {
     Item { command, label }
 }
 
 pub const FORMAT_MENU: &[Entry] = &[
-    Entry::Item(item("format.bold", strings::FORMAT_BOLD)),
-    Entry::Item(item("format.italic", strings::FORMAT_ITALIC)),
-    Entry::Item(item("format.strikethrough", strings::FORMAT_STRIKETHROUGH)),
-    Entry::Item(item("format.highlight", strings::FORMAT_HIGHLIGHT)),
-    Entry::Item(item("format.code", strings::FORMAT_INLINE_CODE)),
-    Entry::Item(item("format.link", strings::FORMAT_LINK)),
+    Entry::Item(item("format.bold", |text| text.format_bold)),
+    Entry::Item(item("format.italic", |text| text.format_italic)),
+    Entry::Item(item("format.strikethrough", |text| {
+        text.format_strikethrough
+    })),
+    Entry::Item(item("format.highlight", |text| text.format_highlight)),
+    Entry::Item(item("format.code", |text| text.format_inline_code)),
+    Entry::Item(item("format.link", |text| text.format_link)),
     Entry::Separator,
     Entry::Submenu(
-        strings::FORMAT_HEADING,
+        |text| text.format_heading,
         &[
-            item("format.heading1", strings::FORMAT_HEADING_1),
-            item("format.heading2", strings::FORMAT_HEADING_2),
-            item("format.heading3", strings::FORMAT_HEADING_3),
-            item("format.heading4", strings::FORMAT_HEADING_4),
-            item("format.heading5", strings::FORMAT_HEADING_5),
-            item("format.heading6", strings::FORMAT_HEADING_6),
-            item("format.headingBigger", strings::FORMAT_HEADING_BIGGER),
-            item("format.headingSmaller", strings::FORMAT_HEADING_SMALLER),
+            item("format.heading1", |text| text.format_heading_1),
+            item("format.heading2", |text| text.format_heading_2),
+            item("format.heading3", |text| text.format_heading_3),
+            item("format.heading4", |text| text.format_heading_4),
+            item("format.heading5", |text| text.format_heading_5),
+            item("format.heading6", |text| text.format_heading_6),
+            item("format.headingBigger", |text| text.format_heading_bigger),
+            item("format.headingSmaller", |text| text.format_heading_smaller),
         ],
     ),
     Entry::Separator,
-    Entry::Item(item("format.codeBlock", strings::FORMAT_CODE_BLOCK)),
-    Entry::Item(item("format.bulletList", strings::FORMAT_BULLET_LIST)),
-    Entry::Item(item("format.numberedList", strings::FORMAT_NUMBERED_LIST)),
-    Entry::Item(item("format.taskList", strings::FORMAT_TASK_LIST)),
-    Entry::Item(item("format.quote", strings::FORMAT_QUOTE)),
+    Entry::Item(item("format.codeBlock", |text| text.format_code_block)),
+    Entry::Item(item("format.bulletList", |text| text.format_bullet_list)),
+    Entry::Item(item("format.numberedList", |text| {
+        text.format_numbered_list
+    })),
+    Entry::Item(item("format.taskList", |text| text.format_task_list)),
+    Entry::Item(item("format.quote", |text| text.format_quote)),
     Entry::Submenu(
-        strings::FORMAT_ALERT,
+        |text| text.format_alert,
         &[
-            item("format.alertNote", strings::FORMAT_ALERT_NOTE),
-            item("format.alertTip", strings::FORMAT_ALERT_TIP),
-            item("format.alertImportant", strings::FORMAT_ALERT_IMPORTANT),
-            item("format.alertWarning", strings::FORMAT_ALERT_WARNING),
-            item("format.alertCaution", strings::FORMAT_ALERT_CAUTION),
+            item("format.alertNote", |text| text.format_alert_note),
+            item("format.alertTip", |text| text.format_alert_tip),
+            item("format.alertImportant", |text| text.format_alert_important),
+            item("format.alertWarning", |text| text.format_alert_warning),
+            item("format.alertCaution", |text| text.format_alert_caution),
         ],
     ),
     Entry::Separator,
-    Entry::Item(item(
-        "format.horizontalRule",
-        strings::FORMAT_HORIZONTAL_RULE,
-    )),
+    Entry::Item(item("format.horizontalRule", |text| {
+        text.format_horizontal_rule
+    })),
 ];
 
 pub fn items() -> impl Iterator<Item = &'static Item> {
@@ -106,19 +112,20 @@ pub struct FormatMenu {
 pub fn build(app: &App) -> tauri::Result<(Submenu<Wry>, FormatMenu)> {
     let mut built = Vec::new();
     let mut new_item = |item: &Item| -> tauri::Result<MenuItem<Wry>> {
-        let menu_item = MenuItemBuilder::with_id(menu_id(item.command), item.label)
-            .enabled(false)
-            .build(app)?;
+        let menu_item =
+            MenuItemBuilder::with_id(menu_id(item.command), (item.label)(strings::native()))
+                .enabled(false)
+                .build(app)?;
         built.push((item.command, menu_item.clone()));
         Ok(menu_item)
     };
-    let mut menu = SubmenuBuilder::new(app, strings::MENU_FORMAT);
+    let mut menu = SubmenuBuilder::new(app, strings::native().menu_format);
     for entry in FORMAT_MENU {
         menu = match entry {
             Entry::Item(item) => menu.item(&new_item(item)?),
             Entry::Separator => menu.separator(),
             Entry::Submenu(label, items) => {
-                let mut submenu = SubmenuBuilder::new(app, *label);
+                let mut submenu = SubmenuBuilder::new(app, label(strings::native()));
                 for item in *items {
                     submenu = submenu.item(&new_item(item)?);
                 }
@@ -299,7 +306,7 @@ async fn clear_keys(app: &AppHandle) -> bool {
         let (reply, answer) = tokio::sync::oneshot::channel();
         let sent = app.run_on_main_thread(move || {
             let _ = reply.send(crate::native::macos::clear_key_equivalents(
-                strings::MENU_FORMAT,
+                strings::native().menu_format,
             ));
         });
         sent.is_ok() && answer.await.unwrap_or(false)
@@ -368,12 +375,13 @@ mod tests {
 
     #[test]
     fn groups_inline_formats_headings_blocks_and_alerts() {
+        let english = strings::for_languages(&["en"]);
         let shape: Vec<String> = FORMAT_MENU
             .iter()
             .map(|entry| match entry {
-                Entry::Item(item) => item.label.to_owned(),
+                Entry::Item(item) => (item.label)(english).to_owned(),
                 Entry::Separator => String::from("---"),
-                Entry::Submenu(label, items) => format!("{label} > {}", items.len()),
+                Entry::Submenu(label, items) => format!("{} > {}", label(english), items.len()),
             })
             .collect();
         assert_eq!(
@@ -398,7 +406,7 @@ mod tests {
                 "Horizontal Rule",
             ]
         );
-        let labels: Vec<_> = items().map(|item| item.label).collect();
+        let labels: Vec<_> = items().map(|item| (item.label)(english)).collect();
         assert!(labels.contains(&"Heading 1") && labels.contains(&"Caution"));
     }
 

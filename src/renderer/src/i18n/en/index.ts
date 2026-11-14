@@ -1,6 +1,7 @@
 // English UI strings: the source locale. Every other locale translates these keys; a missing
 // translation falls back to English. A key goes in the area module whose `prefixes` hold the text
 // before its first dot; a new prefix joins the module of its UI area (catalog.test.ts checks both).
+// The Mac's native menus (`native.ts`) are Rust's alone, so they stay out of what the page parses.
 import * as ai from './ai'
 import * as app from './app'
 import * as commands from './commands'

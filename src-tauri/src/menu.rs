@@ -12,6 +12,7 @@
 //! relabelled Hide History Bar while it is on, Show Authorship and Show Outline are check items for `authorship` and `outline`.
 
 use crate::editor_settings::{self, EditorSettings, EditorSettingsStore, Snapshot};
+use crate::strings::Native;
 use crate::{diagnostics, exit, format_menu, import, menu_bar, settings, strings, updates};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -74,54 +75,64 @@ pub struct CommandItem {
         all(not(test), not(target_os = "macos")),
         expect(dead_code, reason = "only macOS and tests use it")
     )]
-    pub titles: &'static [&'static str],
+    pub titles: &'static [fn(&Native) -> &'static str],
+}
+
+impl CommandItem {
+    #[cfg_attr(
+        all(not(test), not(target_os = "macos")),
+        expect(dead_code, reason = "only macOS and tests use it")
+    )]
+    pub fn titles_in(&self, text: &Native) -> Vec<&'static str> {
+        self.titles.iter().map(|title| title(text)).collect()
+    }
 }
 
 pub const COMMAND_ITEMS: &[CommandItem] = &[
     CommandItem {
         place: MenuPlace::View,
         command: "note.history",
-        titles: &[strings::REVISION_HISTORY],
+        titles: &[|text| text.revision_history],
     },
     CommandItem {
         place: MenuPlace::View,
         command: "palette.open",
-        titles: &[strings::COMMAND_PALETTE],
+        titles: &[|text| text.command_palette],
     },
     CommandItem {
         place: MenuPlace::View,
         command: "view.sidebar",
-        titles: &[strings::HIDE_SIDEBAR, strings::SHOW_SIDEBAR],
+        titles: &[|text| text.hide_sidebar, |text| text.show_sidebar],
     },
     CommandItem {
         place: MenuPlace::View,
         command: "view.togglePreview",
-        titles: &[strings::TOGGLE_PREVIEW],
+        titles: &[|text| text.toggle_preview],
     },
     CommandItem {
         place: MenuPlace::View,
         command: "view.split",
-        titles: &[strings::SHOW_SPLIT],
+        titles: &[|text| text.show_split],
     },
     CommandItem {
         place: MenuPlace::View,
         command: "view.syncScroll",
-        titles: &[strings::SYNC_SCROLL],
+        titles: &[|text| text.sync_scroll],
     },
     CommandItem {
         place: MenuPlace::App,
         command: "app.backups",
-        titles: &[strings::BACKUPS],
+        titles: &[|text| text.backups],
     },
     CommandItem {
         place: MenuPlace::File,
         command: "note.today",
-        titles: &[strings::OPEN_TODAY],
+        titles: &[|text| text.open_today],
     },
     CommandItem {
         place: MenuPlace::View,
         command: "view.noteInfo",
-        titles: &[strings::NOTE_INFO],
+        titles: &[|text| text.note_info],
     },
 ];
 
@@ -207,7 +218,7 @@ async fn clear_command_keys(app: &AppHandle) -> bool {
             COMMAND_ITEMS
                 .iter()
                 .filter(|item| item.place == place)
-                .flat_map(|item| item.titles.iter().copied())
+                .flat_map(|item| item.titles_in(strings::native()))
                 .collect()
         };
         let (file, view, app_menu) = (
@@ -218,9 +229,13 @@ async fn clear_command_keys(app: &AppHandle) -> bool {
         let (reply, answer) = tokio::sync::oneshot::channel();
         let sent = app.run_on_main_thread(move || {
             let _ = reply.send(
-                crate::native::macos::clear_item_key_equivalents(strings::MENU_FILE, &file)
-                    & crate::native::macos::clear_item_key_equivalents(strings::MENU_VIEW, &view)
-                    & crate::native::macos::clear_app_menu_key_equivalents(&app_menu),
+                crate::native::macos::clear_item_key_equivalents(
+                    strings::native().menu_file,
+                    &file,
+                ) & crate::native::macos::clear_item_key_equivalents(
+                    strings::native().menu_view,
+                    &view,
+                ) & crate::native::macos::clear_app_menu_key_equivalents(&app_menu),
             );
         });
         sent.is_ok() && answer.await.unwrap_or(false)
@@ -234,9 +249,9 @@ async fn clear_command_keys(app: &AppHandle) -> bool {
 
 fn sidebar_label(shown: bool) -> &'static str {
     if shown {
-        strings::HIDE_SIDEBAR
+        strings::native().hide_sidebar
     } else {
-        strings::SHOW_SIDEBAR
+        strings::native().show_sidebar
     }
 }
 
@@ -276,9 +291,9 @@ struct HistoryBarItem {
 
 fn history_bar_label(on: bool) -> &'static str {
     if on {
-        strings::HIDE_HISTORY_BAR
+        strings::native().hide_history_bar
     } else {
-        strings::SHOW_HISTORY_BAR
+        strings::native().show_history_bar
     }
 }
 
@@ -319,17 +334,17 @@ fn sync_scroll_toggle(
 }
 
 pub fn install(app: &App) -> tauri::Result<()> {
-    let quit = MenuItemBuilder::with_id(QUIT_ID, strings::QUIT)
+    let quit = MenuItemBuilder::with_id(QUIT_ID, strings::native().quit)
         .accelerator("CmdOrCtrl+Q")
         .build(app)?;
-    let settings = MenuItemBuilder::with_id(SETTINGS_ID, strings::SETTINGS)
+    let settings = MenuItemBuilder::with_id(SETTINGS_ID, strings::native().settings)
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
-    let new_window = MenuItemBuilder::with_id(NEW_WINDOW_ID, strings::NEW_WINDOW)
+    let new_window = MenuItemBuilder::with_id(NEW_WINDOW_ID, strings::native().new_window)
         .accelerator("Shift+CmdOrCtrl+N")
         .build(app)?;
-    let backups = MenuItemBuilder::with_id(BACKUPS_ID, strings::BACKUPS).build(app)?;
-    let today = MenuItemBuilder::with_id(OPEN_TODAY_ID, strings::OPEN_TODAY)
+    let backups = MenuItemBuilder::with_id(BACKUPS_ID, strings::native().backups).build(app)?;
+    let today = MenuItemBuilder::with_id(OPEN_TODAY_ID, strings::native().open_today)
         .accelerator("Alt+CmdOrCtrl+T")
         .build(app)?;
     let (title, enabled) = updates::menu_item(&app.state::<updates::Updates>().status().state);
@@ -337,71 +352,79 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .enabled(enabled)
         .build(app)?;
     app.manage(updates::UpdatesMenuItem(check_updates.clone()));
+    let text = strings::native();
     let app_menu = SubmenuBuilder::new(app, strings::APP_NAME)
-        .about(None)
+        .about_with_text(text.about, None)
         .item(&check_updates)
         .separator()
         .item(&settings)
         .item(&backups)
         .separator()
-        .services()
+        .services_with_text(text.menu_services)
         .separator()
-        .hide()
-        .hide_others()
-        .show_all()
+        .hide_with_text(text.hide)
+        .hide_others_with_text(text.hide_others)
+        .show_all_with_text(text.show_all)
         .separator()
         .item(&quit)
         .build()?;
-    let import_markdown_files =
-        MenuItemBuilder::with_id(IMPORT_MARKDOWN_FILES_ID, strings::IMPORT_MARKDOWN_FILES)
-            .build(app)?;
+    let import_markdown_files = MenuItemBuilder::with_id(
+        IMPORT_MARKDOWN_FILES_ID,
+        strings::native().import_markdown_files,
+    )
+    .build(app)?;
     let import_markdown =
-        MenuItemBuilder::with_id(IMPORT_MARKDOWN_ID, strings::IMPORT_MARKDOWN_FOLDER).build(app)?;
+        MenuItemBuilder::with_id(IMPORT_MARKDOWN_ID, strings::native().import_markdown_folder)
+            .build(app)?;
     let import_html =
-        MenuItemBuilder::with_id(IMPORT_HTML_FILES_ID, strings::IMPORT_HTML_FILES).build(app)?;
-    let import = SubmenuBuilder::new(app, strings::MENU_IMPORT)
+        MenuItemBuilder::with_id(IMPORT_HTML_FILES_ID, strings::native().import_html_files)
+            .build(app)?;
+    let import = SubmenuBuilder::new(app, strings::native().menu_import)
         .item(&import_markdown_files)
         .item(&import_markdown)
         .item(&import_html)
         .build()?;
-    let export_markdown =
-        MenuItemBuilder::with_id(EXPORT_ALL_MARKDOWN_ID, strings::EXPORT_ALL_MARKDOWN)
-            .build(app)?;
+    let export_markdown = MenuItemBuilder::with_id(
+        EXPORT_ALL_MARKDOWN_ID,
+        strings::native().export_all_markdown,
+    )
+    .build(app)?;
     let export_html =
-        MenuItemBuilder::with_id(EXPORT_ALL_HTML_ID, strings::EXPORT_ALL_HTML).build(app)?;
-    let export = SubmenuBuilder::new(app, strings::MENU_EXPORT)
+        MenuItemBuilder::with_id(EXPORT_ALL_HTML_ID, strings::native().export_all_html)
+            .build(app)?;
+    let export = SubmenuBuilder::new(app, strings::native().menu_export)
         .item(&export_markdown)
         .item(&export_html)
         .build()?;
-    let file = SubmenuBuilder::new(app, strings::MENU_FILE)
+    let file = SubmenuBuilder::new(app, strings::native().menu_file)
         .item(&new_window)
         .item(&today)
         .separator()
         .item(&import)
         .item(&export)
         .build()?;
-    let edit = SubmenuBuilder::new(app, strings::MENU_EDIT)
-        .undo()
-        .redo()
+    let edit = SubmenuBuilder::new(app, strings::native().menu_edit)
+        .undo_with_text(text.edit_undo)
+        .redo_with_text(text.edit_redo)
         .separator()
-        .cut()
-        .copy()
-        .paste()
-        .select_all()
+        .cut_with_text(text.edit_cut)
+        .copy_with_text(text.edit_copy)
+        .paste_with_text(text.edit_paste)
+        .select_all_with_text(text.edit_select_all)
         .build()?;
     let (format, format_items) = format_menu::build(app)?;
     app.manage(format_items);
-    let history = MenuItemBuilder::with_id(HISTORY_ID, strings::REVISION_HISTORY)
+    let history = MenuItemBuilder::with_id(HISTORY_ID, strings::native().revision_history)
         .accelerator("Alt+CmdOrCtrl+Y")
         .build(app)?;
-    let palette = MenuItemBuilder::with_id(PALETTE_ID, strings::COMMAND_PALETTE)
+    let palette = MenuItemBuilder::with_id(PALETTE_ID, strings::native().command_palette)
         .accelerator("CmdOrCtrl+K")
         .build(app)?;
-    let activity = MenuItemBuilder::with_id(ACTIVITY_ID, strings::ACTIVITY).build(app)?;
-    let note_info = MenuItemBuilder::with_id(NOTE_INFO_ID, strings::NOTE_INFO)
+    let activity = MenuItemBuilder::with_id(ACTIVITY_ID, strings::native().activity).build(app)?;
+    let note_info = MenuItemBuilder::with_id(NOTE_INFO_ID, strings::native().note_info)
         .accelerator("Alt+CmdOrCtrl+I")
         .build(app)?;
-    let sidebar = MenuItemBuilder::with_id(SIDEBAR_ID, strings::HIDE_SIDEBAR)
+    let sidebar = MenuItemBuilder::with_id(SIDEBAR_ID, strings::native().hide_sidebar)
         .accelerator("CmdOrCtrl+/")
         .build(app)?;
     app.manage(SidebarMenuItem(sidebar.clone()));
@@ -412,13 +435,14 @@ pub fn install(app: &App) -> tauri::Result<()> {
             revision: 0,
             settings: EditorSettings::default(),
         });
-    let toggle_preview = MenuItemBuilder::with_id(TOGGLE_PREVIEW_ID, strings::TOGGLE_PREVIEW)
-        .accelerator("CmdOrCtrl+E")
-        .build(app)?;
-    let split = MenuItemBuilder::with_id(SPLIT_ID, strings::SHOW_SPLIT)
+    let toggle_preview =
+        MenuItemBuilder::with_id(TOGGLE_PREVIEW_ID, strings::native().toggle_preview)
+            .accelerator("CmdOrCtrl+E")
+            .build(app)?;
+    let split = MenuItemBuilder::with_id(SPLIT_ID, strings::native().show_split)
         .accelerator("CmdOrCtrl+P")
         .build(app)?;
-    let sync_scroll = CheckMenuItemBuilder::with_id(SYNC_SCROLL_ID, strings::SYNC_SCROLL)
+    let sync_scroll = CheckMenuItemBuilder::with_id(SYNC_SCROLL_ID, strings::native().sync_scroll)
         .checked(stored.settings.sync_scroll)
         .build(app)?;
     app.manage(SyncScrollItem {
@@ -435,14 +459,15 @@ pub fn install(app: &App) -> tauri::Result<()> {
         item: history_bar.clone(),
         shown: Mutex::new(stored.revision),
     });
-    let authorship = CheckMenuItemBuilder::with_id(AUTHORSHIP_ID, strings::SHOW_AUTHORSHIP)
-        .checked(stored.settings.authorship)
-        .build(app)?;
+    let authorship =
+        CheckMenuItemBuilder::with_id(AUTHORSHIP_ID, strings::native().show_authorship)
+            .checked(stored.settings.authorship)
+            .build(app)?;
     app.manage(AuthorshipItem {
         item: authorship.clone(),
         shown: Mutex::new(stored.revision),
     });
-    let outline = CheckMenuItemBuilder::with_id(OUTLINE_ID, strings::SHOW_OUTLINE)
+    let outline = CheckMenuItemBuilder::with_id(OUTLINE_ID, strings::native().show_outline)
         .checked(stored.settings.outline)
         .build(app)?;
     app.manage(OutlineItem {
@@ -467,7 +492,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
             ])
             .collect(),
     ));
-    let view = SubmenuBuilder::new(app, strings::MENU_VIEW)
+    let view = SubmenuBuilder::new(app, strings::native().menu_view)
         .item(&palette)
         .separator()
         .item(&sidebar)
@@ -482,12 +507,14 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .item(&note_info)
         .item(&activity)
         .separator()
-        .fullscreen()
+        .fullscreen_with_text(text.enter_full_screen)
         .build()?;
-    let plugin_settings =
-        MenuItemBuilder::with_id(crate::plugins::menu::SETTINGS_ID, strings::PLUGIN_SETTINGS)
-            .build(app)?;
-    let plugins = SubmenuBuilder::new(app, strings::MENU_PLUGINS)
+    let plugin_settings = MenuItemBuilder::with_id(
+        crate::plugins::menu::SETTINGS_ID,
+        strings::native().plugin_settings,
+    )
+    .build(app)?;
+    let plugins = SubmenuBuilder::new(app, strings::native().menu_plugins)
         .separator()
         .item(&plugin_settings)
         .build()?;
@@ -496,17 +523,19 @@ pub fn install(app: &App) -> tauri::Result<()> {
         import.clone(),
         export.clone(),
     ));
-    let window = SubmenuBuilder::new(app, strings::MENU_WINDOW)
-        .minimize()
-        .maximize()
+    let window = SubmenuBuilder::new(app, strings::native().menu_window)
+        .minimize_with_text(text.minimize)
+        .maximize_with_text(text.zoom)
         .separator()
-        .close_window()
+        .close_window_with_text(text.close_window)
         .build()?;
     let diagnostics =
-        MenuItemBuilder::with_id(DIAGNOSTICS_ID, strings::EXPORT_DIAGNOSTICS).build(app)?;
+        MenuItemBuilder::with_id(DIAGNOSTICS_ID, strings::native().export_diagnostics)
+            .build(app)?;
     let rebuild_index =
-        MenuItemBuilder::with_id(REBUILD_INDEX_ID, strings::REBUILD_SEARCH_INDEX).build(app)?;
-    let help = SubmenuBuilder::new(app, strings::MENU_HELP)
+        MenuItemBuilder::with_id(REBUILD_INDEX_ID, strings::native().rebuild_search_index)
+            .build(app)?;
+    let help = SubmenuBuilder::new(app, strings::native().menu_help)
         .item(&rebuild_index)
         .item(&diagnostics)
         .build()?;
@@ -819,8 +848,11 @@ mod tests {
                 MenuPlace::View
             ]
         );
-        assert_eq!(COMMAND_ITEMS[6].titles, [strings::BACKUPS]);
-        let sidebar = COMMAND_ITEMS[2].titles;
+        assert_eq!(
+            COMMAND_ITEMS[6].titles_in(strings::native()),
+            [strings::native().backups]
+        );
+        let sidebar = COMMAND_ITEMS[2].titles_in(strings::native());
         assert!(sidebar.contains(&sidebar_label(true)) && sidebar.contains(&sidebar_label(false)));
     }
 

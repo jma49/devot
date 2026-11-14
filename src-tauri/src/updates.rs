@@ -193,10 +193,10 @@ pub fn on_window_event(window: &Window, event: &tauri::WindowEvent) {
 
 pub fn menu_item(state: &State) -> (&'static str, bool) {
     match state {
-        State::Checking => (crate::strings::UPDATES_CHECKING, false),
-        State::Downloading { .. } => (crate::strings::UPDATES_DOWNLOADING, false),
-        State::Ready { .. } => (crate::strings::UPDATES_RESTART, true),
-        _ => (crate::strings::UPDATES_CHECK, true),
+        State::Checking => (crate::strings::native().updates_checking, false),
+        State::Downloading { .. } => (crate::strings::native().updates_downloading, false),
+        State::Ready { .. } => (crate::strings::native().updates_restart, true),
+        _ => (crate::strings::native().updates_check, true),
     }
 }
 

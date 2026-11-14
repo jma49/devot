@@ -90,10 +90,12 @@ impl EditorMenuBuilder<'_> {
                 EditorMenuEntry::Separator => menu.addItem(&self.separator()),
                 EditorMenuEntry::Predefined { item } => {
                     let (title, action, key) = match item {
-                        SystemItem::Cut => (strings::EDIT_CUT, sel!(cut:), "x"),
-                        SystemItem::Copy => (strings::EDIT_COPY, sel!(copy:), "c"),
-                        SystemItem::Paste => (strings::EDIT_PASTE, sel!(paste:), "v"),
-                        SystemItem::SelectAll => (strings::EDIT_SELECT_ALL, sel!(selectAll:), "a"),
+                        SystemItem::Cut => (strings::native().edit_cut, sel!(cut:), "x"),
+                        SystemItem::Copy => (strings::native().edit_copy, sel!(copy:), "c"),
+                        SystemItem::Paste => (strings::native().edit_paste, sel!(paste:), "v"),
+                        SystemItem::SelectAll => {
+                            (strings::native().edit_select_all, sel!(selectAll:), "a")
+                        }
                     };
                     menu.addItem(&self.item(title, Some(action), key));
                 }
@@ -129,14 +131,14 @@ impl EditorMenuBuilder<'_> {
             return;
         };
         if guesses.is_empty() {
-            menu.addItem(&self.item(strings::SPELLING_NO_GUESSES, None, ""));
+            menu.addItem(&self.item(strings::native().spelling_no_guesses, None, ""));
         }
         for guess in guesses {
             let item = self.choice(&guess, MenuChoice::Guess(guess.clone()));
             menu.addItem(&item);
         }
         menu.addItem(&self.separator());
-        let learn = self.choice(strings::SPELLING_LEARN, MenuChoice::Learn);
+        let learn = self.choice(strings::native().spelling_learn, MenuChoice::Learn);
         menu.addItem(&learn);
         menu.addItem(&self.separator());
     }
@@ -144,26 +146,33 @@ impl EditorMenuBuilder<'_> {
     fn spelling_menu(&self) -> Retained<NSMenuItem> {
         let submenu = NSMenu::new(self.mtm);
         submenu.addItem(&self.item(
-            strings::SPELLING_SHOW_PANEL,
+            strings::native().spelling_show_panel,
             Some(sel!(showGuessPanel:)),
             "",
         ));
-        submenu.addItem(&self.item(strings::SPELLING_CHECK_NOW, Some(sel!(checkSpelling:)), ""));
+        submenu.addItem(&self.item(
+            strings::native().spelling_check_now,
+            Some(sel!(checkSpelling:)),
+            "",
+        ));
         submenu.addItem(&self.separator());
         for (title, action) in [
             (
-                strings::SPELLING_WHILE_TYPING,
+                strings::native().spelling_while_typing,
                 sel!(toggleContinuousSpellChecking:),
             ),
-            (strings::SPELLING_GRAMMAR, sel!(toggleGrammarChecking:)),
             (
-                strings::SPELLING_CORRECT_AUTOMATICALLY,
+                strings::native().spelling_grammar,
+                sel!(toggleGrammarChecking:),
+            ),
+            (
+                strings::native().spelling_correct_automatically,
                 sel!(toggleAutomaticSpellingCorrection:),
             ),
         ] {
             submenu.addItem(&self.item(title, Some(action), ""));
         }
-        let item = self.item(strings::MENU_SPELLING, None, "");
+        let item = self.item(strings::native().menu_spelling, None, "");
         item.setSubmenu(Some(&submenu));
         item
     }
@@ -252,7 +261,7 @@ fn build_editor_menu(
     menu.addItem(&builder.spelling_menu());
     menu.addItem(&builder.separator());
     let services = NSMenu::new(mtm);
-    let services_item = builder.item(strings::MENU_SERVICES, None, "");
+    let services_item = builder.item(strings::native().menu_services, None, "");
     services_item.setSubmenu(Some(&services));
     menu.addItem(&services_item);
     (menu, services)
@@ -368,21 +377,21 @@ pub fn self_test_editor_menu() -> Result<(), &'static str> {
         .ok_or("E_TEST_NO_UNDO")?;
     let learn = shown
         .iter()
-        .position(|t| t == strings::SPELLING_LEARN)
+        .position(|t| t == strings::native().spelling_learn)
         .ok_or("E_TEST_NO_LEARN")?;
     if !shown[..learn].iter().any(|t| t == "receive") || learn > undo {
         return Err("E_TEST_NO_GUESS");
     }
     for title in [
-        strings::EDIT_CUT,
-        strings::MENU_SPELLING,
-        strings::MENU_SERVICES,
+        strings::native().edit_cut,
+        strings::native().menu_spelling,
+        strings::native().menu_services,
     ] {
         if !shown.iter().any(|t| t == title) {
             return Err("E_TEST_SYSTEM_ITEM_MISSING");
         }
     }
-    if shown.last().map(String::as_str) != Some(strings::MENU_SERVICES) {
+    if shown.last().map(String::as_str) != Some(strings::native().menu_services) {
         return Err("E_TEST_SERVICES_NOT_LAST");
     }
     let undo_item = menu.itemAtIndex(undo as isize).ok_or("E_TEST_NO_UNDO")?;

@@ -101,7 +101,7 @@ pub fn configure_main_window(app: &tauri::App) {
     #[cfg(target_os = "macos")]
     {
         use tauri::Emitter;
-        macos::give_format_menu_keys_priority(crate::strings::MENU_FORMAT);
+        macos::give_format_menu_keys_priority(crate::strings::native().menu_format);
         let handle = app.handle().clone();
         macos::observe_accent_changes(move || {
             if handle.emit(ACCENT_EVENT, macos::system_accent()).is_err() {
@@ -111,6 +111,17 @@ pub fn configure_main_window(app: &tauri::App) {
     }
     #[cfg(not(target_os = "macos"))]
     let _ = app;
+}
+
+/// The system's preferred languages as BCP 47 tags, most preferred first; none off macOS.
+pub fn preferred_languages() -> Vec<String> {
+    #[cfg(target_os = "macos")]
+    return objc2_foundation::NSLocale::preferredLanguages()
+        .iter()
+        .map(|tag| tag.to_string())
+        .collect();
+    #[cfg(not(target_os = "macos"))]
+    Vec::new()
 }
 
 /// Main thread only; elsewhere, and off macOS, it shows nothing (the failure is logged all the

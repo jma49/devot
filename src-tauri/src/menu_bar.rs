@@ -114,11 +114,12 @@ fn apply_now(app: &AppHandle, on: bool) {
 }
 
 fn show_icon(app: &AppHandle) -> tauri::Result<()> {
-    let new_note = MenuItemBuilder::with_id(NEW_QUICK_NOTE_ID, strings::MENU_BAR_NEW_QUICK_NOTE)
-        .accelerator(QUICK_CAPTURE_SHORTCUT)
-        .build(app)?;
-    let open = MenuItemBuilder::with_id(OPEN_ID, strings::MENU_BAR_OPEN).build(app)?;
-    let quit = MenuItemBuilder::with_id(QUIT_ID, strings::QUIT).build(app)?;
+    let new_note =
+        MenuItemBuilder::with_id(NEW_QUICK_NOTE_ID, strings::native().menu_bar_new_quick_note)
+            .accelerator(QUICK_CAPTURE_SHORTCUT)
+            .build(app)?;
+    let open = MenuItemBuilder::with_id(OPEN_ID, strings::native().menu_bar_open).build(app)?;
+    let quit = MenuItemBuilder::with_id(QUIT_ID, strings::native().quit).build(app)?;
     let menu = MenuBuilder::new(app)
         .item(&new_note)
         .item(&open)
@@ -269,7 +270,7 @@ pub fn open_quick_capture<R: Runtime>(app: &AppHandle<R>) {
         builder = builder.data_store_identifier(store);
     }
     let built = builder
-        .title(strings::QUICK_CAPTURE_TITLE)
+        .title(strings::native().quick_capture_title)
         .theme(theme)
         .inner_size(WIDTH, HEIGHT)
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT)
