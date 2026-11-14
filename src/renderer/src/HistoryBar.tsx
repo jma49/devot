@@ -1,6 +1,7 @@
 import {
   useEffect,
   useInsertionEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -146,8 +147,9 @@ function HistoryOverlay(props: {
   }, [props.past.id])
 
   // The panes under the overlay take no keys or clicks, so typing cannot reach a note the reader cannot see. Run after every
-  // render: the preview beside it comes and goes with the view mode.
-  useEffect(() => {
+  // render: the preview beside it comes and goes with the view mode. In the commit that shows the overlay, not after the
+  // paint: a key typed in between went into the editor (issue 922).
+  useLayoutEffect(() => {
     const own = box.current
     const covered = [...(own?.parentElement?.children ?? [])].filter((el) => el !== own)
     for (const el of covered) el.toggleAttribute('inert', true)

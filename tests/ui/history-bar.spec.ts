@@ -376,6 +376,28 @@ test('keys pressed while a version is shown do not change the note under it', as
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end!')
 })
 
+test('the panes under a version take no keys from the moment it shows', async ({ page }) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await expect(slider(page)).not.toHaveAttribute('aria-valuemax', '0')
+  // A key typed in the first frame the version shows reached the editor while it was not yet inert (#922).
+  await page.evaluate(() => {
+    const w = window as { coveredOnShow?: boolean | null }
+    w.coveredOnShow = null
+    new MutationObserver((_, observer) => {
+      if (!document.querySelector('.history-overlay')) return
+      w.coveredOnShow = document.querySelector('.panes > .editor')?.hasAttribute('inert') ?? false
+      observer.disconnect()
+    }).observe(document.body, { childList: true, subtree: true })
+  })
+  await slider(page).focus()
+  await page.keyboard.press('Home')
+  await expect(overlay(page)).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => (window as { coveredOnShow?: boolean | null }).coveredOnShow))
+    .toBe(true)
+})
+
 test('any struck passage can be restored from the keyboard alone', async ({ page }) => {
   await noteWithHistory(page, 'Plan', 'one two three four five', 'ONE two THREE four FIVE')
   await changeEditorSettingsElsewhere(page, { historyBar: true })

@@ -208,6 +208,10 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
   - A StoreKit test cleared a purchase, bought again and read the product's entitlement, and the cleared purchase was still listed for a moment: it waits for the entitlement of the new transaction.
   - After a restore from the history bar the editor is owed the keyboard once the overlay has gone; the flag that said so did not say for which note, so a note opened in between took the keyboard. The flag holds the note, and another note drops it (#902).
   - StoreKit Test's local server answers some purchases with a server error (AMSErrorDomain 305) on a loaded runner; the retry covers it.
+  - The history bar made the panes under a version inert in a passive effect, which runs after the paint for a version loaded asynchronously: a key typed in that frame reached the editor and changed the note under the version (#922).
+    The panes become inert in the commit that shows the version (`useLayoutEffect`).
+  - A new note's page was put back at its top when the keyboard showed and once 0.4 s after the focus, and on a loaded simulator WebKit revealed the focused body later still, so the first line sat under the navigation bar (#934).
+    The page stays at its top until its first line is typed or the reader moves it.
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 
 ## Workflow
