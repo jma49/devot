@@ -279,6 +279,22 @@ export const memoryStorage: StorageAdapter = {
     }
     return found
   },
+  async listLinkGraph(excludeBookId, limit) {
+    const live = new Map(
+      read<Stored>(NOTES)
+        .filter((n) => n.deletedAt === null && n.bookId !== excludeBookId)
+        .map((n) => [n.id, n]),
+    )
+    const links: [string, string][] = []
+    for (const source of [...live.keys()].sort()) {
+      for (const target of noteLinks(live.get(source)!.bodyMd)) {
+        if (target !== source && live.has(target)) links.push([source, target])
+      }
+    }
+    const kept = links.slice(0, limit)
+    const ids = [...new Set(kept.flat())].sort()
+    return { notes: ids.map((id) => ({ id, title: live.get(id)!.title })), links: kept }
+  },
   async listBacklinks(id, excludeBookId, limit) {
     const stored = new Map(read<Stored>(NOTES).map((n) => [n.id, n]))
     return (await memoryStorage.listNotes())

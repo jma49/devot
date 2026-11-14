@@ -56,6 +56,7 @@ const NOTES: &[&str] = &[
     "saved_search_put",
     "search_index_rebuild",
     "welcome_seed",
+    "note_link_graph",
 ];
 
 /// Revisions, activity, agent writes and usage.
@@ -130,6 +131,7 @@ const WINDOWS: &[&str] = &[
     "quick_capture_claim",
     "quick_capture_done",
     "quick_capture_close",
+    "quick_capture_prefill_take",
     "background_state",
     "background_quit",
     "background_idle_answer",

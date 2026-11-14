@@ -191,6 +191,18 @@ describe('linkTargets', () => {
     })
   })
 
+  it('gives an embedded target its body without front matter, and only an embedded one', async () => {
+    const { notes } = setup()
+    const shown = await notes.create('Shown')
+    const linked = await notes.create('Linked')
+    await write(notes, shown, '---\ntags: [a]\n---\nThe body')
+    await write(notes, linked, 'Other body')
+
+    const found = await notes.linkTargets([shown, linked], [shown])
+    expect(found[shown]?.embed).toEqual({ markdown: 'The body', clipped: false })
+    expect(found[linked]).not.toHaveProperty('embed')
+  })
+
   it('reads stored targets in batches of bodies, not one full record each', async () => {
     const { storage, notes } = setup()
     const target = await notes.create('Plan')

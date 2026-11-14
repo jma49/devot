@@ -26,7 +26,7 @@ Docs are written one sentence per line, so a change touches only the sentences i
 - [Share on Web](specs/share-on-web.md): the sealed page, its link and key, the share Worker and its limits, and the viewer.
 - [Licences](specs/licences.md): how the app verifies and enforces a licence and the trial, the licence Worker and its seats.
 - [Local HTTP API](specs/local-http-api.md): the guards every request passes, the calls, and how they reach the core.
-- [Menu bar mode](specs/menu-bar-mode.md): keeping Devot in the menu bar, quick capture, and the background start for AI tools.
+- [Menu bar mode](specs/menu-bar-mode.md): keeping Devot in the menu bar, quick capture and capture links, and the background start for AI tools.
 - [AI](specs/ai.md): MCP through the bridge, access control, writes and authorship, connecting clients, models and providers, Edit with AI and next edit suggestions.
 - [Extensions](specs/extensions.md): the internal extension API and third-party plugins.
 - [Localisation](specs/localisation.md): the message catalog, placeholders, `Intl` and the rule against CJK characters in code.

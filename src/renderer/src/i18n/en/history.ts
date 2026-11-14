@@ -4,6 +4,7 @@ export const prefixes = [
   'authorship',
   'activity',
   'activityStrip',
+  'graph',
   'usage',
 ]
 
@@ -164,6 +165,23 @@ export const messages = {
   'activity.footnote':
     'Counted from the revision history. Text a note had before its history began (an import, a copy) is not counted. For days more than a week ago, a note may count only its net change over the day.',
   'activity.done': 'Done',
+  'graph.title': 'Graph',
+  'graph.detail':
+    'Notes and the links between them. Drag to move, scroll or pinch to zoom, click a note to open it.',
+  'graph.scope': 'Show',
+  'graph.thisNote': 'This Note',
+  'graph.allNotes': 'All Notes',
+  'graph.label': 'Graph of {notes} and {links}',
+  'graph.notesOne': '{count} note',
+  'graph.notesOther': '{count} notes',
+  'graph.linksOne': '{count} link',
+  'graph.linksOther': '{count} links',
+  'graph.capped': 'Showing the {count} most linked notes.',
+  'graph.empty': 'No notes link to each other yet. Type [[ in a note to link another.',
+  'graph.alone': 'No notes link to or from this note yet.',
+  'graph.notes': 'Notes in the graph',
+  'graph.failed': 'The graph could not be drawn.',
+  'graph.done': 'Done',
   'activity.failed': 'The activity could not be counted.',
   'activityStrip.label': 'Last 14 days: {days}',
   'activityStrip.edited': 'Edited',

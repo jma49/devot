@@ -2,5 +2,5 @@
 import { runExport } from './cliExport'
 import { resolveLocale, setLocale } from './i18n'
 
-setLocale(resolveLocale(navigator.languages))
+await setLocale(resolveLocale(navigator.languages))
 void runExport()

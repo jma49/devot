@@ -2657,6 +2657,44 @@ fn lists_the_live_notes_linking_to_a_note_outside_a_notebook_newest_first() {
     assert_eq!(first.excerpt, None);
 }
 
+#[test]
+fn gives_the_links_between_live_notes_outside_a_notebook_with_their_titles() {
+    let (_dir, mut store) = temp_store();
+    let templates = "00000000-0000-7000-8000-000000000001";
+    let to = |ids: &[&str]| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
+    store
+        .put_note(&note("a", "A", 1), &to(&["b", "c", "a", "gone"]))
+        .unwrap();
+    store.put_note(&note("b", "B", 2), &to(&["a"])).unwrap();
+    store
+        .put_note(&note("c", "C", 3), &to(&["template"]))
+        .unwrap();
+    let mut template = note("template", "Template", 4);
+    template.book_id = Some(templates.into());
+    store.put_note(&template, &to(&["a"])).unwrap();
+    let mut trashed = note("trashed", "Trashed", 5);
+    trashed.deleted_at = Some(6);
+    trashed.deleted_hlc = Some("0000000000006-0000-test".into());
+    store.put_note(&trashed, &to(&["a"])).unwrap();
+
+    let graph = store.link_graph(templates, 20_000).unwrap();
+    let pair = |s: &str, t: &str| (s.to_string(), t.to_string());
+    assert_eq!(
+        graph.links,
+        [pair("a", "b"), pair("a", "c"), pair("b", "a")]
+    );
+    let titles: Vec<_> = graph
+        .notes
+        .iter()
+        .map(|n| (n.id.as_str(), n.title.as_str()))
+        .collect();
+    assert_eq!(titles, [("a", "A"), ("b", "B"), ("c", "C")]);
+    assert_eq!(
+        store.link_graph(templates, 1).unwrap().links,
+        [pair("a", "b")]
+    );
+}
+
 fn link_rows(store: &Store) -> Vec<(String, String)> {
     let mut stmt = store
         .conn

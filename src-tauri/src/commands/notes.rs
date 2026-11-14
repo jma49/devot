@@ -1,7 +1,7 @@
 use super::authorship::validate_agent_writes;
 use crate::storage::{
-    AgentWriteRow, Db, NOTE_STATUSES, NoteBody, NoteMeta, NoteQuery, NoteRecord, NoteSummary,
-    SetKind, TrashedNote, Write,
+    AgentWriteRow, Db, LinkGraph, NOTE_STATUSES, NoteBody, NoteMeta, NoteQuery, NoteRecord,
+    NoteSummary, SetKind, TrashedNote, Write,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -545,6 +545,31 @@ pub async fn note_backlinks(
         .map_err(|e| e.to_string())
 }
 
+/// Matches MAX_GRAPH_LINKS in src/core/graph.ts.
+const MAX_GRAPH_LINKS: u32 = 20_000;
+
+fn validate_link_graph(exclude_book_id: &str, limit: u32) -> Result<(), &'static str> {
+    if !valid_note_id(exclude_book_id) {
+        return Err("E_BOOK_ID_INVALID");
+    }
+    if !(1..=MAX_GRAPH_LINKS).contains(&limit) {
+        return Err("E_GRAPH_LIMIT_INVALID");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn note_link_graph(
+    db: State<'_, Db>,
+    exclude_book_id: String,
+    limit: u32,
+) -> Result<LinkGraph, String> {
+    validate_link_graph(&exclude_book_id, limit).map_err(String::from)?;
+    db.call(move |store| store.link_graph(&exclude_book_id, limit))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn notes_trash_list(db: State<'_, Db>) -> Result<Vec<TrashedNote>, String> {
     db.call(|store| store.list_trash())
@@ -684,6 +709,23 @@ mod tests {
             assert_eq!(
                 validate_backlinks(ID, TEMPLATES, limit),
                 Err("E_BACKLINKS_LIMIT_INVALID")
+            );
+        }
+    }
+
+    #[test]
+    fn takes_the_link_graph_outside_a_notebook_up_to_its_limit() {
+        const TEMPLATES: &str = "00000000-0000-7000-8000-000000000001";
+        assert_eq!(validate_link_graph(TEMPLATES, 1), Ok(()));
+        assert_eq!(validate_link_graph(TEMPLATES, MAX_GRAPH_LINKS), Ok(()));
+        assert_eq!(
+            validate_link_graph("' OR 1 --", 1),
+            Err("E_BOOK_ID_INVALID")
+        );
+        for limit in [0, MAX_GRAPH_LINKS + 1] {
+            assert_eq!(
+                validate_link_graph(TEMPLATES, limit),
+                Err("E_GRAPH_LIMIT_INVALID")
             );
         }
     }

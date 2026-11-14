@@ -8,6 +8,7 @@ import { invoke } from '../ipc'
 import { LICENCE_REQUIRED, LICENCE_UNREADABLE, startLicence, useEditing } from '../licence'
 import { readNotebooks, subscribeNotebooks, type NotebookChoice } from '../notebookChoices'
 import { clearDraft, isEmptyCapture, notebookToShow, readDraft, writeDraft } from './draft'
+import { takePrefills, usePrefills, withPrefill, type Prefill } from './prefill'
 import { logFailure, withReason } from '../failure'
 
 // One string, so the store's snapshot is stable between changes.
@@ -38,7 +39,7 @@ const close = () =>
 const plain = (e: KeyboardEvent) => !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey
 
 /**
- * The quick capture window (menu bar mode): a title, a body and a notebook.
+ * The quick capture window (menu bar mode, or a capture link): a title, a body and a notebook.
  * The main window's core saves the note (src-tauri/src/menu_bar.rs); until
  * it has, the text stays here and in the draft.
  */
@@ -68,6 +69,13 @@ export function QuickCapture() {
 
   useEffect(() => writeDraft({ title, body, bookId }), [title, body, bookId])
 
+  const fill = (from: { title: string; body: string }, prefills: readonly Prefill[]) => {
+    const next = prefills.reduce(withPrefill, from)
+    setTitle(next.title)
+    setBody(next.body)
+  }
+  usePrefills((prefills) => fill({ title, body }, prefills), saving)
+
   const save = async () => {
     if (empty || saving || !editing) return
     setSaving(true)
@@ -84,8 +92,11 @@ export function QuickCapture() {
     setTitle('')
     setBody('')
     setPicked(undefined)
+    // A link that came while saving opens a capture of its own rather than vanishing with the window.
+    const more = await takePrefills()
     setSaving(false)
-    void close()
+    if (more.length > 0) fill({ title: '', body: '' }, more)
+    else void close()
   }
 
   const onKeyDown = (e: KeyboardEvent) => {

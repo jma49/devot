@@ -57,7 +57,7 @@ pub fn route(link: &Link) -> Option<Route> {
                 note_id: id.clone(),
             }],
         }),
-        Link::Note { .. } | Link::Import { .. } => None,
+        Link::Note { .. } | Link::Import { .. } | Link::Capture { .. } => None,
         Link::Today => Some(Route::Today {}),
         Link::Licence { key, .. } => Some(Route::Licence {
             prefill: key.clone(),

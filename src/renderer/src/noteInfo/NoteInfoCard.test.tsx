@@ -47,6 +47,7 @@ function show(props: Partial<Parameters<typeof NoteInfoCard>[0]> = {}) {
     open: vi.fn<(id: string) => void>(),
     dates: vi.fn<(id: string, dates: object) => Promise<void>>(() => Promise.resolve()),
     apply: vi.fn<(change: object) => void>(),
+    link: vi.fn<(id: string) => void>(),
   }
   root = createRoot(host)
   act(() =>
@@ -55,9 +56,11 @@ function show(props: Partial<Parameters<typeof NoteInfoCard>[0]> = {}) {
         info={info}
         facts={facts}
         backlinks={[]}
+        mentions={[]}
         onOpenNote={calls.open}
         onSetDates={calls.dates}
         onApplyFrontMatter={calls.apply}
+        onLinkMention={calls.link}
         onClose={calls.close}
         {...props}
       />,
@@ -133,6 +136,30 @@ describe('the Note Info card', () => {
     click(button('Plan'))
     expect(calls.open).toHaveBeenCalledWith('b')
     expect(calls.close).toHaveBeenCalled()
+  })
+
+  it('lists the notes that name this one, opens one, and links its mention', () => {
+    const calls = show({ mentions: [{ id: 'm', name: 'Diary', excerpt: 'we met at the plan' }] })
+    const mention = document.querySelector('.note-info-mention')
+    expect(mention?.textContent).toContain('we met at the plan')
+    click(button('Link the mention in Diary'))
+    expect(calls.link).toHaveBeenCalledWith('m')
+    expect(calls.close).not.toHaveBeenCalled()
+    click(mention?.querySelector('.note-info-link'))
+    expect(calls.open).toHaveBeenCalledWith('m')
+  })
+
+  it('says while it looks for mentions and when there are none, and offers no Link when notes are read-only', () => {
+    show({ mentions: undefined })
+    const empty = () =>
+      Array.from(document.querySelectorAll('.note-info-empty'), (p) => p.textContent)
+    expect(empty()).toContain('Looking for mentions…')
+    act(() => root?.unmount())
+    show({ mentions: [] })
+    expect(empty()).toContain('No other note names this one')
+    act(() => root?.unmount())
+    show({ mentions: [{ id: 'm', name: 'Diary', excerpt: 'plan' }], onLinkMention: undefined })
+    expect(button('Link the mention in Diary')).toBeUndefined()
   })
 
   it('shows the tasks and the words in its foot', () => {

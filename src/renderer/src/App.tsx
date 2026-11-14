@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useActivityMenu } from './Activity'
+import { useGraphCommand } from './graph/GraphSheet'
 import { areaOf, areaTargets, nextArea, usePaneTab } from './areas'
 import { useKeymap } from './commands/shortcutSettings'
 import { listLibrary } from './core-client'
@@ -128,6 +129,8 @@ export function App() {
   const [activityOpen, setActivityOpen] = useState(false)
   const [sharing, setSharing] = useState<string>()
   useActivityMenu(() => setActivityOpen(true))
+  const [graphOpen, setGraphOpen] = useState(false)
+  useGraphCommand(() => setGraphOpen(true))
   const restoreRef = useRef<ApplyRestore | null>(null)
   // A restored version, an accepted AI edit or a plugin write reaches the editor only while it
   // still shows the note it was made for.
@@ -724,6 +727,13 @@ export function App() {
           ) : null
         }
         activity={{ core, open: activityOpen, close: () => setActivityOpen(false) }}
+        graph={{
+          core,
+          open: graphOpen,
+          focus: openNote?.id,
+          openNote: (id) => void open.select(id),
+          close: () => setGraphOpen(false),
+        }}
         exported={exports.dialog}
         headerMenus={headerMenus.dialog}
         savedSearch={savedSearch.dialog}

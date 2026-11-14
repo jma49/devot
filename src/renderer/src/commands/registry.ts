@@ -692,6 +692,13 @@ export const COMMANDS = [
     keys: [],
   },
   {
+    id: 'view.graph',
+    label: 'command.showGraph',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
+  {
     id: 'view.noteInfo',
     label: 'command.noteInfo',
     group: 'view',

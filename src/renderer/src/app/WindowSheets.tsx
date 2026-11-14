@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Activity } from '../Activity'
 import type { Core } from '../core-client'
 import { t } from '../i18n'
+import { GraphSheet } from '../graph/GraphSheet'
 import { ImageViewer, type ViewedImage } from '../ImageViewer'
 import { CommandPalette } from '../palette/CommandPalette'
 import { commandEntries, sourceEntries } from '../palette/entries'
@@ -31,12 +32,19 @@ export function WindowSheets(props: {
   clearAuthorship: ReactNode
   shareWeb: ReactNode
   activity: { core: Core | undefined; open: boolean; close: () => void }
+  graph: {
+    core: Core | undefined
+    open: boolean
+    focus: string | undefined
+    openNote: (id: string) => void
+    close: () => void
+  }
   exported: ReactNode
   headerMenus: ReactNode
   savedSearch: ReactNode
   confirm: ReactNode
 }) {
-  const { palette, commands, activity } = props
+  const { palette, commands, activity, graph } = props
   return (
     <>
       {props.mirror}
@@ -70,6 +78,14 @@ export function WindowSheets(props: {
       {props.shareWeb}
       {activity.core && activity.open ? (
         <Activity core={activity.core} onClose={activity.close} />
+      ) : null}
+      {graph.core && graph.open ? (
+        <GraphSheet
+          core={graph.core}
+          focus={graph.focus}
+          onOpenNote={graph.openNote}
+          onClose={graph.close}
+        />
       ) : null}
       {props.exported}
       {props.headerMenus}

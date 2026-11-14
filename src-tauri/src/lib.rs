@@ -15,6 +15,7 @@ mod backups;
 #[cfg(test)]
 #[path = "../build_env.rs"]
 mod build_env;
+mod capture_link;
 mod cli;
 mod cli_append;
 mod cli_export;
@@ -113,7 +114,8 @@ pub fn run() {
         .plugin(menu_bar::global_shortcut_plugin())
         .manage(background::Background::new(background::requested()))
         .manage(menu_bar::MenuBar::default())
-        .manage(menu_bar::Captures::default());
+        .manage(menu_bar::Captures::default())
+        .manage(capture_link::Prefills::default());
     builder
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
@@ -134,6 +136,7 @@ pub fn run() {
             commands::notes::note_put_meta,
             commands::notes::notes_search,
             commands::notes::note_backlinks,
+            commands::notes::note_link_graph,
             commands::notes::notes_trash_list,
             commands::notes::note_purge,
             commands::revisions::revision_put,
@@ -293,6 +296,8 @@ pub fn run() {
             menu_bar::quick_capture_done,
             #[cfg(desktop)]
             menu_bar::quick_capture_close,
+            #[cfg(desktop)]
+            capture_link::quick_capture_prefill_take,
             #[cfg(desktop)]
             http_api::http_api_get,
             #[cfg(desktop)]

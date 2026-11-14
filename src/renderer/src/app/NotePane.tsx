@@ -366,6 +366,7 @@ export function NotePane({
                   onOpenNote={(id) => void select(id)}
                   onSetDates={editing ? setNoteDates : undefined}
                   onApplyFrontMatter={editing ? applyFrontMatter : undefined}
+                  canLinkMentions={editing}
                 />
               ) : null}
             </div>
