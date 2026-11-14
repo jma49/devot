@@ -10,8 +10,9 @@
 #   APPLE_DISTRIBUTION_CERTIFICATE           base64 of the Apple Distribution .p12
 #   APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD  its password
 #   APPLE_PROVISIONING_PROFILE               base64 of the App Store provisioning profile
-#   APPLE_PROVISIONING_PROFILE_SHARE         base64 of the Share Extension's App Store profile, when
-#                                            the app holds the extension (docs/specs/share-extension.md)
+#   APPLE_PROVISIONING_PROFILE_SHARE         base64 of the Share Extension's App Store profile
+#   APPLE_PROVISIONING_PROFILE_INTENTS       base64 of the Shortcuts extension's App Store profile
+#                                            (each when the app holds it: docs/specs/share-extension.md)
 #   APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID  the App Store Connect API key (--upload)
 #
 # The certificate goes into a keychain made for the run, which is on the user's search list only
@@ -133,43 +134,53 @@ sign() {
 while IFS= read -r -d '' nested; do
   sign "$nested"
 done < <(find "$app" -mindepth 1 -depth \( -name '*.framework' -o -name '*.dylib' \) -print0)
-# The Share Extension has its own App ID (<app>.share) and App Store profile, and the entitlements
-# of src-tauri/gen/apple/devot_Share, with the app's version so App Store Connect takes the pair.
-extensions=$(find "$app/PlugIns" -mindepth 1 -maxdepth 1 -name '*.appex' -type d 2> /dev/null || true)
-extension=
-if [ -n "$extensions" ]; then
-  [ "$(wc -l <<< "$extensions")" -eq 1 ] || fail "E_EXPORT_EXTENSIONS: the app holds more than the Share Extension"
-  extension=$extensions
+# Each extension has its own App ID (<app>.<suffix>), App Store profile and the entitlements of its
+# folder in src-tauri/gen/apple, with the app's version so App Store Connect takes them together.
+extensions=()
+extension_ids=()
+extension_uuids=()
+sign_extension() {
+  local extension=$1 n=${#extensions[@]} extension_id suffix variable target profile_b64 extension_profile extension_uuid
   extension_id=$(plutil -extract CFBundleIdentifier raw -o - "$extension/Info.plist")
-  [ "$extension_id" = "$bundle_id.share" ] ||
-    fail "E_EXPORT_EXTENSIONS: the extension's bundle ID is $extension_id, not $bundle_id.share"
-  [ -n "${APPLE_PROVISIONING_PROFILE_SHARE:-}" ] ||
-    fail "E_EXPORT_CREDENTIALS_MISSING: APPLE_PROVISIONING_PROFILE_SHARE not set: add it to the release environment (docs/releasing.md, The Share Extension)"
-  extension_profile=$work/extension.mobileprovision
-  (umask 077 && printf '%s' "$APPLE_PROVISIONING_PROFILE_SHARE" | base64 -D > "$extension_profile") 2> /dev/null ||
-    fail "E_SIGN_PROFILE_UNREADABLE: APPLE_PROVISIONING_PROFILE_SHARE is not base64"
-  security cms -D -i "$extension_profile" -o "$work/extension-profile.plist" > /dev/null 2>&1 ||
-    fail "E_SIGN_PROFILE_UNREADABLE: the Share Extension's profile is not a signed property list"
-  extension_uuid=$(plutil -extract UUID raw -o - "$work/extension-profile.plist" 2> /dev/null) ||
-    fail "E_SIGN_PROFILE_UNREADABLE: the Share Extension's profile has no UUID"
-  plutil -convert json -o "$work/extension-entitlements.json" "$script_dir/../../src-tauri/gen/apple/devot_Share/devot_Share.entitlements"
+  suffix=${extension_id#"$bundle_id".}
+  case "$suffix" in
+    share) variable=APPLE_PROVISIONING_PROFILE_SHARE target=devot_Share ;;
+    intents) variable=APPLE_PROVISIONING_PROFILE_INTENTS target=devot_Intents ;;
+    *) fail "E_EXPORT_EXTENSIONS: the app holds an extension Devot does not ship: $extension_id" ;;
+  esac
+  profile_b64=${!variable:-}
+  [ -n "$profile_b64" ] ||
+    fail "E_EXPORT_CREDENTIALS_MISSING: $variable not set: add it to the release environment (docs/releasing.md, The Extensions)"
+  extension_profile=$work/extension-$n.mobileprovision
+  (umask 077 && printf '%s' "$profile_b64" | base64 -D > "$extension_profile") 2> /dev/null ||
+    fail "E_SIGN_PROFILE_UNREADABLE: $variable is not base64"
+  security cms -D -i "$extension_profile" -o "$work/extension-$n-profile.plist" > /dev/null 2>&1 ||
+    fail "E_SIGN_PROFILE_UNREADABLE: $variable is not a signed property list"
+  extension_uuid=$(plutil -extract UUID raw -o - "$work/extension-$n-profile.plist" 2> /dev/null) ||
+    fail "E_SIGN_PROFILE_UNREADABLE: $variable has no UUID"
+  plutil -convert json -o "$work/extension-$n-entitlements.json" "$script_dir/../../src-tauri/gen/apple/$target/$target.entitlements"
   jq --arg app_id "$team.$extension_id" --arg team "$team" '. + {
     "application-identifier": $app_id,
     "com.apple.developer.team-identifier": $team
-  }' "$work/extension-entitlements.json" > "$work/extension-signing.json"
-  plutil -convert xml1 -o "$work/extension.entitlements" "$work/extension-signing.json"
-  "$script_dir/ios-profile.sh" "$extension_profile" "$work/extension.entitlements" "$team" "$extension_id" "$certificate"
+  }' "$work/extension-$n-entitlements.json" > "$work/extension-$n-signing.json"
+  plutil -convert xml1 -o "$work/extension-$n.entitlements" "$work/extension-$n-signing.json"
+  "$script_dir/ios-profile.sh" "$extension_profile" "$work/extension-$n.entitlements" "$team" "$extension_id" "$certificate"
   for key in CFBundleShortVersionString CFBundleVersion; do
-    value=$(plutil -extract "$key" raw -o - "$app/Info.plist")
-    plutil -replace "$key" -string "$value" "$extension/Info.plist"
+    plutil -replace "$key" -string "$(plutil -extract "$key" raw -o - "$app/Info.plist")" "$extension/Info.plist"
   done
   for folder in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
     cp "$extension_profile" "$folder/$extension_uuid.mobileprovision"
     installed+=("$folder/$extension_uuid.mobileprovision")
   done
   cp "$extension_profile" "$extension/embedded.mobileprovision"
-  sign --entitlements "$work/extension.entitlements" --generate-entitlement-der "$extension"
-fi
+  sign --entitlements "$work/extension-$n.entitlements" --generate-entitlement-der "$extension"
+  extensions+=("${extension#"$app"/}")
+  extension_ids+=("$extension_id")
+  extension_uuids+=("$extension_uuid")
+}
+while IFS= read -r -d '' extension; do
+  sign_extension "$extension"
+done < <(find "$app/PlugIns" "$app/Extensions" -mindepth 1 -maxdepth 1 -name '*.appex' -type d -print0 2> /dev/null)
 cp "$profile" "$app/embedded.mobileprovision"
 sign --entitlements "$work/signing.entitlements" --generate-entitlement-der "$app"
 
@@ -179,9 +190,9 @@ cp "$options_template" "$options"
   -c "Add :signingCertificate string $certificate" \
   -c "Add :provisioningProfiles dict" \
   -c "Add :provisioningProfiles:$bundle_id string $uuid" "$options"
-if [ -n "$extension" ]; then
-  /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$extension_id string $extension_uuid" "$options"
-fi
+for i in ${extension_ids[@]+"${!extension_ids[@]}"}; do
+  /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:${extension_ids[$i]} string ${extension_uuids[$i]}" "$options"
+done
 
 export_archive() {
   local log=$work/xcodebuild-$1.log
@@ -214,15 +225,14 @@ lost=$(jq -r --slurpfile signed "$work/signed.json" \
 [ -z "$lost" ] || fail "E_EXPORT_ENTITLEMENTS: the exported app does not carry $lost as signed"
 [ "$(jq -r '.["get-task-allow"] // false' "$work/signed.json")" = false ] ||
   fail "E_EXPORT_ENTITLEMENTS: the exported app lets a debugger attach (get-task-allow)"
-if [ -n "$extension" ]; then
-  shipped_extension=$shipped/PlugIns/$(basename "$extension")
-  codesign -d --entitlements - --xml "$shipped_extension" 2> /dev/null > "$work/extension-signed.plist"
-  plutil -convert json -o "$work/extension-signed.json" "$work/extension-signed.plist" ||
-    fail "E_EXPORT_ENTITLEMENTS: the exported Share Extension carries no entitlements"
-  lost=$(jq -r --slurpfile signed "$work/extension-signed.json" \
-    '[to_entries[] | select(.value != $signed[0][.key]) | .key] | sort | join(" ")' "$work/extension-signing.json")
-  [ -z "$lost" ] || fail "E_EXPORT_ENTITLEMENTS: the exported Share Extension does not carry $lost as signed"
-fi
+for i in ${extensions[@]+"${!extensions[@]}"}; do
+  codesign -d --entitlements - --xml "$shipped/${extensions[$i]}" 2> /dev/null > "$work/extension-$i-signed.plist"
+  plutil -convert json -o "$work/extension-$i-signed.json" "$work/extension-$i-signed.plist" ||
+    fail "E_EXPORT_ENTITLEMENTS: the exported ${extension_ids[$i]} carries no entitlements"
+  lost=$(jq -r --slurpfile signed "$work/extension-$i-signed.json" \
+    '[to_entries[] | select(.value != $signed[0][.key]) | .key] | sort | join(" ")' "$work/extension-$i-signing.json")
+  [ -z "$lost" ] || fail "E_EXPORT_ENTITLEMENTS: the exported ${extension_ids[$i]} does not carry $lost as signed"
+done
 
 mkdir -p "$out"
 cp "$ipa" "$out/"

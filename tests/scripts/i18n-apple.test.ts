@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  APP_INTENTS_XCSTRINGS,
   appleStrings,
   compileSettingsIndex,
   compileStrings,
@@ -104,6 +105,20 @@ describe('the Swift string catalog', () => {
     expect(shareSwift).toContain('public static func sharePost() -> String {')
   })
 
+  it("gives the app's Shortcuts actions a string catalog with only the intent area's keys", async () => {
+    const outputs = new Map(await appleStrings('.'))
+    const intents = JSON.parse(outputs.get(APP_INTENTS_XCSTRINGS)!) as { strings: object }
+    const intentKeys = Object.keys(en).filter((key) => key.startsWith('intent.'))
+    expect(intentKeys).toContain('intent.add.title')
+    expect(Object.keys(intents.strings)).toEqual([...intentKeys].sort())
+  })
+
+  it('refuses a placeholder in a Shortcuts string, which an intent reads by key alone', () => {
+    expect(
+      Object.entries(en).filter(([key, text]) => key.startsWith('intent.') && text.includes('{')),
+    ).toEqual([])
+  })
+
   it('holds no CJK', () => {
     expect(CJK.test(swift)).toBe(false)
     expect(CJK.test(xcstrings)).toBe(false)
@@ -117,6 +132,7 @@ describe('the Swift string catalog', () => {
       SETTINGS_INDEX,
       SHARE_STRINGS_SWIFT,
       SHARE_XCSTRINGS,
+      APP_INTENTS_XCSTRINGS,
     ])
     expect(staleOutputs('.', outputs)).toEqual([])
   })

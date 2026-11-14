@@ -49,31 +49,43 @@ describe('the iPhone app', () => {
     const project = read(PROJECT)
     // The app's two configurations, then the Share Extension's.
     expect(project.match(/TARGETED_DEVICE_FAMILY = [^;]*;/g)).toEqual(
-      Array(4).fill('TARGETED_DEVICE_FAMILY = 1;'),
+      Array(6).fill('TARGETED_DEVICE_FAMILY = 1;'),
     )
     expect(read(`${APPLE}/project.yml`)).toMatch(/^ {8}TARGETED_DEVICE_FAMILY: 1$/m)
     expect(read(`${APPLE}/project.yml`)).not.toContain('~ipad')
     expect(read(`${APPLE}/devot_iOS/Info.plist`)).not.toContain('~ipad')
   })
 
-  it('bundles the privacy manifest', () => {
-    expect(existsSync(MANIFEST)).toBe(true)
+  it('bundles the privacy manifest in the app and in each extension', () => {
     const project = read(PROJECT)
-    const ref =
-      /(\w{24}) \/\* PrivacyInfo\.xcprivacy \*\/ = \{isa = PBXFileReference; path = PrivacyInfo\.xcprivacy;/.exec(
-        project,
-      )?.[1]
-    expect(ref).toBeDefined()
-    const build = new RegExp(
-      `(\\w{24}) /\\* PrivacyInfo\\.xcprivacy in Resources \\*/ = \\{isa = PBXBuildFile; fileRef = ${ref} `,
-    ).exec(project)?.[1]
-    expect(build).toBeDefined()
-    const resources = /isa = PBXResourcesBuildPhase;[^]*?files = \(([^)]*)\)/.exec(project)?.[1]
-    expect(resources).toContain(`${build} /* PrivacyInfo.xcprivacy in Resources */`)
-    const group = /\/\* devot_iOS \*\/ = \{\s*isa = PBXGroup;\s*children = \(([^)]*)\)/.exec(
-      project,
-    )?.[1]
-    expect(group).toContain(`${ref} /* PrivacyInfo.xcprivacy */`)
+    const resources = [
+      ...project.matchAll(/isa = PBXResourcesBuildPhase;[^]*?files = \(([^)]*)\)/g),
+    ]
+    for (const folder of ['devot_iOS', 'devot_Share', 'devot_Intents']) {
+      expect(existsSync(`${APPLE}/${folder}/PrivacyInfo.xcprivacy`)).toBe(true)
+      const group = new RegExp(
+        `/\\* ${folder} \\*/ = \\{\\s*isa = PBXGroup;\\s*children = \\(([^)]*)\\)`,
+      ).exec(project)?.[1]
+      const ref = /(\w{24}) \/\* PrivacyInfo\.xcprivacy \*\//.exec(group ?? '')?.[1]
+      expect({ folder, ref: ref !== undefined }).toEqual({ folder, ref: true })
+      const build = new RegExp(
+        `(\\w{24}) /\\* PrivacyInfo\\.xcprivacy in Resources \\*/ = \\{isa = PBXBuildFile; fileRef = ${ref} `,
+      ).exec(project)?.[1]
+      expect({ folder, build: build !== undefined }).toEqual({ folder, build: true })
+      const phases = resources.filter(([, files]) =>
+        files!.includes(`${build} /* PrivacyInfo.xcprivacy in Resources */`),
+      )
+      expect({ folder, phases: phases.length }).toEqual({ folder, phases: 1 })
+    }
+  })
+
+  it('gives each extension a manifest that collects and tracks nothing', () => {
+    for (const folder of ['devot_Share', 'devot_Intents']) {
+      const manifest = read(`${APPLE}/${folder}/PrivacyInfo.xcprivacy`)
+      expect(manifest).toMatch(/<key>NSPrivacyTracking<\/key>\s*<false\/>/)
+      expect(manifest).toMatch(/<key>NSPrivacyCollectedDataTypes<\/key>\s*<array\/>/)
+      expect(manifest).toContain('NSPrivacyAccessedAPICategoryFileTimestamp')
+    }
   })
 
   it('declares no tracking, and what Devot receives for the app to work, linked only where the Worker keeps it with the licence', () => {
@@ -227,6 +239,7 @@ describe('the App Store workflow', () => {
       'secrets.APPLE_DISTRIBUTION_CERTIFICATE',
       'secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD',
       'secrets.APPLE_PROVISIONING_PROFILE_IOS',
+      'secrets.APPLE_PROVISIONING_PROFILE_IOS_INTENTS',
       'secrets.APPLE_PROVISIONING_PROFILE_IOS_SHARE',
       'vars.APPLE_API_ISSUER_ID',
       'vars.APPLE_API_KEY_ID',

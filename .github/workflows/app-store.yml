@@ -19,6 +19,7 @@ name: App Store
 #   secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD  its password
 #   secrets.APPLE_PROVISIONING_PROFILE_IOS           base64 of the App Store provisioning profile
 #   secrets.APPLE_PROVISIONING_PROFILE_IOS_SHARE     base64 of the Share Extension's App Store profile
+#   secrets.APPLE_PROVISIONING_PROFILE_IOS_INTENTS   base64 of the Shortcuts extension's App Store profile
 #   secrets.APPLE_API_KEY_P8                         the App Store Connect API key (AuthKey_<id>.p8), for uploads
 # and in the repository settings:
 #   vars.APPLE_API_KEY_ID, vars.APPLE_API_ISSUER_ID  the API key's ID and issuer
@@ -221,6 +222,7 @@ jobs:
           # The script decodes it into its own folder under RUNNER_TEMP and removes it.
           APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE_IOS }}
           APPLE_PROVISIONING_PROFILE_SHARE: ${{ secrets.APPLE_PROVISIONING_PROFILE_IOS_SHARE }}
+          APPLE_PROVISIONING_PROFILE_INTENTS: ${{ secrets.APPLE_PROVISIONING_PROFILE_IOS_INTENTS }}
           UPLOAD: ${{ vars.APP_STORE_UPLOAD }}
           # The upload key reaches the job only when it uploads.
           APPLE_API_KEY_P8: ${{ vars.APP_STORE_UPLOAD == 'true' && secrets.APPLE_API_KEY_P8 || '' }}

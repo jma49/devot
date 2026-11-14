@@ -59,8 +59,24 @@ The page's `share.capture` handler (`src/renderer/src/phone/screens/share.ts`) m
 - The page refuses `E_LICENCE_REQUIRED` while editing is locked, as Rust's write gate does behind it.
 - A reply lost on its way would leave the file, and the next drain would send the share again, so the page remembers the last 100 share IDs with the note each made (`devot.share.made` in the page's storage) and answers a repeat with that note, making none.
 
+## Shortcuts
+
+The Shortcuts actions live in a second extension, `devot_Intents` (an App Intents extension), so a Shortcut, Siri or Spotlight never starts the app, its database or its key in the background.
+It follows the Share Extension's rules above: the App Group's inbox is the one place it writes.
+
+- **Add to Devot** takes Text, Title and Link, each optional, and writes one inbox item through `ShareInbox.add`, which trims the title and the link and checks the item as the drain will (`problem()`); the drain makes the note the next time the app is in front.
+  A refusal answers with the matching `intent.error.*` string and logs `W_INTENT_ADD_FAILED code=…`; nothing is written.
+  The inbox has complete protection, so the action fails with `intent.error.save` while the iPhone is locked.
+- **Open Today's Note** opens `devot://today`, the link the app already routes to today's note.
+- Both are App Shortcuts (`DevotShortcuts`), offered in Spotlight and to Siri without setup.
+
+Their strings are the catalog's `intent.*` keys, which `pnpm i18n:apple` writes into `devot_Intents/Localizable.xcstrings`; an intent names them by key, so they take no placeholders.
+The App Shortcut phrases are Swift literals, which App Intents requires.
+
 ## Release
 
 The extension is the target `devot_Share` in `src-tauri/gen/apple/project.yml`, bundle ID `io.github.jma49.devot.share`, embedded in the app.
 Its entitlements are the App Group alone (`devot_Share/devot_Share.entitlements`); the app has the App Group in every build (`devot_iOS.entitlements` with iCloud, `devot_iOS-local.entitlements` without).
-The App Store workflow signs it with its own App Store profile, gives it the app's version and build number, and checks its entitlements after export (docs/releasing.md, The Share Extension).
+The Shortcuts actions are the target `devot_Intents`, bundle ID `io.github.jma49.devot.intents`, embedded under `Extensions/` with the same entitlements (`devot_Intents/devot_Intents.entitlements`).
+Each extension has its own privacy manifest: no tracking, no collected data, and the file timestamps the inbox's sweep reads (C617.1).
+The App Store workflow signs each with its own App Store profile, gives it the app's version and build number, and checks its entitlements after export (docs/releasing.md, The Extensions).

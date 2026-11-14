@@ -15,6 +15,8 @@ export const SHARE_STRINGS_SWIFT = `${SHARE_GENERATED}/Strings.swift`
 export const SHARE_XCSTRINGS = `${SHARE_GENERATED}/Localizable.xcstrings`
 /** The Share Extension carries only its own area, so it stays small. */
 const SHARE_PREFIX = 'share.'
+export const APP_INTENTS_XCSTRINGS = 'src-tauri/gen/apple/devot_Intents/Localizable.xcstrings'
+const INTENT_PREFIX = 'intent.'
 
 const CATALOG = 'src/renderer/src/i18n/en'
 const PANES_MODULE = 'src/renderer/src/settings/panes.ts'
@@ -212,6 +214,11 @@ export async function appleStrings(root: string): Promise<[string, string][]> {
     wording,
     'ShareL10n',
   )
+  const intents = compileStrings(
+    Object.fromEntries(Object.entries(messages).filter(([key]) => key.startsWith(INTENT_PREFIX))),
+    {},
+    'IntentL10n',
+  )
   const { PANES, PANE_TABS } = await import(pathToFileURL(join(root, PANES_MODULE)).href)
   const { SETTINGS_ENTRIES } = await import(pathToFileURL(join(root, ENTRIES_MODULE)).href)
   return [
@@ -220,6 +227,7 @@ export async function appleStrings(root: string): Promise<[string, string][]> {
     [SETTINGS_INDEX, compileSettingsIndex(SETTINGS_ENTRIES, PANES, PANE_TABS)],
     [SHARE_STRINGS_SWIFT, share.swift],
     [SHARE_XCSTRINGS, share.xcstrings],
+    [APP_INTENTS_XCSTRINGS, intents.xcstrings],
   ]
 }
 

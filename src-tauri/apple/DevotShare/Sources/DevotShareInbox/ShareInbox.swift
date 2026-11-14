@@ -43,6 +43,18 @@ public struct ShareInbox: Sendable {
         return final
     }
 
+    /// Writes what the Add to Devot action was given, as the Share Extension would have.
+    @discardableResult
+    public func add(title: String, text: String, url: String?) throws(ShareError) -> ShareItem {
+        let link = url?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let item = ShareItem(
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines), text: text,
+            url: link?.isEmpty == false ? link : nil, images: [])
+        if let code = item.problem() { throw ShareError(code) }
+        try write(item)
+        return item
+    }
+
     /// The items waiting, oldest first: their names are UUIDv7s.
     public func pending() -> [URL] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false))) ?? []
