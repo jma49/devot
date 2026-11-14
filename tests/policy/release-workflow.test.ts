@@ -189,7 +189,7 @@ describe('the release workflow', () => {
       'ditto -c -k --keepParent "$app" handover/Devot.app.zip',
     )
     const build = step('Build')
-    expect(build).toContain('--bundles app --config')
+    expect(build).toContain('--bundles app --target universal-apple-darwin --config')
     expect(build).toContain('signingIdentity: "-"')
     expect(build).not.toContain('createUpdaterArtifacts')
   })
@@ -237,6 +237,25 @@ describe('the release workflow', () => {
     const verify = step('Verify and hand over the app')
     expect(verify).toContain('test -s "$app/Contents/Resources/Assets.car"')
     expect(verify).toMatch(/plutil -extract CFBundleIconName raw "\$app\/Contents\/Info\.plist"/)
+  })
+
+  it('ships one universal app for Apple Silicon and Intel, asking for the macOS the config names', () => {
+    expect(job('build')).toMatch(
+      /run: rustup target add aarch64-apple-darwin x86_64-apple-darwin\n {8}working-directory: src-tauri\n/,
+    )
+    const verify = step('Verify and hand over the app')
+    expect(verify).toContain(
+      'app=src-tauri/target/universal-apple-darwin/release/bundle/macos/Devot.app',
+    )
+    expect(verify).toContain('lipo -archs "$app/Contents/MacOS/devot"')
+    expect(verify).toContain('E_RELEASE_NOT_UNIVERSAL')
+    expect(verify).toContain('plutil -extract LSMinimumSystemVersion raw')
+    expect(verify).toContain('jq -r .bundle.macOS.minimumSystemVersion src-tauri/tauri.conf.json')
+    const names = [
+      ...workflow.matchAll(/Devot_\$\{\{? ?[\w.]+ ?\}?\}?_(\w+)\.(?:dmg|app\.tar\.gz)/g),
+    ]
+    expect(names.length).toBe(4)
+    expect(new Set(names.map((m) => m[1]))).toEqual(new Set(['universal']))
   })
 
   it('releases only a commit on main', () => {
