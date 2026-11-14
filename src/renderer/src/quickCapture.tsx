@@ -16,7 +16,7 @@ import './theme/tokens.css'
 import './app.css'
 import './quickCapture/quickCapture.css'
 
-setLocale(resolveLocale(navigator.languages))
+await setLocale(resolveLocale(navigator.languages))
 document.title = t('quickCapture.windowTitle')
 // Before any key handler: the key that ends a composition is the input method's.
 watchCompositions(window)

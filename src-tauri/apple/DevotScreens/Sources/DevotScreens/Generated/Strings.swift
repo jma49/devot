@@ -3110,6 +3110,10 @@ public enum L10n {
     text("import.reason.outside", "Outside the imported folder")
   }
 
+  public static func importReasonTag() -> String {
+    text("import.reason.tag", "Tag not added: not a valid tag name")
+  }
+
   public static func importReasonType() -> String {
     text("import.reason.type", "Not a supported image format")
   }

@@ -92,17 +92,40 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
   expect(commands(ios)).toContain('cargo test --lib input_accessory')
   expect(commands(job('iphone-build')).some((c) => /^cargo (clippy|test)/.test(c))).toBe(false)
   const gate = job('rust')
-  expect(gate).toContain(
-    'needs: [changes, rust-check, ios-check, ios-app, mac-tests, iphone-build, iphone-ui, deny]',
-  )
+  expect(parsed['rust']!.needs).toEqual([
+    'changes',
+    'rust-check',
+    'ios-check',
+    'ios-app',
+    'mac-tests',
+    'mac-compat',
+    'iphone-build',
+    'iphone-ui',
+    'deny',
+  ])
   expect(gate).toContain('IOS: ${{ needs.ios-check.result }}')
   expect(gate).toContain('IOS_APP: ${{ needs.ios-app.result }}')
   expect(gate).toContain('MAC: ${{ needs.mac-tests.result }}')
+  expect(gate).toContain('MAC_COMPAT: ${{ needs.mac-compat.result }}')
   expect(gate).toContain('IPHONE_BUILD: ${{ needs.iphone-build.result }}')
   expect(gate).toContain('IPHONE_UI: ${{ needs.iphone-ui.result }}')
   expect(gate).toContain(
-    'for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$MAC" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"',
+    'for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$MAC" "$MAC_COMPAT" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"',
   )
+  // The release builds on Apple Silicon with macOS 26; this runs the native tests at the other end.
+  const minimum = (
+    JSON.parse(read('src-tauri/tauri.conf.json')) as {
+      bundle: { macOS: { minimumSystemVersion: string } }
+    }
+  ).bundle.macOS.minimumSystemVersion
+  const compat = parse(workflow) as {
+    jobs: Record<string, { 'runs-on': string; env?: Record<string, string> }>
+  }
+  expect(compat.jobs['mac-compat']!['runs-on']).toBe(`macos-${minimum.split('.')[0]}-intel`)
+  expect(compat.jobs['mac-compat']!.env).toEqual({ MACOSX_DEPLOYMENT_TARGET: minimum })
+  expect(parsed['mac-compat']!.needs).toEqual(['changes', 'iphone-build'])
+  expect(parsed['mac-compat']!.if).toBe(parsed['ios-check']!.if)
+  expect(commands(job('mac-compat'))).toContain('cargo test --test main_thread')
 })
 
 type Job = { 'runs-on'?: string; if?: string; env?: Record<string, string>; steps: Step[] }
