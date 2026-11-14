@@ -37,6 +37,7 @@ describe('the import worker', () => {
       raw: PAGE,
       path: 'page.html',
       withImages: true,
+      conventions: true,
     })
     expect(message.id).toBe(3)
     const value = (message as { value: PreparedImport }).value
@@ -55,6 +56,7 @@ describe('the import worker', () => {
       raw: PAGE,
       path: 'page.html',
       withImages: false,
+      conventions: true,
     })
     const value = (message as { value: PreparedImport }).value
     expect(value.embedded).toEqual([])
@@ -69,7 +71,9 @@ describe('the import worker', () => {
 
   it('answers a file it cannot prepare with a code', () => {
     const raw = null as unknown as string
-    expect(ask({ id: 6, kind: 'file', raw, path: 'a.md', withImages: true }).message).toEqual({
+    expect(
+      ask({ id: 6, kind: 'file', raw, path: 'a.md', withImages: true, conventions: true }).message,
+    ).toEqual({
       id: 6,
       code: 'E_IMPORT_FAILED',
     })

@@ -4,7 +4,14 @@
 import type { ImportPreparer } from '../../core'
 
 export type ImportRequest =
-  | { id: number; kind: 'file'; raw: string; path: string; withImages: boolean }
+  | {
+      id: number
+      kind: 'file'
+      raw: string
+      path: string
+      withImages: boolean
+      conventions: boolean
+    }
   | { id: number; kind: 'links'; text: string }
 
 export type ImportReply = { id: number; value: unknown } | { id: number; code: string }
@@ -83,8 +90,10 @@ export function preparerOffThread(
   }
 
   return {
-    file: (raw, path, withImages) =>
-      call({ kind: 'file', raw, path, withImages }, () => here.file(raw, path, withImages)),
+    file: (raw, path, withImages, conventions) =>
+      call({ kind: 'file', raw, path, withImages, conventions }, () =>
+        here.file(raw, path, withImages, conventions),
+      ),
     links: (text) => call({ kind: 'links', text }, () => here.links(text)),
     close: stop,
   }

@@ -3050,6 +3050,10 @@ public enum L10n {
     text("import.wikiLinks", "Convert [[wiki links]] to note links and images")
   }
 
+  public static func importConventions() -> String {
+    text("import.conventions", "Read tags from front matter and #tags, and turn callouts into alerts")
+  }
+
   public static func importUnresolvedLinksOne(count p0: String) -> String {
     fill(text("import.unresolvedLinksOne", "{count} wiki link matched no note or image and was kept as text."), ["count": p0])
   }

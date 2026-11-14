@@ -10,6 +10,7 @@ import {
 const prepared = (title: string): PreparedImport => ({
   title,
   meta: { title: null, notebook: null, tags: [], status: null },
+  aliases: [],
   text: '',
   images: { links: [], unlocated: [], wiki: [] },
   embedded: [],
@@ -59,11 +60,11 @@ describe('preparing imported files off the core worker', () => {
     const spawn = vi.fn<() => ImportWorker>(() => worker)
     const local = here()
     const prepare = preparerOffThread(spawn, local, () => {})
-    const first = prepare.file('# A', 'a.md', true)
+    const first = prepare.file('# A', 'a.md', true, true)
     const second = prepare.links('text')
     expect(spawn).toHaveBeenCalledTimes(1)
     expect(worker.sent).toEqual([
-      { kind: 'file', raw: '# A', path: 'a.md', withImages: true, id: 1 },
+      { kind: 'file', raw: '# A', path: 'a.md', withImages: true, conventions: true, id: 1 },
       { kind: 'links', text: 'text', id: 2 },
     ])
     const links: ImageLinks = { links: [], unlocated: ['x.png'], wiki: [] }
@@ -81,7 +82,7 @@ describe('preparing imported files off the core worker', () => {
       here(),
       () => {},
     )
-    const call = prepare.file('<p>', 'a.html', false)
+    const call = prepare.file('<p>', 'a.html', false, true)
     worker.emit('message', { id: 1, code: 'E_IMPORT_FAILED' })
     await expect(call).rejects.toThrow('E_IMPORT_FAILED')
   })
@@ -96,7 +97,7 @@ describe('preparing imported files off the core worker', () => {
       local,
       failed,
     )
-    await expect(prepare.file('# A', 'a.md', true)).resolves.toEqual(prepared('here a.md'))
+    await expect(prepare.file('# A', 'a.md', true, true)).resolves.toEqual(prepared('here a.md'))
     await expect(prepare.links('t')).resolves.toEqual({ links: [], unlocated: ['t'], wiki: [] })
     expect(local.asked).toEqual(['a.md', 't'])
     expect(failed).toHaveBeenCalledTimes(1)
@@ -110,10 +111,10 @@ describe('preparing imported files off the core worker', () => {
       const failed = vi.fn<() => void>()
       const local = here()
       const prepare = preparerOffThread(spawn, local, failed)
-      const waiting = prepare.file('# A', 'a.md', true)
+      const waiting = prepare.file('# A', 'a.md', true, true)
       worker.emit(event)
       await expect(waiting).resolves.toEqual(prepared('here a.md'))
-      await expect(prepare.file('# B', 'b.md', true)).resolves.toEqual(prepared('here b.md'))
+      await expect(prepare.file('# B', 'b.md', true, true)).resolves.toEqual(prepared('here b.md'))
       expect(worker.terminated).toBe(true)
       expect(spawn).toHaveBeenCalledTimes(1)
       expect(failed).toHaveBeenCalledTimes(1)
@@ -130,7 +131,7 @@ describe('preparing imported files off the core worker', () => {
       local,
       () => {},
     )
-    const waiting = prepare.file('# A', 'a.md', true)
+    const waiting = prepare.file('# A', 'a.md', true, true)
     prepare.close()
     expect(worker.terminated).toBe(true)
     await expect(waiting).resolves.toEqual(prepared('here a.md'))

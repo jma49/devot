@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { ImportScan } from '../../core'
 import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
 import type { Core } from './core-client'
-import type { ImportChoices, ImportJob } from './ImportDialog'
+import type { ImportJob } from './ImportDialog'
+import type { ImportChoices } from './importChoices'
 import { forgetScanFound, setScanFound } from './importProgress'
 import {
   IMPORT_FAILED,
@@ -79,7 +80,7 @@ export function useSheets({
       try {
         await saveEdits(c)
         const started = performance.now()
-        const report = await runImport(c, scan, destination, progress, options.wikiLinks)
+        const report = await runImport(c, scan, destination, progress, options)
         track('import.finished', {
           notes: report?.notes ?? 0,
           notebooks: report?.books ?? 0,
