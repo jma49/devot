@@ -14,6 +14,7 @@ import * as settings from './settings'
 import * as share from './share'
 import * as sidebar from './sidebar'
 import * as sync from './sync'
+import * as widget from './widget'
 
 export { zhHansPhone } from './phoneWording'
 
@@ -33,4 +34,5 @@ export const zhHans: Messages = {
   ...share.messages,
   ...sidebar.messages,
   ...sync.messages,
+  ...widget.messages,
 }

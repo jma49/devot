@@ -73,10 +73,25 @@ It follows the Share Extension's rules above: the App Group's inbox is the one p
 Their strings are the catalog's `intent.*` keys, which `pnpm i18n:apple` writes into `devot_Intents/Localizable.xcstrings`; an intent names them by key, so they take no placeholders.
 The App Shortcut phrases are Swift literals, which App Intents requires.
 
+## Widget and Control
+
+A third extension, `devot_Widget` (WidgetKit), puts today's note on the Home Screen, the Lock Screen and in Control Center.
+Both only open `devot://today`, so the extension reads nothing, holds no entitlement (not even the App Group) and never shows a note's text.
+
+- **Today's Note widget** (`TodayWidget`): small on the Home Screen; circular, rectangular and inline on the Lock Screen.
+  It shows the weekday and date and nothing from the library; its timeline has one entry and asks again at the next midnight, so it costs no work during the day.
+  A tap opens the app on today's note (`widgetURL`).
+- **Today's Note control** (`TodayControl`): a Control Center, Lock Screen or Action button control that runs `OpenTodayFromControlIntent` in the extension, which answers with `OpenURLIntent(devot://today)`.
+  It is not offered in Shortcuts (`isDiscoverable = false`), since `devot_Intents` already offers Open Today's Note there.
+
+Their strings are the catalog's `widget.*` keys, which `pnpm i18n:apple` writes into `devot_Widget/Localizable.xcstrings`; like the intents' strings, they take no placeholders.
+The date is formatted by the system in the iPhone's language.
+
 ## Release
 
 The extension is the target `devot_Share` in `src-tauri/gen/apple/project.yml`, bundle ID `io.github.jma49.devot.share`, embedded in the app.
 Its entitlements are the App Group alone (`devot_Share/devot_Share.entitlements`); the app has the App Group in every build (`devot_iOS.entitlements` with iCloud, `devot_iOS-local.entitlements` without).
 The Shortcuts actions are the target `devot_Intents`, bundle ID `io.github.jma49.devot.intents`, embedded under `Extensions/` with the same entitlements (`devot_Intents/devot_Intents.entitlements`).
-Each extension has its own privacy manifest: no tracking, no collected data, and the file timestamps the inbox's sweep reads (C617.1).
+The widget and control are the target `devot_Widget`, bundle ID `io.github.jma49.devot.widget`, embedded in `PlugIns/` with an empty entitlements file (`devot_Widget/devot_Widget.entitlements`).
+Each extension has its own privacy manifest: no tracking and no collected data; the Share and Shortcuts extensions also name the file timestamps the inbox's sweep reads (C617.1), and the widget names no API, as it reads no file.
 The App Store workflow signs each with its own App Store profile, gives it the app's version and build number, and checks its entitlements after export (docs/releasing.md, The Extensions).

@@ -10,12 +10,15 @@
 		04E4DAFCC4D866473652700D /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F22CF8122C77E706CCFBC883 /* Security.framework */; };
 		08B3E11AD773EB5010495F66 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 09063CC32A7D2BA3819D47EA /* Metal.framework */; };
 		0C31024A8AC849D51D98982A /* DevotIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFD4600EB1DBB7E9DF5CFC5 /* DevotIntents.swift */; };
+		24B2F731AF1E4CDB2337D23B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2F5C8E1C7E33291D34CA1314 /* PrivacyInfo.xcprivacy */; };
 		25E1B8ED4EDF843EC9036A8F /* DevotShareInbox in Frameworks */ = {isa = PBXBuildFile; productRef = E3384A62F9AA0E5A06965BE0 /* DevotShareInbox */; };
 		25FF7C6AD89BDF46F6776971 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2A194DD75CE5B8478FEF87CA /* MetalKit.framework */; };
 		312AE22B580698F3FB870669 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DFEA1C9C4F7A1C0534536CE /* UIKit.framework */; };
 		34A54B2346DC51B4E3B0211F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FBE599D35452B8F210FA9C16 /* LaunchScreen.storyboard */; };
+		37C5E456544C204FB78692B8 /* DevotWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32CC21876E1252CF758BCD9C /* DevotWidgets.swift */; };
 		3A01A734AA75AC6EEE68CBDC /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B7DEA7859D9821290A94C1BA /* PrivacyInfo.xcprivacy */; };
 		3E34BD18E5D1C1D22C05726F /* DevotStore in Frameworks */ = {isa = PBXBuildFile; productRef = FD657620152FD640D421F37A /* DevotStore */; };
+		3EAF785D84FB68B8C849F7A5 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C090272CECABDC2E0B991143 /* Localizable.xcstrings */; };
 		470CE83CF46A2744935494CE /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86C0A5EEB7F57A978B69D46B /* QuartzCore.framework */; };
 		546674A79B42722B61E813D2 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FB148315E9E9007B47A69EF /* CoreGraphics.framework */; };
 		61DE92643105B44EA10594EA /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B4DF711A32E3CD2FBF1FCAEC /* Localizable.xcstrings */; };
@@ -25,6 +28,7 @@
 		ABB68BE8FBA370A647E701F4 /* DevotShare in Frameworks */ = {isa = PBXBuildFile; productRef = 440D7A5594D0EF56A6AF14DF /* DevotShare */; };
 		B1E0D54AD1C0507B70B48B03 /* devot_Intents.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 28454B1E985189E1D675B8F0 /* devot_Intents.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B2238D7894AD52EE670FAEAE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CB2C8F4F24F6EE3B5E708F93 /* PrivacyInfo.xcprivacy */; };
+		C10DE5938636ED4EF7D2F80B /* devot_Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E5DAFA86D7ED08167684FC78 /* devot_Widget.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CA324C894A36B2962666FBB4 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035412695E92F717A8D078A4 /* ShareViewController.swift */; };
 		D8EF8E9E103C36116C28BE20 /* devot_Share.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3234BC2ED5E59513882463C6 /* devot_Share.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		ECF71358197693DC8F914453 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 5DDA750A6E8107FB7348F968 /* assets */; };
@@ -34,6 +38,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		290B6328564FE562A7411D59 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A5E3CD870098CBBFFB0258C9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1399DDDBD33B41A75FA62EFE;
+			remoteInfo = devot_Widget;
+		};
 		D5AD4DFC6325D3AFE688FD6F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A5E3CD870098CBBFFB0258C9 /* Project object */;
@@ -58,6 +69,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				D8EF8E9E103C36116C28BE20 /* devot_Share.appex in Embed Foundation Extensions */,
+				C10DE5938636ED4EF7D2F80B /* devot_Widget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -123,11 +135,14 @@
 		2B0B2A1ED77BBB41889FE10E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2C3D99D819860AF0C43834C3 /* exit.rs */ = {isa = PBXFileReference; path = exit.rs; sourceTree = "<group>"; };
 		2C4043602B0201FE44AE742A /* pairing.rs */ = {isa = PBXFileReference; path = pairing.rs; sourceTree = "<group>"; };
+		2F5C8E1C7E33291D34CA1314 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		3234BC2ED5E59513882463C6 /* devot_Share.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = devot_Share.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3269E28C6B028060825C4499 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		32CC21876E1252CF758BCD9C /* DevotWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevotWidgets.swift; sourceTree = "<group>"; };
 		34A1160E2725724BB6A89450 /* task.rs */ = {isa = PBXFileReference; path = task.rs; sourceTree = "<group>"; };
 		34D5D8AFAE1AF751F0602473 /* store.rs */ = {isa = PBXFileReference; path = store.rs; sourceTree = "<group>"; };
 		35E6E60F07887BE774C17BD9 /* crash_reporter.rs */ = {isa = PBXFileReference; path = crash_reporter.rs; sourceTree = "<group>"; };
+		3720574DBC4C470F727B3507 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		388277646D8705B163BD9E82 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		3C26D51ECE6ABD6D1A3573B4 /* print.rs */ = {isa = PBXFileReference; path = print.rs; sourceTree = "<group>"; };
 		3C350B0C2B065FEE582496A1 /* record.rs */ = {isa = PBXFileReference; path = record.rs; sourceTree = "<group>"; };
@@ -158,6 +173,7 @@
 		5A6018EB46122D4CA59D91C5 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		5B3495A71598948312093A06 /* protocol.rs */ = {isa = PBXFileReference; path = protocol.rs; sourceTree = "<group>"; };
 		5B42AB157027F9985439CA93 /* transport.rs */ = {isa = PBXFileReference; path = transport.rs; sourceTree = "<group>"; };
+		5D19795F3F9AC1E710D4D2EA /* devot_Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = devot_Widget.entitlements; sourceTree = "<group>"; };
 		5DDA750A6E8107FB7348F968 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		602BEAF49C738E3EE68A7A73 /* files.rs */ = {isa = PBXFileReference; path = files.rs; sourceTree = "<group>"; };
 		625C028B135960DA1D6723B2 /* uikit.rs */ = {isa = PBXFileReference; path = uikit.rs; sourceTree = "<group>"; };
@@ -258,6 +274,7 @@
 		BDEF9C7F3D15E6450AF3A043 /* text.rs */ = {isa = PBXFileReference; path = text.rs; sourceTree = "<group>"; };
 		BF51F11C470B54A324C9D978 /* icloud_service_tests.rs */ = {isa = PBXFileReference; path = icloud_service_tests.rs; sourceTree = "<group>"; };
 		BFD5D62D96ADAC18CF4A8E27 /* sync.rs */ = {isa = PBXFileReference; path = sync.rs; sourceTree = "<group>"; };
+		C090272CECABDC2E0B991143 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		C1790BC1AB63E24D0E45007A /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		C535DE61F6F79AA610A60A26 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		C55B6BB93304F87ABD5B0DD1 /* alert.rs */ = {isa = PBXFileReference; path = alert.rs; sourceTree = "<group>"; };
@@ -296,6 +313,7 @@
 		E0BE97B06075A25B5ADB2653 /* commands.rs */ = {isa = PBXFileReference; path = commands.rs; sourceTree = "<group>"; };
 		E13D575E84DF12CF4C9BF678 /* keys.rs */ = {isa = PBXFileReference; path = keys.rs; sourceTree = "<group>"; };
 		E33251728A4AE7CA8D7C58E7 /* settings_file.rs */ = {isa = PBXFileReference; path = settings_file.rs; sourceTree = "<group>"; };
+		E5DAFA86D7ED08167684FC78 /* devot_Widget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = devot_Widget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E704CF4B3B7A2CE8449CD73E /* icloud.rs */ = {isa = PBXFileReference; path = icloud.rs; sourceTree = "<group>"; };
 		E77C6CF993E764B1F0453A90 /* message.rs */ = {isa = PBXFileReference; path = message.rs; sourceTree = "<group>"; };
 		E936B8A895C265D7CFA7143B /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
@@ -436,6 +454,7 @@
 				9FAA687C0D837F0CC9AA2C33 /* devot_Intents */,
 				5846929235CC498D61C55187 /* devot_iOS */,
 				2FAB473608EF703DDCCB03BC /* devot_Share */,
+				964EE1089F0EC1D02337C5AE /* devot_Widget */,
 				17156B0292363AEC0DB4A11B /* Externals */,
 				3ED16BAB75BDB58003282C12 /* Packages */,
 				DA4AAB1C6E62F438EF9B339E /* Sources */,
@@ -652,6 +671,18 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		964EE1089F0EC1D02337C5AE /* devot_Widget */ = {
+			isa = PBXGroup;
+			children = (
+				5D19795F3F9AC1E710D4D2EA /* devot_Widget.entitlements */,
+				32CC21876E1252CF758BCD9C /* DevotWidgets.swift */,
+				3720574DBC4C470F727B3507 /* Info.plist */,
+				C090272CECABDC2E0B991143 /* Localizable.xcstrings */,
+				2F5C8E1C7E33291D34CA1314 /* PrivacyInfo.xcprivacy */,
+			);
+			path = devot_Widget;
+			sourceTree = "<group>";
+		};
 		968C0C57A244BAE8749465A5 /* licence */ = {
 			isa = PBXGroup;
 			children = (
@@ -692,6 +723,7 @@
 				28454B1E985189E1D675B8F0 /* devot_Intents.appex */,
 				9C174E479226FAA145DCF6C6 /* devot_iOS.app */,
 				3234BC2ED5E59513882463C6 /* devot_Share.appex */,
+				E5DAFA86D7ED08167684FC78 /* devot_Widget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -854,14 +886,14 @@
 			path = plugins;
 			sourceTree = "<group>";
 		};
-		"TEMP_59392E3F-273D-4123-9921-2F40D1FFE7FB" /* arm64 */ = {
+		"TEMP_764A1A5D-30F1-4BDF-A446-CA1FA4553DB0" /* arm64 */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = arm64;
 			sourceTree = "<group>";
 		};
-		"TEMP_9951C5C0-FEA9-471C-86B4-33FCDFC3DDC0" /* x86_64 */ = {
+		"TEMP_B4EDE674-8BF2-4DCD-ACC2-4053B70B1F34" /* x86_64 */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -871,6 +903,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		1399DDDBD33B41A75FA62EFE /* devot_Widget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C09284367E83ABBEE8147BD1 /* Build configuration list for PBXNativeTarget "devot_Widget" */;
+			buildPhases = (
+				FA8B6252D7E8409E8A183D2F /* Sources */,
+				CF4B9572DB4AF62B0BA02402 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = devot_Widget;
+			packageProductDependencies = (
+			);
+			productName = devot_Widget;
+			productReference = E5DAFA86D7ED08167684FC78 /* devot_Widget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		1462B1ADCBFB92523E3C56A0 /* devot_Intents */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B497759E7F482FAC58E23F36 /* Build configuration list for PBXNativeTarget "devot_Intents" */;
@@ -927,6 +977,7 @@
 			dependencies = (
 				0103B93F5BEECF2813697D2B /* PBXTargetDependency */,
 				22727B3E7D7223E512B42C72 /* PBXTargetDependency */,
+				55F78593EE0F67F2ABA9EB64 /* PBXTargetDependency */,
 			);
 			name = devot_iOS;
 			packageProductDependencies = (
@@ -971,6 +1022,7 @@
 				C4595DC2A23A54BFDD3DA19F /* devot_iOS */,
 				9E40F12618EC5CE179046D61 /* devot_Share */,
 				1462B1ADCBFB92523E3C56A0 /* devot_Intents */,
+				1399DDDBD33B41A75FA62EFE /* devot_Widget */,
 			);
 		};
 /* End PBXProject section */
@@ -993,6 +1045,15 @@
 				34A54B2346DC51B4E3B0211F /* LaunchScreen.storyboard in Resources */,
 				3A01A734AA75AC6EEE68CBDC /* PrivacyInfo.xcprivacy in Resources */,
 				ECF71358197693DC8F914453 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CF4B9572DB4AF62B0BA02402 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3EAF785D84FB68B8C849F7A5 /* Localizable.xcstrings in Resources */,
+				24B2F731AF1E4CDB2337D23B /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1055,6 +1116,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FA8B6252D7E8409E8A183D2F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				37C5E456544C204FB78692B8 /* DevotWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1068,9 +1137,33 @@
 			target = 1462B1ADCBFB92523E3C56A0 /* devot_Intents */;
 			targetProxy = D5AD4DFC6325D3AFE688FD6F /* PBXContainerItemProxy */;
 		};
+		55F78593EE0F67F2ABA9EB64 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1399DDDBD33B41A75FA62EFE /* devot_Widget */;
+			targetProxy = 290B6328564FE562A7411D59 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		07082325D571E4B4C1FD22C6 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = devot_Widget/devot_Widget.entitlements;
+				INFOPLIST_FILE = devot_Widget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot.widget;
+				PRODUCT_NAME = devot_Widget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = debug;
+		};
 		314BA1D64D7D903C554F161E /* debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1334,6 +1427,25 @@
 			};
 			name = release;
 		};
+		F7C55ECFE22105220EDE1D07 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = devot_Widget/devot_Widget.entitlements;
+				INFOPLIST_FILE = devot_Widget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot.widget;
+				PRODUCT_NAME = devot_Widget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1360,6 +1472,15 @@
 			buildConfigurations = (
 				4155C078C1E7BA27E7D3164E /* debug */,
 				9F4CF24D3750F1A49C35CC86 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		C09284367E83ABBEE8147BD1 /* Build configuration list for PBXNativeTarget "devot_Widget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				07082325D571E4B4C1FD22C6 /* debug */,
+				F7C55ECFE22105220EDE1D07 /* release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = debug;

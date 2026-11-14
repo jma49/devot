@@ -49,7 +49,7 @@ describe('the iPhone app', () => {
     const project = read(PROJECT)
     // The app's two configurations, then the Share Extension's.
     expect(project.match(/TARGETED_DEVICE_FAMILY = [^;]*;/g)).toEqual(
-      Array(6).fill('TARGETED_DEVICE_FAMILY = 1;'),
+      Array(8).fill('TARGETED_DEVICE_FAMILY = 1;'),
     )
     expect(read(`${APPLE}/project.yml`)).toMatch(/^ {8}TARGETED_DEVICE_FAMILY: 1$/m)
     expect(read(`${APPLE}/project.yml`)).not.toContain('~ipad')
@@ -61,7 +61,7 @@ describe('the iPhone app', () => {
     const resources = [
       ...project.matchAll(/isa = PBXResourcesBuildPhase;[^]*?files = \(([^)]*)\)/g),
     ]
-    for (const folder of ['devot_iOS', 'devot_Share', 'devot_Intents']) {
+    for (const folder of ['devot_iOS', 'devot_Share', 'devot_Intents', 'devot_Widget']) {
       expect(existsSync(`${APPLE}/${folder}/PrivacyInfo.xcprivacy`)).toBe(true)
       const group = new RegExp(
         `/\\* ${folder} \\*/ = \\{\\s*isa = PBXGroup;\\s*children = \\(([^)]*)\\)`,
@@ -80,11 +80,18 @@ describe('the iPhone app', () => {
   })
 
   it('gives each extension a manifest that collects and tracks nothing', () => {
-    for (const folder of ['devot_Share', 'devot_Intents']) {
+    for (const folder of ['devot_Share', 'devot_Intents', 'devot_Widget']) {
       const manifest = read(`${APPLE}/${folder}/PrivacyInfo.xcprivacy`)
       expect(manifest).toMatch(/<key>NSPrivacyTracking<\/key>\s*<false\/>/)
       expect(manifest).toMatch(/<key>NSPrivacyCollectedDataTypes<\/key>\s*<array\/>/)
-      expect(manifest).toContain('NSPrivacyAccessedAPICategoryFileTimestamp')
+      // The widget reads no file, so it names no reason for one.
+      expect({
+        folder,
+        timestamps: manifest.includes('NSPrivacyAccessedAPICategoryFileTimestamp'),
+      }).toEqual({
+        folder,
+        timestamps: folder !== 'devot_Widget',
+      })
     }
   })
 
@@ -241,6 +248,7 @@ describe('the App Store workflow', () => {
       'secrets.APPLE_PROVISIONING_PROFILE_IOS',
       'secrets.APPLE_PROVISIONING_PROFILE_IOS_INTENTS',
       'secrets.APPLE_PROVISIONING_PROFILE_IOS_SHARE',
+      'secrets.APPLE_PROVISIONING_PROFILE_IOS_WIDGET',
       'vars.APPLE_API_ISSUER_ID',
       'vars.APPLE_API_KEY_ID',
       'vars.APP_STORE_UPLOAD',

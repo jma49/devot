@@ -133,11 +133,11 @@ The yearly self-classification report to the US Bureau of Industry and Security 
 
 ### The Extensions
 
-The iPhone app embeds two extensions (docs/specs/share-extension.md), which share the App Group `group.io.github.jma49.devot` with the app: the Share Extension, `io.github.jma49.devot.share`, and the Shortcuts actions, `io.github.jma49.devot.intents`.
+The iPhone app embeds three extensions (docs/specs/share-extension.md): the Share Extension, `io.github.jma49.devot.share`, and the Shortcuts actions, `io.github.jma49.devot.intents`, which share the App Group `group.io.github.jma49.devot` with the app, and the widget and control, `io.github.jma49.devot.widget`, which hold no capability.
 The export job needs a profile for each and fails with `E_EXPORT_CREDENTIALS_MISSING` without it. Before the next tag:
 
 1. **Identifiers > App Groups:** register `group.io.github.jma49.devot` (description Devot).
-2. **Identifiers > App IDs:** open `io.github.jma49.devot`, turn on App Groups and pick that group. Then register the App IDs `io.github.jma49.devot.share` (description Devot Share) and `io.github.jma49.devot.intents` (description Devot Shortcuts), each with App Groups on and the same group, and nothing else.
+2. **Identifiers > App IDs:** open `io.github.jma49.devot`, turn on App Groups and pick that group. Then register the App IDs `io.github.jma49.devot.share` (description Devot Share) and `io.github.jma49.devot.intents` (description Devot Shortcuts), each with App Groups on and the same group, and nothing else. Register `io.github.jma49.devot.widget` (description Devot Widget) with no capability.
 3. **Profiles:** make the app's App Store profile again, since its App ID now has the App Group, and replace the secret (step 5 above). Make an App Store profile for `io.github.jma49.devot.share` with the same Apple Distribution certificate, then:
    ```sh
    base64 -i Devot_Share_App_Store.mobileprovision | gh secret set --env release APPLE_PROVISIONING_PROFILE_IOS_SHARE
@@ -146,8 +146,12 @@ The export job needs a profile for each and fails with `E_EXPORT_CREDENTIALS_MIS
    ```sh
    base64 -i Devot_Shortcuts_App_Store.mobileprovision | gh secret set --env release APPLE_PROVISIONING_PROFILE_IOS_INTENTS
    ```
-   Make all three again after renewing the certificate.
-4. **The development build:** with automatic signing, Xcode registers the extension's App ID and the group for the team the first time it builds for a device; with manual signing, make development profiles for all three App IDs.
+   And for `io.github.jma49.devot.widget`:
+   ```sh
+   base64 -i Devot_Widget_App_Store.mobileprovision | gh secret set --env release APPLE_PROVISIONING_PROFILE_IOS_WIDGET
+   ```
+   Make all four again after renewing the certificate.
+4. **The development build:** with automatic signing, Xcode registers the extension's App ID and the group for the team the first time it builds for a device; with manual signing, make development profiles for all four App IDs.
 
 `ios-export.sh` signs each extension (in `PlugIns` or `Extensions`) with the entitlements file of its folder in `src-tauri/gen/apple` plus its App ID and team, after checking its profile with `ios-profile.sh` as it does the app's, gives it the app's `CFBundleShortVersionString` and `CFBundleVersion`, and after export checks that the extension carries those entitlements as signed.
 An extension it does not know fails the export with `E_EXPORT_EXTENSIONS`.
