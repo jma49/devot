@@ -105,6 +105,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Board cards:** one that changes column flies there on a copy above the columns, as a column would clip it, when both ends can be seen (otherwise it is simply there); the others slide as rows do (`rowMotion.ts`).
   Hover washes a card over `motion.duration.hover` on `motion.easing.out`; the selection wash and the focus ring are states, shown at once (rule 2).
   Resetting the board's width (a double-click or Enter on the edge) takes the fitted width at once, as a drag of the edge does (rule 1).
+- **Word goal in the editor footer:** rule 2. The words toward the goal change with the counts, at once, with no bar or fill.
 - **Task ring on a card** (a board card's meta line, a gallery caption): rule 2. The ring and its count show at once when the counts arrive, and a new count redraws the ring at once, without the fill animation of the list's progress bar.
 - **Settings:** a section fades in and rises `space.4` over `motion.duration.toggle`, without the rise under reduced motion; its row's fill eases over `motion.duration.quick`.
 - **Glass Transparency, Material Transparency and Gradient in Settings > Appearance:** rule 1. Each slider's thumb follows the pointer or the keys, and the sheet, the glass material or the theme's gradient changes with it in every window, with no motion of its own.

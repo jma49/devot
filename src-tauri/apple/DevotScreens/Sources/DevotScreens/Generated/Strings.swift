@@ -1954,6 +1954,14 @@ public enum L10n {
     fill(text("counts.of", "{part} of {total}"), ["part": p0, "total": p1])
   }
 
+  public static func countsTowardGoal(count p0: String, goal p1: String) -> String {
+    fill(text("counts.towardGoal", "{count} / {goal}"), ["count": p0, "goal": p1])
+  }
+
+  public static func countsGoalTitle(goal p0: String) -> String {
+    fill(text("counts.goalTitle", "Word goal: {goal}"), ["goal": p0])
+  }
+
   public static func imagesRefusedOne(reasons p0: String) -> String {
     fill(text("images.refusedOne", "An image could not be added. {reasons}"), ["reasons": p0])
   }

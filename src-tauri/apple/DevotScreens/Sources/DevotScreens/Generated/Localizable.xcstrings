@@ -4731,6 +4731,17 @@
         }
       }
     },
+    "counts.goalTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Word goal: {goal}"
+          }
+        }
+      }
+    },
     "counts.of" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4738,6 +4749,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "{part} of {total}"
+          }
+        }
+      }
+    },
+    "counts.towardGoal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} / {goal}"
           }
         }
       }
