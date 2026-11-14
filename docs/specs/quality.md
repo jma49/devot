@@ -191,6 +191,9 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
   - The page posted its notices to the native screens as it had them, each a command Rust runs as a task of its own, so two sent together could arrive in either order.
     A new note's `preview` and `edit` modes swapped left the screen in Preview over an editable note, and the formatting bar stayed away with the keyboard up (#897).
     The page posts one message at a time.
+  - A check that compared the median of eight keys in two 4 MB notes failed at 102 % of its limit: each key's time spread from 40 to 115 ms with collection pauses, in either note.
+    It compares each note's fastest key, the key's own cost (#904).
+  - Playwright's WebKit sometimes drops a scroll key, also the first one pressed in a focused preview (#913); the preview key specs press until the preview has moved (`pressUntilBeyond`), which still fails when the keys never scroll it.
   - A StoreKit test cleared a purchase, bought again and read the product's entitlement, and the cleared purchase was still listed for a moment: it waits for the entitlement of the new transaction.
   - After a restore from the history bar the editor is owed the keyboard once the overlay has gone; the flag that said so did not say for which note, so a note opened in between took the keyboard. The flag holds the note, and another note drops it (#902).
   - StoreKit Test's local server answers some purchases with a server error (AMSErrorDomain 305) on a loaded runner; the retry covers it.
