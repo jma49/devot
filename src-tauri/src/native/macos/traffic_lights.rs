@@ -589,10 +589,10 @@ pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
             )
         };
         bar.buttons[2].setFrameOrigin(system[2]);
-        pump(0.05);
+        let placed = pump_until(|| bar.in_place(&window, inset));
         // SAFETY: a token `addObserverForName:object:queue:usingBlock:` returned.
         unsafe { NSNotificationCenter::defaultCenter().removeObserver(nested.as_ref()) };
-        if !bar.in_place(&window, inset) {
+        if !placed {
             return Err("E_TRAFFIC_LIGHTS_MOVED_DURING_CHECK_STAYED");
         }
         let applied = APPLIED.get();
@@ -612,9 +612,10 @@ pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
         }
         // SAFETY: an AppKit string constant.
         post(&window, unsafe { NSWindowDidBecomeKeyNotification });
-        pump(0.05);
+        let placed =
+            pump_until(|| TitleBar::of(&window).is_some_and(|bar| bar.in_place(&window, inset)));
         let bar = TitleBar::of(&window).ok_or("E_TRAFFIC_LIGHTS_TEST_NO_BUTTONS")?;
-        if !bar.in_place(&window, inset) {
+        if !placed {
             return Err("E_TRAFFIC_LIGHTS_STAYED_MOVED_AFTER_EVENTS");
         }
         CHECKING.with_borrow_mut(|checking| checking.push(address));
@@ -636,8 +637,7 @@ pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
         })
         .join()
         .map_err(|_| "E_TRAFFIC_LIGHTS_TEST_THREAD")?;
-        pump(0.05);
-        if !bar.in_place(&window, inset) {
+        if !pump_until(|| bar.in_place(&window, inset)) {
             return Err("E_TRAFFIC_LIGHTS_OTHER_THREAD_DROPPED");
         }
         let borderless = make(NSWindowStyleMask::Borderless);
@@ -649,9 +649,9 @@ pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
         Ok(())
     })();
     window.close();
-    pump(0.05);
+    let released = pump_until(|| !held(&window));
     result?;
-    if held(&window) {
+    if !released {
         return Err("E_TRAFFIC_LIGHTS_KEPT_AFTER_CLOSE");
     }
     Ok(())
@@ -670,6 +670,19 @@ fn pump(seconds: f64) {
         // SAFETY: the default mode constant is a valid run loop mode.
         unsafe { NSRunLoop::currentRunLoop().runMode_beforeDate(NSDefaultRunLoopMode, &until) };
     }
+}
+
+/// Turns the run loop until `done` holds, up to a limit that only a stalled main queue reaches: a
+/// loaded runner can take longer than one short turn to run the check queued for the next one.
+fn pump_until(done: impl Fn() -> bool) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !done() {
+        if Instant::now() >= deadline {
+            return false;
+        }
+        pump(0.01);
+    }
+    true
 }
 
 fn held(window: &NSWindow) -> bool {
