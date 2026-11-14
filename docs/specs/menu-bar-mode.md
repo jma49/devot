@@ -20,6 +20,14 @@ Settings > General > Keep in Menu Bar (`menuBar` in the editor settings, off by 
   The main window's core makes the note (`captureNote`, `src/core/capture.ts`: refuses an empty capture and a notebook that is gone, then saves before it answers; a save that fails after the note is made leaves it pending in the core like any unsaved edit, so the capture is never sent twice), records `note.created` from `quick_capture` and refreshes its lists.
   On success the window empties and closes (`quick_capture_close`); on failure it keeps the text, says what failed and logs the code.
   What is typed is kept as a draft in the webview's local storage on every change (`devot.quickCapture.draft`, cleared once the note is saved), so closing the window or quitting first loses nothing.
+- **Capture links** (`devot://capture?title=…&text=…&url=…`, `src-tauri/src/capture_link.rs`, `src/renderer/src/quickCapture/prefill.ts`): Shortcuts (Open URL), a launcher or a bookmarklet in the browser opens quick capture with the text filled in, with or without Keep in Menu Bar.
+  The link never makes a note: the owner saves it with Save, as any capture, or cancels.
+  Each field is optional but one must hold something, comes at most once and is percent-encoded (`+` is a space); any other field, a fragment or bytes that are not UTF-8 refuse the link (`E_URL_CAPTURE`, `E_URL_CAPTURE_EMPTY`).
+  The title becomes one trimmed line clipped to the title limit; the text keeps its lines and tabs and loses other control characters; `url` must be an http or https address of at most 2,048 bytes (`E_URL_CAPTURE_SOURCE`) and ends the body on a line of its own after a blank line.
+  Rust holds up to four links the window has not taken (`W_CAPTURE_LINK_DROPPED` past that), opens the window and tells it (`devot://quick-capture-prefill`); the window takes them when it loads and on each event (`quick_capture_prefill_take`, the quick capture window only), so a link that opens it or reaches it already open is never lost.
+  A window that is empty takes the link's title and text; one that holds text keeps it, keeps its title, and gets the link's title (when it differs) and text after its body, past a blank line.
+  While a save is on its way the window takes nothing; once the save succeeds it takes what came meanwhile and stays open with it as a capture of its own instead of closing, and a save that fails takes it into the text it kept.
+  Neither the link nor its text is logged.
 
 ## Background start
 
