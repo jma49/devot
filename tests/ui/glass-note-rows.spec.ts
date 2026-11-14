@@ -70,7 +70,12 @@ test('a row without meta leaves no hole, and rows sit 2 pt apart', async ({ page
   const excerpt = await rect(plain.locator('.row-excerpt'))
   expect(Math.abs(excerpt.top - title.bottom - 4)).toBeLessThanOrEqual(1)
   await expect(plain.locator('.row-time')).toBeVisible()
-  const upper = await rect(page.locator('.row').first())
-  const lower = await rect(page.locator('.row').nth(1))
-  expect(Math.round(lower.top - upper.bottom)).toBe(2)
+  // The row above gains its excerpt a moment after its note is written; read before it, the gap was 23 (#923).
+  await expect(row(page, 'Other').locator('.row-excerpt')).toHaveText('More words here.')
+  const gap = page
+    .locator('.row')
+    .evaluateAll(([upper, lower]) =>
+      Math.round(lower!.getBoundingClientRect().top - upper!.getBoundingClientRect().bottom),
+    )
+  expect(await gap).toBe(2)
 })

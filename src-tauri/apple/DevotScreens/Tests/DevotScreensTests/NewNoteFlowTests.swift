@@ -121,7 +121,8 @@ final class NewNoteFlowTests: XCTestCase {
         let screen = try XCTUnwrap(navigation.topViewController as? EditorScreen)
         XCTAssertTrue(screen.isNew)
         XCTAssertNil(screen.noteId)
-        settle()
+        // The cover goes up when the screen takes the web view, which a loaded runner had not reached 0.05 s on (#933).
+        settleTransition()
         XCTAssertTrue(screen.cover.waiting, "until the note exists, the cover holds")
         // The Settings start's own requests may follow in a later turn.
         let create = try XCTUnwrap(try requests().last { $0.op == .noteCreate })
