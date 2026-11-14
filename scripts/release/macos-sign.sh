@@ -22,8 +22,9 @@
 # key and leaves out notarizing, stapling and Gatekeeper's checks, which a local run with a
 # self-signed identity cannot pass. --entitlements embeds the provisioning profile, after
 # macos-profile.sh has checked it holds the signing certificate and grants them, and signs the
-# main executable with exactly that set; without it, as for a build with no profile, no code
-# carries any.
+# main executable with exactly that set; without it, as for a build with no profile, it carries
+# none. An app extension (.appex) carries the sandbox alone (src-tauri/macos/Extension.entitlements),
+# which macOS loads no extension without and which needs no profile; no other code carries any.
 # Errors are GitHub annotations with a code; no secret is ever printed.
 set -euo pipefail
 
@@ -71,6 +72,7 @@ identity_form='^Developer ID Application: .+ \(([A-Z0-9]{10})\)$'
 team=${BASH_REMATCH[1]}
 
 script_dir=$(cd "$(dirname "$0")" && pwd)
+extension_entitlements=$script_dir/../../src-tauri/macos/Extension.entitlements
 name=$(basename "$input")
 work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/devot-sign.XXXXXX")
 keychain=$work/signing.keychain-db
@@ -147,14 +149,17 @@ main=$app/Contents/MacOS/$(plutil -extract CFBundleExecutable raw "$app/Contents
 echo "Signing $name inside out"
 # -depth lists what a folder holds before the folder, so nested code is signed before its bundle.
 while IFS= read -r -d '' path; do
-  if [ -d "$path" ]; then
+  if [ -d "$path" ] && [ "${path##*.}" = appex ]; then
+    sign --options runtime --entitlements "$extension_entitlements" "$path"
+  elif [ -d "$path" ]; then
     sign --options runtime "$path"
   elif [ "$path" != "$main" ] && is_macho "$path"; then
     sign --options runtime "$path"
   fi
 done < <(find "$app/Contents" -depth \( -type d \( -name '*.app' -o -name '*.framework' \
   -o -name '*.xpc' -o -name '*.appex' -o -name '*.bundle' -o -name '*.plugin' \) -o -type f \) -print0)
-# Only the main executable carries entitlements (docs/releasing.md, Signing the app).
+# Besides an app extension's sandbox, only the main executable carries entitlements
+# (docs/releasing.md, Signing the app).
 if [ -n "$entitlements" ]; then
   sign --options runtime --entitlements "$entitlements" "$app"
 else

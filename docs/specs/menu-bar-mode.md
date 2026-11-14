@@ -28,6 +28,11 @@ Settings > General > Keep in Menu Bar (`menuBar` in the editor settings, off by 
   A window that is empty takes the link's title and text; one that holds text keeps it, keeps its title, and gets the link's title (when it differs) and text after its body, past a blank line.
   While a save is on its way the window takes nothing; once the save succeeds it takes what came meanwhile and stays open with it as a capture of its own instead of closing, and a save that fails takes it into the text it kept.
   Neither the link nor its text is logged.
+- **Share menu** (`src-tauri/macos/DevotShare`, an app extension in `Contents/PlugIns`; docs/releasing.md, Share menu extension): Devot appears in the Share menu of Safari, Notes and any app that shares text or a web page.
+  The extension shows nothing itself: it turns what was shared into a capture link and opens it, so quick capture is where the owner edits, saves or cancels it, as for any link.
+  The shared title becomes the title, the shared text (each text, past a blank line) the text, and the first http or https address `url`; any other address is left out, and a text that only repeats the address is dropped.
+  A text too long for the link (256 KiB) is cut at its end; a share with nothing left cancels with `E_SHARE_NOTHING`.
+  The extension is sandboxed, reads nothing but the share and logs nothing.
 - **Services** (`src-tauri/Info.plist` `NSServices`, `src-tauri/src/native/macos/services.rs`): New Devot Note in any app's Services menu (and its text's context menu) sends the selection to quick capture the same way, through the same queue, so it too makes no note until the owner saves.
   The service takes plain text and URLs (`newNote:userData:error:`); its body follows the capture link's rules for text and source, with an empty title for the owner to fill.
   A selection that is one web address becomes the source; a URL that is not http or https (a file, for one) is dropped rather than refused; an empty selection (`E_SERVICE_CAPTURE_EMPTY`) or one over 256 KiB (`E_SERVICE_CAPTURE_TOO_LONG`) opens nothing and logs its code.
