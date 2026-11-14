@@ -1,23 +1,32 @@
 import { fillPlaceholders } from '../../../core/text'
 import { en, type MessageKey, type Messages } from './en'
 import { enPhone } from './phone'
-import { zhHans, zhHansPhone } from './zh-Hans'
 
 export type { MessageKey } from './en'
 
-const catalogs: Record<string, Partial<Messages>> = { en, 'zh-hans': zhHans }
-const phoneWordings: Record<string, Partial<Messages>> = { en: enPhone, 'zh-hans': zhHansPhone }
+interface Translation {
+  messages: Partial<Messages>
+  phone: Partial<Messages>
+}
+
+// A translation loads only for a reader who wants it, so no window parses one it never shows.
+const translations: Record<string, () => Promise<Translation>> = {
+  'zh-hans': () => import('./zh-Hans').then((m) => ({ messages: m.zhHans, phone: m.zhHansPhone })),
+}
+const catalogs: Record<string, Partial<Messages>> = { en }
+const phoneWordings: Record<string, Partial<Messages>> = { en: enPhone }
+const known = (locale: string) => locale === 'en' || locale in translations
 
 const SOURCE_LOCALE = 'en'
 const TRADITIONAL_CHINESE = /^zh-(?:.*-)?(?:hant|tw|hk|mo)(?:-|$)/
 
 function catalogFor(tag: string): string | undefined {
   const lower = tag.toLowerCase()
-  if (catalogs[lower]) return lower
+  if (known(lower)) return lower
   const base = lower.split('-')[0] ?? ''
   // Traditional Chinese readers get the next language they prefer, not Simplified.
   if (base === 'zh') return TRADITIONAL_CHINESE.test(lower) ? undefined : 'zh-hans'
-  return catalogs[base] ? base : undefined
+  return known(base) ? base : undefined
 }
 
 export function resolveLocale(preferred: readonly string[]): string {
@@ -31,7 +40,14 @@ export function resolveLocale(preferred: readonly string[]): string {
 let active: Partial<Messages> = en
 let activeLocale = SOURCE_LOCALE
 
-export function setLocale(locale: string): void {
+/** Loads `locale`'s catalog the first time, then makes it the active one. */
+export async function setLocale(locale: string): Promise<void> {
+  const load = translations[locale]
+  if (load && !catalogs[locale]) {
+    const { messages, phone } = await load()
+    catalogs[locale] = messages
+    phoneWordings[locale] = phone
+  }
   active = catalogs[locale] ?? en
   activeLocale = catalogs[locale] ? locale : SOURCE_LOCALE
 }

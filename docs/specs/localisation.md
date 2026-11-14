@@ -9,6 +9,7 @@ Part of the [architecture overview](../architecture.md).
 - A translation lives in `src/renderer/src/i18n/<locale>/`, one module per area typed against the English module, so a missing or extra key fails the typecheck.
   Its `phoneWording.ts` gives the iPhone wording for exactly the keys `phone.ts` words, and a test checks that each translation keeps every key and placeholder of the English.
   A new English key gets its translation in the same change.
+  A translation is a separate chunk that `setLocale` loads before the window renders, so a window parses only the English catalog and the one it shows ([startup chunks](../../tests/scripts/startup-chunks.build.test.ts)).
   The slash menu matches the English label as well as the shown one, so `/code` works in every language.
 - Placeholders (`{title}`) are filled with `format` in one pass, never with `String.replace`, whose replacement patterns (`$$`, `$&`, `$'`) would garble a title holding them; a policy test refuses `.replace('{`.
   A sentence is never built from pieces in code: each variant (with or without a count, a key or a scope) is its own catalog entry.

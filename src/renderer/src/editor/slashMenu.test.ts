@@ -183,8 +183,8 @@ describe('slashItems', () => {
     expect(labels('/tab^')).toEqual([])
   })
 
-  it('also matches the English label in another language, without marking letters', () => {
-    setLocale('zh-hans')
+  it('also matches the English label in another language, without marking letters', async () => {
+    await setLocale('zh-hans')
     try {
       const s = state('/code^')
       const items = slashItems(s, slashTrigger(s)!)
@@ -192,7 +192,7 @@ describe('slashItems', () => {
       expect(items[0]?.label).toBe(t('slash.codeblock'))
       expect(items[0]?.ranges).toEqual([])
     } finally {
-      setLocale('en')
+      await setLocale('en')
     }
   })
 })
