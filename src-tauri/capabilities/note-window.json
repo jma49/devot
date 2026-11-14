@@ -21,6 +21,7 @@
     "allow-notes-summaries",
     "allow-notes-search",
     "allow-note-backlinks",
+    "allow-note-link-graph",
     "allow-books-list",
     "allow-book-is-live",
     "allow-note-put",

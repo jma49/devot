@@ -22,6 +22,7 @@ export function observeWrites(
     getBodies: (ids) => storage.getBodies(ids),
     searchNotes: (query, limit) => storage.searchNotes(query, limit),
     listBacklinks: (id, excludeBookId, limit) => storage.listBacklinks(id, excludeBookId, limit),
+    listLinkGraph: (excludeBookId, limit) => storage.listLinkGraph(excludeBookId, limit),
     listTrash: () => storage.listTrash(),
     purgeNote: after((id: string, at: number, hlc: string) => storage.purgeNote(id, at, hlc)),
     putNote: after(

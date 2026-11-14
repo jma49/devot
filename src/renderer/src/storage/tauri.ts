@@ -9,6 +9,7 @@ import type {
   AgentWriteSummary,
   BookRecord,
   CompactableVersion,
+  LinkGraph,
   NoteBody,
   NoteSummary,
   NoteTagRecord,
@@ -38,6 +39,8 @@ export const tauriWire: WireStorage = {
   putNoteMeta: ({ agentWrites, ...note }) =>
     invoke('note_put_meta', { note, writes: agentWrites ?? null }),
   searchNotes: (query, limit) => invoke<NoteSummary[]>('notes_search', { query, limit }),
+  listLinkGraph: (excludeBookId, limit) =>
+    invoke<LinkGraph>('note_link_graph', { excludeBookId, limit }),
   listBacklinks: (id, excludeBookId, limit) =>
     invoke<NoteSummary[]>('note_backlinks', { id, excludeBookId, limit }),
   listTrash: () => invoke<TrashedNote[]>('notes_trash_list'),

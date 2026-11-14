@@ -27,6 +27,7 @@ import {
   type NoteMenuAction,
   type TrashAction,
 } from '../noteMenu'
+import { requestGraph } from '../graph/GraphSheet'
 import { requestNoteInfo } from '../noteInfo/command'
 import type { PaletteSource } from '../palette/results'
 import { stepSidebarRow, type Selection } from '../Sidebar'
@@ -288,6 +289,7 @@ export function appHandlers(at: AppCommandState, act: AppCommandActions): Comman
   if ((openNote && !at.selectedIsTemplate) || trashedOne) {
     handlers['view.noteInfo'] = { run: requestNoteInfo }
   }
+  if (at.coreReady) handlers['view.graph'] = { run: requestGraph }
   // Find works while a note is open; its keys run ahead of the editor's (useFind).
   Object.assign(handlers, at.findCommands)
   if (handlers['note.move']) handlers['note.moveAnywhere'] = handlers['note.move']

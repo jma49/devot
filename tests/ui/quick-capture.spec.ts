@@ -11,10 +11,15 @@ const NOTEBOOKS = [
 
 async function open(
   page: Page,
-  options: { defaultNotebook?: string; save?: unknown; holdSave?: boolean } = {},
+  options: {
+    defaultNotebook?: string
+    save?: unknown
+    holdSave?: boolean
+    prefills?: { title: string; body: string }[][]
+  } = {},
 ) {
   await page.addInitScript(
-    ({ notebooks, defaultNotebook, save, holdSave }) => {
+    ({ notebooks, defaultNotebook, save, holdSave, prefills }) => {
       const w = window
       // The main window publishes the notebooks (notebookChoices.ts).
       w.localStorage.setItem('devot.notebookChoices', JSON.stringify(notebooks))
@@ -27,13 +32,16 @@ async function open(
               })
           : (save ?? null),
         quick_capture_close: null,
+        quick_capture_prefill_take: () => w.devotPrefills?.shift() ?? [],
       }
+      w.devotPrefills = prefills
     },
     {
       notebooks: NOTEBOOKS,
       defaultNotebook: options.defaultNotebook,
       save: options.save,
       holdSave: options.holdSave ?? false,
+      prefills: options.prefills ?? [],
     },
   )
   await page.goto('/quick-capture.html')
@@ -138,6 +146,49 @@ test('while a save is on its way, nothing can be typed, cancelled or left as a d
   await page.reload()
   await expect(title(page)).toHaveValue('')
   await expect(body(page)).toHaveValue('')
+})
+
+/** A capture link reached Rust while the window is open. */
+const linkArrives = (page: Page, prefill: { title: string; body: string }) =>
+  page.evaluate((p) => {
+    const w = window
+    w.devotPrefills = [...(w.devotPrefills ?? []), [p]]
+    w.dispatchEvent(new w.CustomEvent('devot:quick-capture-prefill'))
+  }, prefill)
+
+test('a capture link fills the window it opens, and only Save makes the note', async ({ page }) => {
+  await open(page, { prefills: [[{ title: 'Page', body: 'A quote\n\nhttps://example.com' }]] })
+  await expect(title(page)).toHaveValue('Page')
+  await expect(body(page)).toHaveValue('A quote\n\nhttps://example.com')
+  expect(await calls(page, 'quick_capture_save')).toEqual([])
+  await body(page).press('Meta+Enter')
+  await expect
+    .poll(() => calls(page, 'quick_capture_save'))
+    .toEqual([{ capture: { title: 'Page', body: 'A quote\n\nhttps://example.com', bookId: null } }])
+  await expect.poll(() => calls(page, 'quick_capture_close')).toHaveLength(1)
+})
+
+test('a capture link that reaches the open window adds to what is typed', async ({ page }) => {
+  await open(page)
+  await title(page).fill('Mine')
+  await body(page).fill('typed')
+  await linkArrives(page, { title: 'Page', body: 'quote' })
+  await expect(body(page)).toHaveValue('typed\n\nPage\nquote')
+  await expect(title(page)).toHaveValue('Mine')
+})
+
+test('a capture link that comes while saving opens as a capture of its own', async ({ page }) => {
+  await open(page, { holdSave: true })
+  await body(page).fill('first')
+  await body(page).press('Meta+Enter')
+  await expect.poll(() => calls(page, 'quick_capture_save')).toHaveLength(1)
+  await linkArrives(page, { title: 'Second', body: 'later' })
+  await expect(body(page)).toHaveValue('first')
+  await page.evaluate(() => window.devotAnswerSave?.())
+  await expect(title(page)).toHaveValue('Second')
+  await expect(body(page)).toHaveValue('later')
+  await expect(body(page)).toBeEditable()
+  expect(await calls(page, 'quick_capture_close')).toEqual([])
 })
 
 test('Settings > General turns menu bar mode on and names the shortcut', async ({ page }) => {

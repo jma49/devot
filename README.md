@@ -82,6 +82,7 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 - Full-text search with a query syntax (notebook, tag, status, pinned, title or body, and exclusions), and saved searches in the sidebar.
 - `[[` note links with a link index; each note lists the notes that link to it.
 - `devot://` links open a note from other apps.
+- Capture links fill Quick Capture from Shortcuts, a launcher or a browser bookmarklet (below).
 - A command palette for every command, and keyboard shortcuts you can change.
 
 **Look**
@@ -139,6 +140,18 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
   </picture>
   <br><sub>Revision History · Templates</sub>
 </p>
+
+## Capture from anywhere
+
+`devot://capture?title=…&text=…&url=…` opens Quick Capture with the text filled in; you save it with ⌘↩ or cancel, so a link never makes a note by itself.
+Every field is optional and percent-encoded, and `url` must be an http or https address.
+
+- **Shortcuts:** an Open URLs action with `devot://capture?text=` followed by the Shortcut Input, URL-encoded.
+- **A web clipper bookmarklet:** save this as a bookmark, then click it on any page to capture its title, the selected text and its address.
+
+  ```text
+  javascript:location.href='devot://capture?title='+encodeURIComponent(document.title)+'&text='+encodeURIComponent(getSelection())+'&url='+encodeURIComponent(location.href)
+  ```
 
 ## Markdown mirror
 
