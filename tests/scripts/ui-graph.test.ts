@@ -134,8 +134,10 @@ it('reaches every UI source in the repository from a page, a lazy boundary or a 
     const reach = uiReach(graph, file, modules)
     return !reach || reach.pages.size + reach.boundaries.size + reach.specs.size === 0
   })
-  // Shared by unit tests only.
+  // Shared by unit tests only, or the Mac's native text, which Rust reads (scripts/i18n/rust.ts).
   expect(unreached).toEqual([
+    'src/renderer/src/i18n/en/native.ts',
+    'src/renderer/src/i18n/zh-Hans/native.ts',
     'src/renderer/src/menuLines.ts',
     'src/renderer/src/phone/testShell.tsx',
   ])

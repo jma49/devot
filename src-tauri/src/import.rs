@@ -900,9 +900,9 @@ pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>, target: &s
         return;
     }
     let title = match pick {
-        Pick::MarkdownFiles => strings::IMPORT_MARKDOWN_FILES_TITLE,
-        Pick::MarkdownFolders => strings::IMPORT_MARKDOWN_TITLE,
-        Pick::HtmlFiles => strings::IMPORT_HTML_FILES_TITLE,
+        Pick::MarkdownFiles => strings::native().import_markdown_files_title,
+        Pick::MarkdownFolders => strings::native().import_markdown_title,
+        Pick::HtmlFiles => strings::native().import_html_files_title,
     };
     #[cfg_attr(mobile, allow(unused_mut))]
     let mut dialog = app.dialog().file().set_title(title);

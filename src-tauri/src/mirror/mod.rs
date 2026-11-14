@@ -881,7 +881,7 @@ async fn pick_folder(app: &AppHandle, window: &WebviewWindow) -> Result<Option<P
     let (reply, answer) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
-        .set_title(strings::MIRROR_FOLDER_TITLE)
+        .set_title(strings::native().mirror_folder_title)
         .set_parent(window)
         .set_can_create_directories(true)
         .pick_folder(move |path| {

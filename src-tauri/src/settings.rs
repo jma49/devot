@@ -61,7 +61,7 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
         builder = builder.data_store_identifier(store);
     }
     let builder = builder
-        .title(strings::SETTINGS_TITLE)
+        .title(strings::native().settings_title)
         .theme(theme)
         .inner_size(WIDTH, HEIGHT)
         .on_navigation(crate::navigation::app_pages_only(

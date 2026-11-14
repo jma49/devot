@@ -139,16 +139,16 @@ pub fn menu_bar_icon_changed(app: &AppHandle, shown: bool) {
 }
 
 fn show_icon(app: &AppHandle) -> tauri::Result<()> {
-    let status = MenuItemBuilder::with_id(STATUS_ID, strings::BACKGROUND_MENU_STATUS)
+    let status = MenuItemBuilder::with_id(STATUS_ID, strings::native().background_menu_status)
         .enabled(false)
         .build(app)?;
-    let idle = MenuItemBuilder::with_id(IDLE_ID, strings::BACKGROUND_MENU_IDLE)
+    let idle = MenuItemBuilder::with_id(IDLE_ID, strings::native().background_menu_idle)
         .enabled(false)
         .build(app)?;
-    let open = MenuItemBuilder::with_id(OPEN_ID, strings::MENU_BAR_OPEN).build(app)?;
+    let open = MenuItemBuilder::with_id(OPEN_ID, strings::native().menu_bar_open).build(app)?;
     let settings =
-        MenuItemBuilder::with_id(SETTINGS_ID, strings::BACKGROUND_SETTINGS).build(app)?;
-    let quit = MenuItemBuilder::with_id(QUIT_ID, strings::QUIT).build(app)?;
+        MenuItemBuilder::with_id(SETTINGS_ID, strings::native().background_settings).build(app)?;
+    let quit = MenuItemBuilder::with_id(QUIT_ID, strings::native().quit).build(app)?;
     let menu = MenuBuilder::new(app)
         .item(&status)
         .item(&idle)
@@ -161,7 +161,7 @@ fn show_icon(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(menu_bar::icon())
         .icon_as_template(true)
-        .tooltip(strings::BACKGROUND_STATUS)
+        .tooltip(strings::native().background_status)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .build(app)?;
@@ -475,17 +475,21 @@ mod tests {
 
     #[test]
     fn the_wording_says_what_is_running_and_for_whom() {
-        assert!(strings::BACKGROUND_STATUS.contains("AI tools"));
-        assert!(strings::BACKGROUND_MENU_IDLE.contains("10 minutes"));
+        assert!(strings::native().background_status.contains("AI tools"));
+        assert!(
+            strings::native()
+                .background_menu_idle
+                .contains("10 minutes")
+        );
         for line in [
-            strings::BACKGROUND_MENU_STATUS,
-            strings::BACKGROUND_MENU_IDLE,
+            strings::native().background_menu_status,
+            strings::native().background_menu_idle,
         ] {
             assert!(
                 line.chars().count() <= 42,
                 "a short line keeps the menu narrow: {line}"
             );
         }
-        assert_eq!(strings::QUIT, "Quit Devot");
+        assert_eq!(strings::native().quit, "Quit Devot");
     }
 }

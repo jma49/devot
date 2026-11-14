@@ -83,7 +83,9 @@ pub fn plan(plugins: &[Installed], editing: bool) -> Vec<Planned> {
             for format in &m.contributes.export_formats {
                 out.push(Planned {
                     place: Place::Export,
-                    text: strings::PLUGIN_EXPORT_NOTE.replace("{title}", &format.title),
+                    text: strings::native()
+                        .plugin_export_note
+                        .replace("{title}", &format.title),
                     action: action(Kind::Export, &format.id),
                     enabled: true,
                 });

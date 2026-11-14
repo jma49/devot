@@ -23,8 +23,12 @@ Part of the [architecture overview](../architecture.md).
   The `DevotScreens` package declares English as its default localisation and the string catalog as a resource.
   Each translation adds its language to every entry of the string catalog, in its iPhone wording, and the generator refuses one whose placeholders differ from the English (`E_I18N_PLACEHOLDERS`).
   Swift never inlines a user-facing string, and Swift tests write CJK with `\u{...}` escapes.
+- The Mac's native menus, dialogs, file panel titles and window titles come from the catalog's `native` area (`en/native.ts` and its translations), which stays out of the page's catalog and the iPhone's string catalogs, since neither shows it.
+  `pnpm i18n:apple` also writes `src-tauri/src/strings_catalog.rs` (`scripts/i18n/rust.ts`, committed, checked by `pnpm i18n:apple:check`): a `Native` struct with a field per key in snake case (`native.formatHeading1` is `format_heading_1`) and one static per language, every non-ASCII character escaped so the file holds no CJK.
+  `strings::native()` picks the language once per run from the system's preferred languages (`NSLocale.preferredLanguages`) by the rules of `resolveLocale`, so the menu bar and the page always show the same language; off macOS it is English.
+  The Edit, Window and app menus' standard items take their titles from the same area.
+  The `devot` command's output stays English, as a terminal tool's does, and so does the suffix of a kept-aside mirror file, which every device must read back the same.
 - Dates, numbers and lists use `Intl`.
   Chinese has no plural forms, so the catalogs keep plain placeholders; a locale with plural rules moves them to ICU message syntax.
-  Native menu labels in Rust (`src-tauri/src/strings.rs`) are still English and move to the catalog next.
 - CJK characters appear only in the translation catalogs (`src/renderer/src/i18n/zh-Hans/`) and the generated `Localizable.xcstrings`; everywhere else, test data that needs them uses `\u` escapes.
   A test enforces this over every tracked file, and another checks the exception covers nothing more.

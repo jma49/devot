@@ -741,10 +741,13 @@ pub async fn export_begin(
     let extension = format.extension();
     let (title, filter) = match format {
         Format::Markdown => (
-            strings::EXPORT_MARKDOWN_TITLE,
-            strings::EXPORT_MARKDOWN_FILTER,
+            strings::native().export_markdown_title,
+            strings::native().export_markdown_filter,
         ),
-        Format::Html => (strings::EXPORT_HTML_TITLE, strings::EXPORT_HTML_FILTER),
+        Format::Html => (
+            strings::native().export_html_title,
+            strings::native().export_html_filter,
+        ),
     };
     let begun = match kind {
         Kind::Note => {
@@ -994,9 +997,9 @@ pub async fn export_pdf(
     let page = page_with_images(&db, html, images).await?;
     let Some(path) = ask_save(
         &app,
-        strings::EXPORT_PDF_TITLE,
+        strings::native().export_pdf_title,
         format!("{name}.pdf"),
-        strings::EXPORT_PDF_FILTER,
+        strings::native().export_pdf_filter,
         "pdf",
     )
     .await?

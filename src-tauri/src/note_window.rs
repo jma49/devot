@@ -323,7 +323,7 @@ pub fn open(app: &AppHandle, id: &str) -> Result<(), &'static str> {
         (None, None) => builder.inner_size(WIDTH, HEIGHT).center(),
     };
     let window = builder
-        .title(crate::strings::NOTE_WINDOW_TITLE)
+        .title(crate::strings::native().note_window_title)
         .theme(theme)
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT)
         .on_new_window(crate::external::on_new_window)

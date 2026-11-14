@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { en } from '../../src/renderer/src/i18n/en'
+import { messages as native } from '../../src/renderer/src/i18n/en/native'
 import { enPhone } from '../../src/renderer/src/i18n/phone'
 
 // Error codes go to the log, never into what a person reads (docs/specs/quality.md).
@@ -20,7 +21,7 @@ it('no iPhone wording shows an error code', () => {
   expect(offenders(enPhone)).toEqual([])
 })
 
-// The shell's own text (menus, dialogs, notifications) reaches windows; the CLI_ lines go to a terminal.
+// The shell's window text (menus, dialogs, window titles) is the catalog's native area; the CLI_ lines go to a terminal.
 const rustStrings = (source: string) =>
   Object.fromEntries(
     [...source.matchAll(/^pub const (\w+): &str =\s*"((?:[^"\\]|\\.)*)";/gm)]
@@ -29,9 +30,9 @@ const rustStrings = (source: string) =>
   )
 
 it('no text the Rust shell shows shows an error code', () => {
-  const strings = rustStrings(readFileSync('src-tauri/src/strings.rs', 'utf8'))
-  expect(Object.keys(strings).length).toBeGreaterThan(100)
-  expect(offenders(strings)).toEqual([])
+  expect(Object.keys(native).length).toBeGreaterThan(100)
+  expect(offenders(native)).toEqual([])
+  expect(offenders(rustStrings(readFileSync('src-tauri/src/strings.rs', 'utf8')))).toEqual([])
 })
 
 it('the Rust strings check skips the CLI lines and catches a code in the rest', () => {
