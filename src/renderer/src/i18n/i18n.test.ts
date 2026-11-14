@@ -30,21 +30,21 @@ describe('i18n', () => {
     expect(resolveLocale(['zh-MO'])).toBe('en')
   })
 
-  it('returns the Simplified Chinese text, and its iPhone wording', () => {
-    setLocale('zh-hans')
+  it('returns the Simplified Chinese text, and its iPhone wording', async () => {
+    await setLocale('zh-hans')
     expect(t('noteList.newNote')).toBe(zhHans['noteList.newNote'])
     setIPhoneWording(true)
     expect(t('usage.storage')).toBe(zhHansPhone['usage.storage'])
     expect(t('noteList.newNote')).toBe(zhHans['noteList.newNote'])
     setIPhoneWording(false)
     expect(t('usage.storage')).toBe(zhHans['usage.storage'])
-    setLocale('en')
+    await setLocale('en')
   })
 
-  it('returns English strings by key, even for an unknown locale', () => {
-    setLocale('xx')
+  it('returns English strings by key, even for an unknown locale', async () => {
+    await setLocale('xx')
     expect(t('noteList.newNote')).toBe('New Note')
-    setLocale('en')
+    await setLocale('en')
     expect(t('note.untitled')).toBe('Untitled')
   })
 
