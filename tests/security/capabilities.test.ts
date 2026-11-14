@@ -418,7 +418,8 @@ describe('Tauri command permissions', () => {
         (m) => m[1] ?? '',
       )
     // Its core never changes notebooks or tags, keeps saved searches, applies a template, lists the
-    // Trash, compacts the history, shows activity, lists agent writes or seeds the first-launch notes:
+    // Trash, compacts the history, shows activity, lists agent writes, searches by meaning or seeds the
+    // first-launch notes:
     // those start in the main window.
     const mainOnly = [
       'activity_list',
@@ -436,6 +437,8 @@ describe('Tauri command permissions', () => {
       'revisions_last_compaction',
       'saved_search_put',
       'saved_searches_list',
+      'semantic_search',
+      'semantic_status',
       'tag_put',
       'tag_rename',
       'welcome_seed',

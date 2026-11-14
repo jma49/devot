@@ -14,6 +14,8 @@ export function observeWrites(
       await write(...args)
       changed(notesOf?.(...args))
     }
+  const semanticSearch = storage.semanticSearch?.bind(storage)
+  const semanticStatus = storage.semanticStatus?.bind(storage)
   return {
     listNotes: (page) => storage.listNotes(page),
     getSummaries: (ids) => storage.getSummaries(ids),
@@ -21,6 +23,8 @@ export function observeWrites(
     openNote: (id) => storage.openNote(id),
     getBodies: (ids) => storage.getBodies(ids),
     searchNotes: (query, limit) => storage.searchNotes(query, limit),
+    ...(semanticSearch ? { semanticSearch: (query) => semanticSearch(query) } : {}),
+    ...(semanticStatus ? { semanticStatus: () => semanticStatus() } : {}),
     listBacklinks: (id, excludeBookId, limit) => storage.listBacklinks(id, excludeBookId, limit),
     listLinkGraph: (excludeBookId, limit) => storage.listLinkGraph(excludeBookId, limit),
     listTrash: () => storage.listTrash(),

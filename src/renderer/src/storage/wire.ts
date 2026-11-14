@@ -180,6 +180,12 @@ export function fromWire(wire: WireStorage): StorageAdapter {
     openNote: async (id) => openedNote(await wire.openNote(id)),
     getBodies: (ids) => wire.getBodies(ids),
     searchNotes: (query, limit) => wire.searchNotes(query, limit),
+    semanticSearch: async (query) => {
+      if (!wire.semanticSearch) throw new Error('E_SEMANTIC_UNAVAILABLE')
+      return wire.semanticSearch(query)
+    },
+    semanticStatus: async () =>
+      wire.semanticStatus ? wire.semanticStatus() : { state: 'unavailable' },
     listBacklinks: (id, excludeBookId, limit) => wire.listBacklinks(id, excludeBookId, limit),
     listLinkGraph: (excludeBookId, limit) => wire.listLinkGraph(excludeBookId, limit),
     listTrash: () => wire.listTrash(),

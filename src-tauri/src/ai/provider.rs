@@ -100,6 +100,28 @@ pub struct Prepared<'a> {
     pub system: Option<&'a str>,
     pub messages: &'a [Message],
     pub max_tokens: u32,
+    /// The answer comes as server-sent events (`Provider::event`).
+    pub stream: bool,
+}
+
+/// A streamed answer so far: the text of every delta, and the stop and counts once they come.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Partial {
+    pub text: String,
+    pub stop: Option<Stop>,
+    pub input_tokens: Option<u64>,
+    pub output_tokens: Option<u64>,
+    /// The provider said the stream is over.
+    pub ended: bool,
+}
+
+impl Partial {
+    pub fn usage(&self) -> Option<Usage> {
+        Some(Usage {
+            input_tokens: self.input_tokens?,
+            output_tokens: self.output_tokens?,
+        })
+    }
 }
 
 pub trait Provider: Sync {
@@ -109,6 +131,8 @@ pub trait Provider: Sync {
     fn build(&self, endpoint: &str, model: &str, key: &str, request: &Prepared) -> WireRequest;
     /// The status is 2xx; any other status is `status_error`'s.
     fn parse(&self, body: &[u8]) -> Result<Completion, &'static str>;
+    /// Takes one server-sent event's data into `into`, and returns the text it adds.
+    fn event(&self, data: &str, into: &mut Partial) -> Result<String, &'static str>;
 }
 
 pub fn provider(id: ProviderId) -> &'static dyn Provider {
@@ -144,6 +168,7 @@ pub fn check_request(request: &GenerateRequest) -> Result<Prepared<'_>, &'static
         system,
         messages,
         max_tokens,
+        stream: false,
     })
 }
 

@@ -190,6 +190,7 @@ export const LUCIDE_ICONS = {
   'phone.section.chevron': ChevronUpIcon,
   'notes.all': NotepadTextIcon,
   'notes.pinned': PinIcon,
+  'search.related': SparklesIcon,
   'note.pinned': PinIcon,
   'tag.remove': XIcon,
   notebook: BookIcon,

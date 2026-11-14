@@ -68,6 +68,7 @@ mod pending;
 mod plugins;
 #[cfg(any(target_os = "ios", test))]
 mod screens;
+mod semantic;
 mod settings;
 mod settings_file;
 mod share;
@@ -170,6 +171,7 @@ pub fn run() {
             exit::app_exit_cancel,
             external::open_external,
             ai::ai_generate,
+            ai::ai_stream,
             ai::ai_settings_get,
             ai::ai_settings_set,
             sync::commands::sync_get,
@@ -229,6 +231,8 @@ pub fn run() {
             format_menu::format_menu_set,
             logs::log_write,
             commands::search_index::search_index_rebuild,
+            semantic::commands::semantic_search,
+            semantic::commands::semantic_status,
             backups::backups_list,
             backups::backup_now,
             backups::backup_restore,
@@ -531,6 +535,13 @@ fn launch(
     app.state::<storage::Db>()
         .guard(std::sync::Arc::new(move |what| gate.require_write(what)));
     licence::watch_trial(&licence);
+    app.manage(std::sync::Arc::new(semantic::Semantic::start(
+        app.state::<storage::Db>().inner().clone(),
+        data_dir.join(semantic::FILE),
+        semantic::system(),
+        licence::Gate::of(&licence),
+        semantic::Pace::default(),
+    )));
     app.manage(std::sync::Arc::new(ai::Ai::new(
         ai::settings::SettingsStore::new(&data_dir.join(ai::settings::FILE)),
         std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),

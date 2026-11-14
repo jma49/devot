@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { NoteStatus } from '../../../core'
+import type { NoteStatus, NoteSummary } from '../../../core'
 // Imported directly, not via the core index, to keep the preview pipeline out of the main bundle.
 import {
   bookCounts,
@@ -34,6 +34,8 @@ import { useKept } from '../stable'
 import type { useSearch } from '../useSearch'
 import type { LibraryLists } from './useLibraryLists'
 import { useCountedNotes, useNoteGroups } from './useListedNotes'
+
+const NO_RELATED: NoteSummary[] = []
 
 /** The view the window shows (library, workspace, filter, layout, selection) and the lists, counts and names derived from it. */
 export function useLibraryView({
@@ -196,6 +198,18 @@ export function useLibraryView({
       locales,
     )
   }, [results, order, locales, activeFilter])
+  // In score order, under the search's own results and never again among them; a gallery shows none.
+  const related = searchState.related
+  const shownRelated = useMemo(() => {
+    if (!results || galleryShown || related?.search !== results.search) return NO_RELATED
+    const listed = new Set(shownResults.map((n) => n.id))
+    const agentNotes =
+      results.search.scope && activeFilter?.kind === 'agent' ? activeFilter.noteIds : undefined
+    const kept = related.notes.filter(
+      (n) => !listed.has(n.id) && (!agentNotes || agentNotes.has(n.id)),
+    )
+    return kept.length > 0 ? kept : NO_RELATED
+  }, [results, related, shownResults, galleryShown, activeFilter])
   const galleryNotes = useMemo(
     () =>
       searching
@@ -307,7 +321,7 @@ export function useLibraryView({
   const listedIds = useMemo(
     () =>
       (searching
-        ? shownResults
+        ? [...shownResults, ...shownRelated]
         : inTrash
           ? trash
           : inTemplates
@@ -321,6 +335,7 @@ export function useLibraryView({
     [
       searching,
       shownResults,
+      shownRelated,
       inTrash,
       trash,
       inTemplates,
@@ -395,6 +410,7 @@ export function useLibraryView({
     boardNotes,
     templateRows,
     shownResults,
+    shownRelated,
     galleryNotes,
     tagsById,
     statuses,

@@ -288,5 +288,4 @@ Spec: [`docs/specs/iphone-screens.md`](specs/iphone-screens.md).
 ## Open questions
 
 1. Whether `design/` becomes its own repository.
-2. In-app AI assistant interaction design.
-3. Measure idle GPU power with the transparent window; if it is high, drop to an opaque window with a tinted sidebar.
+2. Measure idle GPU power with the transparent window; if it is high, drop to an opaque window with a tinted sidebar.

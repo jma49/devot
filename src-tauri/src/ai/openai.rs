@@ -3,7 +3,9 @@
 use serde::Deserialize;
 use serde_json::json;
 
-use super::provider::{Completion, Prepared, Provider, Role, Stop, Usage, WireRequest, join_url};
+use super::provider::{
+    Completion, Partial, Prepared, Provider, Role, Stop, Usage, WireRequest, join_url,
+};
 
 pub struct OpenAi;
 
@@ -24,6 +26,27 @@ struct Choice {
 struct Reply {
     content: Option<String>,
     refusal: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Chunk {
+    #[serde(default)]
+    choices: Vec<ChunkChoice>,
+    usage: Option<Counts>,
+}
+
+#[derive(Deserialize)]
+struct ChunkChoice {
+    delta: Option<Reply>,
+    finish_reason: Option<String>,
+}
+
+fn stop_of(reason: Option<&str>) -> Stop {
+    match reason {
+        Some("stop") => Stop::End,
+        Some("length") => Stop::MaxTokens,
+        _ => Stop::Other,
+    }
 }
 
 #[derive(Deserialize)]
@@ -55,11 +78,14 @@ impl Provider for OpenAi {
                 json!({ "role": role, "content": m.content })
             }))
             .collect();
-        let body = json!({
+        let mut body = json!({
             "model": model,
             "max_completion_tokens": request.max_tokens,
             "messages": messages,
         });
+        if request.stream {
+            body["stream"] = json!(true);
+        }
         WireRequest {
             url: join_url(endpoint, "chat/completions"),
             headers: vec![
@@ -84,11 +110,7 @@ impl Provider for OpenAi {
             None if reply.refusal.is_some() => return Err("E_AI_REFUSED"),
             None => return Err("E_AI_RESPONSE_INVALID"),
         };
-        let stop = match choice.finish_reason.as_deref() {
-            Some("stop") => Stop::End,
-            Some("length") => Stop::MaxTokens,
-            _ => Stop::Other,
-        };
+        let stop = stop_of(choice.finish_reason.as_deref());
         let usage = response.usage.and_then(|u| {
             Some(Usage {
                 input_tokens: u.prompt_tokens?,
@@ -96,5 +118,33 @@ impl Provider for OpenAi {
             })
         });
         Ok(Completion { text, stop, usage })
+    }
+
+    fn event(&self, data: &str, into: &mut Partial) -> Result<String, &'static str> {
+        if data.trim() == "[DONE]" {
+            into.ended = true;
+            return Ok(String::new());
+        }
+        let chunk: Chunk = serde_json::from_str(data).map_err(|_| "E_AI_RESPONSE_INVALID")?;
+        if let Some(counts) = chunk.usage {
+            into.input_tokens = counts.prompt_tokens;
+            into.output_tokens = counts.completion_tokens;
+        }
+        let mut added = String::new();
+        for choice in chunk.choices.into_iter().take(1) {
+            if let Some(reply) = choice.delta {
+                if reply.refusal.as_deref().is_some_and(|r| !r.is_empty()) {
+                    return Err("E_AI_REFUSED");
+                }
+                if let Some(text) = reply.content {
+                    added.push_str(&text);
+                }
+            }
+            if choice.finish_reason.is_some() {
+                into.stop = Some(stop_of(choice.finish_reason.as_deref()));
+            }
+        }
+        into.text.push_str(&added);
+        Ok(added)
     }
 }

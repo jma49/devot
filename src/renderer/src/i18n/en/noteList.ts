@@ -81,6 +81,7 @@ export const messages = {
   'batch.failedOther': 'Could not change {count} notes.',
   'noteList.pinned': 'Pinned',
   'noteList.others': 'Notes',
+  'noteList.related': 'Related by Meaning',
   'sort.button': 'Sort Notes',
   'sort.current': 'Sorted by {order}',
   'sort.relevance': 'Relevance',

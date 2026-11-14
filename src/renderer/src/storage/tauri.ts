@@ -15,6 +15,8 @@ import type {
   NoteTagRecord,
   RevisionSummary,
   SavedSearchRecord,
+  SemanticHit,
+  SemanticStatus,
   StorageAdapter,
   TagRecord,
   TrashedNote,
@@ -41,6 +43,8 @@ export const tauriWire: WireStorage = {
   searchNotes: (query, limit) => invoke<NoteSummary[]>('notes_search', { query, limit }),
   listLinkGraph: (excludeBookId, limit) =>
     invoke<LinkGraph>('note_link_graph', { excludeBookId, limit }),
+  semanticSearch: (query) => invoke<SemanticHit[]>('semantic_search', { query }),
+  semanticStatus: () => invoke<SemanticStatus>('semantic_status'),
   listBacklinks: (id, excludeBookId, limit) =>
     invoke<NoteSummary[]>('note_backlinks', { id, excludeBookId, limit }),
   listTrash: () => invoke<TrashedNote[]>('notes_trash_list'),

@@ -1783,6 +1783,226 @@
         }
       }
     },
+    "askNotes.again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Another"
+          }
+        }
+      }
+    },
+    "askNotes.answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answer"
+          }
+        }
+      }
+    },
+    "askNotes.answeredBy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answered by {model} from your notes."
+          }
+        }
+      }
+    },
+    "askNotes.ask" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask"
+          }
+        }
+      }
+    },
+    "askNotes.asking" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading your notes and waiting for the AI provider…"
+          }
+        }
+      }
+    },
+    "askNotes.citation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source {number}: {title}"
+          }
+        }
+      }
+    },
+    "askNotes.close" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "askNotes.cutOff" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The answer was cut off for length."
+          }
+        }
+      }
+    },
+    "askNotes.detail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answers come from notes in notebooks that allow AI access. The passages that fit your question best and the question itself are sent to the AI provider."
+          }
+        }
+      }
+    },
+    "askNotes.openSource" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open {title}"
+          }
+        }
+      }
+    },
+    "askNotes.questionLabel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Question"
+          }
+        }
+      }
+    },
+    "askNotes.reason.access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No notebook allows AI access yet. Turn on Allow AI Access for the notebooks Ask Your Notes may read, from a notebook’s context menu."
+          }
+        }
+      }
+    },
+    "askNotes.reason.noSources" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No note in the notebooks that allow AI access matches the question. Try other words."
+          }
+        }
+      }
+    },
+    "askNotes.reason.other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The question could not be answered."
+          }
+        }
+      }
+    },
+    "askNotes.retry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try Again"
+          }
+        }
+      }
+    },
+    "askNotes.sources" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sources"
+          }
+        }
+      }
+    },
+    "askNotes.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Your Notes"
+          }
+        }
+      }
+    },
+    "askNotes.uncited" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also read"
+          }
+        }
+      }
+    },
+    "askNotes.untitled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled"
+          }
+        }
+      }
+    },
+    "askNotes.writing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing the answer…"
+          }
+        }
+      }
+    },
     "authorship.changedBy" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3099,6 +3319,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Warning Alert"
+          }
+        }
+      }
+    },
+    "command.askNotes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Your Notes…"
           }
         }
       }
@@ -12636,6 +12867,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "{done} of {total} tasks done"
+          }
+        }
+      }
+    },
+    "noteList.related" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Related by Meaning"
           }
         }
       }

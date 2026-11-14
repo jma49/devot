@@ -6,7 +6,8 @@
 use super::{Result, StorageError, Store};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
-use std::sync::{Arc, OnceLock, mpsc};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, mpsc};
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
@@ -154,6 +155,21 @@ pub struct Db {
     jobs: mpsc::Sender<Job>,
     gate: Arc<OnceLock<WriteGate>>,
     path: Arc<std::path::PathBuf>,
+    writes: Arc<Writes>,
+}
+
+/// How many writes were asked for, and when the last one was: background work waits for quiet.
+#[derive(Default)]
+struct Writes {
+    count: AtomicU64,
+    last: Mutex<Option<Instant>>,
+}
+
+impl Writes {
+    fn asked(&self) {
+        self.count.fetch_add(1, Ordering::Relaxed);
+        *crate::locks::lock(&self.last) = Some(Instant::now());
+    }
 }
 
 impl Db {
@@ -183,11 +199,21 @@ impl Db {
             jobs,
             gate: Arc::default(),
             path: Arc::new(path_for_handle),
+            writes: Arc::default(),
         })
     }
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// The writes asked for so far, and how long ago the last one was (none: never).
+    pub fn writes(&self) -> (u64, Option<Duration>) {
+        let last = *crate::locks::lock(&self.writes.last);
+        (
+            self.writes.count.load(Ordering::Relaxed),
+            last.map(|at| at.elapsed()),
+        )
     }
 
     /// Set once, at launch; writes before it are not judged.
@@ -214,6 +240,7 @@ impl Db {
         if let Some(gate) = self.gate.get() {
             gate(what).map_err(StorageError::Refused)?;
         }
+        self.writes.asked();
         logged(self.run(Kind::Write, work).await)
     }
 
@@ -231,6 +258,7 @@ impl Db {
             .iter()
             .map(|&what| (what, self.gate.get().map_or(Ok(()), |gate| gate(what))))
             .collect();
+        self.writes.asked();
         let done = self
             .run(Kind::Write, move |store| {
                 let what = judge(store)?;

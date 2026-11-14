@@ -64,6 +64,7 @@ export function ListPane({
   const { galleryShown, listView, searching, filterLabel, libraryBook, activeFilter, viewName } =
     view
   const { galleryNotes, sortButton, sortButtonRef, shownSelection, highlight, shownResults } = view
+  const { shownRelated } = view
   const { tagsById, agentWrites, inTrash, templateRows, inTemplates, boardShown, boardNotes } = view
   const { boardStatusList, groups } = view
   const { sidebarToggle, filterField, layoutControl, openFromList, createFromList } = listProps
@@ -181,6 +182,7 @@ export function ListPane({
       empty="search"
       pinned={NO_NOTES}
       notes={shownResults}
+      related={shownRelated}
       capped={results?.capped ?? false}
       tags={tagsById}
       selected={selected}

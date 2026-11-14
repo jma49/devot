@@ -382,6 +382,86 @@ public enum L10n {
     fill(text("aiSuggest.live", "Suggestion: {text}. Press Tab to accept it or Escape to dismiss it."), ["text": p0])
   }
 
+  public static func askNotesTitle() -> String {
+    text("askNotes.title", "Ask Your Notes")
+  }
+
+  public static func askNotesQuestionLabel() -> String {
+    text("askNotes.questionLabel", "Question")
+  }
+
+  public static func askNotesDetail() -> String {
+    text("askNotes.detail", "Answers come from notes in notebooks that allow AI access. The passages that fit your question best and the question itself are sent to the AI provider.")
+  }
+
+  public static func askNotesAsk() -> String {
+    text("askNotes.ask", "Ask")
+  }
+
+  public static func askNotesAsking() -> String {
+    text("askNotes.asking", "Reading your notes and waiting for the AI provider…")
+  }
+
+  public static func askNotesWriting() -> String {
+    text("askNotes.writing", "Writing the answer…")
+  }
+
+  public static func askNotesAnsweredBy(model p0: String) -> String {
+    fill(text("askNotes.answeredBy", "Answered by {model} from your notes."), ["model": p0])
+  }
+
+  public static func askNotesAnswer() -> String {
+    text("askNotes.answer", "Answer")
+  }
+
+  public static func askNotesCutOff() -> String {
+    text("askNotes.cutOff", "The answer was cut off for length.")
+  }
+
+  public static func askNotesSources() -> String {
+    text("askNotes.sources", "Sources")
+  }
+
+  public static func askNotesUncited() -> String {
+    text("askNotes.uncited", "Also read")
+  }
+
+  public static func askNotesOpenSource(title p0: String) -> String {
+    fill(text("askNotes.openSource", "Open {title}"), ["title": p0])
+  }
+
+  public static func askNotesCitation(number p0: String, title p1: String) -> String {
+    fill(text("askNotes.citation", "Source {number}: {title}"), ["number": p0, "title": p1])
+  }
+
+  public static func askNotesAgain() -> String {
+    text("askNotes.again", "Ask Another")
+  }
+
+  public static func askNotesRetry() -> String {
+    text("askNotes.retry", "Try Again")
+  }
+
+  public static func askNotesClose() -> String {
+    text("askNotes.close", "Close")
+  }
+
+  public static func askNotesUntitled() -> String {
+    text("askNotes.untitled", "Untitled")
+  }
+
+  public static func askNotesReasonAccess() -> String {
+    text("askNotes.reason.access", "No notebook allows AI access yet. Turn on Allow AI Access for the notebooks Ask Your Notes may read, from a notebook’s context menu.")
+  }
+
+  public static func askNotesReasonNoSources() -> String {
+    text("askNotes.reason.noSources", "No note in the notebooks that allow AI access matches the question. Try other words.")
+  }
+
+  public static func askNotesReasonOther() -> String {
+    text("askNotes.reason.other", "The question could not be answered.")
+  }
+
   public static func dialogCancel() -> String {
     text("dialog.cancel", "Cancel")
   }
@@ -852,6 +932,10 @@ public enum L10n {
 
   public static func commandAiSuggest() -> String {
     text("command.aiSuggest", "Suggest Next Edit")
+  }
+
+  public static func commandAskNotes() -> String {
+    text("command.askNotes", "Ask Your Notes…")
   }
 
   public static func commandFocusNoteList() -> String {
@@ -5048,6 +5132,10 @@ public enum L10n {
 
   public static func noteListOthers() -> String {
     text("noteList.others", "Notes")
+  }
+
+  public static func noteListRelated() -> String {
+    text("noteList.related", "Related by Meaning")
   }
 
   public static func sortButton() -> String {
