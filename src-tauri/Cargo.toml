@@ -127,6 +127,16 @@ objc2-cloud-kit = { version = "0.3", default-features = false, features = [
   "CKSubscription",
 ] }
 
+# Semantic search's sentence embeddings (`native::ios::embedding`), on the device; the QoS of
+# its thread (libc, already in the tree).
+objc2-natural-language = { version = "0.3", default-features = false, features = [
+  "std",
+  "NLEmbedding",
+  "NLLanguage",
+  "NLLanguageRecognizer",
+] }
+libc = "0.2"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 # The system HTTPS proxy for `net` (`net::proxy`), through SCDynamicStoreCopyProxies; already
 # in the tree through reqwest.

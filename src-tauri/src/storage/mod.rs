@@ -14,6 +14,7 @@ mod records;
 mod revisions;
 mod saved_searches;
 mod search;
+mod semantic;
 mod sync;
 mod tags;
 mod welcome;
@@ -22,6 +23,7 @@ pub use sync::{SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal, SyncPe
 
 pub use db::{Db, Write};
 pub use open::{SCHEMA_VERSION, snapshot};
+pub(crate) use readable::readable_text;
 pub use records::*;
 pub use welcome::WelcomeNote;
 

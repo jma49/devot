@@ -57,6 +57,8 @@ const NOTES: &[&str] = &[
     "search_index_rebuild",
     "welcome_seed",
     "note_link_graph",
+    "semantic_search",
+    "semantic_status",
 ];
 
 /// Revisions, activity, agent writes and usage.

@@ -89,6 +89,8 @@
     "allow-activity-list",
     "allow-activity-notes-list",
     "allow-notes-search",
+    "allow-semantic-search",
+    "allow-semantic-status",
     "allow-note-backlinks",
     "allow-note-link-graph",
     "allow-file-put",
