@@ -95,7 +95,7 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 
 **Bring notes in and out**
 
-- Import Markdown files, a Markdown folder (with its images) or HTML files into a notebook.
+- Import Markdown files, a Markdown folder (with its images), HTML files, a Notion Markdown export or Bear TextBundles into a notebook; links between the imported files become note links.
 - Export a note, a selection, a notebook or all notes as Markdown or HTML; export a note as PDF; print.
 - Keep a Markdown mirror folder up to date with every note (below).
 
