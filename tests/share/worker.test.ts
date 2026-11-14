@@ -70,7 +70,7 @@ afterAll(() => mf?.dispose())
 
 it('wrangler.toml binds KV and both rate limits, as the tests run them', () => {
   expect(setting('main')).toBe('src/worker.ts')
-  expect(wrangler).toMatch(/\[\[kv_namespaces\]\]\nbinding = "SHARES"/)
+  expect(wrangler).toMatch(/\[\[kv_namespaces\]\]\nbinding = "SHARES"\nid = "[0-9a-f]{32}"/)
   expect(wrangler).toMatch(
     /name = "CREATE_PER_ADDRESS"\nnamespace_id = "\d+"\n\n\[ratelimits\.simple\]\nlimit = 5\nperiod = 60/,
   )
@@ -80,6 +80,10 @@ it('wrangler.toml binds KV and both rate limits, as the tests run them', () => {
   const relay = readFileSync('relay/wrangler.toml', 'utf8')
   const ids = [...`${wrangler}${relay}`.matchAll(/namespace_id = "(\d+)"/g)].map((m) => m[1])
   expect(new Set(ids).size).toBe(ids.length)
+})
+
+it('serves the host the app shares to, on its own custom domain', () => {
+  expect(wrangler).toContain('routes = [{ pattern = "share.devot.online", custom_domain = true }]')
 })
 
 describe('a share', () => {

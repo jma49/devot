@@ -50,5 +50,5 @@ The commands `web_share_status`, `web_share_publish` and `web_share_stop` are de
 
 ## Deploying
 
-- Create the KV namespace (`wrangler kv namespace create SHARES`), put its ID in `share/wrangler.toml`, and deploy from `share/` with `pnpm deploy`.
-- Route `share.devot.online/*` to the Worker in the Cloudflare dashboard; the app's default share host is that name.
+- The KV namespace `devot-share-SHARES` and the custom domain `share.devot.online` are set in `share/wrangler.toml`; the app's default share host is that name.
+- Deploy from `share/` with `pnpm deploy`, which needs `wrangler login` on the devot.online account.
