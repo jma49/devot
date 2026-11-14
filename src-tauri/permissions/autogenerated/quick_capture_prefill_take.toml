@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quick-capture-prefill-take"
+description = "Enables the quick_capture_prefill_take command without any pre-configured scope."
+commands.allow = ["quick_capture_prefill_take"]
+
+[[permission]]
+identifier = "deny-quick-capture-prefill-take"
+description = "Denies the quick_capture_prefill_take command without any pre-configured scope."
+commands.deny = ["quick_capture_prefill_take"]

@@ -33,6 +33,8 @@ interface Window {
   devotMarker?: boolean
   devotMediaQueries: number
   devotMeasured: number
+  /** What capture links bring, a batch for each `quick_capture_prefill_take` (quick-capture.spec.ts). */
+  devotPrefills?: { title: string; body: string }[][]
   devotPreviewKeys: number[]
   devotNoteWrites: number
   devotOffAtFrame: number

@@ -451,7 +451,7 @@ describe('Tauri command permissions', () => {
     expect(missing).toEqual([])
   })
 
-  it('lets the quick capture window hand over its note and close, and nothing more', () => {
+  it('lets the quick capture window take a capture link, hand over its note and close, and nothing more', () => {
     const quickCapture = capabilities().filter((c) => c.windows.includes('quick-capture'))
     // No notes, no files (an imported font only by its ID): the main window's core saves the note.
     expect(quickCapture.flatMap(permissionIds).sort()).toEqual([
@@ -459,6 +459,7 @@ describe('Tauri command permissions', () => {
       'allow-font-read',
       'allow-licence-get',
       'allow-quick-capture-close',
+      'allow-quick-capture-prefill-take',
       'allow-quick-capture-save',
       'allow-system-accent',
       'core:event:allow-listen',
@@ -466,6 +467,7 @@ describe('Tauri command permissions', () => {
     ])
     expect(windowsWith('allow-quick-capture-done')).toEqual(['main'])
     expect(windowsWith('allow-quick-capture-claim')).toEqual(['main'])
+    expect(windowsWith('allow-quick-capture-prefill-take')).toEqual(['quick-capture'])
   })
 
   it('lets only Settings see or replace the HTTP API token, and only the main window answer its calls', () => {

@@ -127,6 +127,7 @@ const WINDOWS: &[&str] = &[
     "quick_capture_claim",
     "quick_capture_done",
     "quick_capture_close",
+    "quick_capture_prefill_take",
     "background_state",
     "background_quit",
     "background_idle_answer",
