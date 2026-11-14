@@ -93,6 +93,8 @@ export const messages: Record<keyof typeof en, string> = {
   'counts.words': '字数',
   'counts.characters': '字符数',
   'counts.of': '{part}/{total}',
+  'counts.towardGoal': '{count} / {goal}',
+  'counts.goalTitle': '字数目标：{goal}',
   'images.refusedOne': '有一张图片无法添加。{reasons}',
   'images.refusedOther': '有 {count} 张图片无法添加。{reasons}',
   'images.reason.size': '图片不能为空，最大 {size} MB。',

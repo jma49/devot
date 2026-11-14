@@ -7336,6 +7336,12 @@
             "state" : "translated",
             "value" : "Word goal: {goal}"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字数目标：{goal}"
+          }
         }
       }
     },
@@ -7360,6 +7366,12 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} / {goal}"
+          }
+        },
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "{count} / {goal}"
@@ -19870,6 +19882,12 @@
             "state" : "translated",
             "value" : "Share on Web…"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在网页上共享…"
+          }
         }
       }
     },
@@ -27718,6 +27736,12 @@
             "state" : "translated",
             "value" : "Link copied."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "链接已拷贝。"
+          }
         }
       }
     },
@@ -27728,6 +27752,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copy Link"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷贝链接"
           }
         }
       }
@@ -27740,6 +27770,12 @@
             "state" : "translated",
             "value" : "Done"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
         }
       }
     },
@@ -27750,6 +27786,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Too many shares just now. Try again in a minute."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刚才的共享请求太多，请一分钟后再试。"
           }
         }
       }
@@ -27762,6 +27804,12 @@
             "state" : "translated",
             "value" : "The note could not be shared. Try again."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法共享这篇笔记。请再试一次。"
+          }
         }
       }
     },
@@ -27772,6 +27820,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Devot could not keep the link in your keychain, so the note was not shared."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devot 无法把链接保存到你的钥匙串，所以笔记没有共享。"
           }
         }
       }
@@ -27784,6 +27838,12 @@
             "state" : "translated",
             "value" : "Devot could not reach the share service. Check your connection and try again."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devot 无法连接共享服务。请检查网络连接后再试。"
+          }
         }
       }
     },
@@ -27794,6 +27854,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This note is too large to share. With its images it can be at most 10 MB."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这篇笔记太大，无法共享。连同图片最多 10 MB。"
           }
         }
       }
@@ -27806,6 +27872,12 @@
             "state" : "translated",
             "value" : "1 day"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 天"
+          }
         }
       }
     },
@@ -27816,6 +27888,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "30 days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 天"
           }
         }
       }
@@ -27828,6 +27906,12 @@
             "state" : "translated",
             "value" : "7 days"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7 天"
+          }
         }
       }
     },
@@ -27838,6 +27922,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Link expires after"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "链接有效期"
           }
         }
       }
@@ -27850,6 +27940,12 @@
             "state" : "translated",
             "value" : "Link"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "链接"
+          }
         }
       }
     },
@@ -27860,6 +27956,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Share"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共享"
           }
         }
       }
@@ -27872,6 +27974,12 @@
             "state" : "translated",
             "value" : "Anyone with this link can read the note until {date}. Update Page shares your latest changes under the same link."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 {date} 之前，任何拿到这个链接的人都能阅读这篇笔记。“更新页面”会用同一个链接共享你最新的修改。"
+          }
         }
       }
     },
@@ -27882,6 +27990,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sharing…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在共享…"
           }
         }
       }
@@ -27894,6 +28008,12 @@
             "state" : "translated",
             "value" : "Stop Sharing"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止共享"
+          }
         }
       }
     },
@@ -27904,6 +28024,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stopping…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在停止…"
           }
         }
       }
@@ -27916,6 +28042,12 @@
             "state" : "translated",
             "value" : "Share on Web"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在网页上共享"
+          }
         }
       }
     },
@@ -27926,6 +28058,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Update Page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新页面"
           }
         }
       }
@@ -27938,6 +28076,12 @@
             "state" : "translated",
             "value" : "Updating the page…"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在更新页面…"
+          }
         }
       }
     },
@@ -27948,6 +28092,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Anyone with the link can read this note until the link expires or you stop sharing. The note is encrypted on this Mac, and the link holds its key, so the share service cannot read it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在链接过期或你停止共享之前，任何拿到链接的人都能阅读这篇笔记。笔记在这台 Mac 上加密，密钥只在链接里，所以共享服务读不到内容。"
           }
         }
       }
