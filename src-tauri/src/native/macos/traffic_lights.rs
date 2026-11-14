@@ -588,7 +588,19 @@ pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
                 &block,
             )
         };
+        let dump = |tag: &str| {
+            let origins: Vec<(f64, f64)> =
+                bar.buttons.iter().map(|b| (b.frame().origin.x, b.frame().origin.y)).collect();
+            let c = bar.container.frame();
+            let burst = HELD.with_borrow(|held| held.iter().find(|e| e.address == address).map(|e| e.burst.1));
+            eprintln!("DIAG {tag}: applied={} burst={burst:?} in_place={} buttons={origins:?} container=({}, {}, {}, {}) want={:?}",
+                APPLIED.get(), bar.in_place(&window, inset), c.origin.x, c.origin.y, c.size.width, c.size.height,
+                { let w = bar.container_frame(&window, inset); (w.origin.y, w.size.height) });
+        };
+        dump("before");
         bar.buttons[2].setFrameOrigin(system[2]);
+        dump("after move");
+        for i in 0..10 { pump(0.01); dump(&format!("pump {i}")); }
         pump(0.05);
         // SAFETY: a token `addObserverForName:object:queue:usingBlock:` returned.
         unsafe { NSNotificationCenter::defaultCenter().removeObserver(nested.as_ref()) };

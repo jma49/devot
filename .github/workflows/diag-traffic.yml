@@ -1,0 +1,24 @@
+name: diag traffic lights
+on:
+  push:
+    branches: [claude/diag-traffic-lights]
+permissions:
+  contents: read
+jobs:
+  diag:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
+        working-directory: .
+      - run: rustup toolchain install
+      - run: sw_vers && uname -m
+      - run: cargo test --test main_thread 2>&1 | grep -E "DIAG|main_thread|panicked|E_" 
