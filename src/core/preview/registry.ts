@@ -36,6 +36,8 @@ export interface NoteLinkTarget {
   status: NoteStatus
   tasks: TaskProgress
   tags: { name: string; color: TagColorValue | null }[]
+  /** Only for a note the text embeds: its body without front matter, cut at MAX_EMBED_CHARS (`clipped`). */
+  embed?: { markdown: string; clipped: boolean }
 }
 
 /** The open note's own fields, so its front matter can show what differs from them. */

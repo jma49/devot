@@ -22,7 +22,7 @@ const span = (className: string, children: ElementContent[]): Element => ({
 
 const txt = (value: string): ElementContent => ({ type: 'text', value })
 
-function chip(target: NoteLinkTarget, untitled: string): ElementContent[] {
+export function chip(target: NoteLinkTarget, untitled: string): ElementContent[] {
   const out: ElementContent[] = []
   if (target.status !== 'none') {
     out.push(glyph(target.status, `note-chip-status note-chip-status-${target.status}`))
@@ -61,6 +61,10 @@ function wantsChip(link: Element, target: NoteLinkTarget): boolean {
   return text === '' || text === squash(target.title)
 }
 
+const isEmbedBody = (node: Element) =>
+  Array.isArray(node.properties['className']) &&
+  node.properties['className'].map(String).includes('note-embed-body')
+
 function visit(
   node: Root | Element,
   targets: Readonly<Record<string, NoteLinkTarget>>,
@@ -68,6 +72,8 @@ function visit(
 ): void {
   for (const child of node.children) {
     if (child.type !== 'element') continue
+    // An embedded note's links were rendered with its own targets: none here.
+    if (isEmbedBody(child)) continue
     const href = child.tagName === 'a' ? child.properties['href'] : undefined
     const id = typeof href === 'string' ? NOTE_HREF.exec(href)?.[1] : undefined
     if (!id) {

@@ -28,6 +28,11 @@ export interface Backlink {
   name: string
 }
 
+/** A note that names this one in its text without linking to it, and the line it does so on. */
+export interface UnlinkedMention extends Backlink {
+  excerpt: string
+}
+
 const cardRef = closingRef('scale', 'note-info-card')
 
 /** A save's answer closes the picker only while that same save is still the one it waits on. */
@@ -150,12 +155,16 @@ export function NoteInfoCard(props: {
   info: NoteInfoData
   facts: NoteFacts | undefined
   backlinks: readonly Backlink[] | undefined
+  mentions: readonly UnlinkedMention[] | undefined
   onOpenNote: (id: string) => void
+  /** Makes a note's mention of this one a link; without it (read-only) mentions are only listed. */
+  onLinkMention?: ((id: string) => void) | undefined
   onSetDates?: SetNoteDates | undefined
   onApplyFrontMatter?: ((change: FrontMatterChange) => void) | undefined
   onClose: () => void
 }) {
-  const { info, facts, backlinks, onOpenNote, onSetDates, onApplyFrontMatter, onClose } = props
+  const { info, facts, backlinks, mentions, onOpenNote, onLinkMention } = props
+  const { onSetDates, onApplyFrontMatter, onClose } = props
   const locale = currentLocale()
   const card = useRef<HTMLDivElement>(null)
   const rows = useRef<Partial<Record<DateField, HTMLButtonElement | null>>>({})
@@ -361,6 +370,49 @@ export function NoteInfoCard(props: {
             </ul>
           ) : (
             <p className="note-info-empty">{t('noteInfo.noBacklinks')}</p>
+          )}
+        </Section>
+        <Section section="mentions" title={t('noteInfo.mentions')} count={mentions?.length ?? 0}>
+          {mentions && mentions.length > 0 ? (
+            <ul className="note-info-links">
+              {mentions.map((note) => {
+                const name = note.name || t('note.untitled')
+                return (
+                  <li key={note.id} className="note-info-mention">
+                    <button
+                      type="button"
+                      className="note-info-row note-info-link"
+                      onClick={() => {
+                        onClose()
+                        onOpenNote(note.id)
+                      }}
+                    >
+                      <span className="note-info-icon">
+                        <Icon name="backlink" size="sm" />
+                      </span>
+                      <span className="note-info-value">
+                        {name}
+                        <span className="note-info-excerpt">{note.excerpt}</span>
+                      </span>
+                    </button>
+                    {onLinkMention ? (
+                      <button
+                        type="button"
+                        className="frontmatter-apply note-info-mention-link"
+                        aria-label={format(t('noteInfo.linkMentionIn'), { note: name })}
+                        onClick={() => onLinkMention(note.id)}
+                      >
+                        {t('noteInfo.linkMention')}
+                      </button>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <p className="note-info-empty">
+              {mentions ? t('noteInfo.noMentions') : t('noteInfo.findingMentions')}
+            </p>
           )}
         </Section>
       </div>

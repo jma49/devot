@@ -4192,6 +4192,17 @@
         }
       }
     },
+    "command.showGraph" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Graph"
+          }
+        }
+      }
+    },
     "command.showHistoryBar" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7356,6 +7367,182 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Devot {version}."
+          }
+        }
+      }
+    },
+    "graph.allNotes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Notes"
+          }
+        }
+      }
+    },
+    "graph.alone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No notes link to or from this note yet."
+          }
+        }
+      }
+    },
+    "graph.capped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the {count} most linked notes."
+          }
+        }
+      }
+    },
+    "graph.detail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes and the links between them. Drag to move, scroll or pinch to zoom, click a note to open it."
+          }
+        }
+      }
+    },
+    "graph.done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
+    "graph.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No notes link to each other yet. Type [[ in a note to link another."
+          }
+        }
+      }
+    },
+    "graph.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The graph could not be drawn."
+          }
+        }
+      }
+    },
+    "graph.label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Graph of {notes} and {links}"
+          }
+        }
+      }
+    },
+    "graph.linksOne" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} link"
+          }
+        }
+      }
+    },
+    "graph.linksOther" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} links"
+          }
+        }
+      }
+    },
+    "graph.notes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes in the graph"
+          }
+        }
+      }
+    },
+    "graph.notesOne" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} note"
+          }
+        }
+      }
+    },
+    "graph.notesOther" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} notes"
+          }
+        }
+      }
+    },
+    "graph.scope" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show"
+          }
+        }
+      }
+    },
+    "graph.thisNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Note"
+          }
+        }
+      }
+    },
+    "graph.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Graph"
           }
         }
       }
@@ -11870,6 +12057,17 @@
         }
       }
     },
+    "noteInfo.findingMentions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looking for mentions…"
+          }
+        }
+      }
+    },
     "noteInfo.hour" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11888,6 +12086,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Note info"
+          }
+        }
+      }
+    },
+    "noteInfo.linkMention" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link"
+          }
+        }
+      }
+    },
+    "noteInfo.linkMentionIn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link the mention in {note}"
+          }
+        }
+      }
+    },
+    "noteInfo.mentions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlinked Mentions"
           }
         }
       }
@@ -11921,6 +12152,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No notes link here yet"
+          }
+        }
+      }
+    },
+    "noteInfo.noMentions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No other note names this one"
           }
         }
       }

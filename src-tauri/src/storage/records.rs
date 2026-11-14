@@ -337,6 +337,22 @@ pub struct AgentWriteSummary {
 }
 
 /// What a list row reads from a note: its title and Markdown body, never its Yjs state.
+/// The link index between live notes, for the graph: each link as `[source, target]`, and the
+/// title of every note a link names.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkGraph {
+    pub notes: Vec<GraphNote>,
+    pub links: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphNote {
+    pub id: String,
+    pub title: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteBody {

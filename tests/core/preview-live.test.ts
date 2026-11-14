@@ -16,6 +16,7 @@ const options = { labels: {} as PreviewOptions['labels'], loadedEmbeds: [] }
 
 function setup(fail = false) {
   const asked: string[][] = []
+  const embedsAsked: string[][] = []
   const rendered: PreviewOptions[] = []
   let failures = 0
   let failing = fail
@@ -24,8 +25,9 @@ function setup(fail = false) {
       rendered.push(given)
       return [] as PreviewPiece[]
     },
-    linkTargets: async (ids) => {
+    linkTargets: async (ids, embeds) => {
       asked.push([...ids])
+      embedsAsked.push([...embeds])
       if (failing) throw new Error('E_TEST')
       return Object.fromEntries(ids.map((id) => [id, target(id)]))
     },
@@ -34,6 +36,7 @@ function setup(fail = false) {
   return {
     render: (markdown: string, scope = 'note 0') => render(markdown, options, [], scope),
     asked,
+    embedsAsked,
     rendered,
     failures: () => failures,
     recover: () => (failing = false),
@@ -61,6 +64,18 @@ describe('the live preview as the core renders it', () => {
     await s.render(`${one} [b](devot://note/${B})`)
     await s.render(one, 'note 1')
     expect(s.asked).toEqual([[A], [A, B], [A]])
+  })
+
+  it('asks for the bodies of the embedded notes only, and again when the embeds change', async () => {
+    const s = setup()
+    const linked = `[a](devot://note/${A})`
+    await s.render(`${linked}\n\n![b](devot://note/${B})`)
+    await s.render(`${linked}\n\n[b](devot://note/${B})`)
+    expect(s.asked).toEqual([
+      [A, B],
+      [A, B],
+    ])
+    expect(s.embedsAsked).toEqual([[B], []])
   })
 
   it('asks for nothing without links, and renders with no targets', async () => {

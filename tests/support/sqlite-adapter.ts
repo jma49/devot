@@ -309,6 +309,15 @@ export const LIST_SQL = {
        AND (book_id IS NULL OR book_id <> @excludeBook)
        AND id IN (SELECT source_id FROM links WHERE target_id = @id)
      ORDER BY updated_at DESC, id DESC LIMIT @limit`,
+  /** The graph's links: the link index in its key's order, keeping links between two different live notes outside `@excludeBook`. */
+  linkGraph: `SELECT l.source_id, l.target_id FROM links l
+     JOIN notes s ON s.id = l.source_id
+     JOIN notes t ON t.id = l.target_id
+     WHERE l.source_id <> l.target_id
+       AND s.deleted_at IS NULL AND s.purged_at IS NULL AND (s.book_id IS NULL OR s.book_id <> @excludeBook)
+       AND t.deleted_at IS NULL AND t.purged_at IS NULL AND (t.book_id IS NULL OR t.book_id <> @excludeBook)
+     ORDER BY l.source_id, l.target_id LIMIT @limit`,
+  graphNotes: `SELECT id, title FROM notes WHERE id IN (SELECT value FROM json_each(@ids))`,
   /** Notes in the Trash (not purged), most recently deleted first. */
   trash: `SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes INDEXED BY notes_trash
      WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC, id DESC`,
@@ -730,6 +739,13 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const backlinks = db.prepare<[{ id: string; excludeBook: string; limit: number }], SummaryRow>(
     LIST_SQL.backlinks,
   )
+  const linkGraph = db.prepare<
+    [{ excludeBook: string; limit: number }],
+    { source_id: string; target_id: string }
+  >(LIST_SQL.linkGraph)
+  const graphNotes = db.prepare<[{ ids: string }], { id: string; title: string }>(
+    LIST_SQL.graphNotes,
+  )
   // Wipes the content and keeps the tombstone; a purge is final.
   const purge = db.prepare(
     `UPDATE notes SET title = '', title_hlc = MAX(title_hlc, @hlc), body_md = '', ydoc = x'',
@@ -1113,6 +1129,14 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     },
     listBacklinks: async (id, excludeBook, limit) =>
       backlinks.all({ id, excludeBook, limit }).map(toSummary),
+    async listLinkGraph(excludeBook, limit) {
+      const links = linkGraph
+        .all({ excludeBook, limit })
+        .map((row) => [row.source_id, row.target_id] as [string, string])
+      const ids = JSON.stringify([...new Set(links.flat())])
+      const notes = graphNotes.all({ ids }).sort((a, b) => (a.id < b.id ? -1 : 1))
+      return { notes, links }
+    },
     searchNotesInBooks: async (query, bookIds, limit) =>
       bookIds.length === 0
         ? []

@@ -2,8 +2,8 @@ use rusqlite::{OptionalExtension, params};
 
 use super::agent_writes::{AGENT_WRITES_KEEP_SQL, AGENT_WRITES_PUT_SQL};
 use super::{
-    AgentWriteRow, NoteBody, NoteMeta, NoteRecord, NoteSummary, Result, StorageError, Store,
-    TrashedNote,
+    AgentWriteRow, GraphNote, LinkGraph, NoteBody, NoteMeta, NoteRecord, NoteSummary, Result,
+    StorageError, Store, TrashedNote,
 };
 
 /// The same statements as the TypeScript adapter's (tests/support/sqlite-adapter.ts, LIST_SQL; a test compares
@@ -30,6 +30,17 @@ pub(super) const BACKLINKS_SQL: &str = "SELECT id, title, created_at AS createdA
        AND (book_id IS NULL OR book_id <> @excludeBook)
        AND id IN (SELECT source_id FROM links WHERE target_id = @id)
      ORDER BY updated_at DESC, id DESC LIMIT @limit";
+/// The graph's links: the link index in its key's order, keeping links between two different live
+/// notes outside `@excludeBook`, each note found through its primary key.
+pub(super) const LINK_GRAPH_SQL: &str = "SELECT l.source_id, l.target_id FROM links l
+     JOIN notes s ON s.id = l.source_id
+     JOIN notes t ON t.id = l.target_id
+     WHERE l.source_id <> l.target_id
+       AND s.deleted_at IS NULL AND s.purged_at IS NULL AND (s.book_id IS NULL OR s.book_id <> @excludeBook)
+       AND t.deleted_at IS NULL AND t.purged_at IS NULL AND (t.book_id IS NULL OR t.book_id <> @excludeBook)
+     ORDER BY l.source_id, l.target_id LIMIT @limit";
+pub(super) const GRAPH_NOTES_SQL: &str =
+    "SELECT id, title FROM notes WHERE id IN (SELECT value FROM json_each(@ids))";
 pub(super) const TRASH_LIST_SQL: &str =
     "SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes INDEXED BY notes_trash
      WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC, id DESC";
@@ -377,6 +388,36 @@ impl Store {
             summary,
         )?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Links between live notes outside `exclude_book`, at most `limit`, and the titles of the
+    /// notes they name.
+    pub fn link_graph(&self, exclude_book: &str, limit: u32) -> Result<LinkGraph> {
+        let mut statement = self.conn.prepare_cached(LINK_GRAPH_SQL)?;
+        let links = statement
+            .query_map(
+                rusqlite::named_params! { "@excludeBook": exclude_book, "@limit": limit },
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut ids: Vec<&str> = links
+            .iter()
+            .flat_map(|(source, target)| [source.as_str(), target.as_str()])
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        let ids = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
+        let mut statement = self.conn.prepare_cached(GRAPH_NOTES_SQL)?;
+        let mut notes = statement
+            .query_map(rusqlite::named_params! { "@ids": ids }, |row| {
+                Ok(GraphNote {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        notes.sort_unstable_by(|a, b| a.id.cmp(&b.id));
+        Ok(LinkGraph { notes, links })
     }
 
     pub fn note_bodies(&self, ids: &[String]) -> Result<Vec<(String, String)>> {

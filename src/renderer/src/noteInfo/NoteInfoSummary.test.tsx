@@ -33,6 +33,12 @@ const core = {
   backlinks: vi.fn<(id: string) => Promise<{ id: string; title: string }[]>>(() =>
     Promise.resolve([{ id: 'b', title: 'Plan' }]),
   ),
+  mentions: vi.fn<(id: string) => Promise<{ id: string; title: string; excerpt: string }[]>>(() =>
+    Promise.resolve([{ id: 'm', title: 'Diary', excerpt: 'the plan' }]),
+  ),
+  linkMention: vi.fn<(source: string, target: string) => Promise<Uint8Array>>(() =>
+    Promise.resolve(new Uint8Array()),
+  ),
   headlines: () => Promise.resolve({}),
 } as unknown as Core
 
@@ -114,6 +120,42 @@ describe('the note summary', () => {
     act(() => summary.click())
     await settle()
     expect(vi.mocked(core.backlinks).mock.calls.length).toBe(asked + 1)
+  })
+
+  it('looks for unlinked mentions only while the card is open', async () => {
+    const summary = await show('Some words here')
+    expect(core.mentions).not.toHaveBeenCalled()
+    act(() => summary.click())
+    await settle()
+    expect(core.mentions).toHaveBeenCalledWith(info.noteId)
+    expect(document.querySelector('.note-info-mention')?.textContent).toContain('the plan')
+  })
+
+  it('links a mention only where notes can change, then asks for mentions and backlinks again', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    act(() =>
+      root!.render(
+        <NoteInfoSummary
+          core={core}
+          info={info}
+          markdown="x"
+          onOpenNote={() => {}}
+          canLinkMentions
+        />,
+      ),
+    )
+    await settle()
+    act(() => document.querySelector<HTMLButtonElement>('.note-summary')!.click())
+    await settle()
+    const mentions = vi.mocked(core.mentions).mock.calls.length
+    const backlinks = vi.mocked(core.backlinks).mock.calls.length
+    act(() => document.querySelector<HTMLButtonElement>('.note-info-mention-link')!.click())
+    await settle()
+    expect(core.linkMention).toHaveBeenCalledWith('m', info.noteId)
+    expect(vi.mocked(core.mentions).mock.calls.length).toBe(mentions + 1)
+    expect(vi.mocked(core.backlinks).mock.calls.length).toBe(backlinks + 1)
   })
 
   it('counts the note once a pause for itself and the counts footer', async () => {
