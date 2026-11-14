@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useReducer, useRef } from 'react'
 import { errorCode } from '../../core/errors'
 import { writeClipboardText } from './clipboard'
 import type { Core } from './core-client'
-import { sharedNotePage } from './exporter'
 import { fullDate } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 import {
@@ -183,7 +182,9 @@ export function ShareWebSheet(props: { core: Core; noteId: string; onClose: () =
     const work =
       task === 'stop'
         ? stopSharing(noteId).then(() => null)
-        : sharedNotePage(core, noteId).then((page) => publishShare(noteId, page, lifetime))
+        : import('./exporter')
+            .then(({ sharedNotePage }) => sharedNotePage(core, noteId))
+            .then((page) => publishShare(noteId, page, lifetime))
     work.then(
       (shared) => dispatch({ kind: 'done', request, shared }),
       (error: unknown) => dispatch({ kind: 'failed', request, code: errorCode(error) }),
