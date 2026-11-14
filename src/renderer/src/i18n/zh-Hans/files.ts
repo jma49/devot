@@ -267,6 +267,7 @@ title: 日报 {{date}}
   'import.reason.notUtf8': '不是 UTF-8 文本',
   'import.reason.notFound': '找不到文件',
   'import.reason.outside': '在导入的文件夹之外',
+  'import.reason.tag': '未添加标签：不是有效的标签名',
   'import.reason.type': '不是支持的图片格式',
   'import.reason.path': '隐藏文件或路径无效',
   'import.reason.unreadable': '无法读取',
