@@ -19,6 +19,7 @@ use crate::commands::notes::MAX_TITLE_CHARS;
 pub(crate) const MAX_CAPTURE_URL_LEN: usize = 256 * 1024;
 const MAX_SOURCE_URL_LEN: usize = 2048;
 /// A selection sent from the Services menu, in bytes, as large as the longest capture link.
+#[cfg(any(target_os = "macos", test))]
 pub(crate) const MAX_SELECTION_LEN: usize = MAX_CAPTURE_URL_LEN;
 /// Links that reached no window yet; one more is dropped.
 const MAX_WAITING: usize = 4;
@@ -135,6 +136,7 @@ fn body(text: &str, url: Option<String>) -> String {
 
 /// What another app sends through Services: its selected text, a URL, or both.
 /// A source that is not a web address is dropped rather than refused, since apps send file URLs too.
+#[cfg(any(target_os = "macos", test))]
 pub(crate) fn from_selection(
     text: Option<&str>,
     url: Option<&str>,
