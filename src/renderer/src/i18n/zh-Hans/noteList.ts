@@ -93,6 +93,7 @@ export const messages: Record<keyof typeof en, string> = {
   'batch.failedOther': '有 {count} 篇笔记无法更改。',
   'noteList.pinned': '已置顶',
   'noteList.others': '笔记',
+  'noteList.related': '意思相关',
   'sort.button': '排序笔记',
   'sort.current': '按{order}排序',
   'sort.relevance': '相关度',

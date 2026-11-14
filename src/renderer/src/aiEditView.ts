@@ -62,6 +62,23 @@ export function aiSuggestFailure(code: string): string {
   return format(t('aiSuggest.failed'), { reason })
 }
 
+const ASK_REASONS: Record<string, MessageKey> = {
+  ...REASONS,
+  E_AI_ACCESS_DENIED: 'askNotes.reason.access',
+  E_ASK_NO_SOURCES: 'askNotes.reason.noSources',
+  E_AI_REPLY_EMPTY: 'aiEdit.reason.empty',
+  E_AI_RESPONSE_INVALID: 'aiEdit.reason.empty',
+}
+
+/** Why Ask Your Notes has no answer, and whether asking again may help. */
+export function askFailure(code: string): { message: string; retry: boolean } {
+  const key = reasonKey(ASK_REASONS, code, 'askNotes.reason.other')
+  return {
+    message: key === 'askNotes.reason.other' ? withReason(t(key), code) : t(key),
+    retry: !SETTLED.has(code),
+  }
+}
+
 /** Unchanged lines shown around a change; longer runs fold to a count. */
 const CONTEXT = 2
 

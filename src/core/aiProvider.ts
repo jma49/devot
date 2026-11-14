@@ -35,6 +35,8 @@ export interface AiGenerated {
 /** Runs one request in Rust (the `ai_generate` command); resolves with what Rust answered, rejects with its error code. */
 export interface AiTransport {
   generate(input: AiGenerateInput): Promise<unknown>
+  /** As `generate`, with the answer's text handed to `onText` piece by piece as it arrives (`ai_stream`). */
+  stream?(input: AiGenerateInput, onText: (text: string) => void): Promise<unknown>
 }
 
 export interface AiTrigger {
@@ -45,8 +47,15 @@ export interface AiTrigger {
 }
 
 export interface AiGenerator {
-  /** E_AI_NOT_TRIGGERED, E_LICENCE_REQUIRED, E_AI_ACCESS_DENIED, a code from Rust, or E_AI_RESPONSE_INVALID. */
-  generate(input: AiGenerateInput, trigger: AiTrigger): Promise<AiGenerated>
+  /**
+   * E_AI_NOT_TRIGGERED, E_LICENCE_REQUIRED, E_AI_ACCESS_DENIED, a code from Rust, or E_AI_RESPONSE_INVALID.
+   * With `onText`, the answer streams where the transport can: each piece of its text as it comes.
+   */
+  generate(
+    input: AiGenerateInput,
+    trigger: AiTrigger,
+    onText?: (text: string) => void,
+  ): Promise<AiGenerated>
 }
 
 export interface AiGeneratorOptions {
@@ -89,14 +98,18 @@ export function allowedBookIds(books: readonly BookRecord[]): Set<string> {
 export function createAiGenerator(options: AiGeneratorOptions): AiGenerator {
   const { storage, transport, entitlements } = options
   return {
-    async generate(input, trigger) {
+    async generate(input, trigger, onText) {
       if ((trigger as { by?: unknown }).by !== 'user') throw new Error('E_AI_NOT_TRIGGERED')
       if (entitlements && !entitlements.has('aiProviders')) throw new Error('E_LICENCE_REQUIRED')
       if (trigger.books.length > 0) {
         const allowed = allowedBookIds(await storage.listBooks())
         if (!trigger.books.every((id) => allowed.has(id))) throw new Error('E_AI_ACCESS_DENIED')
       }
-      const generated = asAiGenerated(await transport.generate(input))
+      const answer =
+        onText && transport.stream
+          ? await transport.stream(input, onText)
+          : await transport.generate(input)
+      const generated = asAiGenerated(answer)
       if (!generated) throw new Error('E_AI_RESPONSE_INVALID')
       return generated
     },

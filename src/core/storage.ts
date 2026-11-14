@@ -5,6 +5,7 @@
 
 import type { AgentWriteRow } from './authorship'
 import type { FileCopy, FileMeta } from './files'
+import type { SemanticHit, SemanticQuery, SemanticStatus } from './semantic'
 import type { WelcomeSeed } from './welcome'
 
 export interface NoteRecord {
@@ -255,6 +256,13 @@ export interface StorageAdapter {
   getBodies(ids: readonly string[]): Promise<NoteBody[]>
   /** Live notes meeting every condition, best matches first, each with its excerpt; at most `limit`. */
   searchNotes(query: NoteQuery, limit: number): Promise<NoteSummary[]>
+  /**
+   * Live notes meeting `query.filter` whose passages read most like `query.text`, best first
+   * (semantic.ts). Rejects with E_SEMANTIC_UNAVAILABLE where the system has no sentence model;
+   * a store without the index leaves it out.
+   */
+  semanticSearch?(query: SemanticQuery): Promise<SemanticHit[]>
+  semanticStatus?(): Promise<SemanticStatus>
   /** Live notes outside `excludeBookId` whose body links to `id` (the link index), the note itself left out, most recently updated first (then by ID, descending); at most `limit` (MAX_BACKLINKS), without excerpts. */
   listBacklinks(id: string, excludeBookId: string, limit: number): Promise<NoteSummary[]>
   /** The link index between two different live notes outside `excludeBookId`, at most `limit` links in index order, with the title of each note they name. */

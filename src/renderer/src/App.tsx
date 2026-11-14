@@ -363,7 +363,13 @@ export function App() {
   const [editorCounts] = useState(() => countsStore())
   const outline = useOutline({ panesRef, mode, selected, focus, editorRef, previewPane })
   const authorshipShown = useEditorSetting('authorship')
-  const ai = useAiEdits({ core, selected, inTrash, applyToOpenNote })
+  const ai = useAiEdits({
+    core,
+    selected,
+    inTrash,
+    applyToOpenNote,
+    openNote: (id) => void select(id),
+  })
   useCliAppend(core, refresh, applyToOpenNote, dailySettings)
   const historyBar = useHistoryBar({
     core,
@@ -518,6 +524,7 @@ export function App() {
     changeLayout: listProps.changeLayout,
     startSearch: viewChanges.startSearch,
     saveSearch: savedSearch.saveSearch,
+    askNotes: ai.askNotes,
     showBackups,
     exportAll: exports.exportAll,
     rebuildIndex: searchIndex.rebuildIndex,

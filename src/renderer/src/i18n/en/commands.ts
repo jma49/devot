@@ -89,6 +89,7 @@ export const messages = {
   'command.pastePlainText': 'Paste as Plain Text',
   'command.pasteUrlAs': 'Paste URL As…',
   'command.aiSuggest': 'Suggest Next Edit',
+  'command.askNotes': 'Ask Your Notes\u2026',
   'command.focusNoteList': 'Focus Note List',
   'command.nextSidebarRow': 'Next Sidebar Row',
   'command.previousSidebarRow': 'Previous Sidebar Row',

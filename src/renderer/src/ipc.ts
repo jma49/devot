@@ -10,6 +10,9 @@
 import { invoke as tauriInvoke, type InvokeArgs, type InvokeOptions } from '@tauri-apps/api/core'
 import { errorCode } from '../../core/errors'
 
+/** What a command streams back to the page as it runs (a Rust `tauri::ipc::Channel` argument). */
+export { Channel } from '@tauri-apps/api/core'
+
 export async function invoke<T>(
   cmd: string,
   args?: InvokeArgs,

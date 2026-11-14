@@ -347,6 +347,16 @@ fn scan_clause(t: &TextCondition, ranked: bool, value: &str) -> String {
 /// order, so it stops once a page is full instead of reading every match's body (#48). Ties go to
 /// the newer note, then by ID.
 pub(super) fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
+    search_sql_within(query, limit, None)
+}
+
+/// `search_sql` among the notes `within` names alone, found through their IDs rather than the list
+/// index (`semantic`: a page of candidates, not every note).
+pub(super) fn search_sql_within(
+    query: &NoteQuery,
+    limit: u32,
+    within: Option<&[String]>,
+) -> (String, Vec<String>) {
     let mut values: Vec<String> = Vec::new();
     // Numbered parameters: the SQL is built out of order.
     let mut param = |value: String| {
@@ -389,6 +399,17 @@ pub(super) fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>)
             ),
         });
     }
+    let notes = match within {
+        Some(ids) => {
+            let json = serde_json::to_string(ids).unwrap_or_default();
+            clauses.push(format!(
+                "n.id IN (SELECT value FROM json_each({}))",
+                param(json)
+            ));
+            "notes n"
+        }
+        None => "notes n INDEXED BY notes_list",
+    };
     match query.pinned {
         Some(true) => clauses.push("n.pinned = 1".into()),
         Some(false) => clauses.push("n.pinned = 0".into()),
@@ -421,7 +442,7 @@ pub(super) fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>)
                 "{hits},
                  ranked AS MATERIALIZED (SELECT n.rowid AS rid, h.score, n.id, n.title, n.created_at,
                      n.updated_at, n.book_id, n.status, n.pinned, n.body_version
-                   FROM notes n INDEXED BY notes_list JOIN hits h ON h.rid = n.rowid
+                   FROM {notes} JOIN hits h ON h.rid = n.rowid
                    WHERE {}
                    ORDER BY h.score, n.updated_at DESC, n.id DESC)
                  {select} FROM ranked n",
@@ -432,17 +453,11 @@ pub(super) fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>)
         )
     } else if hits.is_empty() {
         clauses.extend(scans);
-        (
-            format!("{select} FROM notes n INDEXED BY notes_list"),
-            clauses,
-            "",
-        )
+        (format!("{select} FROM {notes}"), clauses, "")
     } else {
         clauses.extend(scans);
         (
-            format!(
-                "{hits} {select} FROM notes n INDEXED BY notes_list JOIN hits h ON h.rid = n.rowid"
-            ),
+            format!("{hits} {select} FROM {notes} JOIN hits h ON h.rid = n.rowid"),
             clauses,
             "h.score, ",
         )
