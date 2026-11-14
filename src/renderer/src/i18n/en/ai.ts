@@ -1,4 +1,4 @@
-export const prefixes = ['aiSettings', 'aiEdit', 'aiSuggest', 'aiAccess']
+export const prefixes = ['aiSettings', 'aiEdit', 'aiSuggest', 'aiAccess', 'askNotes']
 
 export const messages = {
   'aiAccess.title': 'Allow AI Access',
@@ -107,4 +107,27 @@ export const messages = {
   'aiSuggest.reason.none': 'The AI provider had nothing to add here.',
   'aiSuggest.reason.other': 'The suggestion could not be made.',
   'aiSuggest.live': 'Suggestion: {text}. Press Tab to accept it or Escape to dismiss it.',
+  'askNotes.title': 'Ask Your Notes',
+  'askNotes.questionLabel': 'Question',
+  'askNotes.detail':
+    'Answers come from notes in notebooks that allow AI access. The passages that fit your question best and the question itself are sent to the AI provider.',
+  'askNotes.ask': 'Ask',
+  'askNotes.asking': 'Reading your notes and waiting for the AI provider\u2026',
+  'askNotes.writing': 'Writing the answer\u2026',
+  'askNotes.answeredBy': 'Answered by {model} from your notes.',
+  'askNotes.answer': 'Answer',
+  'askNotes.cutOff': 'The answer was cut off for length.',
+  'askNotes.sources': 'Sources',
+  'askNotes.uncited': 'Also read',
+  'askNotes.openSource': 'Open {title}',
+  'askNotes.citation': 'Source {number}: {title}',
+  'askNotes.again': 'Ask Another',
+  'askNotes.retry': 'Try Again',
+  'askNotes.close': 'Close',
+  'askNotes.untitled': 'Untitled',
+  'askNotes.reason.access':
+    'No notebook allows AI access yet. Turn on Allow AI Access for the notebooks Ask Your Notes may read, from a notebook\u2019s context menu.',
+  'askNotes.reason.noSources':
+    'No note in the notebooks that allow AI access matches the question. Try other words.',
+  'askNotes.reason.other': 'The question could not be answered.',
 } as const

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-stream"
+description = "Enables the ai_stream command without any pre-configured scope."
+commands.allow = ["ai_stream"]
+
+[[permission]]
+identifier = "deny-ai-stream"
+description = "Denies the ai_stream command without any pre-configured scope."
+commands.deny = ["ai_stream"]

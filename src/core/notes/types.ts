@@ -162,6 +162,12 @@ export interface NoteService {
     scope?: SearchScope,
     options?: { flush?: boolean; shortInTitles?: boolean },
   ): Promise<SearchResult>
+  /**
+   * The notes whose passages read most like the query's words, best first, with what the query
+   * and scope keep, as `search` keeps it: Templates never, the Trash never. Empty when the query
+   * asks for too few words, or where semantic search is unavailable or not licensed.
+   */
+  searchByMeaning(query: string, scope?: SearchScope, limit?: number): Promise<NoteSummary[]>
   /** Pending edits are saved first; when the write fails it rejects and the note stays where it was. */
   trash(id: string): Promise<void>
   restore(id: string): Promise<void>

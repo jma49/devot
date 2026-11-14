@@ -62,6 +62,7 @@ export function useAppCommands({
   changeLayout,
   startSearch,
   saveSearch,
+  askNotes,
   showBackups,
   exportAll,
   rebuildIndex,
@@ -105,6 +106,7 @@ export function useAppCommands({
   changeLayout: (layout: ListLayout) => void
   startSearch: (where: 'all' | 'view') => void
   saveSearch: () => void
+  askNotes: () => void
   showBackups: () => void
   exportAll: (action: 'exportMarkdown' | 'exportHtml') => Promise<void>
   rebuildIndex: () => Promise<void>
@@ -181,6 +183,7 @@ export function useAppCommands({
       openPalette,
       startSearch,
       saveSearch,
+      askNotes,
       toggleFocus,
       toggleSidebar: toggleSidebarCommand,
       focusArea: (area) => requestFocus({ kind: 'area', area }),

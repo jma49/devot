@@ -473,7 +473,7 @@ const MAX_SEARCH_IDS: usize = 10_000;
 /// One more than the list shows (SEARCH_LIMIT in src/core/search.ts), so the core can tell a capped search.
 const MAX_SEARCH_LIMIT: u32 = 201;
 
-fn validate_query(query: &NoteQuery) -> Result<(), &'static str> {
+pub(crate) fn validate_query(query: &NoteQuery) -> Result<(), &'static str> {
     if query.text.len() + query.sets.len() > MAX_SEARCH_CONDITIONS {
         return Err("E_SEARCH_TERMS_INVALID");
     }

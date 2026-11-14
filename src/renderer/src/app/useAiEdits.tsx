@@ -4,22 +4,25 @@ import { createSuggester } from '../../../core/aiSuggest'
 import { aiTransport } from '../ai'
 import { AiEditSheet } from '../AiEditSheet'
 import { AiSuggestNotice } from '../AiSuggestNotice'
-import type { Core } from '../core-client'
+import { AskNotesSheet } from '../AskNotesSheet'
+import { storage, type Core } from '../core-client'
 import type { AiEditStart } from '../editor/aiMenu'
 import { licenceEntitlements } from '../licence'
 import { loadAiSettings } from '../settings/aiProviders'
 
-/** AI edits of the open note and next edit suggestions, each request through the notebooks' access rule. */
+/** AI edits of the open note, next edit suggestions and Ask Your Notes, each request through the notebooks' access rule. */
 export function useAiEdits({
   core,
   selected,
   inTrash,
   applyToOpenNote,
+  openNote,
 }: {
   core: Core | undefined
   selected: string | undefined
   inTrash: boolean
   applyToOpenNote: (noteId: string, update: Uint8Array) => void
+  openNote: (noteId: string) => void
 }) {
   // Every AI request goes through the access rule, with the notebooks as the core has them.
   const aiGenerator = useMemo(
@@ -48,10 +51,32 @@ export function useAiEdits({
   )
   const [suggestNotice, setSuggestNotice] = useState<string>()
   const [aiEditing, setAiEditing] = useState<{ noteId: string; start: AiEditStart }>()
+  const [asking, setAsking] = useState(false)
+  // The notebooks as the core has them; passages straight from storage, which keeps to them.
+  const askStorage = useMemo(
+    () =>
+      core && {
+        listBooks: () => core.listBooks(),
+        searchNotes: storage.searchNotes,
+        getBodies: storage.getBodies,
+        ...(storage.semanticSearch ? { semanticSearch: storage.semanticSearch } : {}),
+      },
+    [core],
+  )
   const notice = suggestNotice ? (
     <AiSuggestNotice code={suggestNotice} onDismiss={() => setSuggestNotice(undefined)} />
   ) : null
-  const sheet =
+  const askSheet =
+    askStorage && aiGenerator && asking ? (
+      <AskNotesSheet
+        storage={askStorage}
+        generator={aiGenerator}
+        onOpen={openNote}
+        onClose={() => setAsking(false)}
+        locked={!licenceEntitlements.has('aiProviders')}
+      />
+    ) : null
+  const editSheet =
     core && aiGenerator && aiEditing && aiEditing.noteId === selected && !inTrash ? (
       <AiEditSheet
         core={core}
@@ -63,5 +88,12 @@ export function useAiEdits({
         locked={!licenceEntitlements.has('aiProviders')}
       />
     ) : null
-  return { suggester, setSuggestNotice, setAiEditing, notice, sheet }
+  const sheet = (
+    <>
+      {editSheet}
+      {askSheet}
+    </>
+  )
+  const askNotes = () => setAsking(true)
+  return { suggester, setSuggestNotice, setAiEditing, askNotes, notice, sheet }
 }
