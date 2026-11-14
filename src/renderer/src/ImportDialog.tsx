@@ -17,6 +17,7 @@ import { errorCode } from '../../core/errors'
 import { bookOptions, filterBooks, firstBookMatch, NO_BOOK, type BookOption } from './BookPicker'
 import { countOf, fileSize, noteCount } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
+import type { ImportChoices } from './importChoices'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 import { useScanFound } from './importProgress'
@@ -78,11 +79,7 @@ function Problems(props: { problems: ImportProblem[]; title: MessageKey }) {
   )
 }
 
-export interface ImportChoices {
-  wikiLinks: boolean
-}
-
-function WikiLinksOption(props: { on: boolean; onChange: (on: boolean) => void }) {
+function ImportOption(props: { label: MessageKey; on: boolean; onChange: (on: boolean) => void }) {
   return (
     <label className="import-option">
       <input
@@ -90,7 +87,7 @@ function WikiLinksOption(props: { on: boolean; onChange: (on: boolean) => void }
         checked={props.on}
         onChange={(e) => props.onChange(e.target.checked)}
       />
-      {t('import.wikiLinks')}
+      {t(props.label)}
     </label>
   )
 }
@@ -315,6 +312,13 @@ export function ImportDialog(props: {
   )
   const [query, setQuery] = useState('')
   const [wikiLinks, setWikiLinks] = useState(true)
+  const [conventions, setConventions] = useState(false)
+  const options = (
+    <>
+      <ImportOption label="import.wikiLinks" on={wikiLinks} onChange={setWikiLinks} />
+      <ImportOption label="import.conventions" on={conventions} onChange={setConventions} />
+    </>
+  )
   const all = useMemo(() => destinationOptions(props.tree), [props.tree])
   // Import goes only into a destination the filter shows.
   const chosenShown = filterBooks(all, query).some((o) => o.id === destination)
@@ -367,7 +371,7 @@ export function ImportDialog(props: {
       setStage((s) =>
         s.kind === 'done' || s.kind === 'failed' ? s : { kind: 'running', done, total },
       )
-    props.onImport(from, chosen, progress, { wikiLinks }).then(
+    props.onImport(from, chosen, progress, { wikiLinks, conventions }).then(
       (report) => setStage({ kind: 'done', report }),
       (e: unknown) =>
         setStage({
@@ -440,7 +444,7 @@ export function ImportDialog(props: {
       content = (
         <>
           <Preview scan={scan} locale={locale} />
-          {preset ? <WikiLinksOption on={wikiLinks} onChange={setWikiLinks} /> : null}
+          {preset ? options : null}
         </>
       )
       actions = (
@@ -478,7 +482,7 @@ export function ImportDialog(props: {
           onChange={setDestination}
           onSubmit={start}
         />
-        <WikiLinksOption on={wikiLinks} onChange={setWikiLinks} />
+        {options}
         {scan.kind === 'files' ? (
           <Problems problems={scan.skipped} title="import.willSkip" />
         ) : null}

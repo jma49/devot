@@ -252,6 +252,7 @@ title: 日报 {{date}}
   'import.imagesOne': '{count} 张图片已作为附件添加。',
   'import.imagesOther': '{count} 张图片已作为附件添加。',
   'import.wikiLinks': '将 [[维基链接]] 转换为笔记链接和图片',
+  'import.conventions': '从 front matter 和 #标签读取标签，并把 callout 转换为提示块',
   'import.unresolvedLinksOne': '{count} 个维基链接没有匹配到笔记或图片，已保留为文字。',
   'import.unresolvedLinksOther': '{count} 个维基链接没有匹配到笔记或图片，已保留为文字。',
   'import.empty': '在“{name}”中没有找到 Markdown 文件。',

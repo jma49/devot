@@ -8,6 +8,7 @@ import { invoke } from './ipc'
 import * as Comlink from 'comlink'
 import type { ImportReport, ImportScan, ImportSource } from '../../core'
 import type { Core } from './core-client'
+import { DEFAULT_CHOICES, type ImportChoices } from './importChoices'
 
 export const IMPORT_SCANNING = 'devot:import-scanning'
 export const IMPORT_PROGRESS = 'devot:import-progress'
@@ -36,7 +37,7 @@ export async function runImport(
   scan: ImportScan,
   destination: string | null,
   onProgress: (done: number, total: number) => void,
-  wikiLinks = true,
+  choices: ImportChoices = DEFAULT_CHOICES,
 ): Promise<ImportReport | null> {
   const source: ImportSource = {
     read: (path) => invoke<string>('import_read', { id: scan.id, path }),
@@ -55,7 +56,7 @@ export async function runImport(
       destination,
       Comlink.proxy(source),
       Comlink.proxy(onProgress),
-      wikiLinks,
+      choices,
     )
   } finally {
     await finishImport(scan.id)

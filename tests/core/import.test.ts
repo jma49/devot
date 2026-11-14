@@ -304,9 +304,14 @@ describe('Markdown folder import', () => {
     })
   })
 
-  it('reads nothing from foreign front matter and keeps it in the note as written', async () => {
+  it('reads nothing from foreign front matter unless asked, and keeps it as written', async () => {
     const { sqlite, services } = await setup()
-    await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
+    await importMarkdown({
+      ...services,
+      scan: scanOf(SAMPLE),
+      source: sourceFor(sqlite).source,
+      conventions: false,
+    })
     expect(await sqlite.listTags()).toEqual([])
     const plan = await noteByTitle(sqlite, 'Plan heading')
     expect(plan.summary.tagIds).toEqual([])
@@ -337,6 +342,7 @@ describe('Markdown folder import', () => {
       ...services,
       scan: scanOf(files),
       source: sourceFor(sqlite, files).source,
+      conventions: false,
     })
     const tags = new Map((await sqlite.listTags()).map((t) => [t.id, t.name]))
     const plan = await noteByTitle(sqlite, 'Launch plan')
@@ -346,6 +352,46 @@ describe('Markdown folder import', () => {
     const twice = await noteByTitle(sqlite, 'Twice')
     expect(twice.summary.tagIds).toEqual([])
     expect([...tags.values()].sort()).toEqual(['#later', 'work'])
+  })
+
+  it("reads tags and other names from a note's own front matter and #tags in its text", async () => {
+    const { sqlite, services } = await setup()
+    const files = {
+      'Plan.md':
+        '---\ntags: [work, "#area/home"]\naliases: [Roadmap]\nauthor: me\n---\n# Plan\n\nDue #soon, see #42.\n',
+      'Inbox.md': '# Inbox\n\nRead [[Roadmap]] and [[Roadmap|the plan]].\n',
+    }
+    const report = await importMarkdown({
+      ...services,
+      scan: scanOf(files),
+      source: sourceFor(sqlite, files).source,
+      conventions: true,
+    })
+    expect(report).toMatchObject({ notes: 2, links: 2, unresolvedLinks: 0 })
+    const tags = new Map((await sqlite.listTags()).map((t) => [t.id, t.name]))
+    const plan = await noteByTitle(sqlite, 'Plan')
+    expect(plan.summary.tagIds.map((id) => tags.get(id)).sort()).toEqual([
+      'area/home',
+      'soon',
+      'work',
+    ])
+    expect(plan.record.bodyMd).toBe('---\nauthor: me\n---\n# Plan\n\nDue #soon, see #42.\n')
+    const inbox = await noteByTitle(sqlite, 'Inbox')
+    expect(inbox.record.bodyMd).toContain(`(devot://note/${plan.summary.id})`)
+  })
+
+  it('turns callouts into alerts, the title onto a bold line', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'Tips.md': '# Tips\n\n> [!hint]- Shortcut\n> Press the keys.\n' }
+    await importMarkdown({
+      ...services,
+      scan: scanOf(files),
+      source: sourceFor(sqlite, files).source,
+      conventions: true,
+    })
+    expect((await noteByTitle(sqlite, 'Tips')).record.bodyMd).toBe(
+      '# Tips\n\n> [!TIP]\n> **Shortcut**\n> Press the keys.\n',
+    )
   })
 
   it('stores images an HTML page embeds and lists what it could not keep', async () => {
@@ -524,7 +570,13 @@ describe('Markdown folder import', () => {
   it('keeps the source text: only image destinations change, and they map back', async () => {
     const { sqlite, services } = await setup()
     const { source, attached } = sourceFor(sqlite)
-    await importMarkdown({ ...services, scan: scanOf(SAMPLE), source, wikiLinks: false })
+    await importMarkdown({
+      ...services,
+      scan: scanOf(SAMPLE),
+      source,
+      wikiLinks: false,
+      conventions: false,
+    })
     for (const [path, title] of Object.entries(TITLES)) {
       // Line breaks are the one other change (see the next test).
       const original = lineFeeds(SAMPLE[path]!)
@@ -1024,9 +1076,9 @@ describe('import preview', () => {
     const here = preparerHere(services.newId)
     const asked: string[] = []
     const prepare: ImportPreparer = {
-      file: (raw, path, withImages) => {
+      file: (raw, path, withImages, conventions) => {
         asked.push(`file ${path} ${withImages}`)
-        return here.file(raw, path, withImages)
+        return here.file(raw, path, withImages, conventions)
       },
       links: (text) => {
         asked.push(`links ${text}`)
@@ -1068,10 +1120,10 @@ describe('import preview', () => {
       source: sourceFor(sqlite, files).source,
       prepare: {
         ...here,
-        file: (raw, path, withImages) =>
+        file: (raw, path, withImages, conventions) =>
           path === 'a.md'
             ? Promise.reject(new Error('E_IMPORT_FAILED'))
-            : here.file(raw, path, withImages),
+            : here.file(raw, path, withImages, conventions),
       },
     })
     expect(report.problems).toEqual([{ path: 'a.md', code: 'E_IMPORT_FAILED' }])

@@ -41,7 +41,10 @@ import { clipTitle, MAX_TITLE_CHARS } from './noteLimits'
 import type { NoteService } from './notes'
 import type { StorageAdapter } from './storage'
 import type { TagService } from './tags'
-import { lineFeeds, replaceRanges, type TextEdit } from './text'
+import { charCount, lineFeeds, replaceRanges, type TextEdit } from './text'
+import { calloutsAsAlerts } from './importCallouts'
+import { bodyTags, noteTags } from './importTags'
+import { MAX_TAG_NAME_CHARS } from './tagNames'
 import { noteLink } from './links'
 import {
   embeddedImage,
@@ -133,12 +136,16 @@ export interface ImportOptions {
   prepare?: ImportPreparer
   /** False keeps wiki-style links as written; on when left out. */
   wikiLinks?: boolean
+  /** True reads tags and other names from a note's own front matter and `#tags` in its text, and turns callouts into alerts; off when left out, so an export imports back as it was. */
+  conventions?: boolean
 }
 
 /** What a file becomes before anything is written: all the parsing an import does. */
 export interface PreparedImport {
   title: string
   meta: FrontMatterMeta
+  /** Other names the note's front matter gives it, which wiki links may use. */
+  aliases: string[]
   /** The body as stored, before its image links are rewritten. */
   text: string
   images: ImageLinks
@@ -157,7 +164,12 @@ export interface ImageLinks extends FoundImages {
 }
 
 export interface ImportPreparer {
-  file(raw: string, path: string, withImages: boolean): Promise<PreparedImport>
+  file(
+    raw: string,
+    path: string,
+    withImages: boolean,
+    conventions: boolean,
+  ): Promise<PreparedImport>
   links(text: string): Promise<ImageLinks>
 }
 
@@ -467,19 +479,40 @@ export function imageLinks(markdown: string): ImageLink[] {
 }
 
 /** Embedded images take their IDs from `newId`; without it they are left out. */
-export function prepareImportFile(raw: string, path: string, newId?: () => string): PreparedImport {
+export function prepareImportFile(
+  raw: string,
+  path: string,
+  newId?: () => string,
+  conventions = false,
+): PreparedImport {
   const source = lineFeeds(raw)
   const html = isHtmlFile(path) ? htmlToMarkdown(source, newId) : null
   const own = ownMeta(html ? html.markdown : source)
-  const tree = parseMarkdown(own.body)
+  const read = conventions && !html ? withConventions(own.body, own.meta) : null
+  const text = read?.text ?? own.body
+  const tree = parseMarkdown(text)
   return {
     title: own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path)),
-    meta: own.meta,
-    text: own.body,
-    images: { ...imagesOf(tree, own.body), wiki: wikiLinksOf(tree, own.body) },
+    meta: read?.meta ?? own.meta,
+    aliases: read?.aliases ?? [],
+    text,
+    images: { ...imagesOf(tree, text), wiki: wikiLinksOf(tree, text) },
     embedded: html?.images ?? [],
     dropped: html?.dropped ?? [],
   }
+}
+
+function withConventions(body: string, meta: FrontMatterMeta) {
+  const found = noteTags(body)
+  const text = calloutsAsAlerts(found.body)
+  const seen = new Set<string>()
+  const tags = [...meta.tags, ...found.tags, ...bodyTags(text)].filter((tag) => {
+    const key = tag.toLowerCase()
+    if (seen.has(key) || charCount(tag) > MAX_TAG_NAME_CHARS) return false
+    seen.add(key)
+    return true
+  })
+  return { text, meta: { ...meta, tags }, aliases: found.aliases }
 }
 
 export function imagesIn(text: string): ImageLinks {
@@ -488,8 +521,8 @@ export function imagesIn(text: string): ImageLinks {
 }
 
 export const preparerHere = (newId: () => string): ImportPreparer => ({
-  file: async (raw, path, withImages) =>
-    prepareImportFile(raw, path, withImages ? newId : undefined),
+  file: async (raw, path, withImages, conventions) =>
+    prepareImportFile(raw, path, withImages ? newId : undefined, conventions),
   links: async (text) => imagesIn(text),
 })
 
@@ -617,6 +650,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   let attachments = 0
   const noteIds: Record<string, string> = {}
   const convertLinks = options.wikiLinks !== false
+  const conventions = options.conventions === true
   const findImage = imageFinder(scan)
   const importedNotes: ImportedNote[] = []
   const linked: LinkedNote[] = []
@@ -642,7 +676,12 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     let stored = 0
     const found: ImportProblem[] = []
     try {
-      const prepared = await prepare.file(await source.read(path), path, store !== undefined)
+      const prepared = await prepare.file(
+        await source.read(path),
+        path,
+        store !== undefined,
+        conventions,
+      )
       const { meta } = prepared
       let { text, images } = prepared
       id = await notes.create(prepared.title, folder(noteFolder(scan.kind, path)))
@@ -742,7 +781,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       attachments += stored
       converted += embeds
       unresolved += missing
-      importedNotes.push({ path, id: noteId, title: prepared.title })
+      importedNotes.push({ path, id: noteId, title: prepared.title, aliases: prepared.aliases })
       if (pending.length > 0)
         linked.push({ path, id: noteId, text: body, links: shifted(pending, edits) })
       problems.push(...found)
@@ -852,6 +891,7 @@ interface ImportedNote {
   path: string
   id: string
   title: string
+  aliases: string[]
 }
 
 interface LinkedNote {
@@ -914,12 +954,14 @@ function imageFinder(scan: ImportScan) {
 function noteFinder(imported: ImportedNote[], kind: ImportKind, notes: NoteService) {
   const byFile = new Map<string, ImportedNote[]>()
   const byTitle = new Map<string, ImportedNote[]>()
+  const byAlias = new Map<string, ImportedNote[]>()
   const add = (map: Map<string, ImportedNote[]>, key: string, note: ImportedNote) => {
     if (key !== '') map.set(key, [...(map.get(key) ?? []), note])
   }
   for (const note of imported) {
     add(byFile, titleKey(baseName(note.path)), note)
     add(byTitle, titleKey(note.title), note)
+    for (const alias of note.aliases) add(byAlias, titleKey(alias), note)
   }
   let library: Promise<Map<string, string>> | undefined
   const libraryTitles = async () => {
@@ -932,7 +974,7 @@ function noteFinder(imported: ImportedNote[], kind: ImportKind, notes: NoteServi
   }
   return async (from: string, target: WikiTarget): Promise<string | null> => {
     const name = titleKey(target.name)
-    const named = byFile.get(name) ?? byTitle.get(name)
+    const named = byFile.get(name) ?? byTitle.get(name) ?? byAlias.get(name)
     if (named) return nearest(named, from, target, kind).id
     library ??= libraryTitles()
     return (await library).get(name) ?? null

@@ -69,6 +69,7 @@ import { starterTemplates } from './starterTemplates'
 import type { WireSync, WireTransport } from './storage/syncWire'
 import { fromBase64, fromWire, toBase64, type WireStorage } from './storage/wire'
 import { forwardWorkerLogs, type WorkerLogMessage } from './workerLog'
+import { DEFAULT_CHOICES, type ImportChoices } from './importChoices'
 
 // The worker's own warnings, errors and uncaught failures go to the page,
 // which writes them to the local log (see workerLog.ts).
@@ -387,7 +388,7 @@ const coreApi = {
     destination: string | null,
     source: ImportSource,
     onProgress: (done: number, total: number) => void,
-    wikiLinks = true,
+    { wikiLinks, conventions }: ImportChoices = DEFAULT_CHOICES,
   ) => {
     const ids = newId
     if (!ids) throw new Error('E_CORE_NOT_READY')
@@ -414,6 +415,7 @@ const coreApi = {
           stopped,
           prepare,
           wikiLinks,
+          conventions,
         }).finally(prepare.close)
       }),
     )
