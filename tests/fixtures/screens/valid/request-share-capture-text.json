@@ -1,0 +1,14 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 61,
+    "op": "share.capture",
+    "args": {
+      "id": "01890a5d-ac96-774b-bcce-b302099a8057",
+      "title": "",
+      "text": "just a thought",
+      "images": []
+    }
+  }
+}

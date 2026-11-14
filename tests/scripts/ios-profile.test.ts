@@ -22,7 +22,9 @@ function appStore(plist: string): string {
     .replace('<key>com.apple.developer.aps-environment</key>', '<key>aps-environment</key>')
     .replace(
       '\t\t<key>keychain-access-groups</key>',
-      '\t\t<key>beta-reports-active</key>\n\t\t<true/>\n\t\t<key>get-task-allow</key>\n\t\t<false/>\n\t\t<key>keychain-access-groups</key>',
+      '\t\t<key>beta-reports-active</key>\n\t\t<true/>\n\t\t<key>get-task-allow</key>\n\t\t<false/>\n' +
+        `\t\t<key>com.apple.security.application-groups</key>\n\t\t<array>\n\t\t\t<string>group.${BUNDLE}</string>\n\t\t</array>\n` +
+        '\t\t<key>keychain-access-groups</key>',
     )
 }
 

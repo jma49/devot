@@ -30,6 +30,11 @@ const ICLOUD = {
   'com.apple.developer.icloud-services': ['CloudKit'],
   'keychain-access-groups': [KEYCHAIN_GROUP],
 }
+const SHARE = 'src-tauri/gen/apple/devot_Share/devot_Share.entitlements'
+const INTENTS = 'src-tauri/gen/apple/devot_Intents/devot_Intents.entitlements'
+const WIDGET = 'src-tauri/gen/apple/devot_Widget/devot_Widget.entitlements'
+const IOS_LOCAL = 'src-tauri/gen/apple/devot_iOS/devot_iOS-local.entitlements'
+const APP_GROUP = { 'com.apple.security.application-groups': ['group.io.github.jma49.devot'] }
 
 describe('the entitlements', () => {
   it('give the Mac app exactly its App ID, team, CloudKit in Production, push and the keychain group', () => {
@@ -46,7 +51,30 @@ describe('the entitlements', () => {
   // profile's value when it exports for the App Store. With no container environment a
   // development-signed build uses Development; ExportOptions.plist asks for Production.
   it('give the iPhone app the same container, keychain group and push, in the environment its profile gives', () => {
-    expect(entitlements(IOS)).toEqual({ 'aps-environment': 'development', ...ICLOUD })
+    expect(entitlements(IOS)).toEqual({ 'aps-environment': 'development', ...ICLOUD, ...APP_GROUP })
+  })
+
+  // The Share Extension's inbox (docs/specs/share-extension.md) is the one thing the two share.
+  it('give the extensions the App Group alone, and the app the App Group in every build', () => {
+    expect(entitlements(SHARE)).toEqual(APP_GROUP)
+    expect(entitlements(INTENTS)).toEqual(APP_GROUP)
+    // The widget and Control only open the app, so they hold nothing, not even the inbox.
+    expect(entitlements(WIDGET)).toEqual({})
+    expect(entitlements(IOS_LOCAL)).toEqual(APP_GROUP)
+    expect(readFileSync(`${APPLE}/project.yml`, 'utf8')).toContain(
+      'DEVOT_ENTITLEMENTS_: devot_iOS/devot_iOS-local.entitlements',
+    )
+    const exporter = readFileSync('scripts/release/ios-export.sh', 'utf8')
+    expect(exporter).toContain(
+      'share) variable=APPLE_PROVISIONING_PROFILE_SHARE target=devot_Share ;;',
+    )
+    expect(exporter).toContain(
+      'intents) variable=APPLE_PROVISIONING_PROFILE_INTENTS target=devot_Intents ;;',
+    )
+    expect(exporter).toContain(
+      'widget) variable=APPLE_PROVISIONING_PROFILE_WIDGET target=devot_Widget ;;',
+    )
+    expect(exporter).toContain('src-tauri/gen/apple/$target/$target.entitlements')
   })
 
   it('reach the Mac app only through the signing script: the ad-hoc build carries none', () => {
@@ -83,7 +111,15 @@ describe("the iPhone app's iCloud switch", () => {
       'DEVOT_ENTITLEMENTS_YES = devot_iOS/devot_iOS.entitlements;',
     ])
       expect({ setting, count: project.split(setting).length - 1 }).toEqual({ setting, count: 2 })
-    expect(project.match(/CODE_SIGN_ENTITLEMENTS = /g)).toHaveLength(2)
+    // The app's two configurations, then each extension's, which carry no iCloud.
+    expect(project.match(/CODE_SIGN_ENTITLEMENTS = /g)).toHaveLength(8)
+    for (const target of ['devot_Share', 'devot_Intents', 'devot_Widget']) {
+      expect(
+        project.match(
+          new RegExp(`CODE_SIGN_ENTITLEMENTS = ${target}/${target}.entitlements;`, 'g'),
+        ),
+      ).toHaveLength(2)
+    }
 
     const spec = readFileSync(`${APPLE}/project.yml`, 'utf8')
     for (const setting of [

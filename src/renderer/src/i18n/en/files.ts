@@ -167,6 +167,9 @@ title: Daily Report {{date}}
   'mirror.folderLabel': 'Folder',
   'mirror.chooseFolder': 'Choose Folder\u2026',
   'mirror.turnOff': 'Turn Off',
+  'mirror.readBack': 'Bring Back Outside Edits',
+  'mirror.readBackHint':
+    'A file changed in another app goes back into its note. If the note changed in Devot too, Devot keeps its version and the file is kept under a new name.',
   'mirror.includeAttachments': 'Include Attachments',
   'mirror.includeAttachmentsHint':
     'Off, images still link to the attachments folder, but no copies are written there.',
@@ -282,6 +285,7 @@ title: Daily Report {{date}}
   'import.reason.notUtf8': 'Not UTF-8 text',
   'import.reason.notFound': 'File not found',
   'import.reason.outside': 'Outside the imported folder',
+  'import.reason.tag': 'Tag not added: not a valid tag name',
   'import.reason.type': 'Not a supported image format',
   'import.reason.path': 'Hidden or not a valid path',
   'import.reason.unreadable': 'Could not be read',

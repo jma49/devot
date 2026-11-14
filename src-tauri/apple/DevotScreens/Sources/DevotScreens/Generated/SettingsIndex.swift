@@ -72,6 +72,7 @@ enum SettingsIndex {
     Entry(pane: "preview", label: "previewSettings.syncScroll", only: .mac),
     Entry(pane: "preview", label: "previewSettings.remoteImages", only: nil),
     Entry(pane: "mirror", label: "mirror.folderLabel", only: nil),
+    Entry(pane: "mirror", label: "mirror.readBack", only: nil),
     Entry(pane: "mirror", label: "mirror.includeAttachments", only: nil),
     Entry(pane: "sync", label: "syncSettings.relay", only: nil),
     Entry(pane: "sync", label: "syncSettings.secret", only: nil),

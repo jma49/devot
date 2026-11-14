@@ -28,6 +28,7 @@ const REASONS: Record<string, MessageKey> = {
   E_FILE_NAME_INVALID: 'import.reason.name',
   E_IMPORT_FILE_TYPE: 'import.reason.fileType',
   E_IMPORT_CANCELLED: 'import.reason.cancelled',
+  E_IMPORT_TAG_INVALID: 'import.reason.tag',
   E_LICENCE_REQUIRED: 'import.reason.trialEnded',
   E_LICENCE_UNREADABLE: 'import.reason.licenceUnreadable',
 }

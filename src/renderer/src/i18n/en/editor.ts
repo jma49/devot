@@ -128,6 +128,8 @@ export const messages = {
   'counts.words': 'Words',
   'counts.characters': 'Characters',
   'counts.of': '{part} of {total}',
+  'counts.towardGoal': '{count} / {goal}',
+  'counts.goalTitle': 'Word goal: {goal}',
   'images.refusedOne': 'An image could not be added. {reasons}',
   'images.refusedOther': '{count} images could not be added. {reasons}',
   'images.reason.size': 'An image can be at most {size} MB, and not empty.',

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { CountsFooter, countsStore, countText } from './CountsFooter'
+import { CountsFooter, countsStore, countText, wordsText } from './CountsFooter'
 
 describe('the editor footer counts', () => {
   it('shows the note, with the selection as a part of it', () => {
@@ -16,6 +16,24 @@ describe('the editor footer counts', () => {
     )
     expect(html).toContain('Words 2 of 3')
     expect(html).toContain('Characters 6 of 11')
+  })
+
+  it('shows the words toward the note\u2019s goal, and the selection\u2019s part while one is selected', () => {
+    expect(wordsText({ words: 340, characters: 0, selection: null, goal: 1500 }, 'en')).toBe(
+      '340 / 1,500',
+    )
+    expect(
+      wordsText(
+        { words: 340, characters: 0, selection: { words: 12, characters: 50 }, goal: 1500 },
+        'en',
+      ),
+    ).toBe('12 of 340')
+    expect(wordsText({ words: 340, characters: 0, selection: null }, 'en')).toBe('340')
+    const html = renderToStaticMarkup(
+      <CountsFooter counts={{ words: 1600, characters: 9000, selection: null, goal: 1500 }} />,
+    )
+    expect(html).toContain('title="Word goal: 1,500"')
+    expect(html).toContain('Words 1,600 / 1,500')
   })
 
   it('keeps its line before the first count, so the panes do not move when it arrives', () => {

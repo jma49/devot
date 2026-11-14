@@ -108,7 +108,7 @@ describe('NOTE_MENU', () => {
       ['openWindow'],
       ['move', 'history'],
       ['duplicate', 'pin'],
-      ['copyLink', 'copyUri', 'copyId'],
+      ['copyLink', 'copyUri', 'copyId', 'shareWeb'],
       ['exportHtml', 'copyHtml', 'copySimpleHtml', 'exportMarkdown', 'exportPdf', 'print'],
       ['trash'],
     ])
@@ -117,7 +117,15 @@ describe('NOTE_MENU', () => {
         .flat()
         .filter((item) => !item.accelerator)
         .map((item) => item.action),
-    ).toEqual(['copyId', 'exportHtml', 'copyHtml', 'copySimpleHtml', 'exportMarkdown', 'exportPdf'])
+    ).toEqual([
+      'copyId',
+      'shareWeb',
+      'exportHtml',
+      'copyHtml',
+      'copySimpleHtml',
+      'exportMarkdown',
+      'exportPdf',
+    ])
     expect(NOTE_MENU.flat().find((item) => item.action === 'openWindow')?.accelerator).toBe(
       'Shift+Enter',
     )
@@ -195,6 +203,12 @@ describe('NOTE_MENU', () => {
 
   it('offers Remove Tag only when one of the notes has a tag', () => {
     expect(shown(target([ID, 'b'], { tagged: false }))[2]).toEqual(['status', 'addTag'])
+  })
+
+  it('shares one note on the web, never several or a template', () => {
+    expect(shown(target([ID])).flat()).toContain('shareWeb')
+    expect(shown(target([ID], { templates: true })).flat()).not.toContain('shareWeb')
+    expect(shown(target([ID, 'b'])).flat()).not.toContain('shareWeb')
   })
 
   it('opens one note in a window of its own, never a template', () => {

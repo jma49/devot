@@ -11,6 +11,9 @@ packages:
     path: ../../apple/DevotStore
   DevotScreens:
     path: ../../apple/DevotScreens
+  # The Share Extension's sheet and the inbox it leaves shares in (docs/specs/share-extension.md).
+  DevotShare:
+    path: ../../apple/DevotShare
 configs:
   debug: debug
   release: release
@@ -52,6 +55,7 @@ targets:
       path: devot_iOS/Info.plist
       properties:
         CADisableMinimumFrameDurationOnPhone: true
+        CFBundleLocalizations: [en, zh-Hans]
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
@@ -73,9 +77,11 @@ targets:
     settings:
       base:
         # DEVOT_ICLOUD=YES, set only by the build that ships, gives the build the iCloud entitlements
-        # and its container in Info.plist; without it the build has neither (docs/releasing.md).
+        # and its container in Info.plist; without it the build has neither (docs/releasing.md), only
+        # the App Group the Share Extension leaves shares in.
         CODE_SIGN_ENTITLEMENTS: $(DEVOT_ENTITLEMENTS_$(DEVOT_ICLOUD))
         DEVOT_ENTITLEMENTS_YES: devot_iOS/devot_iOS.entitlements
+        DEVOT_ENTITLEMENTS_: devot_iOS/devot_iOS-local.entitlements
         DEVOT_CLOUDKIT_CONTAINER: $(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))
         DEVOT_CLOUDKIT_CONTAINER_YES: iCloud.io.github.jma49.devot
         ENABLE_BITCODE: false
@@ -93,6 +99,15 @@ targets:
         embed: false
       - package: DevotStore
       - package: DevotScreens
+      - target: devot_Share
+        embed: true
+        codeSign: true
+      - target: devot_Intents
+        embed: true
+        codeSign: true
+      - target: devot_Widget
+        embed: true
+        codeSign: true
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework
@@ -108,3 +123,88 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+  # The Share Extension (docs/specs/share-extension.md): a compose sheet that leaves each share in
+  # the App Group's inbox. It opens no database and no key; the app makes the notes.
+  devot_Share:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: devot_Share
+    info:
+      path: devot_Share/Info.plist
+      properties:
+        CFBundleDisplayName: Devot
+        CFBundleLocalizations: [en, zh-Hans]
+        CFBundleShortVersionString: 1.0.0
+        CFBundleVersion: "1.0.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsImageWithMaxCount: 4
+    settings:
+      base:
+        PRODUCT_NAME: devot_Share
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.share
+        CODE_SIGN_ENTITLEMENTS: devot_Share/devot_Share.entitlements
+        TARGETED_DEVICE_FAMILY: 1
+        SKIP_INSTALL: true
+        APPLICATION_EXTENSION_API_ONLY: true
+    dependencies:
+      - package: DevotShare
+        product: DevotShare
+  # The Shortcuts actions (docs/specs/share-extension.md, Shortcuts): Add to Devot writes the same
+  # inbox the Share Extension does, so a Shortcut never starts the app in the background.
+  devot_Intents:
+    type: extensionkit-extension
+    platform: iOS
+    sources:
+      - path: devot_Intents
+    info:
+      path: devot_Intents/Info.plist
+      properties:
+        CFBundleDisplayName: Devot
+        CFBundleLocalizations: [en, zh-Hans]
+        CFBundleShortVersionString: 1.0.0
+        CFBundleVersion: "1.0.0"
+        EXAppExtensionAttributes:
+          EXExtensionPointIdentifier: com.apple.appintents-extension
+    settings:
+      base:
+        PRODUCT_NAME: devot_Intents
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.intents
+        CODE_SIGN_ENTITLEMENTS: devot_Intents/devot_Intents.entitlements
+        TARGETED_DEVICE_FAMILY: 1
+        SKIP_INSTALL: true
+        APPLICATION_EXTENSION_API_ONLY: true
+    dependencies:
+      - package: DevotShare
+        product: DevotShareInbox
+  # The Home Screen and Lock Screen widget and the Control Center control
+  # (docs/specs/share-extension.md, Widget and Control): each only opens today's note, so the
+  # extension reads nothing and holds no entitlement.
+  devot_Widget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: devot_Widget
+    info:
+      path: devot_Widget/Info.plist
+      properties:
+        CFBundleDisplayName: Devot
+        CFBundleLocalizations: [en, zh-Hans]
+        CFBundleShortVersionString: 1.0.0
+        CFBundleVersion: "1.0.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_NAME: devot_Widget
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.widget
+        CODE_SIGN_ENTITLEMENTS: devot_Widget/devot_Widget.entitlements
+        TARGETED_DEVICE_FAMILY: 1
+        SKIP_INSTALL: true
+        APPLICATION_EXTENSION_API_ONLY: true

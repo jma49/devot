@@ -43,6 +43,7 @@ export const SCREENS_OPS = [
   'note.addTag',
   'note.today',
   'activity.writing',
+  'share.capture',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
 

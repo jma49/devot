@@ -149,7 +149,7 @@ export interface FeedInput {
   signature: string
 }
 
-/** Apple Silicon is the only platform Devot ships for. */
+/** The one universal bundle serves both kinds of Mac, under the key each one's updater asks for. */
 export function updateFeed(input: FeedInput) {
   if (!/^https:\/\//.test(input.url)) throw new Error('E_RELEASE_FEED_URL_INVALID')
   const signature = input.signature.trim()
@@ -158,7 +158,10 @@ export function updateFeed(input: FeedInput) {
     version: input.version,
     notes: input.notes.trim(),
     pub_date: input.date.toISOString(),
-    platforms: { 'darwin-aarch64': { signature, url: input.url } },
+    platforms: {
+      'darwin-aarch64': { signature, url: input.url },
+      'darwin-x86_64': { signature, url: input.url },
+    },
   }
 }
 

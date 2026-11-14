@@ -20,12 +20,13 @@ vi.hoisted(() => Object.assign(globalThis, { DEVOT_UI_TEST: true }))
 const bridge = vi.hoisted(() => ({
   handlers: {} as ScreensHandlers,
   notices: [] as ScreensNotice[],
+  installed: null as Promise<boolean> | null,
 }))
 vi.mock('./bridge', () => ({
   startScreensBridge: (handlers: ScreensHandlers) => {
     bridge.handlers = handlers
     return {
-      installed: Promise.resolve(true),
+      installed: bridge.installed ?? Promise.resolve(true),
       notify: (notice: ScreensNotice) => bridge.notices.push(notice),
       stop: () => {},
     }
@@ -125,6 +126,7 @@ beforeEach(async () => {
   localStorage.clear()
   bridge.handlers = {}
   bridge.notices = []
+  bridge.installed = null
   editors.mounts = 0
   editors.shown = []
   editors.bodies.clear()
@@ -206,6 +208,26 @@ describe('the editor host under the native screens', () => {
     await swift('editor.show', { noteId: id })
     expect(editors.given).toStrictEqual([id])
     await expect(bridge.handlers['editor.prepare']!({})).rejects.toThrow('E_SCREENS_ARGS_INVALID')
+  })
+
+  // The bridge runs the requests Swift made before it attached at once, before the host mounts.
+  it('shows a note Swift asked for before the editor host mounted', async () => {
+    const id = await shell.notes.create('Plans', null)
+    let attach: (installed: boolean) => void = () => {}
+    bridge.installed = new Promise((resolve) => (attach = resolve))
+    await act(async () => root.render(<PhoneApp />))
+    await vi.waitFor(() => expect(bridge.handlers['editor.show']).toBeDefined())
+    expect(host.querySelector('.phone-editor-host')).toBeNull()
+    let shown: Promise<unknown> = Promise.resolve()
+    await act(async () => {
+      shown = bridge.handlers['editor.show']!({ noteId: id })
+      attach(true)
+    })
+    await act(async () => {
+      await shown
+    })
+    expect(editorHost().dataset['shown']).toBe('')
+    expect(noteScreen()?.getAttribute('aria-label')).toBe('Plans')
   })
 
   it('shows the note Swift names, without the web top bar, and swaps notes into one editor', async () => {

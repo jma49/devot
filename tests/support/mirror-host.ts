@@ -155,6 +155,7 @@ export interface FolderHost extends MirrorHost {
   manifest(): MirrorManifest
   setFolder(root: string | null): void
   setIncludeAttachments(on: boolean): void
+  setReadBack(on: boolean): void
   paused(): string | null
   size(): number
   /** Runs once, right after the next note file moves (a test makes the rewrite fail there). */
@@ -164,6 +165,7 @@ export interface FolderHost extends MirrorHost {
 export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHost {
   let folder = root
   let include = true
+  let readBack = false
   let generation = 1
   let manifest: MirrorManifest | null = null
   // The manifest changed but could not be written back.
@@ -398,7 +400,11 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         if (from !== null && from === op.path) {
           if (fromState === sha256) return record(lstat(abs(op.path))!.size)
           if (op.text === undefined) {
-            return { code: 'E_MIRROR_CHANGED', path: op.path, state: fromState }
+            return {
+              code: 'E_MIRROR_CHANGED',
+              path: op.path,
+              state: fromState,
+            }
           }
           writeFile(op.path, op.text, 'replace', sha256)
           log.written.push(op.path)
@@ -420,7 +426,11 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         // Without the text only a file that holds it already can go there; checked before anything changes.
         const holdsIt = adopt || (from !== null && fromState === sha256)
         if (op.text === undefined && !holdsIt) {
-          return { code: 'E_MIRROR_CHANGED', path: op.from ?? op.path, state: fromState }
+          return {
+            code: 'E_MIRROR_CHANGED',
+            path: op.from ?? op.path,
+            state: fromState,
+          }
         }
         const blocked = makeFolders(op.path)
         if (blocked) return blocked
@@ -461,7 +471,12 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
           size: lstat(abs(op.path))!.size,
         }
         if (op.text === undefined) {
-          return { code: 'E_MIRROR_CHANGED', path: op.path, state: null, moved: true }
+          return {
+            code: 'E_MIRROR_CHANGED',
+            path: op.path,
+            state: null,
+            moved: true,
+          }
         }
         const hook = host.afterMove
         host.afterMove = undefined
@@ -515,6 +530,15 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         else if (!plain(op.path)) return { code: 'E_MIRROR_OP_INVALID' }
         else m.books[op.id] = op.path
         return {}
+      case 'take': {
+        const entry = m.notes[op.id]
+        if (!entry || entry.path !== op.path) return { code: 'E_MIRROR_STALE' }
+        const now = state(op.path)
+        if (now !== op.sha256) return { code: 'E_MIRROR_CHANGED', path: op.path, state: now }
+        const size = lstat(abs(op.path))!.size
+        m.notes[op.id] = { ...entry, sha256: op.sha256, size }
+        return { size }
+      }
     }
   }
 
@@ -539,6 +563,10 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
     },
     setIncludeAttachments(on) {
       include = on
+      generation += 1
+    },
+    setReadBack(on) {
+      readBack = on
       generation += 1
     },
     paused: () => paused,
@@ -588,7 +616,11 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         } else {
           try {
             const read = JSON.parse(text) as MirrorManifest
-            manifest = { notes: read.notes, files: read.files, books: read.books }
+            manifest = {
+              notes: read.notes,
+              files: read.files,
+              books: read.books,
+            }
           } catch {
             throw pause('E_MIRROR_MANIFEST_INVALID')
           }
@@ -615,6 +647,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
       return {
         generation,
         includeAttachments: include,
+        readBack,
         manifest: known === generation ? null : clone(manifest),
       }
     },
@@ -664,6 +697,28 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         out[path] = state(path)
       }
       return out
+    },
+
+    async read(gen, ids) {
+      if (gen !== generation || manifest === null) throw fail('E_MIRROR_STALE')
+      return ids.map((id) => {
+        const entry = manifest!.notes[id]
+        if (!entry) return { id, code: 'E_MIRROR_STALE' }
+        const at = state(entry.path)
+        if (at === null || at === 'dir' || at === 'other') return { id, code: 'E_MIRROR_CHANGED' }
+        const data = readFileSync(abs(entry.path))
+        const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
+        try {
+          return {
+            id,
+            path: entry.path,
+            sha256: hash(data),
+            text: text.decode(data),
+          }
+        } catch {
+          return { id, code: 'E_MIRROR_READ_INVALID' }
+        }
+      })
     },
 
     async apply(gen, ops) {

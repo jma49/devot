@@ -10,6 +10,16 @@ export function countText(whole: number, selected: number | undefined, locale: s
   return format(t('counts.of'), { part: formatNumber(selected, locale), total })
 }
 
+/** `340 / 1,500` toward the note's word goal; a selection shows its own part instead. */
+export function wordsText(counts: EditorCounts, locale: string): string {
+  const { selection, goal } = counts
+  if (selection || goal === undefined) return countText(counts.words, selection?.words, locale)
+  return format(t('counts.towardGoal'), {
+    count: formatNumber(counts.words, locale),
+    goal: formatNumber(goal, locale),
+  })
+}
+
 export function CountsFooter(props: { counts: EditorCounts | null }) {
   const { counts } = props
   if (!counts) return <p className="editor-counts" />
@@ -17,8 +27,14 @@ export function CountsFooter(props: { counts: EditorCounts | null }) {
   const { selection } = counts
   return (
     <p className="editor-counts">
-      <span>
-        {t('counts.words')} {countText(counts.words, selection?.words, locale)}
+      <span
+        title={
+          counts.goal === undefined
+            ? undefined
+            : format(t('counts.goalTitle'), { goal: formatNumber(counts.goal, locale) })
+        }
+      >
+        {t('counts.words')} {wordsText(counts, locale)}
       </span>
       <span>
         {t('counts.characters')} {countText(counts.characters, selection?.characters, locale)}

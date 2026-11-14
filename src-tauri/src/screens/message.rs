@@ -36,6 +36,10 @@ const MAX_INSET_SECONDS: f64 = 2.0;
 const MAX_CURVE: u64 = 7;
 /// What a new note's hidden field took before the page put the caret in its body: a few words.
 const MAX_TYPED_CHARS: usize = 1_000;
+/// The Share Extension's limits (docs/specs/share-extension.md), which its inbox file holds to.
+pub const MAX_SHARE_TEXT_CHARS: usize = 100_000;
+pub const MAX_SHARE_URL_CHARS: usize = 2_048;
+pub const MAX_SHARE_IMAGES: usize = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -84,6 +88,26 @@ pub struct NoteCreate {
     pub book_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+}
+
+/// A file the Share Extension left in the inbox: `id` names the file, so a share sent twice is made once.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShareCapture {
+    pub id: String,
+    pub title: String,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    pub images: Vec<SharedImage>,
+}
+
+/// `data` is the image's bytes in standard base64.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SharedImage {
+    pub name: String,
+    pub data: String,
 }
 
 /// The iPhone's Glass Transparency: -100 is solid, 0 the design, 100 the clearest, in steps of 5.
@@ -395,6 +419,9 @@ pub enum Op {
     /// The Activity tab's figures: the last weeks' writing and the most edited notes.
     #[serde(rename = "activity.writing")]
     ActivityWriting(Empty),
+    /// A share from another app, drained from the Share Extension's inbox into a new note.
+    #[serde(rename = "share.capture")]
+    ShareCapture(ShareCapture),
 }
 
 pub const OPS: &[&str] = &[
@@ -432,6 +459,7 @@ pub const OPS: &[&str] = &[
     "note.addTag",
     "note.today",
     "activity.writing",
+    "share.capture",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -959,6 +987,7 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             }
             Ok(())
         }
+        Op::ShareCapture(share) => shared(share),
         Op::GlassSet(GlassSet { transparency }) => {
             if !(-GLASS_TRANSPARENCY_MAX..=GLASS_TRANSPARENCY_MAX).contains(transparency)
                 || transparency % GLASS_TRANSPARENCY_STEP != 0
@@ -979,6 +1008,48 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
         | Op::NoteToday(_)
         | Op::ActivityWriting(_) => Ok(()),
     }
+}
+
+fn shared(share: &ShareCapture) -> Result<(), &'static str> {
+    note_ids(std::slice::from_ref(&share.id), 1)?;
+    title(&share.title)?;
+    if share.text.chars().count() > MAX_SHARE_TEXT_CHARS {
+        return Err("E_SCREENS_TEXT_TOO_LONG");
+    }
+    if let Some(url) = &share.url {
+        let web = url.starts_with("https://") || url.starts_with("http://");
+        if !web
+            || url.chars().count() > MAX_SHARE_URL_CHARS
+            || url.chars().any(|c| c.is_control() || c.is_whitespace())
+        {
+            return Err("E_SCREENS_URL_INVALID");
+        }
+    }
+    if share.images.len() > MAX_SHARE_IMAGES {
+        return Err("E_SCREENS_IMAGES_TOO_MANY");
+    }
+    share.images.iter().try_for_each(shared_image)
+}
+
+/// The checks `file_put` makes, so the page is never handed bytes storage would refuse.
+fn shared_image(image: &SharedImage) -> Result<(), &'static str> {
+    use base64::Engine as _;
+    if image.name.is_empty()
+        || image.name.chars().count() > crate::commands::files::MAX_NAME_CHARS
+        || image.name.chars().any(char::is_control)
+    {
+        return Err("E_SCREENS_FILE_INVALID");
+    }
+    let data = base64::engine::general_purpose::STANDARD
+        .decode(&image.data)
+        .map_err(|_| "E_SCREENS_FILE_INVALID")?;
+    if data.is_empty()
+        || data.len() > crate::commands::files::MAX_FILE_BYTES
+        || crate::commands::files::detect_image(&data).is_none()
+    {
+        return Err("E_SCREENS_FILE_INVALID");
+    }
+    Ok(())
 }
 
 fn change(change: &Change) -> Result<(), &'static str> {
@@ -1174,6 +1245,28 @@ mod tests {
                 .expect("an invalid fixture names its code");
             assert_eq!(passed_on(&fixture), Err(code), "{}", fixture.name);
         }
+    }
+
+    fn share(text: &str, images: usize) -> Vec<u8> {
+        let image = json!({ "name": "a.png", "data": "iVBORw0KGgoAAAANSUhEUg==" });
+        bytes(&json!({
+            "v": 1, "id": 1, "op": "share.capture",
+            "args": { "id": NOTE, "title": "", "text": text, "images": vec![image; images] }
+        }))
+    }
+
+    #[test]
+    fn takes_a_share_up_to_its_limits() {
+        let longest = "\u{e9}".repeat(MAX_SHARE_TEXT_CHARS);
+        assert!(from_swift(1, &share(&longest, MAX_SHARE_IMAGES)).is_ok());
+        assert_eq!(
+            from_swift(1, &share(&format!("{longest}a"), 0)),
+            Err("E_SCREENS_TEXT_TOO_LONG")
+        );
+        assert_eq!(
+            from_swift(1, &share("", MAX_SHARE_IMAGES + 1)),
+            Err("E_SCREENS_IMAGES_TOO_MANY")
+        );
     }
 
     fn ping(id: u64) -> Vec<u8> {

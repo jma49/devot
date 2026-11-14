@@ -121,26 +121,27 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 3. Reads taken from a body or from pending edits go through the core: excerpts, headlines, previews and search parsing.
 4. Domains Rust owns already are read and written from Swift through Rust, and Rust's change events keep the editor in step with a change made in native Settings.
 
-| Operation                                                                   | Path                                  | Function or core call                                                           |
-| --------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------- |
-| Note list rows (title, dates, notebook, status, pinned, tags, body version) | Rust-direct                           | the note list page and summaries reads                                          |
-| Notebooks, tags, saved searches, the Trash list                             | Rust-direct                           | the books, tags, saved searches and Trash list reads                            |
-| Row excerpts, for visible rows only, at most 60 IDs a call                  | core                                  | `excerpts(ids)`, cached in Swift by note ID and body version                    |
-| Search                                                                      | core                                  | `search(query, scope, { flush: true })`: the core parses and Rust's search runs |
-| New Note                                                                    | core                                  | `create(title, bookId)`, then the editor opens it                               |
-| Today's note, templates, duplicate                                          | core                                  | `openTodaysNote`, `applyTemplate`, `duplicate`                                  |
-| Pin, status with undo, notebook, dates                                      | core                                  | `setPinned`, `setStatusUndoable` and `undoStatus`, `setBook`, `setNoteDates`    |
-| A note's tags; renaming, colouring and deleting a tag                       | core                                  | `addTag`, `removeTag`, `renameTag`, `setTagColor`, `deleteTag`                  |
-| Notebooks: create, rename, move, icon, AI access, remove                    | core                                  | the core's book calls and `setBookAiAccess`                                     |
-| Trash, restore, purge, empty                                                | core                                  | `trash`, `restore`, `purge`, `emptyTrash`                                       |
-| Several notes at once                                                       | core                                  | `batch(ids, change)`                                                            |
-| Activity's heatmap, week figures and most edited notes                      | core                                  | `writing(now)`, which also builds the Mac's Activity                            |
-| History, AI edits, import, export                                           | core, drawn in the page until stage 4 | as today                                                                        |
-| Licence state and the gate                                                  | Rust-direct                           | `direct.licence.*`, the bodies of the `licence_*` commands                      |
-| Purchases, restoring them, the Mac key                                      | Rust-direct                           | `direct.store.*`; StoreKit's own sheet takes the payment                        |
-| Sync settings, pairing, devices, iCloud                                     | Rust-direct                           | `direct.sync.*`, the bodies of the `sync_*` commands Settings calls             |
-| Editor settings, themes, fonts, AI providers, crash reports                 | Rust-direct                           | `direct.editorSettings.*`, `.fonts.list`, `.ai.*`, `.crashReports.*`            |
-| Glass Transparency (this iPhone's own)                                      | Swift's `UserDefaults`                | `devot.phone.glassTransparency`; the page's old value moves over once           |
+| Operation                                                                   | Path                                  | Function or core call                                                             |
+| --------------------------------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------- |
+| Note list rows (title, dates, notebook, status, pinned, tags, body version) | Rust-direct                           | the note list page and summaries reads                                            |
+| Notebooks, tags, saved searches, the Trash list                             | Rust-direct                           | the books, tags, saved searches and Trash list reads                              |
+| Row excerpts, for visible rows only, at most 60 IDs a call                  | core                                  | `excerpts(ids)`, cached in Swift by note ID and body version                      |
+| Search                                                                      | core                                  | `search(query, scope, { flush: true })`: the core parses and Rust's search runs   |
+| New Note                                                                    | core                                  | `create(title, bookId)`, then the editor opens it                                 |
+| Today's note, templates, duplicate                                          | core                                  | `openTodaysNote`, `applyTemplate`, `duplicate`                                    |
+| Pin, status with undo, notebook, dates                                      | core                                  | `setPinned`, `setStatusUndoable` and `undoStatus`, `setBook`, `setNoteDates`      |
+| A note's tags; renaming, colouring and deleting a tag                       | core                                  | `addTag`, `removeTag`, `renameTag`, `setTagColor`, `deleteTag`                    |
+| Notebooks: create, rename, move, icon, AI access, remove                    | core                                  | the core's book calls and `setBookAiAccess`                                       |
+| Trash, restore, purge, empty                                                | core                                  | `trash`, `restore`, `purge`, `emptyTrash`                                         |
+| Several notes at once                                                       | core                                  | `batch(ids, change)`                                                              |
+| Activity's heatmap, week figures and most edited notes                      | core                                  | `writing(now)`, which also builds the Mac's Activity                              |
+| A share from the Share Extension's inbox                                    | core                                  | `share.capture`: `captureShare`, as quick capture (docs/specs/share-extension.md) |
+| History, AI edits, import, export                                           | core, drawn in the page until stage 4 | as today                                                                          |
+| Licence state and the gate                                                  | Rust-direct                           | `direct.licence.*`, the bodies of the `licence_*` commands                        |
+| Purchases, restoring them, the Mac key                                      | Rust-direct                           | `direct.store.*`; StoreKit's own sheet takes the payment                          |
+| Sync settings, pairing, devices, iCloud                                     | Rust-direct                           | `direct.sync.*`, the bodies of the `sync_*` commands Settings calls               |
+| Editor settings, themes, fonts, AI providers, crash reports                 | Rust-direct                           | `direct.editorSettings.*`, `.fonts.list`, `.ai.*`, `.crashReports.*`              |
+| Glass Transparency (this iPhone's own)                                      | Swift's `UserDefaults`                | `devot.phone.glassTransparency`; the page's old value moves over once             |
 
 - Each Rust-direct entry starts as a refactor: the command's body moves into a function that both the Tauri command and the screens module call, so validation is never written twice.
 - Rust's write gate (`src-tauri/src/storage/db.rs`) stays the enforcement for every write, whichever side asked for it.

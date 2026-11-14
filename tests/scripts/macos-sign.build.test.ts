@@ -25,6 +25,8 @@ const PASSWORD = 'throwaway-p12-password'
 const API_KEY_TEXT = 'throwaway-api-key-text'
 const TIMEOUT = 300_000
 const ENTITLEMENTS = 'tests/fixtures/signing/test.entitlements'
+const EXTENSION = 'src-tauri/macos/Extension.entitlements'
+const APPEX = join('Contents', 'PlugIns', 'DevotShare.appex')
 const SEARCH_LIST = process.env['CI'] === 'true' ? ['--search-list'] : []
 
 function tool(file: string, args: string[], options: { input?: string } = {}): string {
@@ -100,7 +102,10 @@ function throwawayCertificate(): { p12: string; der: string } {
   }
 }
 
-/** An app as the build job hands it over: ad-hoc signed, with a library, the CLI script and the icon. */
+/**
+ * An app as the build job hands it over: ad-hoc signed, with a library, the CLI script, the icon and
+ * a share extension signed with the sandbox, as macos-share-extension.sh leaves it.
+ */
 function adHocApp(): string {
   const dir = tempDir('devot-sign-app-')
   const contents = join(dir, 'Devot.app', 'Contents')
@@ -131,7 +136,21 @@ function adHocApp(): string {
 </dict></plist>
 `,
   )
+  const appex = join(dir, 'Devot.app', APPEX)
+  mkdirSync(join(appex, 'Contents', 'MacOS'), { recursive: true })
+  tool('cc', ['-o', join(appex, 'Contents', 'MacOS', 'DevotShare'), join(dir, 'main.c')])
+  writeFileSync(
+    join(appex, 'Contents', 'Info.plist'),
+    `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>DevotShare</string>
+<key>CFBundleIdentifier</key><string>io.github.jma49.devot.signtest.share</string>
+<key>CFBundlePackageType</key><string>XPC!</string>
+</dict></plist>
+`,
+  )
   tool('codesign', ['--force', '--sign', '-', join(contents, 'Frameworks', 'libextra.dylib')])
+  tool('codesign', ['--force', '--sign', '-', '--entitlements', EXTENSION, appex])
   tool('codesign', ['--force', '--sign', '-', '--options', 'runtime', join(dir, 'Devot.app')])
   return join(dir, 'Devot.app')
 }
@@ -165,13 +184,24 @@ function sign(certificate: string, app: string, args: string[], env: Record<stri
   return { status: result.status, output: result.stdout + result.stderr, out, scratch } as Run
 }
 
-function expectSignedCode(path: string) {
+function carried(path: string): unknown {
+  const xml = tool('codesign', ['-d', '--entitlements', '-', '--xml', path])
+  return xml === ''
+    ? undefined
+    : JSON.parse(tool('plutil', ['-convert', 'json', '-o', '-', '-'], { input: xml }))
+}
+
+function plistJson(path: string): unknown {
+  return JSON.parse(tool('plutil', ['-convert', 'json', '-o', '-', path]))
+}
+
+function expectSignedCode(path: string, entitlements?: string) {
   const shown = signature(path)
   expect(shown).toMatch(new RegExp(`^Authority=${IDENTITY.replace(/[()]/g, '\\$&')}$`, 'm'))
   expect(shown).toMatch(/^CodeDirectory .*flags=0x[0-9a-f]+\([^)]*runtime/m)
   expect(shown).toMatch(/^Timestamp=/m)
   expect(shown).not.toMatch(/Signature=adhoc/)
-  expect(tool('codesign', ['-d', '--entitlements', '-', '--xml', path])).toBe('')
+  expect(carried(path)).toEqual(entitlements && plistJson(entitlements))
 }
 
 describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
@@ -210,6 +240,7 @@ describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
       tool('codesign', ['--verify', '--deep', '--strict', signed])
       expectSignedCode(signed)
       expectSignedCode(join(signed, 'Contents', 'Frameworks', 'libextra.dylib'))
+      expectSignedCode(join(signed, APPEX), EXTENSION)
       expect(existsSync(join(signed, 'Contents', 'embedded.provisionprofile'))).toBe(false)
 
       const dmg = join(run.out, 'Devot.dmg')
@@ -247,7 +278,7 @@ describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
   )
 
   it(
-    'with the profile, embeds it and signs only the main executable with exactly the entitlements',
+    'with the profile, embeds it and signs the main executable with exactly the entitlements and the extension with the sandbox',
     () => {
       const profile = fixtureProfile({ certificates: [der] })
       const run = sign(certificate, app, ['--skip-notarization', '--entitlements', ENTITLEMENTS], {
@@ -264,23 +295,9 @@ describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
       expect(readFileSync(join(signed, 'Contents', 'embedded.provisionprofile'))).toEqual(
         readFileSync(profile),
       )
-      const carried = (path: string) =>
-        tool('plutil', ['-convert', 'json', '-o', '-', '-'], {
-          input: tool('codesign', ['-d', '--entitlements', '-', '--xml', path]),
-        })
-      const wanted = tool('plutil', ['-convert', 'json', '-o', '-', ENTITLEMENTS])
-      expect(JSON.parse(carried(join(signed, 'Contents', 'MacOS', 'devot')))).toEqual(
-        JSON.parse(wanted),
-      )
-      expect(
-        tool('codesign', [
-          '-d',
-          '--entitlements',
-          '-',
-          '--xml',
-          join(signed, 'Contents', 'Frameworks', 'libextra.dylib'),
-        ]),
-      ).toBe('')
+      expect(carried(join(signed, 'Contents', 'MacOS', 'devot'))).toEqual(plistJson(ENTITLEMENTS))
+      expect(carried(join(signed, 'Contents', 'Frameworks', 'libextra.dylib'))).toBeUndefined()
+      expect(carried(join(signed, APPEX))).toEqual(plistJson(EXTENSION))
     },
     TIMEOUT,
   )

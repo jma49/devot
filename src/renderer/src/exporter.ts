@@ -132,6 +132,11 @@ export async function notePage(
   return { title, html, images: body.images }
 }
 
+/** The open note as the page Share on Web seals: the HTML export's, with web images kept. */
+export async function sharedNotePage(core: Core, noteId: string): Promise<Page> {
+  return notePage(renderWith(core), await core.read(noteId))
+}
+
 const finish = (id: number) =>
   invoke('export_finish', { id }).catch(() => console.warn('W_EXPORT_FINISH_FAILED', id))
 

@@ -22,6 +22,8 @@ export interface MirrorStatus {
   generation: number
   folder: string | null
   includeAttachments: boolean
+  /** Bring Back Outside Edits. */
+  readBack: boolean
   paused: string | null
   size: number | null
   /** Files kept under a new name because they were edited outside Devot: the first few... */
@@ -32,6 +34,7 @@ export interface MirrorStatus {
 
 export interface MirrorPatch {
   includeAttachments?: boolean
+  readBack?: boolean
   turnOff?: true
   dismissKept?: true
 }
@@ -40,6 +43,7 @@ export const MIRROR_OFF: MirrorStatus = {
   generation: 0,
   folder: null,
   includeAttachments: true,
+  readBack: false,
   paused: null,
   size: null,
   kept: [],
@@ -64,6 +68,7 @@ export function readStatus(value: unknown): Revision<MirrorStatus> | undefined {
       generation: v['generation'] as number,
       folder: typeof v['folder'] === 'string' ? v['folder'] : null,
       includeAttachments: v['includeAttachments'] !== false,
+      readBack: v['readBack'] === true,
       paused: typeof v['paused'] === 'string' && CODE.test(v['paused']) ? v['paused'] : null,
       size: v['size'] as number | null,
       kept,
@@ -79,6 +84,7 @@ const store = createSyncedStore<MirrorStatus, MirrorPatch>({
     ...(patch.includeAttachments === undefined
       ? {}
       : { includeAttachments: patch.includeAttachments }),
+    ...(patch.readBack === undefined ? {} : { readBack: patch.readBack }),
     ...(patch.turnOff ? { folder: null, paused: null, size: null, kept: [], keptCount: 0 } : {}),
     ...(patch.dismissKept ? { kept: [], keptCount: 0 } : {}),
   }),
@@ -141,7 +147,11 @@ export async function chooseMirrorFolder(): Promise<FolderChoice> {
     return { kind: 'chosen' }
   }
   if (choice?.['kind'] === 'confirm' && typeof choice['token'] === 'number') {
-    return { kind: 'confirm', token: choice['token'], name: String(choice['name'] ?? '') }
+    return {
+      kind: 'confirm',
+      token: choice['token'],
+      name: String(choice['name'] ?? ''),
+    }
   }
   return { kind: 'cancelled' }
 }
@@ -157,6 +167,7 @@ export const mirrorHost: MirrorHost = {
   hashes: (ids) => invoke('mirror_hashes', { ids }),
   check: (generation, paths) => invoke('mirror_check', { generation, paths }),
   apply: (generation, ops) => invoke('mirror_apply', { generation, ops }),
+  read: (generation, ids) => invoke('mirror_read', { generation, ids }),
 }
 
 const PAUSED_MESSAGES = new Map<string, MessageKey>([
@@ -181,9 +192,15 @@ export function keptMessage(kept: readonly string[], count: number, locale: stri
   const files = new Intl.ListFormat(locale, { type: 'conjunction' }).format([
     ...shown,
     ...(rest > 0
-      ? [format(t('mirror.keptMore'), { count: new Intl.NumberFormat(locale).format(rest) })]
+      ? [
+          format(t('mirror.keptMore'), {
+            count: new Intl.NumberFormat(locale).format(rest),
+          }),
+        ]
       : []),
   ])
   const total = Math.max(count, kept.length)
-  return format(countOf(total, locale, 'mirror.keptOne', 'mirror.keptOther'), { files })
+  return format(countOf(total, locale, 'mirror.keptOne', 'mirror.keptOther'), {
+    files,
+  })
 }

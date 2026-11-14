@@ -1,0 +1,33 @@
+{
+  "shares": [
+    {
+      "shared": { "title": "Groceries & more", "url": "https://example.com/a?b=1&c=d" },
+      "link": "devot://capture?title=Groceries%20%26%20more&url=https%3A%2F%2Fexample.com%2Fa%3Fb%3D1%26c%3Dd",
+      "prefill": { "title": "Groceries & more", "body": "https://example.com/a?b=1&c=d" }
+    },
+    {
+      "shared": { "text": "milk\neggs ✓" },
+      "link": "devot://capture?text=milk%0Aeggs%20%E2%9C%93",
+      "prefill": { "title": "", "body": "milk\neggs ✓" }
+    },
+    {
+      "shared": { "title": "Quote", "text": "1+1 = 2", "url": "http://example.com/math" },
+      "link": "devot://capture?title=Quote&text=1%2B1%20%3D%202&url=http%3A%2F%2Fexample.com%2Fmath",
+      "prefill": { "title": "Quote", "body": "1+1 = 2\n\nhttp://example.com/math" }
+    },
+    {
+      "shared": { "text": "notes", "url": "file:///Users/someone/a.txt" },
+      "link": "devot://capture?text=notes",
+      "prefill": { "title": "", "body": "notes" }
+    },
+    {
+      "shared": { "text": "https://example.com", "url": "https://example.com" },
+      "link": "devot://capture?url=https%3A%2F%2Fexample.com",
+      "prefill": { "title": "", "body": "https://example.com" }
+    },
+    {
+      "shared": { "title": "  ", "url": "ftp://example.com/file" },
+      "link": null
+    }
+  ]
+}

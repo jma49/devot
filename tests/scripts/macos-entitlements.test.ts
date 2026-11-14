@@ -8,9 +8,11 @@ import { tempDir } from '../support/temp-dirs'
 // codesign keeps entitlements off a dylib by itself, so the other Mach-O is a helper executable.
 const SCRIPT = 'scripts/release/macos-entitlements.sh'
 const ENTITLEMENTS = 'tests/fixtures/signing/test.entitlements'
+const EXTENSION = 'src-tauri/macos/Extension.entitlements'
 
 let app = ''
 let helper = ''
+let appex = ''
 
 function sign(path: string, entitlements?: string) {
   execFileSync('codesign', [
@@ -38,8 +40,10 @@ function check(...args: string[]) {
   return { status: result.status, output: result.stdout + result.stderr }
 }
 
-function signed(main: string | undefined, other?: string) {
+/** `extension` null signs the app extension with none. */
+function signed(main: string | undefined, other?: string, extension: string | null = EXTENSION) {
   sign(helper, other)
+  sign(appex, extension ?? undefined)
   sign(app, main)
 }
 
@@ -54,6 +58,16 @@ describe.skipIf(process.platform !== 'darwin')('the entitlements check', () => {
     execFileSync('cc', ['-o', join(contents, 'MacOS', 'devot'), join(dir, 'main.c')])
     helper = join(contents, 'Frameworks', 'helper')
     execFileSync('cc', ['-o', helper, join(dir, 'main.c')])
+    appex = join(contents, 'PlugIns', 'DevotShare.appex')
+    mkdirSync(join(appex, 'Contents', 'MacOS'), { recursive: true })
+    execFileSync('cc', ['-o', join(appex, 'Contents', 'MacOS', 'DevotShare'), join(dir, 'main.c')])
+    writeFileSync(
+      join(appex, 'Contents', 'Info.plist'),
+      '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict>' +
+        '<key>CFBundleExecutable</key><string>DevotShare</string>' +
+        '<key>CFBundleIdentifier</key><string>io.github.jma49.devot.signtest.share</string>' +
+        '</dict></plist>\n',
+    )
     writeFileSync(
       join(contents, 'Info.plist'),
       '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict>' +
@@ -63,7 +77,7 @@ describe.skipIf(process.platform !== 'darwin')('the entitlements check', () => {
     )
   })
 
-  it('accepts exactly the set on the main executable and none elsewhere', () => {
+  it('accepts exactly the set on the main executable, the sandbox on an extension and none elsewhere', () => {
     signed(ENTITLEMENTS)
     expect(check(ENTITLEMENTS)).toEqual({ status: 0, output: '' })
   })
@@ -93,8 +107,19 @@ describe.skipIf(process.platform !== 'darwin')('the entitlements check', () => {
     const { status, output } = check(ENTITLEMENTS)
     expect(status).toBe(1)
     expect(output).toContain(
-      '::error::E_SIGN_ENTITLEMENTS: Devot.app/Contents/Frameworks/helper carries entitlements; only the main executable may',
+      '::error::E_SIGN_ENTITLEMENTS: Devot.app/Contents/Frameworks/helper carries entitlements; only the main executable and an app extension may',
     )
+  })
+
+  it('refuses an app extension without exactly the sandbox', () => {
+    for (const carried of [null, ENTITLEMENTS]) {
+      signed(ENTITLEMENTS, undefined, carried)
+      const { status, output } = check(ENTITLEMENTS)
+      expect(status).toBe(1)
+      expect(output).toContain(
+        '::error::E_SIGN_ENTITLEMENTS: Devot.app/Contents/PlugIns/DevotShare.appex does not carry exactly the entitlements in Extension.entitlements',
+      )
+    }
   })
 
   it('without the profile, accepts no entitlements and refuses any on the main executable', () => {

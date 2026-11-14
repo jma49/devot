@@ -1,3 +1,4 @@
+import DevotShareInbox
 import UIKit
 import WebKit
 import XCTest
@@ -307,5 +308,22 @@ final class InstallTests: XCTestCase {
         }
         XCTAssertEqual(ops.filter { $0 == "direct.editorSettings.get" }.count, 1)
         XCTAssertTrue(ops.contains("glass.get") || ops.contains("glass.set"))
+    }
+
+    func testAShareWaitingInTheInboxIsSentOnceTheInstallHasReturned() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "install-inbox-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let inbox = ShareInbox(folder: folder)
+        let item = ShareItem(title: "From Safari", text: "", url: "https://example.com", images: [])
+        try inbox.write(item)
+        let rust = FakeRust()
+        let screens = try XCTUnwrap(
+            Screens.attach(webView: WKWebView(), root: try shownRoot(), rust: rust, defaults: defaults, inbox: inbox))
+        settle(until: { (try? self.sent(rust))?.contains { if case .request(_, .shareCapture, _) = $0 { true } else { false } } == true })
+        let share = try sent(rust).compactMap { message -> [String: JSONValue]? in
+            if case .request(_, .shareCapture, let args) = message { args } else { nil }
+        }
+        XCTAssertEqual(share, [ShareDrain.arguments(item)])
+        XCTAssertTrue(screens.shareDrain.running)
     }
 }

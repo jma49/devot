@@ -9,6 +9,9 @@ Import and export are in [import-and-export.md](import-and-export.md), the `devo
 - YAML front matter: lines between `---` fences at the very start of a note, closed by the first later line that is `---` (spaces or tabs may follow a fence).
   The preview, import and the editor read it alike (the editor through a Lezer Markdown extension, `src/renderer/src/editor/markdown.ts`): nothing inside it is Markdown (the editor's Markdown helpers, such as pasting a URL as a link or HTML tag completion, are off there), the editor shows it in the secondary and tertiary text colours, and formats leave its lines alone.
   A note that starts with `---` and has no closing fence starts with a thematic break.
+  **Word goal:** a top-level `word-goal` key holding a whole number of words (1 to 10,000,000; quotes, `,` and `_` are allowed) sets the note's goal, and the editor footer shows its words toward it (`340 / 1,500`) while nothing is selected.
+  The editor reads it from the first 16 KiB of the note with a line scan (`src/core/wordGoal.ts`), not the YAML parser, at each pause in typing; any other value sets no goal.
+  It lives in the note's own text, so it syncs, exports and imports with it, and the preview shows it as any other property.
 - Alerts: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`.
 - Math: `$…$` and `$$…$$`.
   Inline math is a run of dollars closed by a run as long, read like a code span: nothing inside it is Markdown and a backslash escapes no dollar in it; the editor reads it as the preview's remark-math does (`InlineMath` in `src/renderer/src/editor/markdown.ts`), and a formula with a space at either end, once one is trimmed from both, is text (`$5 and $6`, `isInlineTex` in `src/core/preview/math.ts`, which Write mode shares).

@@ -1,9 +1,10 @@
 // The Markdown mirror: a folder the user picked, kept up to date with every note as a Markdown file, laid out like an export of all notebooks (export.ts).
-// SQLite stays the source of truth: the folder is written by Devot and never read back.
+// SQLite stays the source of truth. With Bring Back Outside Edits on, a file another app changed goes back into its note when the note is as it was when the
+// file was written (mirrorReadBack.ts); otherwise the folder is never read back.
 //
 // Rust holds the folder and its manifest (`.devot-mirror.json`, src-tauri/src/mirror.rs) and runs the operations planned here, re-checking each against the manifest
-// and the disk. Devot moves or deletes only paths the manifest lists, and only while they still hold what it wrote; a file changed outside Devot is kept under a
-// new name and dropped from the manifest.
+// and the disk. Devot moves or deletes only paths the manifest lists, and only while they still hold what it wrote; a file changed outside Devot that is not
+// brought back is kept under a new name and dropped from the manifest.
 //
 // Rules of the plan (`planMirror`, pure):
 // - Names stay: a note keeps its file and a notebook its folder while the name still fits its title. A new name is the first of `Plan.md`, `Plan 2.md`, ... free in
@@ -27,11 +28,20 @@ import {
   markdownFile,
   nameKey,
 } from './export'
+import {
+  attachmentPaths,
+  readBackCandidates,
+  readMirrorFile,
+  tooLargeToReadBack,
+  type MirrorTakeBack,
+  type MirrorTakenBack,
+} from './mirrorReadBack'
 import { sha256Hex } from './sha256'
 import { sleep } from './sleep'
 import type { NoteStatus, NoteSummary, StorageAdapter, TagRecord, BookRecord } from './storage'
 
 export { observeWrites } from './observeWrites'
+export { createMirrorTakeBack } from './mirrorReadBack'
 
 export interface MirrorNoteEntry {
   path: string
@@ -54,7 +64,11 @@ export interface MirrorManifest {
   books: Record<string, string>
 }
 
-export const emptyManifest = (): MirrorManifest => ({ notes: {}, files: {}, books: {} })
+export const emptyManifest = (): MirrorManifest => ({
+  notes: {},
+  files: {},
+  books: {},
+})
 
 /** A regular file's SHA-256 (hex), `dir`, `other` (a link, say), or null for nothing. */
 export type DiskState = string | 'dir' | 'other' | null
@@ -72,7 +86,13 @@ export type MirrorOp =
   | { kind: 'keep'; entry: MirrorEntryKind; id: string; path: string }
   /** The entry leaves the manifest; nothing on disk changes (its file is gone, or not Devot's). */
   | { kind: 'forget'; entry: MirrorEntryKind; id: string }
-  | { kind: 'remove'; entry: MirrorEntryKind; id: string; path: string; sha256: string }
+  | {
+      kind: 'remove'
+      entry: MirrorEntryKind
+      id: string
+      path: string
+      sha256: string
+    }
   /** `from`: the note's file now (must still hold what the manifest says, or the text), moved to `path`. A file already at `path` that is not Devot's is never replaced unless it holds exactly `text`: then Devot adopts it. `sha256`, the text's hash, goes along when the plan worked it out and always when the text does not; Rust hashes a text it is sent itself. */
   | {
       kind: 'note'
@@ -87,6 +107,8 @@ export type MirrorOp =
   | { kind: 'file'; id: string; path: string; copy: boolean }
   /** A null path forgets the notebook's folder. */
   | { kind: 'book'; id: string; path: string | null }
+  /** The note now holds what its file holds (`sha256`, which must still be there): the manifest takes the file as Devot's. */
+  | { kind: 'take'; id: string; path: string; sha256: string }
 
 export interface MirrorResult {
   code?: string
@@ -131,6 +153,16 @@ function applyResult(manifest: MirrorManifest, op: MirrorOp, result: MirrorResul
     case 'book':
       if (op.path === null) delete manifest.books[op.id]
       else manifest.books[op.id] = op.path
+      return
+    case 'take': {
+      const entry = manifest.notes[op.id]
+      if (entry)
+        manifest.notes[op.id] = {
+          ...entry,
+          sha256: op.sha256,
+          size: result.size ?? 0,
+        }
+    }
   }
 }
 
@@ -156,7 +188,12 @@ export interface MirrorText {
 
 export function renderMirrorText(spec: MirrorTextSpec): MirrorText {
   const text = markdownFile(
-    { title: spec.title, bodyMd: spec.bodyMd, tags: spec.tags, status: spec.status },
+    {
+      title: spec.title,
+      bodyMd: spec.bodyMd,
+      tags: spec.tags,
+      status: spec.status,
+    },
     spec.fileName,
     new Map(spec.paths),
   )
@@ -201,6 +238,11 @@ export function noteSource(
     memo?.sources.set(inputs, source)
   }
   return source
+}
+
+/** A note's tag names as its file lists them. */
+function tagNamesOf(note: NoteSummary, names: ReadonlyMap<string, string>): string[] {
+  return note.tagIds.flatMap((t) => names.get(t) ?? []).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 }
 
 const joinPath = (folder: string, name: string) => (folder ? `${folder}/${name}` : name)
@@ -336,9 +378,7 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
     const key = note.tagIds.join()
     let names = tagLists.get(key)
     if (!names) {
-      names = note.tagIds
-        .flatMap((t) => tagNames.get(t) ?? [])
-        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+      names = tagNamesOf(note, tagNames)
       tagLists.set(key, names)
     }
     return names
@@ -720,7 +760,12 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
       else if (state === entry.sha256 || (state !== null && state === hashOf(text)))
         from = entry.path
       else if (state !== null)
-        keeps.push({ kind: 'keep', entry: 'note', id: note.id, path: entry.path })
+        keeps.push({
+          kind: 'keep',
+          entry: 'note',
+          id: note.id,
+          path: entry.path,
+        })
     }
     if (from === path) {
       // Its file holds this very text already.
@@ -800,6 +845,8 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
 export interface MirrorOpened {
   generation: number
   includeAttachments: boolean
+  /** Bring Back Outside Edits. */
+  readBack?: boolean
   /** Null when the caller already holds this generation's. */
   manifest: MirrorManifest | null
 }
@@ -816,7 +863,13 @@ export interface MirrorHost {
   check(generation: number, paths: readonly string[] | null): Promise<Record<string, DiskState>>
   /** One result each, in order, up to a failure that stops them all; then one more when writing the manifest back paused the mirror. */
   apply(generation: number, ops: readonly MirrorOp[]): Promise<MirrorResult[]>
+  /** The files of these notes as the manifest lists them, each with the SHA-256 of what was read. */
+  read?(generation: number, ids: readonly string[]): Promise<MirrorRead[]>
 }
+
+export type MirrorRead =
+  | { id: string; path: string; sha256: string; text: string }
+  | { id: string; code: string }
 
 export interface MirrorRunnerOptions {
   storage: Pick<StorageAdapter, 'listNotes' | 'listBooks' | 'listTags'>
@@ -832,6 +885,8 @@ export interface MirrorRunnerOptions {
   onError?: (code: string) => void
   /** Hands the event loop back between steps (the worker answers the UI meanwhile). */
   yieldNow?: () => Promise<void>
+  /** Writes files changed outside Devot back into their notes (Bring Back Outside Edits); without it nothing is read back. */
+  takeBack?: (changes: readonly MirrorTakeBack[]) => Promise<MirrorTakenBack[]>
 }
 
 export interface MirrorRunner {
@@ -840,6 +895,8 @@ export interface MirrorRunner {
   /** A full pass runs soon unless one for `generation` runs or ran already (a resume starts one itself). */
   reconcile(generation?: number): void
   wake(): void
+  /** With Bring Back Outside Edits on, a pass soon looks for files changed outside Devot; one that finds none writes nothing. */
+  rescan(): void
   /** A running pass ends after its current batch, so the manifest records it. */
   stop(): Promise<void>
   /** Settles once no pass runs or waits (tests). */
@@ -855,7 +912,14 @@ const MAX_TRIES = 3
 /** Times a note's file may be rendered in one pass; one whose place keeps changing is then left as it is so it never holds up the others. */
 const MAX_RENDERS = 10
 const UNSETTLED = 'E_MIRROR_UNSETTLED'
-const CHUNK = { bodies: 200, files: 1000, hashes: 20, paths: 2000, ops: 200 }
+const CHUNK = {
+  bodies: 200,
+  files: 1000,
+  hashes: 20,
+  paths: 2000,
+  ops: 200,
+  reads: 50,
+}
 
 const chunks = <T>(list: readonly T[], size: number): T[][] => {
   const out: T[][] = []
@@ -906,7 +970,7 @@ function changedSince(
 const entryKey = (op: MirrorOp) =>
   op.kind === 'book'
     ? `book:${op.id}`
-    : `${op.kind === 'note' ? 'note' : op.kind === 'file' ? 'file' : op.entry}:${op.id}`
+    : `${op.kind === 'note' || op.kind === 'take' ? 'note' : op.kind === 'file' ? 'file' : op.entry}:${op.id}`
 
 export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
   const { storage } = options
@@ -919,6 +983,7 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
   let paused = false
   let wantFull = false
   let wantPass = false
+  let wantScan = false
   let firstWait: number | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   let running: Promise<void> | undefined
@@ -958,26 +1023,32 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
 
   const run = async (): Promise<void> => {
     timer = undefined
-    if (running || !enabled || (!wantPass && !wantFull)) return
+    if (running || !enabled || (!wantPass && !wantFull && !wantScan)) return
     const full = wantFull
+    const only = !wantPass && !full
     wantFull = false
     wantPass = false
+    wantScan = false
     firstWait = undefined
     const writes = written
     written = new Set()
-    running = pass(full, writes)
+    running = pass(full ? 'full' : only ? 'scan' : 'writes', writes)
       .then(() => {
         paused = false
       })
       .catch(fail)
       .finally(() => {
         running = undefined
-        if (enabled && !paused && (wantPass || wantFull)) schedule(0)
+        if (enabled && !paused && (wantPass || wantFull || wantScan)) schedule(0)
       })
     await running
   }
 
-  const pass = async (full: boolean, writes: ReadonlySet<string> | null) => {
+  /**
+   * `scan`: only a look for files changed outside Devot (Bring Back Outside Edits), which goes on as a full pass when it
+   * finds any; `writes`: what the notes named since the last pass need.
+   */
+  const pass = async (kind: 'full' | 'writes' | 'scan', writes: ReadonlySet<string> | null) => {
     const mine = epoch
     const step = async <T>(work: Promise<T>): Promise<T> => {
       const value = await work
@@ -987,13 +1058,25 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
     const host = stepping(options.host, step)
     const pause = () => step(yieldNow())
     const opened = await host.open(generation)
-    const last = settled
-    settled = null
     if (opened.manifest) {
       manifest = opened.manifest
     } else if (!manifest || generation !== opened.generation) {
       throw new Error(STALE)
     }
+    const readBack = opened.readBack === true && options.takeBack !== undefined && !!host.read
+    let found: Record<string, DiskState> | undefined
+    if (kind === 'scan') {
+      // A manifest read anew may differ from the one the notes were left as: the next pass plans every note.
+      if (opened.manifest) settled = null
+      paused = false
+      generation = opened.generation
+      if (!readBack) return
+      found = await host.check(opened.generation, null)
+      if (Object.keys(found).length === 0) return
+    }
+    const full = kind !== 'writes'
+    const last = settled
+    settled = null
     // The folder opened: the mirror is not paused (a resume's own full pass
     // runs now, and a reconcile asked for its generation is this one).
     paused = false
@@ -1005,16 +1088,9 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
     }
     const current = manifest
     const gen = opened.generation
-    const [notes, books, tags] = await step(
-      Promise.all([storage.listNotes(), storage.listBooks(), storage.listTags()]),
-    )
-    const now: Settled = {
-      notes: new Map(notes.map((note) => [note.id, printOf(note)])),
-      books: JSON.stringify(books),
-      tags: JSON.stringify(tags),
-    }
-    // A manifest read anew may differ from the one the notes were left as.
-    const only = full || opened.manifest ? undefined : changedSince(last, writes, now)
+    const library = () =>
+      step(Promise.all([storage.listNotes(), storage.listBooks(), storage.listTags()]))
+    let [notes, books, tags] = await library()
     const bodies = new Map<string, string>()
     const files = new Map<string, string | null>()
     const hashes = new Map<string, string | null>()
@@ -1031,8 +1107,19 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
       for (const entry of [...Object.values(current.notes), ...Object.values(current.files)]) {
         if (entry.sha256 !== null) disk.set(entry.path, entry.sha256)
       }
-      for (const [path, state] of Object.entries(await host.check(gen, null))) disk.set(path, state)
+      const changed = found ?? (await host.check(gen, null))
+      for (const [path, state] of Object.entries(changed)) disk.set(path, state)
+      if (readBack && (await takeBack(host, step, gen, current, notes, tags, disk))) {
+        ;[notes, books, tags] = await library()
+      }
     }
+    const now: Settled = {
+      notes: new Map(notes.map((note) => [note.id, printOf(note)])),
+      books: JSON.stringify(books),
+      tags: JSON.stringify(tags),
+    }
+    // A manifest read anew may differ from the one the notes were left as.
+    const only = full || opened.manifest ? undefined : changedSince(last, writes, now)
     for (let plans = 0; plans < MAX_PLANS; plans += 1) {
       await pause()
       const plan = planMirror({
@@ -1150,6 +1237,86 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
     options.onError?.(UNSETTLED)
   }
 
+  /** Brings files changed outside Devot back into notes that did not change since; whether any note was written. */
+  const takeBack = async (
+    host: MirrorHost,
+    step: <T>(work: Promise<T>) => Promise<T>,
+    gen: number,
+    current: MirrorManifest,
+    notes: readonly NoteSummary[],
+    tags: readonly TagRecord[],
+    disk: Map<string, DiskState>,
+  ): Promise<boolean> => {
+    const write = options.takeBack!
+    const byId = new Map(notes.map((note) => [note.id, note]))
+    const names = new Map(tags.map((t) => [t.id, t.name]))
+    const ids = readBackCandidates(current, disk, (id) => {
+      const note = byId.get(id)
+      const entry = current.notes[id]
+      if (!note || !entry || note.bookId === TEMPLATES_BOOK_ID) return false
+      const marks = entry.files.map((file) => current.files[file]?.path ?? '-')
+      return noteSource(note, tagNamesOf(note, names), entry.path, marks) === entry.source
+    })
+    if (ids.length === 0) return false
+    const paths = attachmentPaths(current)
+    let wrote = false
+    for (const chunk of chunks(ids, CHUNK.reads)) {
+      const reads = await host.read!(gen, chunk)
+      const changes: MirrorTakeBack[] = []
+      const read = new Map<string, { path: string; sha256: string }>()
+      for (const file of reads) {
+        if ('code' in file) {
+          options.onError?.(file.code)
+          continue
+        }
+        const note = byId.get(file.id)
+        if (!note || current.notes[file.id]?.path !== file.path) continue
+        if (tooLargeToReadBack(file.text)) {
+          options.onError?.('E_MIRROR_READ_TOO_LARGE')
+          continue
+        }
+        const back = readMirrorFile(file.text, file.path, paths)
+        changes.push({
+          id: file.id,
+          updatedAt: note.updatedAt,
+          bodyVersion: note.bodyVersion,
+          ...back,
+        })
+        read.set(file.id, { path: file.path, sha256: file.sha256 })
+      }
+      if (changes.length === 0) continue
+      const ops: MirrorOp[] = []
+      for (const outcome of await step(write(changes))) {
+        if ('code' in outcome) options.onError?.(outcome.code)
+        else if (outcome.outcome === 'taken') {
+          ops.push({ kind: 'take', id: outcome.id, ...read.get(outcome.id)! })
+        }
+      }
+      if (ops.length === 0) continue
+      wrote = true
+      const results = await host.apply(gen, ops)
+      for (const [i, op] of ops.entries()) {
+        const result = results[i]
+        if (!result) throw new Error(results.at(-1)?.code ?? 'E_MIRROR_FAILED')
+        const { code } = result
+        if (op.kind !== 'take') continue
+        if (code === undefined) {
+          applyResult(current, op, result)
+          disk.set(op.path, op.sha256)
+        } else if (PAUSED.test(code) || code === 'E_MIRROR_OFF') {
+          throw new Error(code)
+        } else {
+          // Changed again since it was read: the plan keeps it aside, as a change on both sides.
+          if (result.path !== undefined) disk.set(result.path, result.state ?? null)
+          options.onError?.(code)
+        }
+      }
+      const unsaved = results[ops.length]?.code
+      if (unsaved !== undefined) throw new Error(unsaved)
+    }
+    return wrote
+  }
+
   const gather = async (
     host: MirrorHost,
     pause: () => Promise<void>,
@@ -1219,11 +1386,17 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
     wake() {
       if (enabled && paused && !running) schedule(0)
     },
+    rescan() {
+      if (!enabled || paused) return
+      wantScan = true
+      if (!running && timer === undefined) schedule(0)
+    },
     async stop() {
       enabled = false
       paused = false
       wantFull = false
       wantPass = false
+      wantScan = false
       reconciled = null
       settled = null
       epoch += 1
@@ -1248,6 +1421,7 @@ function stepping(host: MirrorHost, step: <T>(work: Promise<T>) => Promise<T>): 
     hashes: (ids) => step(host.hashes(ids)),
     check: (generation, paths) => step(host.check(generation, paths)),
     apply: (generation, ops) => step(host.apply(generation, ops)),
+    ...(host.read ? { read: (generation, ids) => step(host.read!(generation, ids)) } : {}),
   }
 }
 

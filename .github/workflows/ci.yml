@@ -418,6 +418,34 @@ jobs:
       # The input bar's Objective-C runtime tests run only on an Apple host.
       - run: cargo test --lib input_accessory
 
+  # The oldest macOS the app runs on, on the other architecture it ships for: the native
+  # main-thread tests check that every guard falls back there (docs/specs/native-look.md, Older
+  # macOS). Like ios-check it starts once the app build has ended, so it never holds one of the
+  # account's five macOS runners from the start.
+  mac-compat:
+    name: macOS 15 Intel native tests
+    needs: [changes, iphone-build]
+    if: ${{ !cancelled() && needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true' }}
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '15.0'
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      # A placeholder for the UI, as in rust-check.
+      - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
+        working-directory: .
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: sw_vers && uname -m
+      - run: cargo test --test main_thread
+
   # The screens package (src-tauri/apple/DevotScreens): its tests in a host app on an iPhone
   # simulator, as UIKit needs. They link no Rust, so a pull request runs them only for the package,
   # the fixtures they read and CI itself. Each job boots a simulator and builds the package, about
@@ -616,7 +644,18 @@ jobs:
   # fails when the change detection, compilation, tests, the macOS tests, the
   # iPhone app build, any iPhone UI test shard or the deny check failed.
   rust:
-    needs: [changes, rust-check, ios-check, ios-app, mac-tests, iphone-build, iphone-ui, deny]
+    needs:
+      [
+        changes,
+        rust-check,
+        ios-check,
+        ios-app,
+        mac-tests,
+        mac-compat,
+        iphone-build,
+        iphone-ui,
+        deny,
+      ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -627,16 +666,17 @@ jobs:
           IOS: ${{ needs.ios-check.result }}
           IOS_APP: ${{ needs.ios-app.result }}
           MAC: ${{ needs.mac-tests.result }}
+          MAC_COMPAT: ${{ needs.mac-compat.result }}
           IPHONE_BUILD: ${{ needs.iphone-build.result }}
           IPHONE_UI: ${{ needs.iphone-ui.result }}
           DENY: ${{ needs.deny.result }}
         run: |
-          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP mac-tests=$MAC iphone-build=$IPHONE_BUILD iphone-ui=$IPHONE_UI deny=$DENY"
+          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP mac-tests=$MAC mac-compat=$MAC_COMPAT iphone-build=$IPHONE_BUILD iphone-ui=$IPHONE_UI deny=$DENY"
           {
             printf '### Rust merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone screens tests' "$IOS_APP" 'macOS tests' "$MAC" 'iPhone app build' "$IPHONE_BUILD" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone screens tests' "$IOS_APP" 'macOS tests' "$MAC" 'macOS 15 Intel native tests' "$MAC_COMPAT" 'iPhone app build' "$IPHONE_BUILD" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$MAC" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"; do
+          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$MAC" "$MAC_COMPAT" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac

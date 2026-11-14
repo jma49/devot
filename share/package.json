@@ -1,0 +1,18 @@
+{
+  "name": "@devot/share",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Devot's Share on Web Worker: stores sealed note pages it cannot read, and serves the viewer that opens them.",
+  "license": "FSL-1.1-MIT",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261019.1",
+    "wrangler": "4.152.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

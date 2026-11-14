@@ -5,7 +5,7 @@
 # Used by .github/workflows/ci.yml; when the web jobs
 # are not needed, the `policy` job runs instead: the format check, lint, the
 # type check and all of Vitest, which also reads Rust sources, migrations and
-# capabilities and runs the tests of the sync relay and the licence Worker.
+# capabilities and runs the tests of the sync relay, the licence Worker and the share Worker.
 #
 # - Documentation (a file under docs/, or a Markdown file outside src/) and
 #   the design sources of the app icon (design/app-icon/) need neither. A
@@ -13,8 +13,9 @@
 #   both. A change made only of documentation gets `docs_only=true`, so CI can
 #   skip the expensive jobs while its always-on gates still satisfy the
 #   required checks.
-# - The sync relay (relay/) and the licence Worker (licence/) need neither:
-#   the app imports neither, and the policy job checks both.
+# - The sync relay (relay/), the licence Worker (licence/) and the share Worker
+#   (share/) need neither: the app imports none of them, and the policy job
+#   checks all three.
 # - src-tauri/tauri.conf.json needs both: the UI tests serve the built UI
 #   under the CSP it declares.
 # - src-tauri/plugin-frame/ needs both: the UI tests run those pages, and Rust
@@ -35,7 +36,8 @@
 #   the screens bridge on every side (any screens/ folder), the phone page
 #   (src/renderer/src/phone/), its own scripts and the scripts that pick its Xcode and simulator.
 # - The Swift packages' own tests link no Rust and load no page, so each runs only for what it
-#   reads: the screens tests (`screens`) for their package (src-tauri/apple/DevotScreens/) and the
+#   reads: the screens tests (`screens`) for their package (src-tauri/apple/DevotScreens/), the
+#   Share Extension's package they test with it (src-tauri/apple/DevotShare/) and the
 #   fixtures they share with Vitest and cargo (tests/fixtures/), the StoreKit tests (`storekit`)
 #   for their package (src-tauri/apple/DevotStore/), and both for the CI scripts and the workflows.
 # A list with no files needs everything, so a doubt runs everything.
@@ -60,7 +62,7 @@ while IFS= read -r file; do
       docs_only=false
       ;;
     docs/* | *.md) ;;
-    design/app-icon/* | relay/* | licence/*) docs_only=false ;;
+    design/app-icon/* | relay/* | licence/* | share/*) docs_only=false ;;
     src-tauri/tauri.conf.json)
       web=true
       rust=true
@@ -97,7 +99,7 @@ while IFS= read -r file; do
       ;;
   esac
   case "$file" in
-    src-tauri/apple/DevotScreens/* | tests/fixtures/*) screens=true ;;
+    src-tauri/apple/DevotScreens/* | src-tauri/apple/DevotShare/* | tests/fixtures/*) screens=true ;;
     src-tauri/apple/DevotStore/*) storekit=true ;;
     scripts/ci/* | .github/*)
       screens=true

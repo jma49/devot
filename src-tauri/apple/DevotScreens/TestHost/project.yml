@@ -8,6 +8,8 @@ options:
 packages:
   DevotScreens:
     path: ..
+  DevotShare:
+    path: ../../DevotShare
 targets:
   DevotScreensHost:
     type: application
@@ -37,6 +39,8 @@ targets:
     dependencies:
       - target: DevotScreensHost
       - package: DevotScreens
+      - package: DevotShare
+        product: DevotShareInbox
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

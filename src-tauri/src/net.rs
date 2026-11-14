@@ -237,21 +237,63 @@ pub fn get_local(get: &Get) -> Result<Fetched, &'static str> {
 
 /// A POST with a small text body. Redirects are not followed: the Worker's routes answer directly.
 pub fn post(post: &Post) -> Result<Fetched, &'static str> {
-    post_with(post, true, DefaultResolver::default)
+    send_with(&post_as_send(post), true, DefaultResolver::default)
 }
 
 /// Tests reach a server on this machine, over plain http.
 #[cfg(test)]
 pub fn post_local(post: &Post) -> Result<Fetched, &'static str> {
-    post_with(post, false, DefaultResolver::default)
+    send_with(&post_as_send(post), false, DefaultResolver::default)
 }
 
-fn post_with<R: Resolver>(
-    post: &Post,
+fn post_as_send<'a>(post: &'a Post) -> Request<'a> {
+    Request {
+        method: Method::Post,
+        url: post.url,
+        accept: post.accept,
+        content_type: post.content_type,
+        headers: &[],
+        body: post.body.as_bytes(),
+        timeout: post.timeout,
+        max_bytes: post.max_bytes,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Method {
+    Post,
+    Put,
+    Delete,
+}
+
+/// A request with a body of bytes (a DELETE sends none). Redirects are not followed.
+pub struct Request<'a> {
+    pub method: Method,
+    pub url: &'a Url,
+    pub accept: &'a str,
+    pub content_type: &'a str,
+    pub headers: &'a [(&'a str, &'a str)],
+    pub body: &'a [u8],
+    pub timeout: Duration,
+    pub max_bytes: usize,
+}
+
+pub fn send(send: &Request) -> Result<Fetched, &'static str> {
+    send_with(send, true, DefaultResolver::default)
+}
+
+/// Tests reach a server on this machine, over plain http.
+#[cfg(test)]
+pub fn send_local(send: &Request) -> Result<Fetched, &'static str> {
+    send_with(send, false, DefaultResolver::default)
+}
+
+fn send_with<R: Resolver>(
+    send: &Request,
     strict: bool,
     resolver: impl Fn() -> R,
 ) -> Result<Fetched, &'static str> {
-    if strict && !public_host(post.url) {
+    if strict && !public_host(send.url) {
         return Err("E_NET_HOST_REFUSED");
     }
     let config = ureq::Agent::config_builder()
@@ -261,9 +303,9 @@ fn post_with<R: Resolver>(
                 .build(),
         )
         .https_only(strict)
-        .proxy(proxy_for(post.url, strict))
+        .proxy(proxy_for(send.url, strict))
         .max_redirects(0)
-        .timeout_global(Some(post.timeout))
+        .timeout_global(Some(send.timeout))
         .http_status_as_error(false)
         .build();
     let agent = if strict {
@@ -271,13 +313,35 @@ fn post_with<R: Resolver>(
     } else {
         ureq::Agent::with_parts(config, DefaultConnector::default(), resolver())
     };
-    let mut response = agent
-        .post(post.url.as_str())
-        .header("User-Agent", USER_AGENT)
-        .header("Accept", post.accept)
-        .header("Content-Type", post.content_type)
-        .send(post.body)
-        .map_err(|e| error_code(&e))?;
+    let url = send.url.as_str();
+    let response = match send.method {
+        Method::Delete => {
+            let mut request = agent
+                .delete(url)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", send.accept);
+            for (name, value) in send.headers {
+                request = request.header(*name, *value);
+            }
+            request.call()
+        }
+        Method::Post | Method::Put => {
+            let request = if send.method == Method::Post {
+                agent.post(url)
+            } else {
+                agent.put(url)
+            };
+            let mut request = request
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", send.accept)
+                .header("Content-Type", send.content_type);
+            for (name, value) in send.headers {
+                request = request.header(*name, *value);
+            }
+            request.send(send.body)
+        }
+    };
+    let mut response = response.map_err(|e| error_code(&e))?;
     let status = response.status().as_u16();
     let content_type = response
         .headers()
@@ -285,7 +349,7 @@ fn post_with<R: Resolver>(
         .and_then(|v| v.to_str().ok())
         .map(|t| t.to_ascii_lowercase());
     let mut body = Vec::new();
-    let limit = u64::try_from(post.max_bytes)
+    let limit = u64::try_from(send.max_bytes)
         .unwrap_or(u64::MAX)
         .saturating_add(1);
     response
@@ -294,8 +358,8 @@ fn post_with<R: Resolver>(
         .take(limit)
         .read_to_end(&mut body)
         .map_err(|_| "E_NET_FAILED")?;
-    let truncated = body.len() > post.max_bytes;
-    body.truncate(post.max_bytes);
+    let truncated = body.len() > send.max_bytes;
+    body.truncate(send.max_bytes);
     Ok(Fetched {
         status,
         content_type,

@@ -54,6 +54,18 @@ describe('the count pacer', () => {
     expect(reports.at(-1)?.selection).toBeNull()
   })
 
+  it('reports the word goal the front matter sets, as it changes', () => {
+    const { dispatch, reports } = open('---\nword-goal: 500\n---\none two')
+    vi.advanceTimersByTime(0)
+    expect(reports.at(-1)).toEqual({ words: 2, characters: 6, selection: null, goal: 500 })
+    dispatch({ changes: { from: 15, to: 18, insert: '1200' } })
+    vi.advanceTimersByTime(COUNTS_DEBOUNCE_MS)
+    expect(reports.at(-1)?.goal).toBe(1200)
+    dispatch({ changes: { from: 0, to: 3, insert: '' } })
+    vi.advanceTimersByTime(COUNTS_DEBOUNCE_MS)
+    expect(reports.at(-1)).not.toHaveProperty('goal')
+  })
+
   it('joins several selected ranges', () => {
     const { dispatch, reports } = open('aa bb cc dd')
     dispatch({

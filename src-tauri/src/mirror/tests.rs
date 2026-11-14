@@ -807,6 +807,7 @@ fn sends_the_status_with_the_names_the_ui_reads() {
             "generation": 0,
             "folder": null,
             "includeAttachments": true,
+            "readBack": false,
             "paused": null,
             "size": null,
             "kept": [],
@@ -1271,4 +1272,129 @@ fn a_batch_that_panics_leaves_the_mirror_working() {
         None
     );
     assert!(folder.join("Plan.md").is_file());
+}
+
+#[test]
+fn turns_bring_back_outside_edits_on_and_keeps_it() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let before = f.get();
+    assert!(!before.read_back);
+    let status = f
+        .mirror
+        .set(&patch(json!({ "readBack": true })), &f.notify())
+        .unwrap();
+    assert!(status.read_back);
+    assert!(
+        status.generation > before.generation,
+        "a reconcile looks for edits at once"
+    );
+    assert!(f.open().unwrap().read_back);
+    assert_eq!(
+        f.mirror
+            .set(&patch(json!({ "readBack": "yes" })), &f.notify()),
+        Err(INVALID)
+    );
+    let again = Mirror::new(&f.data.join(SETTINGS_FILE), None);
+    assert!(again.get(&|_| {}).unwrap().read_back);
+}
+
+#[test]
+fn reads_a_note_s_file_back_only_with_bring_back_outside_edits_on() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let opened = f.open().unwrap();
+    f.apply(opened.generation, &[note_op("Plan.md", "one")]);
+    fs::write(folder.join("Plan.md"), "edited").unwrap();
+    assert_eq!(
+        f.mirror
+            .read(opened.generation, &[NOTE.into()], &f.notify()),
+        Err("E_MIRROR_READ_BACK_OFF")
+    );
+    let generation = f
+        .mirror
+        .set(&patch(json!({ "readBack": true })), &f.notify())
+        .unwrap()
+        .generation;
+    f.open().unwrap();
+    let other = "0192a6f0-0000-7000-8000-000000000002";
+    let read = f
+        .mirror
+        .read(generation, &[NOTE.into(), other.into()], &f.notify())
+        .unwrap();
+    assert_eq!(read[0].text.as_deref(), Some("edited"));
+    assert_eq!(read[0].path.as_deref(), Some("Plan.md"));
+    assert_eq!(read[0].sha256, Some(sha256_hex(b"edited")));
+    assert_eq!(read[1].code, Some("E_MIRROR_STALE"));
+    assert_eq!(
+        f.mirror.read(generation, &["../x".into()], &f.notify()),
+        Err("E_MIRROR_IDS_INVALID")
+    );
+    assert_eq!(
+        f.mirror.read(generation + 1, &[NOTE.into()], &f.notify()),
+        Err("E_MIRROR_STALE")
+    );
+
+    fs::write(folder.join("Plan.md"), [0xff, 0xfe]).unwrap();
+    let read = f
+        .mirror
+        .read(generation, &[NOTE.into()], &f.notify())
+        .unwrap();
+    assert_eq!(read[0].code, Some("E_MIRROR_READ_INVALID"));
+    fs::remove_file(folder.join("Plan.md")).unwrap();
+    std::os::unix::fs::symlink(f.data.join(SETTINGS_FILE), folder.join("Plan.md")).unwrap();
+    let read = f
+        .mirror
+        .read(generation, &[NOTE.into()], &f.notify())
+        .unwrap();
+    assert_eq!(
+        read[0].code,
+        Some("E_MIRROR_READ_MISSING"),
+        "never through a link"
+    );
+}
+
+#[test]
+fn takes_a_file_as_devot_s_only_while_it_holds_what_was_read() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f
+        .mirror
+        .set(&patch(json!({ "readBack": true })), &f.notify())
+        .unwrap()
+        .generation;
+    f.open().unwrap();
+    f.apply(generation, &[note_op("Plan.md", "one")]);
+    fs::write(folder.join("Plan.md"), "edited").unwrap();
+    let take =
+        |sha256: String| json!({ "kind": "take", "id": NOTE, "path": "Plan.md", "sha256": sha256 });
+
+    let results = f.apply(generation, &[take(sha256_hex(b"other"))]);
+    assert_eq!(results[0].code, Some("E_MIRROR_CHANGED"));
+    assert_eq!(results[0].state, Some(Some(sha256_hex(b"edited"))));
+
+    let results = f.apply(generation, &[take(sha256_hex(b"edited"))]);
+    assert_eq!(results[0].code, None);
+    assert_eq!(results[0].size, Some(6));
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert_eq!(stored.notes[NOTE].sha256, sha256_hex(b"edited"));
+    assert_eq!(stored.notes[NOTE].source, "s");
+
+    // Devot's next write goes over the file it now takes as its own, keeping nothing aside.
+    let mut write = note_op("Plan.md", "two");
+    write["from"] = json!("Plan.md");
+    let results = f.apply(generation, &[write]);
+    assert_eq!(results[0].code, None);
+    assert_eq!(fs::read_to_string(folder.join("Plan.md")).unwrap(), "two");
+    assert_eq!(f.get().kept_count, 0);
+
+    let stale =
+        json!({ "kind": "take", "id": NOTE, "path": "Other.md", "sha256": sha256_hex(b"two") });
+    assert_eq!(
+        f.apply(generation, &[stale])[0].code,
+        Some("E_MIRROR_STALE")
+    );
 }

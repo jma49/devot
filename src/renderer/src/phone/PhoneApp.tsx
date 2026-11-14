@@ -41,8 +41,9 @@ import { SCREENS_HANDLERS } from './screens/ops'
 import { glassHandlers } from './screens/glass'
 import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
-import { editorHandlers, type NativeEditor } from './screens/editor'
+import { createEditorSlot, editorHandlers } from './screens/editor'
 import { newNoteHandlers, type NativeNewNote } from './screens/newNote'
+import { shareHandlers, type NativeShare } from './screens/share'
 import { noteChangesRev, watchLibraryChanges, watchNoteChanges } from './screens/noteChanges'
 import { listHandlers } from './screens/lists'
 import { searchHandlers } from './screens/search'
@@ -286,8 +287,9 @@ export function PhoneApp() {
   const latest = useRef(state)
   const nativeTabs = useRef<NativeTabs | null>(null)
   const nativeSettings = useRef<NativeSettings | null>(null)
-  const nativeEditor = useRef<NativeEditor | null>(null)
+  const [nativeEditor] = useState(createEditorSlot)
   const nativeNewNote = useRef<NativeNewNote | null>(null)
+  const nativeShare = useRef<NativeShare | null>(null)
   const [prepared] = useState(createPreparedNotes)
   // Null until the bridge says whether the native screens are there; without them the page is the fallback.
   const [native, setNative] = useState<boolean | null>(null)
@@ -309,7 +311,7 @@ export function PhoneApp() {
       ...settingsHandlers({
         notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
-      ...editorHandlers(() => nativeEditor.current, {
+      ...editorHandlers(nativeEditor, {
         prepare: (noteId) => {
           const core = latestStore.current.core
           if (core) prepared.prepare(core, noteId)
@@ -317,6 +319,7 @@ export function PhoneApp() {
       }),
       ...glassHandlers(),
       ...newNoteHandlers(() => nativeNewNote.current),
+      ...shareHandlers(() => nativeShare.current),
       ...listHandlers(() => latestStore.current.started()),
       ...searchHandlers(() => latestStore.current.started()),
       ...noteHandlers(
@@ -348,7 +351,7 @@ export function PhoneApp() {
       started.stop()
       prepared.clear()
     }
-  }, [prepared])
+  }, [prepared, nativeEditor])
   useSpikes(store.core)
   useEffect(() => {
     if (welcomed.current || !welcomeDue(licence, Date.now())) return
@@ -427,6 +430,27 @@ export function PhoneApp() {
         void phoneData.refresh()
         return { id }
       },
+    }
+    nativeShare.current = {
+      allowed: editingAllowed,
+      capture: async (share) => {
+        const core = await latestStore.current.started()
+        const bookId = newNoteBook(
+          null,
+          editorSettings().defaultNotebook,
+          latestStore.current.books,
+        )
+        const note = await core.captureShare({ ...share, bookId })
+        void phoneData.refresh()
+        return note
+      },
+      ledger: (() => {
+        try {
+          return globalThis.localStorage
+        } catch {
+          return null
+        }
+      })(),
     }
   })
   useEffect(() => {
@@ -525,7 +549,7 @@ export function PhoneApp() {
         <EditorHost
           store={store}
           notify={(notice) => bridge.current?.notify(notice)}
-          editor={nativeEditor}
+          editor={nativeEditor.ref}
           prepared={prepared}
           openNote={openNote}
         />

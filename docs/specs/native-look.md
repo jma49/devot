@@ -21,6 +21,13 @@ Part of the [design system](design-system.md).
   Rust builds the main window with its effect and hands the page the settings it was built with in an initialization script (`window.devotInitialEditorSettings`, which the CSP does not govern), so the first paint matches the window (the editor's font too).
   That script carries the settings read at launch into every load, so the page also keeps the newest snapshot it has confirmed in `sessionStorage` and, after a reload (a backup restore reloads it), starts from that one when it is newer.
   A note window and the quick capture window have no effect: a note window paints `color.surface.window` under its panes and quick capture `color.surface.editor`, and both draw the same Glass controls.
+- **Older macOS:** the app runs on macOS 15 or later, on Apple Silicon and Intel (`minimumSystemVersion` in `tauri.conf.json`).
+  Every Glass surface is drawn by the page over the window's `underWindowBackground` material, which every supported macOS has, so the sidebar, toolbar and popovers look the same on macOS 15.
+  What only macOS 26 has is checked before use: without `NSGlassEffectView` no window is changed to keep the system glass active (`keep_glass_active`), without `_setCornerRadius:` the window keeps the system's corner (`round_window_corner`), and without `NSMenuItem.writingToolsItems` the editor's menu leaves Writing Tools out.
+  macOS 15 has no layered icon: the bundler compiles `Assets.car` for macOS 26 alone, so macOS 15 shows `icon.icns`, the bundle's `CFBundleIconFile`.
+  Every SF Symbol the Mac app draws is listed with the macOS that first has it in `design/icons/symbol-availability.json`, and a policy test (`tests/policy/platform-support.test.ts`) refuses one newer than the minimum.
+  The page needs WebKit 18 or later (relative colours, `color(from ...)`, for the transparency sliders), which macOS 15 ships; newer features are used only behind `@supports` or a check for the API (`Uint8Array.fromBase64`, `requestIdleCallback`).
+  CI runs the native main-thread tests on macOS 15 on Intel (`mac-compat`), the oldest system and the other architecture the app ships for.
 - Overlay title bar: traffic lights in the sidebar's top bar, a unified toolbar over the list and editor.
   The main windows and Settings place their traffic lights at `trafficLightPosition` (20, 28: `tauri.conf.json`, `TRAFFIC_LIGHTS` in `settings.rs`), and the buttons stay there.
   AppKit moves them back to the system's place whenever it lays the title bar out again (key and main state, activation, screen and backing scale changes, appearance, title), while tao puts them back only when its view draws and after full screen.

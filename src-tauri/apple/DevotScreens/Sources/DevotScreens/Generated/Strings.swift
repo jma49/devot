@@ -2062,6 +2062,14 @@ public enum L10n {
     fill(text("counts.of", "{part} of {total}"), ["part": p0, "total": p1])
   }
 
+  public static func countsTowardGoal(count p0: String, goal p1: String) -> String {
+    fill(text("counts.towardGoal", "{count} / {goal}"), ["count": p0, "goal": p1])
+  }
+
+  public static func countsGoalTitle(goal p0: String) -> String {
+    fill(text("counts.goalTitle", "Word goal: {goal}"), ["goal": p0])
+  }
+
   public static func imagesRefusedOne(reasons p0: String) -> String {
     fill(text("images.refusedOne", "An image could not be added. {reasons}"), ["reasons": p0])
   }
@@ -2786,6 +2794,14 @@ public enum L10n {
     text("mirror.turnOff", "Turn Off")
   }
 
+  public static func mirrorReadBack() -> String {
+    text("mirror.readBack", "Bring Back Outside Edits")
+  }
+
+  public static func mirrorReadBackHint() -> String {
+    text("mirror.readBackHint", "A file changed in another app goes back into its note. If the note changed in Devot too, Devot keeps its version and the file is kept under a new name.")
+  }
+
   public static func mirrorIncludeAttachments() -> String {
     text("mirror.includeAttachments", "Include Attachments")
   }
@@ -3192,6 +3208,10 @@ public enum L10n {
 
   public static func importReasonOutside() -> String {
     text("import.reason.outside", "Outside the imported folder")
+  }
+
+  public static func importReasonTag() -> String {
+    text("import.reason.tag", "Tag not added: not a valid tag name")
   }
 
   public static func importReasonType() -> String {
@@ -4498,6 +4518,58 @@ public enum L10n {
     text("plugins.trialEnded", "Your Devot trial has ended, so a plugin cannot change notes. Add a license in Settings > License.")
   }
 
+  public static func intentAddTitle() -> String {
+    text("intent.add.title", "Add to Devot")
+  }
+
+  public static func intentAddDescription() -> String {
+    text("intent.add.description", "Adds a note to Devot. It appears in your notes the next time you open Devot.")
+  }
+
+  public static func intentFieldTitle() -> String {
+    text("intent.field.title", "Title")
+  }
+
+  public static func intentFieldText() -> String {
+    text("intent.field.text", "Text")
+  }
+
+  public static func intentFieldLink() -> String {
+    text("intent.field.link", "Link")
+  }
+
+  public static func intentAdded() -> String {
+    text("intent.added", "Added to Devot.")
+  }
+
+  public static func intentErrorEmpty() -> String {
+    text("intent.error.empty", "Add a title, some text or a link.")
+  }
+
+  public static func intentErrorLink() -> String {
+    text("intent.error.link", "The link must be a web address.")
+  }
+
+  public static func intentErrorTooLarge() -> String {
+    text("intent.error.tooLarge", "This is too long to add to Devot.")
+  }
+
+  public static func intentErrorFull() -> String {
+    text("intent.error.full", "Too many notes are waiting. Open Devot, then try again.")
+  }
+
+  public static func intentErrorSave() -> String {
+    text("intent.error.save", "Devot could not keep this. Try again.")
+  }
+
+  public static func intentTodayTitle() -> String {
+    text("intent.today.title", "Open Today's Note")
+  }
+
+  public static func intentTodayDescription() -> String {
+    text("intent.today.description", "Opens today's note in Devot.")
+  }
+
   public static func licenceSettingsTitle() -> String {
     text("licenceSettings.title", "License")
   }
@@ -5004,6 +5076,98 @@ public enum L10n {
 
   public static func noteMenuCopyId() -> String {
     text("noteMenu.copyId", "Copy Note ID")
+  }
+
+  public static func noteMenuShareWeb() -> String {
+    text("noteMenu.shareWeb", "Share on Web…")
+  }
+
+  public static func shareWebTitle() -> String {
+    text("shareWeb.title", "Share on Web")
+  }
+
+  public static func shareWebWarning() -> String {
+    text("shareWeb.warning", "Anyone with the link can read this note until the link expires or you stop sharing. The note is encrypted on this Mac, and the link holds its key, so the share service cannot read it.")
+  }
+
+  public static func shareWebLifetimeLabel() -> String {
+    text("shareWeb.lifetimeLabel", "Link expires after")
+  }
+
+  public static func shareWebLifetimeDay() -> String {
+    text("shareWeb.lifetime.day", "1 day")
+  }
+
+  public static func shareWebLifetimeWeek() -> String {
+    text("shareWeb.lifetime.week", "7 days")
+  }
+
+  public static func shareWebLifetimeMonth() -> String {
+    text("shareWeb.lifetime.month", "30 days")
+  }
+
+  public static func shareWebShare() -> String {
+    text("shareWeb.share", "Share")
+  }
+
+  public static func shareWebSharing() -> String {
+    text("shareWeb.sharing", "Sharing…")
+  }
+
+  public static func shareWebUpdating() -> String {
+    text("shareWeb.updating", "Updating the page…")
+  }
+
+  public static func shareWebStopping() -> String {
+    text("shareWeb.stopping", "Stopping…")
+  }
+
+  public static func shareWebSharedDetail(date p0: String) -> String {
+    fill(text("shareWeb.sharedDetail", "Anyone with this link can read the note until {date}. Update Page shares your latest changes under the same link."), ["date": p0])
+  }
+
+  public static func shareWebLinkLabel() -> String {
+    text("shareWeb.linkLabel", "Link")
+  }
+
+  public static func shareWebCopy() -> String {
+    text("shareWeb.copy", "Copy Link")
+  }
+
+  public static func shareWebCopied() -> String {
+    text("shareWeb.copied", "Link copied.")
+  }
+
+  public static func shareWebUpdate() -> String {
+    text("shareWeb.update", "Update Page")
+  }
+
+  public static func shareWebStop() -> String {
+    text("shareWeb.stop", "Stop Sharing")
+  }
+
+  public static func shareWebDone() -> String {
+    text("shareWeb.done", "Done")
+  }
+
+  public static func shareWebErrorTooLarge() -> String {
+    text("shareWeb.error.tooLarge", "This note is too large to share. With its images it can be at most 10 MB.")
+  }
+
+  public static func shareWebErrorBusy() -> String {
+    text("shareWeb.error.busy", "Too many shares just now. Try again in a minute.")
+  }
+
+  public static func shareWebErrorOffline() -> String {
+    text("shareWeb.error.offline", "Devot could not reach the share service. Check your connection and try again.")
+  }
+
+  public static func shareWebErrorKeychain() -> String {
+    text("shareWeb.error.keychain", "Devot could not keep the link in your keychain, so the note was not shared.")
+  }
+
+  public static func shareWebErrorFailed() -> String {
+    text("shareWeb.error.failed", "The note could not be shared. Try again.")
   }
 
   public static func noteMenuHistory() -> String {
@@ -7082,6 +7246,54 @@ public enum L10n {
     text("appearanceSettings.failed", "The appearance settings could not be saved.")
   }
 
+  public static func shareSheetTitle() -> String {
+    text("share.sheet.title", "Devot")
+  }
+
+  public static func sharePost() -> String {
+    text("share.post", "Post")
+  }
+
+  public static func shareCancel() -> String {
+    text("share.cancel", "Cancel")
+  }
+
+  public static func shareFieldTitle() -> String {
+    text("share.field.title", "Title")
+  }
+
+  public static func shareFieldText() -> String {
+    text("share.field.text", "Text")
+  }
+
+  public static func shareImagesCount(count p0: String) -> String {
+    fill(text("share.images.count", "Images: {count}"), ["count": p0])
+  }
+
+  public static func shareImagesSkipped() -> String {
+    text("share.images.skipped", "Some images could not be added.")
+  }
+
+  public static func shareErrorTitle() -> String {
+    text("share.error.title", "Could Not Add to Devot")
+  }
+
+  public static func shareErrorEmpty() -> String {
+    text("share.error.empty", "Add a title, some text, a link or an image.")
+  }
+
+  public static func shareErrorTooLarge() -> String {
+    text("share.error.tooLarge", "This is too large to add to Devot. Try fewer images.")
+  }
+
+  public static func shareErrorSave() -> String {
+    text("share.error.save", "Devot could not keep this. Try again.")
+  }
+
+  public static func shareOk() -> String {
+    text("share.ok", "OK")
+  }
+
   public static func sidebarLabel() -> String {
     text("sidebar.label", "Sidebar")
   }
@@ -8824,6 +9036,22 @@ public enum L10n {
 
   public static func syncRestoreKeep() -> String {
     text("sync.restore.keep", "Keep This Mac’s Copy")
+  }
+
+  public static func widgetTodayName() -> String {
+    text("widget.today.name", "Today's Note")
+  }
+
+  public static func widgetTodayDescription() -> String {
+    text("widget.today.description", "Opens today's note in Devot.")
+  }
+
+  public static func widgetTodayLabel() -> String {
+    text("widget.today.label", "Today")
+  }
+
+  public static func widgetTodayTitle() -> String {
+    text("widget.today.title", "Open Today's Note")
   }
 
   static func text(_ key: String, _ english: String) -> String {

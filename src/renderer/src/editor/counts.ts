@@ -5,13 +5,19 @@
 import { StateEffect, type EditorState, type Extension } from '@codemirror/state'
 import { ViewPlugin } from '@codemirror/view'
 import { noteCounts, type NoteCounts } from '../../../core/noteCounts'
+import { wordGoal } from '../../../core/wordGoal'
 
 export const COUNTS_DEBOUNCE_MS = 300
 
 export interface EditorCounts extends NoteCounts {
   /** Counts of the selected text; null with a caret only. */
   readonly selection: NoteCounts | null
+  /** The note's `word-goal` front matter, when it has one. */
+  readonly goal?: number
 }
+
+/** Front matter longer than this has no goal, so a pause never copies a long note to look for one. */
+const GOAL_HEAD_CHARS = 16_384
 
 /** Counts `markdown` as `noteCounts` does, perhaps elsewhere. */
 export type Counter = (markdown: string) => NoteCounts | Promise<NoteCounts>
@@ -60,10 +66,12 @@ export class CountsPacer {
       .filter((r) => !r.empty)
       .map((r) => state.sliceDoc(r.from, r.to))
     const selection = picked.length > 0 ? this.count(picked.join('\n')) : null
+    const goal = wordGoal(state.sliceDoc(0, GOAL_HEAD_CHARS))
     const counted = then(whole, (note) =>
       then(selection, (part) => {
         if (run === this.measured && !this.stopped) {
-          this.report({ words: note.words, characters: note.characters, selection: part })
+          const counts = { words: note.words, characters: note.characters, selection: part }
+          this.report(goal === null ? counts : { ...counts, goal })
         }
       }),
     )

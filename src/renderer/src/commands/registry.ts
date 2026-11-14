@@ -190,6 +190,13 @@ export const COMMANDS = [
   },
   { id: 'note.copyId', label: 'noteMenu.copyId', group: 'note', scope: 'noteList', keys: [] },
   {
+    id: 'note.shareWeb',
+    label: 'noteMenu.shareWeb',
+    group: 'note',
+    scope: 'noteList',
+    keys: [],
+  },
+  {
     id: 'note.clearAuthorship',
     label: 'noteMenu.clearAuthorship',
     group: 'note',

@@ -59,6 +59,7 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
   { pane: 'preview', label: 'previewSettings.syncScroll', only: 'mac' },
   { pane: 'preview', label: 'previewSettings.remoteImages' },
   { pane: 'mirror', label: 'mirror.folderLabel' },
+  { pane: 'mirror', label: 'mirror.readBack' },
   { pane: 'mirror', label: 'mirror.includeAttachments' },
   { pane: 'sync', label: 'syncSettings.relay' },
   { pane: 'sync', label: 'syncSettings.secret' },

@@ -10,7 +10,7 @@ use tauri::ipc::{InvokeBody, Request};
 use tauri::{AppHandle, Manager, State};
 
 pub const MAX_FILE_BYTES: usize = 10 * 1024 * 1024;
-const MAX_NAME_CHARS: usize = 200;
+pub(crate) const MAX_NAME_CHARS: usize = 200;
 const MAX_COPIES: usize = 10_000;
 
 pub fn detect_image(bytes: &[u8]) -> Option<&'static str> {

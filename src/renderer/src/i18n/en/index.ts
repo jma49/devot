@@ -12,8 +12,11 @@ import * as licence from './licence'
 import * as noteList from './noteList'
 import * as phone from './phone'
 import * as settings from './settings'
+import * as share from './share'
+import * as intents from './intents'
 import * as sidebar from './sidebar'
 import * as sync from './sync'
+import * as widget from './widget'
 
 export const areas = {
   ai,
@@ -27,8 +30,11 @@ export const areas = {
   noteList,
   phone,
   settings,
+  share,
+  intents,
   sidebar,
   sync,
+  widget,
 }
 
 export const en = {
@@ -43,8 +49,11 @@ export const en = {
   ...noteList.messages,
   ...phone.messages,
   ...settings.messages,
+  ...share.messages,
+  ...intents.messages,
   ...sidebar.messages,
   ...sync.messages,
+  ...widget.messages,
 } as const
 
 export type MessageKey = keyof typeof en

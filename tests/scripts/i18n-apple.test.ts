@@ -2,10 +2,14 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  APP_INTENTS_XCSTRINGS,
+  WIDGET_XCSTRINGS,
   appleStrings,
   compileSettingsIndex,
   compileStrings,
   SETTINGS_INDEX,
+  SHARE_STRINGS_SWIFT,
+  SHARE_XCSTRINGS,
   staleOutputs,
   STRINGS_SWIFT,
   XCSTRINGS,
@@ -14,6 +18,7 @@ import { PANES, PANE_TABS } from '../../src/renderer/src/settings/panes'
 import { SETTINGS_ENTRIES } from '../../src/renderer/src/settings/searchEntries'
 import { en } from '../../src/renderer/src/i18n/en'
 import { enPhone } from '../../src/renderer/src/i18n/phone'
+import { zhHans, zhHansPhone } from '../../src/renderer/src/i18n/zh-Hans'
 import { CJK } from '../support/policy-patterns'
 import { tempDir } from '../support/temp-dirs'
 
@@ -91,14 +96,96 @@ describe('the Swift string catalog', () => {
     )
   })
 
-  it('holds no CJK', () => {
+  it("gives the Share Extension its own enum with only the share area's keys", async () => {
+    const outputs = new Map(await appleStrings('.'))
+    const shareSwift = outputs.get(SHARE_STRINGS_SWIFT)!
+    const shareCatalog = JSON.parse(outputs.get(SHARE_XCSTRINGS)!) as { strings: object }
+    const shareKeys = Object.keys(en).filter((key) => key.startsWith('share.'))
+    expect(shareKeys.length).toBeGreaterThan(0)
+    expect(Object.keys(shareCatalog.strings)).toEqual([...shareKeys].sort())
+    expect(shareSwift).toContain('public enum ShareL10n {')
+    expect(shareSwift).toContain('public static func sharePost() -> String {')
+  })
+
+  it("gives the app's Shortcuts actions a string catalog with only the intent area's keys", async () => {
+    const outputs = new Map(await appleStrings('.'))
+    const intents = JSON.parse(outputs.get(APP_INTENTS_XCSTRINGS)!) as { strings: object }
+    const intentKeys = Object.keys(en).filter((key) => key.startsWith('intent.'))
+    expect(intentKeys).toContain('intent.add.title')
+    expect(Object.keys(intents.strings)).toEqual([...intentKeys].sort())
+  })
+
+  it("gives the widget and Control a string catalog with only the widget area's keys, translated", async () => {
+    const outputs = new Map(await appleStrings('.'))
+    const widget = JSON.parse(outputs.get(WIDGET_XCSTRINGS)!) as {
+      strings: Record<string, { localizations: object }>
+    }
+    const widgetKeys = Object.keys(en).filter((key) => key.startsWith('widget.'))
+    expect(widgetKeys).toContain('widget.today.title')
+    expect(Object.keys(widget.strings)).toEqual([...widgetKeys].sort())
+    for (const key of widgetKeys)
+      expect({ key, languages: Object.keys(widget.strings[key]!.localizations).sort() }).toEqual({
+        key,
+        languages: ['en', 'zh-Hans'],
+      })
+  })
+
+  it('refuses a placeholder in a Shortcuts or widget string, which the system reads by key alone', () => {
+    expect(
+      Object.entries(en).filter(
+        ([key, text]) =>
+          (key.startsWith('intent.') || key.startsWith('widget.')) && text.includes('{'),
+      ),
+    ).toEqual([])
+  })
+
+  it('adds each translation beside the English, leaving keys it lacks in English only', () => {
+    const out = compileStrings(
+      { 'a.move': 'Move {title}', 'a.plain': 'Plain' },
+      {},
+      { fr: { 'a.move': 'Placer {title}' } },
+    )
+    const strings = JSON.parse(out.xcstrings).strings
+    expect(strings['a.move'].localizations.fr.stringUnit.value).toBe('Placer {title}')
+    expect(strings['a.move'].localizations.en.stringUnit.value).toBe('Move {title}')
+    expect(strings['a.plain'].localizations.fr).toBeUndefined()
+    expect(out.swift).toContain('text("a.move", "Move {title}")')
+  })
+
+  it('refuses a translation that takes other placeholders than the English', () => {
+    expect(() =>
+      compileStrings({ 'a.b': 'On {mac}' }, {}, { fr: { 'a.b': 'Sur {phone}' } }),
+    ).toThrow(/E_I18N_PLACEHOLDERS fr a.b/)
+  })
+
+  it('writes no CJK into Strings.swift, whose text is the English fallback', async () => {
+    const outputs = await appleStrings('.')
+    const generated = outputs.find(([path]) => path === STRINGS_SWIFT)![1]
+    expect(CJK.test(generated)).toBe(false)
+    expect(CJK.test(outputs.find(([path]) => path === SHARE_STRINGS_SWIFT)![1])).toBe(false)
     expect(CJK.test(swift)).toBe(false)
-    expect(CJK.test(xcstrings)).toBe(false)
+  })
+
+  it('carries the Simplified Chinese catalog, in its iPhone wording', async () => {
+    const outputs = await appleStrings('.')
+    const strings = JSON.parse(outputs.find(([path]) => path === XCSTRINGS)![1]).strings
+    const zh = (key: string) => strings[key].localizations['zh-Hans'].stringUnit.value
+    expect(zh('phone.tab.notes')).toBe(zhHans['phone.tab.notes'])
+    expect(zh('usage.storage')).toBe(zhHansPhone['usage.storage'])
+    expect(Object.keys(strings).every((key) => strings[key].localizations['zh-Hans'])).toBe(true)
   })
 
   it('are the committed files', async () => {
     const outputs = await appleStrings('.')
-    expect(outputs.map(([path]) => path)).toEqual([STRINGS_SWIFT, XCSTRINGS, SETTINGS_INDEX])
+    expect(outputs.map(([path]) => path)).toEqual([
+      STRINGS_SWIFT,
+      XCSTRINGS,
+      SETTINGS_INDEX,
+      SHARE_STRINGS_SWIFT,
+      SHARE_XCSTRINGS,
+      APP_INTENTS_XCSTRINGS,
+      WIDGET_XCSTRINGS,
+    ])
     expect(staleOutputs('.', outputs)).toEqual([])
   })
 

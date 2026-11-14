@@ -1,3 +1,4 @@
+import DevotShareInbox
 import UIKit
 import WebKit
 
@@ -36,6 +37,7 @@ final class Screens: SettingsBridge {
     private var editorShown = false
     let haptics: Haptics
     let gate: ProGate
+    private(set) var shareDrain: ShareDrain!
     /// New Note's notes, until their screen has gone: whether a change came after the one that made them.
     private var fresh: [String: FreshNote] = [:]
     private var background: NSObjectProtocol?
@@ -50,7 +52,7 @@ final class Screens: SettingsBridge {
         var touched = false
     }
 
-    private init(rust: any RustSide, webView: WKWebView, defaults: UserDefaults) {
+    private init(rust: any RustSide, webView: WKWebView, defaults: UserDefaults, inbox: ShareInbox?) {
         self.rust = rust
         self.defaults = defaults
         let root = ScreensRootController(webView: webView)
@@ -102,7 +104,17 @@ final class Screens: SettingsBridge {
             save()
             if entersBackground { defaults.set(false, forKey: Restoration.runningKey) }
         }
-        root.onActivate = { [weak self] in self?.defaults.set(true, forKey: Restoration.runningKey) }
+        root.onActivate = { [weak self] in
+            self?.defaults.set(true, forKey: Restoration.runningKey)
+            self?.shareDrain.drain()
+        }
+        shareDrain = ShareDrain(
+            inbox: inbox, locked: { [gate] in gate.locked() },
+            send: { [weak self] op, args, done in
+                guard let self else { return done(.failed("E_SCREENS_UNAVAILABLE")) }
+                request(op, args, done: done)
+            },
+            log: { [rust] in rust.log($0, $1) })
         background = NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil
         ) { [weak self] _ in
@@ -113,7 +125,8 @@ final class Screens: SettingsBridge {
     /// Checks what Rust handed over and attaches the root, or answers nil. Tao's window may not be
     /// up yet: containment needs none.
     static func attach(
-        webView: AnyObject, root: AnyObject, rust: any RustSide, defaults: UserDefaults = .standard
+        webView: AnyObject, root: AnyObject, rust: any RustSide, defaults: UserDefaults = .standard,
+        inbox: ShareInbox? = ShareInbox.shared()
     ) -> Screens? {
         if defaults.bool(forKey: killSwitch) {
             rust.log(.info, "I_SCREENS_SWITCHED_OFF")
@@ -123,7 +136,7 @@ final class Screens: SettingsBridge {
             rust.log(.warn, "W_SCREENS_INSTALL_REFUSED reason=class")
             return nil
         }
-        let screens = Screens(rust: rust, webView: webView, defaults: defaults)
+        let screens = Screens(rust: rust, webView: webView, defaults: defaults, inbox: inbox)
         let crashed = defaults.bool(forKey: Restoration.runningKey)
         defaults.set(true, forKey: Restoration.runningKey)
         UIView.performWithoutAnimation {
@@ -131,7 +144,10 @@ final class Screens: SettingsBridge {
             screens.restore(crashed: crashed)
         }
         screens.attaching = false
-        screens.afterInstall { [weak screens] in screens?.sendHeld() }
+        screens.afterInstall { [weak screens] in
+            screens?.sendHeld()
+            screens?.shareDrain.drain()
+        }
         #if DEBUG
             SpikeHarness.startIfAsked(screens: screens, webView: webView, defaults: defaults)
         #endif
@@ -296,7 +312,10 @@ final class Screens: SettingsBridge {
             gate.require(.newNote(bookId: fields["bookId"]?.string))
             return true
         case .licenceChanged:
-            root.tabs.settings.store.licences.read { [weak self] in self?.gate.licenceChanged() }
+            root.tabs.settings.store.licences.read { [weak self] in
+                self?.gate.licenceChanged()
+                self?.shareDrain.drain()
+            }
             return true
         case .notesChanged:
             guard let rev = fields["rev"]?.number, let ids = fields["ids"]?.array else { return invalid(kind) }

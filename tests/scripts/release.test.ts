@@ -177,14 +177,13 @@ describe('update feed', () => {
     signature: 'dW50cnVzdGVkIGNvbW1lbnQ6\n',
   }
 
-  it('lists the Apple Silicon bundle in the format the updater reads', () => {
+  it('lists the universal bundle for Apple Silicon and Intel in the format the updater reads', () => {
+    const bundle = { signature: 'dW50cnVzdGVkIGNvbW1lbnQ6', url: input.url }
     expect(updateFeed(input)).toEqual({
       version: '0.9.1-beta2',
       notes: '- #166 Automatic updates',
       pub_date: '2026-10-18T09:00:00.000Z',
-      platforms: {
-        'darwin-aarch64': { signature: 'dW50cnVzdGVkIGNvbW1lbnQ6', url: input.url },
-      },
+      platforms: { 'darwin-aarch64': bundle, 'darwin-x86_64': bundle },
     })
   })
 
@@ -222,6 +221,7 @@ describe('update feed', () => {
     const feed = JSON.parse(readFileSync(out, 'utf8')) as ReturnType<typeof updateFeed>
     expect(feed.version).toBe('0.9.1-beta2')
     expect(feed.platforms['darwin-aarch64'].url).toBe(input.url)
+    expect(feed.platforms['darwin-x86_64'].url).toBe(input.url)
     const bad = spawnSync(
       process.execPath,
       [join(root, 'scripts/release/release.ts'), 'feed', 'v0.3', input.url, sig, notes, out],
@@ -350,7 +350,7 @@ describe('signing the updater bundle', () => {
 
   it('signs from the command line and checks the signed version', () => {
     const dir = tempDir('devot-release-sign-')
-    const bundle = join(dir, 'Devot_0.9.2-beta1_aarch64.app.tar.gz')
+    const bundle = join(dir, 'Devot_0.9.2-beta1_universal.app.tar.gz')
     const out = `${bundle}.sig`
     writeFileSync(bundle, file)
     const script = join(root, 'scripts/release/release.ts')
