@@ -3,6 +3,7 @@ import {
   PHONE_TABS,
   initialNavigation,
   isPhoneLayout,
+  phoneDevice,
   layerPlacement,
   navigate,
   releasePops,
@@ -15,10 +16,26 @@ const screens = (state: ReturnType<typeof initialNavigation>, tab = state.tab) =
   state.stacks[tab].map((route) => route.screen)
 
 describe('choosing the phone layout', () => {
-  it('takes an iPhone and leaves the Mac and iPad alone', () => {
-    expect(isPhoneLayout('Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)')).toBe(true)
-    expect(isPhoneLayout('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')).toBe(false)
-    expect(isPhoneLayout('Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X)')).toBe(false)
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)'
+  const IPAD = 'Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X)'
+  // An iPad's web view asks for desktop pages, so it names itself a Mac.
+  const MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+
+  it('takes every iOS build, on an iPhone or an iPad, and leaves the Mac alone', () => {
+    expect(isPhoneLayout(IPHONE, 'ios')).toBe(true)
+    expect(isPhoneLayout(MAC, 'ios')).toBe(true)
+    expect(isPhoneLayout(MAC, 'darwin')).toBe(false)
+    // The UI tests run the phone layout in a browser, by its user agent alone.
+    expect(isPhoneLayout(IPHONE, undefined)).toBe(true)
+    expect(isPhoneLayout(IPAD, undefined)).toBe(true)
+    expect(isPhoneLayout(MAC, undefined)).toBe(false)
+  })
+
+  it('names the device an iPad by its user agent or, asking for desktop pages, by its touch screen', () => {
+    expect(phoneDevice(IPHONE, 5)).toBe('iPhone')
+    expect(phoneDevice(IPAD, 5)).toBe('iPad')
+    expect(phoneDevice(MAC, 5)).toBe('iPad')
+    expect(phoneDevice(MAC, 0)).toBe('iPhone')
   })
 })
 

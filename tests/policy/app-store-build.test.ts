@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { APP_STORE_SETTINGS } from '../../scripts/release/app-store'
 
 // The App Store build of the iPhone app (docs/releasing.md, The App Store build; ADR 0014):
-// iPhone only, with the App Store marker, the iCloud container and the privacy manifest, and the
+// for the iPhone and the iPad, with the App Store marker, the iCloud container and the privacy manifest, and the
 // Apple credentials only where no dependency code runs.
 const read = (path: string) => readFileSync(path, 'utf8')
 const APPLE = 'src-tauri/gen/apple'
@@ -45,15 +45,29 @@ const strings = (dict: string, key: string) =>
   ].map((m) => m[1])
 
 describe('the iPhone app', () => {
-  it('is iPhone only for the first App Store release', () => {
+  it('is for the iPhone and the iPad, in every orientation on the iPad', () => {
     const project = read(PROJECT)
-    // The app's two configurations, then the Share Extension's.
+    // The app's two configurations, then each extension's.
     expect(project.match(/TARGETED_DEVICE_FAMILY = [^;]*;/g)).toEqual(
-      Array(8).fill('TARGETED_DEVICE_FAMILY = 1;'),
+      Array(8).fill('TARGETED_DEVICE_FAMILY = "1,2";'),
     )
-    expect(read(`${APPLE}/project.yml`)).toMatch(/^ {8}TARGETED_DEVICE_FAMILY: 1$/m)
-    expect(read(`${APPLE}/project.yml`)).not.toContain('~ipad')
-    expect(read(`${APPLE}/devot_iOS/Info.plist`)).not.toContain('~ipad')
+    expect(read(`${APPLE}/project.yml`).match(/^ {8}TARGETED_DEVICE_FAMILY: .*$/gm)).toEqual(
+      Array(4).fill('        TARGETED_DEVICE_FAMILY: "1,2"'),
+    )
+    // Split View and Stage Manager need every orientation, or a full-screen app.
+    const plist = read(`${APPLE}/devot_iOS/Info.plist`)
+    const ipad = /<key>UISupportedInterfaceOrientations~ipad<\/key>\s*<array>([^]*?)<\/array>/.exec(
+      plist,
+    )
+    expect(
+      [...(ipad?.[1] ?? '').matchAll(/<string>(\w+)<\/string>/g)].map((m) => m[1]).sort(),
+    ).toEqual([
+      'UIInterfaceOrientationLandscapeLeft',
+      'UIInterfaceOrientationLandscapeRight',
+      'UIInterfaceOrientationPortrait',
+      'UIInterfaceOrientationPortraitUpsideDown',
+    ])
+    expect(plist).not.toContain('UIRequiresFullScreen')
   })
 
   it('bundles the privacy manifest in the app and in each extension', () => {
@@ -200,7 +214,7 @@ describe('the App Store workflow', () => {
     expect(archive).not.toMatch(/--debug|--target/)
   })
 
-  it('checks the archive is iPhone only, with iCloud, its version and a privacy manifest for what it calls', () => {
+  it('checks the archive is for the iPhone and the iPad, with iCloud, its version and a privacy manifest for what it calls', () => {
     const check = step('Check and hand over the archive')
     expect(check).toContain('node scripts/release/app-store.ts marker-check "$deps"')
     expect(check).toContain(

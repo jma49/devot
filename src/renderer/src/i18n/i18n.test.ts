@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { format, resolveLocale, setIPhoneWording, setLocale, t } from '.'
+import { format, resolveLocale, setIPhoneWording, setLocale, setPhoneDevice, t } from '.'
 import { en } from './en'
 import { enPhone } from './phone'
 import { zhHans, zhHansPhone } from './zh-Hans'
@@ -46,6 +46,20 @@ describe('i18n', () => {
     expect(t('noteList.newNote')).toBe('New Note')
     await setLocale('en')
     expect(t('note.untitled')).toBe('Untitled')
+  })
+
+  it('names the iPad instead of the iPhone on an iPad, in every language', async () => {
+    setIPhoneWording(true)
+    setPhoneDevice('iPad')
+    expect(t('usage.storage')).toBe('Stored on this iPad')
+    expect(t('phone.sync.notesStay')).toBe('Notes stay on this iPad')
+    await setLocale('zh-hans')
+    expect(t('usage.storage')).toBe(zhHansPhone['usage.storage']!.replaceAll('iPhone', 'iPad'))
+    expect(t('usage.storage')).not.toContain('iPhone')
+    await setLocale('en')
+    setPhoneDevice('iPhone')
+    expect(t('usage.storage')).toBe('Stored on this iPhone')
+    setIPhoneWording(false)
   })
 
   it('words messages that name the Mac for the iPhone layout, and back', () => {

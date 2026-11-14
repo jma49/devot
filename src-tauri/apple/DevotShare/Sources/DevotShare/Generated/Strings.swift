@@ -58,8 +58,12 @@ public enum ShareL10n {
     text("share.ok", "OK")
   }
 
+  /// Set once at launch on an iPad, whose messages name the iPad, as the page's do.
+  nonisolated(unsafe) public static var onIPad = false
+
   static func text(_ key: String, _ english: String) -> String {
-    catalog.localizedString(forKey: key, value: english, table: nil)
+    let text = catalog.localizedString(forKey: key, value: english, table: nil)
+    return onIPad ? text.replacingOccurrences(of: "iPhone", with: "iPad") : text
   }
 
   /// Each `{name}` that has a value replaced in one pass, as the page's `format` does: an inserted

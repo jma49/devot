@@ -63,6 +63,12 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # Every orientation, which iPad multitasking (Split View, Stage Manager) needs.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "1.0.0"
         ITSAppUsesNonExemptEncryption: false
@@ -85,8 +91,8 @@ targets:
         DEVOT_CLOUDKIT_CONTAINER: $(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))
         DEVOT_CLOUDKIT_CONTAINER_YES: iCloud.io.github.jma49.devot
         ENABLE_BITCODE: false
-        # iPhone only for the first App Store release (docs/adr/0014); the iPad comes later.
-        TARGETED_DEVICE_FAMILY: 1
+        # iPhone and iPad (docs/adr/0014).
+        TARGETED_DEVICE_FAMILY: "1,2"
         ARCHS: [arm64]
         VALID_ARCHS: arm64 
         LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
@@ -150,7 +156,7 @@ targets:
         PRODUCT_NAME: devot_Share
         PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.share
         CODE_SIGN_ENTITLEMENTS: devot_Share/devot_Share.entitlements
-        TARGETED_DEVICE_FAMILY: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: true
         APPLICATION_EXTENSION_API_ONLY: true
     dependencies:
@@ -177,7 +183,7 @@ targets:
         PRODUCT_NAME: devot_Intents
         PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.intents
         CODE_SIGN_ENTITLEMENTS: devot_Intents/devot_Intents.entitlements
-        TARGETED_DEVICE_FAMILY: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: true
         APPLICATION_EXTENSION_API_ONLY: true
     dependencies:
@@ -205,6 +211,6 @@ targets:
         PRODUCT_NAME: devot_Widget
         PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.widget
         CODE_SIGN_ENTITLEMENTS: devot_Widget/devot_Widget.entitlements
-        TARGETED_DEVICE_FAMILY: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: true
         APPLICATION_EXTENSION_API_ONLY: true

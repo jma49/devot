@@ -44,6 +44,11 @@ describe('the Swift string catalog', () => {
     expect(english('phone.tab.notes')).toBe(en['phone.tab.notes'])
   })
 
+  it('names the iPad instead of the iPhone when the app runs on an iPad', () => {
+    expect(swift).toContain('nonisolated(unsafe) public static var onIPad = false')
+    expect(swift).toContain('onIPad ? text.replacingOccurrences(of: "iPhone", with: "iPad") : text')
+  })
+
   it('turns placeholders into labelled String arguments, in the order they appear', () => {
     const out = compileStrings({ 'a.move': 'Move {title} to {book}', 'a.plain': 'Plain' }, {})
     expect(out.swift).toContain(

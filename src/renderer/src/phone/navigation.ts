@@ -31,8 +31,21 @@ export type PhoneNavigationAction =
   /** A note New Note made, over the list that shows it when the one below would not (`listView`). */
   | { readonly type: 'newNoteShown'; readonly listView: PhoneView | null; readonly noteId: string }
 
-// An iPad's layout is out of scope, and an iPhone keeps this layout turned sideways.
-export const isPhoneLayout = (userAgent: string): boolean => /\biPhone\b/.test(userAgent)
+/**
+ * Every iOS build, on an iPhone or an iPad, which keeps this layout turned sideways too; the desktop
+ * layout needs the Mac's menus and windows. Without a platform, as in the UI tests' browser, the user
+ * agent decides.
+ */
+export const isPhoneLayout = (
+  userAgent: string,
+  platform: string | undefined = import.meta.env.TAURI_ENV_PLATFORM as string | undefined,
+): boolean => platform === 'ios' || /\b(?:iPhone|iPad)\b/.test(userAgent)
+
+/** An iPad's web view asks for desktop pages and names itself a Mac; a Mac has no touch screen. */
+export const phoneDevice = (userAgent: string, maxTouchPoints: number): 'iPhone' | 'iPad' =>
+  /\biPad\b/.test(userAgent) || (/\bMacintosh\b/.test(userAgent) && maxTouchPoints > 1)
+    ? 'iPad'
+    : 'iPhone'
 
 export const initialNavigation = (): PhoneNavigation => ({
   tab: 'library',

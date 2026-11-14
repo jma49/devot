@@ -73,7 +73,7 @@ const GOOD = {
   CFBundleIdentifier: 'io.github.jma49.devot',
   CFBundleShortVersionString: '1.2.0',
   CFBundleVersion: '42.1',
-  UIDeviceFamily: [1],
+  UIDeviceFamily: [1, 2],
   ITSAppUsesNonExemptEncryption: false,
   DevotCloudKitContainer: 'iCloud.io.github.jma49.devot',
 }
@@ -81,7 +81,7 @@ const GOOD = {
 describe('the archived bundle', () => {
   const expected = { short: '1.2.0', build: '42.1' }
 
-  it('passes when it is the iPhone-only App Store build with iCloud and its version', () => {
+  it('passes when it is the iPhone and iPad App Store build with iCloud and its version', () => {
     expect(bundleProblems(GOOD, expected)).toEqual([])
   })
 
@@ -90,7 +90,7 @@ describe('the archived bundle', () => {
       bundleProblems(
         {
           ...GOOD,
-          UIDeviceFamily: [1, 2],
+          UIDeviceFamily: [1],
           ITSAppUsesNonExemptEncryption: undefined,
           DevotCloudKitContainer: '',
           CFBundleVersion: '1.2.0',
@@ -98,7 +98,7 @@ describe('the archived bundle', () => {
         expected,
       ),
     ).toEqual([
-      'E_APP_STORE_DEVICE_FAMILY: UIDeviceFamily is [1,2], not iPhone only ([1])',
+      'E_APP_STORE_DEVICE_FAMILY: UIDeviceFamily is [1], not the iPhone and the iPad ([1,2])',
       'E_APP_STORE_ENCRYPTION: ITSAppUsesNonExemptEncryption is not set',
       'E_APP_STORE_ICLOUD: DevotCloudKitContainer is "", not iCloud.io.github.jma49.devot: the build lacks DEVOT_ICLOUD=YES',
       'E_APP_STORE_BUILD_NUMBER: CFBundleVersion is "1.2.0", not 42.1',
@@ -123,7 +123,7 @@ describe('the archived bundle', () => {
     const info = join(dir, 'info.json')
     writeFileSync(info, JSON.stringify(GOOD))
     expect(run('check-bundle', info, '1.2.0', '42.1')).toMatchObject({ status: 0 })
-    writeFileSync(info, JSON.stringify({ ...GOOD, UIDeviceFamily: [1, 2] }))
+    writeFileSync(info, JSON.stringify({ ...GOOD, UIDeviceFamily: [2] }))
     const refused = run('check-bundle', info, '1.2.0', '42.1')
     expect(refused.status).toBe(1)
     expect(refused.stderr).toContain('::error::E_APP_STORE_DEVICE_FAMILY')

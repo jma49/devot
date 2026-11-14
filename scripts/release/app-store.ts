@@ -21,7 +21,7 @@
 //     DEVOT_DISTRIBUTION=app-store.
 //
 //   node scripts/release/app-store.ts check-bundle <Info.plist as JSON> <short> <build>
-//     Checks the archived app is the iPhone-only App Store build with iCloud and that version.
+//     Checks the archived app is the iPhone and iPad App Store build with iCloud and that version.
 //
 //   node scripts/release/app-store.ts privacy-check <PrivacyInfo.xcprivacy as JSON> <nm -u output> <otool -v -s output>
 //     Finds the required-reason APIs the binary calls (App Store Connect refuses an upload that
@@ -60,9 +60,9 @@ export function bundleProblems(
     )
   }
   const family = info['UIDeviceFamily']
-  if (!Array.isArray(family) || family.length !== 1 || family[0] !== 1) {
+  if (shown(family) !== '[1,2]') {
     problems.push(
-      `E_APP_STORE_DEVICE_FAMILY: UIDeviceFamily is ${shown(family)}, not iPhone only ([1])`,
+      `E_APP_STORE_DEVICE_FAMILY: UIDeviceFamily is ${shown(family)}, not the iPhone and the iPad ([1,2])`,
     )
   }
   if (typeof info['ITSAppUsesNonExemptEncryption'] !== 'boolean') {
@@ -269,7 +269,7 @@ function main(args: string[]) {
     const problems = bundleProblems(readJson(rest[0]!), { short: rest[1]!, build: rest[2]! })
     if (problems.length > 0) throw new Error(problems.map((p) => `::error::${p}`).join('\n'))
     console.log(
-      `The archive is the iPhone-only App Store build ${rest[1]} (${rest[2]}) with iCloud.`,
+      `The archive is the iPhone and iPad App Store build ${rest[1]} (${rest[2]}) with iCloud.`,
     )
     return
   }
