@@ -221,4 +221,9 @@ export const messages: Record<keyof typeof en, string> = {
   'editor.copyCodeBlock': '拷贝代码块',
   'editor.overwriteOn': '改写模式已打开',
   'editor.overwriteOff': '改写模式已关闭',
+  'noteInfo.mentions': '未链接的提及',
+  'noteInfo.noMentions': '没有其他笔记提到这一篇',
+  'noteInfo.findingMentions': '正在查找提及…',
+  'noteInfo.linkMention': '链接',
+  'noteInfo.linkMentionIn': '在“{note}”中链接这处提及',
 }
