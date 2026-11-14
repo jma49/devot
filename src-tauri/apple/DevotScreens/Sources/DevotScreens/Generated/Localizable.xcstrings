@@ -11276,6 +11276,28 @@
         }
       }
     },
+    "mirror.readBack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bring Back Outside Edits"
+          }
+        }
+      }
+    },
+    "mirror.readBackHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A file changed in another app goes back into its note. If the note changed in Devot too, Devot keeps its version and the file is kept under a new name."
+          }
+        }
+      }
+    },
     "mirror.size" : {
       "extractionState" : "manual",
       "localizations" : {

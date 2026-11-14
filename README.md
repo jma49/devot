@@ -132,9 +132,9 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 
 Settings > Mirror (or Choose Markdown Mirror Folder… in the command palette) keeps a folder you pick up to date with every note as a Markdown file, laid out like an export: a folder per notebook, a file per note, images in an `attachments` folder. Editors, `grep`, Git, Spotlight and agents can then read your notes without an export, and importing the folder gives the same notes back. Templates and the Trash are left out; Include Attachments (on by default) decides whether images are copied.
 
-The folder is written by Devot and never read back: edit notes in Devot.
+Turn on Bring Back Outside Edits to edit the files in other apps too: a file you change elsewhere goes back into its note (title, tags and status from its front matter, images still linked), merged into the note as an edit, so the note's history and sync keep working.
 
-- A mirrored file you change elsewhere is never overwritten: Devot renames it to `<name> (edited outside Devot).md`, tells you, and writes its own version. Files Devot did not write are never changed.
+- A mirrored file you change elsewhere is never overwritten: without Bring Back Outside Edits, or when the note changed in Devot as well, Devot renames the file to `<name> (edited outside Devot).md`, tells you, and writes its own version. Files Devot did not write are never changed.
 - If the folder goes missing (an unplugged drive) or cannot be written, the mirror pauses and resumes by itself once it can.
 - If the list of files Devot wrote there (`.devot-mirror.json`) goes missing or is damaged, the mirror pauses until you choose the folder again (or put the file back); files that still hold what Devot wrote are then taken back, so nothing is written twice.
 

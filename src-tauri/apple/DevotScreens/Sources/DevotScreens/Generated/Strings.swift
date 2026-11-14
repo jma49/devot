@@ -2678,6 +2678,14 @@ public enum L10n {
     text("mirror.turnOff", "Turn Off")
   }
 
+  public static func mirrorReadBack() -> String {
+    text("mirror.readBack", "Bring Back Outside Edits")
+  }
+
+  public static func mirrorReadBackHint() -> String {
+    text("mirror.readBackHint", "A file changed in another app goes back into its note. If the note changed in Devot too, Devot keeps its version and the file is kept under a new name.")
+  }
+
   public static func mirrorIncludeAttachments() -> String {
     text("mirror.includeAttachments", "Include Attachments")
   }

@@ -167,6 +167,9 @@ title: Daily Report {{date}}
   'mirror.folderLabel': 'Folder',
   'mirror.chooseFolder': 'Choose Folder\u2026',
   'mirror.turnOff': 'Turn Off',
+  'mirror.readBack': 'Bring Back Outside Edits',
+  'mirror.readBackHint':
+    'A file changed in another app goes back into its note. If the note changed in Devot too, Devot keeps its version and the file is kept under a new name.',
   'mirror.includeAttachments': 'Include Attachments',
   'mirror.includeAttachmentsHint':
     'Off, images still link to the attachments folder, but no copies are written there.',

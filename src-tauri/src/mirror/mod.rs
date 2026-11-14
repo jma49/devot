@@ -1,6 +1,7 @@
 //! The Markdown mirror (Settings > Markdown Mirror): Devot keeps a folder the user picked up to
-//! date with every note as a Markdown file. The notes database stays the source of truth; the
-//! folder is written by Devot and never read back.
+//! date with every note as a Markdown file. The notes database stays the source of truth; with
+//! Bring Back Outside Edits on, the core reads a file another app changed back into its note
+//! (`mirror_read`, then a `take` operation), and otherwise the folder is never read back.
 //! The core worker plans what to write (`src/core/mirror.ts`); Rust holds the setting, the folder
 //! and its manifest, and runs each planned operation after checking it again (`folder`). The web
 //! view never names a path: the folder comes from the native folder panel.
@@ -22,7 +23,7 @@ use crate::storage::Db;
 use crate::strings;
 use folder::{
     Manifest, OpResult, Root, Seen, create_manifest, disk_state, has_entries, parse_manifest,
-    probe_writable, read_manifest, save_manifest, sha256_hex,
+    probe_writable, read_manifest, read_note, save_manifest, sha256_hex,
 };
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -45,6 +46,8 @@ pub const MAX_PATHS: usize = 5_000;
 pub const MAX_IDS: usize = 10_000;
 /// Each is read whole, so few at a time.
 pub const MAX_HASH_IDS: usize = 100;
+/// Note files one `mirror_read` reads at most (the core sends 50).
+pub const MAX_READ_IDS: usize = 100;
 /// Kept files the status names (it counts them all), so a status stays
 /// small even when a tool changed every file in the folder.
 pub const KEPT_NAMED: usize = 20;
@@ -63,6 +66,7 @@ const CODES: Codes = Codes {
 struct Stored {
     folder: Option<String>,
     include_attachments: bool,
+    read_back: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     library: Option<String>,
 }
@@ -72,6 +76,7 @@ impl Default for Stored {
         Self {
             folder: None,
             include_attachments: true,
+            read_back: false,
             library: None,
         }
     }
@@ -88,6 +93,10 @@ impl Stored {
             .get("includeAttachments")
             .and_then(Value::as_bool)
             .unwrap_or(true);
+        let read_back = value
+            .get("readBack")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         let library = value
             .get("library")
             .and_then(Value::as_str)
@@ -96,6 +105,7 @@ impl Stored {
         Self {
             folder,
             include_attachments,
+            read_back,
             library,
         }
     }
@@ -110,6 +120,8 @@ pub struct Status {
     pub generation: u64,
     pub folder: Option<String>,
     pub include_attachments: bool,
+    /// Bring Back Outside Edits.
+    pub read_back: bool,
     pub paused: Option<&'static str>,
     /// None until the folder's manifest has been read (a folder just chosen, a launch).
     pub size: Option<u64>,
@@ -139,6 +151,7 @@ pub enum Choice {
 pub struct Opened {
     pub generation: u64,
     pub include_attachments: bool,
+    pub read_back: bool,
     pub manifest: Option<Manifest>,
 }
 
@@ -151,6 +164,7 @@ struct Inner {
     read_failed: bool,
     folder: Option<PathBuf>,
     include_attachments: bool,
+    read_back: bool,
     /// Named in every manifest this mirror writes, so a folder another library mirrors is never
     /// taken for its own: going on from that manifest would delete the files it lists.
     library: Option<String>,
@@ -267,6 +281,7 @@ impl Mirror {
             inner.loaded = read.is_some();
             inner.folder = stored.folder.map(PathBuf::from);
             inner.include_attachments = stored.include_attachments;
+            inner.read_back = stored.read_back;
             inner.library = stored.library;
             if !inner.loaded {
                 inner.read_failed = true;
@@ -287,6 +302,7 @@ impl Mirror {
                 .as_deref()
                 .map(|f| display(f, self.home.as_deref())),
             include_attachments: inner.include_attachments,
+            read_back: inner.read_back,
             paused: inner.paused,
             size: inner.manifest.as_ref().map(Manifest::size),
             kept: inner.kept.clone(),
@@ -311,6 +327,7 @@ impl Mirror {
         inner: &Inner,
         folder: Option<&Path>,
         include_attachments: bool,
+        read_back: bool,
     ) -> Result<(), &'static str> {
         if !inner.loaded {
             return Err(READ_FAILED);
@@ -318,6 +335,7 @@ impl Mirror {
         let stored = Stored {
             folder: folder.map(|f| f.to_string_lossy().into_owned()),
             include_attachments,
+            read_back,
             library: inner.library.clone(),
         };
         self.settings.write(&stored)
@@ -330,7 +348,12 @@ impl Mirror {
         let library = uuid::Uuid::new_v4().hyphenated().to_string();
         inner.library = Some(library.clone());
         let folder = inner.folder.clone();
-        if let Err(code) = self.store(inner, folder.as_deref(), inner.include_attachments) {
+        if let Err(code) = self.store(
+            inner,
+            folder.as_deref(),
+            inner.include_attachments,
+            inner.read_back,
+        ) {
             inner.library = None;
             return Err(code);
         }
@@ -391,14 +414,16 @@ impl Mirror {
         Ok(self.status(&inner))
     }
 
-    /// `includeAttachments`, `turnOff` or `dismissKept` (true); anything else refuses the whole patch.
+    /// `includeAttachments`, `readBack`, `turnOff` or `dismissKept` (true); anything else refuses the whole patch.
     pub fn set(&self, patch: &Map<String, Value>, notify: Notify) -> Result<Status, &'static str> {
         let mut include = None;
+        let mut read_back = None;
         let mut turn_off = false;
         let mut dismiss = false;
         for (key, value) in patch {
             match (key.as_str(), value) {
                 ("includeAttachments", Value::Bool(on)) => include = Some(*on),
+                ("readBack", Value::Bool(on)) => read_back = Some(*on),
                 ("turnOff", Value::Bool(true)) => turn_off = true,
                 ("dismissKept", Value::Bool(true)) => dismiss = true,
                 _ => return Err(INVALID),
@@ -407,15 +432,19 @@ impl Mirror {
         let mut inner = self.lock(notify)?;
         let folder = if turn_off { None } else { inner.folder.clone() };
         let include = include.unwrap_or(inner.include_attachments);
-        let setting_changed = folder != inner.folder || include != inner.include_attachments;
+        let read_back = read_back.unwrap_or(inner.read_back);
+        let setting_changed = folder != inner.folder
+            || include != inner.include_attachments
+            || read_back != inner.read_back;
         if setting_changed {
-            self.store(&inner, folder.as_deref(), include)?;
+            self.store(&inner, folder.as_deref(), include, read_back)?;
             if folder != inner.folder {
                 log::info!("I_MIRROR_OFF");
                 self.leave(&mut inner, false);
             }
             inner.folder = folder;
             inner.include_attachments = include;
+            inner.read_back = read_back;
             inner.generation += 1;
         }
         let dismissed = dismiss && inner.kept_count > 0;
@@ -437,7 +466,12 @@ impl Mirror {
         turn: bool,
         notify: Notify,
     ) -> Result<Status, &'static str> {
-        self.store(inner, Some(&root), inner.include_attachments)?;
+        self.store(
+            inner,
+            Some(&root),
+            inner.include_attachments,
+            inner.read_back,
+        )?;
         log::info!("I_MIRROR_FOLDER_CHOSEN");
         self.leave(inner, turn);
         inner.folder = Some(root);
@@ -593,6 +627,7 @@ impl Mirror {
         Ok(Opened {
             generation: inner.generation,
             include_attachments: inner.include_attachments,
+            read_back: inner.read_back,
             manifest: (known != Some(inner.generation))
                 .then(|| inner.manifest.clone())
                 .flatten(),
@@ -663,6 +698,50 @@ impl Mirror {
                 })
                 .collect(),
         })
+    }
+
+    /// The files of these notes as the manifest lists them (Bring Back Outside Edits). The state is
+    /// held only to look the paths up, never while the files are read.
+    pub fn read(
+        &self,
+        generation: u64,
+        ids: &[String],
+        notify: Notify,
+    ) -> Result<Vec<NoteFile>, &'static str> {
+        if !valid_ids(ids, MAX_READ_IDS, valid_note_id) {
+            return Err("E_MIRROR_IDS_INVALID");
+        }
+        let (root, paths) = {
+            let mut inner = self.lock(notify)?;
+            if !inner.read_back {
+                return Err("E_MIRROR_READ_BACK_OFF");
+            }
+            let root = self.current(&mut inner, generation, notify)?;
+            let manifest = inner.manifest.as_ref().ok_or("E_MIRROR_STALE")?;
+            let paths: Vec<(String, Option<String>)> = ids
+                .iter()
+                .map(|id| (id.clone(), manifest.notes.get(id).map(|e| e.path.clone())))
+                .collect();
+            (root, paths)
+        };
+        Ok(paths
+            .into_iter()
+            .map(|(id, path)| {
+                let Some(path) = path else {
+                    return NoteFile::failed(id, "E_MIRROR_STALE");
+                };
+                match read_note(&root, &path) {
+                    Ok((text, sha256)) => NoteFile {
+                        id,
+                        path: Some(path),
+                        sha256: Some(sha256),
+                        text: Some(text),
+                        code: None,
+                    },
+                    Err(code) => NoteFile::failed(id, code),
+                }
+            })
+            .collect())
     }
 
     /// One batch runs at a time, holding the state only to read the manifest and to record what it
@@ -869,6 +948,21 @@ fn attachments(db: Db) -> impl FnMut(&str) -> Option<Vec<u8>> {
 }
 
 #[tauri::command]
+pub async fn mirror_read(
+    app: AppHandle,
+    mirror: State<'_, Arc<Mirror>>,
+    generation: u64,
+    ids: Vec<String>,
+) -> Result<Vec<NoteFile>, String> {
+    let mirror = Arc::clone(&mirror);
+    let notify = announcer(&app);
+    crate::task::blocking("E_MIRROR_TASK", move || {
+        mirror.read(generation, &ids, &notify)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn mirror_apply(
     app: AppHandle,
     mirror: State<'_, Arc<Mirror>>,
@@ -890,6 +984,32 @@ pub async fn mirror_apply(
 pub struct Body {
     pub id: String,
     pub body_md: String,
+}
+
+/// A note's file as read: its path, text and SHA-256, or the code it could not be read with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NoteFile {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<&'static str>,
+}
+
+impl NoteFile {
+    fn failed(id: String, code: &'static str) -> Self {
+        Self {
+            id,
+            path: None,
+            sha256: None,
+            text: None,
+            code: Some(code),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

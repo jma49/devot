@@ -10,7 +10,11 @@ import {
 
 // The Markdown mirror in the UI; Rust's side is the fixture's fake (tests/core covers the passes on real files). App shortcuts are pressed with Meta.
 
-const ON: Partial<MockMirror> = { folder: '~/Notes', generation: 1, size: 12_345_678 }
+const ON: Partial<MockMirror> = {
+  folder: '~/Notes',
+  generation: 1,
+  size: 12_345_678,
+}
 
 const section = (page: Page) => page.getByRole('region', { name: 'Markdown Mirror' }).first()
 const calls = (page: Page, cmd: string) =>
@@ -71,9 +75,17 @@ test.describe('Settings > Markdown Mirror', () => {
 
   test('uses a folder that is not empty only once the user agrees', async ({ page }) => {
     await openWith(page, '/settings.html')
-    await setPick(page, { folder: '~/Documents', name: 'Documents', empty: false })
-    const choose = section(page).getByRole('button', { name: 'Choose Folder…' })
-    const dialog = page.getByRole('dialog', { name: 'Use “Documents” for the Markdown mirror?' })
+    await setPick(page, {
+      folder: '~/Documents',
+      name: 'Documents',
+      empty: false,
+    })
+    const choose = section(page).getByRole('button', {
+      name: 'Choose Folder…',
+    })
+    const dialog = page.getByRole('dialog', {
+      name: 'Use “Documents” for the Markdown mirror?',
+    })
 
     await choose.click()
     await expect(dialog).toContainText('never changes or deletes a file it did not write')
@@ -92,7 +104,9 @@ test.describe('Settings > Markdown Mirror', () => {
     await openWith(page, '/settings.html', ON)
     await expect(section(page)).toContainText('~/Notes')
     await expect(section(page)).toContainText('Size on disk: 12.3 MB')
-    const include = section(page).getByRole('switch', { name: 'Include Attachments' })
+    const include = section(page).getByRole('switch', {
+      name: 'Include Attachments',
+    })
     await include.uncheck()
     await expect(include).not.toBeChecked()
     await section(page).getByRole('button', { name: 'Turn Off' }).click()
@@ -125,12 +139,18 @@ test.describe('Settings > Markdown Mirror', () => {
   test('shows a pause, and changes made in the other window, as they happen', async ({ page }) => {
     await openWith(page, '/settings.html', ON)
     await expect(section(page)).toContainText('~/Notes')
-    await changeMirrorElsewhere(page, { paused: 'E_MIRROR_FOLDER_MISSING', size: 2_500 })
+    await changeMirrorElsewhere(page, {
+      paused: 'E_MIRROR_FOLDER_MISSING',
+      size: 2_500,
+    })
     await expect(section(page).getByRole('alert')).toHaveText(
       'The mirror is paused: its folder is missing. It resumes once the folder is back.',
     )
     await expect(section(page)).toContainText('Size on disk: 3 kB')
-    await changeMirrorElsewhere(page, { paused: null, folder: '/Volumes/Disk/Notes' })
+    await changeMirrorElsewhere(page, {
+      paused: null,
+      folder: '/Volumes/Disk/Notes',
+    })
     await expect(section(page).getByRole('alert')).toHaveCount(0)
     await expect(section(page)).toContainText('/Volumes/Disk/Notes')
   })
@@ -186,9 +206,15 @@ test.describe('the main window', () => {
     await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')
 
-    await setPick(page, { folder: '~/Documents', name: 'Documents', empty: false })
+    await setPick(page, {
+      folder: '~/Documents',
+      name: 'Documents',
+      empty: false,
+    })
     await runCommand(page, 'mirror folder', 'Choose Markdown Mirror Folder…')
-    const dialog = page.getByRole('dialog', { name: 'Use “Documents” for the Markdown mirror?' })
+    const dialog = page.getByRole('dialog', {
+      name: 'Use “Documents” for the Markdown mirror?',
+    })
     await dialog.getByRole('button', { name: 'Use Folder' }).click()
     await expect(dialog).toBeHidden()
     expect(await calls(page, 'mirror_confirm')).toEqual([{ token: 7 }])
@@ -248,7 +274,9 @@ test.describe('the main window', () => {
     await page.addInitScript(() => {
       window.devotIpcMocks = {
         mirror_apply: (args: unknown) =>
-          ((args as { ops: unknown[] }).ops ?? []).map(() => ({ code: 'E_MIRROR_WRITE_FAILED' })),
+          ((args as { ops: unknown[] }).ops ?? []).map(() => ({
+            code: 'E_MIRROR_WRITE_FAILED',
+          })),
       }
     })
     await openWith(page, '/', ON)
@@ -256,7 +284,11 @@ test.describe('the main window', () => {
     await titleField(page).fill('Plan')
     await expect
       .poll(() => calls(page, 'log_write'), { timeout: 15_000 })
-      .toContainEqual({ level: 'warn', code: 'W_MIRROR_FAILED', ids: ['E_MIRROR_WRITE_FAILED'] })
+      .toContainEqual({
+        level: 'warn',
+        code: 'W_MIRROR_FAILED',
+        ids: ['E_MIRROR_WRITE_FAILED'],
+      })
   })
 
   test('starts once the window has restored its note, then one edit writes that note alone', async ({
@@ -290,7 +322,13 @@ test.describe('the main window', () => {
     expect(await calls(page, 'mirror_open')).toEqual([])
     await expect
       .poll(() => applied(page), { timeout: 10_000 })
-      .toEqual([expect.objectContaining({ kind: 'note', path: 'Plan.md', text: 'First line.' })])
+      .toEqual([
+        expect.objectContaining({
+          kind: 'note',
+          path: 'Plan.md',
+          text: 'First line.',
+        }),
+      ])
     await expect(titleField(page)).toHaveValue('Plan')
 
     await body(page).click()
@@ -300,7 +338,78 @@ test.describe('the main window', () => {
       .poll(() => applied(page), { timeout: 10_000 })
       .toEqual([
         expect.objectContaining({ kind: 'note', path: 'Plan.md' }),
-        expect.objectContaining({ kind: 'note', path: 'Plan.md', text: 'First line. More.' }),
+        expect.objectContaining({
+          kind: 'note',
+          path: 'Plan.md',
+          text: 'First line. More.',
+        }),
       ])
+  })
+
+  test('with Bring Back Outside Edits on, a file edited in another app comes back into the open note', async ({
+    page,
+  }) => {
+    await openWith(page, '/')
+    await page.evaluate(() => localStorage.clear())
+    await page.reload()
+    await createNote(page, 'Plan')
+    await body(page).click()
+    await page.keyboard.type('First line.')
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('devot.test.notes') ?? ''))
+      .toContain('First line.')
+
+    await page.addInitScript(() => {
+      window.devotMirror = {
+        revision: 0,
+        generation: 1,
+        folder: '~/Notes',
+        includeAttachments: true,
+        readBack: true,
+        paused: null,
+        size: 0,
+        kept: [],
+        keptCount: 0,
+      }
+    })
+    await page.reload()
+    await expect
+      .poll(() => applied(page), { timeout: 10_000 })
+      .toEqual([
+        expect.objectContaining({
+          kind: 'note',
+          path: 'Plan.md',
+          text: 'First line.',
+        }),
+      ])
+
+    await page.evaluate(() => {
+      window.devotMirrorEdited = {
+        'Plan.md': 'First line.\n\nFrom another app.',
+      }
+    })
+    await expect(body(page)).toContainText('From another app.', {
+      timeout: 15_000,
+    })
+    await expect(titleField(page)).toHaveValue('Plan')
+    const ops = await applied(page)
+    expect(ops.map((op) => op.kind)).toContain('take')
+    expect(ops.map((op) => op.kind)).not.toContain('keep')
+  })
+})
+
+test.describe('Settings > Markdown Mirror: Bring Back Outside Edits', () => {
+  test('stores its change at once and says the folder is read back', async ({ page }) => {
+    await openWith(page, '/settings.html', ON)
+    await expect(section(page)).toContainText('edits made there are not read back')
+    const readBack = section(page).getByRole('switch', {
+      name: 'Bring Back Outside Edits',
+    })
+    await expect(readBack).not.toBeChecked()
+    await readBack.check()
+    await expect(readBack).toBeChecked()
+    await expect(section(page)).not.toContainText('edits made there are not read back')
+    await expect(section(page)).toContainText('goes back into its note')
+    expect(await calls(page, 'mirror_set')).toEqual([{ patch: { readBack: true } }])
   })
 })

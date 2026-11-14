@@ -24,7 +24,13 @@ export interface MockMenu {
 }
 
 export type EditorMenuEntry =
-  | { kind: 'item'; id: string; text: string; accelerator?: string; checked?: boolean }
+  | {
+      kind: 'item'
+      id: string
+      text: string
+      accelerator?: string
+      checked?: boolean
+    }
   | { kind: 'separator' }
   | { kind: 'predefined'; item: string }
   | { kind: 'submenu'; id: string; text: string; items: EditorMenuEntry[] }
@@ -57,7 +63,14 @@ export interface TestWindow {
   devotMirror?: MockMirror
   /** Next folder pick for `mirror_choose`: used at once when `empty`, else after `mirror_confirm`; none cancels. */
   devotMirrorPick?: { folder: string; name: string; empty: boolean } | null
-  devotMirrorApplied?: { kind: string; id: string; path?: string | null; text?: string }[]
+  devotMirrorApplied?: {
+    kind: string
+    id: string
+    path?: string | null
+    text?: string
+  }[]
+  /** Files changed outside Devot, by path: what `mirror_read` gives once `mirror_check` reports them. */
+  devotMirrorEdited?: Record<string, string>
 }
 
 declare global {
@@ -69,6 +82,7 @@ export interface MockMirror {
   generation: number
   folder: string | null
   includeAttachments: boolean
+  readBack?: boolean
   paused: string | null
   size: number | null
   kept: string[]
@@ -213,7 +227,10 @@ export async function mockTauri(page: Page): Promise<void> {
           if (cmd === 'editor_menu_popup') {
             w.devotEditorMenu?.answer(null)
             return new Promise((answer) => {
-              w.devotEditorMenu = { items: args['items'] as EditorMenuEntry[], answer }
+              w.devotEditorMenu = {
+                items: args['items'] as EditorMenuEntry[],
+                answer,
+              }
             })
           }
           if (cmd === 'keyboard_shortcuts_get')
@@ -222,17 +239,24 @@ export async function mockTauri(page: Page): Promise<void> {
               overrides: w.devotShortcutOverrides ?? {},
             }
           if (cmd === 'keyboard_shortcuts_set') {
-            const next: Record<string, string[]> = { ...w.devotShortcutOverrides }
+            const next: Record<string, string[]> = {
+              ...w.devotShortcutOverrides,
+            }
             for (const [id, keys] of Object.entries(args['patch'] as object)) {
               if (keys === null) delete next[id]
               else next[id] = keys as string[]
             }
             w.devotShortcutOverrides = next
             w.devotShortcutRevision = (w.devotShortcutRevision ?? 0) + 1
-            const snapshot = { revision: w.devotShortcutRevision, overrides: next }
+            const snapshot = {
+              revision: w.devotShortcutRevision,
+              overrides: next,
+            }
             const win = window
             win.dispatchEvent(
-              new win.CustomEvent('devot:keyboard-shortcuts-changed', { detail: snapshot }),
+              new win.CustomEvent('devot:keyboard-shortcuts-changed', {
+                detail: snapshot,
+              }),
             )
             return snapshot
           }
@@ -243,7 +267,10 @@ export async function mockTauri(page: Page): Promise<void> {
               settings: { animations: 'system', ...w.devotEditorSettings },
             }
           if (cmd === 'editor_settings_set') {
-            w.devotEditorSettings = { ...w.devotEditorSettings, ...(args['patch'] as object) }
+            w.devotEditorSettings = {
+              ...w.devotEditorSettings,
+              ...(args['patch'] as object),
+            }
             w.devotEditorRevision = (w.devotEditorRevision ?? 0) + 1
             const next = {
               revision: w.devotEditorRevision,
@@ -251,11 +278,14 @@ export async function mockTauri(page: Page): Promise<void> {
             }
             const win = window
             win.dispatchEvent(
-              new win.CustomEvent('devot:editor-settings-changed', { detail: next }),
+              new win.CustomEvent('devot:editor-settings-changed', {
+                detail: next,
+              }),
             )
             return next
           }
           if (cmd.startsWith('mirror_')) {
+            const EDITED_SHA = 'e'.repeat(64)
             const win = window
             const mirror = (w.devotMirror ??= {
               revision: 0,
@@ -274,7 +304,11 @@ export async function mockTauri(page: Page): Promise<void> {
             }
             const announce = () => {
               mirror.revision += 1
-              win.dispatchEvent(new win.CustomEvent('devot:mirror-changed', { detail: status() }))
+              win.dispatchEvent(
+                new win.CustomEvent('devot:mirror-changed', {
+                  detail: status(),
+                }),
+              )
               return status()
             }
             const use = (folder: string) => {
@@ -291,6 +325,10 @@ export async function mockTauri(page: Page): Promise<void> {
               const patch = args['patch'] as Record<string, unknown>
               if (patch['includeAttachments'] !== undefined) {
                 mirror.includeAttachments = patch['includeAttachments'] as boolean
+                mirror.generation += 1
+              }
+              if (patch['readBack'] !== undefined) {
+                mirror.readBack = patch['readBack'] as boolean
                 mirror.generation += 1
               }
               if (patch['turnOff']) {
@@ -318,11 +356,16 @@ export async function mockTauri(page: Page): Promise<void> {
               return use(pick.folder)
             }
             if (mirror.folder === null) throw 'E_MIRROR_OFF'
-            const manifest = (mirror.manifest ??= { notes: {}, files: {}, books: {} })
+            const manifest = (mirror.manifest ??= {
+              notes: {},
+              files: {},
+              books: {},
+            })
             if (cmd === 'mirror_open') {
               return {
                 generation: mirror.generation,
                 includeAttachments: mirror.includeAttachments,
+                readBack: mirror.readBack === true,
                 manifest:
                   args['known'] === mirror.generation ? null : JSON.parse(JSON.stringify(manifest)),
               }
@@ -348,7 +391,22 @@ export async function mockTauri(page: Page): Promise<void> {
                 }),
               )
               const paths = args['paths'] as string[] | null
-              return Object.fromEntries((paths ?? []).map((p) => [p, held.get(p) ?? null]))
+              if (paths === null) {
+                const edited = Object.keys(w.devotMirrorEdited ?? {})
+                return Object.fromEntries(
+                  edited.filter((p) => held.has(p)).map((p) => [p, EDITED_SHA]),
+                )
+              }
+              return Object.fromEntries(paths.map((p) => [p, held.get(p) ?? null]))
+            }
+            if (cmd === 'mirror_read') {
+              return (args['ids'] as string[]).map((id) => {
+                const path = (manifest.notes[id] as { path: string } | undefined)?.path
+                const text = path === undefined ? undefined : w.devotMirrorEdited?.[path]
+                return text === undefined
+                  ? { id, code: 'E_MIRROR_READ_MISSING' }
+                  : { id, path, sha256: EDITED_SHA, text }
+              })
             }
             if (cmd === 'mirror_apply') {
               const applied = (w.devotMirrorApplied ??= [])
@@ -361,6 +419,12 @@ export async function mockTauri(page: Page): Promise<void> {
                   ...(typeof op['text'] === 'string' ? { text: op['text'] } : {}),
                 })
                 const size = typeof op['text'] === 'string' ? op['text'].length : 0
+                if (op['kind'] === 'take') {
+                  const entry = manifest.notes[id] as Record<string, unknown> | undefined
+                  if (entry) manifest.notes[id] = { ...entry, sha256: op['sha256'] }
+                  delete w.devotMirrorEdited?.[op['path'] as string]
+                  return { size: 1 }
+                }
                 if (op['kind'] === 'note') {
                   const { kind, text, from, ...entry } = op
                   void kind
@@ -371,7 +435,11 @@ export async function mockTauri(page: Page): Promise<void> {
                   if (op['path'] === null) delete manifest.books[id]
                   else manifest.books[id] = op['path']
                 } else if (op['kind'] === 'file') {
-                  manifest.files[id] = { path: op['path'], sha256: null, size: 0 }
+                  manifest.files[id] = {
+                    path: op['path'],
+                    sha256: null,
+                    size: 0,
+                  }
                 } else if (op['entry'] === 'note') delete manifest.notes[id]
                 else delete manifest.files[id]
                 return { size }
@@ -381,7 +449,9 @@ export async function mockTauri(page: Page): Promise<void> {
           }
           if (cmd === 'plugin:menu|new') {
             const rid = nextRid++
-            const menu = args as unknown as MockMenu & { options?: MockMenu['options'] }
+            const menu = args as unknown as MockMenu & {
+              options?: MockMenu['options']
+            }
             w.devotMenus[rid] = {
               kind: menu.kind,
               options: menu.options ?? {},
