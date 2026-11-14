@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   APP_INTENTS_XCSTRINGS,
+  WIDGET_XCSTRINGS,
   appleStrings,
   compileSettingsIndex,
   compileStrings,
@@ -114,9 +115,27 @@ describe('the Swift string catalog', () => {
     expect(Object.keys(intents.strings)).toEqual([...intentKeys].sort())
   })
 
-  it('refuses a placeholder in a Shortcuts string, which an intent reads by key alone', () => {
+  it("gives the widget and Control a string catalog with only the widget area's keys, translated", async () => {
+    const outputs = new Map(await appleStrings('.'))
+    const widget = JSON.parse(outputs.get(WIDGET_XCSTRINGS)!) as {
+      strings: Record<string, { localizations: object }>
+    }
+    const widgetKeys = Object.keys(en).filter((key) => key.startsWith('widget.'))
+    expect(widgetKeys).toContain('widget.today.title')
+    expect(Object.keys(widget.strings)).toEqual([...widgetKeys].sort())
+    for (const key of widgetKeys)
+      expect({ key, languages: Object.keys(widget.strings[key]!.localizations).sort() }).toEqual({
+        key,
+        languages: ['en', 'zh-Hans'],
+      })
+  })
+
+  it('refuses a placeholder in a Shortcuts or widget string, which the system reads by key alone', () => {
     expect(
-      Object.entries(en).filter(([key, text]) => key.startsWith('intent.') && text.includes('{')),
+      Object.entries(en).filter(
+        ([key, text]) =>
+          (key.startsWith('intent.') || key.startsWith('widget.')) && text.includes('{'),
+      ),
     ).toEqual([])
   })
 
@@ -165,6 +184,7 @@ describe('the Swift string catalog', () => {
       SHARE_STRINGS_SWIFT,
       SHARE_XCSTRINGS,
       APP_INTENTS_XCSTRINGS,
+      WIDGET_XCSTRINGS,
     ])
     expect(staleOutputs('.', outputs)).toEqual([])
   })

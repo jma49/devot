@@ -13,6 +13,7 @@ const TRANSLATIONS = [
   'src-tauri/apple/DevotScreens/Sources/DevotScreens/Generated/Localizable.xcstrings',
   'src-tauri/apple/DevotShare/Sources/DevotShare/Generated/Localizable.xcstrings',
   'src-tauri/gen/apple/devot_Intents/Localizable.xcstrings',
+  'src-tauri/gen/apple/devot_Widget/Localizable.xcstrings',
 ]
 const isTranslation = (file: string) => TRANSLATIONS.some((path) => file.startsWith(path))
 

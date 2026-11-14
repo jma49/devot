@@ -16,6 +16,7 @@ import * as share from './share'
 import * as intents from './intents'
 import * as sidebar from './sidebar'
 import * as sync from './sync'
+import * as widget from './widget'
 
 export const areas = {
   ai,
@@ -33,6 +34,7 @@ export const areas = {
   intents,
   sidebar,
   sync,
+  widget,
 }
 
 export const en = {
@@ -51,6 +53,7 @@ export const en = {
   ...intents.messages,
   ...sidebar.messages,
   ...sync.messages,
+  ...widget.messages,
 } as const
 
 export type MessageKey = keyof typeof en

@@ -8842,6 +8842,22 @@ public enum L10n {
     text("sync.restore.keep", "Keep This Mac’s Copy")
   }
 
+  public static func widgetTodayName() -> String {
+    text("widget.today.name", "Today's Note")
+  }
+
+  public static func widgetTodayDescription() -> String {
+    text("widget.today.description", "Opens today's note in Devot.")
+  }
+
+  public static func widgetTodayLabel() -> String {
+    text("widget.today.label", "Today")
+  }
+
+  public static func widgetTodayTitle() -> String {
+    text("widget.today.title", "Open Today's Note")
+  }
+
   static func text(_ key: String, _ english: String) -> String {
     catalog.localizedString(forKey: key, value: english, table: nil)
   }

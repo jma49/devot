@@ -1,5 +1,5 @@
 // Writes Strings.swift and Localizable.xcstrings for the iPhone's native screens from the English
-// catalog and its translations, in the iPhone's wording, the Share Extension's own pair from the `share` area, and SettingsIndex.swift from Settings' search entries. `--check` fails instead of writing when they are stale (CI runs it).
+// catalog and its translations, in the iPhone's wording, the Share Extension's own pair from the `share` area, a string catalog each for the Shortcuts and widget extensions from the `intent` and `widget` areas, and SettingsIndex.swift from Settings' search entries. `--check` fails instead of writing when they are stale (CI runs it).
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -17,6 +17,8 @@ export const SHARE_XCSTRINGS = `${SHARE_GENERATED}/Localizable.xcstrings`
 const SHARE_PREFIX = 'share.'
 export const APP_INTENTS_XCSTRINGS = 'src-tauri/gen/apple/devot_Intents/Localizable.xcstrings'
 const INTENT_PREFIX = 'intent.'
+export const WIDGET_XCSTRINGS = 'src-tauri/gen/apple/devot_Widget/Localizable.xcstrings'
+const WIDGET_PREFIX = 'widget.'
 
 const CATALOG = 'src/renderer/src/i18n/en'
 /** Each translation's catalog folder and iPhone wording, by its string catalog language. */
@@ -250,6 +252,12 @@ export async function appleStrings(root: string): Promise<[string, string][]> {
     translations,
     'IntentL10n',
   )
+  const widget = compileStrings(
+    Object.fromEntries(Object.entries(messages).filter(([key]) => key.startsWith(WIDGET_PREFIX))),
+    {},
+    translations,
+    'WidgetL10n',
+  )
   const { PANES, PANE_TABS } = await import(pathToFileURL(join(root, PANES_MODULE)).href)
   const { SETTINGS_ENTRIES } = await import(pathToFileURL(join(root, ENTRIES_MODULE)).href)
   return [
@@ -259,6 +267,7 @@ export async function appleStrings(root: string): Promise<[string, string][]> {
     [SHARE_STRINGS_SWIFT, share.swift],
     [SHARE_XCSTRINGS, share.xcstrings],
     [APP_INTENTS_XCSTRINGS, intents.xcstrings],
+    [WIDGET_XCSTRINGS, widget.xcstrings],
   ]
 }
 

@@ -12,6 +12,7 @@
 #   APPLE_PROVISIONING_PROFILE               base64 of the App Store provisioning profile
 #   APPLE_PROVISIONING_PROFILE_SHARE         base64 of the Share Extension's App Store profile
 #   APPLE_PROVISIONING_PROFILE_INTENTS       base64 of the Shortcuts extension's App Store profile
+#   APPLE_PROVISIONING_PROFILE_WIDGET        base64 of the widget extension's App Store profile
 #                                            (each when the app holds it: docs/specs/share-extension.md)
 #   APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID  the App Store Connect API key (--upload)
 #
@@ -146,6 +147,7 @@ sign_extension() {
   case "$suffix" in
     share) variable=APPLE_PROVISIONING_PROFILE_SHARE target=devot_Share ;;
     intents) variable=APPLE_PROVISIONING_PROFILE_INTENTS target=devot_Intents ;;
+    widget) variable=APPLE_PROVISIONING_PROFILE_WIDGET target=devot_Widget ;;
     *) fail "E_EXPORT_EXTENSIONS: the app holds an extension Devot does not ship: $extension_id" ;;
   esac
   profile_b64=${!variable:-}
