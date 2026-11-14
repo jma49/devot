@@ -131,9 +131,25 @@ The yearly self-classification report to the US Bureau of Industry and Security 
 7. **Turn the upload on** once the app record exists: `gh variable set APP_STORE_UPLOAD --body true`. Until then a tag's run signs and exports the `.ipa` but does not upload it.
 8. **Before submitting:** check that the export compliance answers (above) still hold, fill the privacy label (above), the age rating, screenshots and description, deploy the CloudKit schema to Production (Owner steps before the first release with iCloud), add sandbox testers, and write review notes that explain Guideline 3.1.3(b) for Enter License Key, with a complimentary production licence key for App Review (docs/licensing.md). Then submit the build for review.
 
+### The Share Extension
+
+The iPhone app embeds a Share Extension (docs/specs/share-extension.md), `io.github.jma49.devot.share`, which shares the App Group `group.io.github.jma49.devot` with the app.
+Once it is in the app, the export job needs its profile too and fails with `E_EXPORT_CREDENTIALS_MISSING` without it. Before the next tag:
+
+1. **Identifiers > App Groups:** register `group.io.github.jma49.devot` (description Devot).
+2. **Identifiers > App IDs:** open `io.github.jma49.devot`, turn on App Groups and pick that group. Then register the App ID `io.github.jma49.devot.share` (description Devot Share), with App Groups on and the same group, and nothing else.
+3. **Profiles:** make the app's App Store profile again, since its App ID now has the App Group, and replace the secret (step 5 above). Make an App Store profile for `io.github.jma49.devot.share` with the same Apple Distribution certificate, then:
+   ```sh
+   base64 -i Devot_Share_App_Store.mobileprovision | gh secret set --env release APPLE_PROVISIONING_PROFILE_IOS_SHARE
+   ```
+   Make both again after renewing the certificate.
+4. **The development build:** with automatic signing, Xcode registers the extension's App ID and the group for the team the first time it builds for a device; with manual signing, make development profiles for both App IDs.
+
+`ios-export.sh` signs the extension with `devot_Share.entitlements` plus its App ID and team, after checking its profile with `ios-profile.sh` as it does the app's, gives it the app's `CFBundleShortVersionString` and `CFBundleVersion`, and after export checks that the extension carries those entitlements as signed.
+
 ### Before the first submission
 
-Push a beta tag and check that the export job signs, exports and (with `APP_STORE_UPLOAD` on) uploads, and that App Store Connect accepts the build and its privacy manifest. Then, from TestFlight on an iPhone: buy Devot Pro and the Trial in the sandbox, restore them, enter a licence key, and sync through iCloud against CloudKit's Production environment.
+Push a beta tag and check that the export job signs the app and its Share Extension, exports and (with `APP_STORE_UPLOAD` on) uploads, and that App Store Connect accepts the build and its privacy manifest. Then, from TestFlight on an iPhone: buy Devot Pro and the Trial in the sandbox, restore them, enter a licence key, and sync through iCloud against CloudKit's Production environment.
 
 ## Update feed
 

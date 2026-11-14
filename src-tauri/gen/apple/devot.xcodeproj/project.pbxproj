@@ -18,56 +18,112 @@
 		546674A79B42722B61E813D2 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FB148315E9E9007B47A69EF /* CoreGraphics.framework */; };
 		84D39F170FCB0031DF95B612 /* DevotScreens in Frameworks */ = {isa = PBXBuildFile; productRef = 309BF505F888D5DDF1E52899 /* DevotScreens */; };
 		9A4A08D4EDBF06F8EFBE279B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B9DA79878C9798D58847E7E6 /* Assets.xcassets */; };
+		ABB68BE8FBA370A647E701F4 /* DevotShare in Frameworks */ = {isa = PBXBuildFile; productRef = 440D7A5594D0EF56A6AF14DF /* DevotShare */; };
+		CA324C894A36B2962666FBB4 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035412695E92F717A8D078A4 /* ShareViewController.swift */; };
+		D8EF8E9E103C36116C28BE20 /* devot_Share.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3234BC2ED5E59513882463C6 /* devot_Share.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		ECF71358197693DC8F914453 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 5DDA750A6E8107FB7348F968 /* assets */; };
 		F51E5B22B36D9CF5A4F395C0 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C1790BC1AB63E24D0E45007A /* WebKit.framework */; };
 		F545F8C2CA3B0F50F398F36D /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5A6018EB46122D4CA59D91C5 /* libapp.a */; };
 		F616960E06E5485EFE6C7991 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = A80B202032AFF0BC320960C1 /* main.mm */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		EA5579B619AADF24DF7E492D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A5E3CD870098CBBFFB0258C9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9E40F12618EC5CE179046D61;
+			remoteInfo = devot_Share;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0BAAF6D27C4793543BA34105 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D8EF8E9E103C36116C28BE20 /* devot_Share.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		00445BDD57DC34F57C136C47 /* link_info.rs */ = {isa = PBXFileReference; path = link_info.rs; sourceTree = "<group>"; };
 		0068D8A2972424C7D46D3379 /* token.rs */ = {isa = PBXFileReference; path = token.rs; sourceTree = "<group>"; };
 		013DD57E5373662BEB541943 /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		018989B958A77D2309DDE768 /* anthropic.rs */ = {isa = PBXFileReference; path = anthropic.rs; sourceTree = "<group>"; };
+		035412695E92F717A8D078A4 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		0660F4D521D9C2D1E4724A80 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		06C94A5C53D32CDB97CD2AED /* export.rs */ = {isa = PBXFileReference; path = export.rs; sourceTree = "<group>"; };
 		09063CC32A7D2BA3819D47EA /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		0AFEB208AAF58A5C91086DC8 /* settings.rs */ = {isa = PBXFileReference; path = settings.rs; sourceTree = "<group>"; };
 		0B3B0D73952C5751AD31EFCD /* trial.rs */ = {isa = PBXFileReference; path = trial.rs; sourceTree = "<group>"; };
+		0BF503BBD3D0A09EB13E534E /* handover.rs */ = {isa = PBXFileReference; path = handover.rs; sourceTree = "<group>"; };
+		0C0F41965D9F669829D70FD3 /* devices.rs */ = {isa = PBXFileReference; path = devices.rs; sourceTree = "<group>"; };
+		0C33B31AFD9D12B234D9DFB2 /* current.rs */ = {isa = PBXFileReference; path = current.rs; sourceTree = "<group>"; };
 		0CC49348CA0D0BB65C5C52D2 /* readable.rs */ = {isa = PBXFileReference; path = readable.rs; sourceTree = "<group>"; };
 		0D5A493FDB3B7F854788073B /* note_window.rs */ = {isa = PBXFileReference; path = note_window.rs; sourceTree = "<group>"; };
+		0D5FB8827737B7DAA7FB1D04 /* agent_writes.rs */ = {isa = PBXFileReference; path = agent_writes.rs; sourceTree = "<group>"; };
+		0D90E8AC455834AB577C6B51 /* error.rs */ = {isa = PBXFileReference; path = error.rs; sourceTree = "<group>"; };
+		0FAE862033BD8EAAA4B22E6A /* keychain.rs */ = {isa = PBXFileReference; path = keychain.rs; sourceTree = "<group>"; };
 		0FB148315E9E9007B47A69EF /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		10608B2C3DC352E027E14A0F /* service.rs */ = {isa = PBXFileReference; path = service.rs; sourceTree = "<group>"; };
 		1060FB8F16FF5CD77B205759 /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		1061B6CAB6EAC2A9C2FD2627 /* attachment_relay_tests.rs */ = {isa = PBXFileReference; path = attachment_relay_tests.rs; sourceTree = "<group>"; };
+		11DD300B171013E9DF7BACF4 /* purchases.rs */ = {isa = PBXFileReference; path = purchases.rs; sourceTree = "<group>"; };
 		17652E4DD387511D069088F3 /* backups.rs */ = {isa = PBXFileReference; path = backups.rs; sourceTree = "<group>"; };
 		19EB988D6899209724308950 /* page_setup.rs */ = {isa = PBXFileReference; path = page_setup.rs; sourceTree = "<group>"; };
-		1A110F3A7B6D23A9C200905A /* ios.rs */ = {isa = PBXFileReference; path = ios.rs; sourceTree = "<group>"; };
 		1B2E4F91CBBC684AAC0CBD61 /* test_log.rs */ = {isa = PBXFileReference; path = test_log.rs; sourceTree = "<group>"; };
+		1B73C7E89AB85C0EDBCEAFC8 /* pairing_code.rs */ = {isa = PBXFileReference; path = pairing_code.rs; sourceTree = "<group>"; };
+		1B9718CCEF52B0175275CC2F /* encoding.rs */ = {isa = PBXFileReference; path = encoding.rs; sourceTree = "<group>"; };
+		1C767739916766EC9F0DBBE3 /* capture_link.rs */ = {isa = PBXFileReference; path = capture_link.rs; sourceTree = "<group>"; };
+		1CA7B028E0B093F99A68DCA0 /* input_accessory.rs */ = {isa = PBXFileReference; path = input_accessory.rs; sourceTree = "<group>"; };
 		1DFEA1C9C4F7A1C0534536CE /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		1F7D0DF7D56518CFDD2A3DBC /* staging.rs */ = {isa = PBXFileReference; path = staging.rs; sourceTree = "<group>"; };
+		1FCFBC482712D20BC25CE760 /* cloudkit.rs */ = {isa = PBXFileReference; path = cloudkit.rs; sourceTree = "<group>"; };
 		20115B86B8173082749F14C4 /* schedule.rs */ = {isa = PBXFileReference; path = schedule.rs; sourceTree = "<group>"; };
 		226FEDDDE7B2C26478578E1E /* client.rs */ = {isa = PBXFileReference; path = client.rs; sourceTree = "<group>"; };
 		24290407D370CE9B0122A216 /* data_folder.rs */ = {isa = PBXFileReference; path = data_folder.rs; sourceTree = "<group>"; };
-		282D1E70A9B3697668285E78 /* macos.rs */ = {isa = PBXFileReference; path = macos.rs; sourceTree = "<group>"; };
+		24D2864820D84BAD61EBAC8C /* icloud.rs */ = {isa = PBXFileReference; path = icloud.rs; sourceTree = "<group>"; };
+		2550186E7F08B17CC17199A7 /* pdf.rs */ = {isa = PBXFileReference; path = pdf.rs; sourceTree = "<group>"; };
+		257BCF78A32E169638023C62 /* editor_menu.rs */ = {isa = PBXFileReference; path = editor_menu.rs; sourceTree = "<group>"; };
+		260911362EED5E5B7E7619DD /* app_store.rs */ = {isa = PBXFileReference; path = app_store.rs; sourceTree = "<group>"; };
 		2846078CE97EE1A3A7B2163B /* updates.rs */ = {isa = PBXFileReference; path = updates.rs; sourceTree = "<group>"; };
 		28D758DA2F97820165CF5912 /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		2A194DD75CE5B8478FEF87CA /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		2B0B2A1ED77BBB41889FE10E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2C3D99D819860AF0C43834C3 /* exit.rs */ = {isa = PBXFileReference; path = exit.rs; sourceTree = "<group>"; };
+		2C4043602B0201FE44AE742A /* pairing.rs */ = {isa = PBXFileReference; path = pairing.rs; sourceTree = "<group>"; };
+		3234BC2ED5E59513882463C6 /* devot_Share.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = devot_Share.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3269E28C6B028060825C4499 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		34A1160E2725724BB6A89450 /* task.rs */ = {isa = PBXFileReference; path = task.rs; sourceTree = "<group>"; };
 		34D5D8AFAE1AF751F0602473 /* store.rs */ = {isa = PBXFileReference; path = store.rs; sourceTree = "<group>"; };
 		35E6E60F07887BE774C17BD9 /* crash_reporter.rs */ = {isa = PBXFileReference; path = crash_reporter.rs; sourceTree = "<group>"; };
 		388277646D8705B163BD9E82 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		3C26D51ECE6ABD6D1A3573B4 /* print.rs */ = {isa = PBXFileReference; path = print.rs; sourceTree = "<group>"; };
 		3C350B0C2B065FEE582496A1 /* record.rs */ = {isa = PBXFileReference; path = record.rs; sourceTree = "<group>"; };
 		3D29D114D38E5C89AC3D309E /* search_index.rs */ = {isa = PBXFileReference; path = search_index.rs; sourceTree = "<group>"; };
+		3DEE74EC89E45D24ADE7E900 /* files.rs */ = {isa = PBXFileReference; path = files.rs; sourceTree = "<group>"; };
 		3E9FB1FFF93B2812AED9875F /* menu.rs */ = {isa = PBXFileReference; path = menu.rs; sourceTree = "<group>"; };
 		3FA92EB1C5DB57CBFEB3A71C /* cli.rs */ = {isa = PBXFileReference; path = cli.rs; sourceTree = "<group>"; };
+		40BBA7B971610C2299AC7A41 /* DevotShare */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DevotShare; path = ../../apple/DevotShare; sourceTree = SOURCE_ROOT; };
+		4499C84F5A26726B013C48CC /* saved_searches.rs */ = {isa = PBXFileReference; path = saved_searches.rs; sourceTree = "<group>"; };
 		44D6C69BF068415939E6F074 /* cli_append.rs */ = {isa = PBXFileReference; path = cli_append.rs; sourceTree = "<group>"; };
+		48EA1021E0A43DB22BF0EEB4 /* lists.rs */ = {isa = PBXFileReference; path = lists.rs; sourceTree = "<group>"; };
 		4BC8B11F917FB363A0FF9F40 /* openai.rs */ = {isa = PBXFileReference; path = openai.rs; sourceTree = "<group>"; };
 		4CAAF47DD519F773B16EA576 /* cli_tool.rs */ = {isa = PBXFileReference; path = cli_tool.rs; sourceTree = "<group>"; };
+		4EDEA6D83A668A5CC2E485D6 /* devot_iOS-local.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "devot_iOS-local.entitlements"; sourceTree = "<group>"; };
+		4F80FA9D7D1B2700F861994D /* leave.rs */ = {isa = PBXFileReference; path = leave.rs; sourceTree = "<group>"; };
+		51CECA9F522076D3D2C88531 /* open.rs */ = {isa = PBXFileReference; path = open.rs; sourceTree = "<group>"; };
+		53594C7E6BB5FC9095E03383 /* notes.rs */ = {isa = PBXFileReference; path = notes.rs; sourceTree = "<group>"; };
 		53D6AFF3CFE520F6DB763247 /* books.rs */ = {isa = PBXFileReference; path = books.rs; sourceTree = "<group>"; };
+		5438A33B6A3E20A14CAE1697 /* icloud_rotation_tests.rs */ = {isa = PBXFileReference; path = icloud_rotation_tests.rs; sourceTree = "<group>"; };
 		54798A7BCBAAD086ABFB466C /* navigation.rs */ = {isa = PBXFileReference; path = navigation.rs; sourceTree = "<group>"; };
+		5592F529CF83DD469863BF40 /* direct.rs */ = {isa = PBXFileReference; path = direct.rs; sourceTree = "<group>"; };
 		56A068DC2667E83DA859C573 /* usage.rs */ = {isa = PBXFileReference; path = usage.rs; sourceTree = "<group>"; };
 		56A6A3C185087A6EFB3FF0B4 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
 		589B56A2808AC3E956906DBF /* external.rs */ = {isa = PBXFileReference; path = external.rs; sourceTree = "<group>"; };
@@ -78,9 +134,11 @@
 		5B42AB157027F9985439CA93 /* transport.rs */ = {isa = PBXFileReference; path = transport.rs; sourceTree = "<group>"; };
 		5DDA750A6E8107FB7348F968 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		602BEAF49C738E3EE68A7A73 /* files.rs */ = {isa = PBXFileReference; path = files.rs; sourceTree = "<group>"; };
+		625C028B135960DA1D6723B2 /* uikit.rs */ = {isa = PBXFileReference; path = uikit.rs; sourceTree = "<group>"; };
 		627B97A3A1D0A9D929B69D04 /* authorship.rs */ = {isa = PBXFileReference; path = authorship.rs; sourceTree = "<group>"; };
 		62DF114BEB949D583580E369 /* pairing_tests.rs */ = {isa = PBXFileReference; path = pairing_tests.rs; sourceTree = "<group>"; };
 		65CE4BA9D4B9176DD77DFCDF /* editor_settings.rs */ = {isa = PBXFileReference; path = editor_settings.rs; sourceTree = "<group>"; };
+		66981D4802D981984E44030B /* successor.rs */ = {isa = PBXFileReference; path = successor.rs; sourceTree = "<group>"; };
 		67F91CD54CD993B4238D0AEC /* settings.rs */ = {isa = PBXFileReference; path = settings.rs; sourceTree = "<group>"; };
 		685C0EAAFDDD243ACD25AE28 /* fonts.rs */ = {isa = PBXFileReference; path = fonts.rs; sourceTree = "<group>"; };
 		68768BDA5A893BE7B7A1FE96 /* settings.rs */ = {isa = PBXFileReference; path = settings.rs; sourceTree = "<group>"; };
@@ -89,30 +147,57 @@
 		6B1B70BF68714C8516E293D8 /* mcp_clients.rs */ = {isa = PBXFileReference; path = mcp_clients.rs; sourceTree = "<group>"; };
 		6B423FFACA0AB1FFD78F4791 /* keychain.rs */ = {isa = PBXFileReference; path = keychain.rs; sourceTree = "<group>"; };
 		6C67F2DA20B217678E34BEEA /* DevotStore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DevotStore; path = ../../apple/DevotStore; sourceTree = SOURCE_ROOT; };
+		6CA50333098EB88EE1DB3713 /* books.rs */ = {isa = PBXFileReference; path = books.rs; sourceTree = "<group>"; };
+		6CE6E4100F04C42EA7A91293 /* accent.rs */ = {isa = PBXFileReference; path = accent.rs; sourceTree = "<group>"; };
 		6CF987BF2CC910A3E9483582 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		6E4FB4AAFFC18129A446DEF2 /* activity.rs */ = {isa = PBXFileReference; path = activity.rs; sourceTree = "<group>"; };
 		6E78E8F5455E72AEC0AC4A13 /* revoked.rs */ = {isa = PBXFileReference; path = revoked.rs; sourceTree = "<group>"; };
+		6ECEF1728F8DF5F8C69DEA1F /* leave_relay_tests.rs */ = {isa = PBXFileReference; path = leave_relay_tests.rs; sourceTree = "<group>"; };
 		6F9ACD92FBDA03CDDBC05FBC /* import.rs */ = {isa = PBXFileReference; path = import.rs; sourceTree = "<group>"; };
+		72E4B6361ED8D2AD0ECCACA6 /* webkit.rs */ = {isa = PBXFileReference; path = webkit.rs; sourceTree = "<group>"; };
 		732B70E5B6F430DB340F5F74 /* keychain.rs */ = {isa = PBXFileReference; path = keychain.rs; sourceTree = "<group>"; };
 		74C4FAD68E86BCE10A889E6D /* package.rs */ = {isa = PBXFileReference; path = package.rs; sourceTree = "<group>"; };
+		766B20EAF9E05391BE30E6EE /* system.rs */ = {isa = PBXFileReference; path = system.rs; sourceTree = "<group>"; };
+		76BC880583CD51E01E1F4B5B /* traffic_lights.rs */ = {isa = PBXFileReference; path = traffic_lights.rs; sourceTree = "<group>"; };
 		770A580F432FA002C6D32C67 /* device.rs */ = {isa = PBXFileReference; path = device.rs; sourceTree = "<group>"; };
 		778FB07F7B2EA56FF5FB86FD /* menu_bar.rs */ = {isa = PBXFileReference; path = menu_bar.rs; sourceTree = "<group>"; };
+		77E23B6E2647F998F2056413 /* moved.rs */ = {isa = PBXFileReference; path = moved.rs; sourceTree = "<group>"; };
 		784C5AC3D1F9993F5997FBCB /* pairing.rs */ = {isa = PBXFileReference; path = pairing.rs; sourceTree = "<group>"; };
+		78B04205F52BC49A918A59E1 /* kit.rs */ = {isa = PBXFileReference; path = kit.rs; sourceTree = "<group>"; };
+		78F9FBE45304D5E339D014B0 /* rotation.rs */ = {isa = PBXFileReference; path = rotation.rs; sourceTree = "<group>"; };
 		7969DF6DDDA4ACE3F5858B9D /* recovery.rs */ = {isa = PBXFileReference; path = recovery.rs; sourceTree = "<group>"; };
+		7A2C0A7B85E460435037661C /* screens.rs */ = {isa = PBXFileReference; path = screens.rs; sourceTree = "<group>"; };
+		7AAFA9FFA575F09BC1049A33 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		7AC74C574D8DAB7C8D065B3C /* keychain.rs */ = {isa = PBXFileReference; path = keychain.rs; sourceTree = "<group>"; };
 		7E0ABDD7EEFE58ECE9C9096D /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
+		7FC89CFE4982A1E76FA9F396 /* connection.rs */ = {isa = PBXFileReference; path = connection.rs; sourceTree = "<group>"; };
+		7FEF8AE96CC1C2D4B51B5755 /* purge.rs */ = {isa = PBXFileReference; path = purge.rs; sourceTree = "<group>"; };
+		814F022F7A19EB64A948A1C0 /* names.rs */ = {isa = PBXFileReference; path = names.rs; sourceTree = "<group>"; };
+		8285797F17FCD921510B18FC /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
+		837713A0FAC248CEBD037A31 /* search.rs */ = {isa = PBXFileReference; path = search.rs; sourceTree = "<group>"; };
+		85A842460950B4870381AAF2 /* devot_Share.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = devot_Share.entitlements; sourceTree = "<group>"; };
+		860D0D8556329D8FBBA9BE3C /* distribution.rs */ = {isa = PBXFileReference; path = distribution.rs; sourceTree = "<group>"; };
+		86BFDA0251EBF5549905CF2F /* store.rs */ = {isa = PBXFileReference; path = store.rs; sourceTree = "<group>"; };
 		86C0A5EEB7F57A978B69D46B /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		877A461D206632A849E6CC80 /* strings.rs */ = {isa = PBXFileReference; path = strings.rs; sourceTree = "<group>"; };
+		889276FC8949CF8D3C042A09 /* welcome.rs */ = {isa = PBXFileReference; path = welcome.rs; sourceTree = "<group>"; };
+		8C6C24303FF9AAFDD4F2BBE9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		8C709C0053E7650DD3BA39D2 /* symbols.rs */ = {isa = PBXFileReference; path = symbols.rs; sourceTree = "<group>"; };
 		8CCB3D7E286D0E08DB652D2A /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		8DDA0BE74926A1F6C2E0271C /* crash_scrub.rs */ = {isa = PBXFileReference; path = crash_scrub.rs; sourceTree = "<group>"; };
 		8F0347B10649F3E1046B20C3 /* server.rs */ = {isa = PBXFileReference; path = server.rs; sourceTree = "<group>"; };
 		91023094F423F0A0371C4F4C /* DevotScreens */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DevotScreens; path = ../../apple/DevotScreens; sourceTree = SOURCE_ROOT; };
+		93588018DC3374811E6130BA /* records.rs */ = {isa = PBXFileReference; path = records.rs; sourceTree = "<group>"; };
 		94EE2829AE79400B7B1F0AAD /* start.rs */ = {isa = PBXFileReference; path = start.rs; sourceTree = "<group>"; };
 		960D8082140BB332090E0000 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		967620F2ABD35F4338C3D2CB /* batch.rs */ = {isa = PBXFileReference; path = batch.rs; sourceTree = "<group>"; };
 		974004F3064D5663AFAB8FEB /* images.rs */ = {isa = PBXFileReference; path = images.rs; sourceTree = "<group>"; };
 		9768FAF489B020384A27CD73 /* diagnostics.rs */ = {isa = PBXFileReference; path = diagnostics.rs; sourceTree = "<group>"; };
 		983E2266BF1DF09BDC5C5CE9 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		9C174E479226FAA145DCF6C6 /* devot_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = devot_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D411B17D90E58ACE2895536 /* activation.rs */ = {isa = PBXFileReference; path = activation.rs; sourceTree = "<group>"; };
+		9E38A0D3EE03B0FBB677500B /* welcome.rs */ = {isa = PBXFileReference; path = welcome.rs; sourceTree = "<group>"; };
+		9F360147850C8536E53AA68D /* rotation_relay_tests.rs */ = {isa = PBXFileReference; path = rotation_relay_tests.rs; sourceTree = "<group>"; };
 		9FBB8CA8F8EC8FE8677FCA58 /* client.rs */ = {isa = PBXFileReference; path = client.rs; sourceTree = "<group>"; };
 		A1630F85A7DCFB18F13BF1B4 /* file_record.rs */ = {isa = PBXFileReference; path = file_record.rs; sourceTree = "<group>"; };
 		A1FC250964D4427B9274140E /* fake.rs */ = {isa = PBXFileReference; path = fake.rs; sourceTree = "<group>"; };
@@ -125,54 +210,87 @@
 		A80B202032AFF0BC320960C1 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		A9CCBE937372EBD8927D9931 /* serve.rs */ = {isa = PBXFileReference; path = serve.rs; sourceTree = "<group>"; };
 		AAAFFFBCC5CDD387C5EDDAA5 /* sync.rs */ = {isa = PBXFileReference; path = sync.rs; sourceTree = "<group>"; };
+		AC9097FBECBCCF097464E8C7 /* rotation.rs */ = {isa = PBXFileReference; path = rotation.rs; sourceTree = "<group>"; };
+		AE142282CAD0DA30BD02269A /* views.rs */ = {isa = PBXFileReference; path = views.rs; sourceTree = "<group>"; };
 		AEB9091D45CC8E8405DE287C /* tags.rs */ = {isa = PBXFileReference; path = tags.rs; sourceTree = "<group>"; };
+		B01A0A4C555B9D572B2ED2F6 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		B180CF4738293A26C32204AD /* watch.rs */ = {isa = PBXFileReference; path = watch.rs; sourceTree = "<group>"; };
+		B1E20EB8795BCCED3909ECF2 /* transport.rs */ = {isa = PBXFileReference; path = transport.rs; sourceTree = "<group>"; };
 		B38E0CCEC1FE57B3EFCE755E /* logs.rs */ = {isa = PBXFileReference; path = logs.rs; sourceTree = "<group>"; };
+		B3AD27690D0A2040286F9471 /* hub.rs */ = {isa = PBXFileReference; path = hub.rs; sourceTree = "<group>"; };
 		B491872A67E4156E9E4CC151 /* note_relay.rs */ = {isa = PBXFileReference; path = note_relay.rs; sourceTree = "<group>"; };
+		B4B6B2272A87132DDBC03AAD /* pasteboard.rs */ = {isa = PBXFileReference; path = pasteboard.rs; sourceTree = "<group>"; };
+		B4D80BB1E899E3A25BB3FA56 /* window.rs */ = {isa = PBXFileReference; path = window.rs; sourceTree = "<group>"; };
 		B4F2D9C21CAB0F8ED0676AF2 /* pending.rs */ = {isa = PBXFileReference; path = pending.rs; sourceTree = "<group>"; };
 		B64C32B9180B7F62B8DF1447 /* atomic_file.rs */ = {isa = PBXFileReference; path = atomic_file.rs; sourceTree = "<group>"; };
 		B7DEA7859D9821290A94C1BA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B8EB4E8F453367105F0ACC6D /* relay_tests.rs */ = {isa = PBXFileReference; path = relay_tests.rs; sourceTree = "<group>"; };
 		B9DA79878C9798D58847E7E6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BBEC72B50FED659C5614ED8E /* icloud_move.rs */ = {isa = PBXFileReference; path = icloud_move.rs; sourceTree = "<group>"; };
+		BDEF9C7F3D15E6450AF3A043 /* text.rs */ = {isa = PBXFileReference; path = text.rs; sourceTree = "<group>"; };
+		BF51F11C470B54A324C9D978 /* icloud_service_tests.rs */ = {isa = PBXFileReference; path = icloud_service_tests.rs; sourceTree = "<group>"; };
 		BFD5D62D96ADAC18CF4A8E27 /* sync.rs */ = {isa = PBXFileReference; path = sync.rs; sourceTree = "<group>"; };
 		C1790BC1AB63E24D0E45007A /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		C535DE61F6F79AA610A60A26 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		C55B6BB93304F87ABD5B0DD1 /* alert.rs */ = {isa = PBXFileReference; path = alert.rs; sourceTree = "<group>"; };
+		C6189D6F1246F474F626CF31 /* welcome_seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = welcome_seed.json; sourceTree = "<group>"; };
 		C61B5CDF4BDA535788D09800 /* manifest.rs */ = {isa = PBXFileReference; path = manifest.rs; sourceTree = "<group>"; };
 		C738B35F21846DE60EC8B90B /* error.rs */ = {isa = PBXFileReference; path = error.rs; sourceTree = "<group>"; };
 		C78A18CBBDDC41E0215B0743 /* vault.rs */ = {isa = PBXFileReference; path = vault.rs; sourceTree = "<group>"; };
 		C7F96FA75965A801FEE23F53 /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
+		C84CA30F0B03454BD6CF8FB6 /* input_accessory.rs */ = {isa = PBXFileReference; path = input_accessory.rs; sourceTree = "<group>"; };
 		C8FF02E9C5ACA03FB6FF5F34 /* crash.rs */ = {isa = PBXFileReference; path = crash.rs; sourceTree = "<group>"; };
 		C99FBAD81A03630F646B0749 /* startup.rs */ = {isa = PBXFileReference; path = startup.rs; sourceTree = "<group>"; };
+		CA112E9474AA7EF800053B96 /* records.rs */ = {isa = PBXFileReference; path = records.rs; sourceTree = "<group>"; };
 		CAA51DE8D84F9E63F2450FA6 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		CB728A37B84E0AAFA85CAB88 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		CCCDEBDE7D3A3C53F996BC94 /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		CE1A4ACA0EFCE4C90F076BB3 /* saved_searches.rs */ = {isa = PBXFileReference; path = saved_searches.rs; sourceTree = "<group>"; };
 		CEA75CFDD89514147D811DF0 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		CF9C06CF0D7797968C080F2E /* format.rs */ = {isa = PBXFileReference; path = format.rs; sourceTree = "<group>"; };
 		D041D15F95D98E104A7B9568 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		D1ABF6C548005A6CCB33B097 /* icloud_rotation.rs */ = {isa = PBXFileReference; path = icloud_rotation.rs; sourceTree = "<group>"; };
+		D3E3C4846B61FED45EF8437C /* locks.rs */ = {isa = PBXFileReference; path = locks.rs; sourceTree = "<group>"; };
+		D5738174FFFF480F2E08F879 /* route.rs */ = {isa = PBXFileReference; path = route.rs; sourceTree = "<group>"; };
+		D5EE98D1DF4C41A4D61354AE /* synced_keychain.rs */ = {isa = PBXFileReference; path = synced_keychain.rs; sourceTree = "<group>"; };
 		D605A2461E28C2723AFED73E /* menu.rs */ = {isa = PBXFileReference; path = menu.rs; sourceTree = "<group>"; };
 		D72DF1A3E7F5CBD1A9F6DB77 /* db.rs */ = {isa = PBXFileReference; path = db.rs; sourceTree = "<group>"; };
+		D77D90FBFED6F587507B8B0A /* activity.rs */ = {isa = PBXFileReference; path = activity.rs; sourceTree = "<group>"; };
 		D9528DB36871C77C1BB63E24 /* notes.rs */ = {isa = PBXFileReference; path = notes.rs; sourceTree = "<group>"; };
 		D95D852F53E8003EEC478D75 /* cli_export.rs */ = {isa = PBXFileReference; path = cli_export.rs; sourceTree = "<group>"; };
+		DA47149C4DC9C5C56F51BC78 /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		DB960501F3151BCBA1659D5C /* net.rs */ = {isa = PBXFileReference; path = net.rs; sourceTree = "<group>"; };
 		DE39D3848442C761F1840F2B /* routes.rs */ = {isa = PBXFileReference; path = routes.rs; sourceTree = "<group>"; };
+		DE7A3D09503DDDDEA8C2A073 /* enrollment.rs */ = {isa = PBXFileReference; path = enrollment.rs; sourceTree = "<group>"; };
+		DF1ADB1A5EB41140217A9155 /* crash.rs */ = {isa = PBXFileReference; path = crash.rs; sourceTree = "<group>"; };
 		E0BE97B06075A25B5ADB2653 /* commands.rs */ = {isa = PBXFileReference; path = commands.rs; sourceTree = "<group>"; };
 		E13D575E84DF12CF4C9BF678 /* keys.rs */ = {isa = PBXFileReference; path = keys.rs; sourceTree = "<group>"; };
+		E33251728A4AE7CA8D7C58E7 /* settings_file.rs */ = {isa = PBXFileReference; path = settings_file.rs; sourceTree = "<group>"; };
+		E704CF4B3B7A2CE8449CD73E /* icloud.rs */ = {isa = PBXFileReference; path = icloud.rs; sourceTree = "<group>"; };
+		E77C6CF993E764B1F0453A90 /* message.rs */ = {isa = PBXFileReference; path = message.rs; sourceTree = "<group>"; };
 		E936B8A895C265D7CFA7143B /* tests.rs */ = {isa = PBXFileReference; path = tests.rs; sourceTree = "<group>"; };
 		EA377A2763FCFA34FA3D7CE4 /* proxy.rs */ = {isa = PBXFileReference; path = proxy.rs; sourceTree = "<group>"; };
+		F05622B3BFFF4BB4936B7CE3 /* share.rs */ = {isa = PBXFileReference; path = share.rs; sourceTree = "<group>"; };
 		F08177472E42DD1BB10832FD /* revisions.rs */ = {isa = PBXFileReference; path = revisions.rs; sourceTree = "<group>"; };
 		F22CF8122C77E706CCFBC883 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		F3928E3E6BB4548C128387BF /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		F3B2054F3C30EFD7736D3181 /* tags.rs */ = {isa = PBXFileReference; path = tags.rs; sourceTree = "<group>"; };
 		F4250DB0132CA3FDB56C5EFD /* provider.rs */ = {isa = PBXFileReference; path = provider.rs; sourceTree = "<group>"; };
 		F463F0CC2FF1990EC2622A18 /* tools.rs */ = {isa = PBXFileReference; path = tools.rs; sourceTree = "<group>"; };
 		F47AC07209C49A266E40B832 /* deep_link.rs */ = {isa = PBXFileReference; path = deep_link.rs; sourceTree = "<group>"; };
 		F4C11DC0A1FD6EF71FC63878 /* testing.rs */ = {isa = PBXFileReference; path = testing.rs; sourceTree = "<group>"; };
+		F4DC9CE92FBA1E23E6736075 /* format_keys.rs */ = {isa = PBXFileReference; path = format_keys.rs; sourceTree = "<group>"; };
 		F576781B7DC91BB610CB65F9 /* payload.rs */ = {isa = PBXFileReference; path = payload.rs; sourceTree = "<group>"; };
 		F584E20712D9A153E50D9D2B /* devot_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = devot_iOS.entitlements; sourceTree = "<group>"; };
 		F5AFCCA60AE4D5A48BFB4684 /* folder.rs */ = {isa = PBXFileReference; path = folder.rs; sourceTree = "<group>"; };
 		F965C6F1D1011C3876EEC2DF /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		FAEB8AECA31921C33CC9F12D /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		FB2EE5F54F680C94AAFF64D9 /* background.rs */ = {isa = PBXFileReference; path = background.rs; sourceTree = "<group>"; };
 		FBE599D35452B8F210FA9C16 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		FC76B9B74C518A427FB1A186 /* fake.rs */ = {isa = PBXFileReference; path = fake.rs; sourceTree = "<group>"; };
 		FCDF1FDB7BCF790771293B81 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		FD1F0CA3A5E15FC95FB13CAA /* revisions.rs */ = {isa = PBXFileReference; path = revisions.rs; sourceTree = "<group>"; };
+		FDF858D3972CEA2D9A37A905 /* icloud_join.rs */ = {isa = PBXFileReference; path = icloud_join.rs; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -193,9 +311,30 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4917B790CF425745DD0BC933 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABB68BE8FBA370A647E701F4 /* DevotShare in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		08E618A9EC3707D358C30057 /* screens */ = {
+			isa = PBXGroup;
+			children = (
+				5592F529CF83DD469863BF40 /* direct.rs */,
+				B3AD27690D0A2040286F9471 /* hub.rs */,
+				48EA1021E0A43DB22BF0EEB4 /* lists.rs */,
+				E77C6CF993E764B1F0453A90 /* message.rs */,
+				FAEB8AECA31921C33CC9F12D /* mod.rs */,
+				D5738174FFFF480F2E08F879 /* route.rs */,
+			);
+			path = screens;
+			sourceTree = "<group>";
+		};
 		0A7A80F458001EC5BC357D39 /* folder */ = {
 			isa = PBXGroup;
 			children = (
@@ -233,6 +372,22 @@
 			path = Externals;
 			sourceTree = "<group>";
 		};
+		18F6714D4E7A2A48AA34DCFC /* ios */ = {
+			isa = PBXGroup;
+			children = (
+				1FCFBC482712D20BC25CE760 /* cloudkit.rs */,
+				24D2864820D84BAD61EBAC8C /* icloud.rs */,
+				C84CA30F0B03454BD6CF8FB6 /* input_accessory.rs */,
+				7AC74C574D8DAB7C8D065B3C /* keychain.rs */,
+				B01A0A4C555B9D572B2ED2F6 /* mod.rs */,
+				7A2C0A7B85E460435037661C /* screens.rs */,
+				86BFDA0251EBF5549905CF2F /* store.rs */,
+				D5EE98D1DF4C41A4D61354AE /* synced_keychain.rs */,
+				625C028B135960DA1D6723B2 /* uikit.rs */,
+			);
+			path = ios;
+			sourceTree = "<group>";
+		};
 		1B7B51B75E46BAE12EF3491C = {
 			isa = PBXGroup;
 			children = (
@@ -240,6 +395,7 @@
 				B9DA79878C9798D58847E7E6 /* Assets.xcassets */,
 				FBE599D35452B8F210FA9C16 /* LaunchScreen.storyboard */,
 				5846929235CC498D61C55187 /* devot_iOS */,
+				2FAB473608EF703DDCCB03BC /* devot_Share */,
 				17156B0292363AEC0DB4A11B /* Externals */,
 				3ED16BAB75BDB58003282C12 /* Packages */,
 				DA4AAB1C6E62F438EF9B339E /* Sources */,
@@ -247,6 +403,29 @@
 				93ABB9C5F5048660EE924D49 /* Frameworks */,
 				A6F05E88AD6AEA7FB33B88DE /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		1D5260004D3AA9C101E117BA /* macos */ = {
+			isa = PBXGroup;
+			children = (
+				6CE6E4100F04C42EA7A91293 /* accent.rs */,
+				C55B6BB93304F87ABD5B0DD1 /* alert.rs */,
+				DF1ADB1A5EB41140217A9155 /* crash.rs */,
+				257BCF78A32E169638023C62 /* editor_menu.rs */,
+				F4DC9CE92FBA1E23E6736075 /* format_keys.rs */,
+				E704CF4B3B7A2CE8449CD73E /* icloud.rs */,
+				CB728A37B84E0AAFA85CAB88 /* mod.rs */,
+				B4B6B2272A87132DDBC03AAD /* pasteboard.rs */,
+				2550186E7F08B17CC17199A7 /* pdf.rs */,
+				3C26D51ECE6ABD6D1A3573B4 /* print.rs */,
+				8C709C0053E7650DD3BA39D2 /* symbols.rs */,
+				766B20EAF9E05391BE30E6EE /* system.rs */,
+				BDEF9C7F3D15E6450AF3A043 /* text.rs */,
+				76BC880583CD51E01E1F4B5B /* traffic_lights.rs */,
+				72E4B6361ED8D2AD0ECCACA6 /* webkit.rs */,
+				B4D80BB1E899E3A25BB3FA56 /* window.rs */,
+			);
+			path = macos;
 			sourceTree = "<group>";
 		};
 		2BBDDFAC7D19470B70FA9D3E /* ai */ = {
@@ -262,6 +441,16 @@
 				5B42AB157027F9985439CA93 /* transport.rs */,
 			);
 			path = ai;
+			sourceTree = "<group>";
+		};
+		2FAB473608EF703DDCCB03BC /* devot_Share */ = {
+			isa = PBXGroup;
+			children = (
+				85A842460950B4870381AAF2 /* devot_Share.entitlements */,
+				8C6C24303FF9AAFDD4F2BBE9 /* Info.plist */,
+				035412695E92F717A8D078A4 /* ShareViewController.swift */,
+			);
+			path = devot_Share;
 			sourceTree = "<group>";
 		};
 		31E3D032CD44855B812C7413 /* mcp_bridge */ = {
@@ -280,6 +469,7 @@
 			isa = PBXGroup;
 			children = (
 				91023094F423F0A0371C4F4C /* DevotScreens */,
+				40BBA7B971610C2299AC7A41 /* DevotShare */,
 				6C67F2DA20B217678E34BEEA /* DevotStore */,
 			);
 			name = Packages;
@@ -288,6 +478,7 @@
 		5846929235CC498D61C55187 /* devot_iOS */ = {
 			isa = PBXGroup;
 			children = (
+				4EDEA6D83A668A5CC2E485D6 /* devot_iOS-local.entitlements */,
 				F584E20712D9A153E50D9D2B /* devot_iOS.entitlements */,
 				2B0B2A1ED77BBB41889FE10E /* Info.plist */,
 				B7DEA7859D9821290A94C1BA /* PrivacyInfo.xcprivacy */,
@@ -301,6 +492,7 @@
 				B64C32B9180B7F62B8DF1447 /* atomic_file.rs */,
 				FB2EE5F54F680C94AAFF64D9 /* background.rs */,
 				17652E4DD387511D069088F3 /* backups.rs */,
+				1C767739916766EC9F0DBBE3 /* capture_link.rs */,
 				44D6C69BF068415939E6F074 /* cli_append.rs */,
 				D95D852F53E8003EEC478D75 /* cli_export.rs */,
 				4CAAF47DD519F773B16EA576 /* cli_tool.rs */,
@@ -311,6 +503,7 @@
 				24290407D370CE9B0122A216 /* data_folder.rs */,
 				F47AC07209C49A266E40B832 /* deep_link.rs */,
 				9768FAF489B020384A27CD73 /* diagnostics.rs */,
+				860D0D8556329D8FBBA9BE3C /* distribution.rs */,
 				65CE4BA9D4B9176DD77DFCDF /* editor_settings.rs */,
 				2C3D99D819860AF0C43834C3 /* exit.rs */,
 				06C94A5C53D32CDB97CD2AED /* export.rs */,
@@ -319,8 +512,10 @@
 				599BA72C2924E2DD978E0CF1 /* format_menu.rs */,
 				6F9ACD92FBDA03CDDBC05FBC /* import.rs */,
 				A644E749F7BA8917B9F3B883 /* keyboard_shortcuts.rs */,
+				0FAE862033BD8EAAA4B22E6A /* keychain.rs */,
 				CAA51DE8D84F9E63F2450FA6 /* lib.rs */,
 				00445BDD57DC34F57C136C47 /* link_info.rs */,
+				D3E3C4846B61FED45EF8437C /* locks.rs */,
 				B38E0CCEC1FE57B3EFCE755E /* logs.rs */,
 				68A680AC32E5AA8CB8D689E1 /* main_windows.rs */,
 				F965C6F1D1011C3876EEC2DF /* main.rs */,
@@ -333,7 +528,9 @@
 				0D5A493FDB3B7F854788073B /* note_window.rs */,
 				19EB988D6899209724308950 /* page_setup.rs */,
 				B4F2D9C21CAB0F8ED0676AF2 /* pending.rs */,
+				E33251728A4AE7CA8D7C58E7 /* settings_file.rs */,
 				67F91CD54CD993B4238D0AEC /* settings.rs */,
+				F05622B3BFFF4BB4936B7CE3 /* share.rs */,
 				6ACF8D0DC7F41EDA70A42FDC /* single_instance.rs */,
 				C99FBAD81A03630F646B0749 /* startup.rs */,
 				877A461D206632A849E6CC80 /* strings.rs */,
@@ -352,6 +549,7 @@
 				5FA846FD90A4B742B6769CBD /* native */,
 				F3F92D2EB0936A3A6328EC66 /* net */,
 				FC76DB525111021B8B70D193 /* plugins */,
+				08E618A9EC3707D358C30057 /* screens */,
 				E318D03737EC0A1E873D160E /* storage */,
 				E6C05904665C0AD9C0896F88 /* sync */,
 			);
@@ -362,9 +560,10 @@
 		5FA846FD90A4B742B6769CBD /* native */ = {
 			isa = PBXGroup;
 			children = (
-				1A110F3A7B6D23A9C200905A /* ios.rs */,
-				282D1E70A9B3697668285E78 /* macos.rs */,
+				1CA7B028E0B093F99A68DCA0 /* input_accessory.rs */,
 				960D8082140BB332090E0000 /* mod.rs */,
+				18F6714D4E7A2A48AA34DCFC /* ios */,
+				1D5260004D3AA9C101E117BA /* macos */,
 			);
 			path = native;
 			sourceTree = "<group>";
@@ -376,6 +575,25 @@
 				11178920A37012FCC65D0FC4 /* bindings */,
 			);
 			path = devot;
+			sourceTree = "<group>";
+		};
+		88E2CB2E7358B3B9D60DE62A /* cloudkit */ = {
+			isa = PBXGroup;
+			children = (
+				967620F2ABD35F4338C3D2CB /* batch.rs */,
+				0C33B31AFD9D12B234D9DFB2 /* current.rs */,
+				1B9718CCEF52B0175275CC2F /* encoding.rs */,
+				0D90E8AC455834AB577C6B51 /* error.rs */,
+				FC76B9B74C518A427FB1A186 /* fake.rs */,
+				78B04205F52BC49A918A59E1 /* kit.rs */,
+				7AAFA9FFA575F09BC1049A33 /* mod.rs */,
+				2C4043602B0201FE44AE742A /* pairing.rs */,
+				78F9FBE45304D5E339D014B0 /* rotation.rs */,
+				1F7D0DF7D56518CFDD2A3DBC /* staging.rs */,
+				DA47149C4DC9C5C56F51BC78 /* tests.rs */,
+				B1E20EB8795BCCED3909ECF2 /* transport.rs */,
+			);
+			path = cloudkit;
 			sourceTree = "<group>";
 		};
 		93ABB9C5F5048660EE924D49 /* Frameworks */ = {
@@ -397,17 +615,20 @@
 			isa = PBXGroup;
 			children = (
 				9D411B17D90E58ACE2895536 /* activation.rs */,
+				260911362EED5E5B7E7619DD /* app_store.rs */,
 				9FBB8CA8F8EC8FE8677FCA58 /* client.rs */,
 				770A580F432FA002C6D32C67 /* device.rs */,
 				CF9C06CF0D7797968C080F2E /* format.rs */,
 				E13D575E84DF12CF4C9BF678 /* keys.rs */,
 				CEA75CFDD89514147D811DF0 /* mod.rs */,
+				11DD300B171013E9DF7BACF4 /* purchases.rs */,
 				6E78E8F5455E72AEC0AC4A13 /* revoked.rs */,
 				20115B86B8173082749F14C4 /* schedule.rs */,
 				34D5D8AFAE1AF751F0602473 /* store.rs */,
 				F4C11DC0A1FD6EF71FC63878 /* testing.rs */,
 				E936B8A895C265D7CFA7143B /* tests.rs */,
 				0B3B0D73952C5751AD31EFCD /* trial.rs */,
+				CA5F379FA415BEFE490547E7 /* app_store */,
 			);
 			path = licence;
 			sourceTree = "<group>";
@@ -416,6 +637,7 @@
 			isa = PBXGroup;
 			children = (
 				9C174E479226FAA145DCF6C6 /* devot_iOS.app */,
+				3234BC2ED5E59513882463C6 /* devot_Share.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -428,6 +650,14 @@
 				F576781B7DC91BB610CB65F9 /* payload.rs */,
 				A635E5DE8EF39314C97D7B25 /* storekit.rs */,
 				CCCDEBDE7D3A3C53F996BC94 /* tests.rs */,
+			);
+			path = app_store;
+			sourceTree = "<group>";
+		};
+		CA5F379FA415BEFE490547E7 /* app_store */ = {
+			isa = PBXGroup;
+			children = (
+				8285797F17FCD921510B18FC /* tests.rs */,
 			);
 			path = app_store;
 			sourceTree = "<group>";
@@ -454,11 +684,24 @@
 		E318D03737EC0A1E873D160E /* storage */ = {
 			isa = PBXGroup;
 			children = (
+				D77D90FBFED6F587507B8B0A /* activity.rs */,
+				0D5FB8827737B7DAA7FB1D04 /* agent_writes.rs */,
+				6CA50333098EB88EE1DB3713 /* books.rs */,
 				D72DF1A3E7F5CBD1A9F6DB77 /* db.rs */,
+				3DEE74EC89E45D24ADE7E900 /* files.rs */,
 				983E2266BF1DF09BDC5C5CE9 /* mod.rs */,
+				53594C7E6BB5FC9095E03383 /* notes.rs */,
+				51CECA9F522076D3D2C88531 /* open.rs */,
+				7FEF8AE96CC1C2D4B51B5755 /* purge.rs */,
 				0CC49348CA0D0BB65C5C52D2 /* readable.rs */,
+				CA112E9474AA7EF800053B96 /* records.rs */,
+				FD1F0CA3A5E15FC95FB13CAA /* revisions.rs */,
+				4499C84F5A26726B013C48CC /* saved_searches.rs */,
+				837713A0FAC248CEBD037A31 /* search.rs */,
 				BFD5D62D96ADAC18CF4A8E27 /* sync.rs */,
+				F3B2054F3C30EFD7736D3181 /* tags.rs */,
 				C7F96FA75965A801FEE23F53 /* tests.rs */,
+				9E38A0D3EE03B0FBB677500B /* welcome.rs */,
 			);
 			path = storage;
 			sourceTree = "<group>";
@@ -478,6 +721,8 @@
 				3D29D114D38E5C89AC3D309E /* search_index.rs */,
 				AAAFFFBCC5CDD387C5EDDAA5 /* sync.rs */,
 				AEB9091D45CC8E8405DE287C /* tags.rs */,
+				C6189D6F1246F474F626CF31 /* welcome_seed.json */,
+				889276FC8949CF8D3C042A09 /* welcome.rs */,
 			);
 			path = commands;
 			sourceTree = "<group>";
@@ -491,20 +736,48 @@
 				A5F98B7AB15A4EA291E6F1F3 /* crockford.rs */,
 				C738B35F21846DE60EC8B90B /* error.rs */,
 				A1630F85A7DCFB18F13BF1B4 /* file_record.rs */,
+				0BF503BBD3D0A09EB13E534E /* handover.rs */,
+				5438A33B6A3E20A14CAE1697 /* icloud_rotation_tests.rs */,
+				BF51F11C470B54A324C9D978 /* icloud_service_tests.rs */,
 				6B423FFACA0AB1FFD78F4791 /* keychain.rs */,
+				6ECEF1728F8DF5F8C69DEA1F /* leave_relay_tests.rs */,
 				3269E28C6B028060825C4499 /* mod.rs */,
+				77E23B6E2647F998F2056413 /* moved.rs */,
+				814F022F7A19EB64A948A1C0 /* names.rs */,
 				A2BB3754E19DD4D97A9687F4 /* pairing_relay_tests.rs */,
 				62DF114BEB949D583580E369 /* pairing_tests.rs */,
 				784C5AC3D1F9993F5997FBCB /* pairing.rs */,
 				3C350B0C2B065FEE582496A1 /* record.rs */,
 				7969DF6DDDA4ACE3F5858B9D /* recovery.rs */,
 				B8EB4E8F453367105F0ACC6D /* relay_tests.rs */,
+				9F360147850C8536E53AA68D /* rotation_relay_tests.rs */,
 				10608B2C3DC352E027E14A0F /* service.rs */,
 				68768BDA5A893BE7B7A1FE96 /* settings.rs */,
+				66981D4802D981984E44030B /* successor.rs */,
 				28D758DA2F97820165CF5912 /* tests.rs */,
 				C78A18CBBDDC41E0215B0743 /* vault.rs */,
+				88E2CB2E7358B3B9D60DE62A /* cloudkit */,
+				F27CD878A19750653A37A8F0 /* service */,
 			);
 			path = sync;
+			sourceTree = "<group>";
+		};
+		F27CD878A19750653A37A8F0 /* service */ = {
+			isa = PBXGroup;
+			children = (
+				7FC89CFE4982A1E76FA9F396 /* connection.rs */,
+				0C0F41965D9F669829D70FD3 /* devices.rs */,
+				DE7A3D09503DDDDEA8C2A073 /* enrollment.rs */,
+				FDF858D3972CEA2D9A37A905 /* icloud_join.rs */,
+				BBEC72B50FED659C5614ED8E /* icloud_move.rs */,
+				D1ABF6C548005A6CCB33B097 /* icloud_rotation.rs */,
+				4F80FA9D7D1B2700F861994D /* leave.rs */,
+				1B73C7E89AB85C0EDBCEAFC8 /* pairing_code.rs */,
+				93588018DC3374811E6130BA /* records.rs */,
+				AC9097FBECBCCF097464E8C7 /* rotation.rs */,
+				AE142282CAD0DA30BD02269A /* views.rs */,
+			);
+			path = service;
 			sourceTree = "<group>";
 		};
 		F3F92D2EB0936A3A6328EC66 /* net */ = {
@@ -530,6 +803,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		9E40F12618EC5CE179046D61 /* devot_Share */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EA4D65BB93D0A203E89D7228 /* Build configuration list for PBXNativeTarget "devot_Share" */;
+			buildPhases = (
+				CFAE461BD9FC33F8BFB3BFD1 /* Sources */,
+				4917B790CF425745DD0BC933 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = devot_Share;
+			packageProductDependencies = (
+				440D7A5594D0EF56A6AF14DF /* DevotShare */,
+			);
+			productName = devot_Share;
+			productReference = 3234BC2ED5E59513882463C6 /* devot_Share.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		C4595DC2A23A54BFDD3DA19F /* devot_iOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 16BF8DDF8F5BCFE8D98DACA5 /* Build configuration list for PBXNativeTarget "devot_iOS" */;
@@ -538,15 +830,17 @@
 				5DE45F49AD5926E0BD553035 /* Sources */,
 				804F8950139C823D41C298DD /* Resources */,
 				48B5513AD11968EBD775CB04 /* Frameworks */,
+				0BAAF6D27C4793543BA34105 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				0103B93F5BEECF2813697D2B /* PBXTargetDependency */,
 			);
 			name = devot_iOS;
 			packageProductDependencies = (
-				309BF505F888D5DDF1E52899 /* DevotScreens */,
 				FD657620152FD640D421F37A /* DevotStore */,
+				309BF505F888D5DDF1E52899 /* DevotScreens */,
 			);
 			productName = devot_iOS;
 			productReference = 9C174E479226FAA145DCF6C6 /* devot_iOS.app */;
@@ -575,6 +869,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				6D9C2676AC694EF318C3366E /* XCLocalSwiftPackageReference "../../apple/DevotScreens" */,
+				7BF8635BCB0FCD26AC7AD50F /* XCLocalSwiftPackageReference "../../apple/DevotShare" */,
 				BCB474F5A724061D82CB98E6 /* XCLocalSwiftPackageReference "../../apple/DevotStore" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -583,6 +878,7 @@
 			projectRoot = "";
 			targets = (
 				C4595DC2A23A54BFDD3DA19F /* devot_iOS */,
+				9E40F12618EC5CE179046D61 /* devot_Share */,
 			);
 		};
 /* End PBXProject section */
@@ -634,7 +930,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CFAE461BD9FC33F8BFB3BFD1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA324C894A36B2962666FBB4 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0103B93F5BEECF2813697D2B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9E40F12618EC5CE179046D61 /* devot_Share */;
+			targetProxy = EA5579B619AADF24DF7E492D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		314BA1D64D7D903C554F161E /* debug */ = {
@@ -700,6 +1012,25 @@
 			};
 			name = debug;
 		};
+		56507E4870DEBF006A46CD3E /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = devot_Share/devot_Share.entitlements;
+				INFOPLIST_FILE = devot_Share/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot.share;
+				PRODUCT_NAME = devot_Share;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = debug;
+		};
 		768E000A00F2E859ACD29E99 /* release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -712,6 +1043,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVOT_CLOUDKIT_CONTAINER = "$(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))";
 				DEVOT_CLOUDKIT_CONTAINER_YES = iCloud.io.github.jma49.devot;
+				DEVOT_ENTITLEMENTS_ = "devot_iOS/devot_iOS-local.entitlements";
 				DEVOT_ENTITLEMENTS_YES = devot_iOS/devot_iOS.entitlements;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
@@ -727,10 +1059,29 @@
 				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot;
-				PRODUCT_NAME = Devot;
+				PRODUCT_NAME = "Devot";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		9959238DD9E03698597AD4E4 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = devot_Share/devot_Share.entitlements;
+				INFOPLIST_FILE = devot_Share/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot.share;
+				PRODUCT_NAME = devot_Share;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = release;
 		};
@@ -746,6 +1097,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVOT_CLOUDKIT_CONTAINER = "$(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))";
 				DEVOT_CLOUDKIT_CONTAINER_YES = iCloud.io.github.jma49.devot;
+				DEVOT_ENTITLEMENTS_ = "devot_iOS/devot_iOS-local.entitlements";
 				DEVOT_ENTITLEMENTS_YES = devot_iOS/devot_iOS.entitlements;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
@@ -761,7 +1113,7 @@
 				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot;
-				PRODUCT_NAME = Devot;
+				PRODUCT_NAME = "Devot";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 				VALID_ARCHS = arm64;
@@ -845,12 +1197,25 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = debug;
 		};
+		EA4D65BB93D0A203E89D7228 /* Build configuration list for PBXNativeTarget "devot_Share" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				56507E4870DEBF006A46CD3E /* debug */,
+				9959238DD9E03698597AD4E4 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
 		6D9C2676AC694EF318C3366E /* XCLocalSwiftPackageReference "../../apple/DevotScreens" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../apple/DevotScreens;
+		};
+		7BF8635BCB0FCD26AC7AD50F /* XCLocalSwiftPackageReference "../../apple/DevotShare" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../apple/DevotShare;
 		};
 		BCB474F5A724061D82CB98E6 /* XCLocalSwiftPackageReference "../../apple/DevotStore" */ = {
 			isa = XCLocalSwiftPackageReference;
@@ -862,6 +1227,10 @@
 		309BF505F888D5DDF1E52899 /* DevotScreens */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DevotScreens;
+		};
+		440D7A5594D0EF56A6AF14DF /* DevotShare */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DevotShare;
 		};
 		FD657620152FD640D421F37A /* DevotStore */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -8,9 +8,11 @@ let package = Package(
     defaultLocalization: "en",
     platforms: [.iOS("26.0")],
     products: [.library(name: "DevotScreens", targets: ["DevotScreens"])],
+    dependencies: [.package(path: "../DevotShare")],
     targets: [
         .target(
             name: "DevotScreens",
+            dependencies: [.product(name: "DevotShareInbox", package: "DevotShare")],
             resources: [.process("Generated/Localizable.xcstrings"), .process("Resources/Brand.xcassets")]
         )
     ]

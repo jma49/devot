@@ -11,6 +11,7 @@ const BINARY = /\.(png|webp|icns|ico|sqlite|woff2?)$/
 const TRANSLATIONS = [
   'src/renderer/src/i18n/zh-Hans/',
   'src-tauri/apple/DevotScreens/Sources/DevotScreens/Generated/Localizable.xcstrings',
+  'src-tauri/apple/DevotShare/Sources/DevotShare/Generated/Localizable.xcstrings',
 ]
 const isTranslation = (file: string) => TRANSLATIONS.some((path) => file.startsWith(path))
 

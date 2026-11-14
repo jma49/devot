@@ -10,6 +10,7 @@ import * as licence from './licence'
 import * as noteList from './noteList'
 import * as phone from './phone'
 import * as settings from './settings'
+import * as share from './share'
 import * as sidebar from './sidebar'
 import * as sync from './sync'
 
@@ -27,6 +28,7 @@ export const zhHans: Messages = {
   ...noteList.messages,
   ...phone.messages,
   ...settings.messages,
+  ...share.messages,
   ...sidebar.messages,
   ...sync.messages,
 }

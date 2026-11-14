@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   captureNote,
+  captureShare,
   createBookService,
   createClock,
   createIdGenerator,
@@ -84,6 +85,104 @@ describe('quick capture', () => {
     await expect(captureNote(notes, { title: 'Lost?', markdown: 'no', bookId })).rejects.toThrow(
       'E_BOOK_NOT_FOUND',
     )
+    expect(await notes.list()).toEqual([])
+  })
+})
+
+// The smallest PNG: its signature and an IHDR chunk, enough for detectImage.
+const PNG = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0x49, 0x48, 0x44, 0x52,
+])
+
+describe('a share from another iPhone app', () => {
+  it('makes a note of the title, the text and the link, saved before it resolves', async () => {
+    const { path, notes, storage } = services()
+    const { id, refused } = await captureShare(notes, storage, createIdGenerator(), {
+      title: 'An article',
+      text: 'Worth reading later.',
+      url: 'https://example.com/a',
+      images: [],
+      bookId: null,
+    })
+    expect(refused).toEqual([])
+    const other = openSqliteAdapter(path)
+    open.push(other)
+    expect(await other.getNote(id)).toMatchObject({
+      title: 'An article',
+      bodyMd: 'Worth reading later.\n\nhttps://example.com/a\n',
+    })
+  })
+
+  it('leaves out a link the text already holds', async () => {
+    const { notes, storage } = services()
+    const { id } = await captureShare(notes, storage, createIdGenerator(), {
+      title: '',
+      text: 'see https://example.com/a',
+      url: 'https://example.com/a',
+      images: [],
+      bookId: null,
+    })
+    expect((await notes.read(id)).bodyMd).toBe('see https://example.com/a\n')
+  })
+
+  it('stores each image as the note attachment and links it in the body', async () => {
+    const { notes, storage } = services()
+    const { id } = await captureShare(notes, storage, createIdGenerator(), {
+      title: 'Photos',
+      text: '',
+      url: null,
+      images: [
+        { name: 'IMG_0001.jpg', data: PNG },
+        { name: 'IMG_0002.jpg', data: PNG },
+      ],
+      bookId: null,
+    })
+    const body = (await notes.read(id)).bodyMd
+    const links = [...body.matchAll(/!\[(IMG_000\d)\]\(devot:\/\/file\/([0-9a-f-]{36})\)/g)]
+    expect(links.map((link) => link[1])).toEqual(['IMG_0001', 'IMG_0002'])
+    for (const link of links) expect(await storage.syncFileData(link[2]!)).toEqual(PNG)
+  })
+
+  it('skips an image storage refuses, says why, and keeps the rest', async () => {
+    const { notes, storage } = services()
+    const { id, refused } = await captureShare(notes, storage, createIdGenerator(), {
+      title: 'Mixed',
+      text: 'text stays',
+      url: null,
+      images: [
+        { name: 'not-an-image.jpg', data: new Uint8Array([1, 2, 3]) },
+        { name: 'ok.png', data: PNG },
+      ],
+      bookId: null,
+    })
+    expect(refused).toEqual(['E_FILE_TYPE_REFUSED'])
+    expect((await notes.read(id)).bodyMd).toMatch(/^text stays\n\n!\[ok\]\(devot:\/\/file\//)
+  })
+
+  it('files it in the notebook asked for', async () => {
+    const { notes, books, storage } = services()
+    const bookId = await books.create('Inbox', null)
+    const { id } = await captureShare(notes, storage, createIdGenerator(), {
+      title: 'Filed',
+      text: '',
+      url: null,
+      images: [],
+      bookId,
+    })
+    expect((await notes.read(id)).bookId).toBe(bookId)
+  })
+
+  it('refuses a share with nothing to keep and makes no note', async () => {
+    const { notes, storage } = services()
+    await expect(
+      captureShare(notes, storage, createIdGenerator(), {
+        title: ' ',
+        text: '\n',
+        url: null,
+        images: [{ name: 'bad.jpg', data: new Uint8Array([0]) }],
+        bookId: null,
+      }),
+    ).rejects.toThrow('E_SHARE_EMPTY')
     expect(await notes.list()).toEqual([])
   })
 })

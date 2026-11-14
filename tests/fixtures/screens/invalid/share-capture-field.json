@@ -1,0 +1,22 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_ARGS_INVALID",
+  "message": {
+    "v": 1,
+    "id": 62,
+    "op": "share.capture",
+    "args": {
+      "id": "01890a5d-ac96-774b-bcce-b302099a8057",
+      "title": "An article",
+      "text": "Worth reading.",
+      "url": "https://example.com/a",
+      "images": [
+        {
+          "name": "IMG_0001.png",
+          "data": "iVBORw0KGgoAAAANSUhEUg=="
+        }
+      ],
+      "bookId": "01890a5d-ac96-774b-bcce-b302099a8057"
+    }
+  }
+}

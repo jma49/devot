@@ -36,7 +36,8 @@
 #   the screens bridge on every side (any screens/ folder), the phone page
 #   (src/renderer/src/phone/), its own scripts and the scripts that pick its Xcode and simulator.
 # - The Swift packages' own tests link no Rust and load no page, so each runs only for what it
-#   reads: the screens tests (`screens`) for their package (src-tauri/apple/DevotScreens/) and the
+#   reads: the screens tests (`screens`) for their package (src-tauri/apple/DevotScreens/), the
+#   Share Extension's package they test with it (src-tauri/apple/DevotShare/) and the
 #   fixtures they share with Vitest and cargo (tests/fixtures/), the StoreKit tests (`storekit`)
 #   for their package (src-tauri/apple/DevotStore/), and both for the CI scripts and the workflows.
 # A list with no files needs everything, so a doubt runs everything.
@@ -98,7 +99,7 @@ while IFS= read -r file; do
       ;;
   esac
   case "$file" in
-    src-tauri/apple/DevotScreens/* | tests/fixtures/*) screens=true ;;
+    src-tauri/apple/DevotScreens/* | src-tauri/apple/DevotShare/* | tests/fixtures/*) screens=true ;;
     src-tauri/apple/DevotStore/*) storekit=true ;;
     scripts/ci/* | .github/*)
       screens=true

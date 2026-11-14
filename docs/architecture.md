@@ -36,6 +36,7 @@ Docs are written one sentence per line, so a change touches only the sentences i
 - [Performance](specs/performance.md): the product's budgets and the core benchmarks that hold them.
 - [First-launch notes](specs/first-launch-notes.md): the "Getting started" notebook a new library gets.
 - [iPhone screens](specs/iphone-screens.md): the iPhone's native screens around the one web view, the bridge and its envelope, which way each operation goes, the editor screen, the glass map, the Settings tree and the spikes.
+- [Share Extension](specs/share-extension.md): sharing text, links and images into Devot from any iPhone app, the inbox file in the App Group, and how the app drains it into notes.
 - [Stateful code](specs/stateful-code.md): keeping lifecycles explicit, tying answers to their request, resetting on every exit, persisting steps before acting on them, and how to audit a change for implicit state.
 
 ## Product

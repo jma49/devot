@@ -1,5 +1,5 @@
 // Writes Strings.swift and Localizable.xcstrings for the iPhone's native screens from the English
-// catalog and its translations, in the iPhone's wording, and SettingsIndex.swift from Settings' search entries. `--check` fails instead of writing when they are stale (CI runs it).
+// catalog and its translations, in the iPhone's wording, the Share Extension's own pair from the `share` area, and SettingsIndex.swift from Settings' search entries. `--check` fails instead of writing when they are stale (CI runs it).
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -9,6 +9,12 @@ const GENERATED = 'src-tauri/apple/DevotScreens/Sources/DevotScreens/Generated'
 export const STRINGS_SWIFT = `${GENERATED}/Strings.swift`
 export const XCSTRINGS = `${GENERATED}/Localizable.xcstrings`
 export const SETTINGS_INDEX = `${GENERATED}/SettingsIndex.swift`
+
+const SHARE_GENERATED = 'src-tauri/apple/DevotShare/Sources/DevotShare/Generated'
+export const SHARE_STRINGS_SWIFT = `${SHARE_GENERATED}/Strings.swift`
+export const SHARE_XCSTRINGS = `${SHARE_GENERATED}/Localizable.xcstrings`
+/** The Share Extension carries only its own area, so it stays small. */
+const SHARE_PREFIX = 'share.'
 
 const CATALOG = 'src/renderer/src/i18n/en'
 /** Each translation's catalog folder and iPhone wording, by its string catalog language. */
@@ -91,6 +97,7 @@ export function compileStrings(
   messages: Catalog,
   wording: Partial<Catalog>,
   translations: Readonly<Record<string, Partial<Catalog>>> = {},
+  enumName = 'L10n',
 ): { swift: string; xcstrings: string } {
   const seen = new Set(['text', 'fill'])
   const functions: string[] = []
@@ -140,7 +147,7 @@ export function compileStrings(
     'private let catalog = Bundle(for: CatalogAnchor.self)',
     '#endif',
     '',
-    'public enum L10n {',
+    `public enum ${enumName} {`,
     ...functions,
     SWIFT_HELPERS + '}',
     '',
@@ -229,12 +236,20 @@ async function loadCatalog(root: string): Promise<{
 export async function appleStrings(root: string): Promise<[string, string][]> {
   const { messages, wording, translations } = await loadCatalog(root)
   const { swift, xcstrings } = compileStrings(messages, wording, translations)
+  const share = compileStrings(
+    Object.fromEntries(Object.entries(messages).filter(([key]) => key.startsWith(SHARE_PREFIX))),
+    wording,
+    translations,
+    'ShareL10n',
+  )
   const { PANES, PANE_TABS } = await import(pathToFileURL(join(root, PANES_MODULE)).href)
   const { SETTINGS_ENTRIES } = await import(pathToFileURL(join(root, ENTRIES_MODULE)).href)
   return [
     [STRINGS_SWIFT, swift],
     [XCSTRINGS, xcstrings],
     [SETTINGS_INDEX, compileSettingsIndex(SETTINGS_ENTRIES, PANES, PANE_TABS)],
+    [SHARE_STRINGS_SWIFT, share.swift],
+    [SHARE_XCSTRINGS, share.xcstrings],
   ]
 }
 
