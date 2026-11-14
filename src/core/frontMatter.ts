@@ -209,26 +209,49 @@ export function readFrontMatter(markdown: string): FrontMatterMeta {
 /** `readFrontMatter` for front matter already taken out of its note (the preview's). */
 export const readFrontMatterYaml = (yaml: string): FrontMatterMeta => metaOf(yaml)
 
+function namesOf(rest: string, text: string, exact: boolean): string[] {
+  const read = yamlValue(text)
+  if (!read) return cleanTags(lineTags(rest), exact)
+  if ('list' in read)
+    return cleanTags(
+      read.list.filter((t) => t !== null),
+      exact,
+    )
+  if (!('text' in read) || read.text === null) return []
+  // A comma-separated value, unless it was quoted: that is one name.
+  return cleanTags(read.quoted ? [read.text] : read.text.split(','), exact)
+}
+
+/** The names under any of `keys` (in any case), read as `tags` is; `exact` keeps a leading `#`. */
+export function readFrontMatterList(
+  yaml: string,
+  keys: readonly string[],
+  exact = false,
+): string[] {
+  const wanted = new Set(keys.map((key) => key.toLowerCase()))
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const { key, rest, text } of keyChunks(yaml)) {
+    if (!wanted.has(key)) continue
+    for (const name of namesOf(rest, text, exact)) {
+      if (seen.has(name.toLowerCase())) continue
+      seen.add(name.toLowerCase())
+      names.push(name)
+    }
+  }
+  return names
+}
+
 export function metaOf(yaml: string | null, exact = false): FrontMatterMeta {
   const meta: FrontMatterMeta = { title: null, notebook: null, tags: [], status: null }
   if (yaml === null) return meta
   for (const { key, rest, text } of keyChunks(yaml)) {
     if (key !== 'title' && key !== 'notebook' && key !== 'status' && key !== 'tags') continue
-    const read = yamlValue(text)
     if (key === 'tags') {
-      if (!read) meta.tags = cleanTags(lineTags(rest), exact)
-      else if ('list' in read)
-        meta.tags = cleanTags(
-          read.list.filter((t) => t !== null),
-          exact,
-        )
-      else if ('text' in read) {
-        // A comma-separated value, unless it was quoted: that is one tag.
-        const names = read.text === null ? [] : read.quoted ? [read.text] : read.text.split(',')
-        meta.tags = cleanTags(names, exact)
-      } else meta.tags = []
+      meta.tags = namesOf(rest, text, exact)
       continue
     }
+    const read = yamlValue(text)
     // The other keys take one text; a list or a map says none.
     const one = !read ? lineText(rest) : 'text' in read ? read.text : null
     if (key === 'title') meta.title = one

@@ -10,6 +10,7 @@ import { finishImport } from '../importer'
 import type { useLicenceLink } from '../LicenceLink'
 import type { useSheets } from '../sheets'
 import type { Selection } from '../Sidebar'
+import { DEFAULT_CHOICES } from '../importChoices'
 
 /** Links other apps open: a note, a command, today's note, a licence or a folder handed over for import. */
 export function useAppDeepLinks({
@@ -64,7 +65,7 @@ export function useAppDeepLinks({
       const listed = await c.listBooks()
       const to = openDestination(link.notebook, listed, editorSettings().defaultNotebook)
       const destination = to.kind === 'create' ? await c.createBook(to.name, null) : to.id
-      const report = await startImport(link.scan, destination, () => {}, { wikiLinks: true })
+      const report = await startImport(link.scan, destination, () => {}, DEFAULT_CHOICES)
       const id = report ? firstImported(report.noteIds, link.scan.files, link.first) : undefined
       if (!id) {
         setLinkNotice('importFailed')

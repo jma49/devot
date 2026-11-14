@@ -20,6 +20,7 @@ self.addEventListener('message', (event: MessageEvent<ImportRequest>) => {
       request.raw,
       request.path,
       request.withImages ? newId : undefined,
+      request.conventions,
     )
     reply({ id: request.id, value }, [...new Set(value.embedded.map((image) => image.data.buffer))])
   } catch (error) {
