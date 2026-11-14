@@ -283,6 +283,7 @@ title: Daily Report {{date}}
   'import.reason.notUtf8': 'Not UTF-8 text',
   'import.reason.notFound': 'File not found',
   'import.reason.outside': 'Outside the imported folder',
+  'import.reason.tag': 'Tag not added: not a valid tag name',
   'import.reason.type': 'Not a supported image format',
   'import.reason.path': 'Hidden or not a valid path',
   'import.reason.unreadable': 'Could not be read',

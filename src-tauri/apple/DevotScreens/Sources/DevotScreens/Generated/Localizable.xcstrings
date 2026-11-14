@@ -14145,6 +14145,23 @@
         }
       }
     },
+    "import.reason.tag" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag not added: not a valid tag name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未添加标签：不是有效的标签名"
+          }
+        }
+      }
+    },
     "import.reason.tooDeep" : {
       "extractionState" : "manual",
       "localizations" : {
