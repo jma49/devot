@@ -308,6 +308,7 @@ const coreApi = {
     scope?: SearchScope,
     options?: { flush?: boolean; shortInTitles?: boolean },
   ) => required().search(query, scope, options),
+  searchByMeaning: (query: string, scope?: SearchScope) => required().searchByMeaning(query, scope),
   trash: (id: string) => required().trash(id),
   restore: (id: string) => required().restore(id),
   listTrash: () => required().listTrash(),

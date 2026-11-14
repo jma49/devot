@@ -49,6 +49,8 @@ const DELAY_NOTE_WRITES = 'devot.test.delayNoteWrites'
 const DELAY_FILE_WRITES = 'devot.test.delayFileWrites'
 const FAIL_REVISIONS = 'devot.test.failRevisions'
 const FAIL_LIST = 'devot.test.failList'
+/** Semantic search, off unless a test sets it: the words that mean each query word, as JSON. */
+const MEANINGS = 'devot.test.meanings'
 
 async function slowWrite(key: string) {
   while (localStorage.getItem(key) === 'hold') {
@@ -294,6 +296,36 @@ export const memoryStorage: StorageAdapter = {
     const kept = links.slice(0, limit)
     const ids = [...new Set(kept.flat())].sort()
     return { notes: ids.map((id) => ({ id, title: live.get(id)!.title })), links: kept }
+  },
+  async semanticSearch(query) {
+    const meanings = localStorage.getItem(MEANINGS)
+    if (meanings === null) throw new Error('E_SEMANTIC_UNAVAILABLE')
+    const same = JSON.parse(meanings) as Record<string, string[]>
+    const words = (text: string) => new Set(text.toLowerCase().match(/\p{L}+/gu) ?? [])
+    const asked = [...words(query.text)]
+    const shown = await memoryStorage.searchNotes(query.filter, 200)
+    const bodies = new Map(
+      (await memoryStorage.getBodies(shown.map((n) => n.id))).map((b) => [b.id, b]),
+    )
+    return shown
+      .map(({ excerpt: _excerpt, ...note }) => {
+        const body = bodies.get(note.id)?.bodyMd ?? ''
+        const has = words(`${note.title} ${body}`)
+        const met = asked.filter((w) => has.has(w) || (same[w] ?? []).some((s) => has.has(s)))
+        return {
+          ...note,
+          score: met.length / Math.max(1, asked.length),
+          excerpt: body.slice(0, 160),
+        }
+      })
+      .filter((hit) => hit.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, query.limit)
+  },
+  async semanticStatus() {
+    return localStorage.getItem(MEANINGS) === null
+      ? { state: 'unavailable' }
+      : { state: 'ready', notes: 0 }
   },
   async listBacklinks(id, excludeBookId, limit) {
     const stored = new Map(read<Stored>(NOTES).map((n) => [n.id, n]))

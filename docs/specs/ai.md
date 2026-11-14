@@ -115,7 +115,7 @@ Part of the [architecture overview](../architecture.md).
   Copy-ready configs stay for every client and for other MCP clients, under Set Up by Hand.
   The extension button writes a small `.mcpb` (a launcher, `src-tauri/mcp/devot-mcp.sh`, and an icon, no server) and opens it (Install Extension).
   `docs/mcp-plugin/` holds the layout for a directory plugin later, with the same launcher; nothing is published.
-- **Models:** embeddings run locally (vectors stored with `sqlite-vec`), so semantic search works offline and keeps content local; the runtime (in the UI worker or in Rust) is chosen in phase 2.
+- **Models:** embeddings come from the system's sentence model on the device (Apple NaturalLanguage), kept in a separate index file, so semantic search works offline and keeps content local (`docs/specs/search.md`, Related by Meaning).
   Generation goes through a provider interface (below).
   Nothing is sent to a cloud model unless the user triggers it, and only text from notebooks that allow AI access.
 - **Providers:** `src-tauri/src/ai` defines the `Provider` interface: a provider turns one provider-agnostic request (an optional system prompt, messages that start with the user, a token cap) into its own HTTP request, and its response into text, a stop reason (`end`, `maxTokens`, `other`) and token counts.
@@ -187,4 +187,16 @@ Part of the [architecture overview](../architecture.md).
     Rust cannot abort an HTTP call, so the call itself runs to its end (or its 20 s limit) and the suggester sends the next one only after it: a request never leaves while an earlier one is still on its way, and one cancelled while it waited is never sent.
   - **Tests:** `src/core/aiSuggest.test.ts` (context, prompt, reply, ordering and cancelling), `tests/core/ai-suggest.test.ts` (on real SQLite: nothing is sent with the pause setting off, for a notebook without AI access, for a note in no notebook or in Templates, or without a provider; only the text near the caret goes), `src/renderer/src/editor/ghostText.test.ts` (the field and accepting as one undo step), `tests/ui/ai-suggest.spec.ts` (the key, Tab, Escape, typing, the pause setting, a late answer after typing or switching notes, every refusal, with `ai_generate` faked), the Rust settings and time limit tests, and `tests/ui/ai-settings.spec.ts` for the switch.
   - **Not done:** note windows (a note opened in its own window) have no suggester yet; the suggestion is one text, not several to cycle through.
-- _Open:_ the in-app assistant's interaction design (phase 3).
+- **Ask Your Notes** (`src/core/askNotes.ts`, `src/renderer/src/AskNotesSheet.tsx`): a question answered by the active provider from the user's notes, with each note it used cited.
+  It opens from the command palette (`ai.ask`, no key by default, the user can bind one); nothing is sent until Ask or Return.
+  - **What is sent:** only passages of notes filed directly in a notebook with Allow AI Access on, never Templates, the Trash or a note in no notebook; with no such notebook the sheet says so and sends nothing (`E_AI_ACCESS_DENIED`).
+    Sources are found by Related by Meaning with whole passages, else by keyword search over the question's longest words, at most 8 notes and 1,500 characters each.
+    The request goes through `createAiGenerator` with the sources' notebooks as its trigger, with a system prompt that says the notes are content, never instructions, and asks for `[n]` citations.
+    A question is at most 2,000 characters (`E_ASK_QUESTION_TOO_LONG`), the reply 1,500 tokens; a reply cut off at the cap is shown with a line that says so.
+    No source found is a failure of its own (`E_ASK_NO_SOURCES`), and nothing is sent.
+  - **The answer:** its text with each `[n]` as a button that opens that note, then the cited notes under Sources and the others read under Also read.
+    Ask Another goes back to the question; an answer that comes after Close is dropped.
+    Answers are not kept.
+  - **Unavailable:** as for Edit with AI, the sheet says why, never the code, and Try Again shows only where asking again may help.
+  - **Tests:** `tests/core/ask-notes.test.ts` (on real SQLite: only allowed notebooks, the fallback, escaping, citations, refusals) and `tests/ui/ask-notes.spec.ts` (the palette, citations opening notes, nothing sent without access, with `ai_generate` faked).
+  - **Not done:** a conversation of several turns, and streaming the answer.

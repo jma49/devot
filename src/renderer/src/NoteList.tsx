@@ -57,6 +57,8 @@ interface Props {
   scope?: string | undefined
   pinned: NoteSummary[]
   notes: NoteSummary[]
+  /** Search only: notes related to it by meaning, under its results in their own section; the count leaves them out. */
+  related?: NoteSummary[] | undefined
   tags: ReadonlyMap<string, TagRecord>
   selected: string | undefined
   /** The note being opened, drawn as selected until it is. */
@@ -107,8 +109,16 @@ const WINDOW_FROM = 200
 const OVERSCAN_PX = 600
 const FIRST_ENTRIES = 50
 
+const NO_NOTES: NoteSummary[] = []
+
+const SECTION_LABELS = {
+  pinned: 'noteList.pinned',
+  others: 'noteList.others',
+  related: 'noteList.related',
+} as const
+
 type Entry =
-  | { kind: 'section'; key: string; section: 'pinned' | 'others' }
+  | { kind: 'section'; key: string; section: 'pinned' | 'others' | 'related' }
   | { kind: 'row'; key: string; note: NoteSummary; index: number }
 
 /** The current time, refreshed every minute so relative times stay right. */
@@ -128,7 +138,12 @@ function spacer(key: string, height: number) {
 /** Renders again only when its props change (its owner keeps them the same while nothing it shows changes), and then only the rows that changed. */
 export const NoteList = memo(function NoteList(props: Props) {
   const { title, scope, pinned, selected, onSelect, onCreate, tags, sortButtonRef } = props
-  const notes = useMemo(() => [...pinned, ...props.notes], [pinned, props.notes])
+  const related = props.related ?? NO_NOTES
+  const notes = useMemo(
+    () => [...pinned, ...props.notes, ...related],
+    [pinned, props.notes, related],
+  )
+  const listed = pinned.length + props.notes.length
   const order = useMemo(() => notes.map((n) => n.id), [notes])
   const indexOf = useMemo(() => new Map(order.map((id, i) => [id, i])), [order])
   const { selection, onSelection } = props
@@ -156,13 +171,16 @@ export const NoteList = memo(function NoteList(props: Props) {
     const out: Entry[] = []
     if (pinned.length > 0) out.push({ kind: 'section', key: 'section:pinned', section: 'pinned' })
     notes.forEach((note, index) => {
-      if (pinned.length > 0 && index === pinned.length) {
+      if (pinned.length > 0 && index === pinned.length && index < listed) {
         out.push({ kind: 'section', key: 'section:others', section: 'others' })
+      }
+      if (index === listed) {
+        out.push({ kind: 'section', key: 'section:related', section: 'related' })
       }
       out.push({ kind: 'row', key: note.id, note, index })
     })
     return out
-  }, [notes, pinned.length])
+  }, [notes, pinned.length, listed])
   const [focusedRow, setFocusedRow] = useState<string>()
   const [dragged, setDragged] = useState<ReadonlySet<string>>()
   useEffect(() => {
@@ -685,7 +703,8 @@ export const NoteList = memo(function NoteList(props: Props) {
           data-section={entry.key}
         >
           {entry.section === 'pinned' ? <Icon name="notes.pinned" size="sm" /> : null}
-          {t(entry.section === 'pinned' ? 'noteList.pinned' : 'noteList.others')}
+          {entry.section === 'related' ? <Icon name="search.related" size="sm" /> : null}
+          {t(SECTION_LABELS[entry.section])}
         </li>
       )
     }
@@ -728,7 +747,7 @@ export const NoteList = memo(function NoteList(props: Props) {
       <ListHeader
         title={title}
         scope={scope}
-        count={notes.length}
+        count={listed}
         capped={props.capped}
         icon={props.icon}
         onTitleMenu={props.onTitleMenu}
@@ -796,7 +815,7 @@ export const NoteList = memo(function NoteList(props: Props) {
       {props.capped ? (
         <p className="list-capped">
           {format(t('noteList.cappedNote'), {
-            count: new Intl.NumberFormat(locale).format(notes.length),
+            count: new Intl.NumberFormat(locale).format(listed),
           })}
         </p>
       ) : null}

@@ -784,6 +784,13 @@ export const COMMANDS = [
     keys: ['Mod+Alt+Shift+F'],
   },
   {
+    id: 'ai.ask',
+    label: 'command.askNotes',
+    group: 'search',
+    scope: 'window',
+    keys: [],
+  },
+  {
     id: 'search.save',
     label: 'command.saveSearch',
     group: 'search',

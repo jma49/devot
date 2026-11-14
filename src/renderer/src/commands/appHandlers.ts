@@ -91,6 +91,7 @@ export interface AppCommandActions {
   openPalette: (scope?: PaletteSource) => Run
   startSearch: (where: 'all' | 'view') => Run
   saveSearch: () => Run
+  askNotes: () => Run
   toggleFocus: () => Run
   /** Show or Hide Sidebar from its key or menu item. */
   toggleSidebar: () => Run
@@ -146,6 +147,7 @@ export function appHandlers(at: AppCommandState, act: AppCommandActions): Comman
     'search.view': { run: () => act.startSearch('view') },
     'search.all': { run: () => act.startSearch('all') },
     ...(at.coreReady && at.query.trim() ? { 'search.save': { run: act.saveSearch } } : {}),
+    ...(at.coreReady ? { 'ai.ask': { run: act.askNotes } } : {}),
     'view.focus': { run: act.toggleFocus },
     'view.sidebar': {
       run: act.toggleSidebar,

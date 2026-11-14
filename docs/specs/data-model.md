@@ -96,7 +96,7 @@ Part of the [architecture overview](../architecture.md).
 - A note's stored Yjs state is one whole document, replaced on each write (see the Body versions item above), so there is no update log to compact.
   _Phase 2:_ sync keeps this shape: the relay stores each record's latest encrypted state and clients merge on a rejected push, so there is still no update log (ADR 0002).
 - Core tables: `notes`, `books` (nestable notebooks; one reserved for templates, see Note templates), `tags`, `note_tags`, `files` (attachments), `links` (link index), `revisions` (revision history, local), `agent_writes` (derived, local; see Authorship), `saved_searches` (schema v25; see Search > Saved searches), `sync_records` and `sync_state` (what sync knows of each record, schema v19; see Sync and encryption).
-  _Phase 2:_ `chunks` (a vector column for semantic search) is not created yet.
+  Semantic search keeps its vectors out of this database, in the derived file `semantic-index.sqlite` (see Search > Related by Meaning).
   AI edit proposals have no table: a proposal lives in the Edit with AI sheet until it is accepted or discarded, and an accepted one follows the same rule as import and MCP, a text diff applied as Yjs operations (see AI > Edit with AI).
 - FTS5 uses the `trigram` tokenizer, so Chinese substring search works.
   Triggers keep the index in step with `notes`; a write puts a note's text in again only when its title or its Markdown changed (schema v15), so a notebook, status, pin or Trash change costs no indexing.

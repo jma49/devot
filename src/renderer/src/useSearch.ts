@@ -18,12 +18,19 @@ export interface SearchResults {
   search: Search
 }
 
+/** Notes related to a search by meaning (semantic search), for the search they answer. */
+export interface RelatedResults {
+  notes: NoteSummary[]
+  search: Search
+}
+
 const SEARCH_SETTLED_MS = 1000
 
 export function useSearch(core: Core | undefined) {
   const [query, setQuery] = useState('')
   const [searchIn, setSearchIn] = useState<'all' | 'view'>('view')
   const [results, setResults] = useState<SearchResults>()
+  const [related, setRelated] = useState<RelatedResults>()
   const searchField = useRef<HTMLInputElement>(null)
   const runSearch = useRef<(search: Search) => void>(undefined)
   const latestSearch = useRef<Search>({ query: '', scope: undefined })
@@ -34,6 +41,20 @@ export function useSearch(core: Core | undefined) {
     let alive = true
     const arm = () => {
       if (!alive) return
+      // Asked once a search's own results are in, so they never wait for it.
+      const runRelated = latestOnly(
+        async (search: Search) => ({
+          notes: await core.searchByMeaning(search.query, search.scope),
+          search,
+        }),
+        (next) => {
+          if (latestSearch.current !== next.search) return
+          setRelated((shown) =>
+            shown ? { ...next, notes: keepUnchanged(shown.notes, next.notes) } : next,
+          )
+        },
+        () => console.warn('W_SEMANTIC_SEARCH_FAILED'),
+      )
       runSearch.current = latestOnly(
         async (search: Search) => {
           const { found, capped } = await core.search(search.query, search.scope)
@@ -47,6 +68,7 @@ export function useSearch(core: Core | undefined) {
           setResults((shown) =>
             shown ? { ...next, found: keepUnchanged(shown.found, next.found) } : next,
           )
+          runRelated(next.search)
         },
         () => console.warn('W_SEARCH_FAILED'),
       )
@@ -85,6 +107,7 @@ export function useSearch(core: Core | undefined) {
     setSearchIn,
     results,
     setResults,
+    related,
     searchField,
     runSearch,
     latestSearch,
