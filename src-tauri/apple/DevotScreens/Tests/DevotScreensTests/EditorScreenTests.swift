@@ -585,6 +585,8 @@ final class EditorScreenTests: XCTestCase {
             guard case .request(_, let op, _) = try Message(json: call.1) else { return nil }
             return op
         } }
+        // Settings asks for the glass once the screens show; on a loaded runner that came after the note's editor.show (#930).
+        settle(until: { (try? requests().contains(.glassGet)) == true })
         var answered = 0
         let answerAll = {
             for (id, json) in rust.calls.dropFirst(answered) {

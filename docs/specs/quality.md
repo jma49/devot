@@ -199,6 +199,12 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
   - Playwright's WebKit sometimes drops a scroll key, also the first one pressed in a focused preview (#913); the preview key specs press until the preview has moved (`pressUntilBeyond`), which still fails when the keys never scroll it.
   - On a loaded simulator XCTest heard that the app it had stopped was gone 111 s late, after the next test's launch had given up with "Failed to terminate" (#880, #895).
     The iPhone UI tests capture screenshots instead of a screen recording (`PreferredScreenCaptureFormat` in the `.xctestrun`), which halves a result bundle and takes the recording's load off the simulator.
+  - A note list row gains its excerpt a moment after its note is written; a spec that measured the gap below it before then read 23 px for 2 (#923).
+    It waits for the excerpt and reads both rows at once.
+  - The end-against-top keystroke check compared trimmed means of two turns at each place, and on CI the work reached its 1.5 bound with the frames equal (#927, #929).
+    It types each place four times and compares lower quartiles, which work that grows with the text raises and a busy runner does not.
+  - The screens tests waited 0.05 s for the app's start: Settings' glass request came after a note's `editor.show` on a loaded runner (#930), and a new note's cover was not up yet because the push had not reached the screen taking the web view (#933).
+    They wait for the request and for the push.
   - A StoreKit test cleared a purchase, bought again and read the product's entitlement, and the cleared purchase was still listed for a moment: it waits for the entitlement of the new transaction.
   - After a restore from the history bar the editor is owed the keyboard once the overlay has gone; the flag that said so did not say for which note, so a note opened in between took the keyboard. The flag holds the note, and another note drops it (#902).
   - StoreKit Test's local server answers some purchases with a server error (AMSErrorDomain 305) on a loaded runner; the retry covers it.

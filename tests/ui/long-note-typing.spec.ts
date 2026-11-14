@@ -65,23 +65,22 @@ test('a keystroke in a 200 KB note stays within its budget', async ({ page }) =>
 
 // Typing at the end of a note must cost what typing at its top does: no work may grow with the text before
 // the caret (a parse, a scan or decorations from the note's start, heights measured above the viewport).
-// The note is three times the one above, so such work shows against the rest. Each place is typed twice, in
-// turns, a letter then Backspace so the note keeps its length, with pauses as a person leaves them; trimmed
-// means keep a garbage collection or a late frame from deciding, and CI's one retry a noisy runner.
+// The note is three times the one above, so such work shows against the rest. Each place is typed four times, in
+// turns, a letter then Backspace so the note keeps its length, with pauses as a person leaves them. Each place's
+// lower quartile is compared: work that grows with the text raises every key, while a garbage collection, a late
+// frame or a busy runner raises some; trimmed means of two turns each reached the bound on CI with the frames equal (#927, #929).
 // CodeMirror parses only 100 KB past the view, so typing at a place waits until the parser has drawn it and gone
 // quiet: a first visit's catching up is not a keystroke's cost (#759). The note ends in a quote line for that wait.
 // The bound catches work of about half a keystroke; a smaller cost, such as the highlighting walk that
 // highlighting.test.ts holds, does not always cross it.
 const PLACE_NOTE_CHARS = 600_000
 const PLACE_RATIO = 1.5
-const PLACE_KEYS = 20
+const PLACE_KEYS = 10
 const QUIET_MS = 1000
 
-const trimmedMean = (values: number[]) => {
+const lowerQuartile = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b)
-  const cut = Math.floor(sorted.length / 10)
-  const kept = sorted.slice(cut, sorted.length - cut)
-  return kept.reduce((sum, value) => sum + value, 0) / kept.length
+  return sorted[Math.floor(sorted.length / 4)] ?? 0
 }
 
 function watchUpdates(page: Page) {
@@ -148,12 +147,12 @@ for (const mode of [
     await body(page).focus()
     await watchKeys(body(page))
     const typed = { top: [] as Window['devotKeys'], end: [] as Window['devotKeys'] }
-    for (const place of ['top', 'end', 'top', 'end'] as const) {
+    for (const place of ['top', 'end', 'top', 'end', 'top', 'end', 'top', 'end'] as const) {
       typed[place].push(...(await typeAt(page, place)))
     }
     const cost = (place: 'top' | 'end') => ({
-      work: trimmedMean(typed[place].map((k) => k.work)),
-      frame: trimmedMean(typed[place].map((k) => k.frame)),
+      work: lowerQuartile(typed[place].map((k) => k.work)),
+      frame: lowerQuartile(typed[place].map((k) => k.frame)),
     })
     const top = cost('top')
     const end = cost('end')
