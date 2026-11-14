@@ -35,7 +35,7 @@ import type {
 import { newWriter } from '../../core/authorship'
 import { applyBatch } from '../../core/batch'
 import { createBookService } from '../../core/books'
-import { captureNote } from '../../core/capture'
+import { captureNote, captureShare, type SharedNote } from '../../core/capture'
 import { openTodaysNote } from '../../core/dailyNotes'
 import { duplicateNote } from '../../core/duplicate'
 import { createClock } from '../../core/hlc'
@@ -225,6 +225,12 @@ const coreApi = {
   /** A quick capture from the menu bar, saved before it resolves (see captureNote). */
   capture: (title: string, markdown: string, bookId: string | null) =>
     captureNote(required(), { title, markdown, bookId }),
+  /** A share from another iPhone app, saved before it resolves (see captureShare). */
+  captureShare: (share: SharedNote) => {
+    const parts = coreParts
+    if (!parts) throw new Error('E_CORE_NOT_READY')
+    return captureShare(required(), parts.storage, parts.newId, share)
+  },
   /** A local HTTP API call (see httpApiHost), after pending edits are saved, so it reads and changes what the editor shows. */
   httpApi: async (call: HttpApiCall) => {
     const notes = required()

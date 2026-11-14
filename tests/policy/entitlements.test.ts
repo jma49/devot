@@ -30,6 +30,9 @@ const ICLOUD = {
   'com.apple.developer.icloud-services': ['CloudKit'],
   'keychain-access-groups': [KEYCHAIN_GROUP],
 }
+const SHARE = 'src-tauri/gen/apple/devot_Share/devot_Share.entitlements'
+const IOS_LOCAL = 'src-tauri/gen/apple/devot_iOS/devot_iOS-local.entitlements'
+const APP_GROUP = { 'com.apple.security.application-groups': ['group.io.github.jma49.devot'] }
 
 describe('the entitlements', () => {
   it('give the Mac app exactly its App ID, team, CloudKit in Production, push and the keychain group', () => {
@@ -46,7 +49,19 @@ describe('the entitlements', () => {
   // profile's value when it exports for the App Store. With no container environment a
   // development-signed build uses Development; ExportOptions.plist asks for Production.
   it('give the iPhone app the same container, keychain group and push, in the environment its profile gives', () => {
-    expect(entitlements(IOS)).toEqual({ 'aps-environment': 'development', ...ICLOUD })
+    expect(entitlements(IOS)).toEqual({ 'aps-environment': 'development', ...ICLOUD, ...APP_GROUP })
+  })
+
+  // The Share Extension's inbox (docs/specs/share-extension.md) is the one thing the two share.
+  it('give the Share Extension the App Group alone, and the app the App Group in every build', () => {
+    expect(entitlements(SHARE)).toEqual(APP_GROUP)
+    expect(entitlements(IOS_LOCAL)).toEqual(APP_GROUP)
+    expect(readFileSync(`${APPLE}/project.yml`, 'utf8')).toContain(
+      'DEVOT_ENTITLEMENTS_: devot_iOS/devot_iOS-local.entitlements',
+    )
+    expect(readFileSync('scripts/release/ios-export.sh', 'utf8')).toContain(
+      'src-tauri/gen/apple/devot_Share/devot_Share.entitlements',
+    )
   })
 
   it('reach the Mac app only through the signing script: the ad-hoc build carries none', () => {
@@ -83,7 +98,11 @@ describe("the iPhone app's iCloud switch", () => {
       'DEVOT_ENTITLEMENTS_YES = devot_iOS/devot_iOS.entitlements;',
     ])
       expect({ setting, count: project.split(setting).length - 1 }).toEqual({ setting, count: 2 })
-    expect(project.match(/CODE_SIGN_ENTITLEMENTS = /g)).toHaveLength(2)
+    // The app's two configurations, then the Share Extension's, which carry no iCloud.
+    expect(project.match(/CODE_SIGN_ENTITLEMENTS = /g)).toHaveLength(4)
+    expect(
+      project.match(/CODE_SIGN_ENTITLEMENTS = devot_Share\/devot_Share.entitlements;/g),
+    ).toHaveLength(2)
 
     const spec = readFileSync(`${APPLE}/project.yml`, 'utf8')
     for (const setting of [

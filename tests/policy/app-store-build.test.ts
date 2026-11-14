@@ -47,10 +47,10 @@ const strings = (dict: string, key: string) =>
 describe('the iPhone app', () => {
   it('is iPhone only for the first App Store release', () => {
     const project = read(PROJECT)
-    expect(project.match(/TARGETED_DEVICE_FAMILY = [^;]*;/g)).toEqual([
-      'TARGETED_DEVICE_FAMILY = 1;',
-      'TARGETED_DEVICE_FAMILY = 1;',
-    ])
+    // The app's two configurations, then the Share Extension's.
+    expect(project.match(/TARGETED_DEVICE_FAMILY = [^;]*;/g)).toEqual(
+      Array(4).fill('TARGETED_DEVICE_FAMILY = 1;'),
+    )
     expect(read(`${APPLE}/project.yml`)).toMatch(/^ {8}TARGETED_DEVICE_FAMILY: 1$/m)
     expect(read(`${APPLE}/project.yml`)).not.toContain('~ipad')
     expect(read(`${APPLE}/devot_iOS/Info.plist`)).not.toContain('~ipad')
@@ -227,6 +227,7 @@ describe('the App Store workflow', () => {
       'secrets.APPLE_DISTRIBUTION_CERTIFICATE',
       'secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD',
       'secrets.APPLE_PROVISIONING_PROFILE_IOS',
+      'secrets.APPLE_PROVISIONING_PROFILE_IOS_SHARE',
       'vars.APPLE_API_ISSUER_ID',
       'vars.APPLE_API_KEY_ID',
       'vars.APP_STORE_UPLOAD',

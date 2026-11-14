@@ -301,6 +301,7 @@ it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust
   expect(job('changes')).toContain('storekit: ${{ steps.diff.outputs.storekit }}')
   for (const [path, screens, storeKit] of [
     ['src-tauri/apple/DevotScreens/Sources/DevotScreens/Screens.swift', true, false],
+    ['src-tauri/apple/DevotShare/Sources/DevotShareInbox/ShareInbox.swift', true, false],
     ['tests/fixtures/screens/valid/request-tabs-show.json', true, false],
     ['tests/fixtures/licence-gate.json', true, false],
     ['src-tauri/apple/DevotStore/Sources/DevotStore/Store.swift', false, true],

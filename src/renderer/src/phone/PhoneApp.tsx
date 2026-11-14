@@ -43,6 +43,7 @@ import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
 import { editorHandlers, type NativeEditor } from './screens/editor'
 import { newNoteHandlers, type NativeNewNote } from './screens/newNote'
+import { shareHandlers, type NativeShare } from './screens/share'
 import { noteChangesRev, watchLibraryChanges, watchNoteChanges } from './screens/noteChanges'
 import { listHandlers } from './screens/lists'
 import { searchHandlers } from './screens/search'
@@ -288,6 +289,7 @@ export function PhoneApp() {
   const nativeSettings = useRef<NativeSettings | null>(null)
   const nativeEditor = useRef<NativeEditor | null>(null)
   const nativeNewNote = useRef<NativeNewNote | null>(null)
+  const nativeShare = useRef<NativeShare | null>(null)
   const [prepared] = useState(createPreparedNotes)
   // Null until the bridge says whether the native screens are there; without them the page is the fallback.
   const [native, setNative] = useState<boolean | null>(null)
@@ -317,6 +319,7 @@ export function PhoneApp() {
       }),
       ...glassHandlers(),
       ...newNoteHandlers(() => nativeNewNote.current),
+      ...shareHandlers(() => nativeShare.current),
       ...listHandlers(() => latestStore.current.started()),
       ...searchHandlers(() => latestStore.current.started()),
       ...noteHandlers(
@@ -427,6 +430,27 @@ export function PhoneApp() {
         void phoneData.refresh()
         return { id }
       },
+    }
+    nativeShare.current = {
+      allowed: editingAllowed,
+      capture: async (share) => {
+        const core = await latestStore.current.started()
+        const bookId = newNoteBook(
+          null,
+          editorSettings().defaultNotebook,
+          latestStore.current.books,
+        )
+        const note = await core.captureShare({ ...share, bookId })
+        void phoneData.refresh()
+        return note
+      },
+      ledger: (() => {
+        try {
+          return globalThis.localStorage
+        } catch {
+          return null
+        }
+      })(),
     }
   })
   useEffect(() => {

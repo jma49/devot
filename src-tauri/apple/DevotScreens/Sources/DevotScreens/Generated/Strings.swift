@@ -6994,6 +6994,54 @@ public enum L10n {
     text("appearanceSettings.failed", "The appearance settings could not be saved.")
   }
 
+  public static func shareSheetTitle() -> String {
+    text("share.sheet.title", "Devot")
+  }
+
+  public static func sharePost() -> String {
+    text("share.post", "Post")
+  }
+
+  public static func shareCancel() -> String {
+    text("share.cancel", "Cancel")
+  }
+
+  public static func shareFieldTitle() -> String {
+    text("share.field.title", "Title")
+  }
+
+  public static func shareFieldText() -> String {
+    text("share.field.text", "Text")
+  }
+
+  public static func shareImagesCount(count p0: String) -> String {
+    fill(text("share.images.count", "Images: {count}"), ["count": p0])
+  }
+
+  public static func shareImagesSkipped() -> String {
+    text("share.images.skipped", "Some images could not be added.")
+  }
+
+  public static func shareErrorTitle() -> String {
+    text("share.error.title", "Could Not Add to Devot")
+  }
+
+  public static func shareErrorEmpty() -> String {
+    text("share.error.empty", "Add a title, some text, a link or an image.")
+  }
+
+  public static func shareErrorTooLarge() -> String {
+    text("share.error.tooLarge", "This is too large to add to Devot. Try fewer images.")
+  }
+
+  public static func shareErrorSave() -> String {
+    text("share.error.save", "Devot could not keep this. Try again.")
+  }
+
+  public static func shareOk() -> String {
+    text("share.ok", "OK")
+  }
+
   public static func sidebarLabel() -> String {
     text("sidebar.label", "Sidebar")
   }

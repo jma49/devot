@@ -112,6 +112,7 @@ public enum Op: String, CaseIterable, Sendable {
     case noteAddTag = "note.addTag"
     case noteToday = "note.today"
     case activityWriting = "activity.writing"
+    case shareCapture = "share.capture"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {

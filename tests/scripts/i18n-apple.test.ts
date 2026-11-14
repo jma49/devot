@@ -6,6 +6,8 @@ import {
   compileSettingsIndex,
   compileStrings,
   SETTINGS_INDEX,
+  SHARE_STRINGS_SWIFT,
+  SHARE_XCSTRINGS,
   staleOutputs,
   STRINGS_SWIFT,
   XCSTRINGS,
@@ -91,6 +93,17 @@ describe('the Swift string catalog', () => {
     )
   })
 
+  it("gives the Share Extension its own enum with only the share area's keys", async () => {
+    const outputs = new Map(await appleStrings('.'))
+    const shareSwift = outputs.get(SHARE_STRINGS_SWIFT)!
+    const shareCatalog = JSON.parse(outputs.get(SHARE_XCSTRINGS)!) as { strings: object }
+    const shareKeys = Object.keys(en).filter((key) => key.startsWith('share.'))
+    expect(shareKeys.length).toBeGreaterThan(0)
+    expect(Object.keys(shareCatalog.strings)).toEqual([...shareKeys].sort())
+    expect(shareSwift).toContain('public enum ShareL10n {')
+    expect(shareSwift).toContain('public static func sharePost() -> String {')
+  })
+
   it('holds no CJK', () => {
     expect(CJK.test(swift)).toBe(false)
     expect(CJK.test(xcstrings)).toBe(false)
@@ -98,7 +111,13 @@ describe('the Swift string catalog', () => {
 
   it('are the committed files', async () => {
     const outputs = await appleStrings('.')
-    expect(outputs.map(([path]) => path)).toEqual([STRINGS_SWIFT, XCSTRINGS, SETTINGS_INDEX])
+    expect(outputs.map(([path]) => path)).toEqual([
+      STRINGS_SWIFT,
+      XCSTRINGS,
+      SETTINGS_INDEX,
+      SHARE_STRINGS_SWIFT,
+      SHARE_XCSTRINGS,
+    ])
     expect(staleOutputs('.', outputs)).toEqual([])
   })
 
