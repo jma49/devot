@@ -202,6 +202,15 @@ describe('the viewer', () => {
     expect(html).toContain('src="/assets/viewer.js"')
   })
 
+  it('answers a HEAD request as it answers GET, with no body, so link checkers see a live page', async () => {
+    const page = await fetch(`${url}/s/${'B'.repeat(22)}`, { method: 'HEAD' })
+    expect(page.status).toBe(200)
+    expect(page.headers.get('Content-Security-Policy')).toBe(VIEWER_CSP)
+    expect(await page.text()).toBe('')
+    expect((await fetch(`${url}/assets/viewer.js`, { method: 'HEAD' })).status).toBe(200)
+    expect((await fetch(`${url}/s/short`, { method: 'HEAD' })).status).toBe(404)
+  })
+
   it('serves its script and stylesheet with their types', async () => {
     const script = await fetch(`${url}/assets/viewer.js`)
     expect(script.headers.get('Content-Type')).toBe('text/javascript; charset=utf-8')

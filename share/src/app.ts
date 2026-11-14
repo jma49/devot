@@ -180,7 +180,16 @@ const asset = (body: string, type: string) =>
     headers: { ...COMMON, 'Content-Type': type, 'Cache-Control': 'public, max-age=3600' },
   })
 
+// A HEAD request is answered as GET without its body, so link checkers see a live page.
 export async function handle(request: Request, env: Env, now = Date.now()): Promise<Response> {
+  if (request.method === 'HEAD') {
+    const answer = await route(new Request(request, { method: 'GET' }), env, now)
+    return new Response(null, answer)
+  }
+  return route(request, env, now)
+}
+
+async function route(request: Request, env: Env, now: number): Promise<Response> {
   const url = new URL(request.url)
   const { pathname } = url
   const method = request.method
