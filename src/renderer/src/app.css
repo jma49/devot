@@ -8304,3 +8304,32 @@ dialog[open].sheet.import {
 :root[data-motion='reduced'] .panes-split > :is(.editor, .preview) {
   transition: none;
 }
+
+/* Share on Web: the link on its own row, read-only, then the lifetime. */
+.sheet.share-web {
+  width: calc(var(--size-list-width) * 1.5);
+}
+
+.share-web-link {
+  width: 100%;
+  margin: 0 0 var(--space-4);
+}
+
+.share-web-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+
+.share-web-choice .sheet-detail {
+  margin: 0;
+}
+
+.share-web select {
+  box-sizing: border-box;
+  height: var(--size-segment-height);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: var(--font-size-body);
+}

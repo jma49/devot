@@ -82,6 +82,7 @@ mod test_log;
 mod updates;
 mod usage;
 mod watch;
+mod web_share;
 
 use startup::StartupError;
 use std::path::Path;
@@ -241,6 +242,9 @@ pub fn run() {
             export::export_pdf,
             export::note_print,
             export::clipboard_write_html,
+            web_share::web_share_status,
+            web_share::web_share_publish,
+            web_share::web_share_stop,
             usage::usage_record,
             usage::usage_list,
             usage::usage_clear,
@@ -531,6 +535,11 @@ fn launch(
         std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),
         licence::Gate::of(&licence),
     )));
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    let share_store = std::sync::Arc::new(web_share::Keychain::new(&app.config().identifier));
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+    let share_store = std::sync::Arc::new(web_share::MemoryStore::default());
+    app.manage(std::sync::Arc::new(web_share::WebShares::new(share_store)));
     let sync_service = std::sync::Arc::new(
         sync::service::SyncService::new(
             sync::settings::SettingsStore::new(&data_dir.join(sync::settings::FILE)),

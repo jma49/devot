@@ -38,8 +38,15 @@ The decision is ADR 0019 (`docs/adr/0019-share-on-web-as-an-encrypted-page-witho
 
 ## In the app
 
-Not built yet: the note menu's Share on Web…, its sheet (the warning that anyone with the link can read the note, the lifetime, Share), and Copy Link, Update Page and Stop Sharing for a shared note.
-Rust seals and uploads (`aes-gcm`, `net.rs`) and keeps each share's ID, token and key in the Keychain; the commands are declared in `build_commands.rs` and check their arguments.
+The note menu's Share on Web… opens a sheet for one note that is not a template (`ShareWebSheet.tsx`).
+Before a note is shared, the sheet warns that anyone with the link can read the note, offers a lifetime of a day, a week or a month, and Share.
+A shared note shows its link, read-only, when it expires, and Copy Link, Update Page and Stop Sharing.
+The sheet's phases are one union (`shareWeb.ts`), and each answer from Rust is matched to the request that asked for it.
+The window renders the page as it does for Export as HTML, and Rust puts in the images (`export::page_with_images`).
+Rust seals and uploads the page (`web_share/seal.rs`, `web_share/client.rs`, through `net.rs`) and keeps each share's ID, token and key in the Keychain under `web-share-<note ID>`; the window sees only the link and when it expires.
+Update Page seals the note again under the same key, so the link stays the same; if the Worker no longer has the page, the note is shared anew.
+A share that has expired is forgotten when it is next read.
+The commands `web_share_status`, `web_share_publish` and `web_share_stop` are declared in `build_commands.rs`, granted in `capabilities/main.json`, and check their arguments; one share command runs at a time (`E_SHARE_BUSY`).
 
 ## Deploying
 

@@ -29,6 +29,7 @@ export function WindowSheets(props: {
   closeViewer: () => void
   aiAccess: ReactNode
   clearAuthorship: ReactNode
+  shareWeb: ReactNode
   activity: { core: Core | undefined; open: boolean; close: () => void }
   exported: ReactNode
   headerMenus: ReactNode
@@ -66,6 +67,7 @@ export function WindowSheets(props: {
       {props.viewing ? <ImageViewer image={props.viewing} onClose={props.closeViewer} /> : null}
       {props.aiAccess}
       {props.clearAuthorship}
+      {props.shareWeb}
       {activity.core && activity.open ? (
         <Activity core={activity.core} onClose={activity.close} />
       ) : null}
