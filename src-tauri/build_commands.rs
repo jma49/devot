@@ -101,6 +101,7 @@ const FILES: &[&str] = &[
     "mirror_open",
     "mirror_check",
     "mirror_apply",
+    "mirror_read",
     "mirror_bodies",
     "mirror_files",
     "mirror_hashes",

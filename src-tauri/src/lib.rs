@@ -323,6 +323,7 @@ pub fn run() {
             mirror::mirror_open,
             mirror::mirror_check,
             mirror::mirror_apply,
+            mirror::mirror_read,
             mirror::mirror_bodies,
             mirror::mirror_files,
             mirror::mirror_hashes,

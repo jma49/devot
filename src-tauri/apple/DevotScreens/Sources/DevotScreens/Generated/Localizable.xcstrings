@@ -17766,6 +17766,40 @@
         }
       }
     },
+    "mirror.readBack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bring Back Outside Edits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读回外部编辑"
+          }
+        }
+      }
+    },
+    "mirror.readBackHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A file changed in another app goes back into its note. If the note changed in Devot too, Devot keeps its version and the file is kept under a new name."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在其他应用中修改的文件会回到对应的笔记里。如果笔记在 Devot 中也改过，Devot 会保留自己的版本，并以新名称保留这个文件。"
+          }
+        }
+      }
+    },
     "mirror.size" : {
       "extractionState" : "manual",
       "localizations" : {

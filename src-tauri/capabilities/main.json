@@ -129,6 +129,7 @@
     "allow-mirror-open",
     "allow-mirror-check",
     "allow-mirror-apply",
+    "allow-mirror-read",
     "allow-mirror-bodies",
     "allow-mirror-files",
     "allow-mirror-hashes",

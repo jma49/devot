@@ -3,7 +3,9 @@
 // reconcile a moment later so it never slows the start; follows the setting
 // (a full pass when the mirror turns on or its folder or Include Attachments
 // change, nothing more once it is off); lets a paused mirror check its
-// folder when the window comes to the front; shows the mirror's notices;
+// folder when the window comes to the front; with Bring Back Outside Edits
+// on, looks for files changed outside Devot when the window comes to the
+// front and every few seconds while it shows; shows the mirror's notices;
 // and runs the palette's commands (a folder that is not empty is used only
 // once the user agrees).
 import * as Comlink from 'comlink'
@@ -22,8 +24,11 @@ import {
 } from './mirror'
 import { useMirrorFolderChoice } from './MirrorFolderChoice'
 import { failureText, logFailure } from './failure'
+import { dbChanged } from './externalChanges'
 
 const LAUNCH_DELAY_MS = 2000
+/** A look costs one `stat` per file while nothing changed (Rust remembers each file's stamp). */
+const RESCAN_MS = 5000
 
 export interface MarkdownMirror {
   status: MirrorStatus
@@ -40,7 +45,10 @@ export interface MarkdownMirror {
 export function useMarkdownMirror(core: Core | undefined, ready: boolean): MarkdownMirror {
   const status = useMirrorStatus()
   const [started, setStarted] = useState(false)
-  const [failure, setFailure] = useState<{ message: MessageKey; code: string }>()
+  const [failure, setFailure] = useState<{
+    message: MessageKey
+    code: string
+  }>()
   const [dismissedPause, setDismissedPause] = useState<string | null>(null)
   const launched = useRef(false)
 
@@ -50,8 +58,14 @@ export function useMarkdownMirror(core: Core | undefined, ready: boolean): Markd
     if (!core || !ready || started) return
     let alive = true
     const logMirrorFailure = (code: string) => console.warn('W_MIRROR_FAILED', code)
+    const broughtBack = (noteIds: readonly string[]) => window.dispatchEvent(dbChanged(noteIds))
     core
-      .startMirror(Comlink.proxy(mirrorHost), t('note.untitled'), Comlink.proxy(logMirrorFailure))
+      .startMirror(
+        Comlink.proxy(mirrorHost),
+        t('note.untitled'),
+        Comlink.proxy(logMirrorFailure),
+        Comlink.proxy(broughtBack),
+      )
       .then(
         () => alive && setStarted(true),
         () => console.warn('W_MIRROR_START_FAILED'),
@@ -81,6 +95,20 @@ export function useMarkdownMirror(core: Core | undefined, ready: boolean): Markd
     window.addEventListener('focus', wake)
     return () => window.removeEventListener('focus', wake)
   }, [core, started])
+
+  const readBack = status.folder !== null && status.readBack
+  useEffect(() => {
+    if (!core || !started || !readBack) return
+    const rescan = () => {
+      if (document.visibilityState === 'visible') void core.mirrorRescan()
+    }
+    window.addEventListener('focus', rescan)
+    const timer = setInterval(rescan, RESCAN_MS)
+    return () => {
+      window.removeEventListener('focus', rescan)
+      clearInterval(timer)
+    }
+  }, [core, started, readBack])
 
   if (status.paused === null && dismissedPause !== null) setDismissedPause(null)
 

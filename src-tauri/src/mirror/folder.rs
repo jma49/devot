@@ -408,6 +408,13 @@ pub enum Op {
         id: String,
         path: Option<String>,
     },
+    /// The note now holds what its file holds: the manifest takes the file, while it still holds
+    /// `sha256`, as Devot's.
+    Take {
+        id: String,
+        path: String,
+        sha256: String,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -722,6 +729,9 @@ fn valid_op(op: &Op) -> bool {
         }
         Op::File { id, path, .. } => valid_note_id(id) && valid_file_path(path),
         Op::Book { id, path } => valid_note_id(id) && path.as_deref().is_none_or(plain_rel_path),
+        Op::Take { id, path, sha256 } => {
+            valid_note_id(id) && valid_note_path(path) && valid_sha256(sha256)
+        }
     }
 }
 
@@ -793,8 +803,66 @@ pub fn run(
             }
             Ok(OpResult::default())
         }
+        Op::Take { id, path, sha256 } => take(root, manifest, id, path, sha256),
     };
     result.unwrap_or_else(OpResult::from)
+}
+
+fn take(
+    root: &Root,
+    manifest: &mut Manifest,
+    id: &str,
+    path: &str,
+    sha256: &str,
+) -> Result<OpResult, Stop> {
+    let Some(entry) = manifest.notes.get_mut(id).filter(|e| e.path == path) else {
+        return Err(Stop::code("E_MIRROR_STALE"));
+    };
+    let (found, state) = look(root, path);
+    if state.as_deref() != Some(sha256) {
+        return Err(Stop::at("E_MIRROR_CHANGED", path, state));
+    }
+    let size = found.as_ref().map_or(0, file_size);
+    entry.sha256 = sha256.to_owned();
+    entry.size = size;
+    Ok(OpResult {
+        size: Some(size),
+        sha256: Some(Some(sha256.to_owned())),
+        ..OpResult::default()
+    })
+}
+
+/// A note's file, read whole: a regular file (never through a link) of at most `MAX_TEXT_BYTES`
+/// in UTF-8. Gives its text and SHA-256, which is remembered with the file's stamp.
+pub fn read_note(root: &Root, rel: &str) -> Result<(String, String), &'static str> {
+    let at = find(root, rel).map_err(|_| "E_MIRROR_READ_MISSING")?;
+    let entry = at
+        .folder
+        .entry(at.name)
+        .map_err(|_| "E_MIRROR_READ_MISSING")?;
+    if !entry.is_file() {
+        return Err("E_MIRROR_READ_MISSING");
+    }
+    if entry.len > MAX_TEXT_BYTES as u64 {
+        return Err("E_MIRROR_READ_TOO_LARGE");
+    }
+    let mut file = at
+        .folder
+        .read_file(at.name)
+        .map_err(|_| "E_MIRROR_READ_FAILED")?;
+    let stamp = atomic_file::stamp_of(&file).ok();
+    let mut bytes = Vec::new();
+    (&mut file)
+        .take(MAX_TEXT_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| "E_MIRROR_READ_FAILED")?;
+    if bytes.len() > MAX_TEXT_BYTES {
+        return Err("E_MIRROR_READ_TOO_LARGE");
+    }
+    let sha256 = sha256_hex(&bytes);
+    root.remember(rel, stamp, &sha256);
+    let text = String::from_utf8(bytes).map_err(|_| "E_MIRROR_READ_INVALID")?;
+    Ok((text, sha256))
 }
 
 fn keep(

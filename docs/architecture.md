@@ -15,7 +15,7 @@ Docs are written one sentence per line, so a change touches only the sentences i
 - [Markdown dialect](specs/markdown-dialect.md): the syntax Devot reads and writes, note links and the link index, attachments and images, purging, and the editor's commands, formatting, slash menu, code blocks and tables.
 - [Import and export](specs/import-and-export.md): importing Markdown and HTML files and folders; exporting notes and notebooks as Markdown, HTML and PDF, and printing.
 - [Command line](specs/command-line.md): the `devot` command and its subcommands.
-- [Markdown mirror](specs/markdown-mirror.md): the folder kept as a Markdown copy of every notebook, its manifest and how it treats files edited outside Devot.
+- [Markdown mirror](specs/markdown-mirror.md): the folder kept as a Markdown copy of every notebook, its manifest, and how files edited outside Devot are kept aside or brought back into their notes.
 - [Note templates](specs/note-templates.md): templates, their variables and instruction quotes, the starter templates and today's note.
 - [Search](specs/search.md): the query syntax, saved searches, results and excerpts, find in a note, and the Write and Split view modes.
 - [Editor settings](specs/editor-settings.md): the Editing and Preview settings, their store and how every window follows them.
