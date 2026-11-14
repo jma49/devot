@@ -70,7 +70,7 @@
       "icons/icon.icns",
       "icons/AppIcon.icon"
     ],
-    "macOS": { "minimumSystemVersion": "26.0" },
+    "macOS": { "minimumSystemVersion": "15.0" },
     "resources": { "cli/devot": "bin/devot" }
   }
 }

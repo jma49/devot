@@ -55,6 +55,7 @@ targets:
       path: devot_iOS/Info.plist
       properties:
         CADisableMinimumFrameDurationOnPhone: true
+        CFBundleLocalizations: [en, zh-Hans]
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
@@ -130,6 +131,7 @@ targets:
       path: devot_Share/Info.plist
       properties:
         CFBundleDisplayName: Devot
+        CFBundleLocalizations: [en, zh-Hans]
         CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "1.0.0"
         NSExtension:
@@ -162,6 +164,7 @@ targets:
       path: devot_Intents/Info.plist
       properties:
         CFBundleDisplayName: Devot
+        CFBundleLocalizations: [en, zh-Hans]
         CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "1.0.0"
         EXAppExtensionAttributes:

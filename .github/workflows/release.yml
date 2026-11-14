@@ -94,7 +94,8 @@ jobs:
 
   build:
     needs: verify
-    # Apple Silicon with the macOS 26 SDK (minimumSystemVersion is 26.0).
+    # One universal app for Apple Silicon and Intel, built with the macOS 26 SDK for macOS 15 and
+    # later (minimumSystemVersion in tauri.conf.json).
     runs-on: macos-26
     timeout-minutes: 60
     env:
@@ -127,6 +128,8 @@ jobs:
         run: node scripts/release/release.ts set-version "$TAG" >> "$GITHUB_OUTPUT"
       - run: rustup toolchain install
         working-directory: src-tauri
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        working-directory: src-tauri
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
@@ -154,11 +157,25 @@ jobs:
             bundle: { macOS: { signingIdentity: "-" } },
             plugins: { updater: { pubkey: $key, requireSignedVersion: true } }
           }')
-          pnpm tauri build --bundles app --config "$config"
+          pnpm tauri build --bundles app --target universal-apple-darwin --config "$config"
       - name: Verify and hand over the app
         run: |
-          app=src-tauri/target/release/bundle/macos/Devot.app
+          app=src-tauri/target/universal-apple-darwin/release/bundle/macos/Devot.app
           codesign --verify --deep --strict "$app"
+          archs=$(lipo -archs "$app/Contents/MacOS/devot")
+          case " $archs " in
+            *" x86_64 "*" arm64 "* | *" arm64 "*" x86_64 "*) ;;
+            *)
+              echo "::error::E_RELEASE_NOT_UNIVERSAL: the app holds $archs, not both arm64 and x86_64."
+              exit 1
+              ;;
+          esac
+          minimum=$(plutil -extract LSMinimumSystemVersion raw "$app/Contents/Info.plist")
+          expected=$(jq -r .bundle.macOS.minimumSystemVersion src-tauri/tauri.conf.json)
+          if [ "$minimum" != "$expected" ]; then
+            echo "::error::E_RELEASE_MINIMUM_OS: the app asks for macOS $minimum, tauri.conf.json for $expected."
+            exit 1
+          fi
           # The layered icon: without a working actool the bundler only logs and leaves it out.
           test -s "$app/Contents/Resources/Assets.car"
           plutil -extract CFBundleIconName raw "$app/Contents/Info.plist"
@@ -246,8 +263,8 @@ jobs:
           scripts/release/macos-sign.sh --search-list --entitlements src-tauri/macos/Devot.entitlements \
             "$RUNNER_TEMP/adhoc/Devot.app" signed
           mkdir out
-          mv signed/Devot.dmg "out/Devot_${VERSION}_aarch64.dmg"
-          mv signed/Devot.app.tar.gz "out/Devot_${VERSION}_aarch64.app.tar.gz"
+          mv signed/Devot.dmg "out/Devot_${VERSION}_universal.dmg"
+          mv signed/Devot.app.tar.gz "out/Devot_${VERSION}_universal.app.tar.gz"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: bundles
@@ -264,7 +281,7 @@ jobs:
     timeout-minutes: 10
     env:
       TAG: ${{ github.ref_name }}
-      UPDATER: Devot_${{ needs.build.outputs.version }}_aarch64.app.tar.gz
+      UPDATER: Devot_${{ needs.build.outputs.version }}_universal.app.tar.gz
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -399,7 +416,7 @@ jobs:
       - name: Update the feeds
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPDATER: Devot_${{ needs.build.outputs.version }}_aarch64.app.tar.gz
+          UPDATER: Devot_${{ needs.build.outputs.version }}_universal.app.tar.gz
         run: |
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$UPDATER"
           mkdir feed

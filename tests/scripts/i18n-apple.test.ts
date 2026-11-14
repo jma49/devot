@@ -17,6 +17,7 @@ import { PANES, PANE_TABS } from '../../src/renderer/src/settings/panes'
 import { SETTINGS_ENTRIES } from '../../src/renderer/src/settings/searchEntries'
 import { en } from '../../src/renderer/src/i18n/en'
 import { enPhone } from '../../src/renderer/src/i18n/phone'
+import { zhHans, zhHansPhone } from '../../src/renderer/src/i18n/zh-Hans'
 import { CJK } from '../support/policy-patterns'
 import { tempDir } from '../support/temp-dirs'
 
@@ -119,9 +120,40 @@ describe('the Swift string catalog', () => {
     ).toEqual([])
   })
 
-  it('holds no CJK', () => {
+  it('adds each translation beside the English, leaving keys it lacks in English only', () => {
+    const out = compileStrings(
+      { 'a.move': 'Move {title}', 'a.plain': 'Plain' },
+      {},
+      { fr: { 'a.move': 'Placer {title}' } },
+    )
+    const strings = JSON.parse(out.xcstrings).strings
+    expect(strings['a.move'].localizations.fr.stringUnit.value).toBe('Placer {title}')
+    expect(strings['a.move'].localizations.en.stringUnit.value).toBe('Move {title}')
+    expect(strings['a.plain'].localizations.fr).toBeUndefined()
+    expect(out.swift).toContain('text("a.move", "Move {title}")')
+  })
+
+  it('refuses a translation that takes other placeholders than the English', () => {
+    expect(() =>
+      compileStrings({ 'a.b': 'On {mac}' }, {}, { fr: { 'a.b': 'Sur {phone}' } }),
+    ).toThrow(/E_I18N_PLACEHOLDERS fr a.b/)
+  })
+
+  it('writes no CJK into Strings.swift, whose text is the English fallback', async () => {
+    const outputs = await appleStrings('.')
+    const generated = outputs.find(([path]) => path === STRINGS_SWIFT)![1]
+    expect(CJK.test(generated)).toBe(false)
+    expect(CJK.test(outputs.find(([path]) => path === SHARE_STRINGS_SWIFT)![1])).toBe(false)
     expect(CJK.test(swift)).toBe(false)
-    expect(CJK.test(xcstrings)).toBe(false)
+  })
+
+  it('carries the Simplified Chinese catalog, in its iPhone wording', async () => {
+    const outputs = await appleStrings('.')
+    const strings = JSON.parse(outputs.find(([path]) => path === XCSTRINGS)![1]).strings
+    const zh = (key: string) => strings[key].localizations['zh-Hans'].stringUnit.value
+    expect(zh('phone.tab.notes')).toBe(zhHans['phone.tab.notes'])
+    expect(zh('usage.storage')).toBe(zhHansPhone['usage.storage'])
+    expect(Object.keys(strings).every((key) => strings[key].localizations['zh-Hans'])).toBe(true)
   })
 
   it('are the committed files', async () => {

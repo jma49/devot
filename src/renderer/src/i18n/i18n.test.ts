@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { format, resolveLocale, setIPhoneWording, setLocale, t } from '.'
 import { en } from './en'
 import { enPhone } from './phone'
+import { zhHans, zhHansPhone } from './zh-Hans'
 
 describe('i18n', () => {
   it('falls back to English for unsupported languages', () => {
@@ -13,10 +14,37 @@ describe('i18n', () => {
     expect(resolveLocale(['en-GB'])).toBe('en')
   })
 
-  it('returns English strings by key, even for an unknown locale', () => {
-    setLocale('xx')
+  it('picks Simplified Chinese for a Chinese tag that is not Traditional', () => {
+    expect(resolveLocale(['zh-Hans-CN'])).toBe('zh-hans')
+    expect(resolveLocale(['zh-CN'])).toBe('zh-hans')
+    expect(resolveLocale(['zh-SG'])).toBe('zh-hans')
+    expect(resolveLocale(['zh'])).toBe('zh-hans')
+    expect(resolveLocale(['fr', 'zh-Hans'])).toBe('zh-hans')
+  })
+
+  it('passes over Traditional Chinese to the next language preferred', () => {
+    expect(resolveLocale(['zh-Hant-TW', 'zh-Hans'])).toBe('zh-hans')
+    expect(resolveLocale(['zh-TW'])).toBe('en')
+    expect(resolveLocale(['zh-HK', 'en-GB'])).toBe('en')
+    expect(resolveLocale(['zh-Hant'])).toBe('en')
+    expect(resolveLocale(['zh-MO'])).toBe('en')
+  })
+
+  it('returns the Simplified Chinese text, and its iPhone wording', async () => {
+    await setLocale('zh-hans')
+    expect(t('noteList.newNote')).toBe(zhHans['noteList.newNote'])
+    setIPhoneWording(true)
+    expect(t('usage.storage')).toBe(zhHansPhone['usage.storage'])
+    expect(t('noteList.newNote')).toBe(zhHans['noteList.newNote'])
+    setIPhoneWording(false)
+    expect(t('usage.storage')).toBe(zhHans['usage.storage'])
+    await setLocale('en')
+  })
+
+  it('returns English strings by key, even for an unknown locale', async () => {
+    await setLocale('xx')
     expect(t('noteList.newNote')).toBe('New Note')
-    setLocale('en')
+    await setLocale('en')
     expect(t('note.untitled')).toBe('Untitled')
   })
 

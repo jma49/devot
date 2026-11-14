@@ -5,11 +5,19 @@ import { gitIn, listFiles } from '../support/git-files'
 import { CJK, hasCjk } from '../support/policy-patterns'
 import { tempDir } from '../support/temp-dirs'
 
-// English-only codebase: UI text lives in locale catalogs, CJK test data uses \u escapes.
+// English-only codebase: CJK text lives only in the Simplified Chinese catalog and the string
+// catalog generated from it; CJK test data elsewhere uses \u escapes.
 const BINARY = /\.(png|webp|icns|ico|sqlite|woff2?)$/
+const TRANSLATIONS = [
+  'src/renderer/src/i18n/zh-Hans/',
+  'src-tauri/apple/DevotScreens/Sources/DevotScreens/Generated/Localizable.xcstrings',
+  'src-tauri/apple/DevotShare/Sources/DevotShare/Generated/Localizable.xcstrings',
+  'src-tauri/gen/apple/devot_Intents/Localizable.xcstrings',
+]
+const isTranslation = (file: string) => TRANSLATIONS.some((path) => file.startsWith(path))
 
-it('no tracked file contains CJK characters', () => {
-  const files = listFiles('.').filter((f) => !BINARY.test(f))
+it('no tracked file outside the translations contains CJK characters', () => {
+  const files = listFiles('.').filter((f) => !BINARY.test(f) && !isTranslation(f))
   const offenders = files.flatMap((file) => {
     const named = hasCjk(file) ? [`${file} (name)`] : []
     let text: string
@@ -24,6 +32,14 @@ it('no tracked file contains CJK characters', () => {
     ]
   })
   expect(offenders).toEqual([])
+})
+
+it('lets CJK text only into the translations, and they exist', () => {
+  const files = listFiles('.')
+  expect(TRANSLATIONS.every((path) => files.some((file) => file.startsWith(path)))).toBe(true)
+  expect(isTranslation('src/renderer/src/i18n/en/app.ts')).toBe(false)
+  expect(isTranslation('src/renderer/src/i18n/zh-Hans-extra.ts')).toBe(false)
+  expect(isTranslation('docs/zh-Hans/readme.md')).toBe(false)
 })
 
 it('the file listing returns a non-ASCII file name as written, not quoted', () => {
