@@ -18,6 +18,9 @@ use crate::commands::notes::MAX_TITLE_CHARS;
 /// The query, encoded; macOS hands over far longer URLs, but a capture is a note's start.
 pub(crate) const MAX_CAPTURE_URL_LEN: usize = 256 * 1024;
 const MAX_SOURCE_URL_LEN: usize = 2048;
+/// A selection sent from the Services menu, in bytes, as large as the longest capture link.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) const MAX_SELECTION_LEN: usize = MAX_CAPTURE_URL_LEN;
 /// Links that reached no window yet; one more is dropped.
 const MAX_WAITING: usize = 4;
 #[cfg(desktop)]
@@ -116,15 +119,48 @@ pub(crate) fn parse(query: &str) -> Result<Prefill, &'static str> {
         .filter(|url| !url.trim().is_empty())
         .map(source_url)
         .transpose()?;
-    let body = match url {
-        Some(url) if text.trim().is_empty() => url,
-        Some(url) => format!("{text}\n\n{url}"),
-        None => text.to_owned(),
-    };
+    let body = body(text, url);
     if title.is_empty() && body.trim().is_empty() {
         return Err("E_URL_CAPTURE_EMPTY");
     }
     Ok(Prefill { title, body })
+}
+
+fn body(text: &str, url: Option<String>) -> String {
+    match url {
+        Some(url) if text.trim().is_empty() => url,
+        Some(url) => format!("{text}\n\n{url}"),
+        None => text.to_owned(),
+    }
+}
+
+/// What another app sends through Services: its selected text, a URL, or both.
+/// A source that is not a web address is dropped rather than refused, since apps send file URLs too.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn from_selection(
+    text: Option<&str>,
+    url: Option<&str>,
+) -> Result<Prefill, &'static str> {
+    let text = text.unwrap_or_default();
+    if text.len() > MAX_SELECTION_LEN {
+        return Err("E_SERVICE_CAPTURE_TOO_LONG");
+    }
+    let mut url = url.and_then(|url| source_url(url).ok());
+    let mut text = plain_text(text).trim_end().to_owned();
+    if url.is_none()
+        && let Ok(link) = source_url(&text)
+    {
+        url = Some(link);
+        text.clear();
+    }
+    let body = body(&text, url);
+    if body.trim().is_empty() {
+        return Err("E_SERVICE_CAPTURE_EMPTY");
+    }
+    Ok(Prefill {
+        title: String::new(),
+        body,
+    })
 }
 
 /// Captures from links the quick capture window has not taken yet.
@@ -171,6 +207,21 @@ pub(crate) fn deliver<R: tauri::Runtime>(app: &tauri::AppHandle<R>, prefill: Pre
         .is_err()
     {
         log::warn!("W_CAPTURE_LINK_UNSENT");
+    }
+}
+
+/// Listens for the Services menu's "New Devot Note" for the rest of the process.
+#[cfg(target_os = "macos")]
+pub(crate) fn receive_services<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    let app = app.clone();
+    let listening = crate::native::macos::provide_services(Box::new(move |text, url| {
+        match from_selection(text.as_deref(), url.as_deref()) {
+            Ok(prefill) => deliver(&app, prefill),
+            Err(code) => log::warn!("{code}"),
+        }
+    }));
+    if !listening {
+        log::warn!("W_SERVICE_CAPTURE_UNAVAILABLE");
     }
 }
 
@@ -289,6 +340,56 @@ mod tests {
         }
         let long = format!("https://example.com/{}", "a".repeat(MAX_SOURCE_URL_LEN));
         assert_eq!(parse(&format!("url={long}")), Err("E_URL_CAPTURE_SOURCE"));
+    }
+
+    #[test]
+    fn a_selection_fills_the_body_and_leaves_the_title_to_the_owner() {
+        assert_eq!(
+            from_selection(Some("line one\r\nline two\u{0}"), None),
+            Ok(prefill("", "line one\nline two"))
+        );
+        assert_eq!(
+            from_selection(Some("A quote"), Some("https://example.com/a")),
+            Ok(prefill("", "A quote\n\nhttps://example.com/a"))
+        );
+    }
+
+    #[test]
+    fn a_selection_that_is_one_web_address_is_the_source() {
+        assert_eq!(
+            from_selection(Some("  https://example.com/a?b=1\n"), None),
+            Ok(prefill("", "https://example.com/a?b=1"))
+        );
+        assert_eq!(
+            from_selection(None, Some("https://example.com")),
+            Ok(prefill("", "https://example.com"))
+        );
+    }
+
+    #[test]
+    fn a_selection_drops_a_source_that_is_not_a_web_address() {
+        assert_eq!(
+            from_selection(Some("notes"), Some("file:///etc/hosts")),
+            Ok(prefill("", "notes"))
+        );
+        assert_eq!(
+            from_selection(None, Some("javascript:alert(1)")),
+            Err("E_SERVICE_CAPTURE_EMPTY")
+        );
+    }
+
+    #[test]
+    fn refuses_an_empty_or_oversized_selection() {
+        for (text, url) in [(None, None), (Some(" \n\t"), None), (Some(""), Some(" "))] {
+            assert_eq!(from_selection(text, url), Err("E_SERVICE_CAPTURE_EMPTY"));
+        }
+        let long = "a".repeat(MAX_SELECTION_LEN + 1);
+        assert_eq!(
+            from_selection(Some(&long), None),
+            Err("E_SERVICE_CAPTURE_TOO_LONG")
+        );
+        let fits = "a".repeat(MAX_SELECTION_LEN);
+        assert!(from_selection(Some(&fits), None).is_ok());
     }
 
     #[test]

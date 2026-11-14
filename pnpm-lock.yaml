@@ -410,6 +410,15 @@ importers:
         specifier: 4.152.0
         version: 4.152.0(@cloudflare/workers-types@5.20261019.1)(@types/node@24.19.1)
 
+  share:
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20261019.1
+        version: 5.20261019.1
+      wrangler:
+        specifier: 4.152.0
+        version: 4.152.0(@cloudflare/workers-types@5.20261019.1)(@types/node@24.19.1)
+
 packages:
 
   '@antfu/install-pkg@2.1.0':
@@ -2500,6 +2509,7 @@ packages:
 
   markmap-common@0.18.9:
     resolution: {integrity: sha512-MV2HQO7IGIm3jWEJXSG8vmdpqf4WIDXcEyAEN52lrWR1qD53Zg5l81JwjXoZ2l0rY5mofKYqUFlmdM2fqTGMVg==}
+    deprecated: Replaced by @markmap/* in 1.0.0. See https://markmap.js.org/docs/migration
 
   markmap-html-parser@0.18.11:
     resolution: {integrity: sha512-+kC5C4sCGntGUhGvTa5VIb5rtM75cSy/VCy3tzZoNAcn2qZGdgYvljN0WvjsOzrEzp+V6XKgwzO0u2TdzNAiOg==}

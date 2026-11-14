@@ -78,6 +78,7 @@ import { useTrash, useTrashList } from './app/useTrash'
 import { useViewChanges } from './app/useViewChanges'
 import { WindowNotices } from './app/WindowNotices'
 import { WindowSheets } from './app/WindowSheets'
+import { ShareWebSheet } from './ShareWebSheet'
 
 // Other main windows hear of this window's writes this long after the first of a burst, and load their lists this long after hearing (mainWindows.ts).
 const LISTS_WROTE_MS = 250
@@ -126,6 +127,7 @@ export function App() {
   // The open note's Markdown mirrored for the preview; not App state, so typing renders only the preview.
   const [openText] = useState(() => textStore())
   const [activityOpen, setActivityOpen] = useState(false)
+  const [sharing, setSharing] = useState<string>()
   useActivityMenu(() => setActivityOpen(true))
   const [graphOpen, setGraphOpen] = useState(false)
   useGraphCommand(() => setGraphOpen(true))
@@ -418,6 +420,7 @@ export function App() {
     removeTag: libraryChanges.removeTagFromNotes,
     trash: libraryChanges.trashNotes,
     clearAuthorship: editing ? authorship.setClearing : undefined,
+    shareWeb: setSharing,
     authored: (id) => agentWrites.view.authored.has(id),
   })
 
@@ -718,6 +721,11 @@ export function App() {
         closeViewer={() => setViewing(null)}
         aiAccess={aiAccess.dialog}
         clearAuthorship={authorship.clearDialog}
+        shareWeb={
+          core && sharing !== undefined ? (
+            <ShareWebSheet core={core} noteId={sharing} onClose={() => setSharing(undefined)} />
+          ) : null
+        }
         activity={{ core, open: activityOpen, close: () => setActivityOpen(false) }}
         graph={{
           core,

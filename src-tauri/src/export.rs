@@ -632,7 +632,11 @@ async fn load_attachment(db: &Db, file_id: String) -> Option<Attachment> {
         })
 }
 
-async fn page_with_images(db: &Db, page: String, images: Vec<PageImage>) -> Result<String, String> {
+pub(crate) async fn page_with_images(
+    db: &Db,
+    page: String,
+    images: Vec<PageImage>,
+) -> Result<String, String> {
     if page.len() > MAX_TEXT_BYTES {
         return Err("E_EXPORT_TOO_LARGE".into());
     }

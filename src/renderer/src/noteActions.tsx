@@ -48,6 +48,8 @@ export function useNoteActions(deps: {
   putTag: (ids: readonly string[], tagId: string) => Promise<void>
   removeTag: (ids: readonly string[], tagId: string) => Promise<void>
   trash: (ids: readonly string[]) => Promise<void>
+  /** Opens Share on Web for the note. */
+  shareWeb?: ((id: string) => void) | undefined
   /** Asks, then drops the note's authorship records; undefined where there are none to drop. */
   clearAuthorship?: ((id: string) => void) | undefined
   /** Whether the note has authorship records (this device's agent_writes rows). */
@@ -115,6 +117,8 @@ export function useNoteActions(deps: {
         return deps.trash(noteIds)
       case 'clearAuthorship':
         return many ? undefined : deps.clearAuthorship?.(first.id)
+      case 'shareWeb':
+        return many || first.bookId === TEMPLATES_BOOK_ID ? undefined : deps.shareWeb?.(first.id)
       // Several notes only, and not templates (whose own tags are not used),
       // as the menu offers them; a key set for them does nothing otherwise.
       case 'addTag':

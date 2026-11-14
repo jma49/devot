@@ -5,7 +5,7 @@
 # Used by .github/workflows/ci.yml; when the web jobs
 # are not needed, the `policy` job runs instead: the format check, lint, the
 # type check and all of Vitest, which also reads Rust sources, migrations and
-# capabilities and runs the tests of the sync relay and the licence Worker.
+# capabilities and runs the tests of the sync relay, the licence Worker and the share Worker.
 #
 # - Documentation (a file under docs/, or a Markdown file outside src/) and
 #   the design sources of the app icon (design/app-icon/) need neither. A
@@ -13,8 +13,9 @@
 #   both. A change made only of documentation gets `docs_only=true`, so CI can
 #   skip the expensive jobs while its always-on gates still satisfy the
 #   required checks.
-# - The sync relay (relay/) and the licence Worker (licence/) need neither:
-#   the app imports neither, and the policy job checks both.
+# - The sync relay (relay/), the licence Worker (licence/) and the share Worker
+#   (share/) need neither: the app imports none of them, and the policy job
+#   checks all three.
 # - src-tauri/tauri.conf.json needs both: the UI tests serve the built UI
 #   under the CSP it declares.
 # - src-tauri/plugin-frame/ needs both: the UI tests run those pages, and Rust
@@ -61,7 +62,7 @@ while IFS= read -r file; do
       docs_only=false
       ;;
     docs/* | *.md) ;;
-    design/app-icon/* | relay/* | licence/*) docs_only=false ;;
+    design/app-icon/* | relay/* | licence/* | share/*) docs_only=false ;;
     src-tauri/tauri.conf.json)
       web=true
       rust=true
