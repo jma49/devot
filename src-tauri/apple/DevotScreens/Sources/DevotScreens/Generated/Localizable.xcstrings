@@ -6486,6 +6486,12 @@
             "state" : "translated",
             "value" : "Show Graph"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示关系图"
+          }
         }
       }
     },
@@ -11393,6 +11399,12 @@
             "state" : "translated",
             "value" : "All Notes"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有笔记"
+          }
         }
       }
     },
@@ -11403,6 +11415,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No notes link to or from this note yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有笔记链接到这篇笔记，它也没有链接到其他笔记。"
           }
         }
       }
@@ -11415,6 +11433,12 @@
             "state" : "translated",
             "value" : "Showing the {count} most linked notes."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示链接最多的 {count} 篇笔记。"
+          }
         }
       }
     },
@@ -11425,6 +11449,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notes and the links between them. Drag to move, scroll or pinch to zoom, click a note to open it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "笔记以及它们之间的链接。拖移可移动，滚动或双指缩放可缩放，点按笔记即可打开。"
           }
         }
       }
@@ -11437,6 +11467,12 @@
             "state" : "translated",
             "value" : "Done"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
         }
       }
     },
@@ -11447,6 +11483,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No notes link to each other yet. Type [[ in a note to link another."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有笔记互相链接。在笔记里输入 [[ 即可链接另一篇。"
           }
         }
       }
@@ -11459,6 +11501,12 @@
             "state" : "translated",
             "value" : "The graph could not be drawn."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法绘制关系图。"
+          }
         }
       }
     },
@@ -11469,6 +11517,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Graph of {notes} and {links}"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{notes}、{links}的关系图"
           }
         }
       }
@@ -11481,6 +11535,12 @@
             "state" : "translated",
             "value" : "{count} link"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} 个链接"
+          }
         }
       }
     },
@@ -11491,6 +11551,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "{count} links"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} 个链接"
           }
         }
       }
@@ -11503,6 +11569,12 @@
             "state" : "translated",
             "value" : "Notes in the graph"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关系图中的笔记"
+          }
         }
       }
     },
@@ -11513,6 +11585,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "{count} note"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} 篇笔记"
           }
         }
       }
@@ -11525,6 +11603,12 @@
             "state" : "translated",
             "value" : "{count} notes"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} 篇笔记"
+          }
         }
       }
     },
@@ -11535,6 +11619,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示"
           }
         }
       }
@@ -11547,6 +11637,12 @@
             "state" : "translated",
             "value" : "This Note"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这篇笔记"
+          }
         }
       }
     },
@@ -11557,6 +11653,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Graph"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关系图"
           }
         }
       }
@@ -18539,6 +18641,12 @@
             "state" : "translated",
             "value" : "Looking for mentions…"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在查找提及…"
+          }
         }
       }
     },
@@ -18584,6 +18692,12 @@
             "state" : "translated",
             "value" : "Link"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "链接"
+          }
         }
       }
     },
@@ -18595,6 +18709,12 @@
             "state" : "translated",
             "value" : "Link the mention in {note}"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“{note}”中链接这处提及"
+          }
         }
       }
     },
@@ -18605,6 +18725,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unlinked Mentions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未链接的提及"
           }
         }
       }
@@ -18667,6 +18793,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No other note names this one"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有其他笔记提到这一篇"
           }
         }
       }

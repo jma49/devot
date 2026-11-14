@@ -274,4 +274,5 @@ export const messages: Record<keyof typeof en, string> = {
   'slash.hintUrl': 'url',
   'slash.hintText': '文字',
   'slash.hintTitle': '标题',
+  'command.showGraph': '显示关系图',
 }
