@@ -1,0 +1,28 @@
+# Devot's Share on Web Worker (docs/specs/share-on-web.md), on devot.online's Cloudflare account.
+# Create the namespace (wrangler kv namespace create SHARES) and put its id below before deploying.
+name = "devot-share"
+main = "src/worker.ts"
+compatibility_date = "2026-07-30"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "SHARES"
+id = ""
+
+# Counted by Cloudflare per location before KV is touched. A namespace_id must be unique in the
+# account: these follow the relay's.
+[[ratelimits]]
+name = "CREATE_PER_ADDRESS"
+namespace_id = "40881"
+
+[ratelimits.simple]
+limit = 5
+period = 60
+
+[[ratelimits]]
+name = "WRITES_ALL"
+namespace_id = "40882"
+
+[ratelimits.simple]
+limit = 60
+period = 60

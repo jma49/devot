@@ -1,0 +1,26 @@
+{
+  "about": "Sealed Share on Web pages (docs/specs/share-on-web.md): the app seals each plaintext with its key and nonce to the envelope, and the viewer opens the envelope back. Bytes are base64url without padding.",
+  "cases": [
+    {
+      "name": "a short note",
+      "key": "qBlAjOUBDKLgnvWaw9ifX_hZXQK1JOYb-K-olKldWU8",
+      "nonce": "ZI-OGToGwwdn5x-z",
+      "plaintext": "{\"v\":1,\"title\":\"Groceries\",\"html\":\"<!doctype html><html><head><title>Groceries</title></head><body><h1>Groceries</h1><ul><li>Milk</li></ul></body></html>\"}",
+      "envelope": "RFZTMWSPjhk6BsMHZ-cfs-RsN9Bs13PTGaFvd4anO6V7MMZ_XqZJHhaesn_cLGMe0iaIPgYM4N0LdkDa9E7Zf3HS2yG5OcnNTwqCNihHAbza-XT4YZtL9VGOPSf95wz6PTCclR2B6lcI-qlgzI5OVnrInzf35ucvgbyr3LAZjuyy7fTTPe2MMMqcGmDq7sc-jXjjaQO8YzyNqu6HTf6MuvpcohPJ1zLysa0n3thLOtI2eU6fqJ79hbdCQg"
+    },
+    {
+      "name": "non-ASCII text and an inlined image",
+      "key": "gXQJloeiZiH04s3XzAOz2s7bP7liJVsar9Azyr6DFTA",
+      "nonce": "CngAlZFyLMhIJcqV",
+      "plaintext": "{\"v\":1,\"title\":\"Café — notes 🍵\",\"html\":\"<p>Café — über 🍵</p><img src=\\\"data:image/png;base64,iVBORw0KGgo=\\\" alt=\\\"\\\">\"}",
+      "envelope": "RFZTMQp4AJWRcizISCXKlZKjZeRVLMN9dUUMOETPngNs4NIMfa05hwSppNPaWwdLJNjJF-T3Oqft7ftPE1e4M8yia1QgfE95Xs-FNNngsNxt5a71HgEmuV02tKOfofIsx5KMLrQ_9Fm9CI1ECA2ddc5oiyhX7E7tRAEECvGrZn4eACqNn9pjkx1EZnd_gyqfC7LnKk03ZI4d6DdoLVRM6Vm2XRI"
+    },
+    {
+      "name": "an empty page",
+      "key": "sQJTdkyLIz-zdULiNAHHtFDlpvl1HztaAU9vZ-i8mZ0",
+      "nonce": "Ym4eO2k1xmosirnI",
+      "plaintext": "{\"v\":1,\"title\":\"\",\"html\":\"\"}",
+      "envelope": "RFZTMWJuHjtpNcZqLIq5yEYQ_woeACu45RmqGp98nj5Mba4ptfAPTzOTbN0-lqwIozmqkNY6lRPStn-b"
+    }
+  ]
+}
