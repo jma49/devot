@@ -158,6 +158,9 @@ title: 日报 {{date}}
   'mirror.folderLabel': '文件夹',
   'mirror.chooseFolder': '选择文件夹…',
   'mirror.turnOff': '关闭',
+  'mirror.readBack': '读回外部编辑',
+  'mirror.readBackHint':
+    '在其他应用中修改的文件会回到对应的笔记里。如果笔记在 Devot 中也改过，Devot 会保留自己的版本，并以新名称保留这个文件。',
   'mirror.includeAttachments': '包括附件',
   'mirror.includeAttachmentsHint': '关闭时，图片仍链接到附件文件夹，但不会在那里写入副本。',
   'mirror.size': '占用空间：{size}',
@@ -267,6 +270,7 @@ title: 日报 {{date}}
   'import.reason.notUtf8': '不是 UTF-8 文本',
   'import.reason.notFound': '找不到文件',
   'import.reason.outside': '在导入的文件夹之外',
+  'import.reason.tag': '未添加标签：不是有效的标签名',
   'import.reason.type': '不是支持的图片格式',
   'import.reason.path': '隐藏文件或路径无效',
   'import.reason.unreadable': '无法读取',

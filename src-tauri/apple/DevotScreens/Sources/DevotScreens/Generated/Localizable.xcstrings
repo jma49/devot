@@ -14136,6 +14136,12 @@
             "state" : "translated",
             "value" : "Tag not added: not a valid tag name"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未添加标签：不是有效的标签名"
+          }
         }
       }
     },
@@ -17734,6 +17740,12 @@
             "state" : "translated",
             "value" : "Bring Back Outside Edits"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读回外部编辑"
+          }
         }
       }
     },
@@ -17744,6 +17756,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A file changed in another app goes back into its note. If the note changed in Devot too, Devot keeps its version and the file is kept under a new name."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在其他应用中修改的文件会回到对应的笔记里。如果笔记在 Devot 中也改过，Devot 会保留自己的版本，并以新名称保留这个文件。"
           }
         }
       }
