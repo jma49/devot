@@ -52,6 +52,33 @@ export interface NativeEditor {
   readonly duplicate: () => Promise<{ id: string; title: string } | null>
 }
 
+/**
+ * The page's editor, there once the bridge has attached and the host mounted. The bridge runs the
+ * requests Swift made before it attached at once, so such a request waits here for the editor.
+ */
+export interface EditorSlot {
+  readonly ref: (editor: NativeEditor | null) => void
+  readonly current: () => NativeEditor | null
+  readonly next: () => Promise<NativeEditor>
+}
+
+export function createEditorSlot(): EditorSlot {
+  let current: NativeEditor | null = null
+  let waiting: ((editor: NativeEditor) => void)[] = []
+  return {
+    ref: (editor) => {
+      current = editor
+      if (!editor) return
+      const woken = waiting
+      waiting = []
+      for (const wake of woken) wake(editor)
+    },
+    current: () => current,
+    next: () =>
+      current ? Promise.resolve(current) : new Promise((resolve) => waiting.push(resolve)),
+  }
+}
+
 const invalid = () => new Error('E_SCREENS_ARGS_INVALID')
 
 const isMode = (value: unknown): value is EditorMode => value === 'edit' || value === 'preview'
@@ -63,9 +90,14 @@ const isFindAction = (value: unknown): value is FindAction =>
 
 /** `prepare`: a native row was pressed, so its note is opened ahead of the push (`prepared.ts`). */
 export function editorHandlers(
-  editor: () => NativeEditor | null,
+  slot: Pick<EditorSlot, 'current' | 'next'>,
   notes: { readonly prepare: (noteId: string) => void },
 ): ScreensHandlers {
+  // At once when the editor is there, so a request's timers start in its own turn.
+  const withEditor = <T>(use: (editor: NativeEditor) => T): T | Promise<T> => {
+    const now = slot.current()
+    return now ? use(now) : slot.next().then(use)
+  }
   return {
     'editor.prepare': async (args) => {
       const noteId = args['noteId']
@@ -78,34 +110,34 @@ export function editorHandlers(
       const focus = args['focus']
       if (typeof noteId !== 'string' || noteId === '') throw invalid()
       if (focus !== undefined && focus !== 'body') throw invalid()
-      editor()?.show(noteId, focus === 'body')
+      await withEditor((editor) => editor.show(noteId, focus === 'body'))
       return {}
     },
     'editor.hide': async () => {
-      await editor()?.hide()
+      await withEditor((editor) => editor.hide())
       return {}
     },
     'editor.setMode': async (args) => {
       const mode = args['mode']
       if (!isMode(mode)) throw invalid()
-      editor()?.setMode(mode)
+      await withEditor((editor) => editor.setMode(mode))
       return {}
     },
     'editor.focus': async (args) => {
       const typed = args['typed'] ?? ''
       if (typeof typed !== 'string') throw invalid()
-      return { focused: (await editor()?.focus(typed)) ?? false }
+      return { focused: await withEditor((editor) => editor.focus(typed)) }
     },
     'editor.format': async (args) => {
       const id = args['id']
       if (!isFormat(id)) throw invalid()
-      editor()?.format(id)
+      await withEditor((editor) => editor.format(id))
       return {}
     },
     'editor.ai': async (args) => {
       const action = args['action']
       if (action !== 'suggest' && action !== 'accept') throw invalid()
-      editor()?.ai(action)
+      await withEditor((editor) => editor.ai(action))
       return {}
     },
     'editor.find': async (args) => {
@@ -113,16 +145,16 @@ export function editorHandlers(
       const query = args['query']
       if (!isFindAction(action)) throw invalid()
       if ((action === 'search') !== (typeof query === 'string')) throw invalid()
-      return editor()?.find(action, typeof query === 'string' ? query : '') ?? NO_FIND_COUNT
+      return withEditor((editor) => editor.find(action, typeof query === 'string' ? query : ''))
     },
     'editor.insets': async (args) => {
       const bottom = args['bottom']
       if (typeof bottom !== 'number' || !Number.isFinite(bottom) || bottom < 0) throw invalid()
-      editor()?.insets(bottom)
+      await withEditor((editor) => editor.insets(bottom))
       return {}
     },
     'editor.duplicate': async () => {
-      const made = await editor()?.duplicate()
+      const made = await withEditor((editor) => editor.duplicate())
       if (!made) throw new Error('E_SCREENS_NO_NOTE')
       return made
     },

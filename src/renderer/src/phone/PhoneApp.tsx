@@ -41,7 +41,7 @@ import { SCREENS_HANDLERS } from './screens/ops'
 import { glassHandlers } from './screens/glass'
 import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
-import { editorHandlers, type NativeEditor } from './screens/editor'
+import { createEditorSlot, editorHandlers } from './screens/editor'
 import { newNoteHandlers, type NativeNewNote } from './screens/newNote'
 import { noteChangesRev, watchLibraryChanges, watchNoteChanges } from './screens/noteChanges'
 import { listHandlers } from './screens/lists'
@@ -286,7 +286,7 @@ export function PhoneApp() {
   const latest = useRef(state)
   const nativeTabs = useRef<NativeTabs | null>(null)
   const nativeSettings = useRef<NativeSettings | null>(null)
-  const nativeEditor = useRef<NativeEditor | null>(null)
+  const [nativeEditor] = useState(createEditorSlot)
   const nativeNewNote = useRef<NativeNewNote | null>(null)
   const [prepared] = useState(createPreparedNotes)
   // Null until the bridge says whether the native screens are there; without them the page is the fallback.
@@ -309,7 +309,7 @@ export function PhoneApp() {
       ...settingsHandlers({
         notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
-      ...editorHandlers(() => nativeEditor.current, {
+      ...editorHandlers(nativeEditor, {
         prepare: (noteId) => {
           const core = latestStore.current.core
           if (core) prepared.prepare(core, noteId)
@@ -348,7 +348,7 @@ export function PhoneApp() {
       started.stop()
       prepared.clear()
     }
-  }, [prepared])
+  }, [prepared, nativeEditor])
   useSpikes(store.core)
   useEffect(() => {
     if (welcomed.current || !welcomeDue(licence, Date.now())) return
@@ -525,7 +525,7 @@ export function PhoneApp() {
         <EditorHost
           store={store}
           notify={(notice) => bridge.current?.notify(notice)}
-          editor={nativeEditor}
+          editor={nativeEditor.ref}
           prepared={prepared}
           openNote={openNote}
         />
