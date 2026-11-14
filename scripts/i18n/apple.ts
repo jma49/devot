@@ -1,5 +1,5 @@
 // Writes Strings.swift and Localizable.xcstrings for the iPhone's native screens from the English
-// catalog, in the iPhone's wording, and SettingsIndex.swift from Settings' search entries. `--check` fails instead of writing when they are stale (CI runs it).
+// catalog and its translations, in the iPhone's wording, and SettingsIndex.swift from Settings' search entries. `--check` fails instead of writing when they are stale (CI runs it).
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -11,6 +11,14 @@ export const XCSTRINGS = `${GENERATED}/Localizable.xcstrings`
 export const SETTINGS_INDEX = `${GENERATED}/SettingsIndex.swift`
 
 const CATALOG = 'src/renderer/src/i18n/en'
+/** Each translation's catalog folder and iPhone wording, by its string catalog language. */
+const TRANSLATIONS = {
+  'zh-Hans': {
+    dir: 'src/renderer/src/i18n/zh-Hans',
+    wording: 'src/renderer/src/i18n/zh-Hans/phoneWording.ts',
+    name: 'zhHansPhone',
+  },
+}
 const PANES_MODULE = 'src/renderer/src/settings/panes.ts'
 const ENTRIES_MODULE = 'src/renderer/src/settings/searchEntries.ts'
 const IPHONE_WORDING = 'src/renderer/src/i18n/phone.ts'
@@ -82,6 +90,7 @@ function xcodeJson(value: unknown): string {
 export function compileStrings(
   messages: Catalog,
   wording: Partial<Catalog>,
+  translations: Readonly<Record<string, Partial<Catalog>>> = {},
 ): { swift: string; xcstrings: string } {
   const seen = new Set(['text', 'fill'])
   const functions: string[] = []
@@ -105,10 +114,18 @@ export function compileStrings(
         ? lookup
         : `fill(${lookup}, [${args.map((arg, i) => `${swiftString(arg)}: p${i}`).join(', ')}])`
     functions.push(`  public static func ${name}(${params}) -> String {\n    ${body}\n  }\n`)
-    strings[key] = {
-      extractionState: 'manual',
-      localizations: { en: { stringUnit: { state: 'translated', value: text } } },
+    const localizations: Record<string, unknown> = {
+      en: { stringUnit: { state: 'translated', value: text } },
     }
+    for (const [language, catalog] of Object.entries(translations)) {
+      const translated = catalog[key]
+      if (translated === undefined) continue
+      if (placeholders(translated).some((placeholder) => !args.includes(placeholder))) {
+        throw new Error(`E_I18N_PLACEHOLDERS ${language} ${key}`)
+      }
+      localizations[language] = { stringUnit: { state: 'translated', value: translated } }
+    }
+    strings[key] = { extractionState: 'manual', localizations }
   }
 
   const swift = [
@@ -182,10 +199,7 @@ export function compileSettingsIndex(
 }
 
 /** The English catalog's area modules, read straight from `root` (the folder of `index.ts`). */
-async function loadCatalog(
-  root: string,
-): Promise<{ messages: Catalog; wording: Partial<Catalog> }> {
-  const dir = join(root, CATALOG)
+async function loadAreas(dir: string): Promise<Record<string, string>> {
   const areas = readdirSync(dir)
     .filter((file) => file.endsWith('.ts') && file !== 'index.ts' && !file.endsWith('.test.ts'))
     .sort()
@@ -193,13 +207,28 @@ async function loadCatalog(
   for (const area of areas) {
     Object.assign(messages, (await import(pathToFileURL(join(dir, area)).href)).messages)
   }
+  return messages
+}
+
+async function loadCatalog(root: string): Promise<{
+  messages: Catalog
+  wording: Partial<Catalog>
+  translations: Record<string, Partial<Catalog>>
+}> {
+  const messages = await loadAreas(join(root, CATALOG))
   const { enPhone } = await import(pathToFileURL(join(root, IPHONE_WORDING)).href)
-  return { messages, wording: enPhone }
+  const translations: Record<string, Partial<Catalog>> = {}
+  for (const [language, source] of Object.entries(TRANSLATIONS)) {
+    const translated = await loadAreas(join(root, source.dir))
+    const phone = (await import(pathToFileURL(join(root, source.wording)).href))[source.name]
+    translations[language] = { ...translated, ...phone }
+  }
+  return { messages, wording: enPhone, translations }
 }
 
 export async function appleStrings(root: string): Promise<[string, string][]> {
-  const { messages, wording } = await loadCatalog(root)
-  const { swift, xcstrings } = compileStrings(messages, wording)
+  const { messages, wording, translations } = await loadCatalog(root)
+  const { swift, xcstrings } = compileStrings(messages, wording, translations)
   const { PANES, PANE_TABS } = await import(pathToFileURL(join(root, PANES_MODULE)).href)
   const { SETTINGS_ENTRIES } = await import(pathToFileURL(join(root, ENTRIES_MODULE)).href)
   return [

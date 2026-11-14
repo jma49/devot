@@ -32,7 +32,7 @@ if (sentryDsn) {
     .catch(() => console.warn('W_CRASH_REPORTING_START_FAILED'))
 }
 
-setLocale(resolveLocale(navigator.languages))
+await setLocale(resolveLocale(navigator.languages))
 setIPhoneWording(isPhoneLayout(navigator.userAgent))
 // Before any key handler: the key that ends a composition is the input method's.
 watchCompositions(window)
