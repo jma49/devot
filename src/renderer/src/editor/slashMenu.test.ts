@@ -5,6 +5,7 @@ import type { EditorView } from '@codemirror/view'
 import { ensureSyntaxTree } from '@codemirror/language'
 import { describe, expect, it, vi } from 'vitest'
 import { nextSnippetField } from '@codemirror/autocomplete'
+import { setLocale, t } from '../i18n'
 import { noteMarkdown } from './markdown'
 import {
   matchesNothing,
@@ -180,6 +181,19 @@ describe('slashItems', () => {
 
   it('leaves out the table, which only the palette offers', () => {
     expect(labels('/tab^')).toEqual([])
+  })
+
+  it('also matches the English label in another language, without marking letters', () => {
+    setLocale('zh-hans')
+    try {
+      const s = state('/code^')
+      const items = slashItems(s, slashTrigger(s)!)
+      expect(items.map((i) => i.id)).toEqual(['codeblock'])
+      expect(items[0]?.label).toBe(t('slash.codeblock'))
+      expect(items[0]?.ranges).toEqual([])
+    } finally {
+      setLocale('en')
+    }
   })
 })
 

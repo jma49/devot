@@ -1,21 +1,29 @@
-// UI strings by key. English ships today; adding a locale means adding a
-// catalog to `catalogs` and nothing else changes in UI code.
 import { fillPlaceholders } from '../../../core/text'
 import { en, type MessageKey, type Messages } from './en'
 import { enPhone } from './phone'
+import { zhHans, zhHansPhone } from './zh-Hans'
 
 export type { MessageKey } from './en'
 
-const catalogs: Record<string, Partial<Messages>> = { en }
+const catalogs: Record<string, Partial<Messages>> = { en, 'zh-hans': zhHans }
+const phoneWordings: Record<string, Partial<Messages>> = { en: enPhone, 'zh-hans': zhHansPhone }
 
 const SOURCE_LOCALE = 'en'
+const TRADITIONAL_CHINESE = /^zh-(?:.*-)?(?:hant|tw|hk|mo)(?:-|$)/
+
+function catalogFor(tag: string): string | undefined {
+  const lower = tag.toLowerCase()
+  if (catalogs[lower]) return lower
+  const base = lower.split('-')[0] ?? ''
+  // Traditional Chinese readers get the next language they prefer, not Simplified.
+  if (base === 'zh') return TRADITIONAL_CHINESE.test(lower) ? undefined : 'zh-hans'
+  return catalogs[base] ? base : undefined
+}
 
 export function resolveLocale(preferred: readonly string[]): string {
   for (const tag of preferred) {
-    const lower = tag.toLowerCase()
-    if (catalogs[lower]) return lower
-    const base = lower.split('-')[0] ?? ''
-    if (catalogs[base]) return base
+    const locale = catalogFor(tag)
+    if (locale) return locale
   }
   return SOURCE_LOCALE
 }
@@ -32,15 +40,15 @@ export function currentLocale(): string {
   return activeLocale
 }
 
-let wording: Partial<Messages> = {}
+let phoneWording = false
 
-/** Words messages that name the Mac for the iPhone layout (English only so far). */
+/** Words messages that name the Mac for the iPhone layout. */
 export function setIPhoneWording(on: boolean): void {
-  wording = on ? enPhone : {}
+  phoneWording = on
 }
 
 export function t(key: MessageKey): string {
-  return (activeLocale === SOURCE_LOCALE ? wording[key] : undefined) ?? active[key] ?? en[key]
+  return (phoneWording ? phoneWordings[activeLocale]?.[key] : undefined) ?? active[key] ?? en[key]
 }
 
 /**

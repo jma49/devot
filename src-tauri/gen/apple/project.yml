@@ -52,6 +52,7 @@ targets:
       path: devot_iOS/Info.plist
       properties:
         CADisableMinimumFrameDurationOnPhone: true
+        CFBundleLocalizations: [en, zh-Hans]
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
