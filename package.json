@@ -21,6 +21,7 @@
     "ui:build": "vite build",
     "ui:release": "node scripts/sentry/ui.ts",
     "sentry:debug-files": "node scripts/sentry/debug-files.ts",
+    "share:mac": "sh scripts/release/macos-share-extension.sh src-tauri/target/share-extension",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.ui.json && tsc -p relay/tsconfig.json && tsc -p licence/tsconfig.json",
     "lint": "oxlint --deny-warnings && node scripts/tokens/swift-literals.ts",
     "format": "oxfmt",

@@ -291,6 +291,31 @@ mod tests {
         assert_eq!(parse(&format!("url={long}")), Err("E_URL_CAPTURE_SOURCE"));
     }
 
+    /// The links the Mac share extension builds (`macos/DevotShare`, which checks it builds them).
+    #[test]
+    fn reads_every_link_the_share_extension_builds() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../tests/fixtures/capture-links.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).expect("E_TEST_FIXTURES"))
+                .expect("E_TEST_FIXTURES");
+        let shares = fixture["shares"].as_array().expect("E_TEST_FIXTURES");
+        let mut read = 0;
+        for share in shares {
+            let Some(link) = share["link"].as_str() else {
+                continue;
+            };
+            let query = link
+                .strip_prefix("devot://capture?")
+                .expect("E_TEST_FIXTURES");
+            let wanted: Prefill =
+                serde_json::from_value(share["prefill"].clone()).expect("E_TEST_FIXTURES");
+            assert_eq!(parse(query), Ok(wanted), "{link}");
+            read += 1;
+        }
+        assert!(read > 0);
+    }
+
     #[test]
     fn never_shows_its_text_when_debugged() {
         let shown = format!("{:?}", prefill("secret title", "secret body"));

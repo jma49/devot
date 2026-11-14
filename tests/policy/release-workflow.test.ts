@@ -239,6 +239,14 @@ describe('the release workflow', () => {
     expect(verify).toMatch(/plutil -extract CFBundleIconName raw "\$app\/Contents\/Info\.plist"/)
   })
 
+  it('ships the Share menu extension in the app, universal and of the app version', () => {
+    const verify = step('Verify and hand over the app')
+    expect(verify).toContain('appex=$app/Contents/PlugIns/DevotShare.appex')
+    expect(verify).toContain('lipo -archs "$appex/Contents/MacOS/DevotShare"')
+    expect(verify).toContain('E_RELEASE_SHARE_EXTENSION')
+    expect(verify).toMatch(/plutil -extract CFBundleVersion raw "\$appex\/Contents\/Info\.plist"/)
+  })
+
   it('ships one universal app for Apple Silicon and Intel, asking for the macOS the config names', () => {
     expect(job('build')).toMatch(
       /run: rustup target add aarch64-apple-darwin x86_64-apple-darwin\n {8}working-directory: src-tauri\n/,

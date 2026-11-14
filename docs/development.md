@@ -29,6 +29,7 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 | `pnpm ui:dev` / `pnpm ui:build` | The UI alone, in a browser                                                                                   |
 | `pnpm ui:release`               | The UI for a release build; uploads source maps to Sentry when set up                                        |
 | `pnpm sentry:debug-files`       | Upload the release build's debug symbols to Sentry when set up                                               |
+| `pnpm share:mac`                | Build the Mac Share menu extension; Tauri runs it before bundling on a Mac (docs/releasing.md)               |
 | `pnpm test` / `pnpm test:watch` | Vitest                                                                                                       |
 | `pnpm test:fast`                | Vitest without the benchmarks and builds (`*.bench.test.ts`, `*.build.test.ts`); what the pre-push hook runs |
 | `pnpm test:policy`              | Policy and token tests, which also read the docs; what docs-only pushes and pull requests run                |
