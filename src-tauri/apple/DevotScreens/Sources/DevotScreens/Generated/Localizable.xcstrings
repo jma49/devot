@@ -1992,6 +1992,17 @@
         }
       }
     },
+    "askNotes.writing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing the answer…"
+          }
+        }
+      }
+    },
     "authorship.changedBy" : {
       "extractionState" : "manual",
       "localizations" : {

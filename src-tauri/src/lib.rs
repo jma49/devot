@@ -171,6 +171,7 @@ pub fn run() {
             exit::app_exit_cancel,
             external::open_external,
             ai::ai_generate,
+            ai::ai_stream,
             ai::ai_settings_get,
             ai::ai_settings_set,
             sync::commands::sync_get,

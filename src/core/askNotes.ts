@@ -141,10 +141,17 @@ export function askPrompt(question: string, sources: readonly AskSource[]): stri
   return `${notes}\n\n<question>\n${escape(question.trim())}\n</question>`
 }
 
+/** An answer while it streams: its text so far, and the notes it may cite. */
+export interface AskProgress {
+  text: string
+  sources: readonly AskSource[]
+}
+
 export async function askNotes(
   storage: AskStorage,
   generator: AiGenerator,
   question: string,
+  onProgress?: (progress: AskProgress) => void,
 ): Promise<AskAnswer> {
   const asked = question.trim()
   if (!asked) throw new Error('E_ASK_QUESTION_EMPTY')
@@ -159,10 +166,19 @@ export async function askNotes(
       timeoutSecs: ASK_TIMEOUT_SECS,
     },
     { by: 'user', books: [...new Set(sources.map((s) => s.bookId))] },
+    onProgress && streamed(sources, onProgress),
   )
   const text = reply.text.trim()
   if (!text) throw new Error('E_AI_RESPONSE_INVALID')
   return { text, model: reply.model, sources, cutOff: reply.stop === 'maxTokens' }
+}
+
+function streamed(sources: readonly AskSource[], onProgress: (progress: AskProgress) => void) {
+  let text = ''
+  return (piece: string) => {
+    text += piece
+    onProgress({ text, sources })
+  }
 }
 
 /** The answer's text with each `[n]` naming a source as a citation of it; other brackets stay text. */

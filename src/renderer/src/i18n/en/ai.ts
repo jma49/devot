@@ -113,6 +113,7 @@ export const messages = {
     'Answers come from notes in notebooks that allow AI access. The passages that fit your question best and the question itself are sent to the AI provider.',
   'askNotes.ask': 'Ask',
   'askNotes.asking': 'Reading your notes and waiting for the AI provider\u2026',
+  'askNotes.writing': 'Writing the answer\u2026',
   'askNotes.answeredBy': 'Answered by {model} from your notes.',
   'askNotes.answer': 'Answer',
   'askNotes.cutOff': 'The answer was cut off for length.',

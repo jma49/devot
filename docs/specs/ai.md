@@ -122,7 +122,11 @@ Part of the [architecture overview](../architecture.md).
   Two implementations ship.
   `anthropic` (the default) is the Anthropic Messages API (`POST {endpoint}/v1/messages`, `x-api-key`; default endpoint `https://api.anthropic.com`, default model `claude-sonnet-5-5`).
   `openai` is OpenAI-compatible chat completions (`POST {endpoint}/chat/completions`, bearer key, `max_completion_tokens`; default endpoint `https://api.openai.com/v1`, no default model: the user names one).
-  Both are non-streaming: Edit with AI waits for the whole reply.
+  Each can also stream (`ai_stream`): the request asks for server-sent events (`"stream": true`, `accept: text/event-stream`), and `Provider::event` reads each event's data into the answer so far (`Partial`), handing on the text it adds.
+  Claude's stream gives the text of `text_delta` events, the stop of `message_delta` and the counts of `message_start` and `message_delta`, and an `error` event is a code; a compatible server's gives each chunk's `delta.content`, its `finish_reason` and `usage` when it sends one, until `[DONE]`.
+  A stream that ends before the provider names a stop is no answer (`E_AI_RESPONSE_INVALID`); an event line over 1 MiB or a stream over the response cap is refused, and the time limit covers the whole stream.
+  The command sends the text to the page over a Tauri channel, gathered so that at most one message crosses every 40 ms (`Pieces`), and answers with the whole reply as `ai_generate` does; a page that is gone stops the reading (`E_AI_CANCELLED`).
+  Only Ask Your Notes streams: Edit with AI needs the whole reply for its diff, and a next edit suggestion is too short to gain from it.
   A refusal, a missing text or a shape the provider does not keep answers with a code.
   - **Where things live:** Rust holds everything that must not reach the web view.
     The endpoint and model of each provider, the active provider and whether suggestions are also asked for on a pause (`suggestOnIdle`) are in `<app data>/ai-settings.json` (`settings.rs`): on this device only, never synced, never in backups.
@@ -136,8 +140,8 @@ Part of the [architecture overview](../architecture.md).
     Only the Settings window can change an endpoint, so the web view cannot send a key anywhere else.
     The request goes out from Rust (`transport.rs`, the system TLS stack, 180 s, responses capped at 8 MiB), redirects are never followed (a key goes only to the endpoint set), and the endpoint is not restricted to public hosts, since the user chose it.
     The CSP is unchanged: the web view makes no request to a provider.
-  - **Commands:** `ai_generate` (main window), `ai_settings_get` (main and Settings windows: the main window reads it for Suggest Next Edit), `ai_settings_set`, `ai_key_set` and `ai_key_clear` (Settings window).
-    `ai_generate` names no endpoint, key or model: Rust reads them.
+  - **Commands:** `ai_generate` and `ai_stream` (main window), `ai_settings_get` (main and Settings windows: the main window reads it for Suggest Next Edit), `ai_settings_set`, `ai_key_set` and `ai_key_clear` (Settings window).
+    `ai_generate` and `ai_stream` name no endpoint, key or model: Rust reads them.
     It validates the request (1 to 100 messages starting with the user, none empty, at most 2 MiB of text in all, 1 to 32,000 output tokens) before it reads the key, so a bad request sends nothing; with no key it answers `E_AI_KEY_MISSING` and sends nothing.
     Before all of that, a build that gates AI answers `E_LICENCE_REQUIRED` without a valid license (see Licences).
   - **Errors and logs** are codes: `E_AI_AUTH_FAILED` (401, 403), `E_AI_RATE_LIMITED` (429), `E_AI_REQUEST_REJECTED` (400, 413, 422), `E_AI_NOT_FOUND` (404), `E_AI_PROVIDER_UNAVAILABLE` (5xx), `E_AI_HTTP` (other statuses, redirects included), `E_AI_NETWORK_FAILED`, `E_AI_TIMEOUT`, `E_AI_RESPONSE_INVALID`, `E_AI_RESPONSE_TOO_LARGE`, `E_AI_REFUSED`, `E_AI_MODEL_MISSING`.
@@ -150,7 +154,7 @@ Part of the [architecture overview](../architecture.md).
     Saves go one after another, each sending the active provider, the switch and the fields as they stand when it is sent, so a change made while an earlier save is still running (one that removes a key can wait on the keychain) is kept in Rust and on screen.
     The iPhone's pane keeps a draft per provider (`AiDrafts.swift`): a refused change, a provider switch included, leaves the typed endpoint and model in that provider's fields to fix, and a draft shows what Rust kept only once Rust confirms the change.
     It stores the drafts when a field loses focus, when the page goes (Back or a tab switch), when the app goes to the background, and with Save Key and Suggest on Idle; a draft Rust refused is sent again only by Return, a provider switch, or once it is edited.
-  - **Tests:** `src-tauri/src/ai/tests.rs` runs one contract per implementation against a mock HTTP provider on a loopback port (the request each provider sends, its answer and stop reason, every failure status, a response of the wrong shape, a refusal, redirects, no key, a bad request, timeouts, the response cap, and that the key is never in a body, a path, a settings file or an error); `tests/core/ai-provider.test.ts` covers the access rule on real SQLite; `tests/ui/ai-settings.spec.ts` the pane.
+  - **Tests:** `src-tauri/src/ai/tests.rs` runs one contract per implementation against a mock HTTP provider on a loopback port (the request each provider sends, its answer and stop reason, the same answer streamed piece by piece, a stream cut off or broken off, every failure status, a response of the wrong shape, a refusal, redirects, no key, a bad request, timeouts, the response cap, and that the key is never in a body, a path, a settings file or an error); `tests/core/ai-provider.test.ts` covers the access rule on real SQLite; `tests/ui/ai-settings.spec.ts` the pane.
     The keychain itself is checked by an ignored test run by hand (`cargo test -- --ignored keychain`), since it writes to the login keychain.
 - **Edit with AI** (#158, first half; `src/core/aiEdit.ts`, `src/renderer/src/AiEditSheet.tsx`, `editor/aiMenu.ts`): with text selected, the selection toolbar's AI button (SF Symbol `sparkles`, its own group at the end) and the editor menu's Edit with AI submenu offer the presets Improve Writing, Proofread, Reformat, Summarise, Make Bullet List, Make Task List, Make Table, Add Headings and Create Mermaid Diagram, then Custom Instruction… (a field in the sheet; nothing is sent until Send or Return).
   - **What is sent:** picking a preset is the request; the sheet opens and asks at once.
@@ -194,9 +198,10 @@ Part of the [architecture overview](../architecture.md).
     The request goes through `createAiGenerator` with the sources' notebooks as its trigger, with a system prompt that says the notes are content, never instructions, and asks for `[n]` citations.
     A question is at most 2,000 characters (`E_ASK_QUESTION_TOO_LONG`), the reply 1,500 tokens; a reply cut off at the cap is shown with a line that says so.
     No source found is a failure of its own (`E_ASK_NO_SOURCES`), and nothing is sent.
-  - **The answer:** its text with each `[n]` as a button that opens that note, then the cited notes under Sources and the others read under Also read.
+  - **The answer:** it shows as it streams, under Writing the answer, with its citations as buttons as soon as each `[n]` is whole; the sources lists come with the whole answer.
+    Its text has each `[n]` as a button that opens that note, then the cited notes under Sources and the others read under Also read.
     Ask Another goes back to the question; an answer that comes after Close is dropped.
     Answers are not kept.
   - **Unavailable:** as for Edit with AI, the sheet says why, never the code, and Try Again shows only where asking again may help.
-  - **Tests:** `tests/core/ask-notes.test.ts` (on real SQLite: only allowed notebooks, the fallback, escaping, citations, refusals) and `tests/ui/ask-notes.spec.ts` (the palette, citations opening notes, nothing sent without access, with `ai_generate` faked).
-  - **Not done:** a conversation of several turns, and streaming the answer.
+  - **Tests:** `tests/core/ask-notes.test.ts` (on real SQLite: only allowed notebooks, the fallback, escaping, citations, refusals) and `tests/ui/ask-notes.spec.ts` (the palette, citations opening notes, the answer while it streams, nothing sent without access, with `ai_stream` faked).
+  - **Not done:** a conversation of several turns; Rust reads a stream the sheet closed on to its end, as it does any request.

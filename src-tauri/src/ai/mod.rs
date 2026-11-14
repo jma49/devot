@@ -12,11 +12,15 @@ use std::time::Duration;
 
 use serde::Serialize;
 use tauri::State;
+use tauri::ipc::Channel;
 
 use crate::licence::Gate;
 use crate::task;
 use keychain::KeyStore;
-use provider::{GenerateRequest, Generated, ProviderId, check_request, provider, status_error};
+use provider::{
+    Completion, GenerateRequest, Generated, Partial, ProviderId, check_request, provider,
+    status_error,
+};
 use settings::{AiSettings, SettingsStore};
 
 const FAILED: &str = "E_AI_FAILED";
@@ -119,10 +123,73 @@ impl Ai {
         Ok(self.snapshot())
     }
 
-    /// Every AI request, from any feature and to any provider, is sent here and nowhere else.
+    /// Every AI request, from any feature and to any provider, is sent here or by `stream` and nowhere else.
     pub fn generate(&self, request: &GenerateRequest) -> Result<Generated, &'static str> {
+        let call = self.prepare(request, false)?;
+        let outcome = transport::post(&call.wire, call.timeout).and_then(|answer| {
+            if (200..300).contains(&answer.status) {
+                call.implementation
+                    .parse(&answer.body)
+                    .map(|done| (answer.status, done))
+            } else {
+                Err(call.refused(answer.status))
+            }
+        });
+        match outcome {
+            Ok((status, done)) => {
+                log::info!(
+                    "I_AI_GENERATED provider={} status={status}",
+                    call.id.as_str()
+                );
+                Ok(call.answer(done))
+            }
+            Err(code) => Err(call.failed(code)),
+        }
+    }
+
+    /// As `generate`, with the answer's text handed to `on_text` as it arrives; `on_text` returning false stops reading.
+    pub fn stream(
+        &self,
+        request: &GenerateRequest,
+        mut on_text: impl FnMut(&str) -> bool,
+    ) -> Result<Generated, &'static str> {
+        let call = self.prepare(request, true)?;
+        let mut partial = Partial::default();
+        let mut stopped = false;
+        let outcome = transport::post_stream(&call.wire, call.timeout, |data| {
+            let added = call.implementation.event(data, &mut partial)?;
+            if !added.is_empty() && !on_text(&added) {
+                stopped = true;
+                return Ok(false);
+            }
+            Ok(!partial.ended)
+        })
+        .and_then(|streamed| match streamed {
+            transport::Streamed::Status(status) => Err(call.refused(status)),
+            transport::Streamed::Done if stopped => Err("E_AI_CANCELLED"),
+            transport::Streamed::Done => {
+                // A stream that breaks off before the provider says it stopped is not an answer.
+                let stop = partial.stop.ok_or("E_AI_RESPONSE_INVALID")?;
+                Ok(Completion {
+                    usage: partial.usage(),
+                    text: std::mem::take(&mut partial.text),
+                    stop,
+                })
+            }
+        });
+        match outcome {
+            Ok(done) => {
+                log::info!("I_AI_STREAMED provider={}", call.id.as_str());
+                Ok(call.answer(done))
+            }
+            Err(code) => Err(call.failed(code)),
+        }
+    }
+
+    fn prepare(&self, request: &GenerateRequest, stream: bool) -> Result<Call, &'static str> {
         self.licence.require()?;
-        let prepared = check_request(request)?;
+        let mut prepared = check_request(request)?;
+        prepared.stream = stream;
         let settings = self.settings.get();
         let id = request.provider.unwrap_or(settings.active);
         let implementation = provider(id);
@@ -137,35 +204,42 @@ impl Ai {
         let timeout = request.timeout_secs.map_or(self.timeout, |s| {
             self.timeout.min(Duration::from_secs(s.into()))
         });
-        let outcome = transport::post(&wire, timeout).and_then(|answer| {
-            if (200..300).contains(&answer.status) {
-                implementation
-                    .parse(&answer.body)
-                    .map(|done| (answer.status, done))
-            } else {
-                log::warn!(
-                    "W_AI_HTTP provider={} status={}",
-                    id.as_str(),
-                    answer.status
-                );
-                Err(status_error(answer.status))
-            }
-        });
-        match outcome {
-            Ok((status, done)) => {
-                log::info!("I_AI_GENERATED provider={} status={status}", id.as_str());
-                Ok(Generated {
-                    provider: id,
-                    model: model.to_string(),
-                    text: done.text,
-                    stop: done.stop,
-                    usage: done.usage,
-                })
-            }
-            Err(code) => {
-                log::warn!("W_AI_FAILED provider={} code={code}", id.as_str());
-                Err(code)
-            }
+        Ok(Call {
+            id,
+            implementation,
+            model: model.to_string(),
+            wire,
+            timeout,
+        })
+    }
+}
+
+struct Call {
+    id: ProviderId,
+    implementation: &'static dyn provider::Provider,
+    model: String,
+    wire: provider::WireRequest,
+    timeout: Duration,
+}
+
+impl Call {
+    fn refused(&self, status: u16) -> &'static str {
+        log::warn!("W_AI_HTTP provider={} status={status}", self.id.as_str());
+        status_error(status)
+    }
+
+    fn failed(&self, code: &'static str) -> &'static str {
+        log::warn!("W_AI_FAILED provider={} code={code}", self.id.as_str());
+        code
+    }
+
+    fn answer(&self, done: Completion) -> Generated {
+        Generated {
+            provider: self.id,
+            model: self.model.clone(),
+            text: done.text,
+            stop: done.stop,
+            usage: done.usage,
         }
     }
 }
@@ -177,6 +251,64 @@ pub async fn ai_generate(
     request: GenerateRequest,
 ) -> Result<Generated, String> {
     task::blocking_with(&ai, FAILED, move |ai| ai.generate(&request)).await
+}
+
+/// As `ai_generate`, with the answer's text sent to `on_text` as it arrives, a few pieces at a time.
+#[tauri::command]
+pub async fn ai_stream(
+    ai: State<'_, Arc<Ai>>,
+    request: GenerateRequest,
+    on_text: Channel<String>,
+) -> Result<Generated, String> {
+    task::blocking_with(&ai, FAILED, move |ai| {
+        let mut pieces = Pieces::new(SEND_EVERY);
+        let generated = ai.stream(&request, |text| {
+            pieces
+                .push(text)
+                .is_none_or(|ready| on_text.send(ready).is_ok())
+        })?;
+        if let Some(rest) = pieces.rest() {
+            let _ = on_text.send(rest);
+        }
+        Ok(generated)
+    })
+    .await
+}
+
+/// How often streamed text crosses to the page: each crossing costs a message, and the eye reads no faster.
+const SEND_EVERY: Duration = Duration::from_millis(40);
+
+/// Text to send, gathered until `every` has passed since the last send.
+pub(crate) struct Pieces {
+    every: Duration,
+    gathered: String,
+    sent: Option<std::time::Instant>,
+}
+
+impl Pieces {
+    pub(crate) fn new(every: Duration) -> Self {
+        Self {
+            every,
+            gathered: String::new(),
+            sent: None,
+        }
+    }
+
+    /// The text to send now, if it is time.
+    pub(crate) fn push(&mut self, text: &str) -> Option<String> {
+        self.gathered.push_str(text);
+        let due = self.sent.is_none_or(|at| at.elapsed() >= self.every);
+        if !due {
+            return None;
+        }
+        self.sent = Some(std::time::Instant::now());
+        Some(std::mem::take(&mut self.gathered))
+    }
+
+    /// What is left to send at the end.
+    pub(crate) fn rest(&mut self) -> Option<String> {
+        (!self.gathered.is_empty()).then(|| std::mem::take(&mut self.gathered))
+    }
 }
 
 #[tauri::command]

@@ -152,6 +152,84 @@ describe('the answer', () => {
   })
 })
 
+describe('streaming', () => {
+  function streaming(pieces: string[]) {
+    const s = setup()
+    const streamed: AiGenerateInput[] = []
+    const transport: AiTransport = {
+      generate: () => Promise.reject(new Error('E_TEST_NOT_STREAMED')),
+      stream: async (input, onText) => {
+        streamed.push(input)
+        for (const piece of pieces) onText(piece)
+        return { ...GENERATED, text: pieces.join('') }
+      },
+    }
+    return {
+      ...s,
+      streamed,
+      ai: createAiGenerator({ storage: { listBooks: () => Promise.resolve([]) }, transport }),
+    }
+  }
+
+  it('hands each piece of the answer on as it comes, then the whole answer', async () => {
+    const s = setup()
+    const heard: string[] = []
+    const streamed: AiGenerateInput[] = []
+    const ai = createAiGenerator({
+      storage: { listBooks: () => Promise.resolve([]) },
+      transport: {
+        generate: () => Promise.reject(new Error('E_TEST_NOT_STREAMED')),
+        stream: async (input, onText) => {
+          streamed.push(input)
+          onText('Hel')
+          onText('lo')
+          return GENERATED
+        },
+      },
+    })
+    expect(await ai.generate(INPUT, user(), (text) => heard.push(text))).toEqual(GENERATED)
+    expect(heard).toEqual(['Hel', 'lo'])
+    expect(streamed).toEqual([INPUT])
+    expect(s.sent).toEqual([])
+  })
+
+  it('asks for the whole answer at once without a listener, or without a stream', async () => {
+    const s = setup()
+    const heard: string[] = []
+    expect(await s.ai.generate(INPUT, user(), (text) => heard.push(text))).toEqual(GENERATED)
+    expect(heard).toEqual([])
+    expect(s.sent).toEqual([INPUT])
+    const t = streaming(['a'])
+    await expect(t.ai.generate(INPUT, user())).rejects.toThrow('E_TEST_NOT_STREAMED')
+  })
+
+  it('keeps the access rule, and refuses a streamed answer of the wrong shape', async () => {
+    const storage = openSqliteAdapter(join(tempDir('devot-ai-provider-'), 'devot.sqlite'))
+    open.push(storage)
+    const books = createBookService({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+    })
+    const closed = await books.create('Closed', null)
+    let streamed = 0
+    const ai = createAiGenerator({
+      storage,
+      transport: {
+        generate: () => Promise.reject(new Error('E_TEST_NOT_STREAMED')),
+        stream: () => {
+          streamed += 1
+          return Promise.resolve({ text: 'no shape' })
+        },
+      },
+    })
+    await expect(ai.generate(INPUT, user(closed), () => {})).rejects.toThrow('E_AI_ACCESS_DENIED')
+    expect(streamed).toBe(0)
+    await expect(ai.generate(INPUT, user(), () => {})).rejects.toThrow('E_AI_RESPONSE_INVALID')
+    expect(streamed).toBe(1)
+  })
+})
+
 describe('the settings Rust reports', () => {
   const provider = (key: string) => ({
     endpoint: 'https://api.openai.com/v1',

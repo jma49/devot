@@ -698,3 +698,209 @@ fn an_endpoint_does_not_move_while_its_key_cannot_be_removed() {
     assert_eq!(ai.set_settings(moved).unwrap_err(), "E_AI_KEYCHAIN_FAILED");
     assert_eq!(ai.settings.get(), before);
 }
+
+fn sse(events: &[Value]) -> String {
+    events.iter().map(|e| format!("data: {e}\n\n")).collect()
+}
+
+/// A streamed answer in each provider's events: `pieces` of text, then a stop and the counts 11 and 7.
+fn streamed(id: ProviderId, pieces: &[&str], stop: &str, end: bool) -> String {
+    match id {
+        ProviderId::Anthropic => {
+            let mut events = vec![
+                json!({"type": "message_start", "message": {"usage": {"input_tokens": 11, "output_tokens": 1}}}),
+                json!({"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}),
+            ];
+            events.extend(pieces.iter().map(|p| {
+                json!({"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": p}})
+            }));
+            events.push(json!({"type": "content_block_delta", "index": 1, "delta": {"type": "thinking_delta", "thinking": "hidden"}}));
+            if end {
+                events.push(json!({"type": "message_delta", "delta": {"stop_reason": stop}, "usage": {"output_tokens": 7}}));
+                events.push(json!({"type": "message_stop"}));
+            }
+            format!(
+                "event: ping\ndata: {{\"type\": \"ping\"}}\n\n{}",
+                sse(&events)
+            )
+        }
+        ProviderId::Openai => {
+            let mut events: Vec<Value> = pieces
+                .iter()
+                .map(|p| json!({"choices": [{"index": 0, "delta": {"content": p}, "finish_reason": null}]}))
+                .collect();
+            if end {
+                events.push(json!({"choices": [{"index": 0, "delta": {}, "finish_reason": stop}]}));
+                events.push(
+                    json!({"choices": [], "usage": {"prompt_tokens": 11, "completion_tokens": 7}}),
+                );
+            }
+            let mut body = sse(&events);
+            if end {
+                body.push_str("data: [DONE]\n\n");
+            }
+            body
+        }
+    }
+}
+
+fn ended(id: ProviderId) -> &'static str {
+    match id {
+        ProviderId::Anthropic => "end_turn",
+        ProviderId::Openai => "stop",
+    }
+}
+
+#[test]
+fn every_provider_streams_its_answer_piece_by_piece() {
+    for c in contracts() {
+        let pieces = ["Hel", "lo, ", "world"];
+        let mock = Mock::replying(200, streamed(c.id, &pieces, ended(c.id), true));
+        let app = setup(c.id, &mock.base);
+        app.keys.set(c.id, KEY).unwrap();
+        let mut heard = Vec::new();
+        let got = app
+            .ai
+            .stream(&ask(), |text| {
+                heard.push(text.to_string());
+                true
+            })
+            .unwrap();
+        assert_eq!(heard, pieces, "{:?}", c.id);
+        assert_eq!(got.text, "Hello, world");
+        assert_eq!((got.provider, got.model.as_str()), (c.id, "model-x"));
+        assert_eq!(got.stop, Stop::End);
+        let usage = got.usage.unwrap();
+        assert_eq!((usage.input_tokens, usage.output_tokens), (11, 7));
+        let seen = mock.seen.lock().unwrap();
+        assert_eq!(seen[0].path, c.path);
+        assert_eq!(seen[0].body["stream"], true);
+        assert_eq!(seen[0].headers["accept"], "text/event-stream");
+        (c.check_auth)(&seen[0]);
+        (c.check_body)(&seen[0]);
+    }
+}
+
+#[test]
+fn a_plain_request_never_asks_for_a_stream() {
+    for c in contracts() {
+        let mock = Mock::replying(200, (c.ok)("Hi").to_string());
+        let app = setup(c.id, &mock.base);
+        app.keys.set(c.id, KEY).unwrap();
+        app.ai.generate(&ask()).unwrap();
+        assert!(mock.seen.lock().unwrap()[0].body.get("stream").is_none());
+    }
+}
+
+#[test]
+fn a_stream_cut_off_by_the_cap_says_so_and_one_that_breaks_off_is_no_answer() {
+    for c in contracts() {
+        let cap = match c.id {
+            ProviderId::Anthropic => "max_tokens",
+            ProviderId::Openai => "length",
+        };
+        let mock = Mock::replying(200, streamed(c.id, &["cut"], cap, true));
+        let app = setup(c.id, &mock.base);
+        app.keys.set(c.id, KEY).unwrap();
+        let got = app.ai.stream(&ask(), |_| true).unwrap();
+        assert_eq!((got.text.as_str(), got.stop), ("cut", Stop::MaxTokens));
+
+        let mock = Mock::replying(200, streamed(c.id, &["half"], "", false));
+        let app = setup(c.id, &mock.base);
+        app.keys.set(c.id, KEY).unwrap();
+        assert_eq!(
+            app.ai.stream(&ask(), |_| true).unwrap_err(),
+            "E_AI_RESPONSE_INVALID",
+            "{:?}",
+            c.id
+        );
+
+        let mock = Mock::replying(200, "data: {not json\n\n");
+        let app = setup(c.id, &mock.base);
+        app.keys.set(c.id, KEY).unwrap();
+        assert_eq!(
+            app.ai.stream(&ask(), |_| true).unwrap_err(),
+            "E_AI_RESPONSE_INVALID"
+        );
+    }
+}
+
+#[test]
+fn a_streamed_refusal_or_failure_is_a_code_that_quotes_nothing() {
+    let refusal = sse(&[json!({"type": "message_delta", "delta": {"stop_reason": "refusal"}})]);
+    let overloaded = sse(&[
+        json!({"type": "content_block_delta", "delta": {"type": "text_delta", "text": "a"}}),
+        json!({"type": "error", "error": {"type": "overloaded_error", "message": PROMPT_CANARY}}),
+    ]);
+    for (body, code) in [
+        (refusal, "E_AI_REFUSED"),
+        (overloaded, "E_AI_PROVIDER_UNAVAILABLE"),
+    ] {
+        let mock = Mock::replying(200, body);
+        let app = setup(ProviderId::Anthropic, &mock.base);
+        app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+        assert_eq!(app.ai.stream(&ask(), |_| true).unwrap_err(), code);
+    }
+    let refusal = sse(&[json!({"choices": [{"delta": {"refusal": "no"}, "finish_reason": null}]})]);
+    let mock = Mock::replying(200, refusal);
+    let app = setup(ProviderId::Openai, &mock.base);
+    app.keys.set(ProviderId::Openai, KEY).unwrap();
+    assert_eq!(app.ai.stream(&ask(), |_| true).unwrap_err(), "E_AI_REFUSED");
+
+    for c in contracts() {
+        for (status, code) in [
+            (401, "E_AI_AUTH_FAILED"),
+            (529, "E_AI_PROVIDER_UNAVAILABLE"),
+        ] {
+            let echo = json!({"error": {"message": format!("{PROMPT_CANARY} {KEY}")}});
+            let mock = Mock::replying(status, echo.to_string());
+            let app = setup(c.id, &mock.base);
+            app.keys.set(c.id, KEY).unwrap();
+            assert_eq!(app.ai.stream(&ask(), |_| true).unwrap_err(), code);
+        }
+    }
+}
+
+#[test]
+fn a_stream_stops_when_its_listener_is_gone_and_needs_what_a_request_needs() {
+    let c = &contracts()[0];
+    let mock = Mock::replying(200, streamed(c.id, &["one", "two"], "end_turn", true));
+    let app = setup(c.id, &mock.base);
+    app.keys.set(c.id, KEY).unwrap();
+    let mut heard = 0;
+    let stopped = app.ai.stream(&ask(), |_| {
+        heard += 1;
+        false
+    });
+    assert_eq!(stopped.unwrap_err(), "E_AI_CANCELLED");
+    assert_eq!(heard, 1);
+
+    let app = setup(c.id, &mock.base);
+    assert_eq!(
+        app.ai.stream(&ask(), |_| true).unwrap_err(),
+        "E_AI_KEY_MISSING"
+    );
+    app.keys.set(c.id, KEY).unwrap();
+    let mut request = ask();
+    request.messages.clear();
+    assert_eq!(
+        app.ai.stream(&request, |_| true).unwrap_err(),
+        "E_AI_REQUEST_INVALID"
+    );
+    assert_eq!(mock.hits(), 1);
+}
+
+#[test]
+fn streamed_text_crosses_a_few_pieces_at_a_time() {
+    let mut pieces = super::Pieces::new(Duration::from_secs(3600));
+    assert_eq!(pieces.push("a").as_deref(), Some("a"));
+    assert_eq!(pieces.push("b"), None);
+    assert_eq!(pieces.push("c"), None);
+    assert_eq!(pieces.rest().as_deref(), Some("bc"));
+    assert_eq!(pieces.rest(), None);
+
+    let mut every = super::Pieces::new(Duration::ZERO);
+    assert_eq!(every.push("a").as_deref(), Some("a"));
+    assert_eq!(every.push("b").as_deref(), Some("b"));
+    assert_eq!(every.rest(), None);
+}

@@ -6,6 +6,7 @@ import {
   askNotes,
   citedSources,
   type AskAnswer,
+  type AskProgress,
   type AskSource,
   type AskStorage,
 } from '../../core/askNotes'
@@ -19,7 +20,7 @@ import { LicenceButton } from './LicenceLocked'
 
 type Phase =
   | { kind: 'question' }
-  | { kind: 'asking' }
+  | { kind: 'asking'; progress?: AskProgress }
   | { kind: 'answer'; answer: AskAnswer }
   | { kind: 'failed'; code: string }
 
@@ -62,7 +63,9 @@ export function AskNotesSheet(props: {
     if (question.trim() === '') return
     const mine = ++attempt.current
     setPhase({ kind: 'asking' })
-    askNotes(storage, generator, question).then(
+    const progress = (so: AskProgress) =>
+      mine === attempt.current && setPhase({ kind: 'asking', progress: so })
+    askNotes(storage, generator, question, progress).then(
       (answer) => mine === attempt.current && setPhase({ kind: 'answer', answer }),
       (e: unknown) =>
         mine === attempt.current &&
@@ -83,10 +86,40 @@ export function AskNotesSheet(props: {
   }
 
   const answer = phase.kind === 'answer' ? phase.answer : undefined
-  const parts = answer ? answerParts(answer.text, answer.sources) : []
+  const streaming = phase.kind === 'asking' ? phase.progress : undefined
+  const shown = answer ?? streaming
+  const parts = shown ? answerParts(shown.text, shown.sources) : []
   const cited = citedSources(parts)
   const uncited = answer?.sources.filter((s) => !cited.includes(s)) ?? []
   const failure = phase.kind === 'failed' ? askFailure(phase.code) : undefined
+
+  const answerSection = (
+    <section
+      className="ask-answer"
+      aria-label={t('askNotes.answer')}
+      aria-busy={phase.kind === 'asking'}
+      tabIndex={0}
+    >
+      {parts.map((part, i) =>
+        part.kind === 'text' ? (
+          <span key={i}>{part.text}</span>
+        ) : (
+          <button
+            key={i}
+            type="button"
+            className="ask-cite"
+            aria-label={format(t('askNotes.citation'), {
+              number: String(part.source.n),
+              title: titleOf(part.source),
+            })}
+            onClick={() => open(part.source)}
+          >
+            {part.source.n}
+          </button>
+        ),
+      )}
+    </section>
+  )
 
   const sourceList = (sources: readonly AskSource[], label: string) =>
     sources.length > 0 ? (
@@ -153,9 +186,12 @@ export function AskNotesSheet(props: {
           />
         </label>
       ) : phase.kind === 'asking' ? (
-        <p className="sheet-detail" role="status">
-          {t('askNotes.asking')}
-        </p>
+        <>
+          <p className="sheet-detail" role="status">
+            {streaming ? t('askNotes.writing') : t('askNotes.asking')}
+          </p>
+          {streaming ? answerSection : null}
+        </>
       ) : failure ? (
         <p role="alert" className="sheet-error">
           {failure.message}
@@ -165,26 +201,7 @@ export function AskNotesSheet(props: {
           <p className="sheet-detail" role="status">
             {format(t('askNotes.answeredBy'), { model: answer.model })}
           </p>
-          <section className="ask-answer" aria-label={t('askNotes.answer')} tabIndex={0}>
-            {parts.map((part, i) =>
-              part.kind === 'text' ? (
-                <span key={i}>{part.text}</span>
-              ) : (
-                <button
-                  key={i}
-                  type="button"
-                  className="ask-cite"
-                  aria-label={format(t('askNotes.citation'), {
-                    number: String(part.source.n),
-                    title: titleOf(part.source),
-                  })}
-                  onClick={() => open(part.source)}
-                >
-                  {part.source.n}
-                </button>
-              ),
-            )}
-          </section>
+          {answerSection}
           {answer.cutOff ? <p className="sheet-detail">{t('askNotes.cutOff')}</p> : null}
           {sourceList(cited, t('askNotes.sources'))}
           {sourceList(uncited, t('askNotes.uncited'))}

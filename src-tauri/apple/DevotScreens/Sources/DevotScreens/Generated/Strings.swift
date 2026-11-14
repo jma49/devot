@@ -402,6 +402,10 @@ public enum L10n {
     text("askNotes.asking", "Reading your notes and waiting for the AI provider…")
   }
 
+  public static func askNotesWriting() -> String {
+    text("askNotes.writing", "Writing the answer…")
+  }
+
   public static func askNotesAnsweredBy(model p0: String) -> String {
     fill(text("askNotes.answeredBy", "Answered by {model} from your notes."), ["model": p0])
   }

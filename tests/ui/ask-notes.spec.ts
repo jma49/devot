@@ -1,8 +1,9 @@
 import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, test } from './fixtures'
 
-// Ask Your Notes from the command palette. Rust is faked in the page: `ai_generate` answers what the test queues in
-// `devotAiReplies`, and every request is in `devotIpcCalls`. Without a sentence model, sources come from keyword search.
+// Ask Your Notes from the command palette. Rust is faked in the page: `ai_stream` sends each queued reply in pieces of
+// a word and answers it whole, and every request is in `devotIpcCalls`. Without a sentence model, sources come from
+// keyword search.
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const bookRow = (page: Page, name: string) =>
@@ -17,24 +18,29 @@ const question = (page: Page) => sheet(page).getByRole('textbox', { name: 'Quest
 const requests = (page: Page) =>
   page.evaluate(() =>
     window.devotIpcCalls
-      .filter((c) => c.cmd === 'ai_generate')
+      .filter((c) => c.cmd === 'ai_generate' || c.cmd === 'ai_stream')
       .map((c) => c.args['request'] as { messages: { content: string }[] }),
   )
 
-async function fakeProvider(page: Page, replies: string[]) {
-  await page.addInitScript((queued) => {
-    const w = window
-    w.devotIpcMocks = {
-      ...w.devotIpcMocks,
-      ai_generate: () => ({
-        provider: 'anthropic',
-        model: 'test-model',
-        text: queued.shift() ?? 'unexpected request',
-        stop: 'end',
-        usage: null,
-      }),
-    }
-  }, replies)
+async function fakeProvider(page: Page, replies: string[], hold = false) {
+  await page.addInitScript(
+    ({ queued, held }) => {
+      const w = window as typeof window & { devotFinishAnswer?: () => void }
+      w.devotIpcMocks = {
+        ...w.devotIpcMocks,
+        ai_stream: async (args: { onText: { onmessage: (text: string) => void } }) => {
+          const text = queued.shift() ?? 'unexpected request'
+          const words = text.split(/(?<= )/)
+          for (const [i, word] of words.entries()) {
+            args.onText.onmessage(word)
+            if (held && i === 0) await new Promise<void>((done) => (w.devotFinishAnswer = done))
+          }
+          return { provider: 'anthropic', model: 'test-model', text, stop: 'end', usage: null }
+        },
+      }
+    },
+    { queued: replies, held: hold },
+  )
 }
 
 async function notebook(page: Page, name: string, aiAccess: boolean) {
@@ -59,6 +65,15 @@ async function note(page: Page, title: string, body: string) {
   await page.getByRole('textbox', { name: 'Title' }).fill(title)
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await page.keyboard.insertText(body)
+  // Sources come from saved notes.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (text) => (localStorage.getItem('devot.test.notes') ?? '').includes(text),
+        body,
+      ),
+    )
+    .toBe(true)
 }
 
 async function openAsk(page: Page) {
@@ -103,6 +118,26 @@ test('answers from notes AI may read, citing each one, and a citation opens its 
   await answer.getByRole('button', { name: 'Source 1: Boiler' }).click()
   await expect(sheet(page)).toBeHidden()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Boiler')
+})
+
+test('shows the answer as it comes, and keeps the one that comes whole', async ({ page }) => {
+  await fakeProvider(page, ['Every October [1].'], true)
+  await page.reload()
+  await notebook(page, 'Home', true)
+  await note(page, 'Boiler', 'The boiler service is booked each October.')
+
+  await openAsk(page)
+  await question(page).fill('When is the boiler service?')
+  await question(page).press('Enter')
+  const answer = sheet(page).getByRole('region', { name: 'Answer' })
+  await expect(sheet(page).getByRole('status')).toHaveText('Writing the answer\u2026')
+  await expect(answer).toHaveText('Every ')
+  await page.evaluate(() => (window as { devotFinishAnswer?: () => void }).devotFinishAnswer?.())
+  await expect(sheet(page).getByRole('status')).toHaveText(
+    'Answered by test-model from your notes.',
+  )
+  await expect(answer).toHaveText('Every October 1.')
+  await expect(answer.getByRole('button', { name: 'Source 1: Boiler' })).toBeVisible()
 })
 
 test('sends nothing when no notebook allows AI access, and says why', async ({ page }) => {

@@ -169,6 +169,46 @@ describe('askNotes', () => {
   })
 })
 
+describe('a streamed answer', () => {
+  it('shows the answer so far with its sources while it comes', async () => {
+    const storage = openSqliteAdapter(join(tempDir('devot-ask-'), 'devot.sqlite'))
+    open.push(storage)
+    const clock = createClock('mac1')
+    const newId = createIdGenerator()
+    const books = createBookService({ storage, clock, newId })
+    const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
+    const generator = createAiGenerator({
+      storage,
+      transport: {
+        generate: () => Promise.reject(new Error('E_TEST_NOT_STREAMED')),
+        stream: async (_input, onText) => {
+          for (const piece of ['Water ', 'them daily', ' [1].']) onText(piece)
+          return {
+            provider: 'anthropic',
+            model: 'claude-sonnet-5-5',
+            text: '  Water them daily [1].\n',
+            stop: 'end',
+            usage: null,
+          }
+        },
+      },
+    })
+    const garden = await books.create('Garden', null, { aiAccess: true })
+    const id = await note(notes, 'Tomatoes', 'Water tomatoes every morning.', garden)
+
+    const heard: { text: string; sources: string[] }[] = []
+    const answer = await askNotes(storage, generator, 'Watering tomatoes?', (so) =>
+      heard.push({ text: so.text, sources: so.sources.map((x) => x.noteId) }),
+    )
+    expect(heard).toEqual([
+      { text: 'Water ', sources: [id] },
+      { text: 'Water them daily', sources: [id] },
+      { text: 'Water them daily [1].', sources: [id] },
+    ])
+    expect(answer.text).toBe('Water them daily [1].')
+  })
+})
+
 describe('the prompt and the answer', () => {
   const source = (n: number, title = `Note ${n}`): AskSource => ({
     n,

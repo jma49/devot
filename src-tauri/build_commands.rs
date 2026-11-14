@@ -209,6 +209,7 @@ const SYNC: &[&str] = &[
 /// AI providers, AI access, MCP and the local HTTP API.
 const AI: &[&str] = &[
     "ai_generate",
+    "ai_stream",
     "ai_settings_get",
     "ai_settings_set",
     "ai_key_set",
