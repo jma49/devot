@@ -100,6 +100,10 @@ pub enum Link {
     Pair {
         link: PairingLink,
     },
+    /// Fills quick capture (`capture_link`) and never reaches a main window.
+    Capture {
+        prefill: crate::capture_link::Prefill,
+    },
 }
 
 impl Link {
@@ -183,6 +187,12 @@ pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
             return Err("E_URL_TOO_LONG");
         }
         return licence_link(query);
+    }
+    if let Some(query) = rest.and_then(|rest| rest.strip_prefix("capture?")) {
+        if url.len() > crate::capture_link::MAX_CAPTURE_URL_LEN {
+            return Err("E_URL_TOO_LONG");
+        }
+        return crate::capture_link::parse(query).map(|prefill| Link::Capture { prefill });
     }
     if rest.is_some_and(|rest| rest.starts_with("pair?")) {
         if url.len() > MAX_PAIR_URL_LEN {
@@ -469,10 +479,12 @@ fn link_of(url: &str, licence: Option<&crate::licence::Licence>) -> Option<Link>
     }
 }
 
-/// Only the iPhone's Sync page takes a pairing link from outside (#886).
+/// Only the iPhone's Sync page takes a pairing link from outside (#886), and only the Mac has
+/// quick capture.
 fn taken_here(link: Link) -> Result<Link, &'static str> {
     match link {
         Link::Pair { .. } if !cfg!(target_os = "ios") => Err("E_URL_PAIR_ELSEWHERE"),
+        Link::Capture { .. } if cfg!(mobile) => Err("E_URL_CAPTURE_ELSEWHERE"),
         link => Ok(link),
     }
 }
@@ -500,6 +512,13 @@ fn checked(key: LicenceKey, licence: Option<&crate::licence::Licence>) -> Link {
 }
 
 pub(crate) fn deliver<R: Runtime>(app: &AppHandle<R>, link: Link) {
+    if let Link::Capture { prefill } = link {
+        #[cfg(desktop)]
+        crate::capture_link::deliver(app, prefill);
+        #[cfg(mobile)]
+        let _ = prefill;
+        return;
+    }
     bring_forward(app);
     let Some(links) = app.try_state::<DeepLinks>() else {
         return;
@@ -921,6 +940,34 @@ mod tests {
         };
         assert_eq!(taken_here(pair), taken);
         assert_eq!(taken_here(Link::Today), Ok(Link::Today));
+    }
+
+    #[test]
+    fn reads_a_capture_link_and_takes_it_only_where_quick_capture_is() {
+        let Ok(link) = parse("devot://capture?title=Groceries&text=milk", "devot") else {
+            panic!("refused");
+        };
+        assert!(matches!(link, Link::Capture { .. }));
+        let taken = taken_here(link.clone());
+        if cfg!(mobile) {
+            assert_eq!(taken, Err("E_URL_CAPTURE_ELSEWHERE"));
+        } else {
+            assert_eq!(taken, Ok(link));
+        }
+        assert_eq!(
+            parse("devot://capture?text=", "devot"),
+            Err("E_URL_CAPTURE_EMPTY")
+        );
+        assert_eq!(parse("devot://capture/", "devot"), Err("E_URL_HOST"));
+        assert_eq!(
+            parse("devot-dev://capture?text=a", "devot"),
+            Err("E_URL_SCHEME")
+        );
+        let long = format!(
+            "devot://capture?text={}",
+            "a".repeat(crate::capture_link::MAX_CAPTURE_URL_LEN)
+        );
+        assert_eq!(parse(&long, "devot"), Err("E_URL_TOO_LONG"));
     }
 
     #[test]

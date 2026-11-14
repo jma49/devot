@@ -3,7 +3,7 @@
 // page's thread, which then only posts the text and patches the result in.
 import { frontMatterEnd, tasksIn } from '../extract'
 import { sameFence, type Fence } from '../fences'
-import { noteLinks } from '../links'
+import { noteEmbeds, noteLinks } from '../links'
 import type { TaskProgress } from '../tasks'
 import { createBlockSplitter, type NoteSplit } from './blocks'
 import { PIECE_LENGTH, type PreviewPiece } from './index'
@@ -25,7 +25,8 @@ export interface LivePreviewSources {
     options: PreviewOptions,
     known: readonly string[],
   ) => Promise<PreviewPiece[]>
-  linkTargets: (ids: readonly string[]) => Promise<Targets>
+  /** `embeds`, a subset of `ids`, also carry the bodies they show. */
+  linkTargets: (ids: readonly string[], embeds: readonly string[]) => Promise<Targets>
   onTargetsFailed: () => void
   /** A reader of the splitter `renderPieces` cuts with (`shareSplitter`), so a text is cut once. */
   split?: (markdown: string) => NoteSplit
@@ -96,16 +97,20 @@ export function createLivePreviewRenderer(
   const kept = new Map<string, Promise<Targets | undefined>>()
   const facts = createSplitFacts(sources.split ?? createBlockSplitter(PIECE_LENGTH))
 
-  const targetsFor = (ids: string[], scope: string): Promise<Targets | undefined> => {
+  const targetsFor = (
+    ids: string[],
+    embeds: string[],
+    scope: string,
+  ): Promise<Targets | undefined> => {
     if (ids.length === 0) return Promise.resolve({})
-    const key = `${scope}\u0000${ids.join(' ')}`
+    const key = `${scope}\u0000${ids.join(' ')}\u0000${embeds.join(' ')}`
     const known = kept.get(key)
     if (known) {
       kept.delete(key)
       kept.set(key, known)
       return known
     }
-    const asked = sources.linkTargets(ids).catch(() => {
+    const asked = sources.linkTargets(ids, embeds).catch(() => {
       sources.onTargetsFailed()
       kept.delete(key)
       return undefined
@@ -120,7 +125,7 @@ export function createLivePreviewRenderer(
 
   return async (markdown, options, known, scope) => {
     const links = noteLinks(markdown)
-    const targets = await targetsFor(links, scope)
+    const targets = await targetsFor(links, noteEmbeds(markdown), scope)
     const pieces = await sources.renderPieces(
       markdown,
       targets ? { ...options, noteLinks: targets } : options,

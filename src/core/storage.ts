@@ -87,6 +87,12 @@ export interface SetCondition {
   negate: boolean
 }
 
+export interface LinkGraph {
+  notes: { id: string; title: string }[]
+  /** `[source, target]`. */
+  links: [string, string][]
+}
+
 export interface NoteQuery {
   text: TextCondition[]
   sets: SetCondition[]
@@ -251,6 +257,8 @@ export interface StorageAdapter {
   searchNotes(query: NoteQuery, limit: number): Promise<NoteSummary[]>
   /** Live notes outside `excludeBookId` whose body links to `id` (the link index), the note itself left out, most recently updated first (then by ID, descending); at most `limit` (MAX_BACKLINKS), without excerpts. */
   listBacklinks(id: string, excludeBookId: string, limit: number): Promise<NoteSummary[]>
+  /** The link index between two different live notes outside `excludeBookId`, at most `limit` links in index order, with the title of each note they name. */
+  listLinkGraph(excludeBookId: string, limit: number): Promise<LinkGraph>
   /** Not purged, most recently deleted first. */
   listTrash(): Promise<TrashedNote[]>
   /** Final: no later write restores it. An attachment another non-purged note still shows passes to that note, a live one before one in the Trash, then the smallest ID. */

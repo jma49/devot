@@ -226,6 +226,8 @@ describe('lists and search read covering indexes', () => {
     expect(words(statement('NOTES_LIST_SQL'))).toBe(words(LIST_SQL.notes))
     expect(words(statement('TRASH_LIST_SQL'))).toBe(words(LIST_SQL.trash))
     expect(words(statement('BACKLINKS_SQL'))).toBe(words(LIST_SQL.backlinks))
+    expect(words(statement('LINK_GRAPH_SQL'))).toBe(words(LIST_SQL.linkGraph))
+    expect(words(statement('GRAPH_NOTES_SQL'))).toBe(words(LIST_SQL.graphNotes))
     expect(words(statement('NOTE_SUMMARIES_SQL'))).toBe(words(LIST_SQL.summaries))
     expect(words(statement('NOTE_BODIES_SQL'))).toBe(words(LIST_SQL.bodies))
   })

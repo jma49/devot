@@ -534,6 +534,10 @@ public enum L10n {
     text("command.noteInfo", "Note Info")
   }
 
+  public static func commandShowGraph() -> String {
+    text("command.showGraph", "Show Graph")
+  }
+
   public static func commandHideAuthorship() -> String {
     text("command.hideAuthorship", "Hide Authorship")
   }
@@ -1812,6 +1816,26 @@ public enum L10n {
 
   public static func noteInfoNoBacklinks() -> String {
     text("noteInfo.noBacklinks", "No notes link here yet")
+  }
+
+  public static func noteInfoMentions() -> String {
+    text("noteInfo.mentions", "Unlinked Mentions")
+  }
+
+  public static func noteInfoNoMentions() -> String {
+    text("noteInfo.noMentions", "No other note names this one")
+  }
+
+  public static func noteInfoFindingMentions() -> String {
+    text("noteInfo.findingMentions", "Looking for mentions…")
+  }
+
+  public static func noteInfoLinkMention() -> String {
+    text("noteInfo.linkMention", "Link")
+  }
+
+  public static func noteInfoLinkMentionIn(note p0: String) -> String {
+    fill(text("noteInfo.linkMentionIn", "Link the mention in {note}"), ["note": p0])
   }
 
   public static func noteInfoTasks() -> String {
@@ -3094,6 +3118,10 @@ public enum L10n {
     text("import.reason.outside", "Outside the imported folder")
   }
 
+  public static func importReasonTag() -> String {
+    text("import.reason.tag", "Tag not added: not a valid tag name")
+  }
+
   public static func importReasonType() -> String {
     text("import.reason.type", "Not a supported image format")
   }
@@ -3748,6 +3776,70 @@ public enum L10n {
 
   public static func activityDone() -> String {
     text("activity.done", "Done")
+  }
+
+  public static func graphTitle() -> String {
+    text("graph.title", "Graph")
+  }
+
+  public static func graphDetail() -> String {
+    text("graph.detail", "Notes and the links between them. Drag to move, scroll or pinch to zoom, click a note to open it.")
+  }
+
+  public static func graphScope() -> String {
+    text("graph.scope", "Show")
+  }
+
+  public static func graphThisNote() -> String {
+    text("graph.thisNote", "This Note")
+  }
+
+  public static func graphAllNotes() -> String {
+    text("graph.allNotes", "All Notes")
+  }
+
+  public static func graphLabel(notes p0: String, links p1: String) -> String {
+    fill(text("graph.label", "Graph of {notes} and {links}"), ["notes": p0, "links": p1])
+  }
+
+  public static func graphNotesOne(count p0: String) -> String {
+    fill(text("graph.notesOne", "{count} note"), ["count": p0])
+  }
+
+  public static func graphNotesOther(count p0: String) -> String {
+    fill(text("graph.notesOther", "{count} notes"), ["count": p0])
+  }
+
+  public static func graphLinksOne(count p0: String) -> String {
+    fill(text("graph.linksOne", "{count} link"), ["count": p0])
+  }
+
+  public static func graphLinksOther(count p0: String) -> String {
+    fill(text("graph.linksOther", "{count} links"), ["count": p0])
+  }
+
+  public static func graphCapped(count p0: String) -> String {
+    fill(text("graph.capped", "Showing the {count} most linked notes."), ["count": p0])
+  }
+
+  public static func graphEmpty() -> String {
+    text("graph.empty", "No notes link to each other yet. Type [[ in a note to link another.")
+  }
+
+  public static func graphAlone() -> String {
+    text("graph.alone", "No notes link to or from this note yet.")
+  }
+
+  public static func graphNotes() -> String {
+    text("graph.notes", "Notes in the graph")
+  }
+
+  public static func graphFailed() -> String {
+    text("graph.failed", "The graph could not be drawn.")
+  }
+
+  public static func graphDone() -> String {
+    text("graph.done", "Done")
   }
 
   public static func activityFailed() -> String {

@@ -1103,3 +1103,30 @@
   box-shadow: 0 0 0 0.5px var(--color-line-hairline);
   color: var(--color-text-primary);
 }
+
+/* An embedded note (noteEmbeds.ts): fill only, as code, its chip on the first line. */
+.note-embed {
+  margin: var(--note-space-2) 0;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-list-row);
+  background: var(--color-fill-card);
+}
+
+.note-embed-title {
+  display: inline-block;
+  margin-bottom: var(--note-space-1);
+  font-weight: var(--font-weight-semibold);
+}
+
+.note-embed-body > :first-child {
+  margin-top: 0;
+}
+
+.note-embed-body > :last-child {
+  margin-bottom: 0;
+}
+
+.note-embed-clipped .note-embed-body {
+  -webkit-mask-image: linear-gradient(to bottom, var(--color-ink-text) 60%, transparent);
+  mask-image: linear-gradient(to bottom, var(--color-ink-text) 60%, transparent);
+}

@@ -18,7 +18,7 @@ export function datesEdit(
   return at >= info.createdAt ? { updatedAt: at } : null
 }
 
-export type InfoSection = 'properties' | 'backlinks'
+export type InfoSection = 'properties' | 'backlinks' | 'mentions'
 
 const FOLD_KEY = 'devot.noteInfo.folded.'
 

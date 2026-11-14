@@ -38,6 +38,7 @@ const CARD_RENDERERS = new Set([
   'devot.emoji',
   'devot.swatches',
   'devot.images',
+  'devot.note-embeds',
   'devot.links',
 ])
 /** Offsets into the note and ids mean nothing on a card, and a page of cards must not repeat an id. */
@@ -72,6 +73,8 @@ function placeholderFor(node: Element): { kind: Placeholder; inline: boolean } |
   if (node.tagName === 'iframe') return { kind: 'embed', inline: false }
   if (node.tagName === 'img') {
     const src = node.properties['src']
+    // An embedded note is a link on a card (noteEmbeds.ts).
+    if (typeof src === 'string' && src.startsWith('devot://note/')) return undefined
     const attached = typeof src === 'string' && attachmentId(src) !== null
     const others = LOADS.some((key) => key !== 'src' && node.properties[key] !== undefined)
     return attached && !others ? undefined : { kind: 'image', inline: false }

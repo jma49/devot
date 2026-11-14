@@ -32,7 +32,9 @@ import {
   type FrontMatterMeta,
 } from './frontMatter'
 import { htmlToMarkdown, type HtmlImage } from './htmlImport'
-import { folderOf, isHtmlFile, noteFolder } from './importTree'
+import { bearTags } from './importBear'
+import { importLayout } from './importLayout'
+import { folderOf, isHtmlFile } from './importTree'
 import { MAX_BOOK_NAME_CHARS, type BookDraft, type BookService } from './books'
 import { errorCode } from './errors'
 import { checkUpload, fileUri } from './files'
@@ -42,7 +44,7 @@ import type { NoteService } from './notes'
 import type { StorageAdapter } from './storage'
 import type { TagService } from './tags'
 import { lineFeeds, replaceRanges, type TextEdit } from './text'
-import { noteLink } from './links'
+import { noteLink, noteUri } from './links'
 import {
   embeddedImage,
   parseWikiTarget,
@@ -145,6 +147,8 @@ export interface PreparedImport {
   /** An HTML file's embedded images, as attachments to store (none without IDs to give them). */
   embedded: HtmlImage[]
   dropped: string[]
+  /** Tags written in the text as Bear writes them, used for a Bear export (importBear.ts). */
+  hashtags?: string[]
 }
 
 interface FoundImages {
@@ -154,6 +158,8 @@ interface FoundImages {
 
 export interface ImageLinks extends FoundImages {
   wiki: WikiLink[]
+  /** Links to other Markdown files (`[Plan](Work/Plan.md)`, as Notion exports them): the destination's place and URL. */
+  files?: ImageLink[]
 }
 
 export interface ImportPreparer {
@@ -243,6 +249,9 @@ export function markdownFacts(markdown: string): MarkdownFacts {
     title: (path) => (own !== null ? clipTitle(own) : titleOf(exported ? bodyTree() : tree, path)),
   }
 }
+
+/** The title a file's name gives. */
+const fileTitle = (path: string) => clip(oneLine(baseName(path)), MAX_TITLE_CHARS)
 
 function titleOf(tree: Root, path: string): string {
   const heading = tree.children.find(
@@ -476,15 +485,20 @@ export function prepareImportFile(raw: string, path: string, newId?: () => strin
     title: own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path)),
     meta: own.meta,
     text: own.body,
-    images: { ...imagesOf(tree, own.body), wiki: wikiLinksOf(tree, own.body) },
+    images: {
+      ...imagesOf(tree, own.body),
+      wiki: wikiLinksOf(tree, own.body),
+      files: fileLinksOf(tree, own.body),
+    },
     embedded: html?.images ?? [],
     dropped: html?.dropped ?? [],
+    hashtags: bearTags(tree),
   }
 }
 
 export function imagesIn(text: string): ImageLinks {
   const tree = parseMarkdown(text)
-  return { ...imagesOf(tree, text), wiki: wikiLinksOf(tree, text) }
+  return { ...imagesOf(tree, text), wiki: wikiLinksOf(tree, text), files: fileLinksOf(tree, text) }
 }
 
 export const preparerHere = (newId: () => string): ImportPreparer => ({
@@ -495,6 +509,37 @@ export const preparerHere = (newId: () => string): ImportPreparer => ({
 
 export function unlocatedImages(markdown: string): string[] {
   return imagesOf(parseMarkdown(markdown), markdown).unlocated
+}
+
+const MARKDOWN_FILE = /\.(?:md|markdown)(?:[?#].*)?$/i
+
+/** Links (inline or by reference) whose destination names a Markdown file in the folder; a link whose destination cannot be found in the text is left out. */
+function fileLinksOf(tree: Root, markdown: string): ImageLink[] {
+  const found: ImageLink[] = []
+  const used = new Set<string>()
+  const definitions: { identifier: string; url: string; start: number; end: number }[] = []
+  const local = (url: string) => MARKDOWN_FILE.test(url) && resolve('x', url).kind !== 'remote'
+  const walk = (node: Nodes) => {
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    if (node.type === 'link' && start !== undefined && end !== undefined && local(node.url)) {
+      const link = inlineDest(markdown, start, end, node.url)
+      if (link) found.push(link)
+    } else if (node.type === 'linkReference') {
+      used.add(node.identifier)
+    } else if (node.type === 'definition' && start !== undefined && end !== undefined) {
+      if (local(node.url))
+        definitions.push({ identifier: node.identifier, url: node.url, start, end })
+    }
+    if ('children' in node) for (const child of node.children) walk(child as Nodes)
+  }
+  walk(tree)
+  for (const definition of definitions) {
+    if (!used.has(definition.identifier)) continue
+    const link = definitionDest(markdown, definition.start, definition.end, definition.url)
+    if (link) found.push(link)
+  }
+  return found.sort((a, b) => a.start - b.start)
 }
 
 function imagesOf(tree: Root, markdown: string): FoundImages {
@@ -591,12 +636,13 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   const drafts: BookDraft[] = []
   const draftPaths: string[] = []
   const draftIndex = new Map<string, number>()
+  const layout = importLayout(scan.kind, scan.files)
   const plan = (path: string) => {
     if (path === '' || draftIndex.has(path)) return
     const parent = folderOf(path)
     plan(parent)
     const under = draftIndex.get(parent)
-    const name = bookName(path.split('/').pop() ?? path)
+    const name = bookName(layout.folderName(path))
     draftIndex.set(path, drafts.length)
     draftPaths.push(path)
     drafts.push(
@@ -605,7 +651,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
         : { name, parentId: null, parentIndex: under },
     )
   }
-  for (const file of scan.files) plan(noteFolder(scan.kind, file.path))
+  for (const file of scan.files) plan(layout.noteFolder(file.path))
   let booksRefused = 'E_IMPORT_FAILED'
   const folder = (path: string): string | null => {
     const id = folders.get(path)
@@ -623,6 +669,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   let converted = 0
   let unresolved = 0
   const paths = scan.files.map((f) => f.path)
+  const importing = new Set(paths)
   const total = paths.length
   await onProgress?.(0, total)
   if (drafts.length > 0 && !(await stopped?.())) {
@@ -645,7 +692,11 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       const prepared = await prepare.file(await source.read(path), path, store !== undefined)
       const { meta } = prepared
       let { text, images } = prepared
-      id = await notes.create(prepared.title, folder(noteFolder(scan.kind, path)))
+      const title =
+        layout.app !== null && prepared.title === fileTitle(path)
+          ? clip(oneLine(composed(layout.fileTitle(path))), MAX_TITLE_CHARS) || prepared.title
+          : prepared.title
+      id = await notes.create(title, folder(layout.noteFolder(path)))
       const noteId = id
       for (const dropped of prepared.dropped) {
         found.push({ path, image: dropped, code: 'E_IMPORT_HTML_CONTENT_DROPPED' })
@@ -731,18 +782,31 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
           pending.push({ start: link.start, end: link.end, target })
         }
       }
+      for (const link of convertLinks ? (images.files ?? []) : []) {
+        const target = resolve(path, link.url)
+        if (target.kind === 'path' && importing.has(target.path)) {
+          pending.push({ start: link.start, end: link.end, file: target.path })
+        }
+      }
       const body = replaceRanges(text, edits)
       await notes.setBody(noteId, body)
       if (meta.status !== null && meta.status !== 'none') await notes.setStatus(noteId, meta.status)
       // Tags last: a tag made for a note that then failed would stay unused.
       for (const tag of meta.tags) await tags.addToNote(noteId, tag)
+      if (layout.app === 'bear') {
+        for (const tag of prepared.hashtags ?? []) {
+          await tags.addToNote(noteId, tag).catch((error: unknown) => {
+            found.push({ path, image: tag, code: errorCode(error, 'E_IMPORT_TAG_INVALID') })
+          })
+        }
+      }
       await notes.release(noteId)
       imported += 1
       noteIds[path] = noteId
       attachments += stored
       converted += embeds
       unresolved += missing
-      importedNotes.push({ path, id: noteId, title: prepared.title })
+      importedNotes.push({ path, id: noteId, title })
       if (pending.length > 0)
         linked.push({ path, id: noteId, text: body, links: shifted(pending, edits) })
       problems.push(...found)
@@ -760,6 +824,11 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     try {
       const edits: TextEdit[] = []
       for (const link of note.links) {
+        if ('file' in link) {
+          const id = noteIds[link.file]
+          if (id !== undefined) edits.push({ start: link.start, end: link.end, text: noteUri(id) })
+          continue
+        }
         const shown = wikiShownText(link.target)
         const id = link.target.path === '' ? note.id : await findNote(note.path, link.target)
         if (id !== null && shown !== '') {
@@ -809,7 +878,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
 
   const used = new Set<string>()
   for (const path of Object.keys(noteIds)) {
-    for (let at = noteFolder(scan.kind, path); at !== '' && !used.has(at); at = folderOf(at)) {
+    for (let at = layout.noteFolder(path); at !== '' && !used.has(at); at = folderOf(at)) {
       used.add(at)
     }
   }
@@ -842,11 +911,10 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
 
 const LOOKS_LIKE_IMAGE = /\.(?:png|jpe?g|gif|webp|avif|hei[cf]|svg|bmp|tiff?)$/i
 
-interface PendingLink {
-  start: number
-  end: number
-  target: WikiTarget
-}
+type PendingLink =
+  | { start: number; end: number; target: WikiTarget }
+  /** A Markdown link's destination, to the imported file at `file`. */
+  | { start: number; end: number; file: string }
 
 interface ImportedNote {
   path: string

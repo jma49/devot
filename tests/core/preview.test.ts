@@ -551,6 +551,7 @@ describe('preview renderer extension point', () => {
       'devot.headingIds',
       'devot.swatches',
       'devot.images',
+      'devot.note-embeds',
       'devot.links',
       'devot.note-links',
       'devot.video-embeds',

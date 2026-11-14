@@ -31,7 +31,9 @@ Devot registers `devot://` with macOS (`plugins.deep-link` in `tauri.conf.json`,
   `devot://command/<id>` runs one of eleven commands that only show something (none makes, changes or removes anything): `palette.open`, `view.allNotes`, `view.trash`, `view.focus`, `view.togglePreview`, `view.split`, `view.write`, `view.edit`, `view.preview`, `app.backups` and `app.checkForUpdates`.
   Rust and the window keep the same list, and a test checks that they agree and that every one is a registry command; a command without a handler at that moment (Edit Mode with no note open) shows a notice.
   `devot://today` opens today's note (see Note templates), making it when it is missing: at most one note a day, so a page that opens it over and over makes one note.
+  `devot://capture?title=…&text=…&url=…` fills quick capture on the Mac and saves nothing by itself (see Menu bar mode, Capture links), so a page that opens it over and over makes no note; the iPhone refuses it (`E_URL_CAPTURE_ELSEWHERE`).
 - **Checked in Rust, whole:** a URL is accepted only as `<scheme>://note/<UUIDv7>` (the canonical lowercase form) or `<scheme>://command/<listed id>`, exactly: no query, fragment, escapes, trailing slash, other case or other host, and at most 96 bytes; or as `<scheme>://license?key=<key>`, with nothing after the key, whose characters may be percent-encoded, up to 3,104 bytes.
+  A capture link is checked by its own rules (`src-tauri/src/capture_link.rs`, at most 256 KiB).
   Anything else is dropped and logged as `W_DEEP_LINK_REFUSED <code>`, never with its text.
   The window gets the checked link (`{kind, id}`, event `devot://open-url`), never the URL, and reads it again before acting.
   The deep-link plugin's own commands are granted to no window.

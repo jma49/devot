@@ -20,7 +20,8 @@ use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{
-    AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+    AppHandle, Manager, RunEvent, Runtime, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    Window,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 use tokio::sync::oneshot;
@@ -246,7 +247,7 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
     let _ = (app, event);
 }
 
-pub fn open_quick_capture(app: &AppHandle) {
+pub fn open_quick_capture<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window(QUICK_CAPTURE) {
         if crate::deep_link::unminimize(&window)
             .and(window.show())

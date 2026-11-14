@@ -12,6 +12,8 @@ import type {
   TrashedNote,
 } from '../storage'
 import type { NoteLinkTarget } from '../preview/registry'
+import type { NoteMention } from './links'
+import type { GraphView } from '../graph'
 import type { TaskProgress } from '../tasks'
 import type { AppendOptions } from '../append'
 import type { NoteRelayMessage, TakenIn } from '../noteRelay'
@@ -173,8 +175,23 @@ export interface NoteService {
   }>
   /** Live notes only (never the Trash), as stored. */
   backlinks(id: string): Promise<NoteSummary[]>
-  /** Pending edits included; a missing or trashed note is left out. */
-  linkTargets(ids: readonly string[]): Promise<Record<string, NoteLinkTarget>>
+  /**
+   * Live notes outside Templates whose body names this note's title as text (findMention) and holds no link to it, best search
+   * matches first, at most MAX_MENTIONS, each with the line it is named on. Pending edits are saved first. None for a title too short to search.
+   */
+  mentions(id: string): Promise<NoteMention[]>
+  /** The graph of links between live notes outside Templates, laid out (linkGraphView); with `focus`, only the notes near it. As stored. */
+  linkGraph(focus?: string): Promise<GraphView>
+  /**
+   * Makes the first unlinked mention of `targetId` in `sourceId` a link to it, its text kept, as one edit with the text before kept as a
+   * version. Throws E_MENTION_NOT_FOUND when the note no longer mentions it, or links to it already. Returns the Yjs update.
+   */
+  linkMention(sourceId: string, targetId: string): Promise<Uint8Array>
+  /** Pending edits included; a missing or trashed note is left out. Each of `embeds` also carries its body (embeddedBody). */
+  linkTargets(
+    ids: readonly string[],
+    embeds?: readonly string[],
+  ): Promise<Record<string, NoteLinkTarget>>
   /** The list's rows of `ids`, as stored; a trashed, purged or unknown note is left out. */
   summaries(ids: readonly string[]): Promise<NoteSummary[]>
   /** Pending edits are saved first so a link pasted a moment ago keeps its image. */
