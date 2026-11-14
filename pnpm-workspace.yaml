@@ -1,6 +1,7 @@
 packages:
   - relay
   - licence
+  - share
 
 allowBuilds:
   esbuild: true

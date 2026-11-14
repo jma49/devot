@@ -906,6 +906,12 @@ it('changed-code.sh sends licence Worker changes to the policy job, which checks
   expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}- licence$/m)
 })
 
+it('changed-code.sh sends share Worker changes to the policy job, which checks and tests it', () => {
+  expect(changedCode(['share/src/app.ts', 'share/wrangler.toml'])).toBe('web=false rust=false')
+  expect(scripts['typecheck']).toContain('share/tsconfig.json')
+  expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}- share$/m)
+})
+
 it('changed-code.sh sends the licence test vectors to the Rust job, which checks the app accepts them', () => {
   expect(changedCode(['licence/test-vectors.json'])).toBe('web=false rust=true')
   expect(changedCode(['licence/src/app.ts'])).toBe('web=false rust=false')

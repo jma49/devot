@@ -83,6 +83,7 @@ mod test_log;
 mod updates;
 mod usage;
 mod watch;
+mod web_share;
 
 use startup::StartupError;
 use std::path::Path;
@@ -244,6 +245,9 @@ pub fn run() {
             export::export_pdf,
             export::note_print,
             export::clipboard_write_html,
+            web_share::web_share_status,
+            web_share::web_share_publish,
+            web_share::web_share_stop,
             usage::usage_record,
             usage::usage_list,
             usage::usage_clear,
@@ -319,6 +323,7 @@ pub fn run() {
             mirror::mirror_open,
             mirror::mirror_check,
             mirror::mirror_apply,
+            mirror::mirror_read,
             mirror::mirror_bodies,
             mirror::mirror_files,
             mirror::mirror_hashes,
@@ -536,6 +541,11 @@ fn launch(
         std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),
         licence::Gate::of(&licence),
     )));
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    let share_store = std::sync::Arc::new(web_share::Keychain::new(&app.config().identifier));
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+    let share_store = std::sync::Arc::new(web_share::MemoryStore::default());
+    app.manage(std::sync::Arc::new(web_share::WebShares::new(share_store)));
     let sync_service = std::sync::Arc::new(
         sync::service::SyncService::new(
             sync::settings::SettingsStore::new(&data_dir.join(sync::settings::FILE)),
@@ -599,6 +609,8 @@ fn launch(
     background::enter(app, stored.settings.menu_bar);
     main_windows::build(app.handle(), MAIN_WINDOW, None).map_err(StartupError::new)?;
     native::configure_main_window(app);
+    #[cfg(target_os = "macos")]
+    capture_link::receive_services(app.handle());
     #[cfg(desktop)]
     menu_bar::apply(app.handle(), stored.settings.menu_bar);
     #[cfg(desktop)]
