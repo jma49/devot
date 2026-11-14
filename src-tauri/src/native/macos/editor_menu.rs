@@ -344,6 +344,17 @@ pub fn self_test_editor_menu() -> Result<(), &'static str> {
             .map(|item| item.title().to_string())
             .collect()
     };
+    // A cold spell server (a loaded CI runner) times out its first checks and finds no misspelling.
+    let answering = (0..20).any(|_| {
+        let found = spelling_guesses("recieve").is_some();
+        if !found {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        found
+    });
+    if !answering {
+        return Err("E_TEST_SPELL_SERVER_SILENT");
+    }
     let mut builder = EditorMenuBuilder {
         mtm,
         target: &target,
