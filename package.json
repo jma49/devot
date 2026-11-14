@@ -21,7 +21,7 @@
     "ui:build": "vite build",
     "ui:release": "node scripts/sentry/ui.ts",
     "sentry:debug-files": "node scripts/sentry/debug-files.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.ui.json && tsc -p relay/tsconfig.json && tsc -p licence/tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.ui.json && tsc -p relay/tsconfig.json && tsc -p licence/tsconfig.json && tsc -p share/tsconfig.json",
     "lint": "oxlint --deny-warnings && node scripts/tokens/swift-literals.ts",
     "format": "oxfmt",
     "format:check": "oxfmt --check",

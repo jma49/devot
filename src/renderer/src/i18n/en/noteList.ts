@@ -11,6 +11,7 @@ export const prefixes = [
   'layout',
   'gallery',
   'time',
+  'shareWeb',
 ]
 
 export const messages = {
@@ -49,6 +50,34 @@ export const messages = {
   'noteMenu.copyLink': 'Copy Note Link',
   'noteMenu.copyUri': 'Copy Note URI',
   'noteMenu.copyId': 'Copy Note ID',
+  'noteMenu.shareWeb': 'Share on Web\u2026',
+  'shareWeb.title': 'Share on Web',
+  'shareWeb.warning':
+    'Anyone with the link can read this note until the link expires or you stop sharing. The note is encrypted on this Mac, and the link holds its key, so the share service cannot read it.',
+  'shareWeb.lifetimeLabel': 'Link expires after',
+  'shareWeb.lifetime.day': '1 day',
+  'shareWeb.lifetime.week': '7 days',
+  'shareWeb.lifetime.month': '30 days',
+  'shareWeb.share': 'Share',
+  'shareWeb.sharing': 'Sharing\u2026',
+  'shareWeb.updating': 'Updating the page\u2026',
+  'shareWeb.stopping': 'Stopping\u2026',
+  'shareWeb.sharedDetail':
+    'Anyone with this link can read the note until {date}. Update Page shares your latest changes under the same link.',
+  'shareWeb.linkLabel': 'Link',
+  'shareWeb.copy': 'Copy Link',
+  'shareWeb.copied': 'Link copied.',
+  'shareWeb.update': 'Update Page',
+  'shareWeb.stop': 'Stop Sharing',
+  'shareWeb.done': 'Done',
+  'shareWeb.error.tooLarge':
+    'This note is too large to share. With its images it can be at most 10 MB.',
+  'shareWeb.error.busy': 'Too many shares just now. Try again in a minute.',
+  'shareWeb.error.offline':
+    'Devot could not reach the share service. Check your connection and try again.',
+  'shareWeb.error.keychain':
+    'Devot could not keep the link in your keychain, so the note was not shared.',
+  'shareWeb.error.failed': 'The note could not be shared. Try again.',
   'noteMenu.history': 'Revision History\u2026',
   'noteMenu.exportHtml': 'Export as HTML\u2026',
   'noteMenu.copyHtml': 'Copy as HTML',

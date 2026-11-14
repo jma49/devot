@@ -30,6 +30,7 @@ export type NoteAction =
   | 'copyLink'
   | 'copyUri'
   | 'copyId'
+  | 'shareWeb'
   | ExportAction
   | 'trash'
   | 'addTag'
@@ -62,6 +63,7 @@ export const NOTE_COMMANDS: Readonly<Record<NoteAction, CommandId>> = {
   copyLink: 'note.copyLink',
   copyUri: 'note.copyUri',
   copyId: 'note.copyId',
+  shareWeb: 'note.shareWeb',
   exportHtml: 'note.exportHtml',
   copyHtml: 'note.copyHtml',
   copySimpleHtml: 'note.copySimpleHtml',
@@ -145,6 +147,7 @@ export const NOTE_MENU: MenuGroups<NoteMenuAction, NoteMenuTarget> = [
     entry('copyLink', { label: (n) => (one(n) ? 'noteMenu.copyLink' : 'batch.copyLinks') }),
     entry('copyUri', { shown: one }),
     entry('copyId', { shown: one }),
+    entry('shareWeb', { shown: (n) => one(n) && !n.templates }),
   ],
   EXPORT_ACTIONS.map((action) => {
     const labels = SELECTION_EXPORT_LABELS[action]
