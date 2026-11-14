@@ -61,8 +61,12 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
     /// The tab bar's top edge, or nil while a pushed screen has taken the bar away.
     private var visibleBarTop: CGFloat? {
         guard !tabBar.isHidden, tabBar.alpha > 0 else { return nil }
-        let top = view.convert(tabBar.bounds, from: tabBar).minY
-        return top < view.bounds.maxY - 1 ? top : nil
+        return Self.bottomBarTop(view.convert(tabBar.bounds, from: tabBar), in: view.bounds)
+    }
+
+    /// Nil for a bar slid off the bottom, or for an iPad's, which runs along the top.
+    static func bottomBarTop(_ bar: CGRect, in bounds: CGRect) -> CGFloat? {
+        bar.minY < bounds.maxY - 1 && bar.minY > bounds.midY ? bar.minY : nil
     }
 
     private func navigation(_ tab: Tab) -> UINavigationController {

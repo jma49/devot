@@ -40,6 +40,14 @@ final class TabBarTests: XCTestCase {
         tabs.toasts.dismissNow()
     }
 
+    func testTheToastFollowsOnlyABarAlongTheBottomAsAnIPadsBarRunsAlongTheTop() {
+        let screen = CGRect(x: 0, y: 0, width: 834, height: 1194)
+        XCTAssertEqual(
+            DevotTabBarController.bottomBarTop(CGRect(x: 0, y: 1110, width: 834, height: 84), in: screen), 1110)
+        XCTAssertNil(DevotTabBarController.bottomBarTop(CGRect(x: 250, y: 24, width: 334, height: 50), in: screen))
+        XCTAssertNil(DevotTabBarController.bottomBarTop(CGRect(x: 0, y: 1194, width: 834, height: 84), in: screen))
+    }
+
     func testEveryTabDrawsItsFilledSymbolSelectedOrNot() {
         XCTAssertEqual(TabModel.tabs.map(TabModel.symbol), ["doc.text.fill", "folder.fill", "chart.bar.fill", "gearshape.fill"])
         for tab in TabModel.tabs {
