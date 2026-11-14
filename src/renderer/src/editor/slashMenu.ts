@@ -28,6 +28,7 @@ import {
 import { EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view'
 import { formatOf, insertOf, type CommandId } from '../commands/registry'
 import { t, type MessageKey } from '../i18n'
+import { en } from '../i18n/en'
 import type { IconName } from '../icons/symbols'
 import { isImeKey } from '../ime'
 import { alertKind, listBullet, type AlertKind } from './blocks'
@@ -224,15 +225,17 @@ export function slashTrigger(state: EditorState): SlashTrigger | null {
 interface Matched {
   item: SlashDef
   label: string
-  at: number
+  /** Where the query starts in the shown label; null when only the English label has it. */
+  at: number | null
 }
 
 const GROUP_RANK: Record<SlashGroup, number> = { basic: 0, alerts: 1, other: 2 }
 
 /**
- * The items whose label has the query in it (any case), grouped in the
- * menu's group order and, in a group, by where the query starts in the
- * label, then in the menu's order.
+ * The items whose shown or English label has the query in it (any case), so
+ * `/code` works in every language, grouped in the menu's group order and, in
+ * a group, by where the query starts in the shown label (English-only matches
+ * last), then in the menu's order.
  */
 function matching(query: string): Matched[] {
   const q = query.toLowerCase()
@@ -241,10 +244,14 @@ function matching(query: string): Matched[] {
     const label = t(item.label)
     const at = label.toLowerCase().indexOf(q)
     if (at >= 0) out.push({ item, label, at, order })
+    else if (en[item.label].toLowerCase().includes(q)) out.push({ item, label, at: null, order })
   })
+  const rank = (at: number | null) => at ?? Number.MAX_SAFE_INTEGER
   return out.sort(
     (a, b) =>
-      GROUP_RANK[a.item.group] - GROUP_RANK[b.item.group] || a.at - b.at || a.order - b.order,
+      GROUP_RANK[a.item.group] - GROUP_RANK[b.item.group] ||
+      rank(a.at) - rank(b.at) ||
+      a.order - b.order,
   )
 }
 
@@ -385,7 +392,7 @@ export function slashItems(state: EditorState, trigger: SlashTrigger): SlashItem
       hint: item.hint(state),
       icon: item.icon,
       ...(item.tone ? { tone: item.tone } : {}),
-      ranges: trigger.query === '' ? [] : [[at, at + trigger.query.length]],
+      ranges: trigger.query === '' || at === null ? [] : [[at, at + trigger.query.length]],
     }))
 }
 

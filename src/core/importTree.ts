@@ -2,6 +2,7 @@
 // (the rules at the top of import.ts).
 
 import type { ImportKind, ImportScan } from './import'
+import { importLayout } from './importLayout'
 
 // No runtime import of import.ts here: the window shows this tree without loading the Markdown pipeline.
 
@@ -34,13 +35,13 @@ export function importTree(scan: ImportScan): ImportFolder {
     folders: [],
   }
   const byPath = new Map<string, ImportFolder>([['', root]])
+  const layout = importLayout(scan.kind, scan.files)
   const folderAt = (path: string): ImportFolder => {
     const known = byPath.get(path)
     if (known) return known
-    const cut = path.lastIndexOf('/')
     const parent = folderAt(folderOf(path))
     const made: ImportFolder = {
-      name: path.slice(cut + 1),
+      name: layout.folderName(path),
       path,
       notebook: false,
       notes: 0,
@@ -53,7 +54,7 @@ export function importTree(scan: ImportScan): ImportFolder {
     return made
   }
   const add = (path: string, bytes: number, note: boolean) => {
-    let at: string | null = noteFolder(scan.kind, path)
+    let at: string | null = note ? layout.noteFolder(path) : noteFolder(scan.kind, path)
     while (at !== null) {
       const node = folderAt(at)
       if (note) {
