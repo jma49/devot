@@ -28,6 +28,10 @@ Settings > General > Keep in Menu Bar (`menuBar` in the editor settings, off by 
   A window that is empty takes the link's title and text; one that holds text keeps it, keeps its title, and gets the link's title (when it differs) and text after its body, past a blank line.
   While a save is on its way the window takes nothing; once the save succeeds it takes what came meanwhile and stays open with it as a capture of its own instead of closing, and a save that fails takes it into the text it kept.
   Neither the link nor its text is logged.
+- **Services** (`src-tauri/Info.plist` `NSServices`, `src-tauri/src/native/macos/services.rs`): New Devot Note in any app's Services menu (and its text's context menu) sends the selection to quick capture the same way, through the same queue, so it too makes no note until the owner saves.
+  The service takes plain text and URLs (`newNote:userData:error:`); its body follows the capture link's rules for text and source, with an empty title for the owner to fill.
+  A selection that is one web address becomes the source; a URL that is not http or https (a file, for one) is dropped rather than refused; an empty selection (`E_SERVICE_CAPTURE_EMPTY`) or one over 256 KiB (`E_SERVICE_CAPTURE_TOO_LONG`) opens nothing and logs its code.
+  The menu item's name comes from Info.plist, which the message catalog cannot reach; it stays English like the app's other system-facing names.
 
 ## Background start
 
