@@ -397,7 +397,11 @@ const coreApi = {
   ) => {
     const ids = newId
     if (!ids) throw new Error('E_CORE_NOT_READY')
-    const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
+    const parts = {
+      notes: required(),
+      books: requiredBooks(),
+      tags: requiredTags(),
+    }
     const files = mirrorStorage
     return imports.run((stopped) =>
       loadImport().then(([{ importMarkdown, preparerHere }, { preparerOffThread }]) => {
@@ -428,12 +432,20 @@ const coreApi = {
   resumeImport: () => imports.resume(),
   stopImport: () => imports.stop(),
   planExport: async (target: ExportTarget, untitled: string) => {
-    const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
+    const parts = {
+      notes: required(),
+      books: requiredBooks(),
+      tags: requiredTags(),
+    }
     const { planExport } = await loadExport()
     return planExport({ ...parts, target, untitled })
   },
   exportMarkdown: async (target: ExportTarget, sink: ExportSink, untitled: string) => {
-    const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
+    const parts = {
+      notes: required(),
+      books: requiredBooks(),
+      tags: requiredTags(),
+    }
     const { exportMarkdown } = await loadExport()
     return exportMarkdown({ ...parts, target, untitled, sink })
   },
@@ -479,13 +491,44 @@ const coreApi = {
     })
     pluginRevision += 1
   },
-  /** Prepares the mirror (once); nothing runs until `mirrorReconcile`. */
-  startMirror: async (host: MirrorHost, untitled: string, logFailure: (code: string) => void) => {
+  /**
+   * Prepares the mirror (once); nothing runs until `mirrorReconcile`. Notes a file changed outside Devot is brought back
+   * into are written by services of their own and named to `changed`, so the window takes them in as changes from
+   * outside, as an HTTP API write.
+   */
+  startMirror: async (
+    host: MirrorHost,
+    untitled: string,
+    logFailure: (code: string) => void,
+    changed?: (noteIds: readonly string[]) => void,
+  ) => {
     const storage = mirrorStorage
-    if (!storage) return
+    const parts = coreParts
+    const notes = service
+    if (!storage || !parts || !notes) return
     // Failures reach the app's log through the window (codes only).
-    await mirror.start(({ createMirrorRunner }) =>
-      createMirrorRunner({ storage, host, untitled, onError: logFailure }),
+    await mirror.start(({ createMirrorRunner, createMirrorTakeBack }) =>
+      createMirrorRunner({
+        storage,
+        host,
+        untitled,
+        onError: logFailure,
+        takeBack: createMirrorTakeBack({
+          notes: createNoteService({
+            storage,
+            clock: parts.clock,
+            newId: parts.newId,
+          }),
+          tags: createTagService({
+            storage,
+            clock: parts.clock,
+            newId: parts.newId,
+          }),
+          storage,
+          before: () => notes.flush(),
+          ...(changed ? { after: changed } : {}),
+        }),
+      }),
     )
   },
   /** A full pass soon, unless one for Rust's `generation` ran already. */
@@ -493,6 +536,8 @@ const coreApi = {
   /** A pass soon: for the named notes only when nothing else changed, or for every note. */
   mirrorTouch: (noteIds?: readonly string[]) => mirror.current?.touch(noteIds),
   mirrorWake: () => mirror.current?.wake(),
+  /** With Bring Back Outside Edits on, a look for files changed outside Devot soon. */
+  mirrorRescan: () => mirror.current?.rescan(),
   mirrorStop: () => mirror.current?.stop(),
   /** Runs the sync engine on Rust's store and socket, which the page passes in. */
   async startSync(
