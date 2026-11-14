@@ -19,7 +19,7 @@ import { SettingsWindow } from './settings/SettingsWindow'
 import './theme/tokens.css'
 import './app.css'
 
-setLocale(resolveLocale(navigator.languages))
+await setLocale(resolveLocale(navigator.languages))
 document.title = t('settings.title')
 // Before any key handler: the key that ends a composition is the input method's.
 watchCompositions(window)
