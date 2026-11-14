@@ -2763,6 +2763,12 @@
             "state" : "translated",
             "value" : "Ask Another"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再问一个"
+          }
         }
       }
     },
@@ -2773,6 +2779,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Answer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答"
           }
         }
       }
@@ -2785,6 +2797,12 @@
             "state" : "translated",
             "value" : "Answered by {model} from your notes."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由 {model} 根据你的笔记回答。"
+          }
         }
       }
     },
@@ -2795,6 +2813,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ask"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提问"
           }
         }
       }
@@ -2807,6 +2831,12 @@
             "state" : "translated",
             "value" : "Reading your notes and waiting for the AI provider…"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在读取笔记并等待 AI 服务商…"
+          }
         }
       }
     },
@@ -2817,6 +2847,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Source {number}: {title}"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来源 {number}：{title}"
           }
         }
       }
@@ -2829,6 +2865,12 @@
             "state" : "translated",
             "value" : "Close"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
         }
       }
     },
@@ -2839,6 +2881,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The answer was cut off for length."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答因长度限制被截断。"
           }
         }
       }
@@ -2851,6 +2899,12 @@
             "state" : "translated",
             "value" : "Answers come from notes in notebooks that allow AI access. The passages that fit your question best and the question itself are sent to the AI provider."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答只来自允许 AI 访问的笔记本中的笔记。与问题最相关的段落和问题本身会发送给 AI 服务商。"
+          }
         }
       }
     },
@@ -2861,6 +2915,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open {title}"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开“{title}”"
           }
         }
       }
@@ -2873,6 +2933,12 @@
             "state" : "translated",
             "value" : "Question"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "问题"
+          }
         }
       }
     },
@@ -2883,6 +2949,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No notebook allows AI access yet. Turn on Allow AI Access for the notebooks Ask Your Notes may read, from a notebook’s context menu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有笔记本允许 AI 访问。请在笔记本的右键菜单中，为可供“问问笔记”读取的笔记本打开“允许 AI 访问”。"
           }
         }
       }
@@ -2895,6 +2967,12 @@
             "state" : "translated",
             "value" : "No note in the notebooks that allow AI access matches the question. Try other words."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许 AI 访问的笔记本中没有与问题相关的笔记。换个说法试试。"
+          }
         }
       }
     },
@@ -2905,6 +2983,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The question could not be answered."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法回答这个问题。"
           }
         }
       }
@@ -2917,6 +3001,12 @@
             "state" : "translated",
             "value" : "Try Again"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试"
+          }
         }
       }
     },
@@ -2927,6 +3017,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sources"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来源"
           }
         }
       }
@@ -2939,6 +3035,12 @@
             "state" : "translated",
             "value" : "Ask Your Notes"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "问问笔记"
+          }
         }
       }
     },
@@ -2949,6 +3051,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Also read"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "也读过"
           }
         }
       }
@@ -2961,6 +3069,12 @@
             "state" : "translated",
             "value" : "Untitled"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无标题"
+          }
         }
       }
     },
@@ -2971,6 +3085,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Writing the answer…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在写回答…"
           }
         }
       }
@@ -5022,6 +5142,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ask Your Notes…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "问问笔记…"
           }
         }
       }
@@ -20078,6 +20204,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Related by Meaning"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意思相关"
           }
         }
       }

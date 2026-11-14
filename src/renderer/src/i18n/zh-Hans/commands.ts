@@ -275,4 +275,5 @@ export const messages: Record<keyof typeof en, string> = {
   'slash.hintText': '文字',
   'slash.hintTitle': '标题',
   'command.showGraph': '显示关系图',
+  'command.askNotes': '问问笔记\u2026',
 }
