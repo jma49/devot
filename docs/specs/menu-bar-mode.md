@@ -33,6 +33,10 @@ Settings > General > Keep in Menu Bar (`menuBar` in the editor settings, off by 
   The shared title becomes the title, the shared text (each text, past a blank line) the text, and the first http or https address `url`; any other address is left out, and a text that only repeats the address is dropped.
   A text too long for the link (256 KiB) is cut at its end; a share with nothing left cancels with `E_SHARE_NOTHING`.
   The extension is sandboxed, reads nothing but the share and logs nothing.
+- **Services** (`src-tauri/Info.plist` `NSServices`, `src-tauri/src/native/macos/services.rs`): New Devot Note in any app's Services menu (and its text's context menu) sends the selection to quick capture the same way, through the same queue, so it too makes no note until the owner saves.
+  The service takes plain text and URLs (`newNote:userData:error:`); its body follows the capture link's rules for text and source, with an empty title for the owner to fill.
+  A selection that is one web address becomes the source; a URL that is not http or https (a file, for one) is dropped rather than refused; an empty selection (`E_SERVICE_CAPTURE_EMPTY`) or one over 256 KiB (`E_SERVICE_CAPTURE_TOO_LONG`) opens nothing and logs its code.
+  The menu item's name comes from Info.plist, which the message catalog cannot reach; it stays English like the app's other system-facing names.
 
 ## Background start
 

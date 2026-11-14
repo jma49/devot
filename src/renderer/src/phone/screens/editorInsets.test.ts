@@ -6,8 +6,20 @@ import { DEFAULT_EDITOR_SETTINGS } from '../../../../core/editorSettings'
 import { editorFind, editorFindTarget } from '../../editor/find'
 import { editorSetup } from '../../editor/settings'
 import type { FindTarget } from '../../find/target'
-import { editorHandlers, NO_FIND_COUNT, runFind, type NativeEditor } from './editor'
+import {
+  createEditorSlot,
+  editorHandlers,
+  NO_FIND_COUNT,
+  runFind,
+  type NativeEditor,
+} from './editor'
 import { pageScrolls, setFootInset } from './pageScroll'
+
+function slotOf(native: NativeEditor) {
+  const slot = createEditorSlot()
+  slot.ref(native)
+  return slot
+}
 
 function nativeEditor(target: () => FindTarget | null): NativeEditor {
   return {
@@ -51,7 +63,7 @@ describe('the keyboard insets Swift sends', () => {
   it('apply at once, and the caret keeps clear of the keyboard', async () => {
     const { view } = editor('one\ntwo')
     const before = footMargin(view)
-    const handlers = editorHandlers(() => nativeEditor(() => null), { prepare: () => {} })
+    const handlers = editorHandlers(slotOf(nativeEditor(() => null)), { prepare: () => {} })
     const frames = vi.spyOn(window, 'requestAnimationFrame')
     await handlers['editor.insets']!({ bottom: 336.5, duration: 0.25, curve: 7 })
     expect(document.documentElement.style.getPropertyValue('--editor-foot-inset')).toBe('336.5px')
@@ -81,7 +93,7 @@ describe('the keyboard insets Swift sends', () => {
   })
 
   it('refuses a negative or endless inset', async () => {
-    const handlers = editorHandlers(() => nativeEditor(() => null), { prepare: () => {} })
+    const handlers = editorHandlers(slotOf(nativeEditor(() => null)), { prepare: () => {} })
     await expect(handlers['editor.insets']!({ bottom: -1 })).rejects.toThrow(
       'E_SCREENS_ARGS_INVALID',
     )
@@ -101,7 +113,7 @@ describe('the keyboard insets Swift sends', () => {
 describe('the native find bar', () => {
   it('drives the editor’s search and counts from one', async () => {
     const { view, target } = editor('cat dog Cat cat')
-    const handlers = editorHandlers(() => nativeEditor(() => target), { prepare: () => {} })
+    const handlers = editorHandlers(slotOf(nativeEditor(() => target)), { prepare: () => {} })
     expect(await handlers['editor.find']!({ action: 'search', query: 'cat' })).toStrictEqual({
       total: 3,
       current: 1,
@@ -124,7 +136,7 @@ describe('the native find bar', () => {
   })
 
   it('refuses a search without a query, and a step with one', async () => {
-    const handlers = editorHandlers(() => nativeEditor(() => null), { prepare: () => {} })
+    const handlers = editorHandlers(slotOf(nativeEditor(() => null)), { prepare: () => {} })
     await expect(handlers['editor.find']!({ action: 'search' })).rejects.toThrow(
       'E_SCREENS_ARGS_INVALID',
     )
@@ -137,7 +149,7 @@ describe('the native find bar', () => {
   })
 
   it('finds nothing before the editor is there', async () => {
-    const handlers = editorHandlers(() => nativeEditor(() => null), { prepare: () => {} })
+    const handlers = editorHandlers(slotOf(nativeEditor(() => null)), { prepare: () => {} })
     expect(await handlers['editor.find']!({ action: 'search', query: 'a' })).toStrictEqual(
       NO_FIND_COUNT,
     )

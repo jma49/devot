@@ -78,7 +78,7 @@ const HISTORY: &[&str] = &[
     "usage_clear",
 ];
 
-/// Backups, import, export, printing and the Markdown mirror.
+/// Backups, import, export, printing, the Markdown mirror and Share on Web.
 const FILES: &[&str] = &[
     "backups_list",
     "backup_now",
@@ -101,11 +101,15 @@ const FILES: &[&str] = &[
     "mirror_open",
     "mirror_check",
     "mirror_apply",
+    "mirror_read",
     "mirror_bodies",
     "mirror_files",
     "mirror_hashes",
     "settings_open_data_folder",
     "settings_show_backups",
+    "web_share_status",
+    "web_share_publish",
+    "web_share_stop",
 ];
 
 /// Editor settings, fonts, shortcuts and crash reports.

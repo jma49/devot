@@ -186,8 +186,11 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
   - A shard that waits for the app build asked GitHub for the run's artifacts every ten seconds and stopped at the first request that failed (`fetch failed`, while its simulator booted); a failed request is asked again on the next turn (`scripts/ci/wait-for-artifact.ts`).
   - The Write mode specs read the note's Markdown once after the switch to Edit mode, and the editor's lines follow the Edit button by a frame or more (a table's delimiter row came back after its other rows): they poll the lines through one helper (`tests/ui/writeSource.ts`).
   - A menu item's handler was kept for its listener in a passive effect, which runs after the paint: a second pick right after the first one's change was on screen ran the handler of the render before, so the sidebar's second toggle showed what was already shown (docs/specs/stateful-code.md, One value, one owner).
-  - An iPhone note is on screen before its text reaches accessibility: on a loaded runner the web view's tree held no text through thirty swipes, while the screenshot showed the note drawn.
-    The editor tests wait for the text before they swipe and name its absence; why the tree stays empty is not known, and the kept result bundle is there for the next time.
+  - The page ran the requests Swift made before its bridge attached at once, before the editor host mounted, and a request that found no editor was dropped.
+    On a loaded runner a note row tapped while the page still loaded stayed blank, its text never reached accessibility, and the editor tests swiped thirty times for nothing (#896).
+    Each request now waits for the editor (`createEditorSlot`, `src/renderer/src/phone/screens/editor.ts`).
+  - XCTest reports an iPhone app's end late on an overloaded simulator: the app was gone within half a second of its terminate, while the runner heard of it after the minute `launch()` waits, and the retry attached to the dead process (#880, #895).
+    The app is not the cause; the shards keep one retry for it.
   - The page posted its notices to the native screens as it had them, each a command Rust runs as a task of its own, so two sent together could arrive in either order.
     A new note's `preview` and `edit` modes swapped left the screen in Preview over an editable note, and the formatting bar stayed away with the keyboard up (#897).
     The page posts one message at a time.

@@ -92,6 +92,7 @@ test('right-click shows the native note menu, grouped, with its shortcuts', asyn
     'Copy Note Link CmdOrCtrl+C',
     'Copy Note URI Shift+CmdOrCtrl+C',
     'Copy Note ID',
+    'Share on Web…',
     '---',
     'Export as HTML…',
     'Copy as HTML',

@@ -92,7 +92,13 @@ export function MirrorSection() {
             <span className="mirror-folder">{status.folder}</span>
           </SettingsNote>
         ) : null}
-        <SettingsNote>{t('mirror.notReadBack')}</SettingsNote>
+        {status.readBack ? null : <SettingsNote>{t('mirror.notReadBack')}</SettingsNote>}
+        <SettingToggle
+          label="mirror.readBack"
+          description="mirror.readBackHint"
+          checked={status.readBack}
+          onChange={(checked) => void change({ readBack: checked })}
+        />
         <SettingToggle
           label="mirror.includeAttachments"
           description="mirror.includeAttachmentsHint"

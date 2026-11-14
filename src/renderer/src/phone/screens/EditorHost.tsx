@@ -5,7 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type RefObject,
+  type Ref,
 } from 'react'
 import { PhoneNote, type NativeNoteChrome, type NoteCommands } from '../PhoneNote'
 import { closeGate } from '../requireEditing'
@@ -41,7 +41,7 @@ interface Focusing {
 export function EditorHost(props: {
   store: PhoneStore
   notify: (notice: ScreensNotice) => void
-  editor: RefObject<NativeEditor | null>
+  editor: Ref<NativeEditor>
   prepared: PreparedNotes
   openNote: (id: string) => void
 }) {
