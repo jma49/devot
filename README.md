@@ -8,7 +8,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/jma49/devot?label=release)](https://github.com/jma49/devot/releases)
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/license-FSL--1.1--MIT-blue)](LICENSE)
-[![Platform: macOS 26+, Apple Silicon](https://img.shields.io/badge/platform-macOS%2026%2B%20%C2%B7%20Apple%20Silicon-lightgrey)](#download)
+[![Platform: macOS 15+, Apple Silicon and Intel](https://img.shields.io/badge/platform-macOS%2015%2B%20%C2%B7%20Apple%20Silicon%20%26%20Intel-lightgrey)](#download)
 [![CI](https://github.com/jma49/devot/actions/workflows/ci.yml/badge.svg)](https://github.com/jma49/devot/actions/workflows/ci.yml)
 
 [Website](https://devot.online) · [Docs](https://devot.online/docs) · [Download](#download) · [Features](#features) · [AI tools](#claude-and-other-mcp-clients) · [Development](docs/development.md)
@@ -28,11 +28,11 @@ Devot keeps your notes in a SQLite database on your Mac. Every feature works wit
 
 ## Download
 
-1. Download the latest `Devot_<version>_aarch64.dmg` from the [latest release](https://github.com/jma49/devot/releases/latest) (the one marked Latest).
+1. Download the latest `Devot_<version>_universal.dmg` from the [latest release](https://github.com/jma49/devot/releases/latest) (the one marked Latest); it runs on Apple Silicon and Intel Macs.
 2. Open the dmg and drag Devot to Applications.
 3. For releases up to 1.0.4, the first time, right-click Devot in Applications and choose Open, then Open again: those builds are ad-hoc signed and not notarised, so macOS asks once. Releases from 1.0.5-beta2 on are signed with Devot's Developer ID and notarised by Apple, so they open without a warning. If it only offers Move to Trash, open System Settings > Privacy & Security and click Open Anyway.
 
-Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot checks shortly after launch and then daily (hourly on a beta build), or on Devot > Check for Updates…, downloads the update in the background and offers Restart to Update.
+Devot needs macOS 15 or later, on Apple Silicon or Intel. Releases named `_aarch64` needed macOS 26 on Apple Silicon. Updates arrive in the app: Devot checks shortly after launch and then daily (hourly on a beta build), or on Devot > Check for Updates…, downloads the update in the background and offers Restart to Update.
 
 ## Features
 
