@@ -14128,6 +14128,17 @@
         }
       }
     },
+    "import.reason.tag" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag not added: not a valid tag name"
+          }
+        }
+      }
+    },
     "import.reason.tooDeep" : {
       "extractionState" : "manual",
       "localizations" : {
