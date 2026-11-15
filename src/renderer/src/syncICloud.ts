@@ -3,7 +3,7 @@
 // `sync_icloud_status` for whether this build and the account can use iCloud at all.
 import { useEffect, useState } from 'react'
 import { untilTime } from './format'
-import { currentLocale, format, t, type MessageKey } from './i18n'
+import { currentLocale, format, sentences, t, type MessageKey } from './i18n'
 import { invoke } from './ipc'
 import { VAULT_MOVED } from '../../core/sync/transport'
 import { adoptSnapshot, type ICloudJoin, type SyncSnapshot } from './sync'
@@ -240,7 +240,7 @@ export const icloudNotice = (attention: ICloudAttention, pauseOver: boolean): st
   filled(NOTICES[attention.kind], attention, pauseOver)
 
 // The phone's catalog leaves some hints empty.
-const withHint = (text: string, hint: MessageKey) => (t(hint) ? `${text} ${t(hint)}` : text)
+const withHint = (text: string, hint: MessageKey) => sentences([text, t(hint)])
 
 /** The words Settings > Sync shows for `attention`, and what the owner can do there. */
 export function icloudLine(

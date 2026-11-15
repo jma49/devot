@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { format, resolveLocale, setIPhoneWording, setLocale, setPhoneDevice, t } from '.'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { format, resolveLocale, sentences, setIPhoneWording, setLocale, setPhoneDevice, t } from '.'
 import { en } from './en'
 import { enPhone } from './phone'
 import { zhHans, zhHansPhone } from './zh-Hans'
@@ -39,6 +39,30 @@ describe('i18n', () => {
     setIPhoneWording(false)
     expect(t('usage.storage')).toBe(zhHans['usage.storage'])
     await setLocale('en')
+  })
+
+  it('puts a space between sentences, but none after Chinese full-width punctuation', async () => {
+    expect(sentences(['Off.', '', 'Never synced.'])).toBe('Off. Never synced.')
+    await setLocale('zh-hans')
+    const [off, never] = [zhHans['syncSettings.state.off']!, zhHans['syncSettings.neverSynced']!]
+    expect(sentences([off, never])).toBe(off + never)
+    await setLocale('en')
+  })
+
+  describe('the page', () => {
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('says which language its text is in, so the system picks its glyphs and its voice', async () => {
+      const page = { documentElement: { lang: 'en' } }
+      vi.stubGlobal('document', page)
+      await setLocale('zh-hans')
+      expect(page.documentElement.lang).toBe('zh-Hans')
+      await setLocale('xx')
+      expect(page.documentElement.lang).toBe('en')
+      await setLocale('zh-hans')
+      await setLocale('en')
+      expect(page.documentElement.lang).toBe('en')
+    })
   })
 
   it('returns English strings by key, even for an unknown locale', async () => {

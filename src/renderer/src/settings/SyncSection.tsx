@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'rea
 import { errorCode } from '../backups'
 import { QUOTA } from '../../../core/sync/transport'
 import { countOf, untilTime, uploadCounts } from '../format'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { currentLocale, format, sentences, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
 import { lockedSentence } from '../licenceView'
@@ -68,7 +68,7 @@ function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string):
   ]
   const words = shown === 'stopped' && code ? (STOP_ADVICE[code] ?? REVOKED_WORDS[code]) : undefined
   if (words) parts.push(t(words))
-  return [...parts, ...statusDetails(snapshot, locale)].join(' ')
+  return sentences([...parts, ...statusDetails(snapshot, locale)])
 }
 
 const REVOKED_WORDS: Readonly<Record<string, MessageKey>> = {
@@ -566,7 +566,7 @@ export function SyncSection() {
   const statusDescription = !statusLine
     ? statusText(snapshot, pauseOver, locale)
     : snapshot.enabled
-      ? [statusLine.text, ...statusDetails(snapshot, locale)].join(' ')
+      ? sentences([statusLine.text, ...statusDetails(snapshot, locale)])
       : statusLine.text
   const statusActions = statusLine ? (
     <ICloudActions actions={statusLine.actions} locked={locked} failed={failed} cleared={cleared} />

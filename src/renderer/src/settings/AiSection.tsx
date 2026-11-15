@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { AI_PROVIDERS, type AiProviderId, type AiSettingsView } from '../../../core/aiProvider'
 import { errorCode } from '../backups'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { currentLocale, format, sentences, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
 import { lockedSentence } from '../licenceView'
@@ -238,7 +238,7 @@ export function AiSection() {
         </Setting>
         <Setting
           label="aiSettings.key"
-          description={`${t(KEY_STATES[shown.key])} ${t('aiSettings.keyHint')}`}
+          description={sentences([t(KEY_STATES[shown.key]), t('aiSettings.keyHint')])}
           htmlFor={field('key')}
           descriptionId={field('key-hint')}
         >

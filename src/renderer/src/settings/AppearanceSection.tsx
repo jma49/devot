@@ -20,7 +20,7 @@ import { useEditorSettings } from '../editorSettings'
 import { commandKeys } from '../commands/registry'
 import { shortcutLabel } from '../commands/keys'
 import { useKeymap } from '../commands/shortcutSettings'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { currentLocale, format, sentences, t, type MessageKey } from '../i18n'
 import {
   NumberStepper,
   Select,
@@ -50,7 +50,7 @@ function fontSizeHint(): string {
           smaller: shortcutLabel(smaller),
           reset: shortcutLabel(reset),
         })
-  return `${t('editorSettings.fontSizeHint')} ${keys}`
+  return sentences([t('editorSettings.fontSizeHint'), keys])
 }
 
 const ANIMATION_LABELS: Readonly<Record<AnimationsChoice, MessageKey>> = {

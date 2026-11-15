@@ -18,6 +18,9 @@ const phoneWordings: Record<string, Partial<Messages>> = { en: enPhone }
 const known = (locale: string) => locale === 'en' || locale in translations
 
 const SOURCE_LOCALE = 'en'
+/** Each catalog's language as the page declares it (`<html lang>`). */
+const SENTENCE_GAPS: Record<string, string> = { 'zh-hans': '' }
+const LANGUAGE_TAGS: Record<string, string> = { en: 'en', 'zh-hans': 'zh-Hans' }
 const TRADITIONAL_CHINESE = /^zh-(?:.*-)?(?:hant|tw|hk|mo)(?:-|$)/
 
 function catalogFor(tag: string): string | undefined {
@@ -50,6 +53,14 @@ export async function setLocale(locale: string): Promise<void> {
   }
   active = catalogs[locale] ?? en
   activeLocale = catalogs[locale] ? locale : SOURCE_LOCALE
+  // WebKit picks Han glyphs, line breaks and VoiceOver's voice by the page's language.
+  const page = (globalThis as { document?: { documentElement: { lang: string } } }).document
+  if (page) page.documentElement.lang = LANGUAGE_TAGS[activeLocale] ?? SOURCE_LOCALE
+}
+
+/** Sentences shown one after another: a space apart, but none after Chinese full-width punctuation. */
+export function sentences(parts: readonly string[]): string {
+  return parts.filter((part) => part !== '').join(SENTENCE_GAPS[activeLocale] ?? ' ')
 }
 
 export function currentLocale(): string {

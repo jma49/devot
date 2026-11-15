@@ -105,19 +105,17 @@ export function createNoteEmbeds(render?: RenderEmbedded): PreviewRenderer {
   return {
     id: NOTE_EMBEDS_ID,
     apiVersion: PREVIEW_API_VERSION,
-    async transform(tree, options) {
+    transform(tree, options) {
       const targets = render ? options.noteLinks : undefined
-      const visit = async (parent: Parent) => {
-        const out: RootContent[] = []
-        for (const child of parent.children) {
-          if (child.type !== 'element') {
-            out.push(child)
-            continue
-          }
+      const embeds: { parent: Parent; at: number; block: () => Promise<Element> }[] = []
+      // Most notes embed nothing: the walk waits for nothing, and only the embeds found are awaited.
+      const visit = (parent: Parent) => {
+        parent.children.forEach((child, at) => {
+          if (child.type !== 'element') return
           const id = embeddedId(child)
           if (id) {
-            out.push(asLink(child, id))
-            continue
+            parent.children[at] = asLink(child, id)
+            return
           }
           const content = child.tagName === 'p' ? child.children.filter((c) => !isBlank(c)) : []
           const only = content.length === 1 ? content[0]! : undefined
@@ -125,23 +123,29 @@ export function createNoteEmbeds(render?: RenderEmbedded): PreviewRenderer {
           const target =
             alone && targets && Object.hasOwn(targets, alone) ? targets[alone] : undefined
           if (alone && target?.embed && render) {
-            const block = await embedBlock(
-              alone,
-              { ...target, embed: target.embed },
-              options.labels.untitled,
-              render,
-              options,
-            )
-            if (child.position) block.position = child.position
-            out.push(block)
-            continue
+            const block = async () => {
+              const element = await embedBlock(
+                alone,
+                { ...target, embed: target.embed! },
+                options.labels.untitled,
+                render,
+                options,
+              )
+              if (child.position) element.position = child.position
+              return element
+            }
+            embeds.push({ parent, at, block })
+            return
           }
-          await visit(child)
-          out.push(child)
-        }
-        parent.children = out as typeof parent.children
+          visit(child)
+        })
       }
-      await visit(tree)
+      visit(tree)
+      if (embeds.length === 0) return undefined
+      // One after another, in the note's order, as each is rendered by the same renderers.
+      return (async () => {
+        for (const { parent, at, block } of embeds) parent.children[at] = await block()
+      })()
     },
   }
 }

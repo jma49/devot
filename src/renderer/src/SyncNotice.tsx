@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { t } from './i18n'
+import { sentences, t } from './i18n'
 import { LICENCE_REQUIRED } from './licence'
 import { LicenceButton } from './LicenceLocked'
 import { usePauseOver, type SyncSnapshot } from './sync'
@@ -22,7 +22,7 @@ export function SyncNotice(props: { snapshot: SyncSnapshot }) {
   // Each part is dismissed on its own, so the too-large note stays hidden while the stopped text comes and goes during a recheck.
   const shown = all.filter((part) => !dismissed?.includes(part))
   if (shown.length === 0) return null
-  const text = shown.join(' ')
+  const text = sentences(shown)
   const { code } = props.snapshot.status
   return (
     <div role="alert" className="notice" data-devot-part="notice">
