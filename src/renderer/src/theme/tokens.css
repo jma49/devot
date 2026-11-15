@@ -468,7 +468,6 @@
   --opacity-alert-edge: 0.2;
   --opacity-filter-icon: 0.3;
   --opacity-headline-icon: 0.8;
-  --backdrop-grain: url("data:image/png;base64,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");
   --color-phone-elevated: #ffffff;
   --color-phone-text: #111111;
   --color-phone-text-faint: #727277;
@@ -2327,7 +2326,7 @@
 
 /* The dawn gradient theme: data-theme='dawn' on the root element. */
 :root[data-theme='dawn'] {
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(245 196 216 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 0%, rgb(248 216 227 / 0.7) 50%, color-mix(in srgb, rgb(253 238 220 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(245 196 216 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 0%, rgb(248 216 227 / 0.7) 50%, color-mix(in srgb, rgb(253 238 220 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 100%);
   --color-phone-background: #fcedf3;
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-segment: rgb(184 58 104 / 0.1);
@@ -2340,7 +2339,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme='dawn']:not([data-appearance='light']) {
-    --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(74 34 54 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 0%, rgb(58 31 44 / 0.6) 50%, color-mix(in srgb, rgb(61 44 37 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 100%);
+    --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(74 34 54 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 0%, rgb(58 31 44 / 0.6) 50%, color-mix(in srgb, rgb(61 44 37 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 100%);
     --color-phone-background: #1e1219;
     --color-phone-card: rgb(238 127 166 / 0.08);
     --color-phone-segment: rgb(238 127 166 / 0.12);
@@ -2354,7 +2353,7 @@
 
 :root[data-theme='dawn'][data-appearance='dark'], [data-theme-preview='dawn'][data-appearance-preview='dark'] {
   color-scheme: dark;
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(74 34 54 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 0%, rgb(58 31 44 / 0.6) 50%, color-mix(in srgb, rgb(61 44 37 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(74 34 54 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 0%, rgb(58 31 44 / 0.6) 50%, color-mix(in srgb, rgb(61 44 37 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(58 31 44 / 0.6)) 100%);
   --color-phone-background: #1e1219;
   --color-phone-card: rgb(238 127 166 / 0.08);
   --color-phone-segment: rgb(238 127 166 / 0.12);
@@ -2367,7 +2366,7 @@
 
 :root[data-theme='dawn'][data-appearance='light'], [data-theme-preview='dawn'][data-appearance-preview='light'] {
   color-scheme: light;
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(245 196 216 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 0%, rgb(248 216 227 / 0.7) 50%, color-mix(in srgb, rgb(253 238 220 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(245 196 216 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 0%, rgb(248 216 227 / 0.7) 50%, color-mix(in srgb, rgb(253 238 220 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(248 216 227 / 0.7)) 100%);
   --color-phone-background: #fcedf3;
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-segment: rgb(184 58 104 / 0.1);
@@ -2380,7 +2379,7 @@
 
 /* The tide gradient theme: data-theme='tide' on the root element. */
 :root[data-theme='tide'] {
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(196 216 247 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 0%, rgb(216 227 248 / 0.7) 50%, color-mix(in srgb, rgb(198 229 242 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(196 216 247 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 0%, rgb(216 227 248 / 0.7) 50%, color-mix(in srgb, rgb(198 229 242 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 100%);
   --color-phone-background: #eef2fd;
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-segment: rgb(69 83 201 / 0.1);
@@ -2393,7 +2392,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme='tide']:not([data-appearance='light']) {
-    --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(30 47 80 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 0%, rgb(27 40 65 / 0.6) 50%, color-mix(in srgb, rgb(22 58 68 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 100%);
+    --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(30 47 80 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 0%, rgb(27 40 65 / 0.6) 50%, color-mix(in srgb, rgb(22 58 68 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 100%);
     --color-phone-background: #11141d;
     --color-phone-card: rgb(165 147 245 / 0.08);
     --color-phone-segment: rgb(165 147 245 / 0.12);
@@ -2407,7 +2406,7 @@
 
 :root[data-theme='tide'][data-appearance='dark'], [data-theme-preview='tide'][data-appearance-preview='dark'] {
   color-scheme: dark;
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(30 47 80 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 0%, rgb(27 40 65 / 0.6) 50%, color-mix(in srgb, rgb(22 58 68 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(30 47 80 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 0%, rgb(27 40 65 / 0.6) 50%, color-mix(in srgb, rgb(22 58 68 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(27 40 65 / 0.6)) 100%);
   --color-phone-background: #11141d;
   --color-phone-card: rgb(165 147 245 / 0.08);
   --color-phone-segment: rgb(165 147 245 / 0.12);
@@ -2420,7 +2419,7 @@
 
 :root[data-theme='tide'][data-appearance='light'], [data-theme-preview='tide'][data-appearance-preview='light'] {
   color-scheme: light;
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(196 216 247 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 0%, rgb(216 227 248 / 0.7) 50%, color-mix(in srgb, rgb(198 229 242 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(196 216 247 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 0%, rgb(216 227 248 / 0.7) 50%, color-mix(in srgb, rgb(198 229 242 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(216 227 248 / 0.7)) 100%);
   --color-phone-background: #eef2fd;
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-segment: rgb(69 83 201 / 0.1);
@@ -2433,7 +2432,7 @@
 
 /* The sage gradient theme: data-theme='sage' on the root element. */
 :root[data-theme='sage'] {
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(201 230 210 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 0%, rgb(220 236 214 / 0.7) 50%, color-mix(in srgb, rgb(218 233 191 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(201 230 210 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 0%, rgb(220 236 214 / 0.7) 50%, color-mix(in srgb, rgb(218 233 191 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 100%);
   --color-phone-background: #edf5ea;
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-segment: rgb(31 116 104 / 0.1);
@@ -2446,7 +2445,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme='sage']:not([data-appearance='light']) {
-    --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(30 58 42 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 0%, rgb(29 42 34 / 0.6) 50%, color-mix(in srgb, rgb(47 55 32 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 100%);
+    --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(30 58 42 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 0%, rgb(29 42 34 / 0.6) 50%, color-mix(in srgb, rgb(47 55 32 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 100%);
     --color-phone-background: #111712;
     --color-phone-card: rgb(92 192 176 / 0.08);
     --color-phone-segment: rgb(92 192 176 / 0.12);
@@ -2460,7 +2459,7 @@
 
 :root[data-theme='sage'][data-appearance='dark'], [data-theme-preview='sage'][data-appearance-preview='dark'] {
   color-scheme: dark;
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(30 58 42 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 0%, rgb(29 42 34 / 0.6) 50%, color-mix(in srgb, rgb(47 55 32 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(30 58 42 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 0%, rgb(29 42 34 / 0.6) 50%, color-mix(in srgb, rgb(47 55 32 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(29 42 34 / 0.6)) 100%);
   --color-phone-background: #111712;
   --color-phone-card: rgb(92 192 176 / 0.08);
   --color-phone-segment: rgb(92 192 176 / 0.12);
@@ -2473,7 +2472,7 @@
 
 :root[data-theme='sage'][data-appearance='light'], [data-theme-preview='sage'][data-appearance-preview='light'] {
   color-scheme: light;
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(201 230 210 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 0%, rgb(220 236 214 / 0.7) 50%, color-mix(in srgb, rgb(218 233 191 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(201 230 210 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 0%, rgb(220 236 214 / 0.7) 50%, color-mix(in srgb, rgb(218 233 191 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(220 236 214 / 0.7)) 100%);
   --color-phone-background: #edf5ea;
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-segment: rgb(31 116 104 / 0.1);
@@ -2486,7 +2485,7 @@
 
 /* The ember gradient theme: data-theme='ember' on the root element. */
 :root[data-theme='ember'] {
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(249 218 149 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 0%, rgb(252 211 170 / 0.7) 50%, color-mix(in srgb, rgb(255 198 160 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(249 218 149 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 0%, rgb(252 211 170 / 0.7) 50%, color-mix(in srgb, rgb(255 198 160 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 100%);
   --color-phone-background: #fcefe4;
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-segment: rgb(168 86 15 / 0.1);
@@ -2499,7 +2498,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme='ember']:not([data-appearance='light']) {
-    --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(79 59 14 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 0%, rgb(74 44 20 / 0.6) 50%, color-mix(in srgb, rgb(99 36 25 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 100%);
+    --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(79 59 14 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 0%, rgb(74 44 20 / 0.6) 50%, color-mix(in srgb, rgb(99 36 25 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 100%);
     --color-phone-background: #1d140c;
     --color-phone-card: rgb(243 154 82 / 0.08);
     --color-phone-segment: rgb(243 154 82 / 0.12);
@@ -2513,7 +2512,7 @@
 
 :root[data-theme='ember'][data-appearance='dark'], [data-theme-preview='ember'][data-appearance-preview='dark'] {
   color-scheme: dark;
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(79 59 14 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 0%, rgb(74 44 20 / 0.6) 50%, color-mix(in srgb, rgb(99 36 25 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(79 59 14 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 0%, rgb(74 44 20 / 0.6) 50%, color-mix(in srgb, rgb(99 36 25 / 0.6) calc(var(--gradient-strength, 100) * 1%), rgb(74 44 20 / 0.6)) 100%);
   --color-phone-background: #1d140c;
   --color-phone-card: rgb(243 154 82 / 0.08);
   --color-phone-segment: rgb(243 154 82 / 0.12);
@@ -2526,7 +2525,7 @@
 
 :root[data-theme='ember'][data-appearance='light'], [data-theme-preview='ember'][data-appearance-preview='light'] {
   color-scheme: light;
-  --backdrop: var(--backdrop-grain), linear-gradient(160deg, color-mix(in srgb, rgb(249 218 149 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 0%, rgb(252 211 170 / 0.7) 50%, color-mix(in srgb, rgb(255 198 160 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 100%);
+  --backdrop: linear-gradient(160deg, color-mix(in srgb, rgb(249 218 149 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 0%, rgb(252 211 170 / 0.7) 50%, color-mix(in srgb, rgb(255 198 160 / 0.7) calc(var(--gradient-strength, 100) * 1%), rgb(252 211 170 / 0.7)) 100%);
   --color-phone-background: #fcefe4;
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-segment: rgb(168 86 15 / 0.1);
