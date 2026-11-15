@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { format, resolveLocale, setIPhoneWording, setLocale, setPhoneDevice, t } from '.'
+import { format, resolveLocale, sentences, setIPhoneWording, setLocale, setPhoneDevice, t } from '.'
 import { en } from './en'
 import { enPhone } from './phone'
 import { zhHans, zhHansPhone } from './zh-Hans'
@@ -38,6 +38,14 @@ describe('i18n', () => {
     expect(t('noteList.newNote')).toBe(zhHans['noteList.newNote'])
     setIPhoneWording(false)
     expect(t('usage.storage')).toBe(zhHans['usage.storage'])
+    await setLocale('en')
+  })
+
+  it('puts a space between sentences, but none after Chinese full-width punctuation', async () => {
+    expect(sentences(['Off.', '', 'Never synced.'])).toBe('Off. Never synced.')
+    await setLocale('zh-hans')
+    const [off, never] = [zhHans['syncSettings.state.off']!, zhHans['syncSettings.neverSynced']!]
+    expect(sentences([off, never])).toBe(off + never)
     await setLocale('en')
   })
 
