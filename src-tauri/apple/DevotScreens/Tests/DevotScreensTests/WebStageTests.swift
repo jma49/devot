@@ -214,6 +214,36 @@ final class WebStageTests: XCTestCase {
         XCTAssertEqual(screen.view.safeAreaInsets, window.safeAreaInsets)
         XCTAssertEqual(webView.safeAreaInsets, window.safeAreaInsets)
     }
+
+    /// iPhone Duo stands the navigation bar and toolbar along a side: the page keeps clear of them
+    /// there, and still lays out its top and foot by the window's safe area.
+    func testBarsAlongASideReachThePageButTheTopAndFootStayTheWindows() throws {
+        let container = UIViewController()
+        container.additionalSafeAreaInsets = UIEdgeInsets(top: 44, left: 0, bottom: 49, right: 60)
+        let window = try shownWindow(container)
+        let webView = RecordingWebView(frame: window.bounds)
+        container.view.addSubview(webView)
+        let screen = HoldingScreen(host: WebViewHost(webView: webView))
+        container.addChild(screen)
+        screen.view.frame = container.view.bounds
+        container.view.addSubview(screen.view)
+        screen.didMove(toParent: container)
+        container.view.layoutIfNeeded()
+        let windowInsets = window.safeAreaInsets
+        let expected = UIEdgeInsets(
+            top: windowInsets.top, left: windowInsets.left, bottom: windowInsets.bottom,
+            right: windowInsets.right + 60)
+        XCTAssertTrue(webView.superview === screen.view)
+        XCTAssertEqual(screen.view.safeAreaInsets, expected)
+        XCTAssertEqual(webView.safeAreaInsets, expected)
+    }
+
+    func testThePageTakesTheLargerSideInsetAndTheWindowsTopAndFoot() {
+        let insets = WindowSafeAreaView.pageInsets(
+            window: UIEdgeInsets(top: 20, left: 0, bottom: 34, right: 59),
+            own: UIEdgeInsets(top: 98, left: 72, bottom: 83, right: 40))
+        XCTAssertEqual(insets, UIEdgeInsets(top: 20, left: 72, bottom: 34, right: 59))
+    }
 }
 
 /// A screen that holds the web view and nothing else.
