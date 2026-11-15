@@ -44,10 +44,11 @@ final class EditorCover: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         let edge = Tokens.Size.phoneScreenEdge
-        let width = max(0, bounds.width - 2 * edge)
+        let sides = safeAreaInsets
+        let width = max(0, bounds.width - sides.left - sides.right - 2 * edge)
         let height = label.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
         label.frame = CGRect(
-            x: edge, y: (window?.safeAreaInsets.top ?? safeAreaInsets.top) + Tokens.Size.phoneContentTop,
+            x: sides.left + edge, y: (window?.safeAreaInsets.top ?? sides.top) + Tokens.Size.phoneContentTop,
             width: width, height: height)
     }
 

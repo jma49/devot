@@ -833,9 +833,12 @@ button.phone-grouped-open:active:not(:disabled) {
 
 /* Note */
 
+/* The side insets hold a sideways phone's camera and, on iPhone Duo, the system bars along an edge. */
 .phone-scroll.phone-note-scroll {
-  padding: calc(var(--phone-safe-top) + var(--size-phone-content-top)) var(--size-phone-list-edge)
-    calc(var(--size-phone-editor-toolbar) + var(--size-phone-tab-bottom) * 2);
+  padding: calc(var(--phone-safe-top) + var(--size-phone-content-top))
+    calc(env(safe-area-inset-right) + var(--size-phone-list-edge))
+    calc(var(--size-phone-editor-toolbar) + var(--size-phone-tab-bottom) * 2)
+    calc(env(safe-area-inset-left) + var(--size-phone-list-edge));
   display: flex;
   flex-direction: column;
   gap: 12px;
