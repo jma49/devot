@@ -456,6 +456,7 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
 - When the pop completes, the revealed list's screen takes the web view with animations off, brings its still to the front and sends `editor.hide`; the still goes when the page answers, or after 400 ms.
 - The popped screen's view leaves the window before the transition coordinator's completion runs, and a covered screen's view can leave it before the pushed screen appears, either of which would take the web view out of the window with it.
   So the hand-over happens as that view leaves the window (`willMove(toWindow: nil)` on the container): a covered screen leaves its still first and rests the web view in `WebStage`, a popped one gives it to the revealed screen, and the completion takes the view only if nothing has.
+- A still keeps the size the window had when it was left: if the window has changed size since (a turn, a fold or unfold, Split View), the screen drops the still as it appears and raises its cover instead, so a still of the old size never shows over the page in the new one.
 - A tab switch rests the web view in `WebStage` from the leaving screen; the list of the tab shown takes it and sends `editor.hide` if a note was shown, and returning to the tab shows the note again under its cover.
 - The navigation bar is hidden on a list and shown on a note, each screen setting it in `viewWillAppear`; the content pop gesture is off, so only the edge swipe pops, and the back button shows only its chevron (`backButtonDisplayMode = .minimal`).
 

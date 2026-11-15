@@ -315,6 +315,29 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertNil(still.superview)
     }
 
+    func testAStillLeftBeforeTheWindowChangedSizeGivesWayToTheCover() throws {
+        let window = try XCTUnwrap(window)
+        let one = editor(first)
+        push(one)
+        one.ready(first)
+        push(editor(second, title: "Second"))
+        XCTAssertNotNil(one.snapshot)
+
+        let folded = CGSize(width: window.bounds.height, height: window.bounds.width)
+        window.frame = CGRect(origin: .zero, size: folded)
+        host.windowSize(folded)
+        navigation.popViewController(animated: true)
+        settleTransition()
+        XCTAssertNil(one.snapshot, "a still of the old size never shows over the new one")
+        XCTAssertTrue(webView.isDescendant(of: one.view))
+        XCTAssertEqual(webView.bounds.size, folded)
+        XCTAssertTrue(one.cover.waiting)
+        XCTAssertFalse(one.cover.isHidden)
+        XCTAssertEqual(page.shown, [first, second, first])
+        one.ready(first)
+        XCTAssertFalse(one.cover.waiting)
+    }
+
     func testARevealedNotesStillGoesAnywayWhenThePageIsSlow() throws {
         let one = editor(first, coverTimeout: 0.2)
         push(one)
