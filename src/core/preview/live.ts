@@ -125,7 +125,8 @@ export function createLivePreviewRenderer(
 
   return async (markdown, options, known, scope) => {
     const links = noteLinks(markdown)
-    const targets = await targetsFor(links, noteEmbeds(markdown), scope)
+    // An embed is a note link too: a note that links none is not searched again for embeds.
+    const targets = await targetsFor(links, links.length > 0 ? noteEmbeds(markdown) : [], scope)
     const pieces = await sources.renderPieces(
       markdown,
       targets ? { ...options, noteLinks: targets } : options,

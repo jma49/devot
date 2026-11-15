@@ -10,6 +10,7 @@ import {
   type PreviewLabels,
 } from '../../src/core'
 import { embeddedBody, MAX_EMBED_CHARS } from '../../src/core/notes/links'
+import { createNoteEmbeds } from '../../src/core/preview/noteEmbeds'
 
 const labels: PreviewLabels = {
   alerts: {
@@ -187,5 +188,53 @@ describe('note embeds in the preview', () => {
       first.map((p) => p.key),
     )
     expect(again.some((piece) => piece.nodes !== undefined)).toBe(true)
+  })
+
+  it('shows several embeds in the order the note has them, around text and nested blocks', async () => {
+    const md = `${noteEmbed('One', A)}\n\n> ${noteEmbed('Two', B)}\n\nText\n\n${noteEmbed('Three', C)}`
+    const tree = await render(md, {
+      [A]: target('first body'),
+      [B]: target('second body'),
+      [C]: target('third body'),
+    })
+    expect(byClass(tree, 'note-embed-body').map(text)).toEqual([
+      'first body',
+      'second body',
+      'third body',
+    ])
+    expect(text(tree)).toMatch(/first body[\s\S]*second body[\s\S]*Text[\s\S]*third body/)
+  })
+
+  it('waits for nothing in a note that embeds none, which is nearly every note', async () => {
+    const tree = await render(`Text with ![a picture](https://example.com/a.png)\n\n- [x] done`)
+    const rendered: string[] = []
+    const embeds = createNoteEmbeds(async (markdown) => {
+      rendered.push(markdown)
+      return []
+    })
+    const context = { labels, loadedEmbeds: [], frontmatter: null, source: '' }
+    expect(embeds.transform(tree, context)).toBeUndefined()
+    const withEmbed: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'element',
+          tagName: 'p',
+          properties: {},
+          children: [
+            {
+              type: 'element',
+              tagName: 'img',
+              properties: { src: `devot://note/${A}`, alt: 'Groceries' },
+              children: [],
+            },
+          ],
+        },
+      ],
+    }
+    const waited = embeds.transform(withEmbed, { ...context, noteLinks: { [A]: target('milk') } })
+    expect(waited).toBeInstanceOf(Promise)
+    await waited
+    expect(rendered).toEqual(['milk'])
   })
 })
