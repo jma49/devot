@@ -57,14 +57,22 @@ export function currentLocale(): string {
 }
 
 let phoneWording = false
+let onIPad = false
 
 /** Words messages that name the Mac for the iPhone layout. */
 export function setIPhoneWording(on: boolean): void {
   phoneWording = on
 }
 
+/** The phone layout's messages name the iPhone; on an iPad they name the iPad, in every language. */
+export function setPhoneDevice(device: 'iPhone' | 'iPad'): void {
+  onIPad = device === 'iPad'
+}
+
 export function t(key: MessageKey): string {
-  return (phoneWording ? phoneWordings[activeLocale]?.[key] : undefined) ?? active[key] ?? en[key]
+  const text =
+    (phoneWording ? phoneWordings[activeLocale]?.[key] : undefined) ?? active[key] ?? en[key]
+  return phoneWording && onIPad ? text.replaceAll('iPhone', 'iPad') : text
 }
 
 /**

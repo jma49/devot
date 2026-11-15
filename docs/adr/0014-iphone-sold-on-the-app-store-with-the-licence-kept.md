@@ -116,6 +116,8 @@ StoreKit 2 has a Swift interface only. A small Swift package (`src-tauri/apple/D
 
 A release build is an App Store build when the release workflow sets the distribution at build time (beside `DEVOT_RELEASE_BUILD`); `keys.rs`' `gates()` is unchanged. Only that build reads StoreKit, uses the trial purchase and hides every outside purchase link; a development build installed from a Mac keeps the keychain trial and the licence alone. The first release sets the device family to iPhone only.
 
+Amended: the iOS app is built for the iPhone and the iPad (device families 1 and 2), the iPad in the phone layout and in every orientation, so it runs in Split View and Stage Manager.
+
 ## Threat model
 
 | Attack                                                                             | Defence                                                                                                                                                                                                           |

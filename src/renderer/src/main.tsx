@@ -2,8 +2,8 @@ import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { invoke } from './ipc'
 import { App } from './App'
-import { isPhoneLayout } from './phone/navigation'
-import { resolveLocale, setIPhoneWording, setLocale } from './i18n'
+import { isPhoneLayout, phoneDevice } from './phone/navigation'
+import { resolveLocale, setIPhoneWording, setLocale, setPhoneDevice } from './i18n'
 import { watchCompositions } from './ime'
 import { startCrashReporting } from './crash'
 import { startCore } from './core-client'
@@ -34,6 +34,7 @@ if (sentryDsn) {
 
 await setLocale(resolveLocale(navigator.languages))
 setIPhoneWording(isPhoneLayout(navigator.userAgent))
+setPhoneDevice(phoneDevice(navigator.userAgent, navigator.maxTouchPoints))
 // Before any key handler: the key that ends a composition is the input method's.
 watchCompositions(window)
 startEditorSettings()

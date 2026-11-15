@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // The C functions src-tauri/src/native/ios/screens.rs declares, and the Rust functions it hands
 // over at install, so Rust exports no symbol. A buffer passed either way is valid only until the
@@ -64,6 +65,7 @@ public func devotScreensInstall(
             rust.log(.warn, "W_SCREENS_INSTALL_REFUSED reason=twice")
             return false
         }
+        L10n.onIPad = UIDevice.current.userInterfaceIdiom == .pad
         Screens.shared = Screens.attach(webView: view, root: controller, rust: rust)
         return Screens.shared != nil
     }

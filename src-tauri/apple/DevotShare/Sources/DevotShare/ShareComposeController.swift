@@ -15,6 +15,7 @@ open class ShareComposeController: UIViewController {
 
     override open func viewDidLoad() {
         super.viewDidLoad()
+        ShareL10n.onIPad = traitCollection.userInterfaceIdiom == .pad
         let navigation = UINavigationController(rootViewController: form)
         addChild(navigation)
         navigation.view.frame = view.bounds
