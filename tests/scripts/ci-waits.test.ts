@@ -12,7 +12,15 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { parts, selection, testClasses } from '../../scripts/ci/screens-shards'
 import { verdict, waitFor } from '../../scripts/ci/wait-for-artifact'
+import { hasStarted } from '../../scripts/ci/wait-for-job-start'
 import { tempDir } from '../support/temp-dirs'
+
+it('counts a job as started once it holds a runner, and only then', () => {
+  for (const status of ['in_progress', 'completed']) expect(hasStarted(status)).toBe(true)
+  for (const status of ['queued', 'waiting', 'pending', 'requested', undefined]) {
+    expect(hasStarted(status)).toBe(false)
+  }
+})
 
 it('waits for the artifact while its job runs and stops when the job ended without it', async () => {
   expect(verdict({ artifact: true, conclusion: undefined })).toBe('ready')

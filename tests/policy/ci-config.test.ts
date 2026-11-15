@@ -77,7 +77,7 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
   expect(parsed['ios-check']!.if).toBe(
     "${{ !cancelled() && needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true' }}",
   )
-  const startTogether = ['mac-tests', 'ios-app', 'iphone-build', 'iphone-ui']
+  const startTogether = ['mac-tests', 'ios-app', 'iphone-build']
   for (const name of startTogether) {
     expect({ name, needs: parsed[name]!.needs }).toEqual({ name, needs: 'changes' })
   }
@@ -100,6 +100,7 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
     'mac-tests',
     'mac-compat',
     'iphone-build',
+    'iphone-build-started',
     'iphone-ui',
     'deny',
   ])
@@ -108,9 +109,10 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
   expect(gate).toContain('MAC: ${{ needs.mac-tests.result }}')
   expect(gate).toContain('MAC_COMPAT: ${{ needs.mac-compat.result }}')
   expect(gate).toContain('IPHONE_BUILD: ${{ needs.iphone-build.result }}')
+  expect(gate).toContain('IPHONE_STARTED: ${{ needs.iphone-build-started.result }}')
   expect(gate).toContain('IPHONE_UI: ${{ needs.iphone-ui.result }}')
   expect(gate).toContain(
-    'for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$MAC" "$MAC_COMPAT" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"',
+    'for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$MAC" "$MAC_COMPAT" "$IPHONE_BUILD" "$IPHONE_STARTED" "$IPHONE_UI" "$DENY"',
   )
   // The release builds on Apple Silicon with macOS 26; this runs the native tests at the other end.
   const minimum = (
@@ -204,10 +206,17 @@ it('builds the iPhone app once per run, in iphone-build, and the UI test shards 
   expect(ci.jobs['iphone-build']!.if).toBe(
     "needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'",
   )
-  // A job that needs iphone-build would start only once all of it has ended. A shard starts beside
-  // it, boots its simulator while the app builds and waits for the artifact, then for the app.
+  // A job that needs iphone-build would start only once all of it has ended. A shard starts once
+  // the build holds a runner, boots its simulator while the app builds and waits for the artifact:
+  // started before the build had a runner, it held one of the five macOS runners the build waited for.
   const shards = ci.jobs['iphone-ui']!
-  expect(shards.needs).toBe('changes')
+  expect(shards.needs).toEqual(['changes', 'iphone-build-started'])
+  const started = ci.jobs['iphone-build-started']!
+  expect(started['runs-on']).toBe('ubuntu-latest')
+  expect(started.if).toBe(shards.if)
+  expect(started.steps.map((step) => step.run ?? '')).toContain(
+    "node scripts/ci/wait-for-job-start.ts 'iPhone app build'",
+  )
   expect(shards.if).toBe(
     "needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.docs_only != 'true'",
   )
