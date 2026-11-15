@@ -57,10 +57,10 @@ final class HeatmapGrid: UIView {
     private var monthFont: UIFont { .preferredFont(forTextStyle: .caption2, compatibleWith: traitCollection) }
     private var monthHeight: CGFloat { monthFont.lineHeight }
 
-    /// How far the whole grid grows to fill a wide card: on an iPad up to `phoneHeatCellWide` a day,
-    /// so the weeks span the card instead of a phone's width of it; an iPhone keeps the design's size.
+    /// How far the whole grid grows to fill a wide card: at a regular width up to `phoneHeatCellWide`
+    /// a day, so the weeks span the card instead of a phone's width of it; a compact width keeps the design's size.
     var growth: CGFloat {
-        guard traitCollection.userInterfaceIdiom == .pad, bounds.width > 0 else { return 1 }
+        guard traitCollection.horizontalSizeClass == .regular, bounds.width > 0 else { return 1 }
         let weeks = CGFloat(ActivityWriting.weeks)
         let natural = weeks * scaledCell + (weeks - 1) * scaledGap
         return min(max(bounds.width / natural, 1), Tokens.Size.phoneHeatCellWide / Tokens.Size.phoneHeatCell)

@@ -27,11 +27,10 @@ final class ActivityScreenTests: XCTestCase {
         window = nil
     }
 
-    private func shown(onIPad: Bool = false) -> ActivityScreen {
+    private func shown(regular: Bool = false) -> ActivityScreen {
         let screen = ActivityScreen(context: context)
         let navigation = UINavigationController(rootViewController: screen)
-        if onIPad {
-            navigation.traitOverrides.userInterfaceIdiom = .pad
+        if regular {
             navigation.traitOverrides.horizontalSizeClass = .regular
             window?.frame = CGRect(x: 0, y: 0, width: 1194, height: 834)
         }
@@ -149,7 +148,7 @@ final class ActivityScreenTests: XCTestCase {
         XCTAssertTrue(months.allSatisfy { grid.bounds.insetBy(dx: -0.5, dy: -0.5).contains($0) }, "\(months) in \(grid.bounds)")
     }
 
-    func testOnAnIPhoneTheHeatmapKeepsTheDesignsSize() throws {
+    func testAtACompactWidthTheHeatmapKeepsTheDesignsSize() throws {
         let screen = shown()
         bridge.answer(Op.activityWriting.rawValue, answer(this: []))
         let grid = try XCTUnwrap((cell(.heatmap)(screen) as HeatmapCell?)?.grid)
@@ -157,8 +156,8 @@ final class ActivityScreenTests: XCTestCase {
         XCTAssertEqual(grid.cell, Tokens.Size.phoneHeatCell, accuracy: 0.01)
     }
 
-    func testOnAWideIPadTheCardsKeepToTheReadableWidthAndTheHeatmapGrowsAcrossItsCard() throws {
-        let screen = shown(onIPad: true)
+    func testAtARegularWidthTheCardsKeepToTheReadableWidthAndTheHeatmapGrowsAcrossItsCard() throws {
+        let screen = shown(regular: true)
         bridge.answer(Op.activityWriting.rawValue, answer(this: [("a", "Plan", 30)]))
         screen.collection.layoutIfNeeded()
         let readable = screen.collection.readableContentGuide.layoutFrame

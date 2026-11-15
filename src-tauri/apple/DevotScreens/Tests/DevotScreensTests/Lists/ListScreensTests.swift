@@ -59,7 +59,7 @@ final class ListScreensTests: XCTestCase {
         XCTAssertFalse(list.collection.isEditing)
     }
 
-    private func rowFrames(onIPad: Bool, appearance: UICollectionLayoutListConfiguration.Appearance) -> (rows: [CGRect], readable: CGRect, bounds: CGRect) {
+    private func rowFrames(regular: Bool, appearance: UICollectionLayoutListConfiguration.Appearance) -> (rows: [CGRect], readable: CGRect, bounds: CGRect) {
         let screen = UIViewController()
         let collection = UICollectionView(frame: .zero, collectionViewLayout: .readableList(.init(appearance: appearance)))
         let rows = UICollectionView.CellRegistration<UICollectionViewListCell, Int> { cell, _, item in
@@ -75,10 +75,7 @@ final class ListScreensTests: XCTestCase {
         snapshot.appendItems([1, 2, 3])
         data.apply(snapshot, animatingDifferences: false)
         screen.view = collection
-        if onIPad {
-            screen.traitOverrides.userInterfaceIdiom = .pad
-            screen.traitOverrides.horizontalSizeClass = .regular
-        }
+        screen.traitOverrides.horizontalSizeClass = regular ? .regular : .compact
         window?.frame = CGRect(x: 0, y: 0, width: 1194, height: 834)
         window?.rootViewController = screen
         window?.makeKeyAndVisible()
@@ -87,9 +84,9 @@ final class ListScreensTests: XCTestCase {
         return (frames, collection.readableContentGuide.layoutFrame, collection.bounds)
     }
 
-    func testOnAnIPadAListKeepsToTheReadableWidth() {
+    func testAtARegularWidthAListKeepsToTheReadableWidth() {
         for appearance in [UICollectionLayoutListConfiguration.Appearance.plain, .insetGrouped] {
-            let shown = rowFrames(onIPad: true, appearance: appearance)
+            let shown = rowFrames(regular: true, appearance: appearance)
             XCTAssertEqual(shown.rows.count, 3)
             XCTAssertLessThan(shown.readable.width, shown.bounds.width - 100)
             for row in shown.rows {
@@ -99,8 +96,8 @@ final class ListScreensTests: XCTestCase {
         }
     }
 
-    func testOnAnIPhoneAPlainListStillSpansTheScreen() {
-        let shown = rowFrames(onIPad: false, appearance: .plain)
+    func testAtACompactWidthAPlainListStillSpansTheScreen() {
+        let shown = rowFrames(regular: false, appearance: .plain)
         XCTAssertEqual(shown.rows.count, 3)
         XCTAssertTrue(shown.rows.allSatisfy { $0.width == shown.bounds.width })
     }

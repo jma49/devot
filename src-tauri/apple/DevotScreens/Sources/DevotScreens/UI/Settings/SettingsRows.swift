@@ -313,15 +313,16 @@ func catalog(_ key: String) -> String {
 }
 
 extension UIViewController {
-    /// On an iPad a Settings page keeps to the readable width the native lists keep to: its sides
+    /// At a regular width a Settings page keeps to the readable width the native lists keep to: its sides
     /// become safe area, which the grouped list insets its rows from while its background runs on.
     /// The width is read from the navigation stack's view, which these insets never narrow.
     func keepToTheReadableWidth() {
-        guard traitCollection.userInterfaceIdiom == .pad, let outer = navigationController?.view else { return }
-        let readable = outer.readableContentGuide.layoutFrame
-        let sides = UIEdgeInsets(
-            top: 0, left: max(0, readable.minX - outer.layoutMargins.left), bottom: 0,
-            right: max(0, outer.bounds.maxX - outer.layoutMargins.right - readable.maxX))
+        var sides = UIEdgeInsets.zero
+        if traitCollection.horizontalSizeClass == .regular, let outer = navigationController?.view {
+            let readable = outer.readableContentGuide.layoutFrame
+            sides.left = max(0, readable.minX - outer.layoutMargins.left)
+            sides.right = max(0, outer.bounds.maxX - outer.layoutMargins.right - readable.maxX)
+        }
         guard additionalSafeAreaInsets != sides else { return }
         additionalSafeAreaInsets = sides
     }
