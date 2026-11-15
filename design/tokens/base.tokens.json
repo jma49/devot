@@ -2787,6 +2787,11 @@
       "$value": { "value": 16, "unit": "px" },
       "$description": "A day in the phone's heatmap."
     },
+    "phone-heat-cell-wide": {
+      "$type": "dimension",
+      "$value": { "value": 40, "unit": "px" },
+      "$description": "The most a day in the heatmap grows to on an iPad, with its gap and corner in proportion."
+    },
     "phone-heat-gap": {
       "$type": "dimension",
       "$value": { "value": 4, "unit": "px" },

@@ -259,6 +259,7 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        keepToTheReadableWidth()
         if placeKeeper == nil, let list = view.firstSubview(of: UICollectionView.self) {
             placeKeeper = PlaceKeeper(list, keepsTheFoot: true)
         }

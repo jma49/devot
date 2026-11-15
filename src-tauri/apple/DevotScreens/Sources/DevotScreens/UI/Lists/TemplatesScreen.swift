@@ -32,7 +32,7 @@ final class TemplatePicker: UIViewController, UICollectionViewDelegate {
         var list = UICollectionLayoutListConfiguration(appearance: .insetGrouped)
         list.backgroundColor = Tokens.Color.phoneBackground
         let collection = UICollectionView(
-            frame: view.bounds, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: list))
+            frame: view.bounds, collectionViewLayout: .readableList(list))
         collection.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collection.delegate = self
         view.addSubview(collection)

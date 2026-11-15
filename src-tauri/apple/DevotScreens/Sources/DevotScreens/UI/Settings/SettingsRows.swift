@@ -272,6 +272,7 @@ final class SettingsHosting<Content: View>: UIHostingController<Content> {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        keepToTheReadableWidth()
         if placeKeeper == nil, let list = view.firstSubview(of: UICollectionView.self) {
             placeKeeper = PlaceKeeper(list)
         }
@@ -309,4 +310,20 @@ extension View {
 /// A catalog string by its key, for the keys a table of settings names.
 func catalog(_ key: String) -> String {
     L10n.text(key, key)
+}
+
+extension UIViewController {
+    /// At a regular width a Settings page keeps to the readable width the native lists keep to: its sides
+    /// become safe area, which the grouped list insets its rows from while its background runs on.
+    /// The width is read from the navigation stack's view, which these insets never narrow.
+    func keepToTheReadableWidth() {
+        var sides = UIEdgeInsets.zero
+        if traitCollection.horizontalSizeClass == .regular, let outer = navigationController?.view {
+            let readable = outer.readableContentGuide.layoutFrame
+            sides.left = max(0, readable.minX - outer.layoutMargins.left)
+            sides.right = max(0, outer.bounds.maxX - outer.layoutMargins.right - readable.maxX)
+        }
+        guard additionalSafeAreaInsets != sides else { return }
+        additionalSafeAreaInsets = sides
+    }
 }

@@ -23,7 +23,7 @@ class ListScreen: UIViewController {
     required init?(coder: NSCoder) { nil }
 
     func makeLayout() -> UICollectionViewLayout {
-        UICollectionViewCompositionalLayout.list(using: UICollectionLayoutListConfiguration(appearance: .plain))
+        .readableList(UICollectionLayoutListConfiguration(appearance: .plain))
     }
 
     override func viewDidLoad() {
@@ -64,5 +64,23 @@ class ListScreen: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         context.hideEditor {}
+    }
+}
+
+extension NSCollectionLayoutSection {
+    /// At a regular width (an iPad, an unfolded iPhone Duo) a list keeps to the readable width, as a
+    /// page of text does, instead of stretching its rows across the screen; a compact width keeps its margins.
+    func keepingReadable(_ environment: NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection {
+        if environment.traitCollection.horizontalSizeClass == .regular { contentInsetsReference = .readableContent }
+        return self
+    }
+}
+
+extension UICollectionViewLayout {
+    /// `UICollectionViewCompositionalLayout.list(using:)`, kept to the readable width at a regular width.
+    static func readableList(_ list: UICollectionLayoutListConfiguration) -> UICollectionViewCompositionalLayout {
+        UICollectionViewCompositionalLayout { _, environment in
+            NSCollectionLayoutSection.list(using: list, layoutEnvironment: environment).keepingReadable(environment)
+        }
     }
 }

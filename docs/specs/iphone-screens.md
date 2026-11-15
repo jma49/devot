@@ -35,6 +35,15 @@ UIApplication (tao's app delegate, unchanged)
 - **Page.** A `screens` folder in `src/renderer/src/phone/` holds the bridge, the table from operation names to core calls, the change notices and the editor host.
   It runs only when Rust reports that the native screens are installed.
 
+### At a regular width
+
+The iPad and an unfolded iPhone Duo run the same screens in the phone layout (ADR 0014), so nothing is drawn only for them, but a regular width keeps the screens from stretching.
+
+- Every native list keeps to the system's readable width at a regular width (`keepingReadable`, `readableList` in `ListScreen.swift`), so cards and rows sit in a centred column instead of spanning a landscape screen; a compact width, such as an iPhone in portrait or a narrow Split View pane, keeps its margins.
+- The Settings pages keep to the same width: `keepToTheReadableWidth` makes the sides safe area, read from the navigation stack's readable guide, and the grouped list insets its rows from it while its background runs on.
+- A note wider than `size.reading-width` inside its side safe area centres its column (`.phone-note-scroll`), and the editor cover's title follows, so a note on an iPad reads as a page instead of lines across the screen.
+- Activity's heatmap grows with its card at a regular width, days, gaps and corners in proportion, up to `size.phone-heat-cell-wide` a day, so the fifteen weeks span the card.
+
 ## Install and the kill switch
 
 1. `native::main_window_built` (`src-tauri/src/native/mod.rs`) installs the screens after it hides WebKit's bar above the keyboard.

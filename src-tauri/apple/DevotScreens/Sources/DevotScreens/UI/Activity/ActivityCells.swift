@@ -33,6 +33,7 @@ final class HeatmapGrid: UIView {
     }
 
     private var months: [String] = []
+    var resized: () -> Void = {}
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -50,16 +51,28 @@ final class HeatmapGrid: UIView {
     required init?(coder: NSCoder) { nil }
 
     private var metrics: UIFontMetrics { UIFontMetrics(forTextStyle: .caption2) }
-    private var gap: CGFloat { metrics.scaledValue(for: Tokens.Size.phoneHeatGap, compatibleWith: traitCollection) }
+    private var scaledCell: CGFloat { metrics.scaledValue(for: Tokens.Size.phoneHeatCell, compatibleWith: traitCollection) }
+    private var scaledGap: CGFloat { metrics.scaledValue(for: Tokens.Size.phoneHeatGap, compatibleWith: traitCollection) }
+    private var gap: CGFloat { scaledGap * growth }
+    private var radius: CGFloat { Tokens.Radius.phoneHeatCell * growth }
     private var monthFont: UIFont { .preferredFont(forTextStyle: .caption2, compatibleWith: traitCollection) }
     private var monthHeight: CGFloat { monthFont.lineHeight }
 
-    /// The scaled cell, shrunk to fit the weeks across the width it has.
-    private var cell: CGFloat {
-        let scaled = metrics.scaledValue(for: Tokens.Size.phoneHeatCell, compatibleWith: traitCollection)
+    /// How far the whole grid grows to fill a wide card: at a regular width up to `phoneHeatCellWide`
+    /// a day, so the weeks span the card instead of a phone's width of it; a compact width keeps the design's size.
+    var growth: CGFloat {
+        guard traitCollection.horizontalSizeClass == .regular, bounds.width > 0 else { return 1 }
         let weeks = CGFloat(ActivityWriting.weeks)
-        guard bounds.width > 0 else { return scaled }
-        return min(scaled, (bounds.width - (weeks - 1) * gap) / weeks)
+        let natural = weeks * scaledCell + (weeks - 1) * scaledGap
+        return min(max(bounds.width / natural, 1), Tokens.Size.phoneHeatCellWide / Tokens.Size.phoneHeatCell)
+    }
+
+    /// The scaled cell, grown as `growth` allows and shrunk to fit the weeks across the width it has.
+    var cell: CGFloat {
+        let grown = scaledCell * growth
+        let weeks = CGFloat(ActivityWriting.weeks)
+        guard bounds.width > 0 else { return grown }
+        return min(grown, (bounds.width - (weeks - 1) * gap) / weeks)
     }
 
     override var intrinsicContentSize: CGSize {
@@ -68,7 +81,10 @@ final class HeatmapGrid: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if abs(intrinsicContentSize.height - bounds.height) > 0.5 { invalidateIntrinsicContentSize() }
+        if abs(intrinsicContentSize.height - bounds.height) > 0.5 {
+            invalidateIntrinsicContentSize()
+            resized()
+        }
     }
 
     /// Where each month's name is drawn: over its week, kept inside the grid.
@@ -91,7 +107,6 @@ final class HeatmapGrid: UIView {
             (month as NSString).draw(in: frame, withAttributes: attributes)
         }
         let top = monthHeight + gap
-        let radius = Tokens.Radius.phoneHeatCell
         for (week, column) in writing.grid.enumerated() {
             for (row, level) in column.enumerated() {
                 guard let level else { continue }
@@ -113,6 +128,8 @@ final class HeatmapCell: UICollectionViewListCell {
     override init(frame: CGRect) {
         super.init(frame: frame)
         paintAsCard()
+        // The grid's height follows the width it is given, known only once the row is laid out.
+        grid.resized = { [weak self] in self?.invalidateIntrinsicContentSize() }
         title.text = L10n.phoneActivityWriting()
         title.accessibilityTraits = .header
         span.text = L10n.phoneActivitySpan(weeks: String(ActivityWriting.weeks))

@@ -53,7 +53,7 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
         list.leadingSwipeActionsConfigurationProvider = { [weak self] path in
             MainActor.assumeIsolated { self?.swipe(path, leading: true) }
         }
-        return UICollectionViewCompositionalLayout.list(using: list)
+        return .readableList(list)
     }
 
     override func viewDidLoad() {

@@ -58,4 +58,47 @@ final class ListScreensTests: XCTestCase {
         XCTAssertTrue(navigation.isToolbarHidden)
         XCTAssertFalse(list.collection.isEditing)
     }
+
+    private func rowFrames(regular: Bool, appearance: UICollectionLayoutListConfiguration.Appearance) -> (rows: [CGRect], readable: CGRect, bounds: CGRect) {
+        let screen = UIViewController()
+        let collection = UICollectionView(frame: .zero, collectionViewLayout: .readableList(.init(appearance: appearance)))
+        let rows = UICollectionView.CellRegistration<UICollectionViewListCell, Int> { cell, _, item in
+            var content = cell.defaultContentConfiguration()
+            content.text = "\(item)"
+            cell.contentConfiguration = content
+        }
+        let data = UICollectionViewDiffableDataSource<Int, Int>(collectionView: collection) { collection, path, item in
+            collection.dequeueConfiguredReusableCell(using: rows, for: path, item: item)
+        }
+        var snapshot = NSDiffableDataSourceSnapshot<Int, Int>()
+        snapshot.appendSections([0])
+        snapshot.appendItems([1, 2, 3])
+        data.apply(snapshot, animatingDifferences: false)
+        screen.view = collection
+        screen.traitOverrides.horizontalSizeClass = regular ? .regular : .compact
+        window?.frame = CGRect(x: 0, y: 0, width: 1194, height: 834)
+        window?.rootViewController = screen
+        window?.makeKeyAndVisible()
+        collection.layoutIfNeeded()
+        let frames = collection.visibleCells.map(\.frame)
+        return (frames, collection.readableContentGuide.layoutFrame, collection.bounds)
+    }
+
+    func testAtARegularWidthAListKeepsToTheReadableWidth() {
+        for appearance in [UICollectionLayoutListConfiguration.Appearance.plain, .insetGrouped] {
+            let shown = rowFrames(regular: true, appearance: appearance)
+            XCTAssertEqual(shown.rows.count, 3)
+            XCTAssertLessThan(shown.readable.width, shown.bounds.width - 100)
+            for row in shown.rows {
+                XCTAssertGreaterThanOrEqual(row.minX + 0.5, shown.readable.minX, "\(appearance) \(row)")
+                XCTAssertLessThanOrEqual(row.maxX - 0.5, shown.readable.maxX, "\(appearance) \(row)")
+            }
+        }
+    }
+
+    func testAtACompactWidthAPlainListStillSpansTheScreen() {
+        let shown = rowFrames(regular: false, appearance: .plain)
+        XCTAssertEqual(shown.rows.count, 3)
+        XCTAssertTrue(shown.rows.allSatisfy { $0.width == shown.bounds.width })
+    }
 }
