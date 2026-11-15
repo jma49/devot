@@ -282,7 +282,7 @@ describe('token compiler', () => {
       expect(themed).not.toContain('--color-')
       expect(themed).toContain("[data-theme-preview='dawn'][data-appearance-preview='dark']")
       expect(themed).toContain(
-        `--backdrop: linear-gradient(160deg, ${mixed('rgb(0 0 128 / 0.5)', 'rgb(0 64 64 / 0.5)')} 0%`,
+        `--backdrop: var(--backdrop-grain), linear-gradient(160deg, ${mixed('rgb(0 0 128 / 0.5)', 'rgb(0 64 64 / 0.5)')} 0%`,
       )
     })
 
