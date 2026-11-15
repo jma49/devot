@@ -33,6 +33,7 @@ final class HeatmapGrid: UIView {
     }
 
     private var months: [String] = []
+    var resized: () -> Void = {}
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -80,7 +81,10 @@ final class HeatmapGrid: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if abs(intrinsicContentSize.height - bounds.height) > 0.5 { invalidateIntrinsicContentSize() }
+        if abs(intrinsicContentSize.height - bounds.height) > 0.5 {
+            invalidateIntrinsicContentSize()
+            resized()
+        }
     }
 
     /// Where each month's name is drawn: over its week, kept inside the grid.
@@ -125,7 +129,7 @@ final class HeatmapCell: UICollectionViewListCell {
         super.init(frame: frame)
         paintAsCard()
         // The grid's height follows the width it is given, known only once the row is laid out.
-        selfSizingInvalidation = .enabledIncludingConstraints
+        grid.resized = { [weak self] in self?.invalidateIntrinsicContentSize() }
         title.text = L10n.phoneActivityWriting()
         title.accessibilityTraits = .header
         span.text = L10n.phoneActivitySpan(weeks: String(ActivityWriting.weeks))
