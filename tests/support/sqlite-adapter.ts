@@ -65,6 +65,41 @@ const textColumn = (field: TextCondition['field'], ranked: boolean) => {
   return field === 'title' ? 'n.title' : field === 'body' ? body : `n.title || char(10) || ${body}`
 }
 
+/** The text in the note's images, which counts as body (schema v30). */
+const imageColumn = (ranked: boolean) =>
+  `coalesce((SELECT text FROM note_image_text i WHERE i.rowid = ${ranked ? 'n.rid' : 'n.rowid'}), '')`
+
+const inImages = (field: TextCondition['field']) => field !== 'title'
+
+/**
+ * The notes found only once the text in their images counts, after every
+ * note found by its own text (a score of 0 ranks after any of bm25's, which
+ * are below 0). The Rust store's `image_hits` builds the same.
+ */
+const imageHits = (
+  ranked: readonly TextCondition[],
+  all: string,
+  param: (value: string) => string,
+) => {
+  const anyOf = (value: string) => ftsQuery([{ field: 'any', value }])
+  const inImage = ranked.filter((t) => inImages(t.field)).map((t) => anyOf(t.value))
+  if (!inImage.length) return ''
+  const any = param(inImage.join(' OR '))
+  const each = ranked.map((t) => {
+    const text = `rowid IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ${param(ftsQuery([t]))})`
+    return inImages(t.field)
+      ? `(${text} OR rowid IN (SELECT rowid FROM note_image_text
+           WHERE note_image_text MATCH ${param(anyOf(t.value))}))`
+      : text
+  })
+  return `
+          UNION ALL
+          SELECT rowid AS rid, 0.0 AS score FROM note_image_text
+           WHERE note_image_text MATCH ${any}
+             AND rowid NOT IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ${all})
+             AND ${each.join(' AND ')}`
+}
+
 /**
  * The clause for text too short for the trigram index: it scans the field's
  * text, folded as the index folds case (`devot_fold`, see `scanFolding`
@@ -78,6 +113,7 @@ const scanClause = (t: TextCondition, ranked: boolean, value: string) => {
     t.field === 'any' && !t.value.includes('\n')
       ? [textColumn('title', ranked), textColumn('body', ranked)]
       : [textColumn(t.field, ranked)]
+  if (inImages(t.field)) columns.push(imageColumn(ranked))
   // The Kelvin sign matters only to a term with a k.
   const kelvin = /k/i.test(t.value)
   const found = columns.map((c) =>
@@ -360,6 +396,11 @@ export function searchStatement(
         where.push(
           `n.rowid NOT IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ${param(ftsQuery([t]))})`,
         )
+        if (inImages(t.field)) {
+          where.push(
+            `n.rowid NOT IN (SELECT rowid FROM note_image_text WHERE note_image_text MATCH ${param(ftsQuery([{ field: 'any', value: t.value }]))})`,
+          )
+        }
       }
     } else {
       scans.push(scanClause(t, ranked.length > 0, param(t.value)))
@@ -381,9 +422,10 @@ export function searchStatement(
     }
   }
   if (query.pinned != null) where.push(query.pinned ? 'n.pinned = 1' : 'n.pinned = 0')
+  const all = ranked.length ? param(ftsQuery(ranked)) : ''
   const hits = ranked.length
     ? `WITH hits AS MATERIALIZED (SELECT rowid AS rid, bm25(notes_fts) AS score
-          FROM notes_fts WHERE notes_fts MATCH ${param(ftsQuery(ranked))})`
+          FROM notes_fts WHERE notes_fts MATCH ${all}${imageHits(ranked, all, param)})`
     : ''
   // Ranked text and a scan: the matches meeting every other condition, in
   // rank order. The scan reads them in that order and stops at a page only
@@ -734,6 +776,9 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const bodyRows = db.prepare<[{ ids: string }], NoteBody>(LIST_SQL.bodies)
   const get = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL')
   const bodyMd = db.prepare<[string], { body_md: string }>('SELECT body_md FROM notes WHERE id = ?')
+  const imageTextOf = db.prepare<[string], { text: string }>(
+    'SELECT i.text FROM notes n JOIN note_image_text i ON i.rowid = n.rowid WHERE n.id = ?',
+  )
   const getAny = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND purged_at IS NULL')
   const trash = db.prepare<[], TrashedNote>(LIST_SQL.trash)
   const backlinks = db.prepare<[{ id: string; excludeBook: string; limit: number }], SummaryRow>(
@@ -1123,7 +1168,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     async searchNotes(query, limit) {
       const terms = excerptTerms(query)
       return search(query, limit).map((row) => {
-        const excerpt = terms.length ? bodyExcerpt(bodyOf(row.id), terms) : undefined
+        const excerpt = terms.length
+          ? (bodyExcerpt(bodyOf(row.id), terms) ??
+            bodyExcerpt(imageTextOf.get(row.id)?.text ?? '', terms))
+          : undefined
         return excerpt === undefined ? toSummary(row) : { ...toSummary(row), excerpt }
       })
     },

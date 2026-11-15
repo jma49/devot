@@ -244,6 +244,18 @@ impl Db {
         logged(self.run(Kind::Write, work).await)
     }
 
+    /// A write of what this device derives from the notes and nothing else holds (the text in
+    /// their images): no gate, as it is no user content, and it leaves the quiet that background
+    /// work waits for alone, though the count moves so a reader of every note looks again.
+    pub async fn write_derived<T, F>(&self, work: F) -> Result<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut Store) -> Result<T> + Send + 'static,
+    {
+        self.writes.count.fetch_add(1, Ordering::Relaxed);
+        logged(self.run(Kind::Write, work).await)
+    }
+
     /// For a write whose kind depends on what is stored: the gate answers for each of `kinds`
     /// here, off the database thread, since it may wait on the keychain; `judge` then reads the
     /// store in the same job as `work`, so no other write comes between them, and the answer for
@@ -373,6 +385,18 @@ mod tests {
         licence.set(&testing::key(testing::ID)).unwrap();
         block_on(db.write(Write::Content, |store| store.put_note(&note("after"), &[]))).unwrap();
         assert_eq!(ids(&db).len(), 2);
+    }
+
+    #[test]
+    fn a_derived_write_passes_any_gate_and_moves_the_count_but_not_the_quiet() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::spawn(&dir.path().join("devot.sqlite")).unwrap();
+        db.guard(Arc::new(|_| Err("E_LICENCE_REQUIRED")));
+        block_on(db.write_derived(|store| store.put_image_text(&[1], "text"))).unwrap();
+        let (count, since) = db.writes();
+        assert_eq!((count, since), (1, None));
+        assert!(block_on(db.call(|store| store.has_image_text(&[1]))).unwrap());
     }
 
     #[test]

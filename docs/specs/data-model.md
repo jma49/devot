@@ -97,6 +97,7 @@ Part of the [architecture overview](../architecture.md).
   _Phase 2:_ sync keeps this shape: the relay stores each record's latest encrypted state and clients merge on a rejected push, so there is still no update log (ADR 0002).
 - Core tables: `notes`, `books` (nestable notebooks; one reserved for templates, see Note templates), `tags`, `note_tags`, `files` (attachments), `links` (link index), `revisions` (revision history, local), `agent_writes` (derived, local; see Authorship), `saved_searches` (schema v25; see Search > Saved searches), `sync_records` and `sync_state` (what sync knows of each record, schema v19; see Sync and encryption).
   Semantic search keeps its vectors out of this database, in the derived file `semantic-index.sqlite` (see Search > Related by Meaning).
+  The text in note images is derived and local too (schema v30: `image_text`, `file_hashes`, `note_image_text`, `image_text_version` and `image_text_stale`, never synced; see Search > Text in images).
   AI edit proposals have no table: a proposal lives in the Edit with AI sheet until it is accepted or discarded, and an accepted one follows the same rule as import and MCP, a text diff applied as Yjs operations (see AI > Edit with AI).
 - FTS5 uses the `trigram` tokenizer, so Chinese substring search works.
   Triggers keep the index in step with `notes`; a write puts a note's text in again only when its title or its Markdown changed (schema v15), so a notebook, status, pin or Trash change costs no indexing.

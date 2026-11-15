@@ -29,6 +29,9 @@ pub(crate) mod cloudkit;
 /// Sentence embeddings for semantic search (`semantic::embedder`), the same on macOS and iOS.
 pub(crate) mod embedding;
 
+/// The text in note images (`image_text`), read by Vision, the same on macOS and iOS.
+pub(crate) mod text_recognition;
+
 /// Synchronizable generic password items (`sync::keychain::SyncedKeychain`), the same on macOS and
 /// iOS, so macOS compiles them from here too: in the data protection keychain and an access group,
 /// readable after the first unlock, carried to the owner's other devices by the iCloud Keychain.
