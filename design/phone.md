@@ -62,6 +62,7 @@ Grouped pages: cards inset 16, `radius.phone-card`, `size.phone-card-inset` arou
 A UIKit list's grouped rows paint `color.phone.card` themselves (`paintAsCard`), as UIKit's own grouped grey ignores the theme.
 
 Activity: "Week" capsule, then a card of the last 15 weeks (`size.phone-heat-cell` days, `radius.phone-heat-cell`, `size.phone-heat-gap` apart, in `color.activity.level-*`, a month over the week it starts, the current month's included, a name in the last week ending at the grid's edge, a less-more legend of `size.phone-heat-legend`); three stat cards, which stack as text grows; then the ranked notes under a section head, their growth in `color.phone.grow`. The capsule's menu offers This week and Last week and changes the stats and the ranking only, never the heatmap. VoiceOver reads the heatmap as one summary, not 105 cells.
+On an iPad the screen keeps to the readable width and the heatmap grows with its card, up to `size.phone-heat-cell-wide` a day, its gap and corners in proportion.
 On the iPhone a gradient theme shades the heatmap in its own accent at rising strength (`heat-0` to `heat-4` in `tokens/phone-themes.tokens.json`, in place of `color.activity.level-*`), and tints the week's segmented control (`segment`, `segment-selected`) the same way.
 
 Times, counts and stats use `.phone-figures`: the UI font with tabular figures.

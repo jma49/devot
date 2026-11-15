@@ -27,9 +27,14 @@ final class ActivityScreenTests: XCTestCase {
         window = nil
     }
 
-    private func shown() -> ActivityScreen {
+    private func shown(onIPad: Bool = false) -> ActivityScreen {
         let screen = ActivityScreen(context: context)
         let navigation = UINavigationController(rootViewController: screen)
+        if onIPad {
+            navigation.traitOverrides.userInterfaceIdiom = .pad
+            navigation.traitOverrides.horizontalSizeClass = .regular
+            window?.frame = CGRect(x: 0, y: 0, width: 1194, height: 834)
+        }
         window?.rootViewController = navigation
         window?.makeKeyAndVisible()
         navigation.view.layoutIfNeeded()
@@ -142,6 +147,38 @@ final class ActivityScreenTests: XCTestCase {
         let months = grid.monthFrames.filter { !$0.isNull }
         XCTAssertFalse(months.isEmpty)
         XCTAssertTrue(months.allSatisfy { grid.bounds.insetBy(dx: -0.5, dy: -0.5).contains($0) }, "\(months) in \(grid.bounds)")
+    }
+
+    func testOnAnIPhoneTheHeatmapKeepsTheDesignsSize() throws {
+        let screen = shown()
+        bridge.answer(Op.activityWriting.rawValue, answer(this: []))
+        let grid = try XCTUnwrap((cell(.heatmap)(screen) as HeatmapCell?)?.grid)
+        XCTAssertEqual(grid.growth, 1)
+        XCTAssertEqual(grid.cell, Tokens.Size.phoneHeatCell, accuracy: 0.01)
+    }
+
+    func testOnAWideIPadTheCardsKeepToTheReadableWidthAndTheHeatmapGrowsAcrossItsCard() throws {
+        let screen = shown(onIPad: true)
+        bridge.answer(Op.activityWriting.rawValue, answer(this: [("a", "Plan", 30)]))
+        screen.collection.layoutIfNeeded()
+        let readable = screen.collection.readableContentGuide.layoutFrame
+        XCTAssertLessThan(readable.width, screen.collection.bounds.width - 100, "the screen is wider than a readable line")
+        for section in ActivityScreen.Section.allCases {
+            let shown: UICollectionViewCell = try XCTUnwrap(cell(section)(screen))
+            XCTAssertGreaterThanOrEqual(shown.frame.minX + 0.5, readable.minX, "\(section)")
+            XCTAssertLessThanOrEqual(shown.frame.maxX - 0.5, readable.maxX, "\(section)")
+        }
+        let heatmap: HeatmapCell = try XCTUnwrap(cell(.heatmap)(screen))
+        let grid = heatmap.grid
+        XCTAssertGreaterThan(grid.cell, Tokens.Size.phoneHeatCell)
+        XCTAssertLessThanOrEqual(grid.cell, Tokens.Size.phoneHeatCellWide + 0.01)
+        let weeks = CGFloat(ActivityWriting.weeks)
+        let used = weeks * grid.cell + (weeks - 1) * Tokens.Size.phoneHeatGap * grid.growth
+        XCTAssertLessThanOrEqual(used, grid.bounds.width + 0.5)
+        XCTAssertGreaterThan(used, grid.bounds.width * 0.75, "the weeks span most of the card")
+        XCTAssertGreaterThanOrEqual(grid.bounds.height + 0.5, grid.intrinsicContentSize.height, "the row grew with the grid")
+        let frame = grid.convert(grid.bounds, to: heatmap)
+        XCTAssertTrue(heatmap.bounds.insetBy(dx: -0.5, dy: -0.5).contains(frame), "\(frame) in \(heatmap.bounds)")
     }
 
     func testARankedNoteOpensAndTheEmptyRowDoesNot() {

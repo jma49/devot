@@ -51,7 +51,7 @@ final class LibraryScreen: ListScreen, UICollectionViewDelegate {
     override func makeLayout() -> UICollectionViewLayout {
         var list = UICollectionLayoutListConfiguration(appearance: .insetGrouped)
         list.backgroundColor = Tokens.Color.phoneBackground
-        return UICollectionViewCompositionalLayout.list(using: list)
+        return .readableList(list)
     }
 
     override func viewDidLoad() {

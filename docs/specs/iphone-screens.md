@@ -35,6 +35,14 @@ UIApplication (tao's app delegate, unchanged)
 - **Page.** A `screens` folder in `src/renderer/src/phone/` holds the bridge, the table from operation names to core calls, the change notices and the editor host.
   It runs only when Rust reports that the native screens are installed.
 
+### On the iPad
+
+The iPad runs the same screens in the phone layout (ADR 0014), so nothing is drawn only for it, but a wide screen keeps them from stretching.
+
+- Every native list keeps to the system's readable width on an iPad (`keepingReadable`, `readableList` in `ListScreen.swift`), so cards and rows sit in a centred column instead of spanning a landscape screen; an iPhone keeps its margins, and a narrow Split View pane is already narrower than the readable width.
+- The Settings pages keep to the same width: `keepToTheReadableWidth` makes the sides safe area, read from the navigation stack's readable guide, and the grouped list insets its rows from it while its background runs on.
+- Activity's heatmap grows with its card on an iPad, days, gaps and corners in proportion, up to `size.phone-heat-cell-wide` a day, so the fifteen weeks span the card.
+
 ## Install and the kill switch
 
 1. `native::main_window_built` (`src-tauri/src/native/mod.rs`) installs the screens after it hides WebKit's bar above the keyboard.

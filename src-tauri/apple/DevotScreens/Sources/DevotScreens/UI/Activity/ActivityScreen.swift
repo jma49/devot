@@ -35,7 +35,7 @@ final class ActivityScreen: ListScreen, UICollectionViewDelegate {
             var list = UICollectionLayoutListConfiguration(appearance: .insetGrouped)
             list.backgroundColor = Tokens.Color.phoneBackground
             if Section(rawValue: index) == .ranked { list.headerMode = .supplementary }
-            return NSCollectionLayoutSection.list(using: list, layoutEnvironment: environment)
+            return NSCollectionLayoutSection.list(using: list, layoutEnvironment: environment).keepingReadable(environment)
         }
     }
 

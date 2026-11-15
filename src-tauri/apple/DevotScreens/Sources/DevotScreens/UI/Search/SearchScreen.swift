@@ -63,7 +63,7 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
         var list = UICollectionLayoutListConfiguration(appearance: .plain)
         list.backgroundColor = Tokens.Color.phoneBackground
         list.headerMode = .supplementary
-        return UICollectionViewCompositionalLayout.list(using: list)
+        return .readableList(list)
     }
 
     override func viewDidLoad() {
