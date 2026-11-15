@@ -243,6 +243,7 @@ describe('the release workflow', () => {
     const verify = step('Verify and hand over the app')
     expect(verify).toContain('appex=$app/Contents/PlugIns/DevotShare.appex')
     expect(verify).toContain('lipo -archs "$appex/Contents/MacOS/DevotShare"')
+    expect(verify).toContain('! sh scripts/release/universal-archs.sh "$archs"; then')
     expect(verify).toContain('E_RELEASE_SHARE_EXTENSION')
     expect(verify).toMatch(/plutil -extract CFBundleVersion raw "\$appex\/Contents\/Info\.plist"/)
   })
@@ -256,6 +257,7 @@ describe('the release workflow', () => {
       'app=src-tauri/target/universal-apple-darwin/release/bundle/macos/Devot.app',
     )
     expect(verify).toContain('lipo -archs "$app/Contents/MacOS/devot"')
+    expect(verify).toContain('if ! sh scripts/release/universal-archs.sh "$archs"; then')
     expect(verify).toContain('E_RELEASE_NOT_UNIVERSAL')
     expect(verify).toContain('plutil -extract LSMinimumSystemVersion raw')
     expect(verify).toContain('jq -r .bundle.macOS.minimumSystemVersion src-tauri/tauri.conf.json')

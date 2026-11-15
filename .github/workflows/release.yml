@@ -163,19 +163,16 @@ jobs:
           app=src-tauri/target/universal-apple-darwin/release/bundle/macos/Devot.app
           codesign --verify --deep --strict "$app"
           archs=$(lipo -archs "$app/Contents/MacOS/devot")
-          case " $archs " in
-            *" x86_64 "*" arm64 "* | *" arm64 "*" x86_64 "*) ;;
-            *)
-              echo "::error::E_RELEASE_NOT_UNIVERSAL: the app holds $archs, not both arm64 and x86_64."
-              exit 1
-              ;;
-          esac
+          if ! sh scripts/release/universal-archs.sh "$archs"; then
+            echo "::error::E_RELEASE_NOT_UNIVERSAL: the app holds $archs, not both arm64 and x86_64."
+            exit 1
+          fi
           # The Share menu extension (macos-share-extension.sh), built for both and as the app.
           appex=$app/Contents/PlugIns/DevotShare.appex
           archs=$(lipo -archs "$appex/Contents/MacOS/DevotShare")
           version=$(plutil -extract CFBundleVersion raw "$app/Contents/Info.plist")
           if [ "$(plutil -extract CFBundleVersion raw "$appex/Contents/Info.plist")" != "$version" ] ||
-            [ "$(tr ' ' '\n' <<< "$archs" | sort | tr '\n' ' ')" != "arm64 x86_64 " ]; then
+            ! sh scripts/release/universal-archs.sh "$archs"; then
             echo "::error::E_RELEASE_SHARE_EXTENSION: the share extension holds $archs, or is not version $version."
             exit 1
           fi
