@@ -55,7 +55,7 @@ final class EditorScreen: WebHolderScreen {
     private var shownForTyping = false
     private var appearedForTyping = false
     private var focusAsked = false
-    private var keyboardShown: NSObjectProtocol?
+    private var pageHeldAtTop: NSKeyValueObservation?
     /// What `editor.focus` carries at most (MAX_TYPED_CHARS in src-tauri/src/screens/message.rs).
     static let maxTyped = 1_000
     /// What the page said last of the note, for the menu, the pickers and Note Info.
@@ -206,8 +206,7 @@ final class EditorScreen: WebHolderScreen {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         if keyField.isFirstResponder { keyField.resignFirstResponder() }
-        if let keyboardShown { NotificationCenter.default.removeObserver(keyboardShown) }
-        keyboardShown = nil
+        releasePage()
         keyboard.stop()
         if !(transitionCoordinator?.viewController(forKey: .to) is EditorScreen) {
             navigationController?.setToolbarHidden(true, animated: animated)
@@ -283,19 +282,25 @@ final class EditorScreen: WebHolderScreen {
     }
 
     /// WebKit reveals a body focused from code by the whole editable element, taller than the room
-    /// above the keyboard, and scrolls the page off its top; a new note's caret is at its top.
+    /// above the keyboard, and scrolls the page off its top, on a loaded device after the keyboard is
+    /// up (#934). A new note's caret is at its top: the page stays there until its first line is typed
+    /// or the reader moves it.
     private func keepPageAtTop() {
-        keyboardShown = NotificationCenter.default.addObserver(
-            forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main
-        ) { [weak self] _ in
+        pageToTop()
+        pageHeldAtTop = host.webView.scrollView.observe(\.contentOffset) { [weak self] scroll, _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                guard self.host.holder === self, !scroll.isTracking, !scroll.isDecelerating else {
+                    return self.releasePage()
+                }
                 self.pageToTop()
-                if let token = self.keyboardShown { NotificationCenter.default.removeObserver(token) }
-                self.keyboardShown = nil
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + EditorCover.timeout) { [weak self] in self?.pageToTop() }
+    }
+
+    private func releasePage() {
+        pageHeldAtTop?.invalidate()
+        pageHeldAtTop = nil
     }
 
     private func pageToTop() {
@@ -340,6 +345,7 @@ final class EditorScreen: WebHolderScreen {
     }
 
     func retitle(_ next: String) {
+        if !next.isEmpty { releasePage() }
         if next != noteTitle { readInfoAgain() }
         noteTitle = next
         cover.title = next

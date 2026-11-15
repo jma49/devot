@@ -133,9 +133,30 @@ final class NewNoteFlowTests: XCTestCase {
         settleTransition()
         let shows = try requests().filter { $0.op == .editorShow }
         XCTAssertEqual(shows.map(\.args), [["noteId": .string(made), "focus": .string("body")]])
-        XCTAssertEqual(try requests().last?.op, .editorFocus, "the caret is asked for once the push has landed")
+        // The keyboard's insets follow it at their own time once the push has landed.
+        XCTAssertEqual(
+            try requests().last { $0.op != .editorInsets }?.op, .editorFocus,
+            "the caret is asked for once the push has landed")
         XCTAssertEqual(try requests().filter { $0.op == .editorFocus }.count, 1)
         XCTAssertEqual(rust.lines.filter { $0.hasPrefix("W_") }, [])
+    }
+
+    // #934: on a loaded simulator WebKit revealed the focused body after the keyboard was up and the
+    // cover's wait had passed, and the new note's first line sat under the navigation bar.
+    func testANewNotesPageStaysAtItsTopUntilItsFirstLineIsTyped() throws {
+        deliver(#"{"v":1,"notice":"note.new"}"#)
+        let screen = try XCTUnwrap(navigation.topViewController as? EditorScreen)
+        try answer(.noteCreate, .ok(.object(["id": .string(made), "rev": .number(3)])))
+        settleTransition()
+        try settle(until: { try requests().contains { $0.op == .editorFocus } })
+        settle(EditorCover.timeout + 0.2)
+        let scroll = screen.host.webView.scrollView
+        scroll.contentOffset = CGPoint(x: 0, y: 120)
+        XCTAssertEqual(scroll.contentOffset, .zero, "a late reveal leaves the page at its top")
+
+        deliver(#"{"v":1,"notice":"editor.title","id":"\#(made)","title":"Shop"}"#)
+        scroll.contentOffset = CGPoint(x: 0, y: 120)
+        XCTAssertEqual(scroll.contentOffset.y, 120, "once a line is typed, the page scrolls as it likes")
     }
 
     func testLettersTypedBeforeTheCaretAreHandedToThePageWithTheFocus() throws {

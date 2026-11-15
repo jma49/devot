@@ -477,7 +477,8 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
    What the user typed into the hidden field before then (at most 1000 Unicode scalars, as Rust counts them) goes with `editor.focus` as `typed`, the field is cleared, and the page types it at the caret once it has the body.
    The page answers once the note has loaded, however long its open takes (over a second on a busy simulator), and gives up only after 5 s, for an open that failed.
    When the page answers anything but `{ focused: true }` (a note that opens in Preview), Swift ends editing and the keyboard goes down.
-   WebKit reveals a body focused from code by the whole editable element, taller than the room above the keyboard, and scrolls the page off its top, so once the keyboard has shown Swift puts the web view's scroll back at its top, where a new note's caret is.
+   WebKit reveals a body focused from code by the whole editable element, taller than the room above the keyboard, and scrolls the page off its top, at a time of its own (#934).
+   So from the focus Swift keeps the web view's scroll at its top, where a new note's caret is, until the page sends a title (a first line typed), the reader touches the page, or the screen gives up the web view.
 5. If the core answers a licence code (`E_LICENCE_REQUIRED`, `E_LICENCE_UNREADABLE`), Swift logs `W_PHONE_WRITE_LOCKED op=note.create code=…`, pops the screen while its cover is still up, and once the pop completes reads the licence again and shows the gate's sheet with nothing held; any other code pops it with `W_PHONE_NEW_NOTE_FAILED code=…`.
    The user never sees a code.
 6. Swift marks a new note touched when a `notes.changed` with a later `rev` than its create names it.
