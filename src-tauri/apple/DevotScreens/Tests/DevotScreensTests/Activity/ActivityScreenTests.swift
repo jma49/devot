@@ -33,6 +33,8 @@ final class ActivityScreenTests: XCTestCase {
         if regular {
             navigation.traitOverrides.horizontalSizeClass = .regular
             window?.frame = CGRect(x: 0, y: 0, width: 1194, height: 834)
+        } else {
+            navigation.traitOverrides.horizontalSizeClass = .compact
         }
         window?.rootViewController = navigation
         window?.makeKeyAndVisible()

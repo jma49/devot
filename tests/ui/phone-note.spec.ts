@@ -80,6 +80,19 @@ test("Preview and Edit text share the title's edges", async ({ page }) => {
   expect(Math.abs(box.x + inset - heading.x)).toBeLessThanOrEqual(1)
 })
 
+test('on a screen wider than a reading column the note is centred in one', async ({ page }) => {
+  const heading = note(page).locator('.phone-note-heading')
+  const narrow = (await heading.boundingBox())!
+  expect(narrow.x).toBeCloseTo(20, 0)
+  await page.setViewportSize({ width: 1024, height: 1366 })
+  await expect.poll(async () => (await heading.boundingBox())!.width).toBeLessThanOrEqual(740 + 1)
+  const wide = (await heading.boundingBox())!
+  expect(wide.width).toBeGreaterThan(740 - 1)
+  expect(Math.abs(wide.x - (1024 - (wide.x + wide.width)))).toBeLessThanOrEqual(1)
+  const paragraph = (await note(page).locator('.preview p').first().boundingBox())!
+  expect(Math.abs(paragraph.x - wide.x)).toBeLessThanOrEqual(1)
+})
+
 test('a long title at twice the text size wraps uncropped, and Return adds no line', async ({
   page,
 }) => {

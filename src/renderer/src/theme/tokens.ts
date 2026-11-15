@@ -345,7 +345,7 @@ export const sizes = {
   "size.phone-search-chip": "34px",
   "size.phone-search-empty": "56px",
   "size.phone-heat-cell": "16px",
-  "size.phone-heat-cell-wide": "32px",
+  "size.phone-heat-cell-wide": "40px",
   "size.phone-heat-gap": "4px",
   "size.phone-heat-legend": "11px",
   "size.phone-section-head": "40px",

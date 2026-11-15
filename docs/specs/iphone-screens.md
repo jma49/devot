@@ -41,6 +41,7 @@ The iPad and an unfolded iPhone Duo run the same screens in the phone layout (AD
 
 - Every native list keeps to the system's readable width at a regular width (`keepingReadable`, `readableList` in `ListScreen.swift`), so cards and rows sit in a centred column instead of spanning a landscape screen; a compact width, such as an iPhone in portrait or a narrow Split View pane, keeps its margins.
 - The Settings pages keep to the same width: `keepToTheReadableWidth` makes the sides safe area, read from the navigation stack's readable guide, and the grouped list insets its rows from it while its background runs on.
+- A note wider than `size.reading-width` inside its side safe area centres its column (`.phone-note-scroll`), and the editor cover's title follows, so a note on an iPad reads as a page instead of lines across the screen.
 - Activity's heatmap grows with its card at a regular width, days, gaps and corners in proportion, up to `size.phone-heat-cell-wide` a day, so the fifteen weeks span the card.
 
 ## Install and the kill switch

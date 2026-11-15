@@ -2789,7 +2789,7 @@
     },
     "phone-heat-cell-wide": {
       "$type": "dimension",
-      "$value": { "value": 32, "unit": "px" },
+      "$value": { "value": 40, "unit": "px" },
       "$description": "The most a day in the heatmap grows to on an iPad, with its gap and corner in proportion."
     },
     "phone-heat-gap": {

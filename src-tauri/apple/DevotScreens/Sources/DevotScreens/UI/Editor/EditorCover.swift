@@ -43,9 +43,11 @@ final class EditorCover: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let edge = Tokens.Size.phoneScreenEdge
         let sides = safeAreaInsets
-        let width = max(0, bounds.width - sides.left - sides.right - 2 * edge)
+        let room = bounds.width - sides.left - sides.right
+        // As the note's padding: a screen wider than the reading column centres the title in it.
+        let edge = Tokens.Size.phoneScreenEdge + max(0, (room - Tokens.Size.readingWidth) / 2 - Tokens.Size.phoneListEdge)
+        let width = max(0, room - 2 * edge)
         let height = label.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
         label.frame = CGRect(
             x: sides.left + edge, y: (window?.safeAreaInsets.top ?? sides.top) + Tokens.Size.phoneContentTop,
