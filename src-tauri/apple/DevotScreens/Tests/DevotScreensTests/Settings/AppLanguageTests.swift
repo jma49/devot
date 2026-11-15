@@ -21,7 +21,7 @@ final class AppLanguageTests: XCTestCase {
     }
 
     func testEachChoiceIsReadBackAtTheNextLaunch() {
-        for choice in AppLanguage.choices {
+        for choice in AppLanguage.choices + ["system"] {
             AppLanguage(defaults: defaults, domain: suite).choose(choice)
             XCTAssertEqual(AppLanguage(defaults: defaults, domain: suite).chosen, choice)
         }
