@@ -26,6 +26,7 @@ export const enPhone: Partial<Messages> = {
   'editorSettings.showInvisiblesHint': 'Draws spaces and tabs',
   'editorSettings.highlightTrailingWhitespaceHint': 'Tints spaces at line ends',
   'editorSettings.appFontHint': 'Lists, menus and Settings',
+  'generalSettings.languageHint': 'Devot shows a new language the next time it opens.',
   'editorSettings.noteFontHint': '',
   'editorSettings.codeFontHint': '',
   'editorSettings.installedFontHint': 'Must be installed on this iPhone',

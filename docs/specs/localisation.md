@@ -5,6 +5,10 @@ Part of the [architecture overview](../architecture.md).
 - English is the source locale; Simplified Chinese (`zh-Hans`) ships beside it.
 - No UI text is written inline: every string comes from a typed message catalog by key (English in `src/renderer/src/i18n/en/`, one module per UI area, merged into one typed object), so adding a locale means adding a catalog, with English as the fallback for missing keys.
   The locale follows the system's preferred languages: `resolveLocale` takes the first tag with a catalog, matching `zh`, `zh-Hans`, `zh-CN` and `zh-SG` to Simplified Chinese and passing over Traditional Chinese tags (`zh-Hant`, `zh-TW`, `zh-HK`, `zh-MO`).
+  Settings > General > App Language picks Same as System, English or Simplified Chinese for Devot alone, each language named in itself (`Intl.DisplayNames`, Foundation's `Locale` on the iPhone) so a reader lost in the other one finds theirs.
+  The choice is the app's own `AppleLanguages` default, which macOS's System Settings (Language & Region > Applications) and iOS Settings (Devot > Language) write as well, so the web view, the native menus and the iPhone's screens all read it and Devot keeps no copy of its own.
+  It shows from the next launch: on the Mac Settings offers Restart Now (`app_language_restart`, which quits as Quit does, every window saving first, and launches again), and a quit called off forgets the restart; the iPhone says the language changes the next time Devot opens.
+  A list set elsewhere whose first language Devot does not ship reads as Same as System.
   `setLocale` also sets the page's `lang` to the catalog's language (`en`, `zh-Hans`), which WebKit uses to pick Han glyphs, break lines and choose VoiceOver's voice.
   The web view reports a language only when the bundle declares it, so both apps list every shipped language in `CFBundleLocalizations` (`src-tauri/Info.plist` for the Mac, `devot_iOS/Info.plist` and `project.yml` for the iPhone); a policy test checks all three.
 - A translation lives in `src/renderer/src/i18n/<locale>/`, one module per area typed against the English module, so a missing or extra key fails the typecheck.

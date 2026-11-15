@@ -6458,6 +6458,34 @@ public enum L10n {
     text("generalSettings.data", "Data")
   }
 
+  public static func generalSettingsLanguageGroup() -> String {
+    text("generalSettings.languageGroup", "Language")
+  }
+
+  public static func generalSettingsLanguage() -> String {
+    text("generalSettings.language", "App Language")
+  }
+
+  public static func generalSettingsLanguageHint() -> String {
+    text("generalSettings.languageHint", "Devot shows a new language the next time it opens.")
+  }
+
+  public static func generalSettingsLanguageSystem() -> String {
+    text("generalSettings.language.system", "Same as System")
+  }
+
+  public static func generalSettingsLanguagePending() -> String {
+    text("generalSettings.languagePending", "Restart Devot to show the language you chose.")
+  }
+
+  public static func generalSettingsRestartNow() -> String {
+    text("generalSettings.restartNow", "Restart Now")
+  }
+
+  public static func generalSettingsLanguageFailed() -> String {
+    text("generalSettings.languageFailed", "The language could not be changed.")
+  }
+
   public static func generalSettingsDefaultNotebook() -> String {
     text("generalSettings.defaultNotebook", "Default Notebook")
   }

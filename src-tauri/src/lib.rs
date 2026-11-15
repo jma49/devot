@@ -7,6 +7,7 @@
 )]
 
 mod ai;
+mod app_language;
 mod app_store;
 mod atomic_file;
 #[cfg(desktop)]
@@ -260,6 +261,9 @@ pub fn run() {
             settings::settings_show_backups,
             crash::crash_reports_get,
             crash::crash_reports_set,
+            app_language::app_language_get,
+            app_language::app_language_set,
+            app_language::app_language_restart,
             settings::settings_open_licence,
             #[cfg(desktop)]
             mcp_clients::settings_mcp_setup,

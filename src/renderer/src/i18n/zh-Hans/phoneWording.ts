@@ -22,6 +22,7 @@ export const zhHansPhone: Partial<Messages> = {
   'editorSettings.showInvisiblesHint': '绘制空格和制表符',
   'editorSettings.highlightTrailingWhitespaceHint': '给行尾空格着色',
   'editorSettings.appFontHint': '列表、菜单和设置',
+  'generalSettings.languageHint': '下次打开 Devot 时使用新的语言。',
   'editorSettings.noteFontHint': '',
   'editorSettings.codeFontHint': '',
   'editorSettings.installedFontHint': '须安装在这台 iPhone 上',

@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// General: Default Notebook, and Send Crash Reports where this build can send them.
+/// General: App Language, Default Notebook, and Send Crash Reports where this build can send them.
 struct GeneralPane: View {
     let store: SettingsStore
     let router: SettingsRouter
+    @State private var language = AppLanguage()
 
     var body: some View {
         let choices =
@@ -11,6 +12,21 @@ struct GeneralPane: View {
             + store.notebooks.map { Choice(value: .string($0.id), title: $0.name, depth: $0.depth) }
         let current = store.editor["defaultNotebook"] ?? .null
         Form {
+            Section {
+                NavigationRow(title: L10n.generalSettingsLanguage(), value: AppLanguage.title(language.chosen)) {
+                    router.push(
+                        SettingsHosting(
+                            title: L10n.generalSettingsLanguage(),
+                            ChoicePage(
+                                store: store,
+                                choices: AppLanguage.choices.map { Choice(value: .string($0), title: AppLanguage.title($0)) },
+                                footer: L10n.generalSettingsLanguageHint(),
+                                selected: { [language] in .string(language.chosen) },
+                                choose: { [language] in language.choose($0.string ?? "system") })))
+                }
+            } header: {
+                Header(L10n.generalSettingsLanguageGroup())
+            }
             Section {
                 NavigationRow(
                     title: L10n.generalSettingsDefaultNotebook(),
