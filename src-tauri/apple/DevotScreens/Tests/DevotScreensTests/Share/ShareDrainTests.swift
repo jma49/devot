@@ -12,6 +12,7 @@ final class ShareDrainTests: XCTestCase {
     private var locked = false
     private var sent: [(op: Op, args: [String: JSONValue], done: (Outcome) -> Void)] = []
     private var logs: [String] = []
+    private var made = 0
 
     override func setUp() async throws {
         folder = FileManager.default.temporaryDirectory.appending(path: "share-drain-\(UUID().uuidString)")
@@ -29,8 +30,11 @@ final class ShareDrainTests: XCTestCase {
             log: { [unowned self] _, line in logs.append(line) })
     }
 
+    /// Each a second after the last: two made in one millisecond would sort by their random bits.
     private func item(_ title: String) -> ShareItem {
-        ShareItem(title: title, text: "", url: nil, images: [])
+        made += 1
+        let id = ShareItem.newId(now: Date(timeIntervalSince1970: 1_700_000_000 + Double(made)))
+        return ShareItem(id: id, title: title, text: "", url: nil, images: [])
     }
 
     func testTheArgumentsAreTheBridgeFixtures() throws {
