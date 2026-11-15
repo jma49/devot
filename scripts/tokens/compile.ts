@@ -1,5 +1,7 @@
 // Compiles DTCG design tokens into CSS custom properties and TS constants; `build.ts` does the file I/O.
 
+import { GRAIN_URL } from './grain.ts'
+
 export type TokenTree = { [key: string]: TokenTree | Token | unknown }
 
 export interface Token {
@@ -358,6 +360,7 @@ export function compile(
     ':root {',
     '  color-scheme: light dark;',
     ...shared.map((t) => `  ${cssVarName(t.path)}: ${cssValue(t)};`),
+    ...(gradients.length > 0 ? [`  --backdrop-grain: ${GRAIN_URL};`] : []),
     ...lightDeclarations,
     '}',
     '',
@@ -393,8 +396,14 @@ export function compile(
         `/* The ${theme.id} gradient theme: data-theme='${theme.id}' on the root element. */`,
         ...themeRules(
           theme.id,
-          [`  --backdrop: ${theme.light};`, ...phoneDeclarations(own?.light ?? new Map())],
-          [`  --backdrop: ${theme.dark};`, ...phoneDeclarations(own?.dark ?? new Map())],
+          [
+            `  --backdrop: var(--backdrop-grain), ${theme.light};`,
+            ...phoneDeclarations(own?.light ?? new Map()),
+          ],
+          [
+            `  --backdrop: var(--backdrop-grain), ${theme.dark};`,
+            ...phoneDeclarations(own?.dark ?? new Map()),
+          ],
         ),
       ]
     }),

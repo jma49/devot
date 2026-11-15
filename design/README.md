@@ -201,6 +201,7 @@ The iPhone's glass, touch targets and accessibility follow the spec in [phone.md
   The compiled `--backdrop` mixes each stop towards the gradient's middle colour by `--gradient-strength` (`color-mix` in sRGB): 0 paints that colour alone, 100 the gradient as designed.
   The middle colour is the stop at 50%, so a solid backdrop is one of the checked stops.
   Everything painted from `--backdrop` follows it: the sheet, the glass material's tint, the theme swatches and the iPhone's screens.
+  `--backdrop` carries a grain tile over the gradient (`--backdrop-grain`, from `scripts/tokens/grain.ts`): white and black specks of at most 3 alpha levels, even on average, so a gradient that changes by one 8-bit level over a long stretch dithers instead of showing bands.
   Each gradient runs from the top in hues of its own: Dawn rose to soft peach, Tide blue to sky, Sage green to pale lime, Ember amber through apricot to coral.
   Every stop is translucent, so the window material still shows through; the stops keep primary and secondary sidebar text at 4.5:1 over the opaque sidebar (`tests/tokens/themes.test.ts`).
   Over the opaque sidebar, each stop differs from the same stop of every other gradient by at least CIEDE2000 10 in both appearances, so no two themes look alike (`tests/tokens/themes.test.ts`).
