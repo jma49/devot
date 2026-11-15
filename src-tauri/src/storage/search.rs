@@ -24,6 +24,19 @@ impl TextField {
         }
     }
 
+    /// The text in the note's images, which counts as body (schema v30).
+    fn image_column(ranked: bool) -> &'static str {
+        if ranked {
+            "coalesce((SELECT text FROM note_image_text i WHERE i.rowid = n.rid), '')"
+        } else {
+            "coalesce((SELECT text FROM note_image_text i WHERE i.rowid = n.rowid), '')"
+        }
+    }
+
+    fn in_images(self) -> bool {
+        self != Self::Title
+    }
+
     pub(super) fn fts(self, value: &str) -> String {
         let column = match self {
             Self::Any => "",
@@ -306,7 +319,7 @@ pub(super) fn scan_folding(text: &str) -> ScanFolding {
 /// the text has no line break (only such text could run from the title into the body). The
 /// TypeScript adapter's `scanClause` builds the same.
 fn scan_clause(t: &TextCondition, ranked: bool, value: &str) -> String {
-    let columns = if t.field == TextField::Any && !t.value.contains('\n') {
+    let mut columns = if t.field == TextField::Any && !t.value.contains('\n') {
         vec![
             TextField::Title.column(ranked),
             TextField::Body.column(ranked),
@@ -314,6 +327,9 @@ fn scan_clause(t: &TextCondition, ranked: bool, value: &str) -> String {
     } else {
         vec![t.field.column(ranked)]
     };
+    if t.field.in_images() {
+        columns.push(TextField::image_column(ranked).into());
+    }
     let folding = scan_folding(&t.value);
     // The Kelvin sign matters only to a term with a k.
     let kelvin = t.value.contains(['k', 'K']);
@@ -334,6 +350,52 @@ fn scan_clause(t: &TextCondition, ranked: bool, value: &str) -> String {
         found.join("")
     };
     if t.negate { format!("NOT {any}") } else { any }
+}
+
+/// The notes found only once the text in their images counts, after every note found by its own
+/// text (a score of 0 ranks after any of bm25's, which are below 0). Only notes whose images hold
+/// one of the words are candidates, so a library without image text pays one empty lookup.
+fn image_hits(
+    ranked: &[&TextCondition],
+    all: &str,
+    param: &mut impl FnMut(String) -> String,
+) -> String {
+    let in_images: Vec<String> = ranked
+        .iter()
+        .filter(|t| t.field.in_images())
+        .map(|t| TextField::Any.fts(&t.value))
+        .collect();
+    if in_images.is_empty() {
+        return String::new();
+    }
+    let any = param(in_images.join(" OR "));
+    let each: Vec<String> = ranked
+        .iter()
+        .map(|t| {
+            let text = format!(
+                "rowid IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH {})",
+                param(t.field.fts(&t.value))
+            );
+            if t.field.in_images() {
+                format!(
+                    "({text} OR rowid IN (SELECT rowid FROM note_image_text
+                       WHERE note_image_text MATCH {}))",
+                    param(TextField::Any.fts(&t.value))
+                )
+            } else {
+                text
+            }
+        })
+        .collect();
+    format!(
+        "
+               UNION ALL
+               SELECT rowid AS rid, 0.0 AS score FROM note_image_text
+                WHERE note_image_text MATCH {any}
+                  AND rowid NOT IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH {all})
+                  AND {}",
+        each.join(" AND ")
+    )
 }
 
 /// The same SQL as the TypeScript adapter builds (tests/support/sqlite-adapter.ts, searchStatement): every
@@ -382,6 +444,12 @@ pub(super) fn search_sql_within(
                 "n.rowid NOT IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH {})",
                 param(t.field.fts(&t.value))
             ));
+            if t.field.in_images() {
+                clauses.push(format!(
+                    "n.rowid NOT IN (SELECT rowid FROM note_image_text WHERE note_image_text MATCH {})",
+                    param(TextField::Any.fts(&t.value))
+                ));
+            }
         }
     }
     for set in &query.sets {
@@ -419,10 +487,11 @@ pub(super) fn search_sql_within(
         String::new()
     } else {
         let all: Vec<String> = ranked.iter().map(|t| t.field.fts(&t.value)).collect();
+        let all = param(all.join(" AND "));
         format!(
             "WITH hits AS MATERIALIZED (SELECT rowid AS rid, bm25(notes_fts) AS score
-               FROM notes_fts WHERE notes_fts MATCH {})",
-            param(all.join(" AND "))
+               FROM notes_fts WHERE notes_fts MATCH {all}{})",
+            image_hits(&ranked, &all, &mut param)
         )
     };
     let select = "SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
@@ -598,9 +667,18 @@ impl Store {
             let mut body = self
                 .conn
                 .prepare_cached("SELECT body_md FROM notes WHERE id = ?1")?;
+            let mut images = self.conn.prepare_cached(
+                "SELECT i.text FROM notes n JOIN note_image_text i ON i.rowid = n.rowid
+                  WHERE n.id = ?1",
+            )?;
             for note in &mut found {
                 let text: String = body.query_row([&note.id], |row| row.get(0))?;
                 note.excerpt = body_excerpt(&text, &terms);
+                if note.excerpt.is_none() {
+                    let seen: Option<String> =
+                        images.query_row([&note.id], |row| row.get(0)).optional()?;
+                    note.excerpt = seen.and_then(|text| body_excerpt(&text, &terms));
+                }
             }
         }
         Ok(found)

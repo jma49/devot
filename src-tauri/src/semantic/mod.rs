@@ -251,8 +251,19 @@ impl Worker {
         if fresh && queue.writes_seen == Some(writes) {
             return Ok(());
         }
-        let live = tauri::async_runtime::block_on(self.db.call(|store| store.live_body_versions()))
-            .map_err(|e| e.to_string())?;
+        let (live, images) = tauri::async_runtime::block_on(
+            self.db
+                .call(|store| Ok((store.live_body_versions()?, store.image_text_versions()?))),
+        )
+        .map_err(|e| e.to_string())?;
+        let images: HashMap<String, i64> = images.into_iter().collect();
+        let live: Vec<(String, i64)> = live
+            .into_iter()
+            .map(|(id, body)| {
+                let version = version(body, images.get(&id).copied().unwrap_or(0));
+                (id, version)
+            })
+            .collect();
         let live_ids: std::collections::HashSet<&str> =
             live.iter().map(|(id, _)| id.as_str()).collect();
         let gone: Vec<String> = known
@@ -286,16 +297,29 @@ impl Worker {
         let take = self.pace.batch.min(queue.stale.len());
         let batch: Vec<(String, i64)> = queue.stale.drain(..take).collect();
         let ids: Vec<String> = batch.iter().map(|(id, _)| id.clone()).collect();
-        let bodies =
-            tauri::async_runtime::block_on(self.db.call(move |store| store.live_bodies(&ids)))
-                .map_err(|e| e.to_string())?;
-        for (body, body_version) in bodies {
-            let digest: [u8; 32] = Sha256::new()
+        let (bodies, images) = tauri::async_runtime::block_on(
+            self.db
+                .call(move |store| Ok((store.live_bodies(&ids)?, store.image_texts(&ids)?))),
+        )
+        .map_err(|e| e.to_string())?;
+        let mut images: HashMap<String, (String, i64)> = images
+            .into_iter()
+            .map(|(id, text, version)| (id, (text, version)))
+            .collect();
+        for (mut body, body_version) in bodies {
+            let (image_text, image_version) = images.remove(&body.id).unwrap_or_default();
+            let body_version = version(body_version, image_version);
+            let mut digest = Sha256::new()
                 .chain_update(body.title.as_bytes())
                 .chain_update([0])
-                .chain_update(body.body_md.as_bytes())
-                .finalize()
-                .into();
+                .chain_update(body.body_md.as_bytes());
+            if !image_text.is_empty() {
+                digest.update([0]);
+                digest.update(image_text.as_bytes());
+                body.body_md.push_str("\n\n");
+                body.body_md.push_str(&image_text);
+            }
+            let digest: [u8; 32] = digest.finalize().into();
             let indexed = Indexed {
                 body_version,
                 digest,
@@ -314,6 +338,12 @@ impl Worker {
         }
         Ok(())
     }
+}
+
+/// A note's version for the index: its body's, moved on by the text in its images, which a note
+/// without any leaves as it was.
+fn version(body: i64, images: i64) -> i64 {
+    body.wrapping_add(images << 32)
 }
 
 fn forget_old_models(index: &mut Index, embedder: &mut dyn Embedder) -> rusqlite::Result<()> {

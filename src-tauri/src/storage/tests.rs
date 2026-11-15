@@ -4255,6 +4255,12 @@ fn the_index_caught_up_later_ranks_exactly_as_one_written_on_every_save() {
     ];
     let dir = tempfile::tempdir().unwrap();
     let before = open_at_schema(&dir.path().join("before.sqlite"), BEFORE_CATCH_UP);
+    // Today's search reads the text in images too, which schema v30 brought (none here).
+    before
+        .execute_batch(
+            "CREATE VIRTUAL TABLE note_image_text USING fts5(text, version UNINDEXED, tokenize = 'trigram')",
+        )
+        .unwrap();
     let store = Store::open(&dir.path().join("after.sqlite")).unwrap();
     let both = |sql: &str, values: &[&dyn rusqlite::ToSql]| {
         before.execute(sql, values).unwrap();

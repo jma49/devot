@@ -376,3 +376,49 @@ fn queries_are_validated_before_anything_runs() {
     assert_eq!(validate(&bad_ids), Err("E_SEARCH_IDS_INVALID"));
     assert_eq!(validate(&query("water")), Ok(()));
 }
+
+fn read_image(db: &Db, note: &str, file: &str, text: &str) {
+    let (note, file, text) = (note.to_owned(), file.to_owned(), text.to_owned());
+    tauri::async_runtime::block_on(db.write_derived(move |store| {
+        store.put_file(&crate::storage::FileRecord {
+            id: file.clone(),
+            note_id: note.clone(),
+            name: "scan.png".into(),
+            mime: "image/png".into(),
+            data: text.as_bytes().to_vec(),
+            created_at: 1,
+        })?;
+        let hash = text.as_bytes().to_vec();
+        store.put_image_text(&hash, &text)?;
+        store.put_file_hash(&file, &hash)?;
+        for rowid in store.stale_image_notes(10)? {
+            store.refresh_image_text(rowid)?;
+        }
+        Ok(())
+    }))
+    .unwrap();
+}
+
+#[test]
+fn the_text_in_a_notes_images_is_indexed_with_it_and_new_text_indexes_it_again() {
+    let library = library(&[
+        record(A, "Trip", "Packing list.", 10),
+        record(B, "Taxes", "File the forms.", 11),
+    ]);
+    ready(&library, 2);
+    let before = embedded(&library);
+    read_image(&library.db, A, "f1", "boarding pass gate twelve");
+    wait_until("the image text", || {
+        found(&library, query("boarding gate")) == vec![A.to_string()]
+    });
+    read_image(&library.db, A, "f2", "hotel reservation");
+    wait_until("the new image text", || {
+        found(&library, query("hotel reservation")) == vec![A.to_string()]
+    });
+    ready(&library, 2);
+    assert_eq!(
+        embedded(&library) - before,
+        2,
+        "only the note with images, once a change"
+    );
+}

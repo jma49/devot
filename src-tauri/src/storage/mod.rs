@@ -6,6 +6,7 @@ mod agent_writes;
 mod books;
 mod db;
 mod files;
+mod image_text;
 mod notes;
 mod open;
 mod purge;

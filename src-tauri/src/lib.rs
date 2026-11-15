@@ -39,6 +39,7 @@ mod fonts;
 mod format_menu;
 #[cfg(desktop)]
 mod http_api;
+mod image_text;
 mod import;
 mod keyboard_shortcuts;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -547,6 +548,11 @@ fn launch(
         licence::Gate::of(&licence),
         semantic::Pace::default(),
     )));
+    app.manage(image_text::ImageText::start(
+        app.state::<storage::Db>().inner().clone(),
+        image_text::system(),
+        image_text::Pace::default(),
+    ));
     app.manage(std::sync::Arc::new(ai::Ai::new(
         ai::settings::SettingsStore::new(&data_dir.join(ai::settings::FILE)),
         std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),
