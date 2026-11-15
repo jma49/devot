@@ -159,6 +159,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   The swipe starts only at the screen's edge: a swipe across the note stays the page's, for selecting text or scrolling a wide table.
 - **Leaving a note** (the native screens): rule 2.
   Once the pop is done the list is live again under its still, which goes at once when the page has drawn the list, or after 400 ms; popping back to an earlier note keeps its still, which fades over `motion.duration.phone-adjust` once the page has drawn the note, or after 400 ms.
+  A still taken before the window changed size (a turn, a fold or unfold, Split View) is dropped as the note appears, and the note's cover stands in for it, with the push's cover timing.
 - **System tab bar** (the native screens): the system draws it and keeps its motion.
   A tab tapped is rule 4: the system's lens and the accent on the selected icon; the page shows that tab's stack at once (rule 2), each stack kept where it was.
   The selected tab tapped again is rule 4 too: the `selection` haptic, and the stack pops to its root at once.

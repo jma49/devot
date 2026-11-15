@@ -34,6 +34,9 @@ final class WebViewHost {
         holder = nil
     }
 
+    /// The size the web view keeps wherever it is: the window's, once the root has laid out.
+    var pageSize: CGSize { size ?? webView.bounds.size }
+
     func windowSize(_ size: CGSize) {
         guard size != .zero, size != self.size else { return }
         self.size = size
@@ -64,6 +67,10 @@ class WebHolderScreen: UIViewController {
     override func viewIsAppearing(_ animated: Bool) {
         super.viewIsAppearing(animated)
         appeared()
+        if let still = snapshot, still.frame.size != host.pageSize {
+            dropSnapshot()
+            stillWentStale()
+        }
         guard host.holder !== self else { return }
         guard let coordinator = transitionCoordinator, !isMovingToParent,
             coordinator.viewController(forKey: .from) === host.holder
@@ -147,6 +154,10 @@ class WebHolderScreen: UIViewController {
     }
 
     func appeared() {}
+
+    /// The window changed size while this screen was covered (a turn, a fold, Split View), so its
+    /// still no longer lines up with the page and went before the screen showed it.
+    func stillWentStale() {}
 
     func tookWebView() {}
 }

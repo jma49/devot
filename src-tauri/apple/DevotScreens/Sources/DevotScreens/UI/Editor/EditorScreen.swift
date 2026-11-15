@@ -224,6 +224,12 @@ final class EditorScreen: WebHolderScreen {
         actions.appeared(screenTab)
     }
 
+    /// Until the page shows the note again in the new size, the cover stands in for the still.
+    override func stillWentStale() {
+        view.bringSubviewToFront(cover)
+        cover.raise(holding: true)
+    }
+
     /// A pop reveals a note its still already shows, so the still waits for the page instead of a cover.
     override func tookWebView() {
         let scroll = host.webView.scrollView
