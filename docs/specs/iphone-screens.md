@@ -300,6 +300,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - Every tab's root is native, so the web view rests in `WebStage` unless an editor screen holds it; a tab switch or a pop to a list moves it to the stage without taking it out of the window.
   The stage hides it from VoiceOver and the accessibility audit, which would otherwise reach the page drawn behind the native Settings.
 - A `WebHolderScreen`'s view (an editor screen's) reports the window's safe area insets, and the web view derives its own from them: the page lays itself out by `env(safe-area-inset-*)` exactly as without the system bar, and its own room for a floating bar at the bottom clears the system's.
+  Its left and right insets are the larger of the window's and its own, so where the system stands the bars along a side (iPhone Duo) the page keeps clear of them; the note's padding and the editor cover's title add those side insets to their keylines.
 - The view overrides `safeAreaInsets` because the tab bar's inset can reach it through its superview, which a negative `additionalSafeAreaInsets` does not take back (on iOS 26.5 each screen kept the bar's 49 points).
 - The bar's tint is `color.accent.text` and it is never minimised on scroll.
   Glass Transparency reaches it only below 0, through the scroll edge effect (spike: bar tint).

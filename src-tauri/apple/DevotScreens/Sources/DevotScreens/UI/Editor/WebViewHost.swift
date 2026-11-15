@@ -162,14 +162,24 @@ class WebHolderScreen: UIViewController {
     func tookWebView() {}
 }
 
-/// The page lays itself out by the window's safe area, as without the system bar. The tab bar's
-/// inset can reach this view through its superview, which a negative additional inset cannot take
-/// back on every iOS, so the view reports the window's insets and its subviews derive theirs from it.
+/// The page lays itself out by the window's safe area at the top and foot, as without the system
+/// bars, whose room it keeps itself. The tab bar's inset can reach this view through its superview,
+/// which a negative additional inset cannot take back on every iOS, so the view reports the window's
+/// insets there and its subviews derive theirs from it. On a side, as on iPhone Duo where the system
+/// stands the bars along an edge, the page keeps clear of everything over it, bars included.
 final class WindowSafeAreaView: UIView {
     var willLeaveWindow: (() -> Void)?
 
     override var safeAreaInsets: UIEdgeInsets {
-        window?.safeAreaInsets ?? super.safeAreaInsets
+        let own = super.safeAreaInsets
+        guard let window else { return own }
+        return Self.pageInsets(window: window.safeAreaInsets, own: own)
+    }
+
+    static func pageInsets(window: UIEdgeInsets, own: UIEdgeInsets) -> UIEdgeInsets {
+        UIEdgeInsets(
+            top: window.top, left: max(window.left, own.left), bottom: window.bottom,
+            right: max(window.right, own.right))
     }
 
     override func willMove(toWindow newWindow: UIWindow?) {
