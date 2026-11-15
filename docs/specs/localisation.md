@@ -5,6 +5,7 @@ Part of the [architecture overview](../architecture.md).
 - English is the source locale; Simplified Chinese (`zh-Hans`) ships beside it.
 - No UI text is written inline: every string comes from a typed message catalog by key (English in `src/renderer/src/i18n/en/`, one module per UI area, merged into one typed object), so adding a locale means adding a catalog, with English as the fallback for missing keys.
   The locale follows the system's preferred languages: `resolveLocale` takes the first tag with a catalog, matching `zh`, `zh-Hans`, `zh-CN` and `zh-SG` to Simplified Chinese and passing over Traditional Chinese tags (`zh-Hant`, `zh-TW`, `zh-HK`, `zh-MO`).
+  `setLocale` also sets the page's `lang` to the catalog's language (`en`, `zh-Hans`), which WebKit uses to pick Han glyphs, break lines and choose VoiceOver's voice.
   The web view reports a language only when the bundle declares it, so both apps list every shipped language in `CFBundleLocalizations` (`src-tauri/Info.plist` for the Mac, `devot_iOS/Info.plist` and `project.yml` for the iPhone); a policy test checks all three.
 - A translation lives in `src/renderer/src/i18n/<locale>/`, one module per area typed against the English module, so a missing or extra key fails the typecheck.
   Its `phoneWording.ts` gives the iPhone wording for exactly the keys `phone.ts` words, and a test checks that each translation keeps every key and placeholder of the English.

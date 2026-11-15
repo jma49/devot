@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { format, resolveLocale, setIPhoneWording, setLocale, setPhoneDevice, t } from '.'
 import { en } from './en'
 import { enPhone } from './phone'
@@ -39,6 +39,22 @@ describe('i18n', () => {
     setIPhoneWording(false)
     expect(t('usage.storage')).toBe(zhHans['usage.storage'])
     await setLocale('en')
+  })
+
+  describe('the page', () => {
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('says which language its text is in, so the system picks its glyphs and its voice', async () => {
+      const page = { documentElement: { lang: 'en' } }
+      vi.stubGlobal('document', page)
+      await setLocale('zh-hans')
+      expect(page.documentElement.lang).toBe('zh-Hans')
+      await setLocale('xx')
+      expect(page.documentElement.lang).toBe('en')
+      await setLocale('zh-hans')
+      await setLocale('en')
+      expect(page.documentElement.lang).toBe('en')
+    })
   })
 
   it('returns English strings by key, even for an unknown locale', async () => {
