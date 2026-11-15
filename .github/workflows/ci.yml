@@ -448,22 +448,16 @@ jobs:
 
   # The screens package (src-tauri/apple/DevotScreens): its tests in a host app on an iPhone
   # simulator, as UIKit needs. They link no Rust, so a pull request runs them only for the package,
-  # the fixtures they read and CI itself. Each job boots a simulator and builds the package, about
-  # six minutes, before its first test, so the classes are split between two jobs
-  # (scripts/ci/screens-shards.ts). The release check builds the package twice more, so pull requests
+  # the fixtures they read and CI itself. One job runs every class: a second job spent another six
+  # minutes of a macOS runner booting a simulator and building the package, while the account runs
+  # five macOS jobs at a time. The release check builds the package twice more, so pull requests
   # leave it to the merge queue.
   ios-app:
-    name: iPhone screens tests (${{ matrix.part }}/2)
+    name: iPhone screens tests
     needs: changes
     if: needs.changes.outputs.screens != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: xcode-27
     timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        part: [1, 2]
-    env:
-      DEVOT_SCREENS_PART: ${{ matrix.part }}/2
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: sh scripts/ci/xcode.sh
@@ -480,7 +474,7 @@ jobs:
           nohup xcrun simctl boot "$device" >>"$RUNNER_TEMP/simulator-boot.log" 2>&1 &
       - run: sh scripts/ci/devot-screens-tests.sh
       # The spike harness is built into a debug app only (docs/specs/iphone-screens.md, Spikes).
-      - if: github.event_name != 'pull_request' && matrix.part == 1
+      - if: github.event_name != 'pull_request'
         run: sh scripts/ci/devot-screens-release-check.sh
 
   # The iPhone app for the simulator, with the release UI build: the only build that links the

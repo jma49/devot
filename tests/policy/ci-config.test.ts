@@ -306,7 +306,7 @@ it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust
   // StoreKit Test runs only inside an app, on Apple's SDK; only the full iPhone build links the
   // Swift package into the app.
   const ci = parse(workflow) as Workflow & {
-    jobs: Record<string, Job & { strategy?: { matrix: { part: number[] } } }>
+    jobs: Record<string, Job & { strategy?: unknown }>
   }
   const app = job('ios-app')
   const build = job('iphone-build')
@@ -360,16 +360,13 @@ it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust
   expect(steps).toContain('brew install xcodegen')
   expect(steps).toContain('sh scripts/ci/devot-screens-tests.sh')
   // Each job boots a simulator and builds the package before its first test, so two share the classes.
-  expect(ci.jobs['ios-app']!.strategy?.matrix.part).toEqual([1, 2])
-  expect(ci.jobs['ios-app']!.env).toEqual({ DEVOT_SCREENS_PART: '${{ matrix.part }}/2' })
-  expect(read('scripts/ci/devot-screens-tests.sh')).toContain(
-    'selection=$(node "$root/scripts/ci/screens-shards.ts" "$DEVOT_SCREENS_PART")',
-  )
+  // One job: each more spent six minutes of a macOS runner booting a simulator and building.
+  expect(ci.jobs['ios-app']!.strategy).toBeUndefined()
   // The release check builds the package twice more; pull requests leave it to the merge queue.
   const releaseCheck = ci.jobs['ios-app']!.steps.find(
     (step) => step.run === 'sh scripts/ci/devot-screens-release-check.sh',
   )
-  expect(releaseCheck?.if).toBe("github.event_name != 'pull_request' && matrix.part == 1")
+  expect(releaseCheck?.if).toBe("github.event_name != 'pull_request'")
   expect(build).toContain("needs.changes.outputs.rust != 'false'")
   expect(commands(build)).toEqual(
     expect.arrayContaining([

@@ -10,7 +10,6 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { parts, selection, testClasses } from '../../scripts/ci/screens-shards'
 import { verdict, waitFor } from '../../scripts/ci/wait-for-artifact'
 import { hasStarted } from '../../scripts/ci/wait-for-job-start'
 import { tempDir } from '../support/temp-dirs'
@@ -84,27 +83,6 @@ it('asks again after a request that failed, and gives up only at the limit', asy
       sleep,
     ),
   ).rejects.toThrow('fetch failed')
-})
-
-it('splits the screens tests into parts that together run every class once, and more', () => {
-  const classes = testClasses('src-tauri/apple/DevotScreens/Tests/DevotScreensTests')
-  expect(classes.length).toBeGreaterThan(40)
-  const [first, second] = parts(classes, 2)
-  expect([...first!, ...second!].toSorted()).toEqual(classes.map(([name]) => name))
-  const tests = (names: string[]) =>
-    names.reduce((sum, name) => sum + (classes.find(([n]) => n === name)?.[1] ?? 0), 0)
-  expect(Math.abs(tests(first!) - tests(second!))).toBeLessThan(20)
-  expect(selection('1/2', classes)).toEqual(
-    first!.map((name) => `-only-testing:DevotScreensTests/${name}`),
-  )
-  // The last part skips what the others run, so a class the list misses still runs.
-  expect(selection('2/2', classes)).toEqual(
-    first!.map((name) => `-skip-testing:DevotScreensTests/${name}`),
-  )
-  expect(selection('1/1', classes)).toEqual([])
-  for (const part of ['0/2', '3/2', 'x', '']) {
-    expect(() => selection(part, classes)).toThrow(`E_SCREENS_PART part=${part}`)
-  }
 })
 
 function shim(home: string, marked: boolean, args: string[]) {
