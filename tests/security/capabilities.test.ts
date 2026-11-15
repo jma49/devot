@@ -175,6 +175,10 @@ describe('Tauri command permissions', () => {
       'allow-ai-key-set',
       'allow-ai-settings-get',
       'allow-ai-settings-set',
+      // Settings > General > App Language, and Restart Now to show it.
+      'allow-app-language-get',
+      'allow-app-language-restart',
+      'allow-app-language-set',
       'allow-background-quit',
       'allow-background-state',
       'allow-cli-tool-install',

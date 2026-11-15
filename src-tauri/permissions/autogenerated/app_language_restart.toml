@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-app-language-restart"
+description = "Enables the app_language_restart command without any pre-configured scope."
+commands.allow = ["app_language_restart"]
+
+[[permission]]
+identifier = "deny-app-language-restart"
+description = "Denies the app_language_restart command without any pre-configured scope."
+commands.deny = ["app_language_restart"]

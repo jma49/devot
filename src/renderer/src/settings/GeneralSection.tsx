@@ -15,6 +15,7 @@ import {
 } from '../notebookChoices'
 import { checkForUpdates, startUpdateStatus, updateStatusText, useUpdateStatus } from '../updates'
 import { cliToolFailure } from './cliTool'
+import { LanguageSetting } from './LanguageSetting'
 import { Select, Setting, SettingsSection, SettingToggle, useSettingsChange } from './controls'
 import {
   cliToolStatus,
@@ -136,6 +137,7 @@ export function GeneralSection() {
           {failureText('editorSettings.failed', saveError)}
         </p>
       ) : null}
+      <LanguageSetting />
       <SettingsSection title="generalSettings.defaults">
         <Setting
           label="generalSettings.defaultNotebook"

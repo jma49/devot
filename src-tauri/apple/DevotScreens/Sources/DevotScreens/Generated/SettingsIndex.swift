@@ -25,6 +25,7 @@ enum SettingsIndex {
   ]
 
   static let entries: [Entry] = [
+    Entry(pane: "general", label: "generalSettings.language", only: nil),
     Entry(pane: "general", label: "generalSettings.defaultNotebook", only: nil),
     Entry(pane: "general", label: "generalSettings.dailyNotes", only: .mac),
     Entry(pane: "general", label: "generalSettings.listDates", only: .mac),

@@ -29,12 +29,26 @@ pub fn for_languages<S: AsRef<str>>(preferred: &[S]) -> &'static Native {
 }
 
 fn catalog_for(tag: &str) -> Option<&'static Native> {
+    match catalog_language(tag)? {
+        Language::English => Some(&catalog::EN),
+        Language::SimplifiedChinese => Some(&catalog::ZH_HANS),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Language {
+    English,
+    SimplifiedChinese,
+}
+
+/// The shipped language a BCP 47 tag asks for, if any.
+pub fn catalog_language(tag: &str) -> Option<Language> {
     let lower = tag.to_ascii_lowercase().replace('_', "-");
     let mut subtags = lower.split('-');
     match subtags.next()? {
-        "en" => Some(&catalog::EN),
+        "en" => Some(Language::English),
         "zh" if subtags.any(|s| matches!(s, "hant" | "tw" | "hk" | "mo")) => None,
-        "zh" => Some(&catalog::ZH_HANS),
+        "zh" => Some(Language::SimplifiedChinese),
         _ => None,
     }
 }

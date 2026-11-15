@@ -124,6 +124,29 @@ pub fn preferred_languages() -> Vec<String> {
     Vec::new()
 }
 
+/// The languages chosen for this app alone, most preferred first; none while it follows the
+/// system, and always none off macOS.
+pub fn app_languages() -> Option<Vec<String>> {
+    #[cfg(target_os = "macos")]
+    return macos::app_languages();
+    #[cfg(not(target_os = "macos"))]
+    None
+}
+
+/// Sets the app's own languages (none follows the system) for the next launch; false off macOS.
+pub fn set_app_languages(tags: Option<&[&str]>) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        macos::set_app_languages(tags);
+        true
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = tags;
+        false
+    }
+}
+
 /// Main thread only; elsewhere, and off macOS, it shows nothing (the failure is logged all the
 /// same).
 pub fn show_alert(title: &str, message: &str) {

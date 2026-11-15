@@ -152,7 +152,7 @@ test('the column is one tab stop; Up, Down, Home and End move between panes', as
   // The toolbar comes between the column and the pane: Back takes the focus first.
   await expect(page.locator('.settings-history-button').first()).toBeFocused()
   await page.keyboard.press('Alt+Tab')
-  await expect(page.getByRole('combobox', { name: 'Default Notebook' })).toBeFocused()
+  await expect(page.getByRole('combobox', { name: 'App Language' })).toBeFocused()
 })
 
 test('opens on the pane shown last', async ({ page }) => {

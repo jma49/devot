@@ -114,7 +114,7 @@ const FILES: &[&str] = &[
     "web_share_stop",
 ];
 
-/// Editor settings, fonts, shortcuts and crash reports.
+/// Editor settings, fonts, shortcuts, crash reports and the app's language.
 const SETTINGS: &[&str] = &[
     "editor_settings_get",
     "editor_settings_set",
@@ -126,6 +126,9 @@ const SETTINGS: &[&str] = &[
     "keyboard_shortcuts_set",
     "crash_reports_get",
     "crash_reports_set",
+    "app_language_get",
+    "app_language_set",
+    "app_language_restart",
 ];
 
 /// Quick capture, note windows, background running and the main windows.

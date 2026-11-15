@@ -31,6 +31,14 @@ export const messages = {
   'generalSettings.title': 'General',
   'generalSettings.defaults': 'Defaults',
   'generalSettings.data': 'Data',
+  'generalSettings.languageGroup': 'Language',
+  'generalSettings.language': 'App Language',
+  'generalSettings.languageHint':
+    'The language of Devot\u2019s windows, menus and dialogs. A change shows once Devot restarts.',
+  'generalSettings.language.system': 'Same as System',
+  'generalSettings.languagePending': 'Restart Devot to show the language you chose.',
+  'generalSettings.restartNow': 'Restart Now',
+  'generalSettings.languageFailed': 'The language could not be changed.',
   'generalSettings.defaultNotebook': 'Default Notebook',
   'generalSettings.defaultNotebookHint':
     'The notebook a new note goes to when the view shown has no notebook.',

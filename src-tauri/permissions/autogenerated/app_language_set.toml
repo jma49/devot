@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-app-language-set"
+description = "Enables the app_language_set command without any pre-configured scope."
+commands.allow = ["app_language_set"]
+
+[[permission]]
+identifier = "deny-app-language-set"
+description = "Denies the app_language_set command without any pre-configured scope."
+commands.deny = ["app_language_set"]

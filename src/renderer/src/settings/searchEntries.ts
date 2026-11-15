@@ -12,6 +12,7 @@ export interface SettingsEntry {
 }
 
 export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
+  { pane: 'general', label: 'generalSettings.language' },
   { pane: 'general', label: 'generalSettings.defaultNotebook' },
   { pane: 'general', label: 'generalSettings.dailyNotes', only: 'mac' },
   { pane: 'general', label: 'generalSettings.listDates', only: 'mac' },
