@@ -1,0 +1,9 @@
+{
+  "id": "com.example.packed",
+  "name": "Packed",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "main": "dist/main.js",
+  "permissions": ["commands"],
+  "contributes": { "commands": [{ "id": "go", "title": "Go" }] }
+}

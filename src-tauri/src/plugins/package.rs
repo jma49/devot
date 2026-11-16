@@ -284,6 +284,24 @@ mod tests {
     }
 
     #[test]
+    fn reads_the_archive_the_plugin_kit_packs() {
+        let path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tests/fixtures/plugins/kit-packed.zip"
+        ));
+        let package = read_archive(path).unwrap();
+        assert_eq!(package.manifest.id, "com.example.packed");
+        assert_eq!(
+            package.files.keys().collect::<Vec<_>>(),
+            ["devot-plugin.json", "dist/main.js"]
+        );
+        assert_eq!(
+            package.files["dist/main.js"],
+            b"devot.commands.handle('go', () => null)\n"
+        );
+    }
+
+    #[test]
     fn refuses_archive_entries_that_climb_out() {
         let (_dir, path) = archive(&[
             (manifest::FILE, MANIFEST.as_bytes()),
