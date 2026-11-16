@@ -2,7 +2,8 @@
 //! in tauri.conf.json): `devot://note/<id>` opens the note, `devot://command/<id>` runs one of
 //! [`URL_COMMANDS`], `devot://today` opens today's note (made once a day when missing, so a page
 //! opening it over and over makes one note) and `devot://licence?key=<key>` offers a licence key, checked here first; the
-//! window asks before it replaces a licence the device holds.
+//! window asks before it replaces a licence the device holds. `devot://plugin/<id>` opens Settings > Plugins at the review of
+//! that official plugin (ADR 0025), on the Mac alone.
 //! On the iPhone `devot://pair?…`, the link a pairing's QR code holds, opens Settings > Sync with
 //! the link in Join With a Code, joined only once the owner taps Join; elsewhere it is refused.
 //! Debug builds answer to `devot-dev://` instead ([`SCHEME`]), so a development
@@ -99,6 +100,10 @@ pub enum Link {
     /// A pairing link, checked whole; the code in it joins nothing until the owner taps Join.
     Pair {
         link: PairingLink,
+    },
+    /// An official plugin's ID; the main window opens Settings at its review, and nothing installs without the user.
+    Plugin {
+        id: String,
     },
     /// Fills quick capture (`capture_link`) and never reaches a main window.
     Capture {
@@ -218,6 +223,8 @@ pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
         // or `#` included.
         "note" if valid_note_id(id) => Ok(Link::Note { id: id.to_owned() }),
         "note" => Err("E_URL_NOTE_ID"),
+        "plugin" if crate::plugins::manifest::is_id(id) => Ok(Link::Plugin { id: id.to_owned() }),
+        "plugin" => Err("E_URL_PLUGIN_ID"),
         "command" => URL_COMMANDS
             .iter()
             .find(|command| **command == id)
@@ -480,11 +487,12 @@ fn link_of(url: &str, licence: Option<&crate::licence::Licence>) -> Option<Link>
 }
 
 /// Only the iPhone's Sync page takes a pairing link from outside (#886), and only the Mac has
-/// quick capture.
+/// quick capture and installs plugins from a link.
 fn taken_here(link: Link) -> Result<Link, &'static str> {
     match link {
         Link::Pair { .. } if !cfg!(target_os = "ios") => Err("E_URL_PAIR_ELSEWHERE"),
         Link::Capture { .. } if cfg!(mobile) => Err("E_URL_CAPTURE_ELSEWHERE"),
+        Link::Plugin { .. } if cfg!(mobile) => Err("E_URL_PLUGIN_ELSEWHERE"),
         link => Ok(link),
     }
 }
@@ -1041,6 +1049,37 @@ mod tests {
             assert_eq!(
                 parse(&format!("devot://command/{id}"), "devot"),
                 Err("E_URL_COMMAND"),
+                "{id}"
+            );
+        }
+    }
+
+    #[test]
+    fn takes_an_official_plugin_by_its_id_on_the_mac() {
+        let link = parse("devot://plugin/online.devot.charts", "devot").unwrap();
+        assert_eq!(
+            link,
+            Link::Plugin {
+                id: "online.devot.charts".into()
+            }
+        );
+        let taken = taken_here(link.clone());
+        if cfg!(mobile) {
+            assert_eq!(taken, Err("E_URL_PLUGIN_ELSEWHERE"));
+        } else {
+            assert_eq!(taken, Ok(link));
+        }
+        for id in [
+            "",
+            "Online.Devot",
+            "online.devot.charts/",
+            "online.devot.charts?x=1",
+            "../x",
+            "online..devot",
+        ] {
+            assert_eq!(
+                parse(&format!("devot://plugin/{id}"), "devot"),
+                Err("E_URL_PLUGIN_ID"),
                 "{id}"
             );
         }

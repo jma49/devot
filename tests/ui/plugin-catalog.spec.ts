@@ -50,6 +50,11 @@ async function fakeRust(page: Page, list: unknown[] | { error: string }) {
           return installed
         },
         plugin_install_cancel: () => null,
+        plugin_offer_take: () => {
+          const id = w.devotPluginOffer ?? null
+          w.devotPluginOffer = undefined
+          return id
+        },
       }
     },
     { offers: list, staged: manifest },
@@ -107,4 +112,32 @@ test('says when the list cannot be loaded and tries again', async ({ page }) => 
   await page.getByRole('button', { name: 'Try Again' }).click()
   await expect(page.getByText(/could not be listed/)).toBeHidden()
   expect((await calls(page, 'plugin_catalog')).length).toBe(2)
+})
+
+test('shows the review a plugin link asked for once the list is in', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.devotPluginOffer = 'online.devot.charts'
+  })
+  await fakeRust(page, [offered('install')])
+  await openSettings(page, 'Plugins')
+  await expect(page.getByRole('dialog', { name: 'Install “Charts”?' })).toBeVisible()
+  expect(await calls(page, 'plugin_catalog_stage')).toEqual([{ id: 'online.devot.charts' }])
+})
+
+test('shows a later link’s review in an open Settings, and says when it names no official plugin', async ({
+  page,
+}) => {
+  await fakeRust(page, [offered('install')])
+  await openSettings(page, 'Plugins')
+  await expect(official(page)).toBeVisible()
+  await page.evaluate(() => {
+    window.devotPluginOffer = 'online.devot.missing'
+    window.dispatchEvent(new CustomEvent('devot:plugin-offer'))
+  })
+  await expect(page.getByRole('alert')).toHaveText('That link names no official plugin.')
+  await page.evaluate(() => {
+    window.devotPluginOffer = 'online.devot.charts'
+    window.dispatchEvent(new CustomEvent('devot:plugin-offer'))
+  })
+  await expect(page.getByRole('dialog', { name: 'Install “Charts”?' })).toBeVisible()
 })

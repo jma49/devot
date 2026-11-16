@@ -7,6 +7,7 @@ import { noteTarget, useDeepLinks, type DeepLink } from '../deepLink'
 import { DeepLinkNotice, type DeepLinkProblem } from '../DeepLinkNotice'
 import { editorSettings } from '../editorSettings'
 import { finishImport } from '../importer'
+import { openPluginOffer } from '../plugins/api'
 import type { useLicenceLink } from '../LicenceLink'
 import type { useSheets } from '../sheets'
 import type { Selection } from '../Sidebar'
@@ -87,6 +88,10 @@ export function useAppDeepLinks({
     setLinkNotice(undefined)
     if (link.kind === 'licence') {
       licenceLink.handle(link)
+      return
+    }
+    if (link.kind === 'plugin') {
+      void openPluginOffer(link.id).catch(() => setLinkNotice('commandUnavailable'))
       return
     }
     if (link.kind === 'import') {

@@ -4526,6 +4526,10 @@ public enum L10n {
     text("plugins.catalogNeedsApp", "Needs a newer Devot")
   }
 
+  public static func pluginsCatalogNotListed() -> String {
+    text("plugins.catalogNotListed", "That link names no official plugin.")
+  }
+
   public static func pluginsPermissionNoteRead() -> String {
     text("plugins.permission.note.read", "Read the open note while you use it")
   }

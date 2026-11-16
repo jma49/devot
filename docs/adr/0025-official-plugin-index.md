@@ -17,9 +17,10 @@ Settings > Plugins lists the official plugins from `https://devot.online/plugins
 - A plugin installs only by a listing the app fetched itself (`E_PLUGIN_NOT_LISTED`), so the page names an ID and never a URL.
 - Each listing offers Install, Update (a newer version than the one installed), Installed, or Needs a Newer Devot (a newer API version or minimum app version than this build).
 - Install and Update stage the package and show the review of ADR 0005: nothing is written before the user approves what it asks for.
+- `devot://plugin/<id>`, which the site's Install in Devot button opens, takes the main window's link path to Settings > Plugins, which shows that plugin's review once the index is listed (`plugin_offer_open`, `plugin_offer_take`).
 
 ## Consequences
 
 - The index is trusted as far as HTTPS to devot.online is; signing packages is a later decision, needed before plugins by other authors are listed.
 - Opening Settings > Plugins sends one request to devot.online; plugins themselves still reach no network.
-- Automatic updates and a link on the site that opens the review in Devot build on this index.
+- Automatic updates build on this index.

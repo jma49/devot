@@ -112,6 +112,19 @@ test('a command link runs an allowed command', async ({ page }) => {
   await expect(headline(page)).toHaveText('All Notes')
 })
 
+test('a plugin link asks Settings to show that plugin’s review', async ({ page }) => {
+  await open(page, { plugin_offer_open: null })
+  await sendLink(page, { kind: 'plugin', id: 'online.devot.charts' })
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.devotIpcCalls.filter((c) => c.cmd === 'plugin_offer_open').map((c) => c.args),
+      ),
+    )
+    .toEqual([{ id: 'online.devot.charts' }])
+  await expect(notice(page)).toHaveCount(0)
+})
+
 test('a command that cannot run now shows a notice', async ({ page }) => {
   await open(page)
   // Edit Mode needs an open note.

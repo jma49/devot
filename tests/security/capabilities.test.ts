@@ -157,6 +157,8 @@ describe('Tauri command permissions', () => {
       expect(windowsWith(command)).toEqual(['settings'])
     }
     expect(windowsWith('allow-plugins-list')).toEqual(['main', 'settings'])
+    expect(windowsWith('allow-plugin-offer-open')).toEqual(['main'])
+    expect(windowsWith('allow-plugin-offer-take')).toEqual(['settings'])
     expect(windowsWith('allow-plugin-import-pick')).toEqual(['main'])
     expect(windowsWith('allow-plugin-export-save')).toEqual(['main'])
   })
@@ -241,6 +243,7 @@ describe('Tauri command permissions', () => {
       'allow-plugin-install-cancel',
       'allow-plugin-install-confirm',
       'allow-plugin-install-pick',
+      'allow-plugin-offer-take',
       'allow-plugin-remove',
       'allow-plugin-set-enabled',
       'allow-plugin-settings-get',

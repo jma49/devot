@@ -1,4 +1,12 @@
-import { Fragment, useCallback, useEffect, useId, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  useInsertionEffect,
+  useRef,
+  useState,
+} from 'react'
 import {
   fitsSetting,
   type InstalledPlugin,
@@ -15,6 +23,8 @@ import {
   fetchOfficialPlugin,
   installPlugin,
   listOfficialPlugins,
+  takePluginOffer,
+  watchPluginOffers,
   listPlugins,
   pickPlugin,
   pluginSettings,
@@ -277,26 +287,10 @@ function OfficialPlugins(props: {
   const { onStaged, onFailure } = props
   const [catalog, setCatalog] = useState<Catalog>({ phase: 'loading' })
   const [fetching, setFetching] = useState<string>()
+  const wanted = useRef<string>(undefined)
+  const listed = useRef<OfferedPlugin[]>(undefined)
   const asked = useRef(0)
   const fetchAsked = useRef(0)
-
-  const load = useCallback(() => {
-    const request = ++asked.current
-    listOfficialPlugins().then(
-      (list) => {
-        if (request === asked.current) setCatalog({ phase: 'ready', list })
-      },
-      (e: unknown) => {
-        if (request === asked.current)
-          setCatalog({ phase: 'failed', code: logFailure(errorCode(e), 'W_PLUGINS_FAILED') })
-      },
-    )
-  }, [])
-
-  useEffect(() => {
-    load()
-    return watchPlugins(load)
-  }, [load])
 
   const fetchPlugin = (id: string) => {
     const request = ++fetchAsked.current
@@ -318,12 +312,61 @@ function OfficialPlugins(props: {
     )
   }
 
+  const serve = () => {
+    const id = wanted.current
+    const list = listed.current
+    if (id === undefined || list === undefined) return
+    wanted.current = undefined
+    const plugin = list.find((p) => p.id === id)
+    if (!plugin) onFailure('E_PLUGIN_NOT_LISTED')
+    else if (plugin.offer === 'install' || plugin.offer === 'update') fetchPlugin(plugin.id)
+  }
+  const serveOffer = useRef(serve)
+  useInsertionEffect(() => {
+    serveOffer.current = serve
+  })
+
+  const load = useCallback(() => {
+    const request = ++asked.current
+    listOfficialPlugins().then(
+      (list) => {
+        if (request !== asked.current) return
+        listed.current = list
+        setCatalog({ phase: 'ready', list })
+        serveOffer.current()
+      },
+      (e: unknown) => {
+        if (request === asked.current)
+          setCatalog({ phase: 'failed', code: logFailure(errorCode(e), 'W_PLUGINS_FAILED') })
+      },
+    )
+  }, [])
+
+  useEffect(() => {
+    load()
+    return watchPlugins(load)
+  }, [load])
+
   useEffect(
     () => () => {
       fetchAsked.current++
     },
     [],
   )
+
+  useEffect(() => {
+    const take = () =>
+      void takePluginOffer().then(
+        (id) => {
+          if (!id) return
+          wanted.current = id
+          serveOffer.current()
+        },
+        () => console.warn('W_PLUGIN_OFFER_TAKE_FAILED'),
+      )
+    take()
+    return watchPluginOffers(take)
+  }, [])
 
   return (
     <SettingsSection title="plugins.catalogTitle">
@@ -443,7 +486,11 @@ export function PluginsSection() {
 
   const catalogFailed = useCallback(
     (code: string) =>
-      setFailure({ message: 'plugins.installFailed', code: logFailure(code, 'W_PLUGINS_FAILED') }),
+      setFailure({
+        message:
+          code === 'E_PLUGIN_NOT_LISTED' ? 'plugins.catalogNotListed' : 'plugins.installFailed',
+        code: logFailure(code, 'W_PLUGINS_FAILED'),
+      }),
     [],
   )
 

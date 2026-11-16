@@ -161,6 +161,7 @@ export const messages: Record<keyof typeof en, string> = {
   'plugins.catalogUpdateLabel': '将 {name} 更新到版本 {version}',
   'plugins.catalogInstalled': '已安装',
   'plugins.catalogNeedsApp': '需要更新 Devot',
+  'plugins.catalogNotListed': '这个链接指向的不是官方插件。',
   'plugins.permission.note.read': '在你使用时读取打开的笔记',
   'plugins.permission.note.edit': '在你使用时修改打开的笔记',
   'plugins.permission.commands': '向命令面板添加命令',

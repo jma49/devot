@@ -63,6 +63,31 @@ export const listOfficialPlugins = () => invoke<OfferedPlugin[]>('plugin_catalog
 export const fetchOfficialPlugin = (id: string) =>
   invoke<StagedPlugin>('plugin_catalog_stage', { id })
 
+export const openPluginOffer = (id: string) =>
+  invoke<null>('plugin_offer_open', { id }).then(() => undefined)
+
+export const takePluginOffer = () => invoke<string | null>('plugin_offer_take')
+
+const OFFER = 'devot:plugin-offer'
+const OFFER_TAURI = 'devot://plugin-offer'
+
+/** Calls `onOffer` when a `devot://plugin/<id>` link asks Settings to show a plugin's review. */
+export function watchPluginOffers(onOffer: () => void): () => void {
+  window.addEventListener(OFFER, onOffer)
+  const unlisten = DEVOT_UI_TEST
+    ? undefined
+    : unlistenLater(
+        import('@tauri-apps/api/event').then(({ listen }) =>
+          listen(OFFER_TAURI, () => window.dispatchEvent(new CustomEvent(OFFER))),
+        ),
+        () => console.warn('W_PLUGIN_OFFER_LISTEN_FAILED'),
+      )
+  return () => {
+    window.removeEventListener(OFFER, onOffer)
+    unlisten?.()
+  }
+}
+
 export const installPlugin = (token: number) =>
   invoke<InstalledPlugin>('plugin_install_confirm', { token })
 

@@ -156,6 +156,7 @@
     "allow-main-windows-changed",
     "allow-note-relay-send",
     "allow-plugins-list",
+    "allow-plugin-offer-open",
     "allow-plugin-import-pick",
     "allow-plugin-export-save",
     "allow-plugin-storage-get",

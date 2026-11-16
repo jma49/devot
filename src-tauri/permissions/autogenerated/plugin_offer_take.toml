@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-plugin-offer-take"
+description = "Enables the plugin_offer_take command without any pre-configured scope."
+commands.allow = ["plugin_offer_take"]
+
+[[permission]]
+identifier = "deny-plugin-offer-take"
+description = "Denies the plugin_offer_take command without any pre-configured scope."
+commands.deny = ["plugin_offer_take"]

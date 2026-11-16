@@ -89,6 +89,7 @@
     "allow-plugin-install-cancel",
     "allow-plugin-catalog",
     "allow-plugin-catalog-stage",
+    "allow-plugin-offer-take",
     "allow-plugin-set-enabled",
     "allow-plugin-remove",
     "allow-plugin-settings-get",

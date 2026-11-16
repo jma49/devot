@@ -1,6 +1,7 @@
 // Links other apps open: `devot://note/<id>` opens a note,
 // `devot://command/<id>` runs one of `URL_COMMANDS`, `devot://today` opens today's note and
-// `devot://licence?key=<key>` offers a licence (`devot-dev://` in a debug
+// `devot://licence?key=<key>` offers a licence, `devot://plugin/<id>` opens
+// the review of an official plugin in Settings (`devot-dev://` in a debug
 // build). Rust checks every URL and sends the main window only what it
 // asks for, as a link (`src-tauri/src/deep_link.rs`); the window reads it
 // again here and takes nothing else. Links run one at a time, each once the
@@ -8,6 +9,7 @@
 import { useEffect, useInsertionEffect, useRef } from 'react'
 import type { ImportItem, ImportProblem, ImportScan } from '../../core'
 import { UUID_V7 } from '../../core/ids'
+import { isPluginId } from '../../core/plugins'
 import { sheetOpen } from './commands/dispatch'
 import type { CommandId } from './commands/registry'
 import { finishImport } from './importer'
@@ -40,6 +42,8 @@ export type DeepLink =
   | { readonly kind: 'note'; readonly id: string }
   | { readonly kind: 'command'; readonly id: UrlCommand }
   | { readonly kind: 'today' }
+  /** An official plugin's ID: Settings opens at its review, and nothing installs without the user. */
+  | { readonly kind: 'plugin'; readonly id: string }
   /** Files from the `devot` command (src-tauri/src/cli.rs); no URL makes one. */
   | {
       readonly kind: 'import'
@@ -114,6 +118,7 @@ export function readDeepLink(value: unknown): DeepLink | undefined {
   if (kind === 'note' && typeof id === 'string' && UUID_V7.test(id)) return { kind, id }
   if (kind === 'command' && isUrlCommand(id)) return { kind, id }
   if (kind === 'today' && id === undefined) return { kind }
+  if (kind === 'plugin' && isPluginId(id)) return { kind, id }
   if (kind === 'licence') return readLicenceLink(value as Record<string, unknown>)
   if (kind === 'import') {
     const { scan, notebook, first } = value as Record<string, unknown>

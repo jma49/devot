@@ -26113,6 +26113,23 @@
         }
       }
     },
+    "plugins.catalogNotListed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That link names no official plugin."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个链接指向的不是官方插件。"
+          }
+        }
+      }
+    },
     "plugins.catalogRetry" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -98,6 +98,8 @@ pub struct Plugins {
     data_writing: Mutex<()>,
     /// The official index as last fetched; a plugin installs from it only by a listing it holds.
     listings: Mutex<Vec<catalog::Listing>>,
+    /// The official plugin a `devot://plugin/<id>` link asked for, until Settings takes it.
+    offered: Mutex<Option<String>>,
 }
 
 impl Plugins {
@@ -110,6 +112,7 @@ impl Plugins {
             writing: Mutex::new(()),
             data_writing: Mutex::new(()),
             listings: Mutex::new(Vec::new()),
+            offered: Mutex::new(None),
         }
     }
 
@@ -281,6 +284,14 @@ impl Plugins {
         let offered = catalog::offers(&listings, &self.list(), &self.app_version);
         *crate::locks::lock(&self.listings) = listings;
         offered
+    }
+
+    pub fn offer(&self, id: String) {
+        *crate::locks::lock(&self.offered) = Some(id);
+    }
+
+    pub fn take_offer(&self) -> Option<String> {
+        crate::locks::lock(&self.offered).take()
     }
 
     pub fn listed(&self, id: &str) -> Result<catalog::Listing, &'static str> {
@@ -638,6 +649,30 @@ pub async fn plugin_catalog_stage(plugins: Shared<'_>, id: String) -> Result<Sta
     .inspect_err(|code| log::warn!("W_PLUGIN_CATALOG_STAGE_FAILED {code}"))
 }
 
+pub const OFFER_EVENT: &str = "devot://plugin-offer";
+
+/// A `devot://plugin/<id>` link: Settings opens at Plugins and shows that plugin's review once it has listed the index.
+#[tauri::command]
+pub fn plugin_offer_open(app: AppHandle, plugins: Shared<'_>, id: String) -> Result<(), String> {
+    if !manifest::is_id(&id) {
+        return Err(catalog::NOT_LISTED.into());
+    }
+    plugins.offer(id);
+    crate::settings::open_plugins(&app);
+    if app
+        .emit_to(crate::settings::LABEL, OFFER_EVENT, ())
+        .is_err()
+    {
+        log::warn!("W_PLUGIN_OFFER_UNSENT");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn plugin_offer_take(plugins: Shared<'_>) -> Option<String> {
+    plugins.take_offer()
+}
+
 #[tauri::command]
 pub fn plugin_install_cancel(plugins: Shared<'_>, token: u64) {
     plugins.cancel(token);
@@ -933,6 +968,17 @@ mod tests {
                 .collect(),
             source: "https://example.com/hello".into(),
         }
+    }
+
+    #[test]
+    fn hands_an_offered_plugin_to_settings_once() {
+        let data = tempfile::tempdir().unwrap();
+        let plugins = Plugins::new(data.path());
+        assert_eq!(plugins.take_offer(), None);
+        plugins.offer("online.devot.charts".into());
+        plugins.offer("online.devot.bibtex".into());
+        assert_eq!(plugins.take_offer().as_deref(), Some("online.devot.bibtex"));
+        assert_eq!(plugins.take_offer(), None);
     }
 
     #[test]

@@ -14,6 +14,16 @@ describe('readDeepLink', () => {
     expect(readDeepLink({ kind: 'today' })).toEqual({ kind: 'today' })
   })
 
+  it('takes an official plugin by an ID a manifest may have', () => {
+    expect(readDeepLink({ kind: 'plugin', id: 'online.devot.charts' })).toEqual({
+      kind: 'plugin',
+      id: 'online.devot.charts',
+    })
+    for (const id of ['Online.Devot', 'devot.charts', '', 'a/b', 3]) {
+      expect(readDeepLink({ kind: 'plugin', id })).toBeUndefined()
+    }
+  })
+
   it('takes nothing else', () => {
     for (const value of [
       undefined,
