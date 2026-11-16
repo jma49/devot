@@ -282,9 +282,16 @@ final class EditorScreen: WebHolderScreen {
         // Rust counts Unicode scalars, not the characters Swift's prefix would.
         let typed = String(String.UnicodeScalarView((keyField.text ?? "").unicodeScalars.prefix(Self.maxTyped)))
         keyField.text = nil
-        host.webView.becomeFirstResponder()
         actions.focus(self, typed)
         keepPageAtTop()
+    }
+
+    /// The page focused the body: the web view takes the keyboard from the hidden field only now.
+    /// Taken before the page answered, a loaded device could leave the web view first responder with
+    /// no focused element, and WebKit lowered the keyboard (#932).
+    func focusTaken() {
+        guard host.holder === self, keyField.isFirstResponder else { return }
+        host.webView.becomeFirstResponder()
     }
 
     /// WebKit reveals a body focused from code by the whole editable element, taller than the room
