@@ -608,8 +608,10 @@ final class EditorScreenTests: XCTestCase {
             guard case .request(_, let op, _) = try Message(json: call.1) else { return nil }
             return op
         } }
-        // Settings asks for the glass once the screens show; on a loaded runner that came after the note's editor.show (#930).
-        settle(until: { (try? requests().contains(.glassGet)) == true })
+        // Settings sends the glass once the screens show; on a loaded runner that came after the note's editor.show (#930).
+        // It asks with glass.get only until the shared store has written its value to the standard defaults, so a
+        // run after the first sends glass.set instead (#951).
+        settle(until: { (try? requests().contains { $0 == .glassGet || $0 == .glassSet }) == true })
         var answered = 0
         let answerAll = {
             for (id, json) in rust.calls.dropFirst(answered) {
@@ -638,12 +640,13 @@ final class EditorScreenTests: XCTestCase {
         tabs.select(.notes)
         settleTabSwitch(tabs, from: .library, to: .notes)
         XCTAssertTrue(webView.superview === screens.root.host.stage)
-        XCTAssertTrue(try requests().contains(.editorHide))
+        // The list sends editor.hide from viewDidAppear, which a loaded runner can run after the switch has settled (#951).
+        settle(until: { (try? requests().contains(.editorHide)) == true })
         try answerAll()
         tabs.select(.library)
         settleTabSwitch(tabs, from: .notes, to: .library)
         XCTAssertTrue(webView.isDescendant(of: screen.view))
-        XCTAssertEqual(try requests().filter { $0 == .editorShow }.count, 2)
+        settle(until: { (try? requests().filter { $0 == .editorShow }.count) == 2 })
 
         screens.delivered(Data(#"{"v":1,"notice":"nav.back"}"#.utf8))
         settleTransition(navigation)
