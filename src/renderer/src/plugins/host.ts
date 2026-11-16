@@ -19,6 +19,7 @@ import {
   type PluginPermission,
 } from '../../../core/plugins'
 import { errorCode } from '../../../core/errors'
+import type { DrawingTheme } from '../preview/pluginDrawing'
 
 export type PortLike = MessagePort
 
@@ -91,7 +92,13 @@ export interface PluginHost {
   /** Starts the enabled plugins not running yet, and stops those gone, turned off or changed. */
   load(plugins: readonly InstalledPlugin[]): void
   run(plugin: string, command: string): Promise<void>
-  render(plugin: string, renderer: string, source: string): Promise<string | null>
+  /** A drawing renderer (ADR 0027) is also told the theme it draws for. */
+  render(
+    plugin: string,
+    renderer: string,
+    source: string,
+    theme?: DrawingTheme,
+  ): Promise<string | null>
   convertImport(
     plugin: string,
     format: string,
@@ -352,10 +359,14 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
       }
     },
 
-    async render(plugin, renderer, source) {
+    async render(plugin, renderer, source, theme) {
       return checkResult(
         'preview.render',
-        await request(plugin, 'preview.render', { renderer, source }),
+        await request(
+          plugin,
+          'preview.render',
+          theme ? { renderer, source, theme } : { renderer, source },
+        ),
       )
     },
 

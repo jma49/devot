@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { run, type Io } from '../../plugin-kit/src/cli'
 import { PACKAGE_LIMITS, readPackage } from '../../plugin-kit/src/package'
 import { zip } from '../../plugin-kit/src/zip'
+import { THEME_LIMITS } from '../../src/core/plugins/themeFile'
 import { tempDir } from '../support/temp-dirs'
 
 const MANIFEST = {
@@ -123,6 +124,39 @@ describe('readPackage', () => {
       depth: rust(manifest, 'DEPTH_MAX'),
       manifestBytes: rust(manifest, 'MAX_BYTES'),
     })
+    expect(THEME_LIMITS).toEqual({
+      bytes: rust(pkg, 'THEME_MAX_BYTES'),
+      colors: rust(pkg, 'THEME_COLORS_MAX'),
+    })
+  })
+
+  it('reads the theme files a plugin lists, and refuses one Devot cannot draw', () => {
+    const themed = (files: Record<string, string>) =>
+      folder({
+        'devot-plugin.json': JSON.stringify({
+          ...MANIFEST,
+          permissions: ['commands', 'themes'],
+          contributes: {
+            ...MANIFEST.contributes,
+            themes: [{ id: 'dusk', title: 'Dusk', appearance: 'dark', path: 'themes/dusk.json' }],
+          },
+        }),
+        'main.js': '',
+        ...files,
+      })
+    const good = JSON.stringify({ colors: { 'surface-editor': '#101820' } })
+    expect(readPackage(themed({ 'themes/dusk.json': good })).files.has('themes/dusk.json')).toBe(
+      true,
+    )
+    for (const files of [
+      {},
+      { 'themes/dusk.json': '{' },
+      { 'themes/dusk.json': JSON.stringify({ colors: {} }) },
+      { 'themes/dusk.json': JSON.stringify({ colors: { 'surface-editor': 'red' } }) },
+      { 'themes/dusk.json': JSON.stringify({ colors: { Surface: '#101820' } }) },
+    ]) {
+      expect(codeOf(() => readPackage(themed(files)))).toBe('E_PLUGIN_THEME_INVALID')
+    }
   })
 })
 

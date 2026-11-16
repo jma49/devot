@@ -54,6 +54,39 @@ struct Entry {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct Stored {
     plugins: BTreeMap<String, Entry>,
+    #[serde(default)]
+    themes: Chosen,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThemeRef {
+    pub plugin: String,
+    pub theme: String,
+}
+
+/// The plugin theme drawn over each appearance's theme in Settings > Appearance (ADR 0026).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Chosen {
+    pub light: Option<ThemeRef>,
+    pub dark: Option<ThemeRef>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfferedTheme {
+    pub plugin: String,
+    pub plugin_name: String,
+    pub id: String,
+    pub title: String,
+    pub appearance: manifest::ThemeAppearance,
+    pub colors: BTreeMap<String, String>,
+}
+
+/// The themes of plugins that are on and may add them, and the choice for each appearance among them.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Themes {
+    pub themes: Vec<OfferedTheme>,
+    pub chosen: Chosen,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -377,6 +410,66 @@ impl Plugins {
         self.installed(&id, &entry)
     }
 
+    pub fn themes(&self) -> Themes {
+        let mut themes = Vec::new();
+        for plugin in self.list() {
+            if !plugin.enabled || !plugin.may("themes") {
+                continue;
+            }
+            for theme in &plugin.manifest.contributes.themes {
+                match self
+                    .read_file(&plugin.manifest.id, &theme.path)
+                    .and_then(|bytes| package::theme_colors(&bytes))
+                {
+                    Ok(colors) => themes.push(OfferedTheme {
+                        plugin: plugin.manifest.id.clone(),
+                        plugin_name: plugin.manifest.name.clone(),
+                        id: theme.id.clone(),
+                        title: theme.title.clone(),
+                        appearance: theme.appearance,
+                        colors,
+                    }),
+                    Err(code) => log::warn!("W_PLUGIN_THEME_SKIPPED {} {code}", plugin.manifest.id),
+                }
+            }
+        }
+        let offered = |chosen: Option<ThemeRef>, appearance| {
+            chosen.filter(|c| {
+                themes
+                    .iter()
+                    .any(|t| t.plugin == c.plugin && t.id == c.theme && t.appearance == appearance)
+            })
+        };
+        let stored = self.stored().themes;
+        let chosen = Chosen {
+            light: offered(stored.light, manifest::ThemeAppearance::Light),
+            dark: offered(stored.dark, manifest::ThemeAppearance::Dark),
+        };
+        Themes { themes, chosen }
+    }
+
+    /// `None` draws the appearance's own theme alone.
+    pub fn choose_theme(
+        &self,
+        appearance: manifest::ThemeAppearance,
+        theme: Option<ThemeRef>,
+    ) -> Result<(), &'static str> {
+        if let Some(chosen) = &theme
+            && !self.themes().themes.iter().any(|t| {
+                t.plugin == chosen.plugin && t.id == chosen.theme && t.appearance == appearance
+            })
+        {
+            return Err(NOT_FOUND);
+        }
+        let _writing = crate::locks::lock(&self.writing);
+        let mut stored = self.read_stored().ok_or(FAILED)?;
+        match appearance {
+            manifest::ThemeAppearance::Light => stored.themes.light = theme,
+            manifest::ThemeAppearance::Dark => stored.themes.dark = theme,
+        }
+        self.store(&stored)
+    }
+
     pub fn set_enabled(&self, id: &str, enabled: bool) -> Result<(), &'static str> {
         let _writing = crate::locks::lock(&self.writing);
         let mut stored = self.read_stored().ok_or(FAILED)?;
@@ -671,6 +764,35 @@ pub fn plugin_offer_open(app: AppHandle, plugins: Shared<'_>, id: String) -> Res
 #[tauri::command]
 pub fn plugin_offer_take(plugins: Shared<'_>) -> Option<String> {
     plugins.take_offer()
+}
+
+pub const THEMES_CHANGED_EVENT: &str = "devot://plugin-themes-changed";
+
+#[tauri::command]
+pub async fn plugin_themes(plugins: Shared<'_>) -> Result<Themes, String> {
+    let plugins = std::sync::Arc::clone(&plugins);
+    blocking(move || Ok(plugins.themes())).await
+}
+
+#[tauri::command]
+pub async fn plugin_theme_choose(
+    app: AppHandle,
+    plugins: Shared<'_>,
+    appearance: manifest::ThemeAppearance,
+    theme: Option<ThemeRef>,
+) -> Result<(), String> {
+    if theme
+        .as_ref()
+        .is_some_and(|t| !manifest::is_id(&t.plugin) || t.theme.len() > 64)
+    {
+        return Err(NOT_FOUND.into());
+    }
+    let plugins = std::sync::Arc::clone(&plugins);
+    blocking(move || plugins.choose_theme(appearance, theme)).await?;
+    if app.emit(THEMES_CHANGED_EVENT, ()).is_err() {
+        log::warn!("W_PLUGIN_THEMES_EMIT_FAILED");
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -968,6 +1090,58 @@ mod tests {
                 .collect(),
             source: "https://example.com/hello".into(),
         }
+    }
+
+    fn theme_package() -> Package {
+        let mut files = BTreeMap::new();
+        files.insert(
+            manifest::FILE.to_string(),
+            package::THEME_MANIFEST.as_bytes().to_vec(),
+        );
+        files.insert("main.js".to_string(), Vec::new());
+        files.insert(
+            "themes/light.json".to_string(),
+            br##"{"colors":{"background":"#eceff4"}}"##.to_vec(),
+        );
+        Package {
+            manifest: manifest::parse_bytes(package::THEME_MANIFEST.as_bytes()).unwrap(),
+            files,
+        }
+    }
+
+    #[test]
+    fn offers_the_themes_of_plugins_that_are_on_and_keeps_a_choice_among_them() {
+        let data = tempfile::tempdir().unwrap();
+        let plugins = Plugins::new(data.path());
+        let staged = plugins.stage(theme_package()).unwrap();
+        plugins.install(staged.token).unwrap();
+        let nord = ThemeRef {
+            plugin: "com.example.nord".into(),
+            theme: "nord-light".into(),
+        };
+        let themes = plugins.themes();
+        assert_eq!(themes.themes.len(), 1);
+        assert_eq!(themes.themes[0].plugin_name, "Nord");
+        assert_eq!(themes.themes[0].colors["background"], "#eceff4");
+        assert_eq!(themes.chosen, Chosen::default());
+
+        assert_eq!(
+            plugins.choose_theme(manifest::ThemeAppearance::Dark, Some(nord.clone())),
+            Err(NOT_FOUND)
+        );
+        plugins
+            .choose_theme(manifest::ThemeAppearance::Light, Some(nord.clone()))
+            .unwrap();
+        assert_eq!(plugins.themes().chosen.light, Some(nord.clone()));
+
+        plugins.set_enabled("com.example.nord", false).unwrap();
+        assert_eq!(plugins.themes(), Themes::default());
+        plugins.set_enabled("com.example.nord", true).unwrap();
+        assert_eq!(plugins.themes().chosen.light, Some(nord));
+        plugins
+            .choose_theme(manifest::ThemeAppearance::Light, None)
+            .unwrap();
+        assert_eq!(plugins.themes().chosen, Chosen::default());
     }
 
     #[test]

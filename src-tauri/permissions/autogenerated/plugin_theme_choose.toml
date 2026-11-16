@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-plugin-theme-choose"
+description = "Enables the plugin_theme_choose command without any pre-configured scope."
+commands.allow = ["plugin_theme_choose"]
+
+[[permission]]
+identifier = "deny-plugin-theme-choose"
+description = "Denies the plugin_theme_choose command without any pre-configured scope."
+commands.deny = ["plugin_theme_choose"]

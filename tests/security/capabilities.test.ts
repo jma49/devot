@@ -159,6 +159,7 @@ describe('Tauri command permissions', () => {
     expect(windowsWith('allow-plugins-list')).toEqual(['main', 'settings'])
     expect(windowsWith('allow-plugin-offer-open')).toEqual(['main'])
     expect(windowsWith('allow-plugin-offer-take')).toEqual(['settings'])
+    expect(windowsWith('allow-plugin-theme-choose')).toEqual(['settings'])
     expect(windowsWith('allow-plugin-import-pick')).toEqual(['main'])
     expect(windowsWith('allow-plugin-export-save')).toEqual(['main'])
   })
@@ -248,6 +249,8 @@ describe('Tauri command permissions', () => {
       'allow-plugin-set-enabled',
       'allow-plugin-settings-get',
       'allow-plugin-settings-set',
+      'allow-plugin-theme-choose',
+      'allow-plugin-themes',
       'allow-plugins-list',
       // Settings > Integrations says whether any notebook allows AI access.
       'allow-settings-ai-access-summary',
@@ -395,6 +398,7 @@ describe('Tauri command permissions', () => {
       'allow-notes-search',
       'allow-notes-summaries',
       'allow-open-external',
+      'allow-plugin-themes',
       'allow-revision-get',
       'allow-revision-put',
       'allow-revisions-delete',
@@ -489,6 +493,7 @@ describe('Tauri command permissions', () => {
       'allow-editor-settings-get',
       'allow-font-read',
       'allow-licence-get',
+      'allow-plugin-themes',
       'allow-quick-capture-close',
       'allow-quick-capture-prefill-take',
       'allow-quick-capture-save',

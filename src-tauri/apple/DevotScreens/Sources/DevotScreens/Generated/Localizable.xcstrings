@@ -2500,6 +2500,74 @@
         }
       }
     },
+    "appearanceSettings.pluginTheme" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plugin Theme"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件主题"
+          }
+        }
+      }
+    },
+    "appearanceSettings.pluginThemeBy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{title} ({plugin})"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{title}（{plugin}）"
+          }
+        }
+      }
+    },
+    "appearanceSettings.pluginThemeHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Its colors are drawn over the theme above."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它的配色会叠加在上面所选的主题之上。"
+          }
+        }
+      }
+    },
+    "appearanceSettings.pluginThemeNone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无"
+          }
+        }
+      }
+    },
     "appearanceSettings.previewFontSize" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -26232,6 +26300,40 @@
         }
       }
     },
+    "plugins.drawingFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The plugin could not draw this block."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件无法绘制这个代码块。"
+          }
+        }
+      }
+    },
+    "plugins.drawingLabel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drawing from a plugin"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件绘制的图"
+          }
+        }
+      }
+    },
     "plugins.empty" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -26687,6 +26789,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在这台 Mac 上保存它自己的数据"
+          }
+        }
+      }
+    },
+    "plugins.permission.themes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add color themes to Settings > Appearance"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“设置 > 外观”中添加配色主题"
           }
         }
       }

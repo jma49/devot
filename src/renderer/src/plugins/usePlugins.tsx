@@ -48,6 +48,7 @@ import { frameConnector, showFrame } from './frames'
 import { createPluginHost, type PluginHost } from './host'
 import { pluginNotes } from './notes'
 import { pluginRenderersChanged } from './rendererRevision'
+import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
 
 export interface PluginWindow {
@@ -190,6 +191,17 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
       .setPluginRenderers(specs, Comlink.proxy(render))
       .then(pluginRenderersChanged, () => console.warn('W_PLUGIN_RENDERERS_FAILED'))
   }, [core, host, specsKey])
+
+  useEffect(() => {
+    if (!host) return
+    setPluginDrawer((key, source, theme) => {
+      const target = rendererOfKey(key)
+      return target
+        ? host.render(target.plugin, target.renderer, source, theme)
+        : Promise.resolve(null)
+    }, specsKey)
+    return () => setPluginDrawer(undefined, '')
+  }, [host, specsKey])
 
   const keys = useMemo(() => {
     const { keys: given, dropped } = pluginKeys(plugins, takenByApp)

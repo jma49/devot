@@ -4530,6 +4530,14 @@ public enum L10n {
     text("plugins.catalogNotListed", "That link names no official plugin.")
   }
 
+  public static func pluginsDrawingFailed() -> String {
+    text("plugins.drawingFailed", "The plugin could not draw this block.")
+  }
+
+  public static func pluginsDrawingLabel() -> String {
+    text("plugins.drawingLabel", "Drawing from a plugin")
+  }
+
   public static func pluginsPermissionNoteRead() -> String {
     text("plugins.permission.note.read", "Read the open note while you use it")
   }
@@ -4568,6 +4576,10 @@ public enum L10n {
 
   public static func pluginsPermissionNotesRead() -> String {
     text("plugins.permission.notesRead", "Read all your notes and notebooks, outside Templates and the Trash")
+  }
+
+  public static func pluginsPermissionThemes() -> String {
+    text("plugins.permission.themes", "Add color themes to Settings > Appearance")
   }
 
   public static func pluginsSettingsLabel(name p0: String) -> String {
@@ -7252,6 +7264,22 @@ public enum L10n {
 
   public static func appearanceSettingsThemesBuiltIn() -> String {
     text("appearanceSettings.themesBuiltIn", "Built-in")
+  }
+
+  public static func appearanceSettingsPluginTheme() -> String {
+    text("appearanceSettings.pluginTheme", "Plugin Theme")
+  }
+
+  public static func appearanceSettingsPluginThemeHint() -> String {
+    text("appearanceSettings.pluginThemeHint", "Its colors are drawn over the theme above.")
+  }
+
+  public static func appearanceSettingsPluginThemeNone() -> String {
+    text("appearanceSettings.pluginThemeNone", "None")
+  }
+
+  public static func appearanceSettingsPluginThemeBy(title p0: String, plugin p1: String) -> String {
+    fill(text("appearanceSettings.pluginThemeBy", "{title} ({plugin})"), ["title": p0, "plugin": p1])
   }
 
   public static func appearanceSettingsSwatchSample() -> String {

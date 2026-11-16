@@ -19,6 +19,7 @@ const PLUGIN_PERMISSIONS = [
   'export',
   'storage',
   'notes.read',
+  'themes',
 ] as const
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number]
 
@@ -34,11 +35,14 @@ const PERMISSION_SINCE: Readonly<Record<PluginPermission, number>> = {
   export: 1,
   storage: 2,
   'notes.read': 2,
+  themes: 2,
 }
 
 /** Settings came with API version 2. */
 const SETTINGS_SINCE = 2
 const SLASH_SINCE = 2
+const THEMES_SINCE = 2
+const SVG_SINCE = 2
 
 export interface PluginCommand {
   id: string
@@ -60,16 +64,32 @@ export type PluginSetting =
 
 export type SettingValue = boolean | string | number
 
+/** Colours drawn over the theme chosen in Settings > Appearance, from a JSON file in the package (API 2). */
+/** A preview renderer answers Markdown, or from API 2 an SVG drawing (ADR 0027). */
+export interface PluginRenderer {
+  id: string
+  language: string
+  output: 'markdown' | 'svg'
+}
+
+export interface PluginTheme {
+  id: string
+  title: string
+  appearance: 'light' | 'dark'
+  path: string
+}
+
 export interface PluginContributions {
   commands: PluginCommand[]
   menus: { command: string }[]
   /** Commands the editor's slash menu lists (API 2). */
   slashMenu: { command: string }[]
   keymaps: { command: string; key: string }[]
-  previewRenderers: { id: string; language: string }[]
+  previewRenderers: PluginRenderer[]
   importFormats: { id: string; title: string; extensions: string[] }[]
   exportFormats: { id: string; title: string; extension: string }[]
   settings: PluginSetting[]
+  themes: PluginTheme[]
 }
 
 export interface PluginManifest {
@@ -343,7 +363,7 @@ function contributions(
     return { command: command(e['command']), key }
   })
   unique(keymaps, (x) => x.command)
-  const previewRenderers = list(c['previewRenderers'], LIMITS.others).map((raw) => {
+  const previewRenderers = list(c['previewRenderers'], LIMITS.others).map((raw): PluginRenderer => {
     const e = entry(raw)
     const language = e['language']
     if (
@@ -353,7 +373,11 @@ function contributions(
     ) {
       return fail('E_PLUGIN_CONTRIBUTION_INVALID')
     }
-    return { id: contributionId(e['id']), language }
+    const output = e['output'] ?? 'markdown'
+    if (output !== 'markdown' && !(output === 'svg' && api >= SVG_SINCE)) {
+      return fail('E_PLUGIN_CONTRIBUTION_INVALID')
+    }
+    return { id: contributionId(e['id']), language, output }
   })
   unique(previewRenderers, (x) => x.id)
   unique(previewRenderers, (x) => x.language)
@@ -382,6 +406,18 @@ function contributions(
   const settings = list(c['settings'], LIMITS.others).map(parseSetting)
   unique(settings, (x) => x.id)
   if (settings.length > 0 && api < SETTINGS_SINCE) fail('E_PLUGIN_CONTRIBUTION_INVALID')
+  const themes = list(c['themes'], LIMITS.others).map((raw): PluginTheme => {
+    const e = entry(raw)
+    const { appearance, path } = e
+    if (appearance !== 'light' && appearance !== 'dark')
+      return fail('E_PLUGIN_CONTRIBUTION_INVALID')
+    if (typeof path !== 'string' || !isPackagePath(path) || !path.endsWith('.json')) {
+      return fail('E_PLUGIN_CONTRIBUTION_INVALID')
+    }
+    return { id: contributionId(e['id']), title: title(e['title']), appearance, path }
+  })
+  unique(themes, (x) => x.id)
+  if (themes.length > 0 && api < THEMES_SINCE) fail('E_PLUGIN_CONTRIBUTION_INVALID')
   const needs: [unknown[], PluginPermission][] = [
     [commands, 'commands'],
     [menus, 'menus'],
@@ -392,6 +428,7 @@ function contributions(
     [previewRenderers, 'preview'],
     [importFormats, 'import'],
     [exportFormats, 'export'],
+    [themes, 'themes'],
   ]
   for (const [items, permission] of needs) {
     if (items.length > 0 && !granted.includes(permission)) fail('E_PLUGIN_PERMISSION_MISSING')
@@ -405,6 +442,7 @@ function contributions(
     importFormats,
     exportFormats,
     settings,
+    themes,
   }
 }
 

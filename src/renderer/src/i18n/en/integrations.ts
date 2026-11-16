@@ -165,6 +165,8 @@ export const messages = {
   'plugins.catalogInstalled': 'Installed',
   'plugins.catalogNeedsApp': 'Needs a newer Devot',
   'plugins.catalogNotListed': 'That link names no official plugin.',
+  'plugins.drawingFailed': 'The plugin could not draw this block.',
+  'plugins.drawingLabel': 'Drawing from a plugin',
   'plugins.permission.note.read': 'Read the open note while you use it',
   'plugins.permission.note.edit': 'Change the open note while you use it',
   'plugins.permission.commands': 'Add commands to the command palette',
@@ -176,6 +178,7 @@ export const messages = {
   'plugins.permission.storage': 'Keep its own data on this Mac',
   'plugins.permission.notesRead':
     'Read all your notes and notebooks, outside Templates and the Trash',
+  'plugins.permission.themes': 'Add color themes to Settings > Appearance',
   'plugins.settingsLabel': '{name} settings',
   'plugins.settingFailed': 'The setting could not be changed.',
   'plugins.importAs': 'Import {title}…',

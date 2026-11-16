@@ -13,6 +13,7 @@ import { startShortcutSettings } from './commands/shortcutSettings'
 import { startSidebarSurround } from './sidebarSurround'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
+import { startPluginThemes } from './theme/pluginThemes'
 import { startBackdropPainter } from './theme/backdropWindow'
 import { startMotion } from './motionPreference'
 import { applyMotionScale } from './motionTiming'
@@ -41,6 +42,7 @@ watchCompositions(window)
 startEditorSettings()
 startShortcutSettings()
 startAppearance()
+startPluginThemes()
 startBackdropPainter()
 startMotion()
 applyMotionScale(document.documentElement)

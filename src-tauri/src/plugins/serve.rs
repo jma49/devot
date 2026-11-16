@@ -213,7 +213,7 @@ mod tests {
         assert!(runtime < main);
         for directive in [
             "default-src 'none'",
-            "script-src devot-plugin://localhost/com.example.hello/;",
+            "script-src devot-plugin://localhost/com.example.hello/ 'wasm-unsafe-eval';",
             "connect-src 'none'",
             "frame-src 'none'",
             "worker-src 'none'",
@@ -221,7 +221,12 @@ mod tests {
         ] {
             assert!(served.csp.contains(directive), "{directive}");
         }
-        assert!(!served.csp.contains("unsafe"));
+        assert!(
+            !served
+                .csp
+                .replace("'wasm-unsafe-eval'", "")
+                .contains("unsafe")
+        );
     }
 
     #[test]

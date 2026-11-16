@@ -12,7 +12,7 @@ pub const API_OLDEST: u64 = 1;
 pub const MAX_BYTES: usize = 64 * 1024;
 pub const RESERVED_FOLDER: &str = "__devot";
 
-pub const PERMISSIONS: [&str; 10] = [
+pub const PERMISSIONS: [&str; 11] = [
     "note.read",
     "note.edit",
     "commands",
@@ -23,12 +23,15 @@ pub const PERMISSIONS: [&str; 10] = [
     "export",
     "storage",
     "notes.read",
+    "themes",
 ];
 
 /// The API version that added each permission, in the order of `PERMISSIONS`.
-const PERMISSION_SINCE: [u64; 10] = [1, 1, 1, 1, 1, 1, 1, 1, 2, 2];
+const PERMISSION_SINCE: [u64; 11] = [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2];
 const SETTINGS_SINCE: u64 = 2;
 const SLASH_SINCE: u64 = 2;
+const THEMES_SINCE: u64 = 2;
+const SVG_SINCE: u64 = 2;
 const SETTING_TEXT_MAX: usize = 1000;
 
 const RESERVED_LANGUAGES: [&str; 5] = ["math", "mermaid", "plantuml", "puml", "markmap"];
@@ -75,6 +78,15 @@ pub struct Keymap {
 pub struct Renderer {
     pub id: String,
     pub language: String,
+    pub output: RendererOutput,
+}
+
+/// What a preview renderer answers: Markdown the preview renders as note text, or (from API 2) an SVG drawing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RendererOutput {
+    Markdown,
+    Svg,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,6 +172,22 @@ fn is_setting_text(text: &str) -> bool {
     text.chars().count() <= SETTING_TEXT_MAX && !text.chars().any(is_control)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeAppearance {
+    Light,
+    Dark,
+}
+
+/// Colours drawn over the theme chosen in Settings > Appearance, read from `path` in the package (`package::theme_colors`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Theme {
+    pub id: String,
+    pub title: String,
+    pub appearance: ThemeAppearance,
+    pub path: String,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Contributions {
@@ -171,6 +199,7 @@ pub struct Contributions {
     pub import_formats: Vec<ImportFormat>,
     pub export_formats: Vec<ExportFormat>,
     pub settings: Vec<Setting>,
+    pub themes: Vec<Theme>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -569,9 +598,16 @@ fn contributions(
                 Some(Value::String(l)) if is_language(l) => l.clone(),
                 _ => return Err(CONTRIBUTION),
             };
+            let output = match e.get("output") {
+                None => RendererOutput::Markdown,
+                Some(Value::String(o)) if o == "markdown" => RendererOutput::Markdown,
+                Some(Value::String(o)) if o == "svg" && api >= SVG_SINCE => RendererOutput::Svg,
+                _ => return Err(CONTRIBUTION),
+            };
             Ok(Renderer {
                 id: contribution_id(e.get("id"))?,
                 language,
+                output,
             })
         })
         .collect::<Result<Vec<_>, &'static str>>()?;
@@ -621,6 +657,31 @@ fn contributions(
     if !settings.is_empty() && api < SETTINGS_SINCE {
         return Err(CONTRIBUTION);
     }
+    let themes = list(c.get("themes"), OTHERS_MAX)?
+        .iter()
+        .map(|raw| {
+            let e = entry(raw)?;
+            let appearance = match e.get("appearance").and_then(Value::as_str) {
+                Some("light") => ThemeAppearance::Light,
+                Some("dark") => ThemeAppearance::Dark,
+                _ => return Err(CONTRIBUTION),
+            };
+            let path = match e.get("path") {
+                Some(Value::String(p)) if is_package_path(p) && p.ends_with(".json") => p.clone(),
+                _ => return Err(CONTRIBUTION),
+            };
+            Ok(Theme {
+                id: contribution_id(e.get("id"))?,
+                title: title(e.get("title"))?,
+                appearance,
+                path,
+            })
+        })
+        .collect::<Result<Vec<_>, &'static str>>()?;
+    unique(themes.iter().map(|x| x.id.as_str()))?;
+    if !themes.is_empty() && api < THEMES_SINCE {
+        return Err(CONTRIBUTION);
+    }
     let needs = [
         (!commands.is_empty(), "commands"),
         (!menus.is_empty(), "menus"),
@@ -631,6 +692,7 @@ fn contributions(
         (!preview_renderers.is_empty(), "preview"),
         (!import_formats.is_empty(), "import"),
         (!export_formats.is_empty(), "export"),
+        (!themes.is_empty(), "themes"),
     ];
     if needs
         .iter()
@@ -647,6 +709,7 @@ fn contributions(
         import_formats,
         export_formats,
         settings,
+        themes,
     })
 }
 

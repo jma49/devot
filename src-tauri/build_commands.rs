@@ -259,6 +259,8 @@ const PLUGINS: &[&str] = &[
     "plugin_catalog_stage",
     "plugin_offer_open",
     "plugin_offer_take",
+    "plugin_themes",
+    "plugin_theme_choose",
     "plugin_set_enabled",
     "plugin_remove",
     "plugin_import_pick",
