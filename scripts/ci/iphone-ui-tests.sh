@@ -7,7 +7,8 @@
 #   (test-without-building). The test launches the app by its bundle ID, since Tauri's Xcode project
 #   builds Rust only under the Tauri CLI.
 # - `settle` (CI) installs the app on the booted simulator and starts it once, until its web view
-#   has started, so the tests do not meet WebKit's slow first start.
+#   has started, so the tests do not meet WebKit's slow first start, then waits out PosterBoard's
+#   prewarm after the boot.
 # With no argument it runs build and test. XcodeGen makes the test project from DevotUITests/project.yml; it is
 # generated here and never committed. DEVOT_UI_SHARD runs one shard of the tests
 # (scripts/ci/iphone-ui-shards.ts); DEVOT_UI_TESTS holds any other xcodebuild selection, such as
@@ -105,6 +106,35 @@ settle() {
   sleep 10
   xcrun simctl terminate "$device" "$app_id" >/dev/null 2>&1 || true
   echo "settle: web view started after ${waited}s"
+  wait_prewarm "$device"
+}
+
+# After a boot SpringBoard asks dasd for PosterBoard's prewarm, a background task that snapshots
+# the wallpaper gallery and the switcher. In run 43805916243 it was asked for 13 s after settle,
+# started two minutes later and ran for one and a half more, in the tests: launchd's report that the
+# app had stopped came 10 s late and testmanagerd's 50 s late, and the next launch failed with
+# "Failed to terminate" (#961, #940, #880, #895). It needs the device idle, so it is waited for with
+# the app stopped, until dasd reports it completed, for at most DEVOT_UI_PREWARM seconds (360).
+wait_prewarm() {
+  limit=${DEVOT_UI_PREWARM:-360}
+  waited=0
+  while :; do
+    # The simulator's log keeps earlier boots: only this boot's dasd counts.
+    dasd=$(xcrun simctl spawn "$1" launchctl list 2>/dev/null | awk '$3 == "com.apple.dasd" { print $1 }')
+    last=$(xcrun simctl spawn "$1" log show --last boot --style compact --predicate \
+      "processIdentifier == ${dasd:-0} AND eventMessage CONTAINS \"posterboardupdate.prewarm\" AND (eventMessage BEGINSWITH \"SUBMITTED\" OR eventMessage BEGINSWITH \"COMPLETED\")" \
+      2>/dev/null | grep -oE "(SUBMITTED|COMPLETED) " | tail -n 1)
+    if [ "$last" = "COMPLETED " ]; then
+      echo "settle: PosterBoard prewarm done, waited ${waited}s"
+      return
+    fi
+    if [ "$waited" -ge "$limit" ]; then
+      echo "settle: PosterBoard prewarm ${last:-not submitted} after ${waited}s; testing anyway"
+      return
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
 }
 
 run_tests() {
