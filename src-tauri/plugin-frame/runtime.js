@@ -269,6 +269,7 @@
     'export.convert': 'format',
   }
   const onHidden = []
+  const onSettings = []
   let port = null
   let seq = 0
 
@@ -309,8 +310,11 @@
       else pending.reject(failure(message.code))
     } else if (message.kind === 'call') {
       void answer(message)
-    } else if (message.kind === 'event' && message.name === 'ui.hidden') {
-      for (const listener of onHidden) {
+    } else if (
+      message.kind === 'event' &&
+      (message.name === 'ui.hidden' || message.name === 'settings.changed')
+    ) {
+      for (const listener of message.name === 'ui.hidden' ? onHidden : onSettings) {
         try {
           listener()
         } catch {
@@ -338,7 +342,7 @@
 
   Object.defineProperty(globalThis, 'devot', {
     value: Object.freeze({
-      apiVersion: 1,
+      apiVersion: 2,
       commands: Object.freeze({ handle: register('command.run', (fn) => fn()) }),
       preview: Object.freeze({
         handle: register('preview.render', (fn, { source }) => fn(source)),
@@ -353,6 +357,18 @@
         read: () => call('note.read'),
         replace: ({ base, markdown }) =>
           call('note.replace', { base, markdown }).then(() => undefined),
+      }),
+      storage: Object.freeze({
+        get: (key) => call('storage.get', { key }),
+        set: (key, value) => call('storage.set', { key, value }).then(() => undefined),
+        delete: (key) => call('storage.delete', { key }).then(() => undefined),
+        keys: () => call('storage.keys'),
+      }),
+      settings: Object.freeze({
+        get: () => call('settings.get'),
+        onChange: (fn) => {
+          if (typeof fn === 'function') onSettings.push(fn)
+        },
       }),
       ui: Object.freeze({
         show: (options = {}) => call('ui.show', { height: options.height }).then(() => undefined),

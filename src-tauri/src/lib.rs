@@ -369,6 +369,12 @@ pub fn run() {
             plugins::plugin_remove,
             plugins::plugin_import_pick,
             plugins::plugin_export_save,
+            plugins::plugin_storage_get,
+            plugins::plugin_storage_set,
+            plugins::plugin_storage_delete,
+            plugins::plugin_storage_keys,
+            plugins::plugin_settings_get,
+            plugins::plugin_settings_set,
             #[cfg(target_os = "ios")]
             screens::screens_post,
             #[cfg(target_os = "ios")]

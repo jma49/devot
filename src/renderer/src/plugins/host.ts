@@ -13,6 +13,7 @@ import {
   type Converted,
   type HostMethod,
   type InstalledPlugin,
+  type JsonValue,
   type PluginCall,
   type PluginPermission,
 } from '../../../core/plugins'
@@ -36,9 +37,20 @@ export interface PluginHostDeps {
   readNote(): Promise<OpenNote | null>
   /** Throws E_PLUGIN_NO_NOTE without an open note, E_PLUGIN_NOTE_CHANGED when it is no longer `base`. */
   replaceNote(edit: { base: string; markdown: string }): Promise<void>
+  /** The plugin's own store (Rust checks its `storage` permission again). */
+  storage: PluginStorage
+  /** Every setting the plugin's manifest declares, with its value. */
+  settings(plugin: string): Promise<Record<string, unknown>>
   showUi(plugin: string, height: number): void
   hideUi(plugin: string): void
   warn(code: string, plugin: string): void
+}
+
+export interface PluginStorage {
+  get(plugin: string, key: string): Promise<JsonValue | null>
+  set(plugin: string, key: string, value: JsonValue): Promise<void>
+  delete(plugin: string, key: string): Promise<void>
+  keys(plugin: string): Promise<string[]>
 }
 
 export interface PluginHost {
@@ -54,6 +66,8 @@ export interface PluginHost {
   convertExport(plugin: string, format: string, note: OpenNote): Promise<string>
   /** The user closed the plugin's panel. */
   hidden(plugin: string): void
+  /** The user changed one of the plugin's settings. */
+  settingsChanged(plugin: string): void
   stop(): void
 }
 
@@ -84,15 +98,17 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
   const sessions = new Map<string, Session>()
   let wanted = new Map<string, InstalledPlugin>()
 
+  const tell = (s: Session, name: 'ui.hidden' | 'settings.changed') =>
+    s.ready
+      .then((port) => {
+        if (!s.stopped) port.postMessage({ devot: PLUGIN_PROTOCOL_VERSION, kind: 'event', name })
+      })
+      .catch(() => {})
+
   const markHidden = (s: Session) => {
     if (!s.shown) return
     s.shown = false
-    s.ready
-      .then((port) => {
-        if (!s.stopped)
-          port.postMessage({ devot: PLUGIN_PROTOCOL_VERSION, kind: 'event', name: 'ui.hidden' })
-      })
-      .catch(() => {})
+    void tell(s, 'ui.hidden')
   }
 
   const reply = (
@@ -121,6 +137,18 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
         s.shown = false
         deps.hideUi(s.id)
         return null
+      case 'storage.get':
+        return deps.storage.get(s.id, call.key)
+      case 'storage.set':
+        await deps.storage.set(s.id, call.key, call.value)
+        return null
+      case 'storage.delete':
+        await deps.storage.delete(s.id, call.key)
+        return null
+      case 'storage.keys':
+        return deps.storage.keys(s.id)
+      case 'settings.get':
+        return deps.settings(s.id)
     }
   }
 
@@ -293,6 +321,11 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
     hidden(plugin) {
       const s = sessions.get(plugin)
       if (s) markHidden(s)
+    },
+
+    settingsChanged(plugin) {
+      const s = sessions.get(plugin)
+      if (s) void tell(s, 'settings.changed')
     },
 
     stop() {

@@ -159,6 +159,19 @@ describe('Tauri command permissions', () => {
     expect(windowsWith('allow-plugin-export-save')).toEqual(['main'])
   })
 
+  it('lets only the main window reach the own data of a plugin, and only Settings change its settings', () => {
+    for (const command of [
+      'allow-plugin-storage-get',
+      'allow-plugin-storage-set',
+      'allow-plugin-storage-delete',
+      'allow-plugin-storage-keys',
+    ]) {
+      expect(windowsWith(command)).toEqual(['main'])
+    }
+    expect(windowsWith('allow-plugin-settings-get')).toEqual(['main', 'settings'])
+    expect(windowsWith('allow-plugin-settings-set')).toEqual(['settings'])
+  })
+
   it('lets the windows read the editor settings, the main and Settings windows change them, and the Settings window nothing more', () => {
     expect(windowsWith('allow-editor-settings-get')).toEqual([
       'main',
@@ -219,12 +232,15 @@ describe('Tauri command permissions', () => {
       'allow-mirror-set',
       // Settings > Licence opens the Buy page in the browser.
       'allow-open-external',
-      // Settings > Plugins installs plugins after the user approves their permissions, turns them on and off and removes them.
+      // Settings > Plugins installs plugins after the user approves their permissions, turns them on and off, removes them and
+      // changes their settings.
       'allow-plugin-install-cancel',
       'allow-plugin-install-confirm',
       'allow-plugin-install-pick',
       'allow-plugin-remove',
       'allow-plugin-set-enabled',
+      'allow-plugin-settings-get',
+      'allow-plugin-settings-set',
       'allow-plugins-list',
       // Settings > Integrations says whether any notebook allows AI access.
       'allow-settings-ai-access-summary',

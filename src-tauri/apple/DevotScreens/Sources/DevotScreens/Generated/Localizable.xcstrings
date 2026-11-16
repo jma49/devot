@@ -26453,6 +26453,23 @@
         }
       }
     },
+    "plugins.permission.storage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep its own data on this Mac"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在这台 Mac 上保存它自己的数据"
+          }
+        }
+      }
+    },
     "plugins.permissions" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -26619,6 +26636,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "安装“{name}”？"
+          }
+        }
+      }
+    },
+    "plugins.settingFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The setting could not be changed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法更改该设置。"
+          }
+        }
+      }
+    },
+    "plugins.settingsLabel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{name} settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{name} 设置"
           }
         }
       }

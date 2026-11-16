@@ -4,7 +4,7 @@ import { isRecord } from '../isRecord'
 import { trimWhitespace } from '../text'
 
 /** The newest plugin API this Devot speaks; a later one is additive, so a plugin written for an older one still runs. */
-export const PLUGIN_API_VERSION = 1
+export const PLUGIN_API_VERSION = 2
 /** The oldest plugin API still run (ADR 0020: one is kept at least 12 months after the next ships). */
 export const PLUGIN_API_OLDEST = 1
 
@@ -17,6 +17,7 @@ const PLUGIN_PERMISSIONS = [
   'preview',
   'import',
   'export',
+  'storage',
 ] as const
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number]
 
@@ -30,12 +31,31 @@ const PERMISSION_SINCE: Readonly<Record<PluginPermission, number>> = {
   preview: 1,
   import: 1,
   export: 1,
+  storage: 2,
 }
+
+/** Settings came with API version 2. */
+const SETTINGS_SINCE = 2
 
 export interface PluginCommand {
   id: string
   title: string
 }
+
+interface SettingBase {
+  id: string
+  title: string
+  description: string
+}
+
+/** A setting the plugin declares and Devot draws in Settings > Plugins; the plugin reads the values (`settings.get`). */
+export type PluginSetting =
+  | (SettingBase & { type: 'toggle'; default: boolean })
+  | (SettingBase & { type: 'text'; default: string })
+  | (SettingBase & { type: 'number'; default: number; min: number | null; max: number | null })
+  | (SettingBase & { type: 'choice'; default: string; choices: { id: string; title: string }[] })
+
+export type SettingValue = boolean | string | number
 
 export interface PluginContributions {
   commands: PluginCommand[]
@@ -44,6 +64,7 @@ export interface PluginContributions {
   previewRenderers: { id: string; language: string }[]
   importFormats: { id: string; title: string; extensions: string[] }[]
   exportFormats: { id: string; title: string; extension: string }[]
+  settings: PluginSetting[]
 }
 
 export interface PluginManifest {
@@ -92,6 +113,7 @@ const LIMITS = {
   commands: 50,
   others: 20,
   extensions: 10,
+  settingText: 1000,
   key: 40,
 } as const
 
@@ -210,7 +232,84 @@ function permissions(value: unknown, api: number): PluginPermission[] {
   return out
 }
 
-function contributions(value: unknown, granted: readonly PluginPermission[]): PluginContributions {
+function finite(value: unknown): number | null {
+  if (value === undefined || value === null) return null
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : fail('E_PLUGIN_CONTRIBUTION_INVALID')
+}
+
+function parseSetting(raw: unknown): PluginSetting {
+  const e = entry(raw)
+  const base: SettingBase = {
+    id: contributionId(e['id']),
+    title: title(e['title']),
+    description: optionalText(e['description'], LIMITS.description),
+  }
+  const given = e['default']
+  switch (e['type']) {
+    case 'toggle':
+      if (given !== undefined && typeof given !== 'boolean') break
+      return { ...base, type: 'toggle', default: given ?? false }
+    case 'text':
+      if (given !== undefined && !isSettingText(given)) break
+      return { ...base, type: 'text', default: given ?? '' }
+    case 'number': {
+      const min = finite(e['min'])
+      const max = finite(e['max'])
+      const value = finite(given) ?? min ?? 0
+      if ((min !== null && value < min) || (max !== null && value > max)) break
+      if (min !== null && max !== null && min > max) break
+      return { ...base, type: 'number', default: value, min, max }
+    }
+    case 'choice': {
+      const choices = list(e['choices'], LIMITS.others).map((c) => {
+        const choice = entry(c)
+        return { id: contributionId(choice['id']), title: title(choice['title']) }
+      })
+      unique(choices, (x) => x.id)
+      const first = choices[0]
+      if (!first) break
+      if (given !== undefined && !choices.some((c) => c.id === given)) break
+      return {
+        ...base,
+        type: 'choice',
+        default: (given as string | undefined) ?? first.id,
+        choices,
+      }
+    }
+  }
+  return fail('E_PLUGIN_CONTRIBUTION_INVALID')
+}
+
+function isSettingText(value: unknown): value is string {
+  return typeof value === 'string' && length(value) <= LIMITS.settingText && !hasControl(value)
+}
+
+/** Whether `value` fits `setting`: what Settings may store and the plugin is handed. */
+export function fitsSetting(setting: PluginSetting, value: unknown): value is SettingValue {
+  switch (setting.type) {
+    case 'toggle':
+      return typeof value === 'boolean'
+    case 'text':
+      return isSettingText(value)
+    case 'number':
+      return (
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        (setting.min === null || value >= setting.min) &&
+        (setting.max === null || value <= setting.max)
+      )
+    case 'choice':
+      return setting.choices.some((c) => c.id === value)
+  }
+}
+
+function contributions(
+  value: unknown,
+  granted: readonly PluginPermission[],
+  api: number,
+): PluginContributions {
   if (value !== undefined && !isRecord(value)) return fail('E_PLUGIN_CONTRIBUTION_INVALID')
   const c = value ?? {}
   const commands = list(c['commands'], LIMITS.commands).map((raw): PluginCommand => {
@@ -270,6 +369,9 @@ function contributions(value: unknown, granted: readonly PluginPermission[]): Pl
     }
   })
   unique(exportFormats, (x) => x.id)
+  const settings = list(c['settings'], LIMITS.others).map(parseSetting)
+  unique(settings, (x) => x.id)
+  if (settings.length > 0 && api < SETTINGS_SINCE) fail('E_PLUGIN_CONTRIBUTION_INVALID')
   const needs: [unknown[], PluginPermission][] = [
     [commands, 'commands'],
     [menus, 'menus'],
@@ -283,7 +385,7 @@ function contributions(value: unknown, granted: readonly PluginPermission[]): Pl
   for (const [items, permission] of needs) {
     if (items.length > 0 && !granted.includes(permission)) fail('E_PLUGIN_PERMISSION_MISSING')
   }
-  return { commands, menus, keymaps, previewRenderers, importFormats, exportFormats }
+  return { commands, menus, keymaps, previewRenderers, importFormats, exportFormats, settings }
 }
 
 /** Throws the first rule broken as its code; unknown keys are left out. */
@@ -308,7 +410,7 @@ export function parseManifest(value: unknown): PluginManifest {
     author: optionalText(value['author'], LIMITS.author),
     main,
     permissions: granted,
-    contributes: contributions(value['contributes'], granted),
+    contributes: contributions(value['contributes'], granted, api),
   }
 }
 

@@ -6,13 +6,13 @@ use serde_json::{Map, Value};
 
 pub const FILE: &str = "devot-plugin.json";
 /// The newest plugin API this build speaks; a later one only adds, so an older plugin still runs (ADR 0020).
-pub const API_VERSION: u64 = 1;
+pub const API_VERSION: u64 = 2;
 /// The oldest plugin API still run, kept at least 12 months after the next ships.
 pub const API_OLDEST: u64 = 1;
 pub const MAX_BYTES: usize = 64 * 1024;
 pub const RESERVED_FOLDER: &str = "__devot";
 
-pub const PERMISSIONS: [&str; 8] = [
+pub const PERMISSIONS: [&str; 9] = [
     "note.read",
     "note.edit",
     "commands",
@@ -21,10 +21,13 @@ pub const PERMISSIONS: [&str; 8] = [
     "preview",
     "import",
     "export",
+    "storage",
 ];
 
 /// The API version that added each permission, in the order of `PERMISSIONS`.
-const PERMISSION_SINCE: [u64; 8] = [1, 1, 1, 1, 1, 1, 1, 1];
+const PERMISSION_SINCE: [u64; 9] = [1, 1, 1, 1, 1, 1, 1, 1, 2];
+const SETTINGS_SINCE: u64 = 2;
+const SETTING_TEXT_MAX: usize = 1000;
 
 const RESERVED_LANGUAGES: [&str; 5] = ["math", "mermaid", "plantuml", "puml", "markmap"];
 const ID_MAX: usize = 64;
@@ -86,6 +89,75 @@ pub struct ExportFormat {
     pub extension: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Choice {
+    pub id: String,
+    pub title: String,
+}
+
+/// What a setting holds, with its default; numbers are kept as JSON numbers so they read back as written.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum SettingKind {
+    Toggle {
+        default: bool,
+    },
+    Text {
+        default: String,
+    },
+    Number {
+        default: serde_json::Number,
+        min: Option<serde_json::Number>,
+        max: Option<serde_json::Number>,
+    },
+    Choice {
+        default: String,
+        choices: Vec<Choice>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Setting {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    #[serde(flatten)]
+    pub kind: SettingKind,
+}
+
+impl Setting {
+    pub fn default_value(&self) -> Value {
+        match &self.kind {
+            SettingKind::Toggle { default } => Value::Bool(*default),
+            SettingKind::Text { default } | SettingKind::Choice { default, .. } => {
+                Value::String(default.clone())
+            }
+            SettingKind::Number { default, .. } => Value::Number(default.clone()),
+        }
+    }
+
+    /// Whether Settings may store `value` for it.
+    pub fn fits(&self, value: &Value) -> bool {
+        match (&self.kind, value) {
+            (SettingKind::Toggle { .. }, Value::Bool(_)) => true,
+            (SettingKind::Text { .. }, Value::String(text)) => is_setting_text(text),
+            (SettingKind::Number { min, max, .. }, Value::Number(n)) => {
+                let Some(n) = n.as_f64() else { return false };
+                min.as_ref().and_then(|m| m.as_f64()).is_none_or(|m| n >= m)
+                    && max.as_ref().and_then(|m| m.as_f64()).is_none_or(|m| n <= m)
+            }
+            (SettingKind::Choice { choices, .. }, Value::String(id)) => {
+                choices.iter().any(|c| &c.id == id)
+            }
+            _ => false,
+        }
+    }
+}
+
+fn is_setting_text(text: &str) -> bool {
+    text.chars().count() <= SETTING_TEXT_MAX && !text.chars().any(is_control)
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Contributions {
@@ -95,6 +167,7 @@ pub struct Contributions {
     pub preview_renderers: Vec<Renderer>,
     pub import_formats: Vec<ImportFormat>,
     pub export_formats: Vec<ExportFormat>,
+    pub settings: Vec<Setting>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -341,7 +414,88 @@ fn permissions(value: Option<&Value>, api: u64) -> Result<Vec<String>, &'static 
     Ok(out)
 }
 
-fn contributions(value: Option<&Value>, granted: &[String]) -> Result<Contributions, &'static str> {
+fn finite(value: Option<&Value>) -> Result<Option<serde_json::Number>, &'static str> {
+    match value {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Number(n)) if n.as_f64().is_some_and(f64::is_finite) => Ok(Some(n.clone())),
+        Some(_) => Err(CONTRIBUTION),
+    }
+}
+
+fn setting(raw: &Value) -> Result<Setting, &'static str> {
+    let e = entry(raw)?;
+    let id = contribution_id(e.get("id"))?;
+    let name = title(e.get("title"))?;
+    let description =
+        optional_text(e.get("description"), DESCRIPTION_MAX).map_err(|_| CONTRIBUTION)?;
+    let given = e.get("default");
+    let kind = match e.get("type").and_then(Value::as_str) {
+        Some("toggle") => match given {
+            None => SettingKind::Toggle { default: false },
+            Some(Value::Bool(b)) => SettingKind::Toggle { default: *b },
+            Some(_) => return Err(CONTRIBUTION),
+        },
+        Some("text") => match given {
+            None => SettingKind::Text {
+                default: String::new(),
+            },
+            Some(Value::String(t)) if is_setting_text(t) => {
+                SettingKind::Text { default: t.clone() }
+            }
+            Some(_) => return Err(CONTRIBUTION),
+        },
+        Some("number") => {
+            let min = finite(e.get("min"))?;
+            let max = finite(e.get("max"))?;
+            let default = finite(given)?
+                .or_else(|| min.clone())
+                .unwrap_or_else(|| 0.into());
+            let at =
+                |n: &Option<serde_json::Number>| n.as_ref().and_then(serde_json::Number::as_f64);
+            let value = default.as_f64().ok_or(CONTRIBUTION)?;
+            if at(&min).is_some_and(|m| value < m)
+                || at(&max).is_some_and(|m| value > m)
+                || matches!((at(&min), at(&max)), (Some(lo), Some(hi)) if lo > hi)
+            {
+                return Err(CONTRIBUTION);
+            }
+            SettingKind::Number { default, min, max }
+        }
+        Some("choice") => {
+            let choices = list(e.get("choices"), OTHERS_MAX)?
+                .iter()
+                .map(|raw| {
+                    let c = entry(raw)?;
+                    Ok(Choice {
+                        id: contribution_id(c.get("id"))?,
+                        title: title(c.get("title"))?,
+                    })
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            unique(choices.iter().map(|c| c.id.as_str()))?;
+            let first = choices.first().ok_or(CONTRIBUTION)?.id.clone();
+            let default = match given {
+                None => first,
+                Some(Value::String(id)) if choices.iter().any(|c| &c.id == id) => id.clone(),
+                Some(_) => return Err(CONTRIBUTION),
+            };
+            SettingKind::Choice { default, choices }
+        }
+        _ => return Err(CONTRIBUTION),
+    };
+    Ok(Setting {
+        id,
+        title: name,
+        description,
+        kind,
+    })
+}
+
+fn contributions(
+    value: Option<&Value>,
+    granted: &[String],
+    api: u64,
+) -> Result<Contributions, &'static str> {
     let empty = Map::new();
     let c = match value {
         None => &empty,
@@ -439,6 +593,14 @@ fn contributions(value: Option<&Value>, granted: &[String]) -> Result<Contributi
         })
         .collect::<Result<Vec<_>, &'static str>>()?;
     unique(export_formats.iter().map(|x| x.id.as_str()))?;
+    let settings = list(c.get("settings"), OTHERS_MAX)?
+        .iter()
+        .map(setting)
+        .collect::<Result<Vec<_>, &'static str>>()?;
+    unique(settings.iter().map(|x| x.id.as_str()))?;
+    if !settings.is_empty() && api < SETTINGS_SINCE {
+        return Err(CONTRIBUTION);
+    }
     let needs = [
         (!commands.is_empty(), "commands"),
         (!menus.is_empty(), "menus"),
@@ -462,6 +624,7 @@ fn contributions(value: Option<&Value>, granted: &[String]) -> Result<Contributi
         preview_renderers,
         import_formats,
         export_formats,
+        settings,
     })
 }
 
@@ -490,7 +653,7 @@ pub fn parse(value: &Value) -> Result<Manifest, &'static str> {
     let name = text(m.get("name"), NAME_MAX, INVALID)?;
     let description = optional_text(m.get("description"), DESCRIPTION_MAX)?;
     let author = optional_text(m.get("author"), AUTHOR_MAX)?;
-    let contributes = contributions(m.get("contributes"), &permissions)?;
+    let contributes = contributions(m.get("contributes"), &permissions, api_version)?;
     Ok(Manifest {
         id,
         name,

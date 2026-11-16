@@ -24,6 +24,42 @@
     { "name": "a main script in a folder", "patch": { "main": "dist/plugin.min.js" } },
     { "name": "a one-part id", "patch": { "id": "wordcount" } },
     { "name": "a minimum app version", "patch": { "minAppVersion": "1.1.7" } },
+    { "name": "API version 2", "patch": { "apiVersion": 2 } },
+    {
+      "name": "storage from API version 2",
+      "patch": { "apiVersion": 2, "permissions": ["storage"], "contributes": null }
+    },
+    {
+      "name": "every kind of setting",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": null,
+        "contributes": {
+          "settings": [
+            { "id": "on", "title": "On", "type": "toggle", "default": true },
+            {
+              "id": "label",
+              "title": "Label",
+              "type": "text",
+              "default": "Total",
+              "description": "Shown first."
+            },
+            { "id": "size", "title": "Size", "type": "number", "default": 12, "min": 8, "max": 32 },
+            { "id": "ratio", "title": "Ratio", "type": "number", "default": 0.5 },
+            {
+              "id": "unit",
+              "title": "Unit",
+              "type": "choice",
+              "default": "mi",
+              "choices": [
+                { "id": "km", "title": "Kilometres" },
+                { "id": "mi", "title": "Miles" }
+              ]
+            }
+          ]
+        }
+      }
+    },
     { "name": "unknown keys are left out", "patch": { "homepage": "https://example.com" } },
     {
       "name": "every contribution",
@@ -56,6 +92,118 @@
     }
   ],
   "invalid": [
+    {
+      "name": "storage asked for by an API version 1 manifest",
+      "patch": { "permissions": ["storage"], "contributes": null },
+      "code": "E_PLUGIN_PERMISSION_UNKNOWN"
+    },
+    {
+      "name": "settings in an API version 1 manifest",
+      "patch": {
+        "permissions": null,
+        "contributes": { "settings": [{ "id": "on", "title": "On", "type": "toggle" }] }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a setting of an unknown type",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": null,
+        "contributes": { "settings": [{ "id": "on", "title": "On", "type": "colour" }] }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a toggle with a text default",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": null,
+        "contributes": {
+          "settings": [{ "id": "on", "title": "On", "type": "toggle", "default": "yes" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a number default outside its range",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": null,
+        "contributes": {
+          "settings": [
+            { "id": "n", "title": "N", "type": "number", "default": 40, "min": 8, "max": 32 }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a number range upside down",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": null,
+        "contributes": {
+          "settings": [{ "id": "n", "title": "N", "type": "number", "min": 9, "max": 3 }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a choice without choices",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": null,
+        "contributes": {
+          "settings": [{ "id": "c", "title": "C", "type": "choice", "choices": [] }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a choice default that is not a choice",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": null,
+        "contributes": {
+          "settings": [
+            {
+              "id": "c",
+              "title": "C",
+              "type": "choice",
+              "default": "z",
+              "choices": [{ "id": "a", "title": "A" }]
+            }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "two settings with one id",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": null,
+        "contributes": {
+          "settings": [
+            { "id": "a", "title": "A", "type": "toggle" },
+            { "id": "a", "title": "B", "type": "text" }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a text default with a line break",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": null,
+        "contributes": {
+          "settings": [{ "id": "t", "title": "T", "type": "text", "default": "a\nb" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
     { "name": "no id", "patch": { "id": null }, "code": "E_PLUGIN_ID_INVALID" },
     {
       "name": "an id with capitals",
@@ -81,7 +229,7 @@
     },
     {
       "name": "an API version newer than this Devot speaks",
-      "patch": { "apiVersion": 2 },
+      "patch": { "apiVersion": 3 },
       "code": "E_PLUGIN_API_TOO_NEW"
     },
     { "name": "API version 0", "patch": { "apiVersion": 0 }, "code": "E_PLUGIN_API_VERSION" },

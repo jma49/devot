@@ -166,3 +166,69 @@ test('says a package needs a newer Devot', async ({ page }) => {
     'The plugin could not be installed. It needs a newer version of Devot.',
   )
 })
+
+test('draws the settings a plugin declares and stores what the user picks', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window
+    const values: Record<string, unknown> = { wrap: false, unit: 'km', width: 80, label: 'Total' }
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      plugins_list: () => [
+        {
+          manifest: {
+            id: 'com.example.tables',
+            name: 'Tables',
+            version: '1.0.0',
+            apiVersion: 2,
+            main: 'main.js',
+            contributes: {
+              settings: [
+                { id: 'wrap', title: 'Wrap Cells', type: 'toggle' },
+                {
+                  id: 'unit',
+                  title: 'Unit',
+                  type: 'choice',
+                  choices: [
+                    { id: 'km', title: 'Kilometres' },
+                    { id: 'mi', title: 'Miles' },
+                  ],
+                },
+                { id: 'width', title: 'Width', type: 'number', default: 80, min: 20, max: 200 },
+                { id: 'label', title: 'Label', type: 'text', description: 'Shown above.' },
+              ],
+            },
+          },
+          enabled: true,
+          granted: [],
+        },
+      ],
+      plugin_settings_get: () => values,
+      plugin_settings_set: (args: { setting: string; value: unknown }) => {
+        values[args.setting] = args.value
+        return null
+      },
+    }
+  })
+  await openSettings(page, 'Plugins')
+  const settings = page.getByRole('listitem', { name: 'Tables settings' })
+  await settings.getByRole('switch', { name: 'Wrap Cells' }).check()
+  await settings.getByRole('combobox', { name: 'Unit' }).selectOption('mi')
+  const width = settings.getByRole('spinbutton', { name: 'Width' })
+  await width.fill('500')
+  await width.press('Enter')
+  await expect(width).toHaveValue('80')
+  await width.fill('120')
+  await width.press('Enter')
+  const label = settings.getByRole('textbox', { name: 'Label' })
+  await expect(label).toHaveValue('Total')
+  await label.fill('Sum')
+  await label.blur()
+  await expect
+    .poll(() => calls(page, 'plugin_settings_set'))
+    .toEqual([
+      { plugin: 'com.example.tables', setting: 'wrap', value: true },
+      { plugin: 'com.example.tables', setting: 'unit', value: 'mi' },
+      { plugin: 'com.example.tables', setting: 'width', value: 120 },
+      { plugin: 'com.example.tables', setting: 'label', value: 'Sum' },
+    ])
+})
