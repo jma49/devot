@@ -50,6 +50,10 @@ const menuWith = (
 const popups = (page: Page) =>
   page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
+// The tooltip's text: `title`, or `data-tip` while the pointer rests on the button after a click (ToolTips.tsx).
+const sortTip = (page: Page) =>
+  sortButton(page).evaluate((el) => el.getAttribute('title') ?? (el as HTMLElement).dataset['tip'])
+
 async function openSortMenu(page: Page) {
   const before = await popups(page)
   await sortButton(page).click()
@@ -59,7 +63,7 @@ async function openSortMenu(page: Page) {
 async function sortBy(page: Page, label: string) {
   await openSortMenu(page)
   await pickMenuItem(page, label)
-  await expect(sortButton(page)).toHaveAttribute('title', `Sorted by ${label}`)
+  await expect.poll(() => sortTip(page)).toBe(`Sorted by ${label}`)
 }
 
 async function createNote(page: Page, title: string) {
@@ -111,7 +115,7 @@ test.beforeEach(async ({ page }) => {
 test('the sort pop-up lists the six orders and shows the current one', async ({ page }) => {
   await createNote(page, 'First')
   await expect(sortButton(page)).toHaveText('Date Updated')
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Date Updated (Newest First)')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Date Updated (Newest First)')
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(menuWith('Date Updated (Newest First)', true))
   const at = await page.evaluate(
@@ -124,7 +128,7 @@ test('the sort pop-up lists the six orders and shows the current one', async ({ 
 
   await pickMenuItem(page, 'Title (Z to A)')
   await expect(sortButton(page)).toHaveText('Title')
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Title (Z to A)')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Title (Z to A)')
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(menuWith('Title (Z to A)', false))
 })
@@ -159,7 +163,7 @@ test('an order re-sorts the list, pinned notes in their own section, and survive
 
   await sortBy(page, 'Title (Z to A)')
   await page.reload()
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Title (Z to A)')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Title (Z to A)')
   await expect(rowTitles(page)).toHaveText(['Date', 'apple', 'Cherry pie', 'banana'])
   await expect(sections(page)).toHaveText(['Pinned', 'Notes'])
   await noteRows(page).first().click()
@@ -188,7 +192,7 @@ test('each view keeps its own order; Use as Default sets the rest', async ({ pag
   await expect(rowTitles(page)).toHaveText(['gamma', 'Alpha', 'beta', 'Yankee', 'zulu'])
   await openBook(page, 'Work')
   await expect(header(page)).toHaveText('Work')
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Date Updated (Newest First)')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Date Updated (Newest First)')
   await expect(rowTitles(page)).toHaveText(['Yankee', 'zulu'])
 
   await sortBy(page, 'Date Created (Oldest First)')
@@ -201,19 +205,19 @@ test('each view keeps its own order; Use as Default sets the rest', async ({ pag
 
   await filter(page, 'Pinned').click()
   await expect(header(page)).toHaveText('Pinned')
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Date Created (Oldest First)')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Date Created (Oldest First)')
   await filter(page, 'Pinned').click()
   await sidebar(page)
     .getByRole('button', { name: /^All Notes/ })
     .click()
   await expect(header(page)).toHaveText('All Notes')
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Title (A to Z)')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Title (A to Z)')
   await expect(rowTitles(page)).toHaveText(['gamma', 'Alpha', 'beta', 'Yankee', 'zulu'])
 
   await page.reload()
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Title (A to Z)')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Title (A to Z)')
   await openBook(page, 'Work')
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Date Created (Oldest First)')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Date Created (Oldest First)')
   await expect(rowTitles(page)).toHaveText(['zulu', 'Yankee'])
 })
 
@@ -228,13 +232,13 @@ test('search results keep their relevance order until another order is picked', 
 
   await search(page).fill('plan')
   await expect(header(page)).toHaveText('Search')
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Relevance')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Relevance')
   await expect(rowTitles(page)).toHaveText(['plan c', 'plan a', 'plan b'])
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(['Relevance [x]', '---', ...menuWith('', undefined)])
 
   await pickMenuItem(page, 'Title (A to Z)')
-  await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Title (A to Z)')
+  await expect.poll(() => sortTip(page)).toBe('Sorted by Title (A to Z)')
   await expect(rowTitles(page)).toHaveText(['plan a', 'plan b', 'plan c'])
   await sortBy(page, 'Relevance')
   await expect(rowTitles(page)).toHaveText(['plan c', 'plan a', 'plan b'])
