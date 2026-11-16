@@ -2,9 +2,8 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // CI helper for .github/workflows/flaky-tracker.yml: after a CI run on main or in the merge queue,
-// every test that passed only on its retry (a "Flaky" warning annotation from
-// tests/support/flaky-report.ts, scripts/ci/playwright-flaky.ts or the iPhone test scripts) gets an
-// open issue labelled `flaky`, one per test, and each later run that sees it adds a comment, so the
+// every test that passed only on its retry (a "Flaky" warning annotation from the iPhone test
+// scripts) gets an open issue labelled `flaky`, one per test, and each later run that sees it adds a comment, so the
 // count of sightings says which flake to fix first.
 // A failed run on main has its failed jobs run again, once: a job that passes then is tracked the
 // same way, and a run that is still red is reported on the "CI health" issue, whose text gives

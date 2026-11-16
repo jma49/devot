@@ -12,7 +12,6 @@ export default defineConfig({
   ...(selection.testMatch ? { testMatch: selection.testMatch } : {}),
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
-  retries: process.env['CI'] ? 1 : 0,
   // Leave runner capacity for the server and WebKit's rendering processes.
   workers: Number(process.env['DEVOT_UI_WORKERS'] ?? 2),
   reporter: process.env['CI'] ? 'github' : 'list',

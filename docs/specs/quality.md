@@ -151,7 +151,7 @@ Every PR must test the logic it changes, which review checks.
   Documentation-only changes run only the format check and the policy and token tests (`pnpm test:policy`), which read the docs; a pull request without web changes runs `policy-check` instead of the web jobs: the format check, lint, the type check and all of Vitest, whose tests also read the Rust sources, migrations and capabilities.
   Every job runs unless the change detection said it is not needed, so missing outputs run everything, and the three required gates always report.
   Pull-request runs cancel an older run for the same PR; main runs never cancel each other.
-  Each UI shard uploads its Playwright results (traces of failed attempts, including a test that failed once and passed on retry, and the JSON report the shard durations are refreshed from) as `playwright-results-<project>-<shard>` unless the run was cancelled.
+  Each UI shard uploads its Playwright results (traces of failed tests, and the JSON report the shard durations are refreshed from) as `playwright-results-<project>-<shard>` unless the run was cancelled.
 - The `PR title` workflow (`pr-title.yml`) checks that a pull request's title, which becomes the squash commit's message, is a Conventional Commit; it runs again when the title is edited.
 - The dependency checks run on every pull request that changes code, on a run started by hand and in `pnpm check`.
   There is no scheduled run yet, so a new advisory on an unchanged dependency shows up with the next such run.
@@ -159,14 +159,14 @@ Every PR must test the logic it changes, which review checks.
 
 ## Flaky tests
 
-A one-off flake on a shared runner must not fail a merge or a release, and a flaky test must not be forgotten.
+A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixed and cost a run each.
 
-- On CI, Vitest (`retry` in `vitest.config.ts`), Playwright (`retries`) and the XCUITests (`-retry-tests-on-failure -test-iterations 2` in the iPhone, screens and StoreKit test scripts) run a failed test once more; a test that fails twice fails the job.
-  Locally a failure fails at once.
+- Vitest and Playwright do not retry: a test that fails once fails the job, on CI as locally (a policy test holds both configs to it).
+- The XCUITests (`-retry-tests-on-failure -test-iterations 2` in the iPhone, screens and StoreKit test scripts) still run a failed test once more, until their open `flaky` issues are fixed; a test that fails twice fails the job.
   A failed iPhone UI test ends the test process, and xcodebuild then goes on with the tests that are left without running the failed one again: on main, 10 of the 11 shards with a failed test lost their retry that way.
   A test made to fail on its first run showed it on CI: after the failure xcodebuild logged `Restarting after unexpected exit, crash, or test timeout` and went on to the next test.
   So `scripts/ci/iphone-ui-tests.sh` runs the tests that failed once and were not run again in a second xcodebuild run (`scripts/ci/xctest-retry.ts` reads them from the log), and the job passes when they pass there.
-- A test that passed only on its retry is listed as a "Flaky" warning annotation and in the job summary (`tests/support/flaky-report.ts`, `scripts/ci/playwright-flaky.ts`, the test scripts).
+- An XCUITest that passed only on its retry is listed as a "Flaky" warning annotation and in the job summary (the test scripts).
 - After each CI run on main and in the merge queue, `.github/workflows/flaky-tracker.yml` opens an issue labelled `flaky` for each such test, or comments on the one it has (`scripts/ci/flaky-tracker.ts`); the number of comments ranks which to fix first.
   Pull request runs are left out, since a flake there may be the pull request's own change.
 - A run on main that failed has its failed jobs run again, once, by the same workflow: what a test's retry cannot cover (a download, a runner, a simulator that did not start) must not leave main red.
@@ -182,7 +182,7 @@ A one-off flake on a shared runner must not fail a merge or a release, and a fla
   - The iPhone UI tests' waits were sized on an idle simulator, and the `xcode-27` runner's load stays in the hundreds; every wait goes through `waitLimit` (`src-tauri/apple/DevotUITests/Tests/Waits.swift`), which CI multiplies by `DEVOT_UI_WAIT_SCALE` (3), and a policy test refuses a bare number.
   - A product time limit (a parse budget) that a slow machine reaches is measured with `expectWithinBudget`, which allows for the hosted runner, instead of being asserted as if it never ran out.
   - A time check's budget is written for a developer's Mac; a machine that is slower without being overloaded (a cloud container, where the load stays under the core count) sets `DEVOT_BUDGET_SCALE`, which stretches every budget by up to the hosted runner's factor (`tests/support/budget.ts`).
-  - A test that runs out of time is not stopped: it keeps writing to what it shares with the next test, and with its own retry, which then fails on state the first attempt is still changing (a rate limit's count); a test with many signed requests gets a time limit a loaded runner stays under.
+  - A test that runs out of time is not stopped: it keeps writing to what it shares with the next test, which then fails on state the first one is still changing (a rate limit's count); a test with many signed requests gets a time limit a loaded runner stays under.
     Vitest's own limits, 5 s for a test and 10 s for a hook, are sized for a developer's Mac like the budgets, so `vitest.config.ts` stretches them by the budgets' factor: five times on a hosted runner, `DEVOT_BUDGET_SCALE` on a slower machine.
   - A shard that waits for the app build asked GitHub for the run's artifacts every ten seconds and stopped at the first request that failed (`fetch failed`, while its simulator booted); a failed request is asked again on the next turn (`scripts/ci/wait-for-artifact.ts`).
   - The Write mode specs read the note's Markdown once after the switch to Edit mode, and the editor's lines follow the Edit button by a frame or more (a table's delimiter row came back after its other rows): they poll the lines through one helper (`tests/ui/writeSource.ts`).
