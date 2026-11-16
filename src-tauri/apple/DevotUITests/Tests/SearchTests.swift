@@ -17,7 +17,7 @@ final class SearchTests: XCTestCase {
     func testTheSearchCircleFindsANoteThatOpensAndBackLandsInSearch() {
         continueAfterFailure = false
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
-        app.launch()
+        app.launch(stoppedAfter: self)
         let bar = app.tabBars.firstMatch
         // A cold debug build starts slowly on a CI simulator.
         XCTAssertTrue(bar.waitForExistence(timeout: waitLimit(120)))

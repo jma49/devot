@@ -11,22 +11,12 @@ final class NewNoteTests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
         app.launchArguments = arguments
-        app.launch()
+        app.launch(stoppedAfter: self)
         // A cold debug build starts slowly on a CI simulator.
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: waitLimit(120)))
         let notes = app.tabBars.firstMatch.buttons[L10n.phoneTabNotes()]
         XCTAssertTrue(notes.waitForExistence(timeout: waitLimit(10)))
         notes.tapOnceHittable()
-    }
-
-    /// An app that will not stop fails the test that left it so, not the next test's launch: on CI the
-    /// launch after the locked New Note test failed with "Failed to terminate" (run 42628919494).
-    override func tearDown() async throws {
-        if let app {
-            app.terminate()
-            XCTAssertTrue(app.wait(for: .notRunning, timeout: waitLimit(10)), "the app stops")
-        }
-        try await super.tearDown()
     }
 
     /// The note's own bar, told from a list's by its Info button.
