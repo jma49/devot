@@ -6,6 +6,9 @@ import type { TaskProgress } from '../tasks'
 
 export const PREVIEW_API_VERSION = 1
 
+/** The island kind of a plugin's drawing (ADR 0027); its source is the renderer's key, a newline, then the block. */
+export const PLUGIN_ISLAND = 'plugin'
+
 /** Properties carrying an offset into the note's Markdown. */
 export const PIECE_OFFSET_PROPERTIES = ['dataTaskAt', 'dataImageFrom', 'dataImageTo'] as const
 

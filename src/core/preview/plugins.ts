@@ -6,6 +6,7 @@ import { textOf } from '../hastText'
 import { island } from './builtins'
 import {
   PIECE_OFFSET_PROPERTIES,
+  PLUGIN_ISLAND,
   PREVIEW_API_VERSION,
   type PreviewContext,
   type PreviewRenderer,
@@ -17,9 +18,6 @@ export interface PluginRendererSpec {
   language: string
   output: 'markdown' | 'svg'
 }
-
-/** The island kind of a plugin's drawing; its source is the renderer's key, a newline, then the block. */
-export const PLUGIN_ISLAND = 'plugin'
 
 export type RenderPluginBlock = (key: string, source: string) => Promise<string | null>
 

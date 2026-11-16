@@ -2,8 +2,7 @@
 // markup; the page rebuilds it from a fixed list of SVG elements, without scripts, handlers, links or anything that
 // would fetch, into a shadow root of its own, so the drawing's stylesheet styles the drawing and nothing else.
 // The host is laid out with `contain: paint`, so nothing in the drawing can be drawn outside its box.
-import { PLUGIN_ISLAND } from '../../../core/preview'
-import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
+import { PLUGIN_ISLAND, PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import { t } from '../i18n'
 import { dark, light, type ThemeColor } from '../theme/tokens'
 import { pointsElsewhere, withoutRemoteCss } from './diagram-css'
