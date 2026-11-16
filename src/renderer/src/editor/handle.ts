@@ -71,6 +71,11 @@ export interface EditorHandle {
   pluginSelection: () => { from: number; to: number; text: string }
   /** A plugin's `note.insert` as one undo step; the code it is refused with, or null once done. */
   pluginInsert: (text: string, selected: string | null) => string | null
+  /** A drawn block's edit (ADR 0029) as one undo step; the code it is refused with, or null once done. */
+  pluginBlockEdit: (
+    block: { from: number; to: number; source: string },
+    text: string,
+  ) => Promise<string | null>
 }
 
 /** What the window does with the note shown in `ready`; `isShown` is false once the editor has moved on to another note. */
@@ -171,6 +176,13 @@ export function editorHandle(
     pluginSelection: () => pluginSelection(ready.state),
     pluginInsert: (text, selected) => {
       const spec = pluginInsert(ready.state, text, selected)
+      if ('code' in spec) return spec.code
+      ready.dispatch(spec)
+      return null
+    },
+    pluginBlockEdit: async (block, text) => {
+      const { pluginBlockEdit } = await import('./pluginBlockEdit')
+      const spec = pluginBlockEdit(ready.state, block, text)
       if ('code' in spec) return spec.code
       ready.dispatch(spec)
       return null

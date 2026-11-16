@@ -20,6 +20,7 @@ import {
 } from '../../../core/plugins'
 import { errorCode } from '../../../core/errors'
 import type { DrawingTheme } from '../preview/pluginDrawing'
+import type { NoteStatus } from '../../../core/storage'
 
 export type PortLike = MessagePort
 
@@ -76,6 +77,19 @@ export interface PluginNoteSummary {
   notebook: string | null
   createdAt: number
   updatedAt: number
+  /** Tag names (ADR 0028). */
+  tags: string[]
+  status: NoteStatus
+  pinned: boolean
+}
+
+export interface PluginNote {
+  id: string
+  title: string
+  notebook: string | null
+  markdown: string
+  /** The front matter as JSON values (ADR 0028). */
+  properties: Record<string, unknown>
 }
 
 export interface PluginNotes {
@@ -84,7 +98,7 @@ export interface PluginNotes {
   /** Best matches first, as the app's search finds them. */
   search(query: string, limit: number): Promise<PluginNoteSummary[]>
   /** Throws E_PLUGIN_NOTE_NOT_FOUND for a missing, trashed or template note. */
-  get(id: string): Promise<{ id: string; title: string; notebook: string | null; markdown: string }>
+  get(id: string): Promise<PluginNote>
   notebooks(): Promise<{ id: string; name: string; parent: string | null }[]>
 }
 
@@ -99,6 +113,11 @@ export interface PluginHost {
     source: string,
     theme?: DrawingTheme,
   ): Promise<string | null>
+  /**
+   * Asks the plugin for a drawn block's new text (ADR 0029), the plugin active meanwhile; null when the user closes its
+   * panel or the plugin declines.
+   */
+  edit(plugin: string, renderer: string, source: string): Promise<string | null>
   convertImport(
     plugin: string,
     format: string,
@@ -130,6 +149,8 @@ interface Session {
   seq: number
   running: number
   shown: boolean
+  /** Ends the block edit under way as declined. */
+  editing?: (() => void) | undefined
   calls: number
   stopped: boolean
 }
@@ -157,6 +178,7 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
   const markHidden = (s: Session) => {
     if (!s.shown) return
     s.shown = false
+    s.editing?.()
     void tell(s, { name: 'ui.hidden' })
   }
 
@@ -368,6 +390,24 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
           theme ? { renderer, source, theme } : { renderer, source },
         ),
       )
+    },
+
+    async edit(plugin, renderer, source) {
+      const s = session(plugin)
+      if (s.editing) throw new Error('E_PLUGIN_BUSY')
+      const closed = new Promise<null>((resolve) => (s.editing = () => resolve(null)))
+      s.running += 1
+      try {
+        return await Promise.race([
+          request(plugin, 'preview.edit', { renderer, source }).then((value) =>
+            checkResult('preview.edit', value),
+          ),
+          closed,
+        ])
+      } finally {
+        s.running -= 1
+        s.editing = undefined
+      }
     },
 
     async convertImport(plugin, format, file) {

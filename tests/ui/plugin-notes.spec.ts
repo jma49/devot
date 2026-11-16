@@ -39,7 +39,8 @@ test('a plugin with notes.read lists, searches and reads notes', async ({ page }
   const id = listed[1]!.id
   expect(
     await reader.evaluate((note) => (globalThis as unknown as Runtime).devot.notes.get(note), id),
-  ).toEqual({ id, title: 'Note 2', notebook: null, markdown: '' })
+  ).toEqual({ id, title: 'Note 2', notebook: null, markdown: '', properties: {} })
+  expect(listed[1]).toMatchObject({ tags: [], status: 'none', pinned: false })
   await expect
     .poll(async () =>
       (

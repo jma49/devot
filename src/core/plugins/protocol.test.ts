@@ -207,6 +207,14 @@ describe('checkResult', () => {
     invalid(() => checkResult('preview.render', 'x'.repeat(MAX_RENDER_CHARS + 1)))
   })
 
+  it("takes a block's new text or nothing from an edit, well formed and within a note", () => {
+    expect(checkResult('preview.edit', '{"a":1}')).toBe('{"a":1}')
+    expect(checkResult('preview.edit', null)).toBeNull()
+    invalid(() => checkResult('preview.edit', 3))
+    invalid(() => checkResult('preview.edit', '\ud800'))
+    invalid(() => checkResult('preview.edit', 'x'.repeat(MAX_BODY_BYTES + 1)))
+  })
+
   it('takes a title and Markdown from an import, the title on one line', () => {
     expect(checkResult('import.convert', { title: ' A\nB ', markdown: 'x' })).toEqual({
       title: 'A B',

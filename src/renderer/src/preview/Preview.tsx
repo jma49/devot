@@ -49,6 +49,7 @@ import {
   patchPieces,
   type ShownPiece,
 } from './dom'
+import { EDIT_ATTRIBUTE, editPluginBlock } from './pluginEdits'
 import { previewFindTarget } from './find'
 import { createIslandMounter } from './islands'
 import { islands } from './islandRegistry'
@@ -145,6 +146,8 @@ interface PreviewProps {
   initialScroll?: () => number | undefined
   onScroll?: (top: number) => void
   onToggleTask?: ((at: number) => void) | undefined
+  /** Plugin drawings show an Edit button that changes the note (ADR 0029). */
+  blocksEditable?: boolean
 }
 
 /**
@@ -205,6 +208,7 @@ export function Preview({
   initialScroll,
   onScroll,
   onToggleTask,
+  blocksEditable = false,
 }: Props) {
   const text = useMemo(() => followed ?? fixedText(markdown ?? ''), [followed, markdown])
   const pane = useRef<HTMLElement>(null)
@@ -471,6 +475,14 @@ export function Preview({
 
   const onClick = (event: MouseEvent) => {
     const target = event.target as Element
+    const edit = blocksEditable ? target.closest(`[${EDIT_ATTRIBUTE}]`) : null
+    const drawing = edit?.closest('[data-block-from]')
+    if (drawing) {
+      const from = noteOffset(pieces.current, drawing, 'data-block-from')
+      const to = noteOffset(pieces.current, drawing, 'data-block-to')
+      if (from !== undefined && to !== undefined) editPluginBlock(drawing, { from, to })
+      return
+    }
     const box = target.closest('input[data-task-at]')
     if (box) {
       // The box shows what the note says: the change comes back as a render.
@@ -591,6 +603,7 @@ export function Preview({
         ref={pane}
         className="preview"
         data-devot-part="preview"
+        data-blocks-editable={blocksEditable ? '' : undefined}
         aria-label={t('preview.label')}
         // Focusable: a click puts find (Cmd+F) here in split mode, and the
         // keyboard scrolls it (Control+Tab lands here when it is the editor

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { parseManifest, type InstalledPlugin, type PluginPermission } from '../../../core/plugins'
 import {
+  drawsFromLibrary,
+  editableRenderers,
   actionEntryId,
   actionOfEntry,
   pluginItems,
@@ -11,7 +13,15 @@ import {
   stopsImport,
 } from './contributions'
 
-const ALL: PluginPermission[] = ['commands', 'menus', 'keymaps', 'preview', 'import', 'export']
+const ALL: PluginPermission[] = [
+  'commands',
+  'menus',
+  'keymaps',
+  'preview',
+  'import',
+  'export',
+  'notes.read',
+]
 
 function plugin(
   id: string,
@@ -21,6 +31,7 @@ function plugin(
     keys?: string[]
     language?: string
     output?: 'markdown' | 'svg'
+    editable?: boolean
   } = {},
 ): InstalledPlugin {
   const keys = options.keys ?? ['Mod+Shift+U']
@@ -36,7 +47,12 @@ function plugin(
       slashMenu: [{ command: 'c0' }],
       keymaps: keys.map((key, i) => ({ command: `c${i}`, key })),
       previewRenderers: [
-        { id: 'r', language: options.language ?? 'chart', output: options.output ?? 'markdown' },
+        {
+          id: 'r',
+          language: options.language ?? 'chart',
+          output: options.output ?? 'markdown',
+          editable: options.editable ?? false,
+        },
       ],
       importFormats: [{ id: 'org', title: 'Org Files', extensions: ['org'] }],
       exportFormats: [{ id: 'org', title: 'Org', extension: 'org' }],
@@ -105,6 +121,30 @@ describe('plugin contributions', () => {
       { key: 'com.c/r', language: 'csv', output: 'svg' },
     ])
     expect(rendererOfKey('com.a/r')).toEqual({ plugin: 'com.a', renderer: 'r' })
+  })
+})
+
+describe('editableRenderers', () => {
+  it('names the drawn renderers marked editable that draw their language', () => {
+    expect(
+      editableRenderers([
+        plugin('com.a', { language: 'sketch', output: 'svg', editable: true }),
+        plugin('com.b', { language: 'sketch', output: 'svg', editable: true }),
+        plugin('com.c', { language: 'dot', output: 'svg' }),
+        plugin('com.d', { language: 'pad', output: 'svg', editable: true, granted: ['commands'] }),
+      ]),
+    ).toEqual(['com.a/r'])
+  })
+})
+
+describe('drawsFromLibrary', () => {
+  it('holds for an enabled renderer that may read notes', () => {
+    expect(drawsFromLibrary([plugin('com.a', { granted: ['preview', 'notes.read'] })])).toBe(true)
+    expect(drawsFromLibrary([plugin('com.a', { granted: ['preview'] })])).toBe(false)
+    expect(drawsFromLibrary([plugin('com.a', { granted: ['notes.read'] })])).toBe(false)
+    expect(
+      drawsFromLibrary([plugin('com.a', { granted: ['preview', 'notes.read'], enabled: false })]),
+    ).toBe(false)
   })
 })
 

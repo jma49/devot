@@ -27,6 +27,21 @@ export interface DevotNoteSummary {
   notebook: string | null
   createdAt: number
   updatedAt: number
+  /** Tag names. */
+  tags: string[]
+  status: DevotNoteStatus
+  pinned: boolean
+}
+
+export type DevotNoteStatus = 'none' | 'active' | 'on_hold' | 'completed' | 'dropped'
+
+export interface DevotStoredNote {
+  id: string
+  title: string
+  notebook: string | null
+  markdown: string
+  /** The note's front matter as JSON values; empty when it has none or it cannot be read. */
+  properties: { [key: string]: JsonValue }
 }
 
 export interface DevotNotebook {
@@ -85,6 +100,11 @@ export interface DevotApi {
         theme: DevotDrawingTheme | undefined,
       ) => string | null | Promise<string | null>,
     ): void
+    /**
+     * For a renderer marked `editable` (API 2): the user chose Edit on its drawing. Show a panel, let them edit, and
+     * return the block's new text, or null to leave it; closing the panel leaves it too.
+     */
+    edit(id: string, edit: (source: string) => string | null | Promise<string | null>): void
   }
   readonly importer: {
     handle(id: string, convert: (file: DevotFile) => DevotNote | Promise<DevotNote>): void
@@ -114,9 +134,7 @@ export interface DevotApi {
   readonly notes: {
     list(options?: { limit?: number }): Promise<DevotNoteSummary[]>
     search(text: string, options?: { limit?: number }): Promise<DevotNoteSummary[]>
-    get(
-      id: string,
-    ): Promise<{ id: string; title: string; notebook: string | null; markdown: string }>
+    get(id: string): Promise<DevotStoredNote>
     /** The note the editor shows, as last heard, or null. */
     opened(): string | null
     onOpened(listener: (id: string | null) => void): void
@@ -183,7 +201,13 @@ export interface DevotManifest {
     menus?: { command: string }[]
     slashMenu?: { command: string }[]
     keymaps?: { command: string; key: string }[]
-    previewRenderers?: { id: string; language: string; output?: 'markdown' | 'svg' }[]
+    previewRenderers?: {
+      id: string
+      language: string
+      output?: 'markdown' | 'svg'
+      /** Only with `output: 'svg'`: the drawing offers Edit, which calls `devot.preview.edit`. */
+      editable?: boolean
+    }[]
     importFormats?: { id: string; title: string; extensions: string[] }[]
     exportFormats?: { id: string; title: string; extension: string }[]
     settings?: DevotSetting[]

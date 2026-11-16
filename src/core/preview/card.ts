@@ -7,6 +7,7 @@ import { BUILTIN_RENDERERS } from './builtins'
 import { renderBody } from './index'
 import { attachmentId } from '../images'
 import {
+  PIECE_OFFSET_PROPERTIES,
   PREVIEW_API_VERSION,
   type AlertKind,
   type PreviewLabels,
@@ -45,7 +46,7 @@ const CARD_RENDERERS = new Set([
 /** Attributes that make the page fetch something; only an `img` with an attachment `src` keeps one. */
 const LOADS = ['src', 'srcSet', 'poster', 'longDesc']
 const MEDIA = new Set(['picture', 'source', 'video', 'audio'])
-const DROPPED = ['id', 'ariaDescribedBy', 'dataTaskAt', 'dataImageFrom', 'dataImageTo']
+const DROPPED = ['id', 'ariaDescribedBy', ...PIECE_OFFSET_PROPERTIES]
 
 const classesOf = (node: Element): string[] =>
   ((node.properties['className'] as string[] | undefined) ?? []).map(String)

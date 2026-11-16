@@ -268,3 +268,15 @@ export const clip = (text: string, max: number) => {
 
 /** On one line, at most MAX_TITLE_CHARS characters. */
 export const noteTitle = (text: string) => clip(oneLine(text), MAX_TITLE_CHARS)
+
+/** A note's front matter as JSON values, for plugins (ADR 0028); empty when it has none or it is not a map. */
+export function noteProperties(markdown: string): Record<string, unknown> {
+  const yaml = frontMatter(markdown)
+  if (yaml === null) return {}
+  const document = parseDocument(yaml, { schema: 'core', uniqueKeys: false })
+  if (document.errors.length > 0 || !isMap(document.contents)) return {}
+  const value: unknown = JSON.parse(JSON.stringify(document.toJSON()) ?? '{}')
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}

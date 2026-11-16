@@ -94,9 +94,36 @@ function plugin(id: string, granted: PluginPermission[], enabled = true): Instal
 }
 
 const NOTES = [
-  { id: 'n1', title: 'Plan', notebook: null, createdAt: 1, updatedAt: 3 },
-  { id: 'n2', title: 'Plan B', notebook: null, createdAt: 1, updatedAt: 2 },
-  { id: 'n3', title: 'Diary', notebook: null, createdAt: 1, updatedAt: 1 },
+  {
+    id: 'n1',
+    title: 'Plan',
+    notebook: null,
+    createdAt: 1,
+    updatedAt: 3,
+    tags: [],
+    status: 'none' as const,
+    pinned: false,
+  },
+  {
+    id: 'n2',
+    title: 'Plan B',
+    notebook: null,
+    createdAt: 1,
+    updatedAt: 2,
+    tags: [],
+    status: 'none' as const,
+    pinned: false,
+  },
+  {
+    id: 'n3',
+    title: 'Diary',
+    notebook: null,
+    createdAt: 1,
+    updatedAt: 1,
+    tags: [],
+    status: 'none' as const,
+    pinned: false,
+  },
 ]
 
 function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'body') {
@@ -144,6 +171,7 @@ function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'b
           title: found.title,
           notebook: null,
           markdown: `# ${found.title}`,
+          properties: {},
         }
       },
       notebooks: async () => [{ id: 'b1', name: 'Work', parent: null }],
@@ -298,6 +326,27 @@ describe('the plugin host', () => {
       markdown: 'x',
     })
     expect(await host.convertExport('com.a', 'f', { title: 'T', markdown: 'x' })).toBe('* x')
+  })
+
+  it('keeps a plugin active while it edits a block, and ends the edit when its panel closes', async () => {
+    let answer: ((value: unknown) => void) | undefined
+    const fake = fakePlugin((method) =>
+      method === 'preview.edit' ? new Promise((resolve) => (answer = resolve)) : null,
+    )
+    const { host } = setup({ 'com.a': fake })
+    host.load([plugin('com.a', ['preview'])])
+    const closed = host.edit('com.a', 'r', 'old')
+    await vi.waitFor(() => expect(answer).toBeDefined())
+    expect(await fake.call('ui.show', { height: 200 })).toMatchObject({ ok: true })
+    await expect(host.edit('com.a', 'r', 'old')).rejects.toThrow('E_PLUGIN_BUSY')
+    host.hidden('com.a')
+    expect(await closed).toBeNull()
+    answer = undefined
+    const saved = host.edit('com.a', 'r', 'old')
+    await vi.waitFor(() => expect(answer).toBeDefined())
+    answer!('new')
+    expect(await saved).toBe('new')
+    expect(await fake.call('ui.show', {})).toMatchObject({ code: 'E_PLUGIN_NOT_ACTIVE' })
   })
 
   it('gives up on a plugin that does not answer in time', async () => {

@@ -126,6 +126,30 @@ export function rendererSpecs(plugins: readonly InstalledPlugin[]): PluginRender
   return out
 }
 
+/** Whether a block a plugin draws may show other notes, so it is drawn again when the library changes (ADR 0028). */
+export function drawsFromLibrary(plugins: readonly InstalledPlugin[]): boolean {
+  return enabled(plugins).some(
+    ({ plugin, granted }) =>
+      granted.has('preview') &&
+      granted.has('notes.read') &&
+      plugin.manifest.contributes.previewRenderers.length > 0,
+  )
+}
+
+/** The keys of the drawn renderers whose blocks the plugin may edit (ADR 0029). */
+export function editableRenderers(plugins: readonly InstalledPlugin[]): string[] {
+  const editable = new Set(
+    enabled(plugins).flatMap(({ plugin }) =>
+      plugin.manifest.contributes.previewRenderers
+        .filter((r) => r.editable)
+        .map((r) => `${plugin.manifest.id}/${r.id}`),
+    ),
+  )
+  return rendererSpecs(plugins)
+    .map((s) => s.key)
+    .filter((key) => editable.has(key))
+}
+
 export function rendererOfKey(key: string): { plugin: string; renderer: string } | undefined {
   const at = key.lastIndexOf('/')
   return at > 0 ? { plugin: key.slice(0, at), renderer: key.slice(at + 1) } : undefined

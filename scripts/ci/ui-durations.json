@@ -100,7 +100,7 @@
   "tests/ui/phone-stack.spec.ts": 20000,
   "tests/ui/pinned-switch.spec.ts": 22027,
   "tests/ui/plugin-catalog.spec.ts": 5200,
-  "tests/ui/plugin-drawings.spec.ts": 3000,
+  "tests/ui/plugin-drawings.spec.ts": 8000,
   "tests/ui/plugin-themes.spec.ts": 3000,
   "tests/ui/plugin-editor.spec.ts": 7600,
   "tests/ui/plugin-notes.spec.ts": 6400,

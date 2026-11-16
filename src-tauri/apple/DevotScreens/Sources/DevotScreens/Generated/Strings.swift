@@ -4530,6 +4530,10 @@ public enum L10n {
     text("plugins.catalogNotListed", "That link names no official plugin.")
   }
 
+  public static func pluginsDrawingEdit() -> String {
+    text("plugins.drawingEdit", "Edit")
+  }
+
   public static func pluginsDrawingFailed() -> String {
     text("plugins.drawingFailed", "The plugin could not draw this block.")
   }

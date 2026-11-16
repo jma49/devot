@@ -8,6 +8,7 @@ import { dark, light, type ThemeColor } from '../theme/tokens'
 import { pointsElsewhere, withoutRemoteCss } from './diagram-css'
 import type { IslandContent, IslandContext, PreviewIsland } from './islands'
 import { keptAnswers } from './kept'
+import { EDIT_ATTRIBUTE, editableBlock, setPluginEditor, type PluginEditor } from './pluginEdits'
 import { labelDiagram } from './mermaid-protocol'
 import { diagramPalette, type DiagramPalette } from './mermaid-theme'
 import { parseColor, toHex } from '../theme/contrast'
@@ -77,11 +78,17 @@ let revision = ''
 
 /**
  * The main window hands its plugin host over here; other windows have none and show the block as code.
- * Drawings are kept by `renderers`, so a plugin updated to another version draws again.
+ * Drawings are kept by `renderers`, so a plugin updated to another version draws again. Blocks of the renderers in
+ * `editable` get an Edit button (ADR 0029).
  */
-export function setPluginDrawer(draw: DrawPluginBlock | undefined, renderers: string): void {
+export function setPluginDrawer(
+  draw: DrawPluginBlock | undefined,
+  renderers: string,
+  edits?: PluginEditor,
+): void {
   drawer = draw
   revision = renderers
+  setPluginEditor(draw ? edits : undefined)
 }
 
 /** Rebuilds a plugin's SVG from the elements and attributes it may have; throws `E_PLUGIN_SVG` when it is not SVG. */
@@ -200,7 +207,16 @@ async function render(source: string, { appearance }: IslandContext): Promise<Is
     const shadow = host.attachShadow({ mode: 'open' })
     shadow.adoptedStyleSheets = css ? [base(), drawingSheet(css)] : [base()]
     shadow.appendChild(svg)
-    return { node: host }
+    if (!editableBlock(key)) return { node: host }
+    const box = document.createElement('div')
+    box.className = 'plugin-drawing-box'
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'plugin-drawing-edit'
+    button.setAttribute(EDIT_ATTRIBUTE, '')
+    button.textContent = t('plugins.drawingEdit')
+    box.append(host, button)
+    return { node: box }
   } catch {
     console.warn('W_PLUGIN_DRAWING_FAILED', key, 'E_PLUGIN_SVG')
     return failed(false)
@@ -210,5 +226,6 @@ async function render(source: string, { appearance }: IslandContext): Promise<Is
 export const pluginIsland: PreviewIsland = {
   kind: PLUGIN_ISLAND,
   apiVersion: PREVIEW_API_VERSION,
+  revision: () => revision,
   render,
 }

@@ -104,7 +104,13 @@ function syncAttributes(el: Element, node: HastElement): void {
 const isIsland = (node: HastElement) => node.properties['dataDevotIsland'] !== undefined
 
 const LINE_ATTRIBUTE = 'data-source-line'
-const OFFSET_ATTRIBUTES = ['data-task-at', 'data-image-from', 'data-image-to'] as const
+const OFFSET_ATTRIBUTES = [
+  'data-task-at',
+  'data-image-from',
+  'data-image-to',
+  'data-block-from',
+  'data-block-to',
+] as const
 const MARK_ATTRIBUTES = new Set<string>([LINE_ATTRIBUTE, ...OFFSET_ATTRIBUTES])
 
 /** A piece's marked elements as it is built, in document order, and the lines each counts from. */

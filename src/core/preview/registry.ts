@@ -10,7 +10,13 @@ export const PREVIEW_API_VERSION = 1
 export const PLUGIN_ISLAND = 'plugin'
 
 /** Properties carrying an offset into the note's Markdown. */
-export const PIECE_OFFSET_PROPERTIES = ['dataTaskAt', 'dataImageFrom', 'dataImageTo'] as const
+export const PIECE_OFFSET_PROPERTIES = [
+  'dataTaskAt',
+  'dataImageFrom',
+  'dataImageTo',
+  'dataBlockFrom',
+  'dataBlockTo',
+] as const
 
 export interface PreviewLabels {
   alerts: Record<AlertKind, string>
