@@ -46,6 +46,23 @@ export const listPlugins = () =>
 export const pickPlugin = (kind: 'folder' | 'archive') =>
   invoke<StagedPlugin | null>('plugin_install_pick', { kind })
 
+/** A plugin in the official index (src-tauri/src/plugins/catalog.rs), with what it offers this build. */
+export interface OfferedPlugin {
+  id: string
+  name: string
+  version: string
+  description: string
+  author: string
+  permissions: PluginPermission[]
+  installed: string | null
+  offer: 'install' | 'update' | 'installed' | 'needsNewerApp'
+}
+
+export const listOfficialPlugins = () => invoke<OfferedPlugin[]>('plugin_catalog')
+
+export const fetchOfficialPlugin = (id: string) =>
+  invoke<StagedPlugin>('plugin_catalog_stage', { id })
+
 export const installPlugin = (token: number) =>
   invoke<InstalledPlugin>('plugin_install_confirm', { token })
 

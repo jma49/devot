@@ -1,8 +1,10 @@
 //! Third-party plugins (ADR 0005): installed from a folder or `.zip` archive the user picks into `<app data>/plugins/<id>/`,
 //! with `<app data>/plugins.json` recording which are on and the permissions the user approved. Rust serves an enabled
 //! plugin's files on `devot-plugin://` (`serve`), builds its menu items (`menu`) and shows the panels for its import and export
-//! formats; the main window runs it in a sandboxed frame.
+//! formats; the main window runs it in a sandboxed frame. Official plugins also install from the index on devot.online
+//! (`catalog`).
 
+pub mod catalog;
 pub mod manifest;
 #[cfg(desktop)]
 pub mod menu;
@@ -37,6 +39,7 @@ const DISABLED: &str = "E_PLUGIN_DISABLED";
 const DENIED: &str = "E_PLUGIN_PERMISSION_DENIED";
 const FAILED: &str = "E_PLUGIN_INSTALL_FAILED";
 const STAGED_GONE: &str = "E_PLUGIN_STAGED_MISSING";
+const INDEX_UNAVAILABLE: &str = "E_PLUGIN_INDEX_UNAVAILABLE";
 const FORMAT_UNKNOWN: &str = "E_PLUGIN_FORMAT_UNKNOWN";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,6 +96,8 @@ pub struct Plugins {
     writing: Mutex<()>,
     /// So do changes of a plugin's own data (`storage`).
     data_writing: Mutex<()>,
+    /// The official index as last fetched; a plugin installs from it only by a listing it holds.
+    listings: Mutex<Vec<catalog::Listing>>,
 }
 
 impl Plugins {
@@ -104,6 +109,7 @@ impl Plugins {
             next: Mutex::new(1),
             writing: Mutex::new(()),
             data_writing: Mutex::new(()),
+            listings: Mutex::new(Vec::new()),
         }
     }
 
@@ -268,6 +274,33 @@ impl Plugins {
             manifest,
             replaces,
         })
+    }
+
+    /// Keeps the index just fetched and says what each listing offers this build.
+    pub fn catalog(&self, listings: Vec<catalog::Listing>) -> Vec<catalog::Offered> {
+        let offered = catalog::offers(&listings, &self.list(), &self.app_version);
+        *crate::locks::lock(&self.listings) = listings;
+        offered
+    }
+
+    pub fn listed(&self, id: &str) -> Result<catalog::Listing, &'static str> {
+        crate::locks::lock(&self.listings)
+            .iter()
+            .find(|l| l.id == id)
+            .cloned()
+            .ok_or(catalog::NOT_LISTED)
+    }
+
+    /// Stages the archive fetched for a listing once it is exactly the one listed.
+    pub fn stage_listed(
+        &self,
+        listing: &catalog::Listing,
+        archive: &[u8],
+    ) -> Result<Staged, &'static str> {
+        catalog::check_archive(listing, archive)?;
+        let package = package::read_archive_from(std::io::Cursor::new(archive))?;
+        catalog::check_package(listing, &package.manifest)?;
+        self.stage(package)
     }
 
     pub fn cancel(&self, token: u64) {
@@ -559,6 +592,52 @@ pub async fn plugin_install_confirm(
     Ok(installed)
 }
 
+fn fetch(url: &tauri::Url, accept: &str, max_bytes: usize) -> Result<Vec<u8>, &'static str> {
+    let fetched = crate::net::get(&crate::net::Get {
+        url,
+        accept,
+        headers: &[],
+        timeout: std::time::Duration::from_secs(30),
+        max_bytes,
+    })?;
+    if fetched.status == 200 && !fetched.truncated {
+        Ok(fetched.body)
+    } else {
+        Err(INDEX_UNAVAILABLE)
+    }
+}
+
+#[tauri::command]
+pub async fn plugin_catalog(plugins: Shared<'_>) -> Result<Vec<catalog::Offered>, String> {
+    let plugins = std::sync::Arc::clone(&plugins);
+    blocking(move || {
+        let index = tauri::Url::parse(catalog::INDEX_URL).map_err(|_| FAILED)?;
+        let bytes = fetch(&index, "application/json", catalog::INDEX_MAX_BYTES)?;
+        Ok(plugins.catalog(catalog::parse_index(&bytes)?))
+    })
+    .await
+    .inspect_err(|code| log::warn!("W_PLUGIN_CATALOG_FAILED {code}"))
+}
+
+/// Fetches a listed plugin's archive and stages it for the same review as a picked one.
+#[tauri::command]
+pub async fn plugin_catalog_stage(plugins: Shared<'_>, id: String) -> Result<Staged, String> {
+    if !manifest::is_id(&id) {
+        return Err(catalog::NOT_LISTED.into());
+    }
+    let plugins = std::sync::Arc::clone(&plugins);
+    blocking(move || {
+        let listing = plugins.listed(&id)?;
+        let index = tauri::Url::parse(catalog::INDEX_URL).map_err(|_| FAILED)?;
+        let url = catalog::archive_url(&index, &listing)?;
+        let max = usize::try_from(listing.bytes).map_err(|_| FAILED)?;
+        let archive = fetch(&url, "application/zip", max)?;
+        plugins.stage_listed(&listing, &archive)
+    })
+    .await
+    .inspect_err(|code| log::warn!("W_PLUGIN_CATALOG_STAGE_FAILED {code}"))
+}
+
 #[tauri::command]
 pub fn plugin_install_cancel(plugins: Shared<'_>, token: u64) {
     plugins.cancel(token);
@@ -822,6 +901,72 @@ mod tests {
             manifest: manifest::parse_bytes(manifest.as_bytes()).unwrap(),
             files,
         }
+    }
+
+    fn zipped(package: &Package) -> Vec<u8> {
+        use std::io::Write;
+        let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for (path, bytes) in &package.files {
+            zip.start_file(path.as_str(), zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(bytes).unwrap();
+        }
+        zip.finish().unwrap().into_inner()
+    }
+
+    fn listing_of(archive: &[u8], version: &str) -> catalog::Listing {
+        use sha2::Digest;
+        catalog::Listing {
+            id: "com.example.hello".into(),
+            name: "Hello".into(),
+            version: version.into(),
+            api_version: 1,
+            min_app_version: None,
+            description: String::new(),
+            author: String::new(),
+            permissions: vec!["commands".into(), "import".into()],
+            archive: "/plugins/hello.zip".into(),
+            bytes: archive.len() as u64,
+            sha256: sha2::Sha256::digest(archive)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+            source: "https://example.com/hello".into(),
+        }
+    }
+
+    #[test]
+    fn installs_a_listed_plugin_only_from_its_listed_archive() {
+        let data = tempfile::tempdir().unwrap();
+        let plugins = Plugins::new(data.path());
+        let archive = zipped(&package("1.0.0", b"one"));
+        let listing = listing_of(&archive, "1.0.0");
+        assert_eq!(plugins.listed(&listing.id), Err(catalog::NOT_LISTED));
+        let offered = plugins.catalog(vec![listing.clone()]);
+        assert_eq!(offered[0].offer, catalog::Offer::Install);
+        assert_eq!(plugins.listed(&listing.id), Ok(listing.clone()));
+
+        let mut tampered = archive.clone();
+        *tampered.last_mut().unwrap() ^= 1;
+        assert_eq!(
+            plugins.stage_listed(&listing, &tampered).err(),
+            Some(catalog::ARCHIVE_MISMATCH)
+        );
+        let other = zipped(&package("0.9.0", b"old"));
+        assert_eq!(
+            plugins
+                .stage_listed(&listing_of(&other, "1.0.0"), &other)
+                .err(),
+            Some(catalog::ARCHIVE_MISMATCH)
+        );
+
+        let staged = plugins.stage_listed(&listing, &archive).unwrap();
+        assert_eq!(staged.manifest.version, "1.0.0");
+        plugins.install(staged.token).unwrap();
+        let newer = zipped(&package("1.1.0", b"two"));
+        let offered = plugins.catalog(vec![listing_of(&newer, "1.1.0")]);
+        assert_eq!(offered[0].offer, catalog::Offer::Update);
+        assert_eq!(offered[0].installed.as_deref(), Some("1.0.0"));
     }
 
     #[test]

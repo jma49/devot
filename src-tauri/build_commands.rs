@@ -255,6 +255,8 @@ const PLUGINS: &[&str] = &[
     "plugin_install_pick",
     "plugin_install_confirm",
     "plugin_install_cancel",
+    "plugin_catalog",
+    "plugin_catalog_stage",
     "plugin_set_enabled",
     "plugin_remove",
     "plugin_import_pick",

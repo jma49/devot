@@ -169,11 +169,13 @@ export async function mockTauri(page: Page): Promise<void> {
           // One notebook, allowed: Integrations shows no prompt unless a test says otherwise.
           if (cmd === 'settings_ai_access_summary') return { notebooks: 1, allowed: 1 }
 
-          // No link from another app waits at launch (deep-links.spec.ts, quick-capture.spec.ts), and no plugin is installed (plugins.ts).
+          // No link from another app waits at launch (deep-links.spec.ts, quick-capture.spec.ts), and no plugin is installed
+          // (plugins.ts) or offered (plugin-catalog.spec.ts).
           if (
             cmd === 'deep_link_take' ||
             cmd === 'quick_capture_prefill_take' ||
-            cmd === 'plugins_list'
+            cmd === 'plugins_list' ||
+            cmd === 'plugin_catalog'
           )
             return []
           if (cmd === 'cli_tool_status') return { state: 'absent', path: '/usr/local/bin/devot' }

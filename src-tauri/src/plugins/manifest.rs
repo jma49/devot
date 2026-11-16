@@ -214,7 +214,7 @@ fn release(version: &str) -> Option<[u64; 3]> {
 
 /// A beta previews its release, so `1.2.0-beta3` runs a plugin needing 1.2.0. A development build (`0.0.0`, the
 /// committed version) runs every plugin.
-fn runs_on(min_app_version: &str, app: &str) -> bool {
+pub fn runs_on(min_app_version: &str, app: &str) -> bool {
     let Some(app) = release(app) else {
         return false;
     };
@@ -222,6 +222,11 @@ fn runs_on(min_app_version: &str, app: &str) -> bool {
         return true;
     }
     release(min_app_version).is_some_and(|min| app >= min)
+}
+
+/// Whether `version` is a later release than `than`; either one not a version is never later.
+pub fn newer(version: &str, than: &str) -> bool {
+    is_version(version) && is_version(than) && release(version) > release(than)
 }
 
 pub fn parse_bytes(bytes: &[u8]) -> Result<Manifest, &'static str> {
@@ -271,7 +276,7 @@ pub fn is_package_path(path: &str) -> bool {
         && parts[0] != RESERVED_FOLDER
 }
 
-fn is_version(text: &str) -> bool {
+pub fn is_version(text: &str) -> bool {
     let parts: Vec<&str> = text.split('.').collect();
     parts.len() == 3
         && parts.iter().all(|p| {
