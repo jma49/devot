@@ -1,15 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { InstalledPlugin, PluginPermission } from '../../../core/plugins'
+import { Fragment, useCallback, useEffect, useId, useRef, useState } from 'react'
+import {
+  fitsSetting,
+  type InstalledPlugin,
+  type PluginPermission,
+  type PluginSetting,
+  type SettingValue,
+} from '../../../core/plugins'
 import { errorCode } from '../backups'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { format, t, type MessageKey } from '../i18n'
-import { Setting, SettingsSection } from './controls'
+import { Select, Setting, SettingsSection } from './controls'
 import {
   cancelInstall,
   installPlugin,
   listPlugins,
   pickPlugin,
+  pluginSettings,
   removePlugin,
+  setPluginSetting,
   setPluginEnabled,
   watchPlugins,
   type StagedPlugin,
@@ -25,6 +33,7 @@ const PERMISSION_TEXT: Readonly<Record<PluginPermission, MessageKey>> = {
   preview: 'plugins.permission.preview',
   import: 'plugins.permission.import',
   export: 'plugins.permission.export',
+  storage: 'plugins.permission.storage',
 }
 
 function Permissions(props: { list: readonly PluginPermission[]; label: MessageKey }) {
@@ -93,6 +102,134 @@ function Review(props: { staged: StagedPlugin; onInstall: () => void; onCancel: 
   )
 }
 
+function SettingControl(props: {
+  setting: PluginSetting
+  value: SettingValue
+  labelId: string
+  onChange: (value: SettingValue) => void
+}) {
+  const { setting, value, labelId, onChange } = props
+  const [draft, setDraft] = useState(String(value))
+  const commit = (raw: string) => {
+    const next = setting.type === 'number' ? Number(raw) : raw
+    if (raw.trim() !== '' && fitsSetting(setting, next)) {
+      if (next !== value) onChange(next)
+    } else setDraft(String(value))
+  }
+  const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') commit(e.currentTarget.value)
+  }
+  switch (setting.type) {
+    case 'toggle':
+      return (
+        <input
+          type="checkbox"
+          role="switch"
+          checked={value === true}
+          aria-labelledby={labelId}
+          onChange={(e) => onChange(e.currentTarget.checked)}
+        />
+      )
+    case 'choice':
+      return (
+        <Select
+          aria-labelledby={labelId}
+          value={String(value)}
+          onChange={(e) => onChange(e.currentTarget.value)}
+        >
+          {setting.choices.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}
+            </option>
+          ))}
+        </Select>
+      )
+    case 'text':
+    case 'number':
+      return (
+        <input
+          type={setting.type === 'number' ? 'number' : 'text'}
+          className={
+            setting.type === 'number' ? 'settings-number' : 'settings-number settings-text'
+          }
+          aria-labelledby={labelId}
+          spellCheck={false}
+          autoComplete="off"
+          value={draft}
+          min={setting.type === 'number' ? (setting.min ?? undefined) : undefined}
+          max={setting.type === 'number' ? (setting.max ?? undefined) : undefined}
+          onChange={(e) => setDraft(e.currentTarget.value)}
+          onBlur={(e) => commit(e.currentTarget.value)}
+          onKeyDown={onEnter}
+        />
+      )
+  }
+}
+
+/** The settings a plugin declares, drawn by Devot; the plugin is told when one changes. */
+function PluginSettings(props: { plugin: InstalledPlugin; onFailure: (code: string) => void }) {
+  const { manifest } = props.plugin
+  const { onFailure } = props
+  const [values, setValues] = useState<Record<string, SettingValue>>()
+  const id = useId()
+  useEffect(() => {
+    let live = true
+    pluginSettings(manifest.id).then(
+      (next) => {
+        if (live) setValues(next)
+      },
+      (e: unknown) => onFailure(errorCode(e)),
+    )
+    return () => {
+      live = false
+    }
+  }, [manifest, onFailure])
+  if (!values) return null
+  const change = (setting: string, value: SettingValue) => {
+    const before = values[setting]
+    setValues((now) => ({ ...now, [setting]: value }))
+    setPluginSetting(manifest.id, setting, value).catch((e: unknown) => {
+      setValues((now) => (now && before !== undefined ? { ...now, [setting]: before } : now))
+      onFailure(errorCode(e))
+    })
+  }
+  return (
+    <li
+      className="plugin-settings"
+      aria-label={format(t('plugins.settingsLabel'), { name: manifest.name })}
+    >
+      {manifest.contributes.settings.map((setting) => {
+        const value = values[setting.id] ?? setting.default
+        const labelId = `${id}-${setting.id}`
+        return (
+          <div
+            key={setting.id}
+            className={setting.type === 'toggle' ? 'setting setting-toggle' : 'setting'}
+          >
+            <div className="setting-text">
+              <span id={labelId} className="setting-label">
+                {setting.title}
+              </span>
+              {setting.description ? (
+                <span className="setting-description">{setting.description}</span>
+              ) : null}
+            </div>
+            <div className="setting-control">
+              <SettingControl
+                key={String(value)}
+                setting={setting}
+                value={value}
+                labelId={labelId}
+                onChange={(next) => change(setting.id, next)}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </li>
+  )
+}
+
 /** Settings > Plugins: installs from a folder or archive after the user approves its permissions, turns plugins on and off, removes them. */
 export function PluginsSection() {
   const [plugins, setPlugins] = useState<InstalledPlugin[]>()
@@ -117,6 +254,15 @@ export function PluginsSection() {
     void load()
     return watchPlugins(() => void load())
   }, [load])
+
+  const settingFailed = useCallback(
+    (code: string) =>
+      setFailure({
+        message: 'plugins.settingFailed',
+        code: logFailure(code, 'W_PLUGINS_FAILED'),
+      }),
+    [],
+  )
 
   const settle = (change: Promise<unknown>, failed: MessageKey) =>
     change.then(
@@ -186,49 +332,53 @@ export function PluginsSection() {
                 const m = p.manifest
                 const titleId = `plugin-${m.id}`
                 return (
-                  <li
-                    key={m.id}
-                    className="setting setting-toggle plugin-row"
-                    aria-labelledby={titleId}
-                  >
-                    <div className="setting-text">
-                      <span id={titleId} className="setting-label">
-                        {m.name}
-                      </span>
-                      <span className="setting-description">
-                        {m.author
-                          ? format(t('plugins.versionBy'), { version: m.version, author: m.author })
-                          : format(t('plugins.version'), { version: m.version })}
-                      </span>
-                      {m.description ? (
-                        <span className="setting-description">{m.description}</span>
-                      ) : null}
-                      <Permissions list={p.granted} label="plugins.permissions" />
-                    </div>
-                    <div className="setting-control">
-                      <input
-                        type="checkbox"
-                        role="switch"
-                        className="plugin-switch"
-                        checked={p.enabled}
-                        aria-label={format(t('plugins.on'), { name: m.name })}
-                        onChange={(e) =>
-                          void settle(
-                            setPluginEnabled(m.id, e.currentTarget.checked),
-                            'plugins.changeFailed',
-                          )
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="button"
-                        aria-label={format(t('plugins.removeLabel'), { name: m.name })}
-                        onClick={() => setRemoving(p)}
-                      >
-                        {t('plugins.remove')}
-                      </button>
-                    </div>
-                  </li>
+                  <Fragment key={m.id}>
+                    <li className="setting setting-toggle plugin-row" aria-labelledby={titleId}>
+                      <div className="setting-text">
+                        <span id={titleId} className="setting-label">
+                          {m.name}
+                        </span>
+                        <span className="setting-description">
+                          {m.author
+                            ? format(t('plugins.versionBy'), {
+                                version: m.version,
+                                author: m.author,
+                              })
+                            : format(t('plugins.version'), { version: m.version })}
+                        </span>
+                        {m.description ? (
+                          <span className="setting-description">{m.description}</span>
+                        ) : null}
+                        <Permissions list={p.granted} label="plugins.permissions" />
+                      </div>
+                      <div className="setting-control">
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          className="plugin-switch"
+                          checked={p.enabled}
+                          aria-label={format(t('plugins.on'), { name: m.name })}
+                          onChange={(e) =>
+                            void settle(
+                              setPluginEnabled(m.id, e.currentTarget.checked),
+                              'plugins.changeFailed',
+                            )
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="button"
+                          aria-label={format(t('plugins.removeLabel'), { name: m.name })}
+                          onClick={() => setRemoving(p)}
+                        >
+                          {t('plugins.remove')}
+                        </button>
+                      </div>
+                    </li>
+                    {m.contributes.settings.length > 0 ? (
+                      <PluginSettings plugin={p} onFailure={settingFailed} />
+                    ) : null}
+                  </Fragment>
                 )
               })}
             </ul>

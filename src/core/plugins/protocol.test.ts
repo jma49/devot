@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { PluginPermission } from './manifest'
-import { checkCall, checkResult, MAX_RENDER_CHARS, readMessage, type CallMessage } from './protocol'
+import {
+  checkCall,
+  checkResult,
+  MAX_RENDER_CHARS,
+  MAX_STORAGE_VALUE_BYTES,
+  readMessage,
+  type CallMessage,
+} from './protocol'
 
 const call = (method: string, params?: unknown): CallMessage => ({
   devot: 1,
@@ -164,5 +171,50 @@ describe('checkResult', () => {
   it('takes text from an export', () => {
     expect(checkResult('export.convert', '* x')).toBe('* x')
     invalid(() => checkResult('export.convert', 3))
+  })
+})
+
+describe('storage and settings calls', () => {
+  it('need the storage permission but no running command', () => {
+    expect(checkCall(call('storage.get', { key: 'a' }), context(['storage'], false))).toEqual({
+      ok: true,
+      call: { method: 'storage.get', key: 'a' },
+    })
+    expect(checkCall(call('storage.keys'), context([], true))).toEqual({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
+    expect(checkCall(call('settings.get'), context([], false))).toEqual({
+      ok: true,
+      call: { method: 'settings.get' },
+    })
+  })
+
+  it('take plain keys and plain JSON values only', () => {
+    const storage = context(['storage'], false)
+    const set = (key: unknown, value: unknown) =>
+      checkCall(call('storage.set', { key, value }), storage)
+    expect(set('notes/2026:a_b-c.d', { list: [1, 'two', null, true] })).toMatchObject({ ok: true })
+    const refused = { ok: false, code: 'E_PLUGIN_MESSAGE_INVALID' }
+    for (const key of ['', '.hidden', '/root', 'a b', 'k'.repeat(129), 7]) {
+      expect(set(key, 1)).toEqual(refused)
+    }
+    let deep: unknown = 1
+    for (let i = 0; i <= 33; i += 1) deep = [deep]
+    for (const value of [
+      undefined,
+      Number.NaN,
+      Infinity,
+      new Date(0),
+      new Map(),
+      '\ud800',
+      { ['\udc00']: 1 },
+      deep,
+      'x'.repeat(MAX_STORAGE_VALUE_BYTES),
+    ]) {
+      expect(set('k', value)).toEqual(refused)
+    }
+    expect(checkCall(call('storage.get', { key: 'k', extra: 1 }), storage)).toEqual(refused)
+    expect(checkCall(call('storage.keys', { key: 'k' }), storage)).toEqual(refused)
   })
 })

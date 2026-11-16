@@ -259,6 +259,12 @@ const PLUGINS: &[&str] = &[
     "plugin_remove",
     "plugin_import_pick",
     "plugin_export_save",
+    "plugin_storage_get",
+    "plugin_storage_set",
+    "plugin_storage_delete",
+    "plugin_storage_keys",
+    "plugin_settings_get",
+    "plugin_settings_set",
 ];
 
 /// The iPhone's native screens and the page: the bridge's replies and notices, and what waited for

@@ -8,6 +8,7 @@ pub mod manifest;
 pub mod menu;
 pub mod package;
 pub mod serve;
+pub mod storage;
 
 use crate::atomic_file::{self, Folder, Place};
 use manifest::Manifest;
@@ -90,6 +91,8 @@ pub struct Plugins {
     next: Mutex<u64>,
     /// Changes of the state file and the plugins folder go one at a time.
     writing: Mutex<()>,
+    /// So do changes of a plugin's own data (`storage`).
+    data_writing: Mutex<()>,
 }
 
 impl Plugins {
@@ -100,6 +103,7 @@ impl Plugins {
             staged: Mutex::new(Vec::new()),
             next: Mutex::new(1),
             writing: Mutex::new(()),
+            data_writing: Mutex::new(()),
         }
     }
 
@@ -353,6 +357,7 @@ impl Plugins {
         {
             log::warn!("W_PLUGIN_FOLDER_KEPT {id}");
         }
+        self.remove_data(id);
         if !known {
             return Err(NOT_FOUND);
         }
@@ -583,6 +588,73 @@ pub async fn plugin_remove(app: AppHandle, plugins: Shared<'_>, id: String) -> R
     Ok(())
 }
 
+#[tauri::command]
+pub async fn plugin_storage_get(
+    plugins: Shared<'_>,
+    plugin: String,
+    key: String,
+) -> Result<Option<serde_json::Value>, String> {
+    let plugins = std::sync::Arc::clone(&plugins);
+    blocking(move || plugins.storage_get(&plugin, &key)).await
+}
+
+#[tauri::command]
+pub async fn plugin_storage_set(
+    plugins: Shared<'_>,
+    plugin: String,
+    key: String,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    let plugins = std::sync::Arc::clone(&plugins);
+    blocking(move || plugins.storage_set(&plugin, &key, value)).await
+}
+
+#[tauri::command]
+pub async fn plugin_storage_delete(
+    plugins: Shared<'_>,
+    plugin: String,
+    key: String,
+) -> Result<(), String> {
+    let plugins = std::sync::Arc::clone(&plugins);
+    blocking(move || plugins.storage_delete(&plugin, &key)).await
+}
+
+#[tauri::command]
+pub async fn plugin_storage_keys(
+    plugins: Shared<'_>,
+    plugin: String,
+) -> Result<Vec<String>, String> {
+    let plugins = std::sync::Arc::clone(&plugins);
+    blocking(move || plugins.storage_keys(&plugin)).await
+}
+
+#[tauri::command]
+pub async fn plugin_settings_get(
+    plugins: Shared<'_>,
+    plugin: String,
+) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    let plugins = std::sync::Arc::clone(&plugins);
+    blocking(move || plugins.settings_get(&plugin)).await
+}
+
+/// From Settings; the main windows hear it and tell the plugin.
+#[tauri::command]
+pub async fn plugin_settings_set(
+    app: AppHandle,
+    plugins: Shared<'_>,
+    plugin: String,
+    setting: String,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    let plugins = std::sync::Arc::clone(&plugins);
+    let id = plugin.clone();
+    blocking(move || plugins.settings_set(&plugin, &setting, value)).await?;
+    if app.emit(storage::SETTINGS_CHANGED_EVENT, id).is_err() {
+        log::warn!("W_PLUGIN_SETTINGS_EVENT_FAILED");
+    }
+    Ok(())
+}
+
 /// The files of an import format the user picks, as text; None when the panel was cancelled.
 #[tauri::command]
 pub async fn plugin_import_pick(
@@ -799,6 +871,42 @@ mod tests {
             .names()
             .unwrap();
         assert_eq!(names, vec![std::ffi::OsString::from("com.example.hello")]);
+    }
+
+    const DATA_MANIFEST: &str = r#"{"id":"com.example.data","name":"Data","version":"1.0.0","apiVersion":2,"main":"main.js","permissions":PERMISSIONS,"contributes":{"settings":SETTINGS}}"#;
+
+    pub(super) fn settings_manifest() -> &'static str {
+        r#"[{"id":"on","title":"On","type":"toggle","default":true},{"id":"label","title":"Label","type":"text"},{"id":"size","title":"Size","type":"number","default":12,"min":8,"max":32},{"id":"unit","title":"Unit","type":"choice","choices":[{"id":"km","title":"Kilometres"},{"id":"mi","title":"Miles"}]}]"#
+    }
+
+    fn data_package(permissions: &str, settings: &str) -> Package {
+        let settings = if settings.is_empty() { "[]" } else { settings };
+        let manifest = DATA_MANIFEST
+            .replace("PERMISSIONS", permissions)
+            .replace("SETTINGS", settings);
+        let mut files = BTreeMap::new();
+        files.insert(manifest::FILE.to_string(), manifest.as_bytes().to_vec());
+        files.insert("main.js".to_string(), b"data".to_vec());
+        Package {
+            manifest: manifest::parse_bytes(manifest.as_bytes()).unwrap(),
+            files,
+        }
+    }
+
+    pub(super) fn reinstall(plugins: &Plugins, permissions: &str, settings: &str) {
+        let staged = plugins.stage(data_package(permissions, settings)).unwrap();
+        plugins.install(staged.token).unwrap();
+    }
+
+    /// `com.example.data`, installed and on, with these permissions (a JSON list) and settings (a JSON list, or empty).
+    pub(super) fn installed_with(
+        permissions: &str,
+        settings: &str,
+    ) -> (tempfile::TempDir, Plugins) {
+        let data = tempfile::tempdir().unwrap();
+        let plugins = Plugins::new(data.path());
+        reinstall(&plugins, permissions, settings);
+        (data, plugins)
     }
 
     fn needing(min_app_version: &str) -> Package {

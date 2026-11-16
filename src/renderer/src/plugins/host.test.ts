@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { parseManifest, type InstalledPlugin, type PluginPermission } from '../../../core/plugins'
+import {
+  parseManifest,
+  type InstalledPlugin,
+  type JsonValue,
+  type PluginPermission,
+} from '../../../core/plugins'
 import { createPluginHost, type PluginHostDeps, type PortLike } from './host'
 
 type Message = Record<string, unknown>
@@ -58,9 +63,9 @@ function plugin(id: string, granted: PluginPermission[], enabled = true): Instal
     id,
     name: id,
     version: '1.0.0',
-    apiVersion: 1,
+    apiVersion: 2,
     main: 'main.js',
-    permissions: ['note.read', 'note.edit', 'commands', 'preview', 'import', 'export'],
+    permissions: ['note.read', 'note.edit', 'commands', 'preview', 'import', 'export', 'storage'],
     contributes: { commands: [{ id: 'go', title: 'Go' }] },
   })
   return { manifest, enabled, granted }
@@ -69,6 +74,7 @@ function plugin(id: string, granted: PluginPermission[], enabled = true): Instal
 function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'body') {
   const warnings: [string, string][] = []
   let text = note
+  const stored = new Map<string, JsonValue>()
   const deps: PluginHostDeps = {
     connect: async (p) => {
       const fake = answers[p.manifest.id]
@@ -80,11 +86,19 @@ function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'b
       if (base !== text) throw new Error('E_PLUGIN_NOTE_CHANGED')
       text = markdown
     },
+    storage: {
+      get: async (p, key) => stored.get(`${p} ${key}`) ?? null,
+      set: async (p, key, value) => void stored.set(`${p} ${key}`, value),
+      delete: async (p, key) => void stored.delete(`${p} ${key}`),
+      keys: async (p) =>
+        [...stored.keys()].filter((k) => k.startsWith(`${p} `)).map((k) => k.slice(p.length + 1)),
+    },
+    settings: async (p) => ({ unit: p === 'com.a' ? 'km' : 'mi' }),
     showUi: vi.fn<PluginHostDeps['showUi']>(),
     hideUi: vi.fn<PluginHostDeps['hideUi']>(),
     warn: (code, id) => warnings.push([code, id]),
   }
-  return { host: createPluginHost(deps), deps, warnings, text: () => text }
+  return { host: createPluginHost(deps), deps, warnings, text: () => text, stored }
 }
 
 afterEach(() => vi.useRealTimers())
@@ -240,6 +254,13 @@ describe('the plugin host', () => {
       },
       readNote: async () => null,
       replaceNote: async () => {},
+      storage: {
+        get: async () => null,
+        set: async () => {},
+        delete: async () => {},
+        keys: async () => [],
+      },
+      settings: async () => ({}),
       showUi: () => {},
       hideUi: () => {},
       warn: () => {},
@@ -284,5 +305,42 @@ describe('the plugin host', () => {
     await host.run('com.b', 'go')
     expect(await a.call('note.read')).toMatchObject({ ok: false, code: 'E_PLUGIN_NOT_ACTIVE' })
     expect(a.events).toEqual(['ui.hidden'])
+  })
+
+  it('keeps the values of each plugin apart, at any time, only with the storage permission', async () => {
+    const a = fakePlugin()
+    const b = fakePlugin()
+    const { host, stored, warnings } = setup({ 'com.a': a, 'com.b': b })
+    host.load([plugin('com.a', ['storage']), plugin('com.b', ['commands'])])
+    await host.run('com.b', 'go')
+    expect(await a.call('storage.set', { key: 'n', value: { count: 2 } })).toMatchObject({
+      ok: true,
+    })
+    expect(await a.call('storage.get', { key: 'n' })).toMatchObject({
+      ok: true,
+      value: { count: 2 },
+    })
+    expect(await a.call('storage.keys')).toMatchObject({ ok: true, value: ['n'] })
+    expect(await b.call('storage.get', { key: 'n' })).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
+    expect(await a.call('storage.delete', { key: 'n' })).toMatchObject({ ok: true })
+    expect(stored.size).toBe(0)
+    expect(warnings).toContainEqual(['E_PLUGIN_PERMISSION_DENIED', 'com.b'])
+  })
+
+  it('hands a plugin its own settings and tells it when they change', async () => {
+    const a = fakePlugin()
+    const b = fakePlugin()
+    const { host } = setup({ 'com.a': a, 'com.b': b })
+    host.load([plugin('com.a', ['commands']), plugin('com.b', ['commands'])])
+    await host.run('com.a', 'go')
+    await host.run('com.b', 'go')
+    expect(await a.call('settings.get')).toMatchObject({ ok: true, value: { unit: 'km' } })
+    expect(await b.call('settings.get')).toMatchObject({ ok: true, value: { unit: 'mi' } })
+    host.settingsChanged('com.a')
+    await vi.waitFor(() => expect(a.events).toEqual(['settings.changed']))
+    expect(b.events).toEqual([])
   })
 })

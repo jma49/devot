@@ -8,7 +8,17 @@ import type { PluginPermission } from './manifest'
 export const PLUGIN_PROTOCOL_VERSION = 1
 
 /** Methods a plugin calls on the host. */
-const PLUGIN_METHODS = ['note.read', 'note.replace', 'ui.show', 'ui.hide'] as const
+const PLUGIN_METHODS = [
+  'note.read',
+  'note.replace',
+  'ui.show',
+  'ui.hide',
+  'storage.get',
+  'storage.set',
+  'storage.delete',
+  'storage.keys',
+  'settings.get',
+] as const
 export type PluginMethod = (typeof PLUGIN_METHODS)[number]
 
 /** Methods the host calls on a plugin. */
@@ -19,6 +29,11 @@ const METHOD_PERMISSION: Readonly<Record<PluginMethod, PluginPermission | null>>
   'note.replace': 'note.edit',
   'ui.show': null,
   'ui.hide': null,
+  'storage.get': 'storage',
+  'storage.set': 'storage',
+  'storage.delete': 'storage',
+  'storage.keys': 'storage',
+  'settings.get': null,
 }
 
 /** The note methods, and showing a panel, work only while a command of the plugin runs or its panel is open. */
@@ -28,6 +43,10 @@ const UI_HEIGHT = { min: 80, max: 640, default: 320 } as const
 /** A drawn block's Markdown, and a converted file's text. */
 export const MAX_RENDER_CHARS = 256 * 1024
 const MAX_EXPORT_CHARS = 20 * 1024 * 1024
+/** A stored value as JSON; Rust also caps a plugin's whole store (`plugins/storage.rs`). */
+export const MAX_STORAGE_VALUE_BYTES = 256 * 1024
+const STORAGE_KEY = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/
+const MAX_JSON_DEPTH = 32
 /** Calls a plugin may have waiting on the host at once. */
 export const MAX_PENDING_CALLS = 64
 export const HOST_CALL_TIMEOUT_MS: Readonly<Record<HostMethod, number>> = {
@@ -42,6 +61,19 @@ export type PluginCall =
   | { method: 'note.replace'; base: string; markdown: string }
   | { method: 'ui.show'; height: number }
   | { method: 'ui.hide' }
+  | { method: 'storage.get'; key: string }
+  | { method: 'storage.set'; key: string; value: JsonValue }
+  | { method: 'storage.delete'; key: string }
+  | { method: 'storage.keys' }
+  | { method: 'settings.get' }
+
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue }
 
 export interface CallMessage {
   devot: typeof PLUGIN_PROTOCOL_VERSION
@@ -58,7 +90,7 @@ export type ResultMessage =
 export interface EventMessage {
   devot: typeof PLUGIN_PROTOCOL_VERSION
   kind: 'event'
-  name: 'ui.hidden'
+  name: 'ui.hidden' | 'settings.changed'
 }
 
 export type IncomingMessage = CallMessage | ResultMessage
@@ -113,13 +145,47 @@ export type CheckedCall = { ok: true; call: PluginCall } | { ok: false; code: st
 const isMethod = (method: string): method is PluginMethod =>
   (PLUGIN_METHODS as readonly string[]).includes(method)
 
+/** Plain JSON only: no other object kinds, no non-finite numbers, no lone surrogates. */
+function isJson(value: unknown, depth = 0): value is JsonValue {
+  if (depth > MAX_JSON_DEPTH) return false
+  if (value === null || typeof value === 'boolean') return true
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value === 'string') return wellFormed(value) === value
+  if (Array.isArray(value)) return value.every((item) => isJson(item, depth + 1))
+  if (!isRecord(value)) return false
+  const proto: unknown = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== null) return false
+  return Object.entries(value).every(
+    ([key, item]) => wellFormed(key) === key && isJson(item, depth + 1),
+  )
+}
+
+const storageKey = (p: Record<string, unknown>): string | null => {
+  const key = p['key']
+  return typeof key === 'string' && STORAGE_KEY.test(key) ? key : null
+}
+
 function params(call: CallMessage, method: PluginMethod): PluginCall | null {
   const p = call.params ?? {}
   if (!isRecord(p)) return null
   switch (method) {
     case 'note.read':
     case 'ui.hide':
+    case 'storage.keys':
+    case 'settings.get':
       return Object.keys(p).length === 0 ? { method } : null
+    case 'storage.get':
+    case 'storage.delete': {
+      const key = storageKey(p)
+      return key !== null && Object.keys(p).length === 1 ? { method, key } : null
+    }
+    case 'storage.set': {
+      const key = storageKey(p)
+      const value = p['value']
+      if (key === null || !isJson(value)) return null
+      if (utf8Length(JSON.stringify(value)) > MAX_STORAGE_VALUE_BYTES) return null
+      return { method, key, value }
+    }
     case 'note.replace': {
       const { base, markdown } = p
       if (typeof base !== 'string' || typeof markdown !== 'string') return null

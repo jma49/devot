@@ -7422,6 +7422,10 @@ button.popup:focus-visible {
   padding: var(--space-6) 0;
 }
 
+.plugin-settings {
+  padding: 0 0 var(--space-6) var(--space-7);
+}
+
 .setting-text .plugin-permissions-intro {
   margin: var(--space-2) 0 0;
   color: var(--color-text-secondary);

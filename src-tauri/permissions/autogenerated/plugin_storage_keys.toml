@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-plugin-storage-keys"
+description = "Enables the plugin_storage_keys command without any pre-configured scope."
+commands.allow = ["plugin_storage_keys"]
+
+[[permission]]
+identifier = "deny-plugin-storage-keys"
+description = "Denies the plugin_storage_keys command without any pre-configured scope."
+commands.deny = ["plugin_storage_keys"]

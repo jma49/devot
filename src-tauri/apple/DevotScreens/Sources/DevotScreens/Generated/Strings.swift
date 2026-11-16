@@ -4510,6 +4510,18 @@ public enum L10n {
     text("plugins.permission.export", "Export the open note in its formats")
   }
 
+  public static func pluginsPermissionStorage() -> String {
+    text("plugins.permission.storage", "Keep its own data on this Mac")
+  }
+
+  public static func pluginsSettingsLabel(name p0: String) -> String {
+    fill(text("plugins.settingsLabel", "{name} settings"), ["name": p0])
+  }
+
+  public static func pluginsSettingFailed() -> String {
+    text("plugins.settingFailed", "The setting could not be changed.")
+  }
+
   public static func pluginsImportAs(title p0: String) -> String {
     fill(text("plugins.importAs", "Import {title}…"), ["title": p0])
   }

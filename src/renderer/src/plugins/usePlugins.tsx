@@ -28,6 +28,9 @@ import {
   PLUGIN_ACTION_TAURI,
   saveExport,
   watchPlugins,
+  pluginSettings,
+  pluginStorage,
+  watchPluginSettings,
 } from './api'
 import {
   actionEntryId,
@@ -97,6 +100,8 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
         w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
       },
+      storage: pluginStorage,
+      settings: pluginSettings,
       showUi: (plugin, height) => setPanel({ plugin, height }),
       hideUi: (plugin) => setPanel((now) => (now?.plugin === plugin ? null : now)),
       warn: (code, plugin) => console.warn('W_PLUGIN_FAILED', code, plugin),
@@ -123,6 +128,11 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   }, [])
 
   useEffect(() => host?.load(plugins), [host, plugins])
+
+  useEffect(
+    () => (host ? watchPluginSettings((plugin) => host.settingsChanged(plugin)) : undefined),
+    [host],
+  )
 
   const nameOf = useCallback(
     (id: string) => plugins.find((p) => p.manifest.id === id)?.manifest.name ?? id,

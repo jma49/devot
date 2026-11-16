@@ -29,7 +29,7 @@ The user sees each requested permission, in words, before installing, and approv
 | `import`    | turn files of its formats into notes (it gets the files the user picks)                  |
 | `export`    | turn the open note into a file of its formats (it gets that note)                        |
 
-A later version adds a permission only with the protocol change that needs it; a network permission would name its hosts in the manifest and become the frame's `connect-src`.
+API version 2 adds `storage`, a plugin's own data, and settings the manifest declares (ADR 0021). A later version adds a permission only with the protocol change that needs it; a network permission would name its hosts in the manifest and become the frame's `connect-src`.
 
 ## Where plugins live
 

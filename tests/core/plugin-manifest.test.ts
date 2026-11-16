@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { effectivePermissions, isPackagePath, parseManifest } from '../../src/core/plugins/manifest'
+import {
+  effectivePermissions,
+  fitsSetting,
+  isPackagePath,
+  parseManifest,
+  type PluginSetting,
+} from '../../src/core/plugins/manifest'
 
 interface Cases {
   base: Record<string, unknown>
@@ -58,6 +64,7 @@ describe('parseManifest', () => {
         previewRenderers: [],
         importFormats: [],
         exportFormats: [],
+        settings: [],
       },
     })
   })
@@ -66,6 +73,41 @@ describe('parseManifest', () => {
     for (const value of [null, [], 'x', 1]) {
       expect(codeOf(() => parseManifest(value))).toBe('E_PLUGIN_MANIFEST_INVALID')
     }
+  })
+})
+
+describe('settings', () => {
+  const declared = parseManifest(
+    patched({
+      apiVersion: 2,
+      permissions: null,
+      contributes: {
+        settings: [
+          { id: 'on', title: 'On', type: 'toggle' },
+          { id: 'size', title: 'Size', type: 'number', min: 8, max: 32 },
+          { id: 'unit', title: 'Unit', type: 'choice', choices: [{ id: 'km', title: 'km' }] },
+        ],
+      },
+    }),
+  ).contributes.settings
+
+  it('fills each default', () => {
+    expect(declared.map((s) => [s.id, s.default])).toEqual([
+      ['on', false],
+      ['size', 8],
+      ['unit', 'km'],
+    ])
+  })
+
+  it('takes only a value that fits the declaration', () => {
+    const [on, size, unit] = declared as [PluginSetting, PluginSetting, PluginSetting]
+    expect(fitsSetting(on, true)).toBe(true)
+    expect(fitsSetting(on, 'true')).toBe(false)
+    expect(fitsSetting(size, 32)).toBe(true)
+    expect(fitsSetting(size, 33)).toBe(false)
+    expect(fitsSetting(size, Number.NaN)).toBe(false)
+    expect(fitsSetting(unit, 'km')).toBe(true)
+    expect(fitsSetting(unit, 'mi')).toBe(false)
   })
 })
 
