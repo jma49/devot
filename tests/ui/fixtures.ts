@@ -178,6 +178,7 @@ export async function mockTauri(page: Page): Promise<void> {
             cmd === 'plugin_catalog'
           )
             return []
+          if (cmd === 'plugin_themes') return { themes: [], chosen: { light: null, dark: null } }
           if (cmd === 'cli_tool_status') return { state: 'absent', path: '/usr/local/bin/devot' }
           if (cmd === 'mcp_access_get')
             return {

@@ -19,6 +19,49 @@ const TOO_LARGE: &str = "E_PLUGIN_PACKAGE_TOO_LARGE";
 const UNREADABLE: &str = "E_PLUGIN_PACKAGE_UNREADABLE";
 const NO_MANIFEST: &str = "E_PLUGIN_MANIFEST_MISSING";
 const NO_MAIN: &str = "E_PLUGIN_MAIN_MISSING";
+pub const THEME_INVALID: &str = "E_PLUGIN_THEME_INVALID";
+pub const THEME_MAX_BYTES: usize = 64 * 1024;
+pub const THEME_COLORS_MAX: usize = 2048;
+const THEME_KEY_MAX: usize = 64;
+
+fn is_theme_key(key: &str) -> bool {
+    key.len() <= THEME_KEY_MAX
+        && key.split('-').all(|part| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        })
+}
+
+fn is_theme_color(value: &str) -> bool {
+    value
+        .strip_prefix('#')
+        .is_some_and(|hex| matches!(hex.len(), 6 | 8) && hex.bytes().all(|b| b.is_ascii_hexdigit()))
+}
+
+/// A theme file: `{"colors": {"<token>": "#rrggbb" or "#rrggbbaa"}}`, a token named as its CSS variable after `--color-`.
+/// A token this build does not know is kept here and left out by the page, so a theme can name tokens a later build adds.
+pub fn theme_colors(bytes: &[u8]) -> Result<BTreeMap<String, String>, &'static str> {
+    if bytes.len() > THEME_MAX_BYTES {
+        return Err(THEME_INVALID);
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| THEME_INVALID)?;
+    let colors = value
+        .get("colors")
+        .and_then(serde_json::Value::as_object)
+        .filter(|c| !c.is_empty() && c.len() <= THEME_COLORS_MAX)
+        .ok_or(THEME_INVALID)?;
+    colors
+        .iter()
+        .map(|(key, value)| match value.as_str() {
+            Some(color) if is_theme_key(key) && is_theme_color(color) => {
+                Ok((key.clone(), color.to_ascii_lowercase()))
+            }
+            _ => Err(THEME_INVALID),
+        })
+        .collect()
+}
 
 #[derive(Debug, Clone)]
 pub struct Package {
@@ -60,6 +103,9 @@ impl Files {
         let manifest = manifest::parse_bytes(self.files.get(manifest::FILE).ok_or(NO_MANIFEST)?)?;
         if !self.files.contains_key(&manifest.main) {
             return Err(NO_MAIN);
+        }
+        for theme in &manifest.contributes.themes {
+            theme_colors(self.files.get(&theme.path).ok_or(THEME_INVALID)?)?;
         }
         Ok(Package {
             manifest,
@@ -170,6 +216,9 @@ pub fn read_archive_from(from: impl Read + std::io::Seek) -> Result<Package, &'s
 }
 
 #[cfg(test)]
+pub(super) const THEME_MANIFEST: &str = r#"{"id":"com.example.nord","name":"Nord","version":"1.0.0","apiVersion":2,"main":"main.js","permissions":["themes"],"contributes":{"themes":[{"id":"nord-light","title":"Nord Light","appearance":"light","path":"themes/light.json"}]}}"#;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
@@ -219,6 +268,53 @@ mod tests {
             package.files.keys().collect::<Vec<_>>(),
             [manifest::FILE, "lib/util.js", "main.js"]
         );
+    }
+
+    #[test]
+    fn reads_a_theme_and_refuses_one_it_cannot_draw() {
+        let good = br##"{"colors":{"background":"#ECEFF4","accent-fill":"#5e81ac80"}}"##;
+        let dir = folder(&[
+            (manifest::FILE, THEME_MANIFEST.as_bytes()),
+            ("main.js", b""),
+            ("themes/light.json", good),
+        ]);
+        let package = read_folder(dir.path()).unwrap();
+        assert_eq!(
+            theme_colors(&package.files["themes/light.json"]).unwrap(),
+            BTreeMap::from([
+                ("accent-fill".to_string(), "#5e81ac80".to_string()),
+                ("background".to_string(), "#eceff4".to_string()),
+            ])
+        );
+        for bad in [
+            &b"{}"[..],
+            br#"{"colors":{}}"#,
+            br#"{"colors":{"background":"red"}}"#,
+            br##"{"colors":{"background":"#fff"}}"##,
+            br##"{"colors":{"background":"#ffffff; color: red"}}"##,
+            br##"{"colors":{"Background":"#ffffff"}}"##,
+            br##"{"colors":{"back--ground":"#ffffff"}}"##,
+            br#"{"colors":{"background":1}}"#,
+            b"not json",
+        ] {
+            assert_eq!(
+                theme_colors(bad),
+                Err(THEME_INVALID),
+                "{}",
+                String::from_utf8_lossy(bad)
+            );
+        }
+        let dir = folder(&[
+            (manifest::FILE, THEME_MANIFEST.as_bytes()),
+            ("main.js", b""),
+            ("themes/light.json", br#"{"colors":{"background":"blue"}}"#),
+        ]);
+        assert_eq!(read_folder(dir.path()).err(), Some(THEME_INVALID));
+        let dir = folder(&[
+            (manifest::FILE, THEME_MANIFEST.as_bytes()),
+            ("main.js", b""),
+        ]);
+        assert_eq!(read_folder(dir.path()).err(), Some(THEME_INVALID));
     }
 
     #[test]

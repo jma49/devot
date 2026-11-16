@@ -48,6 +48,7 @@ const PERMISSION_TEXT: Readonly<Record<PluginPermission, MessageKey>> = {
   export: 'plugins.permission.export',
   storage: 'plugins.permission.storage',
   'notes.read': 'plugins.permission.notesRead',
+  themes: 'plugins.permission.themes',
 }
 
 function Permissions(props: { list: readonly PluginPermission[]; label: MessageKey }) {

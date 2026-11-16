@@ -114,6 +114,12 @@ export type DevotPermission =
   | 'export'
   | 'storage'
   | 'notes.read'
+  | 'themes'
+
+/** A theme file (API 2): colors by token, each named as its CSS variable after `--color-`, as `#rrggbb` or `#rrggbbaa`. */
+export interface DevotThemeFile {
+  colors: Record<string, string>
+}
 
 interface SettingBase {
   id: string
@@ -147,6 +153,8 @@ export interface DevotManifest {
     importFormats?: { id: string; title: string; extensions: string[] }[]
     exportFormats?: { id: string; title: string; extension: string }[]
     settings?: DevotSetting[]
+    /** Needs `themes` (API 2): colors drawn over the theme chosen for that appearance in Settings > Appearance. */
+    themes?: { id: string; title: string; appearance: 'light' | 'dark'; path: string }[]
   }
 }
 

@@ -369,6 +369,8 @@ pub fn run() {
             plugins::plugin_catalog_stage,
             plugins::plugin_offer_open,
             plugins::plugin_offer_take,
+            plugins::plugin_themes,
+            plugins::plugin_theme_choose,
             plugins::plugin_set_enabled,
             plugins::plugin_remove,
             plugins::plugin_import_pick,

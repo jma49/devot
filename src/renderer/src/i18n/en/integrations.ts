@@ -176,6 +176,7 @@ export const messages = {
   'plugins.permission.storage': 'Keep its own data on this Mac',
   'plugins.permission.notesRead':
     'Read all your notes and notebooks, outside Templates and the Trash',
+  'plugins.permission.themes': 'Add color themes to Settings > Appearance',
   'plugins.settingsLabel': '{name} settings',
   'plugins.settingFailed': 'The setting could not be changed.',
   'plugins.importAs': 'Import {title}…',

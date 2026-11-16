@@ -4,6 +4,7 @@
   "description": "Permissions for the main windows: `main` and the ones File > New Window opens (`main-<n>`), which are all the same and run plugins (listing them, the panels for their import and export formats, their own stored data and their settings' values), add the licence a devot://licence link brings once the user agrees, and open Settings at its Licence pane (Add Licence once the trial is over). Add a command here only when the UI needs it.",
   "windows": ["main", "main-*"],
   "permissions": [
+    "allow-plugin-themes",
     "core:app:allow-version",
     "core:event:allow-listen",
     "core:event:allow-unlisten",

@@ -1,4 +1,4 @@
-import { useId, useMemo, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ANIMATIONS,
   FONT_SIZE_MAX,
@@ -36,6 +36,15 @@ import type { IconName } from '../icons/symbols'
 import { useDraggedNumber } from './draggedNumber'
 import type { Appearance } from '../theme/appearance'
 import { failureText } from '../failure'
+import { errorCode } from '../backups'
+import { watchPlugins } from '../plugins/api'
+import {
+  choosePluginTheme,
+  listPluginThemes,
+  NO_PLUGIN_THEMES,
+  watchPluginThemes,
+  type PluginThemes,
+} from '../theme/pluginThemes'
 
 /** The font size description: what it is, and the keys in effect (or the palette's commands when one has no key). */
 function fontSizeHint(): string {
@@ -237,6 +246,76 @@ function ThemePicker({
   )
 }
 
+function usePluginThemes(): PluginThemes {
+  const [themes, setThemes] = useState(NO_PLUGIN_THEMES)
+  useEffect(() => {
+    let asked = 0
+    const load = () => {
+      const request = ++asked
+      listPluginThemes().then(
+        (next) => {
+          if (request === asked) setThemes(next)
+        },
+        () => console.warn('W_PLUGIN_THEMES_FAILED'),
+      )
+    }
+    load()
+    const stopThemes = watchPluginThemes(load)
+    const stopPlugins = watchPlugins(load)
+    return () => {
+      asked++
+      stopThemes()
+      stopPlugins()
+    }
+  }, [])
+  return themes
+}
+
+/** The plugin themes of one appearance, drawn over its theme (ADR 0026); shown only when a plugin adds one. */
+function PluginThemeSetting(props: {
+  appearance: Appearance
+  themes: PluginThemes
+  onFailure: (code: string) => void
+}) {
+  const { appearance, themes, onFailure } = props
+  const id = useId()
+  const offered = themes.themes.filter((theme) => theme.appearance === appearance)
+  if (offered.length === 0) return null
+  const chosen = themes.chosen[appearance]
+  const key = (plugin: string, theme: string) => `${plugin}/${theme}`
+  return (
+    <Setting
+      label="appearanceSettings.pluginTheme"
+      description={t('appearanceSettings.pluginThemeHint')}
+      htmlFor={id}
+      descriptionId={`${id}-hint`}
+    >
+      <Select
+        id={id}
+        value={chosen ? key(chosen.plugin, chosen.theme) : ''}
+        aria-describedby={`${id}-hint`}
+        onChange={(e) => {
+          const picked = offered.find((o) => key(o.plugin, o.id) === e.currentTarget.value)
+          choosePluginTheme(
+            appearance,
+            picked ? { plugin: picked.plugin, theme: picked.id } : null,
+          ).catch((error: unknown) => onFailure(errorCode(error)))
+        }}
+      >
+        <option value="">{t('appearanceSettings.pluginThemeNone')}</option>
+        {offered.map((theme) => (
+          <option key={key(theme.plugin, theme.id)} value={key(theme.plugin, theme.id)}>
+            {format(t('appearanceSettings.pluginThemeBy'), {
+              title: theme.title,
+              plugin: theme.pluginName,
+            })}
+          </option>
+        ))}
+      </Select>
+    </Setting>
+  )
+}
+
 /**
  * Settings > Appearance: the color scheme (Auto, Light or Dark) and how see-through the window is;
  * a theme for each appearance, the one in effect marked Active (Ivory has its own accent, so the
@@ -248,6 +327,8 @@ export function AppearanceSection() {
   const settings = useEditorSettings()
   const shown = useAppearance()
   const [error, change] = useSettingsChange()
+  const pluginThemes = usePluginThemes()
+  const [pluginThemeError, setPluginThemeError] = useState<string>()
   useKeymap()
   const ids = useId()
   const id = (name: string) => `${ids}-${name}`
@@ -291,9 +372,9 @@ export function AppearanceSection() {
       <h2 id="appearance-title" className="visually-hidden">
         {t('appearanceSettings.title')}
       </h2>
-      {error ? (
+      {error || pluginThemeError ? (
         <p role="alert" className="settings-error">
-          {failureText('appearanceSettings.failed', error)}
+          {failureText('appearanceSettings.failed', error ?? pluginThemeError ?? '')}
         </p>
       ) : null}
       <SettingsSection title="appearanceSettings.groupAppearance">
@@ -357,12 +438,22 @@ export function AppearanceSection() {
           chosen={settings.lightTheme}
           onChoose={(lightTheme) => change({ lightTheme })}
         />
+        <PluginThemeSetting
+          appearance="light"
+          themes={pluginThemes}
+          onFailure={setPluginThemeError}
+        />
       </SettingsSection>
       <SettingsSection title="appearanceSettings.darkMode" titleSuffix={modeTitle('dark')}>
         <ThemePicker
           appearance="dark"
           chosen={settings.darkTheme}
           onChoose={(darkTheme) => change({ darkTheme })}
+        />
+        <PluginThemeSetting
+          appearance="dark"
+          themes={pluginThemes}
+          onFailure={setPluginThemeError}
         />
       </SettingsSection>
       {gradientShown ? (

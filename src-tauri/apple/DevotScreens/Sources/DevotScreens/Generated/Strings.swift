@@ -4570,6 +4570,10 @@ public enum L10n {
     text("plugins.permission.notesRead", "Read all your notes and notebooks, outside Templates and the Trash")
   }
 
+  public static func pluginsPermissionThemes() -> String {
+    text("plugins.permission.themes", "Add color themes to Settings > Appearance")
+  }
+
   public static func pluginsSettingsLabel(name p0: String) -> String {
     fill(text("plugins.settingsLabel", "{name} settings"), ["name": p0])
   }
@@ -7252,6 +7256,22 @@ public enum L10n {
 
   public static func appearanceSettingsThemesBuiltIn() -> String {
     text("appearanceSettings.themesBuiltIn", "Built-in")
+  }
+
+  public static func appearanceSettingsPluginTheme() -> String {
+    text("appearanceSettings.pluginTheme", "Plugin Theme")
+  }
+
+  public static func appearanceSettingsPluginThemeHint() -> String {
+    text("appearanceSettings.pluginThemeHint", "Its colors are drawn over the theme above.")
+  }
+
+  public static func appearanceSettingsPluginThemeNone() -> String {
+    text("appearanceSettings.pluginThemeNone", "None")
+  }
+
+  public static func appearanceSettingsPluginThemeBy(title p0: String, plugin p1: String) -> String {
+    fill(text("appearanceSettings.pluginThemeBy", "{title} ({plugin})"), ["title": p0, "plugin": p1])
   }
 
   public static func appearanceSettingsSwatchSample() -> String {

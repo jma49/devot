@@ -17,6 +17,29 @@
   },
   "valid": [
     {
+      "name": "a light and a dark theme from API version 2",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["themes"],
+        "contributes": {
+          "themes": [
+            {
+              "id": "nord-light",
+              "title": "Nord Light",
+              "appearance": "light",
+              "path": "themes/light.json"
+            },
+            {
+              "id": "nord-dark",
+              "title": "Nord Dark",
+              "appearance": "dark",
+              "path": "themes/dark.json"
+            }
+          ]
+        }
+      }
+    },
+    {
       "name": "a command in the slash menu from API version 2",
       "patch": {
         "apiVersion": 2,
@@ -108,6 +131,85 @@
   ],
   "invalid": [
     {
+      "name": "a theme in an API version 1 manifest",
+      "patch": {
+        "apiVersion": 1,
+        "permissions": [],
+        "contributes": {
+          "themes": [
+            { "id": "nord", "title": "Nord", "appearance": "light", "path": "themes/nord.json" }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a theme without the themes permission",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": [],
+        "contributes": {
+          "themes": [
+            { "id": "nord", "title": "Nord", "appearance": "light", "path": "themes/nord.json" }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_PERMISSION_MISSING"
+    },
+    {
+      "name": "a theme of no appearance",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["themes"],
+        "contributes": {
+          "themes": [
+            { "id": "nord", "title": "Nord", "appearance": "sepia", "path": "themes/nord.json" }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a theme file that is not JSON",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["themes"],
+        "contributes": {
+          "themes": [
+            { "id": "nord", "title": "Nord", "appearance": "light", "path": "themes/nord.css" }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a theme file outside the package",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["themes"],
+        "contributes": {
+          "themes": [
+            { "id": "nord", "title": "Nord", "appearance": "light", "path": "../nord.json" }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "one theme ID twice",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["themes"],
+        "contributes": {
+          "themes": [
+            { "id": "nord", "title": "Nord", "appearance": "light", "path": "themes/nord.json" },
+            { "id": "nord", "title": "Nord", "appearance": "light", "path": "themes/nord.json" }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
       "name": "the slash menu in an API version 1 manifest",
       "patch": {
         "permissions": ["commands"],
@@ -141,6 +243,11 @@
         }
       },
       "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "themes asked for by an API version 1 manifest",
+      "patch": { "permissions": ["themes"], "contributes": null },
+      "code": "E_PLUGIN_PERMISSION_UNKNOWN"
     },
     {
       "name": "notes.read asked for by an API version 1 manifest",

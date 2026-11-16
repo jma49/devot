@@ -3,6 +3,7 @@
 import { lstatSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { isPackagePath, parseManifest, type PluginManifest } from '../../src/core/plugins/manifest'
+import { parseThemeFile } from '../../src/core/plugins/themeFile'
 
 export const MANIFEST_FILE = 'devot-plugin.json'
 export const PACKAGE_LIMITS = {
@@ -75,6 +76,15 @@ export function readPackage(root: string): PluginPackage {
     throw new PackageError(code, MANIFEST_FILE)
   }
   if (!files.has(manifest.main)) throw new PackageError('E_PLUGIN_MAIN_MISSING', manifest.main)
+  for (const theme of manifest.contributes.themes) {
+    const bytes = files.get(theme.path)
+    try {
+      if (!bytes) throw new Error('E_PLUGIN_THEME_INVALID')
+      parseThemeFile(bytes)
+    } catch {
+      throw new PackageError('E_PLUGIN_THEME_INVALID', theme.path)
+    }
+  }
   return { manifest, files }
 }
 
