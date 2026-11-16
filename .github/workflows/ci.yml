@@ -555,11 +555,34 @@ jobs:
   # accessibility audit and go through the screens. They run for the native screens, the phone page
   # and the app project (scripts/ci/changed-code.sh). A pull request runs the smoke shard alone; the
   # merge queue, main and manual runs run every shard (scripts/ci/iphone-ui-shards.ts).
-  # A shard starts with iphone-build, not after it: it boots its simulator, which takes five to six
-  # minutes, while the app builds, and waits for the artifact (scripts/ci/wait-for-artifact.ts).
+  # A shard starts once iphone-build holds a runner, not after it ends: it boots its simulator, which
+  # takes five to six minutes, while the app builds, and waits for the artifact
+  # (scripts/ci/wait-for-artifact.ts). Started before the build had a runner, shards held the
+  # account's five macOS runners the build was queued for.
+  iphone-build-started:
+    name: iPhone app build started
+    needs: changes
+    if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          sparse-checkout: scripts/ci
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/ci/wait-for-job-start.ts 'iPhone app build'
+
   iphone-ui:
     name: iPhone UI test (${{ matrix.shard }})
-    needs: changes
+    needs: [changes, iphone-build-started]
     if: needs.changes.outputs.iphone_ui != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: xcode-27
     timeout-minutes: 45
@@ -653,6 +676,7 @@ jobs:
         mac-tests,
         mac-compat,
         iphone-build,
+        iphone-build-started,
         iphone-ui,
         deny,
       ]
@@ -668,15 +692,16 @@ jobs:
           MAC: ${{ needs.mac-tests.result }}
           MAC_COMPAT: ${{ needs.mac-compat.result }}
           IPHONE_BUILD: ${{ needs.iphone-build.result }}
+          IPHONE_STARTED: ${{ needs.iphone-build-started.result }}
           IPHONE_UI: ${{ needs.iphone-ui.result }}
           DENY: ${{ needs.deny.result }}
         run: |
-          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP mac-tests=$MAC mac-compat=$MAC_COMPAT iphone-build=$IPHONE_BUILD iphone-ui=$IPHONE_UI deny=$DENY"
+          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP mac-tests=$MAC mac-compat=$MAC_COMPAT iphone-build=$IPHONE_BUILD iphone-build-started=$IPHONE_STARTED iphone-ui=$IPHONE_UI deny=$DENY"
           {
             printf '### Rust merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone screens tests' "$IOS_APP" 'macOS tests' "$MAC" 'macOS 15 Intel native tests' "$MAC_COMPAT" 'iPhone app build' "$IPHONE_BUILD" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone screens tests' "$IOS_APP" 'macOS tests' "$MAC" 'macOS 15 Intel native tests' "$MAC_COMPAT" 'iPhone app build' "$IPHONE_BUILD" 'iPhone app build started' "$IPHONE_STARTED" 'iPhone UI test' "$IPHONE_UI" 'Cargo deny' "$DENY"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$MAC" "$MAC_COMPAT" "$IPHONE_BUILD" "$IPHONE_UI" "$DENY"; do
+          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$MAC" "$MAC_COMPAT" "$IPHONE_BUILD" "$IPHONE_STARTED" "$IPHONE_UI" "$DENY"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac
