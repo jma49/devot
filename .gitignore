@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+!/tests/fixtures/plugins/kit-packed/dist/
 out/
 release/
 # ...but not the release workflow's script.
