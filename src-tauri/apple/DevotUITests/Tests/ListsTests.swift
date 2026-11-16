@@ -17,11 +17,14 @@ final class ListsTests: XCTestCase {
         notes.tapOnceHittable()
     }
 
-    private var row: XCUIElement {
-        app.collectionViews.cells.containing(NSPredicate(format: "label == %@", L10n.welcomeTitle())).firstMatch
+    /// The row whose label, its title and excerpt, holds `text`.
+    private func row(holding text: String) -> XCUIElement {
+        app.collectionViews.cells.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
-    private var pinned: Bool { (row.value as? String)?.contains(L10n.sidebarPinned()) ?? false }
+    private func pinned(_ row: XCUIElement) -> Bool {
+        (row.value as? String)?.contains(L10n.sidebarPinned()) ?? false
+    }
 
     private func keepScreen(_ step: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
@@ -31,7 +34,7 @@ final class ListsTests: XCTestCase {
     }
 
     /// A slow drag across half the row uncovers its actions without the full swipe's action.
-    private func uncover(leading: Bool) {
+    private func uncover(_ row: XCUIElement, leading: Bool) {
         let from = leading ? 0.15 : 0.85
         let to = leading ? 0.6 : 0.4
         row.coordinate(withNormalizedOffset: CGVector(dx: from, dy: 0.5)).press(
@@ -46,21 +49,45 @@ final class ListsTests: XCTestCase {
         action.tap()
     }
 
-    /// The welcome note starts pinned; the test leaves it as it found it.
+    /// A note of the test's own, with a line no earlier attempt typed. The tests used the welcome
+    /// note: a trash answered after its attempt had failed still landed, and left it in the Trash for
+    /// every attempt after (#955). The line is typed twice: the row's excerpt starts at the body's
+    /// second line, and it is how the row is found.
+    private func ownNote() -> XCUIElement {
+        let line = "Lists \(UUID().uuidString.prefix(8))"
+        let newNote = app.navigationBars.buttons[L10n.noteListNewNote()]
+        XCTAssertTrue(newNote.waitForExistence(timeout: waitLimit(30)), "the Notes list offers New Note")
+        XCTAssertTrue(waitUntil { newNote.isHittable })
+        newNote.tap()
+        let noteBar = app.navigationBars.containing(NSPredicate(format: "label == %@", L10n.phoneInfoTitle())).firstMatch
+        XCTAssertTrue(noteBar.waitForExistence(timeout: waitLimit(10)), "New Note pushes the editor")
+        XCTAssertTrue(app.otherElements["editor.cover"].waitForNonExistence(timeout: waitLimit(5)), "the cover fades")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: waitLimit(5)), "the body takes the caret")
+        app.typeText("\(line)\n\(line)")
+        let typed = app.webViews.firstMatch.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", line)).firstMatch
+        XCTAssertTrue(typed.waitForExistence(timeout: waitLimit(5)), "the line typed is on the page")
+        noteBar.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(noteBar.waitForNonExistence(timeout: waitLimit(10)), "Back returns to the list")
+        let row = row(holding: line)
+        XCTAssertTrue(row.waitForExistence(timeout: waitLimit(10)), "the note is listed")
+        XCTAssertTrue(waitUntil { row.isHittable })
+        return row
+    }
+
     func testTheLeadingSwipeTogglesThePinAndBack() {
-        XCTAssertTrue(row.waitForExistence(timeout: waitLimit(30)), "the welcome note is listed")
-        let was = pinned
-        for (name, now) in [(was ? L10n.noteUnpin() : L10n.phoneActionPin(), !was), (was ? L10n.phoneActionPin() : L10n.noteUnpin(), was)] {
-            uncover(leading: true)
+        let row = ownNote()
+        XCTAssertFalse(pinned(row), "a new note starts unpinned")
+        for (name, now) in [(L10n.phoneActionPin(), true), (L10n.noteUnpin(), false)] {
+            uncover(row, leading: true)
             tapAction(name)
-            XCTAssertTrue(waitUntil({ pinned == now }, timeout: 10), "\(name) changes the row's value")
+            XCTAssertTrue(waitUntil({ pinned(row) == now }, timeout: 10), "\(name) changes the row's value")
         }
     }
 
     /// The toast stays only `motion.duration.phone-toast`, too short for an accessibility audit.
     func testATrashFromTheSwipeIsOfferedBackAndUndoRestoresTheRow() {
-        XCTAssertTrue(row.waitForExistence(timeout: waitLimit(30)), "the welcome note is listed")
-        uncover(leading: false)
+        let row = ownNote()
+        uncover(row, leading: false)
         tapAction(L10n.phoneActionTrash())
         let toast = app.otherElements["devot.toast"]
         XCTAssertTrue(toast.waitForExistence(timeout: waitLimit(5)), "the trash offers an undo")
