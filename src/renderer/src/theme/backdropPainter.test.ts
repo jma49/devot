@@ -27,7 +27,7 @@ function fakeHost() {
       paints.push(entry)
       return { done, cancel: () => (entry.cancelled = true) }
     },
-    show: (url) => shown.push(url),
+    show: (painting) => shown.push(painting?.url ?? null),
     release: (url) => released.push(url),
     setTimer(run, ms) {
       timers.set(nextTimer, { at: now + ms, run })
@@ -41,7 +41,8 @@ function fakeHost() {
     shown,
     released,
     want(size: number | null) {
-      wanted = size === null ? null : { key: `tide/${size}`, paint, width: size, height: size }
+      wanted =
+        size === null ? null : { key: `tide/${size}`, paint, width: size, height: size, density: 1 }
     },
     advance(ms: number) {
       now += ms

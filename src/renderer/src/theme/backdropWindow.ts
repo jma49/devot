@@ -13,16 +13,18 @@ function paintJob(root: HTMLElement): BackdropJob | null {
   const theme = root.dataset['theme'] ?? ''
   const own = (backdrops as Record<string, { light: Paint; dark: Paint } | undefined>)[theme]
   const strength = editorSettings().gradientStrength
-  const width = root.clientWidth
-  const height = root.clientHeight
+  const density = window.devicePixelRatio || 1
+  const width = Math.round(root.clientWidth * density)
+  const height = Math.round(root.clientHeight * density)
   if (!own || strength <= 0 || width < 1 || height < 1) return null
   if (width > MAX_SIDE || height > MAX_SIDE) return null
   const appearance = shownAppearance()
   return {
-    key: `${theme}/${appearance}/${strength}/${width}x${height}`,
+    key: `${theme}/${appearance}/${strength}/${width}x${height}@${density}`,
     paint: mixTowardsSolid(own[appearance], strength),
     width,
     height,
+    density,
   }
 }
 
@@ -69,9 +71,12 @@ export function startBackdropPainter(root: HTMLElement = document.documentElemen
   const host: PainterHost = {
     wanted: () => paintJob(root),
     paint: paintInWorker,
-    show: (url) =>
-      url
-        ? root.style.setProperty('--backdrop', `url("${url}")`)
+    show: (painting) =>
+      painting
+        ? root.style.setProperty(
+            '--backdrop',
+            `image-set(url("${painting.url}") ${painting.density}x)`,
+          )
         : root.style.removeProperty('--backdrop'),
     release: (url) => URL.revokeObjectURL(url),
     setTimer: (run, ms) => window.setTimeout(run, ms),
@@ -81,5 +86,18 @@ export function startBackdropPainter(root: HTMLElement = document.documentElemen
   subscribeEditorSettings(painter.update)
   subscribeAppearance(painter.update)
   new ResizeObserver(painter.update).observe(root)
+  // Moving the window to a screen of another density changes no size the observer sees.
+  const followDensity = () => {
+    const query = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+    query.addEventListener(
+      'change',
+      () => {
+        painter.update()
+        followDensity()
+      },
+      { once: true },
+    )
+  }
+  followDensity()
   painter.update()
 }

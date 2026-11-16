@@ -7,8 +7,11 @@ import type { Paint } from './backdropPaint'
 export interface BackdropJob {
   key: string
   paint: Paint
+  /** In device pixels: painted at the screen's own resolution, so no scaling softens the dither into blotches. */
   width: number
   height: number
+  /** Device pixels per CSS pixel. */
+  density: number
 }
 
 export interface PainterHost {
@@ -16,7 +19,7 @@ export interface PainterHost {
   wanted(): BackdropJob | null
   /** Paints a job off the main thread; resolves to an image URL ready to draw, or null. */
   paint(job: BackdropJob): { done: Promise<string | null>; cancel(): void }
-  show(url: string | null): void
+  show(painting: { url: string; density: number } | null): void
   release(url: string): void
   setTimer(run: () => void, ms: number): number
   clearTimer(id: number): void
@@ -59,7 +62,7 @@ export function createBackdropPainter(host: PainterHost): {
         state = { kind: 'tokens' }
         return
       }
-      host.show(url)
+      host.show({ url, density: job.density })
       state = { kind: 'shown', key: job.key, url }
     }
     done.then(finish, () => finish(null))
