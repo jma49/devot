@@ -183,7 +183,7 @@ function unique<T>(items: readonly T[], key: (item: T) => string): void {
   }
 }
 
-function isPluginId(value: unknown): value is string {
+export function isPluginId(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     value.length <= LIMITS.id &&

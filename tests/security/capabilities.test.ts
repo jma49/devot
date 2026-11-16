@@ -146,6 +146,8 @@ describe('Tauri command permissions', () => {
 
   it('lets only the Settings window install, turn on and off and remove plugins, and only the main window run their formats', () => {
     for (const command of [
+      'allow-plugin-catalog',
+      'allow-plugin-catalog-stage',
       'allow-plugin-install-pick',
       'allow-plugin-install-confirm',
       'allow-plugin-install-cancel',
@@ -155,6 +157,8 @@ describe('Tauri command permissions', () => {
       expect(windowsWith(command)).toEqual(['settings'])
     }
     expect(windowsWith('allow-plugins-list')).toEqual(['main', 'settings'])
+    expect(windowsWith('allow-plugin-offer-open')).toEqual(['main'])
+    expect(windowsWith('allow-plugin-offer-take')).toEqual(['settings'])
     expect(windowsWith('allow-plugin-import-pick')).toEqual(['main'])
     expect(windowsWith('allow-plugin-export-save')).toEqual(['main'])
   })
@@ -232,11 +236,14 @@ describe('Tauri command permissions', () => {
       'allow-mirror-set',
       // Settings > Licence opens the Buy page in the browser.
       'allow-open-external',
-      // Settings > Plugins installs plugins after the user approves their permissions, turns them on and off, removes them and
-      // changes their settings.
+      // Settings > Plugins lists the official plugins, installs plugins after the user approves their permissions, turns them on
+      // and off, removes them and changes their settings.
+      'allow-plugin-catalog',
+      'allow-plugin-catalog-stage',
       'allow-plugin-install-cancel',
       'allow-plugin-install-confirm',
       'allow-plugin-install-pick',
+      'allow-plugin-offer-take',
       'allow-plugin-remove',
       'allow-plugin-set-enabled',
       'allow-plugin-settings-get',

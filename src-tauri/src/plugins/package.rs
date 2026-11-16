@@ -113,8 +113,11 @@ fn walk(dir: &Path, prefix: &str, depth: usize, files: &mut Files) -> Result<(),
 }
 
 pub fn read_archive(path: &Path) -> Result<Package, &'static str> {
-    let file = std::fs::File::open(path).map_err(|_| UNREADABLE)?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|_| INVALID)?;
+    read_archive_from(std::fs::File::open(path).map_err(|_| UNREADABLE)?)
+}
+
+pub fn read_archive_from(from: impl Read + std::io::Seek) -> Result<Package, &'static str> {
+    let mut archive = zip::ZipArchive::new(from).map_err(|_| INVALID)?;
     if archive.len() > MAX_ARCHIVE_ENTRIES {
         return Err(TOO_LARGE);
     }

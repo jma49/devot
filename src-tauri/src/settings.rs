@@ -28,9 +28,14 @@ const TRAFFIC_LIGHTS: LogicalPosition<f64> = LogicalPosition::new(20.0, 28.0);
 /// Tells an open Settings window which pane to show (`settings_open_licence`).
 pub const PANE_EVENT: &str = "devot://settings-pane";
 const LICENCE_PANE: &str = "licence";
+const PLUGINS_PANE: &str = "plugins";
 
 pub fn open(app: &AppHandle) {
     open_at(app, None);
+}
+
+pub fn open_plugins(app: &AppHandle) {
+    open_at(app, Some(PLUGINS_PANE));
 }
 
 /// `pane` is one of this module's, never one a page names.

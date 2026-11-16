@@ -1,4 +1,12 @@
-import { Fragment, useCallback, useEffect, useId, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  useInsertionEffect,
+  useRef,
+  useState,
+} from 'react'
 import {
   fitsSetting,
   type InstalledPlugin,
@@ -12,7 +20,11 @@ import { format, t, type MessageKey } from '../i18n'
 import { Select, Setting, SettingsSection } from './controls'
 import {
   cancelInstall,
+  fetchOfficialPlugin,
   installPlugin,
+  listOfficialPlugins,
+  takePluginOffer,
+  watchPluginOffers,
   listPlugins,
   pickPlugin,
   pluginSettings,
@@ -20,6 +32,7 @@ import {
   setPluginSetting,
   setPluginEnabled,
   watchPlugins,
+  type OfferedPlugin,
   type StagedPlugin,
 } from '../plugins/api'
 import { failureText, logFailure } from '../failure'
@@ -231,6 +244,189 @@ function PluginSettings(props: { plugin: InstalledPlugin; onFailure: (code: stri
   )
 }
 
+type Catalog =
+  | { phase: 'loading' }
+  | { phase: 'failed'; code: string }
+  | { phase: 'ready'; list: OfferedPlugin[] }
+
+function OfferButton(props: { plugin: OfferedPlugin; busy: boolean; onFetch: () => void }) {
+  const { plugin, busy, onFetch } = props
+  switch (plugin.offer) {
+    case 'install':
+    case 'update':
+      return (
+        <button
+          type="button"
+          className="button"
+          disabled={busy}
+          aria-label={
+            plugin.offer === 'install'
+              ? format(t('plugins.catalogInstallLabel'), { name: plugin.name })
+              : format(t('plugins.catalogUpdateLabel'), {
+                  name: plugin.name,
+                  version: plugin.version,
+                })
+          }
+          onClick={onFetch}
+        >
+          {t(plugin.offer === 'install' ? 'plugins.catalogInstall' : 'plugins.catalogUpdate')}
+        </button>
+      )
+    case 'installed':
+      return <span className="setting-description">{t('plugins.catalogInstalled')}</span>
+    case 'needsNewerApp':
+      return <span className="setting-description">{t('plugins.catalogNeedsApp')}</span>
+  }
+}
+
+/** The official plugin index (ADR 0025): a pick fetches the plugin and shows the same review as a package the user picks. */
+function OfficialPlugins(props: {
+  onStaged: (staged: StagedPlugin) => void
+  onFailure: (code: string) => void
+}) {
+  const { onStaged, onFailure } = props
+  const [catalog, setCatalog] = useState<Catalog>({ phase: 'loading' })
+  const [fetching, setFetching] = useState<string>()
+  const wanted = useRef<string>(undefined)
+  const listed = useRef<OfferedPlugin[]>(undefined)
+  const asked = useRef(0)
+  const fetchAsked = useRef(0)
+
+  const fetchPlugin = (id: string) => {
+    const request = ++fetchAsked.current
+    setFetching(id)
+    fetchOfficialPlugin(id).then(
+      (staged) => {
+        if (request !== fetchAsked.current) {
+          void cancelInstall(staged.token).catch(() => console.warn('W_PLUGIN_CANCEL_FAILED'))
+          return
+        }
+        setFetching(undefined)
+        onStaged(staged)
+      },
+      (e: unknown) => {
+        if (request !== fetchAsked.current) return
+        setFetching(undefined)
+        onFailure(errorCode(e))
+      },
+    )
+  }
+
+  const serve = () => {
+    const id = wanted.current
+    const list = listed.current
+    if (id === undefined || list === undefined) return
+    wanted.current = undefined
+    const plugin = list.find((p) => p.id === id)
+    if (!plugin) onFailure('E_PLUGIN_NOT_LISTED')
+    else if (plugin.offer === 'install' || plugin.offer === 'update') fetchPlugin(plugin.id)
+  }
+  const serveOffer = useRef(serve)
+  useInsertionEffect(() => {
+    serveOffer.current = serve
+  })
+
+  const load = useCallback(() => {
+    const request = ++asked.current
+    listOfficialPlugins().then(
+      (list) => {
+        if (request !== asked.current) return
+        listed.current = list
+        setCatalog({ phase: 'ready', list })
+        serveOffer.current()
+      },
+      (e: unknown) => {
+        if (request === asked.current)
+          setCatalog({ phase: 'failed', code: logFailure(errorCode(e), 'W_PLUGINS_FAILED') })
+      },
+    )
+  }, [])
+
+  useEffect(() => {
+    load()
+    return watchPlugins(load)
+  }, [load])
+
+  useEffect(
+    () => () => {
+      fetchAsked.current++
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const take = () =>
+      void takePluginOffer().then(
+        (id) => {
+          if (!id) return
+          wanted.current = id
+          serveOffer.current()
+        },
+        () => console.warn('W_PLUGIN_OFFER_TAKE_FAILED'),
+      )
+    take()
+    return watchPluginOffers(take)
+  }, [])
+
+  return (
+    <SettingsSection title="plugins.catalogTitle">
+      {catalog.phase === 'loading' ? (
+        <p role="status">{t('plugins.catalogLoading')}</p>
+      ) : catalog.phase === 'failed' ? (
+        <div className="setting">
+          <div className="setting-text">
+            <span className="setting-description">
+              {failureText('plugins.catalogFailed', catalog.code)}
+            </span>
+          </div>
+          <div className="setting-control">
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                setCatalog({ phase: 'loading' })
+                load()
+              }}
+            >
+              {t('plugins.catalogRetry')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ul className="plugin-list" aria-label={t('plugins.catalogLabel')}>
+          {catalog.list.map((p) => {
+            const titleId = `official-plugin-${p.id}`
+            return (
+              <li key={p.id} className="setting plugin-row" aria-labelledby={titleId}>
+                <div className="setting-text">
+                  <span id={titleId} className="setting-label">
+                    {p.name}
+                  </span>
+                  <span className="setting-description">
+                    {p.author
+                      ? format(t('plugins.versionBy'), { version: p.version, author: p.author })
+                      : format(t('plugins.version'), { version: p.version })}
+                  </span>
+                  {p.description ? (
+                    <span className="setting-description">{p.description}</span>
+                  ) : null}
+                </div>
+                <div className="setting-control">
+                  <OfferButton
+                    plugin={p}
+                    busy={fetching !== undefined}
+                    onFetch={() => fetchPlugin(p.id)}
+                  />
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </SettingsSection>
+  )
+}
+
 /** Settings > Plugins: installs from a folder or archive after the user approves its permissions, turns plugins on and off, removes them. */
 export function PluginsSection() {
   const [plugins, setPlugins] = useState<InstalledPlugin[]>()
@@ -288,6 +484,21 @@ export function PluginsSection() {
         }),
     )
 
+  const catalogFailed = useCallback(
+    (code: string) =>
+      setFailure({
+        message:
+          code === 'E_PLUGIN_NOT_LISTED' ? 'plugins.catalogNotListed' : 'plugins.installFailed',
+        code: logFailure(code, 'W_PLUGINS_FAILED'),
+      }),
+    [],
+  )
+
+  const offered = useCallback((next: StagedPlugin) => {
+    setFailure(undefined)
+    setStaged(next)
+  }, [])
+
   const install = () => {
     if (!staged) return
     setStaged(undefined)
@@ -311,6 +522,7 @@ export function PluginsSection() {
           {failureText(failure.message, failure.code)}
         </p>
       ) : null}
+      <OfficialPlugins onStaged={offered} onFailure={catalogFailed} />
       <SettingsSection title="plugins.installTitle">
         <Setting label="plugins.installLabel" description={t('plugins.installHint')}>
           <div className="settings-buttons">

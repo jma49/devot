@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-plugin-catalog-stage"
+description = "Enables the plugin_catalog_stage command without any pre-configured scope."
+commands.allow = ["plugin_catalog_stage"]
+
+[[permission]]
+identifier = "deny-plugin-catalog-stage"
+description = "Denies the plugin_catalog_stage command without any pre-configured scope."
+commands.deny = ["plugin_catalog_stage"]

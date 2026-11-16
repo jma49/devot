@@ -42,6 +42,7 @@ interface Window {
   devotPairingFails?: string | undefined
   devotPastedHtml?: string
   devotPlugins: unknown[]
+  devotPluginOffer?: string | undefined
   devotReleaseHttpApi(): void
   devotReleaseImport(): void
   devotReleaseLicenceSet(): void

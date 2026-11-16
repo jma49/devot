@@ -4482,6 +4482,54 @@ public enum L10n {
     text("plugins.installFailed", "The plugin could not be installed.")
   }
 
+  public static func pluginsCatalogTitle() -> String {
+    text("plugins.catalogTitle", "Official Plugins")
+  }
+
+  public static func pluginsCatalogLabel() -> String {
+    text("plugins.catalogLabel", "Official plugins")
+  }
+
+  public static func pluginsCatalogLoading() -> String {
+    text("plugins.catalogLoading", "Loading the official plugins…")
+  }
+
+  public static func pluginsCatalogFailed() -> String {
+    text("plugins.catalogFailed", "The official plugins could not be listed. Check your connection.")
+  }
+
+  public static func pluginsCatalogRetry() -> String {
+    text("plugins.catalogRetry", "Try Again")
+  }
+
+  public static func pluginsCatalogInstall() -> String {
+    text("plugins.catalogInstall", "Install…")
+  }
+
+  public static func pluginsCatalogInstallLabel(name p0: String) -> String {
+    fill(text("plugins.catalogInstallLabel", "Install {name}"), ["name": p0])
+  }
+
+  public static func pluginsCatalogUpdate() -> String {
+    text("plugins.catalogUpdate", "Update…")
+  }
+
+  public static func pluginsCatalogUpdateLabel(name p0: String, version p1: String) -> String {
+    fill(text("plugins.catalogUpdateLabel", "Update {name} to version {version}"), ["name": p0, "version": p1])
+  }
+
+  public static func pluginsCatalogInstalled() -> String {
+    text("plugins.catalogInstalled", "Installed")
+  }
+
+  public static func pluginsCatalogNeedsApp() -> String {
+    text("plugins.catalogNeedsApp", "Needs a newer Devot")
+  }
+
+  public static func pluginsCatalogNotListed() -> String {
+    text("plugins.catalogNotListed", "That link names no official plugin.")
+  }
+
   public static func pluginsPermissionNoteRead() -> String {
     text("plugins.permission.note.read", "Read the open note while you use it")
   }
