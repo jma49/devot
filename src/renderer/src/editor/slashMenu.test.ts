@@ -18,6 +18,7 @@ import {
   slashTrigger,
   type SlashId,
 } from './slashMenu'
+import { setSlashPlugins } from './slashPlugins'
 
 // `^` marks a cursor and `«` `»` a selected range (`|` is a table's pipe here).
 function state(marked: string) {
@@ -350,6 +351,59 @@ describe('the menu at the end of a long note', () => {
       expect(update).toHaveBeenCalledTimes(2)
     } finally {
       update.mockRestore()
+    }
+  })
+})
+
+describe('plugin commands in the slash menu', () => {
+  const BOLD = {
+    plugin: 'com.example.text',
+    command: 'bold',
+    title: 'Bold Words',
+    pluginName: 'Text',
+  }
+  const context = (s: EditorState) => new CompletionContext(s, s.selection.main.head, false)
+
+  it('lists them last under Plugins, by their own title', async () => {
+    setSlashPlugins([BOLD], null)
+    try {
+      const items = slashItems(state('/bold^'), slashTrigger(state('/bold^'))!)
+      expect(items.at(-1)).toMatchObject({
+        id: 'plugin:com.example.text/bold',
+        group: 'plugins',
+        label: 'Bold Words',
+        hint: 'Text',
+        ranges: [[0, 4]],
+      })
+      expect(matchesNothing('words')).toBe(false)
+      const result = await slashSource(context(state('/^')))
+      const sections = new Set(
+        result?.options.map((o) => (typeof o.section === 'object' ? o.section.name : o.section)),
+      )
+      expect([...sections].at(-1)).toBe('Plugins')
+    } finally {
+      setSlashPlugins([], null)
+    }
+    expect(matchesNothing('words')).toBe(true)
+  })
+
+  it('takes the query out and runs the command at the caret', () => {
+    const run = vi.fn<(plugin: string, command: string) => void>()
+    setSlashPlugins([BOLD], run)
+    try {
+      let s = state('Intro\n/bo^')
+      const specs = slashSpecs(s, 'plugin:com.example.text/bold', 6, 9)
+      expect(specs).not.toBeNull()
+      for (const spec of specs!) s = s.update(spec).state
+      expect(show(s)).toBe('Intro\n^')
+      const view = { state: state('Intro\n/bo^'), dispatch: vi.fn<(...specs: unknown[]) => void>() }
+      const option = slashSource(context(view.state))?.options.find((o) => o.label === 'Bold Words')
+      if (typeof option?.apply !== 'function') throw new Error('expected an option that applies')
+      option.apply(view as unknown as EditorView, option, 6, 9)
+      expect(view.dispatch).toHaveBeenCalled()
+      expect(run).toHaveBeenCalledWith('com.example.text', 'bold')
+    } finally {
+      setSlashPlugins([], null)
     }
   })
 })

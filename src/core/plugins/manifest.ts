@@ -18,6 +18,7 @@ const PLUGIN_PERMISSIONS = [
   'import',
   'export',
   'storage',
+  'notes.read',
 ] as const
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number]
 
@@ -32,10 +33,12 @@ const PERMISSION_SINCE: Readonly<Record<PluginPermission, number>> = {
   import: 1,
   export: 1,
   storage: 2,
+  'notes.read': 2,
 }
 
 /** Settings came with API version 2. */
 const SETTINGS_SINCE = 2
+const SLASH_SINCE = 2
 
 export interface PluginCommand {
   id: string
@@ -60,6 +63,8 @@ export type SettingValue = boolean | string | number
 export interface PluginContributions {
   commands: PluginCommand[]
   menus: { command: string }[]
+  /** Commands the editor's slash menu lists (API 2). */
+  slashMenu: { command: string }[]
   keymaps: { command: string; key: string }[]
   previewRenderers: { id: string; language: string }[]
   importFormats: { id: string; title: string; extensions: string[] }[]
@@ -324,6 +329,11 @@ function contributions(
     command: command(entry(raw)['command']),
   }))
   unique(menus, (x) => x.command)
+  const slashMenu = list(c['slashMenu'], LIMITS.commands).map((raw) => ({
+    command: command(entry(raw)['command']),
+  }))
+  unique(slashMenu, (x) => x.command)
+  if (slashMenu.length > 0 && api < SLASH_SINCE) fail('E_PLUGIN_CONTRIBUTION_INVALID')
   const keymaps = list(c['keymaps'], LIMITS.commands).map((raw) => {
     const e = entry(raw)
     const key = e['key']
@@ -376,6 +386,7 @@ function contributions(
     [commands, 'commands'],
     [menus, 'menus'],
     [menus, 'commands'],
+    [slashMenu, 'commands'],
     [keymaps, 'keymaps'],
     [keymaps, 'commands'],
     [previewRenderers, 'preview'],
@@ -385,7 +396,16 @@ function contributions(
   for (const [items, permission] of needs) {
     if (items.length > 0 && !granted.includes(permission)) fail('E_PLUGIN_PERMISSION_MISSING')
   }
-  return { commands, menus, keymaps, previewRenderers, importFormats, exportFormats, settings }
+  return {
+    commands,
+    menus,
+    slashMenu,
+    keymaps,
+    previewRenderers,
+    importFormats,
+    exportFormats,
+    settings,
+  }
 }
 
 /** Throws the first rule broken as its code; unknown keys are left out. */

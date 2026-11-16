@@ -159,6 +159,7 @@ export const messages: Record<keyof typeof en, string> = {
   'plugins.permission.import': '导入你选择的、它所支持格式的文件',
   'plugins.permission.export': '将打开的笔记导出为它所支持的格式',
   'plugins.permission.storage': '在这台 Mac 上保存它自己的数据',
+  'plugins.permission.notesRead': '读取你的所有笔记和笔记本（模板和废纸篓除外）',
   'plugins.settingsLabel': '{name} 设置',
   'plugins.settingFailed': '无法更改该设置。',
   'plugins.importAs': '导入 {title}…',

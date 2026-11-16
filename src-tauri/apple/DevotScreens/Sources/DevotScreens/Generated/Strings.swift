@@ -1642,6 +1642,10 @@ public enum L10n {
     text("slash.groupOther", "Other")
   }
 
+  public static func slashGroupPlugins() -> String {
+    text("slash.groupPlugins", "Plugins")
+  }
+
   public static func slashBlockquote() -> String {
     text("slash.blockquote", "Blockquote")
   }
@@ -4512,6 +4516,10 @@ public enum L10n {
 
   public static func pluginsPermissionStorage() -> String {
     text("plugins.permission.storage", "Keep its own data on this Mac")
+  }
+
+  public static func pluginsPermissionNotesRead() -> String {
+    text("plugins.permission.notesRead", "Read all your notes and notebooks, outside Templates and the Trash")
   }
 
   public static func pluginsSettingsLabel(name p0: String) -> String {

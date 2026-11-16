@@ -7,6 +7,7 @@ import {
   pluginKeys,
   rendererOfKey,
   rendererSpecs,
+  slashCommands,
   stopsImport,
 } from './contributions'
 
@@ -26,11 +27,12 @@ function plugin(
     id,
     name: `Name ${id}`,
     version: '1.0.0',
-    apiVersion: 1,
+    apiVersion: 2,
     main: 'main.js',
     permissions: ALL,
     contributes: {
       commands: keys.map((_, i) => ({ id: `c${i}`, title: `Command ${i}` })),
+      slashMenu: [{ command: 'c0' }],
       keymaps: keys.map((key, i) => ({ command: `c${i}`, key })),
       previewRenderers: [{ id: 'r', language: options.language ?? 'chart' }],
       importFormats: [{ id: 'org', title: 'Org Files', extensions: ['org'] }],
@@ -100,6 +102,22 @@ describe('plugin contributions', () => {
       { key: 'com.c/r', language: 'csv' },
     ])
     expect(rendererOfKey('com.a/r')).toEqual({ plugin: 'com.a', renderer: 'r' })
+  })
+})
+
+describe('slashCommands', () => {
+  it('lists the slash menu commands of enabled plugins with commands granted, by title', () => {
+    expect(
+      slashCommands([
+        plugin('com.b'),
+        plugin('com.a'),
+        plugin('com.c', { enabled: false }),
+        plugin('com.d', { granted: ['keymaps'] }),
+      ]),
+    ).toEqual([
+      { plugin: 'com.a', command: 'c0', title: 'Command 0', pluginName: 'Name com.a' },
+      { plugin: 'com.b', command: 'c0', title: 'Command 0', pluginName: 'Name com.b' },
+    ])
   })
 })
 

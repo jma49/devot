@@ -99,6 +99,8 @@
   "tests/ui/phone-sheet.spec.ts": 51532,
   "tests/ui/phone-stack.spec.ts": 20000,
   "tests/ui/pinned-switch.spec.ts": 22027,
+  "tests/ui/plugin-editor.spec.ts": 7600,
+  "tests/ui/plugin-notes.spec.ts": 6400,
   "tests/ui/plugin-settings.spec.ts": 16400,
   "tests/ui/plugin-storage.spec.ts": 7200,
   "tests/ui/plugins-sandbox.spec.ts": 44374,

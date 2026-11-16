@@ -13,6 +13,7 @@ import { insertCommand, type InsertId } from './insert'
 import { replayEarlyKeys, type EarlyKey } from './earlyKeys'
 import { linkForNewNote, runEditCommand, type LinkAt } from './lineCommands'
 import { pastePlain, pasteUrlAsIn, setImageSize } from './noteKeys'
+import { pluginInsert, pluginSelection } from './pluginText'
 import { TABLE_COMMANDS, inTable, type TableCommandId } from './tableCommands'
 import { taskToggle } from './tasks'
 
@@ -66,6 +67,10 @@ export interface EditorHandle {
   reviewSteps: (writeIds: ReadonlySet<string>) => ReviewStep[]
   /** Selects `from`-`to` and scrolls it to the middle, leaving the keyboard where it is. */
   reveal: (from: number, to: number) => void
+  /** The main selection, for a plugin's `note.selection`. */
+  pluginSelection: () => { from: number; to: number; text: string }
+  /** A plugin's `note.insert` as one undo step; the code it is refused with, or null once done. */
+  pluginInsert: (text: string, selected: string | null) => string | null
 }
 
 /** What the window does with the note shown in `ready`; `isShown` is false once the editor has moved on to another note. */
@@ -162,6 +167,13 @@ export function editorHandle(
           y: 'center',
         }),
       })
+    },
+    pluginSelection: () => pluginSelection(ready.state),
+    pluginInsert: (text, selected) => {
+      const spec = pluginInsert(ready.state, text, selected)
+      if ('code' in spec) return spec.code
+      ready.dispatch(spec)
+      return null
     },
   }
 }

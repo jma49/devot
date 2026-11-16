@@ -4,6 +4,7 @@ import { errorCode } from '../../../core/errors'
 import { effectivePermissions, type InstalledPlugin } from '../../../core/plugins'
 import type { PluginRendererSpec } from '../../../core/preview'
 import { isShortcut, normalizeShortcut, parseShortcut } from '../commands/keys'
+import type { SlashPluginCommand } from '../editor/slashPlugins'
 
 export type ActionKind = 'command' | 'import' | 'export'
 
@@ -52,6 +53,20 @@ export function pluginItems(plugins: readonly InstalledPlugin[]): PluginItem[] {
     if (granted.has('export')) {
       for (const f of m.contributes.exportFormats)
         out.push({ ...base, kind: 'export', id: f.id, title: f.title })
+    }
+  }
+  return out
+}
+
+/** The commands each plugin lists in the slash menu, with `commands` granted (ADR 0023). */
+export function slashCommands(plugins: readonly InstalledPlugin[]): SlashPluginCommand[] {
+  const out: SlashPluginCommand[] = []
+  for (const { plugin, granted } of enabled(plugins)) {
+    if (!granted.has('commands')) continue
+    const m = plugin.manifest
+    for (const { command } of m.contributes.slashMenu) {
+      const title = m.contributes.commands.find((c) => c.id === command)?.title
+      if (title) out.push({ plugin: m.id, command, title, pluginName: m.name })
     }
   }
   return out

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_BODY_BYTES } from '../noteLimits'
 import type { PluginPermission } from './manifest'
 import {
   checkCall,
   checkResult,
   MAX_RENDER_CHARS,
   MAX_STORAGE_VALUE_BYTES,
+  NOTES_LIMIT,
   readMessage,
   type CallMessage,
 } from './protocol'
@@ -42,7 +44,13 @@ describe('readMessage', () => {
 
   it('never passes on a failure text that is not a code', () => {
     expect(
-      readMessage({ devot: 1, kind: 'result', seq: 4, ok: false, code: 'secret note text' }),
+      readMessage({
+        devot: 1,
+        kind: 'result',
+        seq: 4,
+        ok: false,
+        code: 'secret note text',
+      }),
     ).toMatchObject({ ok: false, code: 'E_PLUGIN_FAILED' })
   })
 
@@ -93,8 +101,37 @@ describe('checkCall', () => {
     })
   })
 
+  it('needs note.read for the selection and note.edit to write in its place', () => {
+    expect(checkCall(call('note.selection'), context(['note.read']))).toEqual({
+      ok: true,
+      call: { method: 'note.selection' },
+    })
+    expect(checkCall(call('note.selection'), context(['note.edit']))).toEqual({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
+    expect(checkCall(call('note.insert', { text: 'x' }), context(['note.read']))).toEqual({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
+    expect(checkCall(call('note.insert', { text: 'x' }), context(['note.edit']))).toEqual({
+      ok: true,
+      call: { method: 'note.insert', text: 'x', selected: null },
+    })
+    expect(
+      checkCall(call('note.insert', { text: 'x', selected: 'y' }), context(['note.edit'])),
+    ).toEqual({
+      ok: true,
+      call: { method: 'note.insert', text: 'x', selected: 'y' },
+    })
+    expect(checkCall(call('note.insert', { text: 'x' }), context(['note.edit'], false))).toEqual({
+      ok: false,
+      code: 'E_PLUGIN_NOT_ACTIVE',
+    })
+  })
+
   it('takes note calls and shows a panel only while the plugin is active', () => {
-    for (const method of ['note.read', 'ui.show']) {
+    for (const method of ['note.read', 'note.selection', 'ui.show']) {
       expect(checkCall(call(method), context(['note.read'], false))).toEqual({
         ok: false,
         code: 'E_PLUGIN_NOT_ACTIVE',
@@ -113,10 +150,18 @@ describe('checkCall', () => {
       call('note.read', []),
       call('note.replace', { markdown: 'b' }),
       call('note.replace', { base: 'a', markdown: 3 }),
+      call('note.selection', { at: 3 }),
+      call('note.insert', {}),
+      call('note.insert', { text: 3 }),
+      call('note.insert', { text: 'x', selected: 3 }),
+      call('note.insert', { text: 'x'.repeat(MAX_BODY_BYTES + 1) }),
       call('ui.show', { height: '200' }),
       call('ui.show', { height: 1.5 }),
     ]) {
-      expect(checkCall(bad, granted)).toEqual({ ok: false, code: 'E_PLUGIN_MESSAGE_INVALID' })
+      expect(checkCall(bad, granted)).toEqual({
+        ok: false,
+        code: 'E_PLUGIN_MESSAGE_INVALID',
+      })
     }
   })
 
@@ -125,8 +170,13 @@ describe('checkCall', () => {
     for (const bad of [
       call('note.replace', { base: 'Trip', markdown: 'Trip \ud83c' }),
       call('note.replace', { base: 'Trip \ud83c', markdown: 'Trip' }),
+      call('note.insert', { text: 'Trip \ud83c' }),
+      call('note.insert', { text: 'Trip', selected: '\udc00' }),
     ]) {
-      expect(checkCall(bad, granted)).toEqual({ ok: false, code: 'E_PLUGIN_MESSAGE_INVALID' })
+      expect(checkCall(bad, granted)).toEqual({
+        ok: false,
+        code: 'E_PLUGIN_MESSAGE_INVALID',
+      })
     }
   })
 
@@ -216,5 +266,52 @@ describe('storage and settings calls', () => {
     }
     expect(checkCall(call('storage.get', { key: 'k', extra: 1 }), storage)).toEqual(refused)
     expect(checkCall(call('storage.keys', { key: 'k' }), storage)).toEqual(refused)
+  })
+})
+
+describe('note reading calls', () => {
+  const reader = context(['notes.read'], false)
+
+  it('need notes.read, not note.read, and no running command', () => {
+    expect(checkCall(call('notes.list'), context(['note.read'], true))).toEqual({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
+    expect(checkCall(call('notebooks.list'), reader)).toEqual({
+      ok: true,
+      call: { method: 'notebooks.list' },
+    })
+  })
+
+  it('cap how many notes one call answers', () => {
+    expect(checkCall(call('notes.list'), reader)).toEqual({
+      ok: true,
+      call: { method: 'notes.list', limit: NOTES_LIMIT.default },
+    })
+    expect(checkCall(call('notes.list', { limit: 10_000 }), reader)).toEqual({
+      ok: true,
+      call: { method: 'notes.list', limit: NOTES_LIMIT.max },
+    })
+    expect(checkCall(call('notes.search', { query: 'plan', limit: 10_000 }), reader)).toEqual({
+      ok: true,
+      call: {
+        method: 'notes.search',
+        query: 'plan',
+        limit: NOTES_LIMIT.search,
+      },
+    })
+  })
+
+  it('refuse a bad limit, query or note ID', () => {
+    const refused = { ok: false, code: 'E_PLUGIN_MESSAGE_INVALID' }
+    for (const limit of [0, -1, 1.5, '5']) {
+      expect(checkCall(call('notes.list', { limit }), reader)).toEqual(refused)
+    }
+    for (const query of ['', '   ', 'q'.repeat(201), '\ud800', 7]) {
+      expect(checkCall(call('notes.search', { query }), reader)).toEqual(refused)
+    }
+    for (const id of ['', '../x', 'a b', 'x'.repeat(65), 1]) {
+      expect(checkCall(call('notes.get', { id }), reader)).toEqual(refused)
+    }
   })
 })

@@ -1,5 +1,5 @@
 // The slash menu: a `/` at the start of a line lists insertions in three groups (Basic Formatting,
-// Alerts, Other). Most items are registry commands run in place of the typed `/query`, as one
+// Alerts, Other), and plugins' commands under Plugins. Most items are registry commands run in place of the typed `/query`, as one
 // transaction. The typed text filters the list by label substring; when nothing matches, the list
 // stays closed for that slash (Backspace does not reopen it). It never opens where a slash is
 // literal text: code, HTML, front matter, link addresses.
@@ -44,23 +44,30 @@ import { alertFormat, FORMAT_COMMANDS, formatState, type ToolbarFormat } from '.
 import { imeKeys } from './imeKeys'
 import { AFTER_INSERT, INSERT_COMMANDS } from './insert'
 import { ALERT_ICONS, withLook } from './popupLook'
+import { runSlashPlugin, slashPlugins } from './slashPlugins'
 import { releaseToolbar } from './toolbarState'
 import { inTable } from './tableCommands'
 
-export type SlashGroup = 'basic' | 'alerts' | 'other'
+export type SlashGroup = 'basic' | 'alerts' | 'other' | 'plugins'
 
 const SLASH_GROUPS: readonly { id: SlashGroup; label: MessageKey }[] = [
   { id: 'basic', label: 'slash.groupBasic' },
   { id: 'alerts', label: 'slash.groupAlerts' },
   { id: 'other', label: 'slash.groupOther' },
+  { id: 'plugins', label: 'slash.groupPlugins' },
 ]
 
-type SlashAction = { command: CommandId } | { remoteImage: true } | { imageFile: true }
+type SlashAction =
+  | { command: CommandId }
+  | { remoteImage: true }
+  | { imageFile: true }
+  | { plugin: string; pluginCommand: string }
 
 interface SlashDef {
   id: string
   group: SlashGroup
-  label: MessageKey
+  /** A catalog key, or a plugin command's own title. */
+  label: MessageKey | { text: string }
   icon: IconName
   tone?: AlertKind
   hint: (state: EditorState) => string
@@ -185,7 +192,32 @@ export const SLASH_ITEMS: readonly SlashDef[] = [
 
 export type SlashId = string
 
-const itemById = new Map(SLASH_ITEMS.map((item) => [item.id, item]))
+const builtIn = new Map(SLASH_ITEMS.map((item) => [item.id, item]))
+
+const PLUGIN_PREFIX = 'plugin:'
+
+/** The plugins' commands, after the menu's own items. */
+function pluginDefs(): SlashDef[] {
+  return slashPlugins().map((c) => ({
+    id: `${PLUGIN_PREFIX}${c.plugin}/${c.command}`,
+    group: 'plugins',
+    label: { text: c.title },
+    icon: 'settings.plugins',
+    hint: () => c.pluginName,
+    action: { plugin: c.plugin, pluginCommand: c.command },
+  }))
+}
+
+function itemById(id: string): SlashDef | undefined {
+  if (!id.startsWith(PLUGIN_PREFIX)) return builtIn.get(id)
+  return pluginDefs().find((item) => item.id === id)
+}
+
+const shownLabel = (item: SlashDef) =>
+  typeof item.label === 'string' ? t(item.label) : item.label.text
+const englishLabel = (item: SlashDef) =>
+  typeof item.label === 'string' ? en[item.label] : item.label.text
+const isPlugin = (item: SlashDef) => 'plugin' in item.action
 
 /** The slash and the query typed after it: the line up to the cursor, no other slash, no leading space. */
 const QUERY = /^\/(?!\s)([^/\n]{0,32})$/
@@ -229,7 +261,7 @@ interface Matched {
   at: number | null
 }
 
-const GROUP_RANK: Record<SlashGroup, number> = { basic: 0, alerts: 1, other: 2 }
+const GROUP_RANK: Record<SlashGroup, number> = { basic: 0, alerts: 1, other: 2, plugins: 3 }
 
 /**
  * The items whose shown or English label has the query in it (any case), so
@@ -240,11 +272,13 @@ const GROUP_RANK: Record<SlashGroup, number> = { basic: 0, alerts: 1, other: 2 }
 function matching(query: string): Matched[] {
   const q = query.toLowerCase()
   const out: (Matched & { order: number })[] = []
-  SLASH_ITEMS.forEach((item, order) => {
-    const label = t(item.label)
+  ;[...SLASH_ITEMS, ...pluginDefs()].forEach((item, order) => {
+    const label = shownLabel(item)
     const at = label.toLowerCase().indexOf(q)
     if (at >= 0) out.push({ item, label, at, order })
-    else if (en[item.label].toLowerCase().includes(q)) out.push({ item, label, at: null, order })
+    else if (englishLabel(item).toLowerCase().includes(q)) {
+      out.push({ item, label, at: null, order })
+    }
   })
   const rank = (at: number | null) => at ?? Number.MAX_SAFE_INTEGER
   return out.sort(
@@ -322,7 +356,8 @@ function withoutQuery(
 }
 
 /** The command that stands for an item where it is offered: Image File and Remote Image go where an image does. */
-function commandOf(item: SlashDef): CommandId {
+function commandOf(item: SlashDef): CommandId | null {
+  if (isPlugin(item)) return null
   return 'command' in item.action ? item.action.command : 'insert.image'
 }
 
@@ -366,7 +401,7 @@ export function matchesNothing(query: string): boolean {
  * The items for a trigger, in the menu's order: those whose label has the
  * query in it and whose command adds something where the slash is (a format
  * already on there would be taken off; a link cannot go into a link; a
- * table cell takes no block of its own).
+ * table cell takes no block of its own). A plugin's command is offered anywhere the menu opens.
  */
 export function slashItems(state: EditorState, trigger: SlashTrigger): SlashItem[] {
   const matched = matching(trigger.query)
@@ -379,12 +414,14 @@ export function slashItems(state: EditorState, trigger: SlashTrigger): SlashItem
   const kind = alertKind(block)
   const alert = kind ? alertFormat(kind) : null
   const cell = inTable(state)
+  const offered = (item: SlashDef) => {
+    const id = commandOf(item)
+    if (id === null) return true
+    if (cell && !item.inline && id !== 'format.horizontalRule') return false
+    return !takesOff(id, on, alert) && commandSpec(id, there(item)) !== null
+  }
   return matched
-    .filter(({ item }) => !(cell && !item.inline && commandOf(item) !== 'format.horizontalRule'))
-    .filter(
-      ({ item }) =>
-        !takesOff(commandOf(item), on, alert) && commandSpec(commandOf(item), there(item)) !== null,
-    )
+    .filter(({ item }) => offered(item))
     .map(({ item, label, at }) => ({
       id: item.id,
       group: item.group,
@@ -409,7 +446,7 @@ export function slashSpecs(
   from: number,
   to: number,
 ): TransactionSpec[] | null {
-  const item = itemById.get(id)
+  const item = itemById(id)
   if (!item || to < from || state.sliceDoc(from, from + 1) !== '/') return null
   if (!('command' in item.action)) {
     return [{ changes: { from, to }, selection: { anchor: from }, userEvent: 'input.complete' }]
@@ -456,7 +493,7 @@ function remoteImageSnippet() {
 }
 
 function pick(view: EditorView, id: SlashId, from: number, to: number) {
-  const item = itemById.get(id)
+  const item = itemById(id)
   if (!item) return
   if ('remoteImage' in item.action) {
     if (view.state.sliceDoc(from, from + 1) !== '/') return
@@ -468,6 +505,10 @@ function pick(view: EditorView, id: SlashId, from: number, to: number) {
   view.dispatch(...specs)
   if ('imageFile' in item.action) {
     view.state.facet(chooseImageFiles)?.(view)
+    return
+  }
+  if ('plugin' in item.action) {
+    runSlashPlugin(item.action.plugin, item.action.pluginCommand)
     return
   }
   const command = item.action.command

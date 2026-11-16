@@ -23,7 +23,13 @@ function fakePlugin(answer: (method: string, params: Message) => unknown = () =>
         .then(() => answer(m['method'] as string, m['params'] as Message))
         .then(
           (value) =>
-            channel.port2.postMessage({ devot: 1, kind: 'result', seq: m['seq'], ok: true, value }),
+            channel.port2.postMessage({
+              devot: 1,
+              kind: 'result',
+              seq: m['seq'],
+              ok: true,
+              value,
+            }),
           (e: Error) =>
             channel.port2.postMessage({
               devot: 1,
@@ -37,7 +43,7 @@ function fakePlugin(answer: (method: string, params: Message) => unknown = () =>
       results.push(m)
       waiting.get(m['seq'] as number)?.(m)
     } else if (m['kind'] === 'event') {
-      events.push(m['name'])
+      events.push(m['value'] === undefined ? m['name'] : [m['name'], m['value']])
     }
   }
   return {
@@ -49,7 +55,14 @@ function fakePlugin(answer: (method: string, params: Message) => unknown = () =>
       const at = seq
       return new Promise((resolve) => {
         waiting.set(at, resolve)
-        channel.port2.postMessage({ devot: 1, kind: 'call', seq: at, method, params, ...extra })
+        channel.port2.postMessage({
+          devot: 1,
+          kind: 'call',
+          seq: at,
+          method,
+          params,
+          ...extra,
+        })
       })
     },
     results,
@@ -65,11 +78,26 @@ function plugin(id: string, granted: PluginPermission[], enabled = true): Instal
     version: '1.0.0',
     apiVersion: 2,
     main: 'main.js',
-    permissions: ['note.read', 'note.edit', 'commands', 'preview', 'import', 'export', 'storage'],
+    permissions: [
+      'note.read',
+      'note.edit',
+      'commands',
+      'preview',
+      'import',
+      'export',
+      'storage',
+      'notes.read',
+    ],
     contributes: { commands: [{ id: 'go', title: 'Go' }] },
   })
   return { manifest, enabled, granted }
 }
+
+const NOTES = [
+  { id: 'n1', title: 'Plan', notebook: null, createdAt: 1, updatedAt: 3 },
+  { id: 'n2', title: 'Plan B', notebook: null, createdAt: 1, updatedAt: 2 },
+  { id: 'n3', title: 'Diary', notebook: null, createdAt: 1, updatedAt: 1 },
+]
 
 function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'body') {
   const warnings: [string, string][] = []
@@ -86,6 +114,18 @@ function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'b
       if (base !== text) throw new Error('E_PLUGIN_NOTE_CHANGED')
       text = markdown
     },
+    // The fake editor selects the note's first word.
+    readSelection: async () => {
+      const to = text.search(/\s|$/)
+      return { from: 0, to, text: text.slice(0, to) }
+    },
+    insertText: async ({ text: given, selected }) => {
+      const to = text.search(/\s|$/)
+      if (selected !== null && selected !== text.slice(0, to)) {
+        throw new Error('E_PLUGIN_NOTE_CHANGED')
+      }
+      text = given + text.slice(to)
+    },
     storage: {
       get: async (p, key) => stored.get(`${p} ${key}`) ?? null,
       set: async (p, key, value) => void stored.set(`${p} ${key}`, value),
@@ -93,12 +133,33 @@ function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'b
       keys: async (p) =>
         [...stored.keys()].filter((k) => k.startsWith(`${p} `)).map((k) => k.slice(p.length + 1)),
     },
+    notes: {
+      list: async (limit) => NOTES.slice(0, limit),
+      search: async (query, limit) => NOTES.filter((n) => n.title.includes(query)).slice(0, limit),
+      get: async (id) => {
+        const found = NOTES.find((n) => n.id === id)
+        if (!found) throw new Error('E_PLUGIN_NOTE_NOT_FOUND')
+        return {
+          id,
+          title: found.title,
+          notebook: null,
+          markdown: `# ${found.title}`,
+        }
+      },
+      notebooks: async () => [{ id: 'b1', name: 'Work', parent: null }],
+    },
     settings: async (p) => ({ unit: p === 'com.a' ? 'km' : 'mi' }),
     showUi: vi.fn<PluginHostDeps['showUi']>(),
     hideUi: vi.fn<PluginHostDeps['hideUi']>(),
     warn: (code, id) => warnings.push([code, id]),
   }
-  return { host: createPluginHost(deps), deps, warnings, text: () => text, stored }
+  return {
+    host: createPluginHost(deps),
+    deps,
+    warnings,
+    text: () => text,
+    stored,
+  }
 }
 
 afterEach(() => vi.useRealTimers())
@@ -113,14 +174,22 @@ describe('the plugin host', () => {
       const read = await fake.call('note.read')
       const value = read['value'] as { markdown: string }
       seen.push(read)
-      seen.push(await fake.call('note.replace', { base: value.markdown, markdown: 'BODY' }))
+      seen.push(
+        await fake.call('note.replace', {
+          base: value.markdown,
+          markdown: 'BODY',
+        }),
+      )
       return null
     })
     const { host, text } = setup({ 'com.a': fake })
     host.load([plugin('com.a', ['note.read', 'note.edit', 'commands'])])
     await host.run('com.a', 'go')
     expect(seen[0]).toEqual({ command: 'go' })
-    expect(seen[1]).toMatchObject({ ok: true, value: { title: 'Plan', markdown: 'body' } })
+    expect(seen[1]).toMatchObject({
+      ok: true,
+      value: { title: 'Plan', markdown: 'body' },
+    })
     expect(seen[2]).toMatchObject({ ok: true })
     expect(text()).toBe('BODY')
   })
@@ -130,14 +199,23 @@ describe('the plugin host', () => {
     let during: Message | undefined
     fake = fakePlugin(async (method) => {
       if (method === 'command.run')
-        during = await fake.call('note.replace', { base: 'body', markdown: 'x' })
+        during = await fake.call('note.replace', {
+          base: 'body',
+          markdown: 'x',
+        })
       return null
     })
     const { host, warnings, text } = setup({ 'com.a': fake })
     host.load([plugin('com.a', ['note.read', 'commands'])])
     await host.run('com.a', 'go')
-    expect(during).toMatchObject({ ok: false, code: 'E_PLUGIN_PERMISSION_DENIED' })
-    expect(await fake.call('note.read')).toMatchObject({ ok: false, code: 'E_PLUGIN_NOT_ACTIVE' })
+    expect(during).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
+    expect(await fake.call('note.read')).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_NOT_ACTIVE',
+    })
     expect(text()).toBe('body')
     expect(warnings).toContainEqual(['E_PLUGIN_PERMISSION_DENIED', 'com.a'])
   })
@@ -160,7 +238,10 @@ describe('the plugin host', () => {
     let claimed: Message | undefined
     a = fakePlugin(async (method) => {
       if (method === 'command.run') {
-        claimed = await a.call('note.read', undefined, { plugin: 'com.b', from: 'com.b' })
+        claimed = await a.call('note.read', undefined, {
+          plugin: 'com.b',
+          from: 'com.b',
+        })
       }
       return null
     })
@@ -169,7 +250,10 @@ describe('the plugin host', () => {
     // com.b may read the note; com.a, claiming to be com.b, may not.
     host.load([plugin('com.a', ['commands']), plugin('com.b', ['note.read', 'commands'])])
     await host.run('com.a', 'go')
-    expect(claimed).toMatchObject({ ok: false, code: 'E_PLUGIN_PERMISSION_DENIED' })
+    expect(claimed).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
   })
 
   it('lets a plugin show its panel only while a command of it runs', async () => {
@@ -192,7 +276,10 @@ describe('the plugin host', () => {
       code: 'E_PLUGIN_PERMISSION_DENIED',
     })
     host.hidden('com.a')
-    expect(await fake.call('ui.show', {})).toMatchObject({ ok: false, code: 'E_PLUGIN_NOT_ACTIVE' })
+    expect(await fake.call('ui.show', {})).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_NOT_ACTIVE',
+    })
   })
 
   it('checks what a plugin answers', async () => {
@@ -254,11 +341,21 @@ describe('the plugin host', () => {
       },
       readNote: async () => null,
       replaceNote: async () => {},
+      readSelection: async () => null,
+      insertText: async () => {},
       storage: {
         get: async () => null,
         set: async () => {},
         delete: async () => {},
         keys: async () => [],
+      },
+      notes: {
+        list: async () => [],
+        search: async () => [],
+        get: async () => {
+          throw new Error('E_PLUGIN_NOTE_NOT_FOUND')
+        },
+        notebooks: async () => [],
       },
       settings: async () => ({}),
       showUi: () => {},
@@ -303,7 +400,10 @@ describe('the plugin host', () => {
     await host.run('com.a', 'go')
     expect(await a.call('note.read')).toMatchObject({ ok: true })
     await host.run('com.b', 'go')
-    expect(await a.call('note.read')).toMatchObject({ ok: false, code: 'E_PLUGIN_NOT_ACTIVE' })
+    expect(await a.call('note.read')).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_NOT_ACTIVE',
+    })
     expect(a.events).toEqual(['ui.hidden'])
   })
 
@@ -320,12 +420,17 @@ describe('the plugin host', () => {
       ok: true,
       value: { count: 2 },
     })
-    expect(await a.call('storage.keys')).toMatchObject({ ok: true, value: ['n'] })
+    expect(await a.call('storage.keys')).toMatchObject({
+      ok: true,
+      value: ['n'],
+    })
     expect(await b.call('storage.get', { key: 'n' })).toMatchObject({
       ok: false,
       code: 'E_PLUGIN_PERMISSION_DENIED',
     })
-    expect(await a.call('storage.delete', { key: 'n' })).toMatchObject({ ok: true })
+    expect(await a.call('storage.delete', { key: 'n' })).toMatchObject({
+      ok: true,
+    })
     expect(stored.size).toBe(0)
     expect(warnings).toContainEqual(['E_PLUGIN_PERMISSION_DENIED', 'com.b'])
   })
@@ -337,10 +442,118 @@ describe('the plugin host', () => {
     host.load([plugin('com.a', ['commands']), plugin('com.b', ['commands'])])
     await host.run('com.a', 'go')
     await host.run('com.b', 'go')
-    expect(await a.call('settings.get')).toMatchObject({ ok: true, value: { unit: 'km' } })
-    expect(await b.call('settings.get')).toMatchObject({ ok: true, value: { unit: 'mi' } })
+    expect(await a.call('settings.get')).toMatchObject({
+      ok: true,
+      value: { unit: 'km' },
+    })
+    expect(await b.call('settings.get')).toMatchObject({
+      ok: true,
+      value: { unit: 'mi' },
+    })
     host.settingsChanged('com.a')
     await vi.waitFor(() => expect(a.events).toEqual(['settings.changed']))
+    expect(b.events).toEqual([])
+  })
+
+  it('lists, searches and reads notes for a plugin with notes.read, at any time', async () => {
+    const a = fakePlugin()
+    const b = fakePlugin()
+    const { host } = setup({ 'com.a': a, 'com.b': b })
+    host.load([plugin('com.a', ['notes.read']), plugin('com.b', ['commands'])])
+    await host.run('com.b', 'go')
+    expect(await a.call('notes.list', { limit: 2 })).toMatchObject({
+      ok: true,
+      value: [{ id: 'n1' }, { id: 'n2' }],
+    })
+    expect(await a.call('notes.search', { query: 'Plan' })).toMatchObject({
+      ok: true,
+      value: [{ id: 'n1' }, { id: 'n2' }],
+    })
+    expect(await a.call('notes.get', { id: 'n3' })).toMatchObject({
+      ok: true,
+      value: { id: 'n3', title: 'Diary', markdown: '# Diary' },
+    })
+    expect(await a.call('notes.get', { id: 'gone' })).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_NOTE_NOT_FOUND',
+    })
+    expect(await a.call('notebooks.list')).toMatchObject({
+      ok: true,
+      value: [{ id: 'b1', name: 'Work' }],
+    })
+    expect(await b.call('notes.list')).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
+  })
+
+  it('reads the selection and writes in its place during a command, and only then', async () => {
+    let fake!: ReturnType<typeof fakePlugin>
+    const seen: Message[] = []
+    fake = fakePlugin(async (method) => {
+      if (method !== 'command.run') return null
+      seen.push(await fake.call('note.selection'))
+      seen.push(await fake.call('note.insert', { text: 'Big', selected: 'stale' }))
+      seen.push(await fake.call('note.insert', { text: 'Big', selected: 'small' }))
+      return null
+    })
+    const { host, text } = setup({ 'com.a': fake }, 'small plan')
+    host.load([plugin('com.a', ['note.read', 'note.edit', 'commands'])])
+    await host.run('com.a', 'go')
+    expect(seen).toMatchObject([
+      { ok: true, value: { from: 0, to: 5, text: 'small' } },
+      { ok: false, code: 'E_PLUGIN_NOTE_CHANGED' },
+      { ok: true, value: null },
+    ])
+    expect(text()).toBe('Big plan')
+    expect(await fake.call('note.selection')).toMatchObject({
+      code: 'E_PLUGIN_NOT_ACTIVE',
+    })
+    expect(await fake.call('note.insert', { text: 'x' })).toMatchObject({
+      code: 'E_PLUGIN_NOT_ACTIVE',
+    })
+  })
+
+  it('refuses a write at the selection without note.edit', async () => {
+    let fake!: ReturnType<typeof fakePlugin>
+    let during: Message | undefined
+    fake = fakePlugin(async (method) => {
+      if (method === 'command.run') during = await fake.call('note.insert', { text: 'x' })
+      return null
+    })
+    const { host, text } = setup({ 'com.a': fake })
+    host.load([plugin('com.a', ['note.read', 'commands'])])
+    await host.run('com.a', 'go')
+    expect(during).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
+    expect(text()).toBe('body')
+  })
+
+  it('tells plugins with notes.read which note opens, and a plugin that starts later the one open', async () => {
+    const a = fakePlugin()
+    const b = fakePlugin()
+    const c = fakePlugin()
+    const { host } = setup({ 'com.a': a, 'com.b': b, 'com.c': c })
+    host.load([plugin('com.a', ['notes.read']), plugin('com.b', ['note.read', 'commands'])])
+    host.noteOpened('n1')
+    host.noteOpened('n1')
+    host.noteOpened(null)
+    await vi.waitFor(() =>
+      expect(a.events).toEqual([
+        ['note.opened', { id: 'n1' }],
+        ['note.opened', { id: null }],
+      ]),
+    )
+    host.noteOpened('n2')
+    host.load([
+      plugin('com.a', ['notes.read']),
+      plugin('com.b', ['note.read', 'commands']),
+      plugin('com.c', ['notes.read']),
+    ])
+    await vi.waitFor(() => expect(c.events).toEqual([['note.opened', { id: 'n2' }]]))
+    await host.run('com.b', 'go')
     expect(b.events).toEqual([])
   })
 })
