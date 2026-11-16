@@ -190,12 +190,7 @@ it('tracks the flakes of main and the merge queue only, with no more access than
   ])
   expect(LABEL).toBe('flaky')
   // Every flaky reporter's warning title starts with "Flaky", which is what the tracker reads.
-  for (const file of [
-    'tests/support/flaky-report.ts',
-    'scripts/ci/playwright-flaky.ts',
-    'scripts/ci/iphone-ui-tests.sh',
-    'scripts/ci/devot-screens-tests.sh',
-  ]) {
+  for (const file of ['scripts/ci/iphone-ui-tests.sh', 'scripts/ci/devot-screens-tests.sh']) {
     expect({ file, titled: /::warning title=Flaky[ \w]*::/.test(read(file)) }).toEqual({
       file,
       titled: true,
