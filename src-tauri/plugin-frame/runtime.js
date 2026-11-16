@@ -270,6 +270,8 @@
   }
   const onHidden = []
   const onSettings = []
+  const onOpened = []
+  let opened = null
   let port = null
   let seq = 0
 
@@ -310,13 +312,22 @@
       else pending.reject(failure(message.code))
     } else if (message.kind === 'call') {
       void answer(message)
-    } else if (
-      message.kind === 'event' &&
-      (message.name === 'ui.hidden' || message.name === 'settings.changed')
-    ) {
-      for (const listener of message.name === 'ui.hidden' ? onHidden : onSettings) {
+    } else if (message.kind === 'event') {
+      const listeners = {
+        'ui.hidden': onHidden,
+        'settings.changed': onSettings,
+        'note.opened': onOpened,
+      }
+      if (!Object.hasOwn(listeners, message.name)) return
+      let value
+      if (message.name === 'note.opened') {
+        const id = message.value && message.value.id
+        opened = typeof id === 'string' ? id : null
+        value = opened
+      }
+      for (const listener of listeners[message.name]) {
         try {
-          listener()
+          listener(value)
         } catch {
           // One listener's failure never stops the others.
         }
@@ -343,7 +354,9 @@
   Object.defineProperty(globalThis, 'devot', {
     value: Object.freeze({
       apiVersion: 2,
-      commands: Object.freeze({ handle: register('command.run', (fn) => fn()) }),
+      commands: Object.freeze({
+        handle: register('command.run', (fn) => fn()),
+      }),
       preview: Object.freeze({
         handle: register('preview.render', (fn, { source }) => fn(source)),
       }),
@@ -357,6 +370,9 @@
         read: () => call('note.read'),
         replace: ({ base, markdown }) =>
           call('note.replace', { base, markdown }).then(() => undefined),
+        selection: () => call('note.selection'),
+        insert: (text, options = {}) =>
+          call('note.insert', { text, selected: options.replacing }).then(() => undefined),
       }),
       storage: Object.freeze({
         get: (key) => call('storage.get', { key }),
@@ -368,6 +384,10 @@
         list: (options = {}) => call('notes.list', { limit: options.limit }),
         search: (text, options = {}) => call('notes.search', { query: text, limit: options.limit }),
         get: (id) => call('notes.get', { id }),
+        opened: () => opened,
+        onOpened: (fn) => {
+          if (typeof fn === 'function') onOpened.push(fn)
+        },
       }),
       notebooks: Object.freeze({ list: () => call('notebooks.list') }),
       settings: Object.freeze({

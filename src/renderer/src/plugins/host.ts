@@ -15,6 +15,7 @@ import {
   type InstalledPlugin,
   type JsonValue,
   type PluginCall,
+  type PluginEvent,
   type PluginPermission,
 } from '../../../core/plugins'
 import { errorCode } from '../../../core/errors'
@@ -31,12 +32,25 @@ export interface OpenNote {
   markdown: string
 }
 
+export interface NoteSelection {
+  from: number
+  to: number
+  text: string
+}
+
 export interface PluginHostDeps {
   connect(plugin: InstalledPlugin): Promise<Connection>
   /** The note open in the editor, or null. */
   readNote(): Promise<OpenNote | null>
   /** Throws E_PLUGIN_NO_NOTE without an open note, E_PLUGIN_NOTE_CHANGED when it is no longer `base`. */
   replaceNote(edit: { base: string; markdown: string }): Promise<void>
+  /** The editor's main selection in the open note's Markdown, in UTF-16 offsets, or null without an open note. */
+  readSelection(): Promise<NoteSelection | null>
+  /**
+   * Puts `text` in place of the selection as one undo step. Throws E_PLUGIN_NO_NOTE without an open note,
+   * E_PLUGIN_NOTE_CHANGED when `selected` is given and the selection no longer holds it.
+   */
+  insertText(edit: { text: string; selected: string | null }): Promise<void>
   /** The plugin's own store (Rust checks its `storage` permission again). */
   storage: PluginStorage
   /** Live notes outside Templates and the Trash, for a plugin with `notes.read`. */
@@ -88,6 +102,8 @@ export interface PluginHost {
   hidden(plugin: string): void
   /** The user changed one of the plugin's settings. */
   settingsChanged(plugin: string): void
+  /** The editor shows another note, or none: told to plugins with `notes.read`. */
+  noteOpened(id: string | null): void
   stop(): void
 }
 
@@ -118,17 +134,23 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
   const sessions = new Map<string, Session>()
   let wanted = new Map<string, InstalledPlugin>()
 
-  const tell = (s: Session, name: 'ui.hidden' | 'settings.changed') =>
+  const tell = (s: Session, event: PluginEvent) =>
     s.ready
       .then((port) => {
-        if (!s.stopped) port.postMessage({ devot: PLUGIN_PROTOCOL_VERSION, kind: 'event', name })
+        if (!s.stopped)
+          port.postMessage({ devot: PLUGIN_PROTOCOL_VERSION, kind: 'event', ...event })
       })
       .catch(() => {})
+
+  let opened: string | null = null
+  const tellOpened = (s: Session) => {
+    if (s.granted.has('notes.read')) void tell(s, { name: 'note.opened', value: { id: opened } })
+  }
 
   const markHidden = (s: Session) => {
     if (!s.shown) return
     s.shown = false
-    void tell(s, 'ui.hidden')
+    void tell(s, { name: 'ui.hidden' })
   }
 
   const reply = (
@@ -146,6 +168,14 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
       }
       case 'note.replace':
         await deps.replaceNote({ base: call.base, markdown: call.markdown })
+        return null
+      case 'note.selection': {
+        const selection = await deps.readSelection()
+        if (!selection) throw new Error('E_PLUGIN_NO_NOTE')
+        return { from: selection.from, to: selection.to, text: selection.text }
+      }
+      case 'note.insert':
+        await deps.insertText({ text: call.text, selected: call.selected })
         return null
       case 'ui.show':
         // One panel shows at a time: the plugin whose panel it replaces is no longer active.
@@ -253,6 +283,7 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
       stopped: false,
     }
     s.ready.catch(() => {})
+    if (opened !== null) tellOpened(s)
     return s
   }
 
@@ -353,7 +384,13 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
 
     settingsChanged(plugin) {
       const s = sessions.get(plugin)
-      if (s) void tell(s, 'settings.changed')
+      if (s) void tell(s, { name: 'settings.changed' })
+    },
+
+    noteOpened(id) {
+      if (id === opened) return
+      opened = id
+      for (const s of sessions.values()) tellOpened(s)
     },
 
     stop() {

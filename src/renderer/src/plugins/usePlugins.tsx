@@ -17,6 +17,7 @@ import { sheetOpen, useMenuEvent } from '../commands/dispatch'
 import { keyMatches } from '../commands/keys'
 import { COMMANDS, commandKeys, RESERVED_KEYS } from '../commands/registry'
 import type { Core } from '../core-client'
+import type { EditorHandle } from '../editor/handle'
 import { format, t } from '../i18n'
 import { isImeKey } from '../ime'
 import { editingAllowed, LICENCE_REQUIRED, openLicenceSettings } from '../licence'
@@ -52,6 +53,8 @@ export interface PluginWindow {
   openNote(): { id: string } | undefined
   /** Applies a Yjs update the core returned to the editor, as one undo step, if it still shows the note. */
   applyUpdate(noteId: string, update: Uint8Array): void
+  /** The editor, while it is ready. */
+  editor(): Pick<EditorHandle, 'noteId' | 'pluginSelection' | 'pluginInsert'> | null
   /** Where imported notes go: the notebook shown, or none. */
   importBook(): string | null
   /** The lists show what an import made. */
@@ -85,6 +88,13 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
 
   const [host, setHost] = useState<PluginHost>()
   useEffect(() => {
+    // The editor counts only while it shows the open note: never a note it is still leaving.
+    const shownEditor = () => {
+      const { app: w } = latest.current
+      const editor = w.editor()
+      const open = w.openNote()
+      return editor && open && editor.noteId === open.id ? editor : null
+    }
     const made = createPluginHost({
       connect: frameConnector(frames),
       readNote: async () => {
@@ -100,6 +110,14 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         if (!c || !open) throw new Error('E_PLUGIN_NO_NOTE')
         if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
         w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
+      },
+      readSelection: async () => shownEditor()?.pluginSelection() ?? null,
+      insertText: async ({ text, selected }) => {
+        const editor = shownEditor()
+        if (!editor) throw new Error('E_PLUGIN_NO_NOTE')
+        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
+        const refused = editor.pluginInsert(text, selected)
+        if (refused) throw new Error(refused)
       },
       storage: pluginStorage,
       notes: pluginNotes(() => latest.current.core ?? undefined),
@@ -130,6 +148,9 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   }, [])
 
   useEffect(() => host?.load(plugins), [host, plugins])
+
+  const openId = app.openNote()?.id ?? null
+  useEffect(() => host?.noteOpened(openId), [host, openId])
 
   useEffect(
     () => (host ? watchPluginSettings((plugin) => host.settingsChanged(plugin)) : undefined),

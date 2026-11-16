@@ -452,6 +452,7 @@ export function App() {
   const plugins = usePlugins(core, {
     openNote: () => openNote,
     applyUpdate: applyToOpenNote,
+    editor: () => editorRef.current,
     importBook: () => libraryBook?.id ?? null,
     imported: () => {
       if (core) void refresh(core)

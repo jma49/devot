@@ -11,6 +11,8 @@ export const PLUGIN_PROTOCOL_VERSION = 1
 const PLUGIN_METHODS = [
   'note.read',
   'note.replace',
+  'note.selection',
+  'note.insert',
   'ui.show',
   'ui.hide',
   'storage.get',
@@ -31,6 +33,8 @@ export type HostMethod = 'command.run' | 'preview.render' | 'import.convert' | '
 const METHOD_PERMISSION: Readonly<Record<PluginMethod, PluginPermission | null>> = {
   'note.read': 'note.read',
   'note.replace': 'note.edit',
+  'note.selection': 'note.read',
+  'note.insert': 'note.edit',
   'ui.show': null,
   'ui.hide': null,
   'storage.get': 'storage',
@@ -45,7 +49,13 @@ const METHOD_PERMISSION: Readonly<Record<PluginMethod, PluginPermission | null>>
 }
 
 /** The note methods, and showing a panel, work only while a command of the plugin runs or its panel is open. */
-const NEEDS_ACTIVE: ReadonlySet<PluginMethod> = new Set(['note.read', 'note.replace', 'ui.show'])
+const NEEDS_ACTIVE: ReadonlySet<PluginMethod> = new Set([
+  'note.read',
+  'note.replace',
+  'note.selection',
+  'note.insert',
+  'ui.show',
+])
 
 const UI_HEIGHT = { min: 80, max: 640, default: 320 } as const
 /** A drawn block's Markdown, and a converted file's text. */
@@ -71,6 +81,8 @@ export const HOST_CALL_TIMEOUT_MS: Readonly<Record<HostMethod, number>> = {
 export type PluginCall =
   | { method: 'note.read' }
   | { method: 'note.replace'; base: string; markdown: string }
+  | { method: 'note.selection' }
+  | { method: 'note.insert'; text: string; selected: string | null }
   | { method: 'ui.show'; height: number }
   | { method: 'ui.hide' }
   | { method: 'storage.get'; key: string }
@@ -103,11 +115,12 @@ export type ResultMessage =
   | { devot: typeof PLUGIN_PROTOCOL_VERSION; kind: 'result'; seq: number; ok: true; value: unknown }
   | { devot: typeof PLUGIN_PROTOCOL_VERSION; kind: 'result'; seq: number; ok: false; code: string }
 
-export interface EventMessage {
-  devot: typeof PLUGIN_PROTOCOL_VERSION
-  kind: 'event'
-  name: 'ui.hidden' | 'settings.changed'
-}
+export type PluginEvent =
+  | { name: 'ui.hidden' }
+  | { name: 'settings.changed' }
+  | { name: 'note.opened'; value: { id: string | null } }
+
+export type EventMessage = { devot: typeof PLUGIN_PROTOCOL_VERSION; kind: 'event' } & PluginEvent
 
 export type IncomingMessage = CallMessage | ResultMessage
 
@@ -193,6 +206,7 @@ function params(call: CallMessage, method: PluginMethod): PluginCall | null {
   if (!isRecord(p)) return null
   switch (method) {
     case 'note.read':
+    case 'note.selection':
     case 'ui.hide':
     case 'storage.keys':
     case 'settings.get':
@@ -231,6 +245,19 @@ function params(call: CallMessage, method: PluginMethod): PluginCall | null {
       if (wellFormed(base) !== base || wellFormed(markdown) !== markdown) return null
       if (utf8Length(markdown) > MAX_BODY_BYTES || utf8Length(base) > MAX_BODY_BYTES) return null
       return { method, base, markdown }
+    }
+    case 'note.insert': {
+      const { text, selected = null } = p
+      if (typeof text !== 'string' || wellFormed(text) !== text) return null
+      if (
+        selected !== null &&
+        (typeof selected !== 'string' || wellFormed(selected) !== selected)
+      ) {
+        return null
+      }
+      if (utf8Length(text) > MAX_BODY_BYTES) return null
+      if (selected !== null && utf8Length(selected) > MAX_BODY_BYTES) return null
+      return { method, text, selected }
     }
     case 'ui.show': {
       const height = p['height'] ?? UI_HEIGHT.default
