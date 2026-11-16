@@ -29,7 +29,7 @@ import {
   SettingsSection,
   useSettingsChange,
 } from './controls'
-import { StyledIcon, useAppearance } from '../icons/Icon'
+import { Icon, StyledIcon, useAppearance } from '../icons/Icon'
 import { FontChoice, FontFamilySetting } from './FontChoice'
 import { useTypedNumber } from './typedNumber'
 import type { IconName } from '../icons/symbols'
@@ -42,9 +42,13 @@ import {
   choosePluginTheme,
   listPluginThemes,
   NO_PLUGIN_THEMES,
+  themeInEffect as pluginThemeInEffect,
   watchPluginThemes,
+  type OfferedTheme,
   type PluginThemes,
+  type ThemeRef,
 } from '../theme/pluginThemes'
+import { showPane } from './panes'
 
 /** The font size description: what it is, and the keys in effect (or the palette's commands when one has no key). */
 function fontSizeHint(): string {
@@ -84,8 +88,6 @@ const THEME_LABELS: Readonly<Record<ThemeChoice, MessageKey>> = {
   sage: 'appearanceSettings.themeSage',
   ember: 'appearanceSettings.themeEmber',
 }
-
-const BUILT_IN_THEMES = THEMES.filter((theme) => theme !== 'default')
 
 const ICON_STYLE_LABELS: Readonly<Record<IconStyleChoice, MessageKey>> = {
   sfSymbols: 'appearanceSettings.iconStyleSfSymbols',
@@ -143,12 +145,13 @@ function Choice({
  * A small window over a wallpaper, in one appearance and theme (`data-appearance-preview` and
  * `data-theme-preview`, read by the generated tokens), with the wallpaper showing through it.
  */
-function WindowThumb({ appearance, theme }: { appearance: Appearance; theme: ThemeChoice }) {
+function WindowThumb({ appearance, look }: { appearance: Appearance; look: ThemeLook }) {
   return (
     <span
       className="window-thumb"
       data-appearance-preview={appearance}
-      data-theme-preview={themePreview(theme)}
+      data-theme-preview={themePreview(look.theme)}
+      style={colorVariables(look.colors)}
     >
       <span className="window-thumb-window">
         <span className="window-thumb-lights">
@@ -167,25 +170,26 @@ function WindowThumb({ appearance, theme }: { appearance: Appearance; theme: The
 }
 
 /** Light and dark along one diagonal; the name stays under the thumbnail, clear of the split. */
-function AutoThumb({ themes }: { themes: Readonly<Record<Appearance, ThemeChoice>> }) {
+function AutoThumb({ looks }: { looks: Readonly<Record<Appearance, ThemeLook>> }) {
   return (
     <span className="choice-thumb auto-thumb" aria-hidden="true">
       <span className="auto-thumb-light">
-        <WindowThumb appearance="light" theme={themes.light} />
+        <WindowThumb appearance="light" look={looks.light} />
       </span>
       <span className="auto-thumb-dark">
-        <WindowThumb appearance="dark" theme={themes.dark} />
+        <WindowThumb appearance="dark" look={looks.dark} />
       </span>
     </span>
   )
 }
 
-function ThemeSwatch({ appearance, theme }: { appearance: Appearance; theme: ThemeChoice }) {
+function ThemeSwatch({ appearance, look }: { appearance: Appearance; look: ThemeLook }) {
   return (
     <span
       className="swatch"
       data-appearance-preview={appearance}
-      data-theme-preview={themePreview(theme)}
+      data-theme-preview={themePreview(look.theme)}
+      style={colorVariables(look.colors)}
       aria-hidden="true"
     >
       <span className="swatch-top">
@@ -199,50 +203,6 @@ function ThemeSwatch({ appearance, theme }: { appearance: Appearance; theme: The
         ))}
       </span>
     </span>
-  )
-}
-
-/** One appearance's themes: Default, a divider, then the built-in ones, in one row that fits the card. */
-function ThemePicker({
-  appearance,
-  chosen,
-  onChoose,
-}: {
-  appearance: Appearance
-  chosen: ThemeChoice
-  onChoose: (theme: ThemeChoice) => void
-}) {
-  const ids = useId()
-  const swatch = (theme: ThemeChoice) => (
-    <Choice
-      key={theme}
-      group={`${ids}-theme`}
-      checked={chosen === theme}
-      onChange={() => onChoose(theme)}
-      label={t(THEME_LABELS[theme])}
-      className="theme-choice"
-    >
-      <ThemeSwatch appearance={appearance} theme={theme} />
-    </Choice>
-  )
-  return (
-    <div
-      className="swatch-row"
-      role="radiogroup"
-      aria-label={t(
-        appearance === 'light' ? 'appearanceSettings.lightTheme' : 'appearanceSettings.darkTheme',
-      )}
-    >
-      <div className="choice-group">
-        <span className="choice-group-label">{t('appearanceSettings.themesDefault')}</span>
-        <div className="choice-items">{swatch('default')}</div>
-      </div>
-      <span className="choice-divider" aria-hidden="true" />
-      <div className="choice-group">
-        <span className="choice-group-label">{t('appearanceSettings.themesBuiltIn')}</span>
-        <div className="choice-items">{BUILT_IN_THEMES.map(swatch)}</div>
-      </div>
-    </div>
   )
 }
 
@@ -271,48 +231,234 @@ function usePluginThemes(): PluginThemes {
   return themes
 }
 
-/** The plugin themes of one appearance, drawn over its theme (ADR 0026); shown only when a plugin adds one. */
-function PluginThemeSetting(props: {
-  appearance: Appearance
-  themes: PluginThemes
-  onFailure: (code: string) => void
-}) {
-  const { appearance, themes, onFailure } = props
-  const id = useId()
-  const offered = themes.themes.filter((theme) => theme.appearance === appearance)
-  if (offered.length === 0) return null
-  const chosen = themes.chosen[appearance]
-  const key = (plugin: string, theme: string) => `${plugin}/${theme}`
+const MODES: readonly Appearance[] = ['light', 'dark']
+
+const MODE_LABELS: Readonly<Record<Appearance, MessageKey>> = {
+  light: 'appearanceSettings.lightMode',
+  dark: 'appearanceSettings.darkMode',
+}
+
+const NO_MODE_LABELS: Readonly<Record<Appearance, MessageKey>> = {
+  light: 'appearanceSettings.themeNoLight',
+  dark: 'appearanceSettings.themeNoDark',
+}
+
+/** A theme's colors for one appearance, drawn on a swatch or thumbnail: a built-in theme, or a plugin's over Default. */
+interface ThemeLook {
+  theme: ThemeChoice
+  colors?: Readonly<Record<string, string>> | undefined
+}
+
+const colorVariables = (colors: Readonly<Record<string, string>> | undefined) =>
+  colors
+    ? (Object.fromEntries(
+        Object.entries(colors).map(([key, color]) => [`--color-${key}`, color]),
+      ) as CSSProperties)
+    : undefined
+
+/** One appearance of a theme card: the swatch is that appearance's radio, and a plugin with several shows them as dots. */
+interface ThemeHalf {
+  look: ThemeLook
+  checked: boolean
+  choose: () => void
+  /** A plugin theme's name without its plugin's, under the swatch. */
+  caption?: string | undefined
+  variants?: readonly {
+    title: string
+    colors: Readonly<Record<string, string>>
+    shown: boolean
+    choose: () => void
+  }[]
+}
+
+interface ThemeCardModel {
+  key: string
+  name: string
+  halves: Readonly<Record<Appearance, ThemeHalf | null>>
+}
+
+function ThemeCard({ card, group }: { card: ThemeCardModel; group: string }) {
+  const chosenBoth = MODES.every((mode) => card.halves[mode]?.checked ?? true)
+  const captioned = MODES.some((mode) => card.halves[mode]?.caption !== undefined)
   return (
-    <Setting
-      label="appearanceSettings.pluginTheme"
-      description={t('appearanceSettings.pluginThemeHint')}
-      htmlFor={id}
-      descriptionId={`${id}-hint`}
-    >
-      <Select
-        id={id}
-        value={chosen ? key(chosen.plugin, chosen.theme) : ''}
-        aria-describedby={`${id}-hint`}
-        onChange={(e) => {
-          const picked = offered.find((o) => key(o.plugin, o.id) === e.currentTarget.value)
-          choosePluginTheme(
-            appearance,
-            picked ? { plugin: picked.plugin, theme: picked.id } : null,
-          ).catch((error: unknown) => onFailure(errorCode(error)))
+    <div className={`theme-card${chosenBoth ? ' theme-card-chosen' : ''}`}>
+      <div className="theme-card-halves">
+        {MODES.map((mode) => {
+          const half = card.halves[mode]
+          if (!half) {
+            return (
+              <span key={mode} className="theme-half">
+                <span className="swatch swatch-missing" aria-hidden="true">
+                  {t(NO_MODE_LABELS[mode])}
+                </span>
+                {captioned ? <span className="theme-half-caption" aria-hidden="true" /> : null}
+              </span>
+            )
+          }
+          return (
+            <span key={mode} className="theme-half">
+              <label className="choice">
+                <input
+                  type="radio"
+                  className="visually-hidden"
+                  name={`${group}-${mode}`}
+                  checked={half.checked}
+                  onChange={half.choose}
+                  aria-label={format(t('appearanceSettings.themeInMode'), {
+                    theme: half.caption ? `${card.name} ${half.caption}` : card.name,
+                    mode: t(MODE_LABELS[mode]),
+                  })}
+                />
+                <span className="choice-frame">
+                  <ThemeSwatch appearance={mode} look={half.look} />
+                </span>
+              </label>
+              {captioned ? (
+                <span className="theme-half-caption" aria-hidden="true">
+                  {half.caption}
+                </span>
+              ) : null}
+              {half.variants && half.variants.length > 1 ? (
+                <span className="theme-variants">
+                  {half.variants.map((variant) => (
+                    <button
+                      key={variant.title}
+                      type="button"
+                      className="theme-variant"
+                      aria-pressed={variant.shown}
+                      aria-label={format(t('appearanceSettings.themeInMode'), {
+                        theme: variant.title,
+                        mode: t(MODE_LABELS[mode]),
+                      })}
+                      style={colorVariables(variant.colors)}
+                      onClick={variant.choose}
+                    />
+                  ))}
+                </span>
+              ) : null}
+            </span>
+          )
+        })}
+      </div>
+      <button
+        type="button"
+        className="theme-card-name"
+        aria-pressed={chosenBoth}
+        onClick={() => {
+          for (const mode of MODES) {
+            const half = card.halves[mode]
+            if (half && !half.checked) half.choose()
+          }
         }}
       >
-        <option value="">{t('appearanceSettings.pluginThemeNone')}</option>
-        {offered.map((theme) => (
-          <option key={key(theme.plugin, theme.id)} value={key(theme.plugin, theme.id)}>
-            {format(t('appearanceSettings.pluginThemeBy'), {
-              title: theme.title,
-              plugin: theme.pluginName,
-            })}
-          </option>
-        ))}
-      </Select>
-    </Setting>
+        {card.name}
+      </button>
+    </div>
+  )
+}
+
+/** A plugin's themes for one appearance, the chosen one first shown. */
+function pluginHalf(
+  offered: readonly OfferedTheme[],
+  chosen: ThemeRef | null,
+  choose: (theme: OfferedTheme) => void,
+): ThemeHalf | null {
+  const first = offered[0]
+  if (!first) return null
+  const shown =
+    offered.find((o) => chosen && o.plugin === chosen.plugin && o.id === chosen.theme) ?? first
+  const caption = (title: string, plugin: string) =>
+    title === plugin
+      ? undefined
+      : title.startsWith(`${plugin} `)
+        ? title.slice(plugin.length + 1)
+        : title
+  return {
+    look: { theme: 'default', colors: shown.colors },
+    checked: chosen !== null && chosen.plugin === shown.plugin && chosen.theme === shown.id,
+    choose: () => choose(shown),
+    caption: caption(shown.title, shown.pluginName),
+    variants: offered.map((o) => ({
+      title: o.title,
+      colors: o.colors,
+      shown: o === shown,
+      choose: () => choose(o),
+    })),
+  }
+}
+
+/**
+ * Every theme as a card with its Light Mode and Dark Mode swatches: the built-in ones, then one per plugin that adds
+ * themes (ADR 0026). A swatch chooses its theme for its appearance, the card's name for both; a plugin theme replaces
+ * the appearance's built-in theme, so choosing one sets that appearance back to Default.
+ */
+function ThemeGallery({
+  settings,
+  change,
+  pluginThemes,
+  onFailure,
+}: {
+  settings: Readonly<Record<'lightTheme' | 'darkTheme', ThemeChoice>>
+  change: (patch: Partial<Record<'lightTheme' | 'darkTheme', ThemeChoice>>) => void
+  pluginThemes: PluginThemes
+  onFailure: (code: string) => void
+}) {
+  const ids = useId()
+  const settingOf = (mode: Appearance) => (mode === 'light' ? 'lightTheme' : 'darkTheme')
+  const chooseBuiltIn = (mode: Appearance, theme: ThemeChoice) => {
+    if (settings[settingOf(mode)] !== theme) change({ [settingOf(mode)]: theme })
+    if (pluginThemes.chosen[mode]) {
+      choosePluginTheme(mode, null).catch((error: unknown) => onFailure(errorCode(error)))
+    }
+  }
+  const choosePlugin = (mode: Appearance, theme: OfferedTheme) => {
+    choosePluginTheme(mode, { plugin: theme.plugin, theme: theme.id }).catch((error: unknown) =>
+      onFailure(errorCode(error)),
+    )
+    if (settings[settingOf(mode)] !== 'default') change({ [settingOf(mode)]: 'default' })
+  }
+  const builtIn: ThemeCardModel[] = THEMES.map((theme) => ({
+    key: theme,
+    name: t(THEME_LABELS[theme]),
+    halves: {
+      light: {
+        look: { theme },
+        checked: !pluginThemes.chosen.light && settings.lightTheme === theme,
+        choose: () => chooseBuiltIn('light', theme),
+      },
+      dark: {
+        look: { theme },
+        checked: !pluginThemes.chosen.dark && settings.darkTheme === theme,
+        choose: () => chooseBuiltIn('dark', theme),
+      },
+    },
+  }))
+  const plugins = [...new Set(pluginThemes.themes.map((theme) => theme.plugin))]
+  const fromPlugins: ThemeCardModel[] = plugins.map((plugin) => {
+    const of = (mode: Appearance) =>
+      pluginThemes.themes.filter((theme) => theme.plugin === plugin && theme.appearance === mode)
+    const half = (mode: Appearance) =>
+      pluginHalf(of(mode), pluginThemes.chosen[mode], (theme) => choosePlugin(mode, theme))
+    return {
+      key: plugin,
+      name: pluginThemes.themes.find((theme) => theme.plugin === plugin)?.pluginName ?? plugin,
+      halves: { light: half('light'), dark: half('dark') },
+    }
+  })
+  return (
+    <div className="theme-grid">
+      {[...builtIn, ...fromPlugins].map((card) => (
+        <ThemeCard key={card.key} card={card} group={ids} />
+      ))}
+      <button
+        type="button"
+        className="theme-card theme-card-more"
+        onClick={() => showPane('plugins')}
+      >
+        <Icon name="settings.plugins" size="sm" />
+        <span>{t('appearanceSettings.moreThemes')}</span>
+      </button>
+    </div>
   )
 }
 
@@ -362,10 +508,14 @@ export function AppearanceSection() {
     stored: settings.gradientStrength,
     store: (gradientStrength) => change({ gradientStrength }),
   })
-  const themes = { light: settings.lightTheme, dark: settings.darkTheme }
+  const lookOf = (mode: Appearance): ThemeLook => {
+    const plugin = pluginThemeInEffect(pluginThemes, mode)
+    return plugin
+      ? { theme: 'default', colors: plugin.colors }
+      : { theme: mode === 'light' ? settings.lightTheme : settings.darkTheme }
+  }
+  const looks = { light: lookOf('light'), dark: lookOf('dark') }
   const gradientShown = gradientThemeChosen(settings)
-  const modeTitle = (appearance: Appearance) =>
-    appearance === shown ? t('appearanceSettings.modeActive') : undefined
 
   return (
     <section className="settings-section" aria-labelledby="appearance-title">
@@ -394,10 +544,10 @@ export function AppearanceSection() {
                   className="thumb-choice"
                 >
                   {choice === 'system' ? (
-                    <AutoThumb themes={themes} />
+                    <AutoThumb looks={looks} />
                   ) : (
                     <span className="choice-thumb" aria-hidden="true">
-                      <WindowThumb appearance={choice} theme={themes[choice]} />
+                      <WindowThumb appearance={choice} look={looks[choice]} />
                     </span>
                   )}
                 </Choice>
@@ -432,27 +582,19 @@ export function AppearanceSection() {
           />
         ) : null}
       </SettingsSection>
-      <SettingsSection title="appearanceSettings.lightMode" titleSuffix={modeTitle('light')}>
-        <ThemePicker
-          appearance="light"
-          chosen={settings.lightTheme}
-          onChoose={(lightTheme) => change({ lightTheme })}
-        />
-        <PluginThemeSetting
-          appearance="light"
-          themes={pluginThemes}
-          onFailure={setPluginThemeError}
-        />
-      </SettingsSection>
-      <SettingsSection title="appearanceSettings.darkMode" titleSuffix={modeTitle('dark')}>
-        <ThemePicker
-          appearance="dark"
-          chosen={settings.darkTheme}
-          onChoose={(darkTheme) => change({ darkTheme })}
-        />
-        <PluginThemeSetting
-          appearance="dark"
-          themes={pluginThemes}
+      <SettingsSection
+        title="appearanceSettings.themes"
+        titleSuffix={t(
+          shown === 'light'
+            ? 'appearanceSettings.themesLightActive'
+            : 'appearanceSettings.themesDarkActive',
+        )}
+        footnote={t('appearanceSettings.themesHint')}
+      >
+        <ThemeGallery
+          settings={settings}
+          change={change}
+          pluginThemes={pluginThemes}
           onFailure={setPluginThemeError}
         />
       </SettingsSection>

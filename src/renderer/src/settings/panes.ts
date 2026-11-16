@@ -68,6 +68,12 @@ interface KeyValue {
   setItem(key: string, value: string): void
 }
 
+/** The page event that turns the Settings window to a pane, as Rust's `settings-pane` event does. */
+export const SHOW_PANE = 'devot:settings-pane'
+
+export const showPane = (pane: PaneId) =>
+  window.dispatchEvent(new CustomEvent(SHOW_PANE, { detail: pane }))
+
 export const isPane = (value: unknown): value is PaneId =>
   typeof value === 'string' && (PANES as readonly string[]).includes(value)
 

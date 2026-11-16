@@ -24,6 +24,9 @@ pub struct Served {
     pub status: StatusCode,
     pub mime: &'static str,
     pub csp: String,
+    /// A plugin's own file, which its sandboxed page (an opaque origin) may load as a module, a font or by `fetch`:
+    /// those requests are cross-origin, so WebKit refuses the answer without `Access-Control-Allow-Origin`.
+    pub shared: bool,
     pub body: Vec<u8>,
 }
 
@@ -32,6 +35,7 @@ fn not_found() -> Served {
         status: StatusCode::NOT_FOUND,
         mime: "text/plain",
         csp: FILE_CSP.into(),
+        shared: false,
         body: Vec::new(),
     }
 }
@@ -85,6 +89,7 @@ fn page(html: String, csp: String) -> Served {
         status: StatusCode::OK,
         mime: "text/html",
         csp,
+        shared: false,
         body: html.into_bytes(),
     }
 }
@@ -94,6 +99,7 @@ fn own(mime: &'static str, text: &str) -> Served {
         status: StatusCode::OK,
         mime,
         csp: FILE_CSP.into(),
+        shared: false,
         body: text.as_bytes().to_vec(),
     }
 }
@@ -126,6 +132,7 @@ pub fn answer(plugins: &Plugins, path: &str) -> Served {
                 status: StatusCode::OK,
                 mime: mime(rest),
                 csp: FILE_CSP.into(),
+                shared: true,
                 body,
             },
             Err(_) => not_found(),
@@ -146,7 +153,11 @@ pub fn serve(
             Some(plugins) => answer(&plugins, &path),
             None => not_found(),
         };
-        let response = Response::builder()
+        let mut response = Response::builder();
+        if served.shared {
+            response = response.header("Access-Control-Allow-Origin", "*");
+        }
+        let response = response
             .status(served.status)
             .header("Content-Type", served.mime)
             .header("Content-Security-Policy", served.csp)
@@ -238,12 +249,15 @@ mod tests {
             (StatusCode::OK, "text/javascript", &b"devot"[..])
         );
         assert_eq!(main.csp, FILE_CSP);
+        assert!(main.shared);
         assert_eq!(
             answer(&plugins, "/com.example.hello/icon.svg").mime,
             "image/svg+xml"
         );
         let runtime = answer(&plugins, "/com.example.hello/__devot/runtime.js");
         assert_eq!(runtime.body, RUNTIME_JS.as_bytes());
+        assert!(!runtime.shared);
+        assert!(!answer(&plugins, "/com.example.hello/").shared);
     }
 
     #[test]

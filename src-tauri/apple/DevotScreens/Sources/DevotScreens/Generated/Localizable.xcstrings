@@ -2143,23 +2143,6 @@
         }
       }
     },
-    "appearanceSettings.darkTheme" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dark Mode Theme"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "深色模式主题"
-          }
-        }
-      }
-    },
     "appearanceSettings.editorFontSize" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2432,23 +2415,6 @@
         }
       }
     },
-    "appearanceSettings.lightTheme" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Light Mode Theme"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "浅色模式主题"
-          }
-        }
-      }
-    },
     "appearanceSettings.materialAmount" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2483,87 +2449,19 @@
         }
       }
     },
-    "appearanceSettings.modeActive" : {
+    "appearanceSettings.moreThemes" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "— Active"
+            "value" : "Get More Themes"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "— 当前"
-          }
-        }
-      }
-    },
-    "appearanceSettings.pluginTheme" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plugin Theme"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "插件主题"
-          }
-        }
-      }
-    },
-    "appearanceSettings.pluginThemeBy" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "{title} ({plugin})"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "{title}（{plugin}）"
-          }
-        }
-      }
-    },
-    "appearanceSettings.pluginThemeHint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Its colors are drawn over the theme above."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "它的配色会叠加在上面所选的主题之上。"
-          }
-        }
-      }
-    },
-    "appearanceSettings.pluginThemeNone" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "None"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无"
+            "value" : "获取更多主题"
           }
         }
       }
@@ -2721,6 +2619,23 @@
         }
       }
     },
+    "appearanceSettings.themeInMode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{theme}, {mode}"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{theme}，{mode}"
+          }
+        }
+      }
+    },
     "appearanceSettings.themeIvory" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2734,6 +2649,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "象牙白"
+          }
+        }
+      }
+    },
+    "appearanceSettings.themeNoDark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No dark colors"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无深色配色"
+          }
+        }
+      }
+    },
+    "appearanceSettings.themeNoLight" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No light colors"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无浅色配色"
           }
         }
       }
@@ -2772,36 +2721,70 @@
         }
       }
     },
-    "appearanceSettings.themesBuiltIn" : {
+    "appearanceSettings.themes" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Built-in"
+            "value" : "Themes"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "内置"
+            "value" : "主题"
           }
         }
       }
     },
-    "appearanceSettings.themesDefault" : {
+    "appearanceSettings.themesDarkActive" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Default"
+            "value" : "— Dark Mode Showing"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "默认"
+            "value" : "— 正在显示深色模式"
+          }
+        }
+      }
+    },
+    "appearanceSettings.themesHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a theme to use it in Light and Dark Mode, or one of its swatches to use it in that mode only."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点选主题，浅色和深色模式都会使用它；只点其中一个色板，则只用于那个模式。"
+          }
+        }
+      }
+    },
+    "appearanceSettings.themesLightActive" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— Light Mode Showing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— 正在显示浅色模式"
           }
         }
       }

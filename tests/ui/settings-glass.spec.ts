@@ -127,10 +127,7 @@ test('the Gradient slider shows only while a gradient theme is chosen for either
   await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory', darkTheme: 'default' })
   await expect(gradientSlider(page)).toHaveCount(0)
 
-  await page
-    .getByRole('radiogroup', { name: 'Light Mode Theme' })
-    .getByRole('radio', { name: 'Tide' })
-    .check({ force: true })
+  await page.getByRole('radio', { name: 'Tide, Light Mode' }).check({ force: true })
   await gradientSlider(page).fill('40')
   await expect(sliderValue(page, 2)).toHaveText('40')
   await expect
