@@ -10,7 +10,7 @@ final class EditorBarsTests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
-        app.launch()
+        app.launch(stoppedAfter: self)
         // A cold debug build starts slowly on a CI simulator.
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: waitLimit(120)))
         let notes = app.tabBars.firstMatch.buttons[L10n.phoneTabNotes()]

@@ -15,7 +15,7 @@ final class SettingsTests: XCTestCase {
     private func launch(_ arguments: [String] = []) {
         app.terminate()
         app.launchArguments = arguments
-        app.launch()
+        app.launch(stoppedAfter: self)
         let bar = app.tabBars.firstMatch
         // A cold debug build starts slowly on a CI simulator.
         XCTAssertTrue(bar.waitForExistence(timeout: waitLimit(120)))
