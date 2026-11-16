@@ -20,7 +20,8 @@ const LIMIT = 7
 export const GROWTH_TIMEOUT = 30_000
 
 setFlagsFromString('--expose-gc')
-const collect = runInNewContext('gc') as () => void
+/** A full collection, so the garbage of earlier work is not paid for in a timing that follows. */
+export const collect = runInNewContext('gc') as () => void
 
 const timed = (work: () => void) => {
   collect()
