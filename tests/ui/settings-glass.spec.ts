@@ -138,7 +138,34 @@ test('the Gradient slider shows only while a gradient theme is chosen for either
     .toEqual([{ patch: { lightTheme: 'tide' } }, { patch: { gradientStrength: 40 } }])
 })
 
-test('the gradient strength turns the backdrop and the glass tint from a solid colour into the designed gradient', async ({
+/** The painted backdrop's pixel at a share of its width and height, red, green, blue 0 to 255 and alpha 0 to 1. */
+const paintedPixel = (page: Page, url: string, fx: number, fy: number) =>
+  page.evaluate(
+    async ([src, x, y]) => {
+      const image = new Image()
+      image.src = src
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = image.width
+      canvas.height = image.height
+      const context = canvas.getContext('2d')!
+      context.drawImage(image, 0, 0)
+      const at = (share: number, size: number) => Math.min(Math.floor(share * size), size - 1)
+      const d = context.getImageData(at(x, image.width), at(y, image.height), 1, 1).data
+      return [d[0]!, d[1]!, d[2]!, d[3]! / 255]
+    },
+    [url, fx, fy] as const,
+  )
+
+const numbers = (rgba: string) => rgba.match(/[\d.]+/g)!.map(Number)
+
+/** Within the painting's one level of dithering, and the rounding of storing it unpremultiplied. */
+function expectNear(pixel: number[], rgba: string) {
+  const want = numbers(rgba)
+  pixel.forEach((v, i) => expect(Math.abs(v - want[i]!)).toBeLessThanOrEqual(i === 3 ? 0.01 : 3))
+}
+
+test('the gradient strength turns the backdrop and the glass tint from a solid colour into the designed gradient, painted without bands', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -153,24 +180,48 @@ test('the gradient strength turns the backdrop and the glass tint from a solid c
   const backdrop = async () => (await gradientStops(sheet, '::before'))[0]
   const tint = async () => (await gradientStops(sidebar)).find((stops) => stops.length === 3)
 
+  // A solid colour cannot band, so it stays the tokens' gradient.
   await expect.poll(backdrop).toEqual([design[1], design[1], design[1]])
   await expect.poll(tint).toEqual([design[1], design[1], design[1]])
+
+  const painting = () =>
+    page.evaluate(() => {
+      const url = /url\("(blob:[^"]+)"\)/.exec(
+        document.documentElement.style.getPropertyValue('--backdrop'),
+      )?.[1]
+      const sheetStyle = getComputedStyle(document.querySelector('.window')!, '::before')
+      const tintStyle = getComputedStyle(document.querySelector('.sidebar')!)
+      return url &&
+        sheetStyle.backgroundImage.includes(url) &&
+        tintStyle.backgroundImage.includes(url)
+        ? url
+        : null
+    })
   await changeEditorSettingsElsewhere(page, {
     appearance: 'light',
     lightTheme: 'dawn',
     gradientStrength: 100,
   })
-  await expect.poll(backdrop).toEqual(design)
-  await expect.poll(tint).toEqual(design)
+  await expect.poll(painting).not.toBeNull()
+  const full = (await painting())!
+  expectNear(await paintedPixel(page, full, 0, 0), design[0]!)
+  expectNear(await paintedPixel(page, full, 0.5, 0.5), design[1]!)
+  expectNear(await paintedPixel(page, full, 1, 1), design[2]!)
+
   await changeEditorSettingsElsewhere(page, {
     appearance: 'light',
     lightTheme: 'dawn',
     gradientStrength: 50,
   })
-  const half = (await backdrop())!
-  expect(half[1]).toBe(design[1])
-  expect(half[0]).not.toBe(design[0])
-  expect(half[0]).not.toBe(design[1])
+  await expect.poll(painting).not.toBe(full)
+  await expect.poll(painting).not.toBeNull()
+  const half = (await painting())!
+  expectNear(await paintedPixel(page, half, 0.5, 0.5), design[1]!)
+  const corner = await paintedPixel(page, half, 0, 0)
+  for (const stop of [design[0]!, design[1]!]) {
+    const want = numbers(stop)
+    expect(corner.slice(0, 3).some((v, i) => Math.abs(v - want[i]!) > 3)).toBe(true)
+  }
 })
 
 test('an appearance change that cannot be stored is reported and dropped', async ({ page }) => {
