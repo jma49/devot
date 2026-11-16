@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useInsertionEffect,
   useLayoutEffect,
@@ -117,29 +118,30 @@ function HistoryOverlay(props: {
   const tabAt =
     focusAt !== undefined && segments[focusAt]?.kind === 'removed' ? focusAt : firstRemoved
 
-  useEffect(() => {
-    const read = () => {
-      const el = root.current
-      const selection = document.getSelection()
-      const range =
-        selection && selection.rangeCount > 0 && !selection.isCollapsed
-          ? selection.getRangeAt(0)
-          : undefined
-      if (!el || !range || !el.contains(range.commonAncestorContainer)) {
-        if (!bar.current?.contains(document.activeElement)) onPassage(undefined)
-        return
-      }
-      const a = pointIn(el, range.startContainer, range.startOffset, segments, length)
-      const b = pointIn(el, range.endContainer, range.endOffset, segments, length)
-      if (a === undefined || b === undefined) return onPassage(undefined)
-      const from = Math.min(a, b)
-      const to = Math.max(a, b)
-      onPassage(removedWithin(segments, from, to) ? { from, to } : undefined)
+  const readSelection = useCallback(() => {
+    const el = root.current
+    const selection = document.getSelection()
+    const range =
+      selection && selection.rangeCount > 0 && !selection.isCollapsed
+        ? selection.getRangeAt(0)
+        : undefined
+    if (!el || !range || !el.contains(range.commonAncestorContainer)) {
+      if (!bar.current?.contains(document.activeElement)) onPassage(undefined)
+      return
     }
-    read()
-    document.addEventListener('selectionchange', read)
-    return () => document.removeEventListener('selectionchange', read)
+    const a = pointIn(el, range.startContainer, range.startOffset, segments, length)
+    const b = pointIn(el, range.endContainer, range.endOffset, segments, length)
+    if (a === undefined || b === undefined) return onPassage(undefined)
+    const from = Math.min(a, b)
+    const to = Math.max(a, b)
+    onPassage(removedWithin(segments, from, to) ? { from, to } : undefined)
   }, [segments, length, onPassage, bar])
+
+  useEffect(() => {
+    readSelection()
+    document.addEventListener('selectionchange', readSelection)
+    return () => document.removeEventListener('selectionchange', readSelection)
+  }, [readSelection])
 
   useEffect(() => {
     root.current?.querySelector('del, ins')?.scrollIntoView({ block: 'nearest' })
@@ -177,6 +179,8 @@ function HistoryOverlay(props: {
               onFocus={(e) => {
                 setFocusAt(i)
                 selectFromKeyboard(e)
+                // selectionchange comes later: a key pressed before it (Tab, Enter) restored the passage chosen before (issue 944).
+                readSelection()
               }}
               onKeyDown={(e) => {
                 const next =

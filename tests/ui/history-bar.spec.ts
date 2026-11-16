@@ -436,6 +436,29 @@ test('any struck passage can be restored from the keyboard alone', async ({ page
   await expect.poll(() => savedBody(page, 'Plan')).toBe('one ONE two THREE four five FIVE')
 })
 
+test('a struck passage reached from the keyboard is the one restored, before the selection reports it', async ({
+  page,
+}) => {
+  await noteWithHistory(page, 'Plan', 'one two three four five', 'ONE two THREE four FIVE')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  const struck = overlay(page).locator('del')
+  await expect(struck).toHaveText(['one', 'three', 'five'])
+  await page.keyboard.press('Shift+Tab')
+  await expect(struck.first()).toBeFocused()
+  const restorePassage = bar(page).getByRole('button', { name: 'Restore This Passage' })
+  await expect(restorePassage).toBeVisible()
+  // A key that lands before the browser reports the new selection, which comes in a later task (#944):
+  // only React's own microtasks run between the focus and the click.
+  await page.evaluate(async () => {
+    document.querySelectorAll<HTMLElement>('.history-overlay del')[2]!.focus()
+    for (let i = 0; i < 3; i++) await Promise.resolve()
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>('button')]
+    buttons.find((button) => button.textContent === 'Restore This Passage')!.click()
+  })
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('ONE two THREE four five FIVE')
+})
+
 test('the bar is off until turned on; the palette shows and hides it, named for what it will do', async ({
   page,
 }) => {
