@@ -84,6 +84,8 @@ pub struct Staged {
 
 pub struct Plugins {
     data: PathBuf,
+    /// This build's release version, which a plugin's `minAppVersion` is checked against.
+    app_version: String,
     staged: Mutex<Vec<(u64, Package)>>,
     next: Mutex<u64>,
     /// Changes of the state file and the plugins folder go one at a time.
@@ -94,10 +96,17 @@ impl Plugins {
     pub fn new(data_dir: &Path) -> Self {
         Self {
             data: data_dir.to_path_buf(),
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
             staged: Mutex::new(Vec::new()),
             next: Mutex::new(1),
             writing: Mutex::new(()),
         }
+    }
+
+    #[cfg(test)]
+    fn on_app_version(mut self, version: &str) -> Self {
+        self.app_version = version.to_string();
+        self
     }
 
     fn state_path(&self) -> PathBuf {
@@ -172,6 +181,7 @@ impl Plugins {
         if manifest.id != id {
             return Err("E_PLUGIN_ID_INVALID");
         }
+        manifest.runs_on(&self.app_version)?;
         let granted = entry
             .granted
             .iter()
@@ -225,7 +235,9 @@ impl Plugins {
         }
     }
 
-    pub fn stage(&self, package: Package) -> Staged {
+    /// Refuses a package this Devot is too old for before the user is asked to approve it.
+    pub fn stage(&self, package: Package) -> Result<Staged, &'static str> {
+        package.manifest.runs_on(&self.app_version)?;
         let token = {
             let mut next = crate::locks::lock(&self.next);
             let token = *next;
@@ -247,11 +259,11 @@ impl Plugins {
         while staged.len() > STAGED_MAX {
             staged.remove(0);
         }
-        Staged {
+        Ok(Staged {
             token,
             manifest,
             replaces,
-        }
+        })
     }
 
     pub fn cancel(&self, token: u64) {
@@ -521,9 +533,11 @@ pub async fn plugin_install_pick(
             PickKind::Folder => package::read_folder(&path),
             PickKind::Archive => package::read_archive(&path),
         };
-        package.map(|p| Some(plugins.stage(p))).inspect_err(|code| {
-            log::warn!("W_PLUGIN_PACKAGE_REFUSED {code}");
-        })
+        package
+            .and_then(|p| plugins.stage(p).map(Some))
+            .inspect_err(|code| {
+                log::warn!("W_PLUGIN_PACKAGE_REFUSED {code}");
+            })
     })
     .await
 }
@@ -742,7 +756,7 @@ mod tests {
     fn installs_a_staged_package_on_with_what_it_asks_for() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let staged = plugins.stage(package("1.0.0", b"one"));
+        let staged = plugins.stage(package("1.0.0", b"one")).unwrap();
         assert_eq!(staged.replaces, None);
         let installed = plugins.install(staged.token).unwrap();
         assert!(installed.enabled);
@@ -765,9 +779,9 @@ mod tests {
     fn replaces_an_installed_plugin_whole_and_says_what_it_replaces() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let first = plugins.stage(package("1.0.0", b"one"));
+        let first = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.install(first.token).unwrap();
-        let second = plugins.stage(package("2.0.0", b"two"));
+        let second = plugins.stage(package("2.0.0", b"two")).unwrap();
         assert_eq!(
             second.replaces,
             Some(Replaced {
@@ -787,11 +801,52 @@ mod tests {
         assert_eq!(names, vec![std::ffi::OsString::from("com.example.hello")]);
     }
 
+    fn needing(min_app_version: &str) -> Package {
+        let manifest = MANIFEST.replacen(
+            r#""apiVersion":1,"#,
+            &format!(r#""apiVersion":1,"minAppVersion":"{min_app_version}","#),
+            1,
+        );
+        let mut files = BTreeMap::new();
+        files.insert(manifest::FILE.to_string(), manifest.as_bytes().to_vec());
+        files.insert("main.js".to_string(), b"one".to_vec());
+        Package {
+            manifest: manifest::parse_bytes(manifest.as_bytes()).unwrap(),
+            files,
+        }
+    }
+
+    #[test]
+    fn refuses_a_package_this_devot_is_too_old_for_before_asking() {
+        let data = tempfile::tempdir().unwrap();
+        let plugins = Plugins::new(data.path()).on_app_version("1.1.7");
+        assert_eq!(
+            plugins.stage(needing("1.2.0")).err(),
+            Some(manifest::APP_TOO_OLD)
+        );
+        assert!(plugins.stage(needing("1.1.7")).is_ok());
+    }
+
+    #[test]
+    fn leaves_out_an_installed_plugin_this_devot_became_too_old_for() {
+        let data = tempfile::tempdir().unwrap();
+        let newer = Plugins::new(data.path()).on_app_version("1.2.0");
+        let staged = newer.stage(needing("1.2.0")).unwrap();
+        newer.install(staged.token).unwrap();
+        assert_eq!(newer.list().len(), 1);
+        let older = Plugins::new(data.path()).on_app_version("1.1.7");
+        assert!(older.list().is_empty());
+        assert_eq!(
+            older.enabled("com.example.hello").err(),
+            Some(manifest::APP_TOO_OLD)
+        );
+    }
+
     #[test]
     fn a_cancelled_package_is_never_installed() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let staged = plugins.stage(package("1.0.0", b"one"));
+        let staged = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.cancel(staged.token);
         assert_eq!(plugins.install(staged.token).err(), Some(STAGED_GONE));
         assert!(plugins.list().is_empty());
@@ -801,7 +856,7 @@ mod tests {
     fn turns_plugins_off_and_on_and_checks_permissions() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let staged = plugins.stage(package("1.0.0", b"one"));
+        let staged = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.install(staged.token).unwrap();
         assert!(plugins.allowed("com.example.hello", "import").is_ok());
         assert_eq!(
@@ -827,7 +882,7 @@ mod tests {
     fn grants_only_what_the_manifest_on_disk_still_asks_for() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let staged = plugins.stage(package("1.0.0", b"one"));
+        let staged = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.install(staged.token).unwrap();
         let mut stored = plugins.stored();
         stored.plugins.get_mut("com.example.hello").unwrap().granted =
@@ -840,7 +895,7 @@ mod tests {
     fn removes_a_plugin_and_its_folder() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let staged = plugins.stage(package("1.0.0", b"one"));
+        let staged = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.install(staged.token).unwrap();
         plugins.remove("com.example.hello").unwrap();
         assert!(plugins.list().is_empty());
@@ -852,7 +907,7 @@ mod tests {
     fn never_reads_outside_a_plugin_folder_or_through_a_link() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let staged = plugins.stage(package("1.0.0", b"one"));
+        let staged = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.install(staged.token).unwrap();
         std::fs::write(data.path().join("secret.txt"), b"x").unwrap();
         std::os::unix::fs::symlink(
@@ -883,7 +938,7 @@ mod tests {
     fn a_plugin_whose_manifest_was_damaged_is_left_out() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let staged = plugins.stage(package("1.0.0", b"one"));
+        let staged = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.install(staged.token).unwrap();
         std::fs::write(
             data.path()
@@ -900,12 +955,12 @@ mod tests {
     fn keeps_a_damaged_state_file_before_writing_a_new_one() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let first = plugins.stage(package("1.0.0", b"one"));
+        let first = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.install(first.token).unwrap();
         let damaged = b"{\"plugins\":{\"com.example.other\":";
         std::fs::write(data.path().join(STATE_FILE), damaged).unwrap();
         assert!(plugins.list().is_empty());
-        let again = plugins.stage(package("1.0.0", b"one"));
+        let again = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.install(again.token).unwrap();
         let mut copy = data.path().join(STATE_FILE).into_os_string();
         copy.push(atomic_file::DAMAGED_SUFFIX);
@@ -916,13 +971,13 @@ mod tests {
     fn refuses_to_write_over_a_state_file_it_cannot_read() {
         let data = tempfile::tempdir().unwrap();
         let plugins = Plugins::new(data.path());
-        let staged = plugins.stage(package("1.0.0", b"one"));
+        let staged = plugins.stage(package("1.0.0", b"one")).unwrap();
         plugins.install(staged.token).unwrap();
         let state = data.path().join(STATE_FILE);
         let before = std::fs::read(&state).unwrap();
         std::fs::remove_file(&state).unwrap();
         std::fs::create_dir(&state).unwrap();
-        let again = plugins.stage(package("2.0.0", b"two"));
+        let again = plugins.stage(package("2.0.0", b"two")).unwrap();
         assert_eq!(plugins.install(again.token).err(), Some(FAILED));
         assert_eq!(
             plugins.read_file("com.example.hello", "main.js").unwrap(),

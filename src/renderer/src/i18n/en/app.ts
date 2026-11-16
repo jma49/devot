@@ -17,6 +17,8 @@ export const messages = {
   'failure.addressRefused': 'Devot does not connect to that address.',
   'failure.serverRefused': 'The server refused the request.',
   'failure.serverUnavailable': 'The server is not available now. Try again later.',
+  'failure.pluginNeedsNewerDevot': 'It needs a newer version of Devot.',
+  'failure.pluginTooOld': 'It was written for a version of Devot that no longer runs it.',
   'notice.undo': 'Undo',
   'notice.dismiss': 'Dismiss',
   'save.failedOne': 'Changes to {count} note could not be saved. Devot keeps trying.',

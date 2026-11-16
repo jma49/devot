@@ -490,6 +490,14 @@ public enum L10n {
     text("failure.serverUnavailable", "The server is not available now. Try again later.")
   }
 
+  public static func failurePluginNeedsNewerDevot() -> String {
+    text("failure.pluginNeedsNewerDevot", "It needs a newer version of Devot.")
+  }
+
+  public static func failurePluginTooOld() -> String {
+    text("failure.pluginTooOld", "It was written for a version of Devot that no longer runs it.")
+  }
+
   public static func noticeUndo() -> String {
     text("notice.undo", "Undo")
   }

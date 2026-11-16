@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 pub const FILE: &str = "devot-plugin.json";
+/// The newest plugin API this build speaks; a later one only adds, so an older plugin still runs (ADR 0020).
 pub const API_VERSION: u64 = 1;
+/// The oldest plugin API still run, kept at least 12 months after the next ships.
+pub const API_OLDEST: u64 = 1;
 pub const MAX_BYTES: usize = 64 * 1024;
 pub const RESERVED_FOLDER: &str = "__devot";
 
@@ -20,7 +23,10 @@ pub const PERMISSIONS: [&str; 8] = [
     "export",
 ];
 
-const RESERVED_LANGUAGES: [&str; 2] = ["math", "mermaid"];
+/// The API version that added each permission, in the order of `PERMISSIONS`.
+const PERMISSION_SINCE: [u64; 8] = [1, 1, 1, 1, 1, 1, 1, 1];
+
+const RESERVED_LANGUAGES: [&str; 5] = ["math", "mermaid", "plantuml", "puml", "markmap"];
 const ID_MAX: usize = 64;
 const NAME_MAX: usize = 60;
 const DESCRIPTION_MAX: usize = 300;
@@ -36,6 +42,9 @@ const KEY_MAX: usize = 40;
 const INVALID: &str = "E_PLUGIN_MANIFEST_INVALID";
 const ID_INVALID: &str = "E_PLUGIN_ID_INVALID";
 const API: &str = "E_PLUGIN_API_VERSION";
+const API_TOO_NEW: &str = "E_PLUGIN_API_TOO_NEW";
+const API_RETIRED: &str = "E_PLUGIN_API_RETIRED";
+pub const APP_TOO_OLD: &str = "E_PLUGIN_APP_TOO_OLD";
 const PERMISSION_UNKNOWN: &str = "E_PLUGIN_PERMISSION_UNKNOWN";
 const PERMISSION_MISSING: &str = "E_PLUGIN_PERMISSION_MISSING";
 const CONTRIBUTION: &str = "E_PLUGIN_CONTRIBUTION_INVALID";
@@ -95,6 +104,9 @@ pub struct Manifest {
     pub name: String,
     pub version: String,
     pub api_version: u64,
+    /// The oldest Devot release it runs on, or empty (then left out, as the page reads it).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub min_app_version: String,
     pub description: String,
     pub author: String,
     pub main: String,
@@ -106,6 +118,34 @@ impl Manifest {
     pub fn asks(&self, permission: &str) -> bool {
         self.permissions.iter().any(|p| p == permission)
     }
+
+    /// Whether this Devot (`app`, its release version) is new enough for the plugin.
+    pub fn runs_on(&self, app: &str) -> Result<(), &'static str> {
+        if runs_on(&self.min_app_version, app) {
+            Ok(())
+        } else {
+            Err(APP_TOO_OLD)
+        }
+    }
+}
+
+fn release(version: &str) -> Option<[u64; 3]> {
+    let core = version.split_once('-').map_or(version, |(core, _)| core);
+    let mut parts = core.split('.').map(|p| p.parse::<u64>().ok());
+    let out = [parts.next()??, parts.next()??, parts.next()??];
+    parts.next().is_none().then_some(out)
+}
+
+/// A beta previews its release, so `1.2.0-beta3` runs a plugin needing 1.2.0. A development build (`0.0.0`, the
+/// committed version) runs every plugin.
+fn runs_on(min_app_version: &str, app: &str) -> bool {
+    let Some(app) = release(app) else {
+        return false;
+    };
+    if min_app_version.is_empty() || app == [0, 0, 0] {
+        return true;
+    }
+    release(min_app_version).is_some_and(|min| app >= min)
 }
 
 pub fn parse_bytes(bytes: &[u8]) -> Result<Manifest, &'static str> {
@@ -263,7 +303,21 @@ fn unique<'a>(keys: impl IntoIterator<Item = &'a str>) -> Result<(), &'static st
     Ok(())
 }
 
-fn permissions(value: Option<&Value>) -> Result<Vec<String>, &'static str> {
+fn api_version(value: Option<&Value>) -> Result<u64, &'static str> {
+    let version = value
+        .and_then(Value::as_u64)
+        .filter(|v| *v >= 1)
+        .ok_or(API)?;
+    if version > API_VERSION {
+        Err(API_TOO_NEW)
+    } else if version < API_OLDEST {
+        Err(API_RETIRED)
+    } else {
+        Ok(version)
+    }
+}
+
+fn permissions(value: Option<&Value>, api: u64) -> Result<Vec<String>, &'static str> {
     let items = match value {
         None => return Ok(Vec::new()),
         Some(Value::Array(items)) if items.len() <= PERMISSIONS.len() => items,
@@ -271,7 +325,12 @@ fn permissions(value: Option<&Value>) -> Result<Vec<String>, &'static str> {
     };
     let mut out: Vec<String> = Vec::new();
     for item in items {
-        let Some(name) = item.as_str().filter(|p| PERMISSIONS.contains(p)) else {
+        let Some(name) = item.as_str().filter(|p| {
+            PERMISSIONS
+                .iter()
+                .position(|known| known == p)
+                .is_some_and(|at| PERMISSION_SINCE[at] <= api)
+        }) else {
             return Err(PERMISSION_UNKNOWN);
         };
         if out.iter().any(|p| p == name) {
@@ -413,9 +472,7 @@ pub fn parse(value: &Value) -> Result<Manifest, &'static str> {
         Some(Value::String(id)) if is_id(id) => id.clone(),
         _ => return Err(ID_INVALID),
     };
-    if m.get("apiVersion").and_then(Value::as_u64) != Some(API_VERSION) {
-        return Err(API);
-    }
+    let api_version = api_version(m.get("apiVersion"))?;
     let version = match m.get("version") {
         Some(Value::String(v)) if is_version(v) => v.clone(),
         _ => return Err(INVALID),
@@ -424,7 +481,12 @@ pub fn parse(value: &Value) -> Result<Manifest, &'static str> {
         Some(Value::String(main)) if is_package_path(main) && main.ends_with(".js") => main.clone(),
         _ => return Err(INVALID),
     };
-    let permissions = permissions(m.get("permissions"))?;
+    let min_app_version = match m.get("minAppVersion") {
+        None => String::new(),
+        Some(Value::String(v)) if is_version(v) => v.clone(),
+        Some(_) => return Err(INVALID),
+    };
+    let permissions = permissions(m.get("permissions"), api_version)?;
     let name = text(m.get("name"), NAME_MAX, INVALID)?;
     let description = optional_text(m.get("description"), DESCRIPTION_MAX)?;
     let author = optional_text(m.get("author"), AUTHOR_MAX)?;
@@ -433,7 +495,8 @@ pub fn parse(value: &Value) -> Result<Manifest, &'static str> {
         id,
         name,
         version,
-        api_version: API_VERSION,
+        api_version,
+        min_app_version,
         description,
         author,
         main,
@@ -498,6 +561,20 @@ mod tests {
         );
         assert!(manifest.asks("menus"));
         assert!(!manifest.asks("note.edit"));
+    }
+
+    #[test]
+    fn runs_on_the_app_versions_the_shared_cases_name() {
+        for case in cases()["appVersions"].as_array().unwrap() {
+            let min = case["minAppVersion"].as_str().unwrap();
+            let app = case["app"].as_str().unwrap();
+            assert_eq!(
+                runs_on(min, app),
+                case["runs"].as_bool().unwrap(),
+                "{min} on {app}"
+            );
+        }
+        assert!(!runs_on("1.0.0", "not a version"));
     }
 
     #[test]

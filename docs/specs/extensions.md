@@ -8,7 +8,9 @@ Part of the [architecture overview](../architecture.md).
   Import, export and themes are built-in code.
 - **Third-party plugins** (ADR 0005, `PLUGIN_API_VERSION` 1) contribute commands, menu items, keymaps, preview renderers and import and export formats, each with a permission the user approves on install.
   No permission reaches the network, other notes, storage or Tauri.
-  - **Package:** a folder with `devot-plugin.json` (ID, name, version, API version, main script, permissions, contributions), or a `.zip` of one, at most 256 files and 20 MiB.
+  - **Package:** a folder with `devot-plugin.json` (ID, name, version, API version, optional `minAppVersion`, main script, permissions, contributions), or a `.zip` of one, at most 256 files and 20 MiB.
+  - **Versions** (ADR 0020): API versions only add, and Devot runs every one from `PLUGIN_API_OLDEST` to `PLUGIN_API_VERSION` (both 1 now); a permission records the version that added it.
+    A package for a newer API (`E_PLUGIN_API_TOO_NEW`) or a newer Devot than this one (`minAppVersion`, `E_PLUGIN_APP_TOO_OLD`) is refused before the approval sheet, and Settings says it needs a newer Devot; listing leaves out a plugin the app became too old for.
     Rust reads it whole and checks it (`src-tauri/src/plugins/`), the page checks the manifest again (`src/core/plugins/manifest.ts`); both run `tests/fixtures/plugins/manifests.json`.
   - **Install:** Settings > Plugins > Install from Folder or Install from Archive picks a package in a native panel; the sheet lists what it asks for, and Install approves it all (Cancel, which has the keyboard, installs nothing).
     Rust writes it to a new folder and renames it into `<app data>/plugins/<id>/`, replacing an older version whole, and records it as on with those permissions in `plugins.json` (granted permissions the manifest on disk no longer asks for do not count).

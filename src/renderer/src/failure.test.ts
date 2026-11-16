@@ -18,6 +18,9 @@ describe('failureReason', () => {
     ['E_AI_HTTP', 'failure.serverRefused'],
     ['E_AI_PROVIDER_UNAVAILABLE', 'failure.serverUnavailable'],
     ['E_APP_STORE_UNAVAILABLE', 'failure.serverUnavailable'],
+    ['E_PLUGIN_API_TOO_NEW', 'failure.pluginNeedsNewerDevot'],
+    ['E_PLUGIN_APP_TOO_OLD', 'failure.pluginNeedsNewerDevot'],
+    ['E_PLUGIN_API_RETIRED', 'failure.pluginTooOld'],
   ] as const)('words %s as %s', (code, key) => {
     expect(failureReason(code)).toBe(key)
   })

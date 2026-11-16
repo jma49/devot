@@ -9929,6 +9929,40 @@
         }
       }
     },
+    "failure.pluginNeedsNewerDevot" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It needs a newer version of Devot."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它需要更新版本的 Devot。"
+          }
+        }
+      }
+    },
+    "failure.pluginTooOld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It was written for a version of Devot that no longer runs it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它是为旧版 Devot 编写的，当前版本已不再运行它。"
+          }
+        }
+      }
+    },
     "failure.serverRefused" : {
       "extractionState" : "manual",
       "localizations" : {
