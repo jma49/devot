@@ -2,6 +2,7 @@
 // The caret is placed with clicks only (no platform text-navigation keys).
 import type { Locator, Page } from '@playwright/test'
 import { expect, reloadApp, test, pickNoteMore, pickStatus } from './fixtures'
+import type { ViewLike } from './keystrokes'
 
 const STATE_KEY = 'devot.lastState.main'
 
@@ -387,9 +388,17 @@ test('the Trash is not restored: the library view before it comes back', async (
 
   await expect(header(page)).toHaveText('All Notes')
   await expect(titleField(page)).toHaveValue('Open one')
-  await body(page).focus()
-  await page.keyboard.insertText('1st')
-  await expect(line(page, '1st second')).toHaveCount(1)
+  // Read from the editor rather than typed: focusing the body moves the browser's caret to its start, and
+  // the editor puts its own selection back only within 200 ms, which a loaded runner missed (issue 962).
+  await expect
+    .poll(() =>
+      body(page).evaluate((el) => {
+        const { anchor, head } = (el as unknown as { cmTile: { view: ViewLike } }).cmTile.view.state
+          .selection.main as { anchor: number; head: number }
+        return { anchor, head }
+      }),
+    )
+    .toEqual({ anchor: 0, head: 5 })
 })
 
 test('Templates come back with the template that was open', async ({ page }) => {
