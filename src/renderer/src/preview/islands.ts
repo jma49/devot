@@ -35,6 +35,8 @@ export interface PreviewIsland {
   apiVersion: typeof PREVIEW_API_VERSION
   /** This source's drawing depends on the element's width: it is drawn again when that changes. */
   followsWidth?(source: string): boolean
+  /** Changes when drawings of the same source may differ, so each is drawn again at its next mount. */
+  revision?(): string
   render(source: string, context: IslandContext): Promise<IslandContent>
 }
 
@@ -339,7 +341,8 @@ export function createIslandMounter(
       const follows = island?.followsWidth?.(source) === true
       // A pane that is hidden has no width: what is drawn stays until it is shown.
       const width = follows ? (drawingWidth(el.clientWidth) ?? known?.width) : undefined
-      const key = `${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${source}`
+      const revision = island?.revision?.() ?? ''
+      const key = `${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${revision}\n${source}`
       // A failure that may pass waits out its backoff; a source that changed
       // starts over at once.
       if (known?.key === key && (!known.retry || known.retryAt > Date.now())) continue

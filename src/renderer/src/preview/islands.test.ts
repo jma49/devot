@@ -128,6 +128,20 @@ describe('createIslandMounter', () => {
     expect(live()).toBe(1)
   })
 
+  it("draws a source again once its island's revision changes, and not before", () => {
+    const { island, requests } = testIsland()
+    let revision = '1'
+    const revised = { ...island, revision: () => revision }
+    const mounter = createIslandMounter(createIslandRegistry([revised]))
+    const host = hostOf([islandElement('a')])
+    mounter.mount(host, { appearance: 'light' })
+    mounter.mount(host, { appearance: 'light' })
+    expect(requests).toHaveLength(1)
+    revision = '2'
+    mounter.mount(host, { appearance: 'light' })
+    expect(requests.map((r) => r.source)).toEqual(['a', 'a'])
+  })
+
   it('aborts a render once a newer one for its element starts, or the mounter goes', () => {
     const { island, requests } = testIsland()
     const mounter = createIslandMounter(createIslandRegistry([island]))

@@ -20,6 +20,7 @@ import {
 } from '../../../core/plugins'
 import { errorCode } from '../../../core/errors'
 import type { DrawingTheme } from '../preview/pluginDrawing'
+import type { NoteStatus } from '../../../core/storage'
 
 export type PortLike = MessagePort
 
@@ -76,6 +77,19 @@ export interface PluginNoteSummary {
   notebook: string | null
   createdAt: number
   updatedAt: number
+  /** Tag names (ADR 0028). */
+  tags: string[]
+  status: NoteStatus
+  pinned: boolean
+}
+
+export interface PluginNote {
+  id: string
+  title: string
+  notebook: string | null
+  markdown: string
+  /** The front matter as JSON values (ADR 0028). */
+  properties: Record<string, unknown>
 }
 
 export interface PluginNotes {
@@ -84,7 +98,7 @@ export interface PluginNotes {
   /** Best matches first, as the app's search finds them. */
   search(query: string, limit: number): Promise<PluginNoteSummary[]>
   /** Throws E_PLUGIN_NOTE_NOT_FOUND for a missing, trashed or template note. */
-  get(id: string): Promise<{ id: string; title: string; notebook: string | null; markdown: string }>
+  get(id: string): Promise<PluginNote>
   notebooks(): Promise<{ id: string; name: string; parent: string | null }[]>
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseManifest, type InstalledPlugin, type PluginPermission } from '../../../core/plugins'
 import {
+  drawsFromLibrary,
   actionEntryId,
   actionOfEntry,
   pluginItems,
@@ -11,7 +12,15 @@ import {
   stopsImport,
 } from './contributions'
 
-const ALL: PluginPermission[] = ['commands', 'menus', 'keymaps', 'preview', 'import', 'export']
+const ALL: PluginPermission[] = [
+  'commands',
+  'menus',
+  'keymaps',
+  'preview',
+  'import',
+  'export',
+  'notes.read',
+]
 
 function plugin(
   id: string,
@@ -105,6 +114,17 @@ describe('plugin contributions', () => {
       { key: 'com.c/r', language: 'csv', output: 'svg' },
     ])
     expect(rendererOfKey('com.a/r')).toEqual({ plugin: 'com.a', renderer: 'r' })
+  })
+})
+
+describe('drawsFromLibrary', () => {
+  it('holds for an enabled renderer that may read notes', () => {
+    expect(drawsFromLibrary([plugin('com.a', { granted: ['preview', 'notes.read'] })])).toBe(true)
+    expect(drawsFromLibrary([plugin('com.a', { granted: ['preview'] })])).toBe(false)
+    expect(drawsFromLibrary([plugin('com.a', { granted: ['notes.read'] })])).toBe(false)
+    expect(
+      drawsFromLibrary([plugin('com.a', { granted: ['preview', 'notes.read'], enabled: false })]),
+    ).toBe(false)
   })
 })
 

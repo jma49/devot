@@ -94,9 +94,36 @@ function plugin(id: string, granted: PluginPermission[], enabled = true): Instal
 }
 
 const NOTES = [
-  { id: 'n1', title: 'Plan', notebook: null, createdAt: 1, updatedAt: 3 },
-  { id: 'n2', title: 'Plan B', notebook: null, createdAt: 1, updatedAt: 2 },
-  { id: 'n3', title: 'Diary', notebook: null, createdAt: 1, updatedAt: 1 },
+  {
+    id: 'n1',
+    title: 'Plan',
+    notebook: null,
+    createdAt: 1,
+    updatedAt: 3,
+    tags: [],
+    status: 'none' as const,
+    pinned: false,
+  },
+  {
+    id: 'n2',
+    title: 'Plan B',
+    notebook: null,
+    createdAt: 1,
+    updatedAt: 2,
+    tags: [],
+    status: 'none' as const,
+    pinned: false,
+  },
+  {
+    id: 'n3',
+    title: 'Diary',
+    notebook: null,
+    createdAt: 1,
+    updatedAt: 1,
+    tags: [],
+    status: 'none' as const,
+    pinned: false,
+  },
 ]
 
 function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'body') {
@@ -144,6 +171,7 @@ function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'b
           title: found.title,
           notebook: null,
           markdown: `# ${found.title}`,
+          properties: {},
         }
       },
       notebooks: async () => [{ id: 'b1', name: 'Work', parent: null }],

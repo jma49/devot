@@ -210,5 +210,6 @@ async function render(source: string, { appearance }: IslandContext): Promise<Is
 export const pluginIsland: PreviewIsland = {
   kind: PLUGIN_ISLAND,
   apiVersion: PREVIEW_API_VERSION,
+  revision: () => revision,
   render,
 }

@@ -39,6 +39,7 @@ import {
   pluginItems,
   pluginKeys,
   rendererOfKey,
+  drawsFromLibrary,
   rendererSpecs,
   slashCommands,
   stopsImport,
@@ -47,6 +48,7 @@ import {
 import { frameConnector, showFrame } from './frames'
 import { createPluginHost, type PluginHost } from './host'
 import { pluginNotes } from './notes'
+import { useLibraryTurn } from './libraryTurn'
 import { pluginRenderersChanged } from './rendererRevision'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
@@ -174,14 +176,16 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   )
 
   // The worker renders the preview again only when the renderers change: never for a list that stays without any.
+  const libraryTurn = useLibraryTurn(drawsFromLibrary(plugins))
   const specsKey = JSON.stringify(rendererSpecs(plugins))
+  const drawnKey = `${specsKey}#${libraryTurn}`
   const applied = useRef<{ core: Core; host: PluginHost; key: string }>(undefined)
   useEffect(() => {
     if (!core || !host) return
     const was = applied.current
-    applied.current = { core, host, key: specsKey }
-    if (specsKey === '[]' && (was === undefined || was.key === '[]')) return
-    if (was?.core === core && was.host === host && was.key === specsKey) return
+    applied.current = { core, host, key: drawnKey }
+    if (specsKey === '[]' && (was === undefined || was.key.startsWith('[]#'))) return
+    if (was?.core === core && was.host === host && was.key === drawnKey) return
     const render = (key: string, source: string) => {
       const target = rendererOfKey(key)
       return target ? host.render(target.plugin, target.renderer, source) : Promise.resolve(null)
@@ -190,7 +194,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     void core
       .setPluginRenderers(specs, Comlink.proxy(render))
       .then(pluginRenderersChanged, () => console.warn('W_PLUGIN_RENDERERS_FAILED'))
-  }, [core, host, specsKey])
+  }, [core, host, drawnKey, specsKey])
 
   useEffect(() => {
     if (!host) return
@@ -199,9 +203,9 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
       return target
         ? host.render(target.plugin, target.renderer, source, theme)
         : Promise.resolve(null)
-    }, specsKey)
+    }, drawnKey)
     return () => setPluginDrawer(undefined, '')
-  }, [host, specsKey])
+  }, [host, drawnKey])
 
   const keys = useMemo(() => {
     const { keys: given, dropped } = pluginKeys(plugins, takenByApp)

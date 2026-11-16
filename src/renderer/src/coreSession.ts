@@ -17,6 +17,7 @@ import {
 } from './saveGuards'
 import { welcomeContent } from './welcome/content'
 import { listSeeded } from './welcome/seed'
+import { libraryWrote } from './plugins/libraryTurn'
 
 export function useCoreSession() {
   const [core, setCore] = useState<Core>()
@@ -82,7 +83,10 @@ export function useCoreStart(
     let started: Core | undefined
     void startCore(onSaveProblems, showWrites, onCoreFailure, {
       lean: !primary,
-      onWrote: lists.wrote,
+      onWrote: () => {
+        lists.wrote()
+        libraryWrote()
+      },
       onAuthored: authorshipChanged,
       onRelay: (message) => relay.link.send(message),
       onTakenIn: takeIn,
