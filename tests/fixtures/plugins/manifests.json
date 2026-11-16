@@ -17,6 +17,19 @@
   },
   "valid": [
     {
+      "name": "an SVG preview renderer from API version 2",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["preview"],
+        "contributes": {
+          "previewRenderers": [
+            { "id": "graph", "language": "dot", "output": "svg" },
+            { "id": "text", "language": "d2-text", "output": "markdown" }
+          ]
+        }
+      }
+    },
+    {
       "name": "a light and a dark theme from API version 2",
       "patch": {
         "apiVersion": 2,
@@ -130,6 +143,27 @@
     }
   ],
   "invalid": [
+    {
+      "name": "an SVG preview renderer in an API version 1 manifest",
+      "patch": {
+        "permissions": ["preview"],
+        "contributes": {
+          "previewRenderers": [{ "id": "graph", "language": "dot", "output": "svg" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a preview renderer of an unknown output",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["preview"],
+        "contributes": {
+          "previewRenderers": [{ "id": "graph", "language": "dot", "output": "png" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
     {
       "name": "a theme in an API version 1 manifest",
       "patch": {

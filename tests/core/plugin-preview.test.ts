@@ -6,18 +6,23 @@ import {
   createPieceRenderer,
   createPreviewRegistry,
   renderPreview,
+  type PluginRendererSpec,
   type RenderPluginBlock,
 } from '../../src/core'
 import { labels } from '../support/preview-html'
 
-const specs = [{ key: 'com.example.chart/chart', language: 'chart' }]
+const specs = [{ key: 'com.example.chart/chart', language: 'chart', output: 'markdown' as const }]
 
-const html = async (markdown: string, render: RenderPluginBlock) =>
+const html = async (
+  markdown: string,
+  render: RenderPluginBlock,
+  rendererSpecs: readonly PluginRendererSpec[] = specs,
+) =>
   toHtml(
     await renderPreview(
       markdown,
       { labels, loadedEmbeds: [] },
-      createPreviewRegistry({ builtins: true, plugins: { specs, render } }),
+      createPreviewRegistry({ builtins: true, plugins: { specs: rendererSpecs, render } }),
     ),
   )
 
@@ -162,5 +167,21 @@ describe('plugin preview renderers', () => {
       first.map((p) => p.key),
     )
     expect(calls).toBe(1)
+  })
+
+  it('leaves a block of a renderer that draws SVG to the page, as an island naming the renderer', async () => {
+    const asked: string[] = []
+    const out = await html(
+      'Intro\n\n```dot\na -> b\n```\n',
+      async (key) => {
+        asked.push(key)
+        return null
+      },
+      [{ key: 'com.example.graphviz/dot', language: 'dot', output: 'svg' }],
+    )
+    expect(asked).toEqual([])
+    expect(out).toContain(
+      '<div class="island island-plugin" data-devot-island="plugin" data-island-source="com.example.graphviz/dot\na -> b" data-source-line="3">',
+    )
   })
 })

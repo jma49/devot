@@ -63,7 +63,7 @@ export {
 } from './code'
 export { createEmojiRenderer, type EmojiTable } from './emoji'
 export { createMathRenderer, type MathEngine } from './math'
-export type { PluginRendererSpec, RenderPluginBlock } from './plugins'
+export { PLUGIN_ISLAND, type PluginRendererSpec, type RenderPluginBlock } from './plugins'
 
 /** GitHub's schema plus `mark`, https iframes and devot:// URLs. Math arrives as `code.language-math` and is rendered after sanitizing. */
 const schema: Schema = {

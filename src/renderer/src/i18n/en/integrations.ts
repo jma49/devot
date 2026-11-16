@@ -165,6 +165,8 @@ export const messages = {
   'plugins.catalogInstalled': 'Installed',
   'plugins.catalogNeedsApp': 'Needs a newer Devot',
   'plugins.catalogNotListed': 'That link names no official plugin.',
+  'plugins.drawingFailed': 'The plugin could not draw this block.',
+  'plugins.drawingLabel': 'Drawing from a plugin',
   'plugins.permission.note.read': 'Read the open note while you use it',
   'plugins.permission.note.edit': 'Change the open note while you use it',
   'plugins.permission.commands': 'Add commands to the command palette',

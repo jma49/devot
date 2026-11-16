@@ -31,6 +31,7 @@ const PERMISSION_SINCE: [u64; 11] = [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2];
 const SETTINGS_SINCE: u64 = 2;
 const SLASH_SINCE: u64 = 2;
 const THEMES_SINCE: u64 = 2;
+const SVG_SINCE: u64 = 2;
 const SETTING_TEXT_MAX: usize = 1000;
 
 const RESERVED_LANGUAGES: [&str; 5] = ["math", "mermaid", "plantuml", "puml", "markmap"];
@@ -77,6 +78,15 @@ pub struct Keymap {
 pub struct Renderer {
     pub id: String,
     pub language: String,
+    pub output: RendererOutput,
+}
+
+/// What a preview renderer answers: Markdown the preview renders as note text, or (from API 2) an SVG drawing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RendererOutput {
+    Markdown,
+    Svg,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -588,9 +598,16 @@ fn contributions(
                 Some(Value::String(l)) if is_language(l) => l.clone(),
                 _ => return Err(CONTRIBUTION),
             };
+            let output = match e.get("output") {
+                None => RendererOutput::Markdown,
+                Some(Value::String(o)) if o == "markdown" => RendererOutput::Markdown,
+                Some(Value::String(o)) if o == "svg" && api >= SVG_SINCE => RendererOutput::Svg,
+                _ => return Err(CONTRIBUTION),
+            };
             Ok(Renderer {
                 id: contribution_id(e.get("id"))?,
                 language,
+                output,
             })
         })
         .collect::<Result<Vec<_>, &'static str>>()?;

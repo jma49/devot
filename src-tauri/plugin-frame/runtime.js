@@ -358,7 +358,7 @@
         handle: register('command.run', (fn) => fn()),
       }),
       preview: Object.freeze({
-        handle: register('preview.render', (fn, { source }) => fn(source)),
+        handle: register('preview.render', (fn, { source, theme }) => fn(source, theme)),
       }),
       importer: Object.freeze({
         handle: register('import.convert', (fn, { name, text }) => fn({ name, text })),

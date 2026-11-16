@@ -20,6 +20,7 @@ function plugin(
     enabled?: boolean
     keys?: string[]
     language?: string
+    output?: 'markdown' | 'svg'
   } = {},
 ): InstalledPlugin {
   const keys = options.keys ?? ['Mod+Shift+U']
@@ -34,7 +35,9 @@ function plugin(
       commands: keys.map((_, i) => ({ id: `c${i}`, title: `Command ${i}` })),
       slashMenu: [{ command: 'c0' }],
       keymaps: keys.map((key, i) => ({ command: `c${i}`, key })),
-      previewRenderers: [{ id: 'r', language: options.language ?? 'chart' }],
+      previewRenderers: [
+        { id: 'r', language: options.language ?? 'chart', output: options.output ?? 'markdown' },
+      ],
       importFormats: [{ id: 'org', title: 'Org Files', extensions: ['org'] }],
       exportFormats: [{ id: 'org', title: 'Org', extension: 'org' }],
     },
@@ -94,12 +97,12 @@ describe('plugin contributions', () => {
       rendererSpecs([
         plugin('com.b'),
         plugin('com.a'),
-        plugin('com.c', { language: 'csv' }),
+        plugin('com.c', { language: 'csv', output: 'svg' }),
         plugin('com.d', { language: 'tsv', granted: ['commands'] }),
       ]),
     ).toEqual([
-      { key: 'com.a/r', language: 'chart' },
-      { key: 'com.c/r', language: 'csv' },
+      { key: 'com.a/r', language: 'chart', output: 'markdown' },
+      { key: 'com.c/r', language: 'csv', output: 'svg' },
     ])
     expect(rendererOfKey('com.a/r')).toEqual({ plugin: 'com.a', renderer: 'r' })
   })

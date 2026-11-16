@@ -42,6 +42,31 @@ export interface DevotFile {
 
 export type DevotSettingValue = boolean | string | number
 
+/** The theme an SVG drawing goes on: colours as `#rrggbb` or `#rrggbbaa`. */
+export interface DevotDrawingTheme {
+  appearance: 'light' | 'dark'
+  colors: {
+    /** The page behind the drawing. */
+    ground: string
+    card: string
+    hairline: string
+    edge: string
+    text: string
+    label: string
+    series1: string
+    series2: string
+    series3: string
+    series4: string
+    series5: string
+    series6: string
+    onSeries: string
+    barTask: string
+    barActive: string
+    barCrit: string
+    onBar: string
+  }
+}
+
 export interface DevotApi {
   /** The plugin API version this Devot speaks. */
   readonly apiVersion: number
@@ -49,8 +74,17 @@ export interface DevotApi {
     handle(id: string, run: () => unknown): void
   }
   readonly preview: {
-    /** Returns the block as Markdown, which Devot sanitizes, or null to leave the block as code. */
-    handle(id: string, render: (source: string) => string | null | Promise<string | null>): void
+    /**
+     * Returns the block as Markdown, which Devot sanitizes, or null to leave the block as code.
+     * A renderer whose `output` is `svg` (API 2) returns SVG markup instead, drawn for `theme`.
+     */
+    handle(
+      id: string,
+      render: (
+        source: string,
+        theme: DevotDrawingTheme | undefined,
+      ) => string | null | Promise<string | null>,
+    ): void
   }
   readonly importer: {
     handle(id: string, convert: (file: DevotFile) => DevotNote | Promise<DevotNote>): void
@@ -149,7 +183,7 @@ export interface DevotManifest {
     menus?: { command: string }[]
     slashMenu?: { command: string }[]
     keymaps?: { command: string; key: string }[]
-    previewRenderers?: { id: string; language: string }[]
+    previewRenderers?: { id: string; language: string; output?: 'markdown' | 'svg' }[]
     importFormats?: { id: string; title: string; extensions: string[] }[]
     exportFormats?: { id: string; title: string; extension: string }[]
     settings?: DevotSetting[]

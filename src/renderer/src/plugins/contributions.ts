@@ -120,7 +120,7 @@ export function rendererSpecs(plugins: readonly InstalledPlugin[]): PluginRender
     if (!granted.has('preview')) continue
     for (const r of plugin.manifest.contributes.previewRenderers) {
       if (out.some((s) => s.language === r.language)) continue
-      out.push({ key: `${plugin.manifest.id}/${r.id}`, language: r.language })
+      out.push({ key: `${plugin.manifest.id}/${r.id}`, language: r.language, output: r.output })
     }
   }
   return out

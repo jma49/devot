@@ -33,6 +33,12 @@ globalThis.evaluated = [() => eval('1 + 1'), () => new Function('return 2')()].m
     return 'blocked'
   }
 })
+try {
+  new WebAssembly.Module(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]))
+  globalThis.wasm = 'ran'
+} catch {
+  globalThis.wasm = 'blocked'
+}
 `
 
 const VICTIM = `
@@ -102,6 +108,8 @@ test('runs each plugin in its own sandboxed frame with an opaque origin, never i
     'blocked',
     'blocked',
   ])
+  // WebAssembly compiles (ADR 0027): a drawing plugin brings its layout engine as WebAssembly in its own script.
+  expect(await frame.evaluate(() => (globalThis as { wasm?: unknown }).wasm)).toBe('ran')
 })
 
 test('cannot reach Tauri or the main window', async ({ page }) => {

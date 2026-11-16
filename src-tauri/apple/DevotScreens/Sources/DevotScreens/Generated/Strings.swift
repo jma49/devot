@@ -4530,6 +4530,14 @@ public enum L10n {
     text("plugins.catalogNotListed", "That link names no official plugin.")
   }
 
+  public static func pluginsDrawingFailed() -> String {
+    text("plugins.drawingFailed", "The plugin could not draw this block.")
+  }
+
+  public static func pluginsDrawingLabel() -> String {
+    text("plugins.drawingLabel", "Drawing from a plugin")
+  }
+
   public static func pluginsPermissionNoteRead() -> String {
     text("plugins.permission.note.read", "Read the open note while you use it")
   }

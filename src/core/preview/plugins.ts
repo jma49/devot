@@ -1,7 +1,9 @@
 // Plugins' preview renderers (ADR 0005): a fenced code block in a plugin's language goes to the plugin, which answers Markdown.
 // The answer is rendered and sanitized like note text, minus anything remote, so a plugin adds only what a note could; a block without an answer stays code.
+// A renderer that answers SVG (ADR 0027) becomes an island instead: the page asks the plugin, which needs the theme on screen.
 import type { Element, ElementContent, Root, RootContent } from 'hast'
 import { textOf } from '../hastText'
+import { island } from './builtins'
 import {
   PIECE_OFFSET_PROPERTIES,
   PREVIEW_API_VERSION,
@@ -13,7 +15,11 @@ export interface PluginRendererSpec {
   /** Names the renderer to the host (`<plugin id>/<renderer id>`). */
   key: string
   language: string
+  output: 'markdown' | 'svg'
 }
+
+/** The island kind of a plugin's drawing; its source is the renderer's key, a newline, then the block. */
+export const PLUGIN_ISLAND = 'plugin'
 
 export type RenderPluginBlock = (key: string, source: string) => Promise<string | null>
 
@@ -50,7 +56,7 @@ export function createPluginRenderer(
   render: RenderPluginBlock,
   toNodes: MarkdownNodes,
 ): PreviewRenderer {
-  const byLanguage = new Map(specs.map((s) => [s.language, s.key]))
+  const byLanguage = new Map(specs.map((s) => [s.language, s]))
   return {
     id: 'devot.plugins',
     apiVersion: PREVIEW_API_VERSION,
@@ -60,8 +66,15 @@ export function createPluginRenderer(
         parent.children.forEach((child, at) => {
           if (child.type !== 'element') return
           const block = child.tagName === 'pre' ? languageOf(child) : undefined
-          const key = block && byLanguage.get(block.language)
-          if (block && key) found.push({ parent, at, pre: child, key })
+          const spec = block && byLanguage.get(block.language)
+          if (spec?.output === 'svg') {
+            const drawing = island(
+              PLUGIN_ISLAND,
+              `${spec.key}\n${textOf(child).replace(/\n$/, '')}`,
+            )
+            if (child.position) drawing.position = child.position
+            parent.children[at] = drawing
+          } else if (spec) found.push({ parent, at, pre: child, key: spec.key })
           else walk(child)
         })
       }

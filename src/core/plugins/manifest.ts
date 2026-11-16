@@ -42,6 +42,7 @@ const PERMISSION_SINCE: Readonly<Record<PluginPermission, number>> = {
 const SETTINGS_SINCE = 2
 const SLASH_SINCE = 2
 const THEMES_SINCE = 2
+const SVG_SINCE = 2
 
 export interface PluginCommand {
   id: string
@@ -64,6 +65,13 @@ export type PluginSetting =
 export type SettingValue = boolean | string | number
 
 /** Colours drawn over the theme chosen in Settings > Appearance, from a JSON file in the package (API 2). */
+/** A preview renderer answers Markdown, or from API 2 an SVG drawing (ADR 0027). */
+export interface PluginRenderer {
+  id: string
+  language: string
+  output: 'markdown' | 'svg'
+}
+
 export interface PluginTheme {
   id: string
   title: string
@@ -77,7 +85,7 @@ export interface PluginContributions {
   /** Commands the editor's slash menu lists (API 2). */
   slashMenu: { command: string }[]
   keymaps: { command: string; key: string }[]
-  previewRenderers: { id: string; language: string }[]
+  previewRenderers: PluginRenderer[]
   importFormats: { id: string; title: string; extensions: string[] }[]
   exportFormats: { id: string; title: string; extension: string }[]
   settings: PluginSetting[]
@@ -355,7 +363,7 @@ function contributions(
     return { command: command(e['command']), key }
   })
   unique(keymaps, (x) => x.command)
-  const previewRenderers = list(c['previewRenderers'], LIMITS.others).map((raw) => {
+  const previewRenderers = list(c['previewRenderers'], LIMITS.others).map((raw): PluginRenderer => {
     const e = entry(raw)
     const language = e['language']
     if (
@@ -365,7 +373,11 @@ function contributions(
     ) {
       return fail('E_PLUGIN_CONTRIBUTION_INVALID')
     }
-    return { id: contributionId(e['id']), language }
+    const output = e['output'] ?? 'markdown'
+    if (output !== 'markdown' && !(output === 'svg' && api >= SVG_SINCE)) {
+      return fail('E_PLUGIN_CONTRIBUTION_INVALID')
+    }
+    return { id: contributionId(e['id']), language, output }
   })
   unique(previewRenderers, (x) => x.id)
   unique(previewRenderers, (x) => x.language)

@@ -877,6 +877,14 @@
   margin: 0 auto;
 }
 
+/* A plugin's drawing (pluginDrawing.ts): nothing in its shadow root draws outside this box. */
+.plugin-drawing {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  contain: paint;
+}
+
 .island-error {
   padding: var(--space-4) var(--space-6);
   border-radius: var(--radius-card);

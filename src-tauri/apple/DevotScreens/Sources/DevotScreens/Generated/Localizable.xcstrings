@@ -26300,6 +26300,40 @@
         }
       }
     },
+    "plugins.drawingFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The plugin could not draw this block."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件无法绘制这个代码块。"
+          }
+        }
+      }
+    },
+    "plugins.drawingLabel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drawing from a plugin"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件绘制的图"
+          }
+        }
+      }
+    },
     "plugins.empty" : {
       "extractionState" : "manual",
       "localizations" : {
