@@ -3,7 +3,7 @@ import { cpus, loadavg } from 'node:os'
 import { budgetScale } from '../support/budget'
 import { expect, openApp, test } from './fixtures'
 import type { ViewLike } from './keystrokes'
-import { longNote } from './longNote'
+import { longNote, waitForLastSection } from './longNote'
 
 // The longest frame in the 2 s after each click: each switch froze WebKit for about 18 s while the scroll sync
 // removed a wheel listener of its own from the preview when Split ended (#782), and still held 0.7 s once the
@@ -48,10 +48,6 @@ test('switching Split to Preview to Edit in a 600 KB note never holds a frame lo
 }) => {
   test.setTimeout(240_000)
   const text = longNote(NOTE_CHARS)
-  const last = text
-    .match(/^## Section \d+$/gm)!
-    .at(-1)!
-    .slice(3)
   await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await body(page).click()
@@ -62,9 +58,7 @@ test('switching Split to Preview to Edit in a 600 KB note never holds a frame lo
   }, text)
   // The preview is built in Split view, under the scroll sync's listeners.
   await modeButton(page, 'Split').click()
-  await expect(preview(page).getByRole('heading', { name: last, exact: true })).toBeAttached({
-    timeout: 60_000,
-  })
+  await waitForLastSection(preview(page), text)
   await page.waitForTimeout(1500)
 
   const toPreview = await longestFrame(page, 'Preview')

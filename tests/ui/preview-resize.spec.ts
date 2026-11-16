@@ -3,7 +3,7 @@ import { expectWithinBudget, setOverloadProbe } from '../support/budget'
 import { machineOverloaded } from '../support/machine-load'
 import { expect, openApp, test } from './fixtures'
 import type { ViewLike } from './keystrokes'
-import { longNote } from './longNote'
+import { longNote, waitForLastSection } from './longNote'
 
 // Resizing the window in Preview on a 600 KB note held one frame for about 2.9 s (#786): the sheet's
 // cutout around the sidebar (sidebarSurround.ts) holds the window's size, and written on the root it
@@ -24,10 +24,6 @@ const modeButton = (page: Page, name: string) =>
   page.getByRole('group', { name: 'View mode' }).getByRole('button', { name, exact: true })
 
 async function openInPreview(page: Page, text: string) {
-  const last = text
-    .match(/^## Section \d+$/gm)!
-    .at(-1)!
-    .slice(3)
   await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await body(page).click()
@@ -37,9 +33,7 @@ async function openInPreview(page: Page, text: string) {
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert } })
   }, text)
   await modeButton(page, 'Preview').click()
-  await expect(preview(page).getByRole('heading', { name: last, exact: true })).toBeAttached({
-    timeout: 60_000,
-  })
+  await waitForLastSection(preview(page), text)
   await page.waitForTimeout(1500)
 }
 
