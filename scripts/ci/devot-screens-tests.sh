@@ -19,6 +19,8 @@ status=0
 xcodebuild test -project DevotScreensTests.xcodeproj -scheme DevotScreensTests \
   -destination "id=$device" -retry-tests-on-failure -test-iterations 2 >"$log" 2>&1 || status=$?
 grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" "$log" || tail -n 60 "$log"
+# A failed run with no failed test (an exit 65 after 409 passes) said why only in the rest of the log.
+[ "$status" -eq 0 ] || tail -n 80 "$log"
 # A green run whose log still has a failed test passed it on the retry: listed so it is fixed.
 if [ "$status" -eq 0 ]; then
   sed -n "s/^Test Case '-\[\(.*\)\]' failed.*/\1/p" "$log" | sort -u | while read -r test; do
