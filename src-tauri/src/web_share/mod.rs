@@ -398,7 +398,7 @@ mod tests {
             created()
         };
         let shared = shares
-            .publish(NOTE, "Plans", "<p>Hi</p>", 7, NOW, &send)
+            .publish(NOTE, "Plans", "<p>Meet at the old mill</p>", 7, NOW, &send)
             .expect("shared");
         let record = store.get(NOTE).unwrap().expect("kept");
         assert_eq!(
@@ -409,9 +409,11 @@ mod tests {
         let page = opened(&sent.lock().unwrap(), &record.key);
         assert_eq!(
             page,
-            serde_json::json!({ "v": 1, "title": "Plans", "html": "<p>Hi</p>" })
+            serde_json::json!({ "v": 1, "title": "Plans", "html": "<p>Meet at the old mill</p>" })
         );
-        assert!(!String::from_utf8_lossy(&sent.lock().unwrap()).contains("Hi"));
+        // Long enough that random ciphertext never holds it by chance, as two bytes sometimes did.
+        let body = String::from_utf8_lossy(&sent.lock().unwrap()).into_owned();
+        assert!(!body.contains("old mill") && !body.contains("Plans"));
     }
 
     #[test]
