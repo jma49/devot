@@ -3973,6 +3973,59 @@ button.note-info-row:focus-visible {
   color: var(--color-status-done);
 }
 
+/* An editable drawing (ADR 0029): its Edit button shows on hover or focus, only where the note can be changed. */
+.plugin-drawing-box {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.plugin-drawing-edit {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  padding: var(--space-1) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--color-surface-editor);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-ui);
+  font-size: calc(var(--font-size-footnote) * var(--preview-scale, 1));
+  opacity: 0;
+  scale: var(--popover-enter-scale);
+  transition:
+    opacity var(--motion-duration-toggle) var(--motion-easing-standard),
+    scale var(--motion-duration-toggle) var(--motion-easing-standard),
+    color var(--motion-duration-color) var(--motion-easing-standard);
+}
+
+.plugin-drawing-box:hover > .plugin-drawing-edit,
+.plugin-drawing-edit:focus-visible {
+  opacity: 1;
+  scale: 1;
+}
+
+.plugin-drawing-edit:hover {
+  color: var(--color-text-primary);
+}
+
+.plugin-drawing-edit:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.preview:not([data-blocks-editable]) .plugin-drawing-edit {
+  display: none;
+}
+
+@media print {
+  .plugin-drawing-edit {
+    display: none;
+  }
+}
+
 .code-copy[data-state='failed'] {
   color: var(--color-status-dropped);
 }

@@ -100,6 +100,11 @@ export interface DevotApi {
         theme: DevotDrawingTheme | undefined,
       ) => string | null | Promise<string | null>,
     ): void
+    /**
+     * For a renderer marked `editable` (API 2): the user chose Edit on its drawing. Show a panel, let them edit, and
+     * return the block's new text, or null to leave it; closing the panel leaves it too.
+     */
+    edit(id: string, edit: (source: string) => string | null | Promise<string | null>): void
   }
   readonly importer: {
     handle(id: string, convert: (file: DevotFile) => DevotNote | Promise<DevotNote>): void
@@ -196,7 +201,13 @@ export interface DevotManifest {
     menus?: { command: string }[]
     slashMenu?: { command: string }[]
     keymaps?: { command: string; key: string }[]
-    previewRenderers?: { id: string; language: string; output?: 'markdown' | 'svg' }[]
+    previewRenderers?: {
+      id: string
+      language: string
+      output?: 'markdown' | 'svg'
+      /** Only with `output: 'svg'`: the drawing offers Edit, which calls `devot.preview.edit`. */
+      editable?: boolean
+    }[]
     importFormats?: { id: string; title: string; extensions: string[] }[]
     exportFormats?: { id: string; title: string; extension: string }[]
     settings?: DevotSetting[]

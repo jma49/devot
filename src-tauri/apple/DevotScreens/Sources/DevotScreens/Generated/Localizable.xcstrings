@@ -26300,6 +26300,23 @@
         }
       }
     },
+    "plugins.drawingEdit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑"
+          }
+        }
+      }
+    },
     "plugins.drawingFailed" : {
       "extractionState" : "manual",
       "localizations" : {

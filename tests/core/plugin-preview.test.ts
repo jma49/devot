@@ -169,7 +169,7 @@ describe('plugin preview renderers', () => {
     expect(calls).toBe(1)
   })
 
-  it('leaves a block of a renderer that draws SVG to the page, as an island naming the renderer', async () => {
+  it('leaves a block of a renderer that draws SVG to the page, as an island naming the renderer and where the block is', async () => {
     const asked: string[] = []
     const out = await html(
       'Intro\n\n```dot\na -> b\n```\n',
@@ -181,7 +181,7 @@ describe('plugin preview renderers', () => {
     )
     expect(asked).toEqual([])
     expect(out).toContain(
-      '<div class="island island-plugin" data-devot-island="plugin" data-island-source="com.example.graphviz/dot\na -> b" data-source-line="3">',
+      '<div class="island island-plugin" data-devot-island="plugin" data-island-source="com.example.graphviz/dot\na -> b" data-block-from="7" data-block-to="24" data-source-line="3">',
     )
   })
 })

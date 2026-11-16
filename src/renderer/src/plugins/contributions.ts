@@ -136,6 +136,20 @@ export function drawsFromLibrary(plugins: readonly InstalledPlugin[]): boolean {
   )
 }
 
+/** The keys of the drawn renderers whose blocks the plugin may edit (ADR 0029). */
+export function editableRenderers(plugins: readonly InstalledPlugin[]): string[] {
+  const editable = new Set(
+    enabled(plugins).flatMap(({ plugin }) =>
+      plugin.manifest.contributes.previewRenderers
+        .filter((r) => r.editable)
+        .map((r) => `${plugin.manifest.id}/${r.id}`),
+    ),
+  )
+  return rendererSpecs(plugins)
+    .map((s) => s.key)
+    .filter((key) => editable.has(key))
+}
+
 export function rendererOfKey(key: string): { plugin: string; renderer: string } | undefined {
   const at = key.lastIndexOf('/')
   return at > 0 ? { plugin: key.slice(0, at), renderer: key.slice(at + 1) } : undefined

@@ -79,6 +79,8 @@ pub struct Renderer {
     pub id: String,
     pub language: String,
     pub output: RendererOutput,
+    /// The page offers to edit the block in the plugin (ADR 0029); only a drawing may be.
+    pub editable: bool,
 }
 
 /// What a preview renderer answers: Markdown the preview renders as note text, or (from API 2) an SVG drawing.
@@ -604,10 +606,16 @@ fn contributions(
                 Some(Value::String(o)) if o == "svg" && api >= SVG_SINCE => RendererOutput::Svg,
                 _ => return Err(CONTRIBUTION),
             };
+            let editable = match e.get("editable") {
+                None | Some(Value::Bool(false)) => false,
+                Some(Value::Bool(true)) if output == RendererOutput::Svg => true,
+                _ => return Err(CONTRIBUTION),
+            };
             Ok(Renderer {
                 id: contribution_id(e.get("id"))?,
                 language,
                 output,
+                editable,
             })
         })
         .collect::<Result<Vec<_>, &'static str>>()?;

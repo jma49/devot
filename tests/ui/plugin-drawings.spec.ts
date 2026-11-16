@@ -41,6 +41,24 @@ const index = testPlugin(
 )
 index.manifest['apiVersion'] = 2
 
+const PAD = `
+devot.preview.handle('pad', (source) =>
+  '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40"><text x="4" y="24">' + source + '</text></svg>')
+devot.preview.edit('pad', async (source) => {
+  if (source !== 'keep') return source + '!'
+  await devot.ui.show({ height: 120 })
+  return new Promise(() => {})
+})
+`
+
+const sketch = testPlugin(
+  'com.example.sketch',
+  ['preview'],
+  { previewRenderers: [{ id: 'pad', language: 'pad', output: 'svg', editable: true }] },
+  PAD,
+)
+sketch.manifest['apiVersion'] = 2
+
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 
 async function previewOf(page: Page, text: string) {
@@ -54,7 +72,7 @@ async function previewOf(page: Page, text: string) {
 test.use({ colorScheme: 'light' })
 
 test.beforeEach(async ({ page }) => {
-  await servePlugins(page, [graphs, index])
+  await servePlugins(page, [graphs, index, sketch])
   await openApp(page)
   await pluginFrame(page, 'com.example.graphs')
 })
@@ -104,4 +122,30 @@ test('draws a block that lists notes again once the notes change', async ({ page
   await expect(drawing).toHaveText('Alpha')
   await title.fill('Beta')
   await expect(drawing).toHaveText('Beta')
+})
+
+test('edits a drawn block in its plugin and puts the edit in the note, or leaves it when the panel closes', async ({
+  page,
+}) => {
+  await pluginFrame(page, 'com.example.sketch')
+  const preview = await previewOf(page, '```pad\nhi\n```\n\n```pad\nkeep\n```\n')
+  const [edited, kept] = [
+    preview.locator('.plugin-drawing-box').first(),
+    preview.locator('.plugin-drawing-box').last(),
+  ]
+  await expect(edited.locator('text')).toHaveText('hi')
+  await expect(preview.locator('.plugin-drawing-box .plugin-drawing-edit')).toHaveCount(2)
+  await edited.hover()
+  await edited.getByRole('button', { name: 'Edit' }).click()
+  await expect(edited.locator('text')).toHaveText('hi!')
+  await kept.hover()
+  await kept.getByRole('button', { name: 'Edit' }).click()
+  const panel = page.getByRole('dialog', { name: 'Plugin sketch' })
+  await expect(panel).toBeVisible()
+  await panel.getByRole('button', { name: 'Close' }).click()
+  await expect(panel).toBeHidden()
+  await expect(kept.locator('text')).toHaveText('keep')
+  await page.keyboard.press('Meta+KeyE')
+  await expect(body(page)).toContainText('hi!')
+  await expect(body(page)).not.toContainText('keep!')
 })

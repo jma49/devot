@@ -259,12 +259,14 @@
   const handlers = {
     'command.run': new Map(),
     'preview.render': new Map(),
+    'preview.edit': new Map(),
     'import.convert': new Map(),
     'export.convert': new Map(),
   }
   const target = {
     'command.run': 'command',
     'preview.render': 'renderer',
+    'preview.edit': 'renderer',
     'import.convert': 'format',
     'export.convert': 'format',
   }
@@ -359,6 +361,7 @@
       }),
       preview: Object.freeze({
         handle: register('preview.render', (fn, { source, theme }) => fn(source, theme)),
+        edit: register('preview.edit', (fn, { source }) => fn(source)),
       }),
       importer: Object.freeze({
         handle: register('import.convert', (fn, { name, text }) => fn({ name, text })),

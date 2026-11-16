@@ -444,6 +444,7 @@ export function NotePane({
                 onOpenImage={setViewing}
                 onImageMenu={showImageMenu}
                 onToggleTask={editing ? (at) => void editorRef.current?.toggleTask(at) : undefined}
+                blocksEditable={editing}
                 initialScroll={takePreviewScroll}
                 onScroll={previewScrolled}
               />

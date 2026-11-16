@@ -64,14 +64,15 @@ export type PluginSetting =
 
 export type SettingValue = boolean | string | number
 
-/** Colours drawn over the theme chosen in Settings > Appearance, from a JSON file in the package (API 2). */
-/** A preview renderer answers Markdown, or from API 2 an SVG drawing (ADR 0027). */
+/** A preview renderer answers Markdown, or from API 2 an SVG drawing (ADR 0027) that may be `editable` (ADR 0029). */
 export interface PluginRenderer {
   id: string
   language: string
   output: 'markdown' | 'svg'
+  editable: boolean
 }
 
+/** Colours drawn over the theme chosen in Settings > Appearance, from a JSON file in the package (API 2). */
 export interface PluginTheme {
   id: string
   title: string
@@ -377,7 +378,11 @@ function contributions(
     if (output !== 'markdown' && !(output === 'svg' && api >= SVG_SINCE)) {
       return fail('E_PLUGIN_CONTRIBUTION_INVALID')
     }
-    return { id: contributionId(e['id']), language, output }
+    const editable = e['editable'] ?? false
+    if (typeof editable !== 'boolean' || (editable && output !== 'svg')) {
+      return fail('E_PLUGIN_CONTRIBUTION_INVALID')
+    }
+    return { id: contributionId(e['id']), language, output, editable }
   })
   unique(previewRenderers, (x) => x.id)
   unique(previewRenderers, (x) => x.language)

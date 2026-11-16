@@ -1,6 +1,7 @@
 // What a plugin with `notes.read` sees of the notes (ADR 0022, 0028): live notes outside Templates and the Trash, read through
 // the core as the app reads them, never written.
 import { TEMPLATES_BOOK_ID } from '../../../core/books'
+import { noteProperties } from '../../../core/frontMatter'
 import type { NoteSummary } from '../../../core/storage'
 import type { Core } from '../core-client'
 import type { PluginNoteSummary, PluginNotes } from './host'
@@ -52,8 +53,6 @@ export function pluginNotes(core: () => Core | undefined): PluginNotes {
           throw new Error('E_PLUGIN_NOTE_NOT_FOUND')
         })
       if (note.bookId === TEMPLATES_BOOK_ID) throw new Error('E_PLUGIN_NOTE_NOT_FOUND')
-      // Loaded on the first read, so the main window starts without the Markdown parser.
-      const { noteProperties } = await import('../../../core/frontMatter')
       return {
         id: note.id,
         title: note.title,

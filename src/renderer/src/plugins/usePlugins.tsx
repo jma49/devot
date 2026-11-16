@@ -40,14 +40,14 @@ import {
   pluginKeys,
   rendererOfKey,
   drawsFromLibrary,
+  editableRenderers,
   rendererSpecs,
   slashCommands,
   stopsImport,
   type PluginAction,
 } from './contributions'
 import { frameConnector, showFrame } from './frames'
-import { createPluginHost, type PluginHost } from './host'
-import { pluginNotes } from './notes'
+import { createPluginHost, type PluginHost, type PluginNotes } from './host'
 import { useLibraryTurn } from './libraryTurn'
 import { pluginRenderersChanged } from './rendererRevision'
 import { setPluginDrawer } from '../preview/pluginDrawing'
@@ -59,11 +59,25 @@ export interface PluginWindow {
   /** Applies a Yjs update the core returned to the editor, as one undo step, if it still shows the note. */
   applyUpdate(noteId: string, update: Uint8Array): void
   /** The editor, while it is ready. */
-  editor(): Pick<EditorHandle, 'noteId' | 'pluginSelection' | 'pluginInsert'> | null
+  editor(): Pick<
+    EditorHandle,
+    'noteId' | 'pluginSelection' | 'pluginInsert' | 'pluginBlockEdit'
+  > | null
   /** Where imported notes go: the notebook shown, or none. */
   importBook(): string | null
   /** The lists show what an import made. */
   imported(): void
+}
+
+/** The notes plugins read load on a plugin's first read, so the main window starts without them. */
+function lazyNotes(core: () => Core | undefined): PluginNotes {
+  const loaded = () => import('./notes').then(({ pluginNotes }) => pluginNotes(core))
+  return {
+    list: async (limit) => (await loaded()).list(limit),
+    search: async (query, limit) => (await loaded()).search(query, limit),
+    get: async (id) => (await loaded()).get(id),
+    notebooks: async () => (await loaded()).notebooks(),
+  }
 }
 
 const takenByApp = (key: string) =>
@@ -125,7 +139,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         if (refused) throw new Error(refused)
       },
       storage: pluginStorage,
-      notes: pluginNotes(() => latest.current.core ?? undefined),
+      notes: lazyNotes(() => latest.current.core ?? undefined),
       settings: pluginSettings,
       showUi: (plugin, height) => setPanel({ plugin, height }),
       hideUi: (plugin) => setPanel((now) => (now?.plugin === plugin ? null : now)),
@@ -196,16 +210,38 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
       .then(pluginRenderersChanged, () => console.warn('W_PLUGIN_RENDERERS_FAILED'))
   }, [core, host, drawnKey, specsKey])
 
+  const editableKey = JSON.stringify(editableRenderers(plugins))
   useEffect(() => {
     if (!host) return
-    setPluginDrawer((key, source, theme) => {
+    const editBlock = async (key: string, source: string, at: { from: number; to: number }) => {
       const target = rendererOfKey(key)
-      return target
-        ? host.render(target.plugin, target.renderer, source, theme)
-        : Promise.resolve(null)
-    }, drawnKey)
+      if (!target) return
+      try {
+        if (!editingAllowed()) throw new Error(LICENCE_REQUIRED)
+        const { app: w } = latest.current
+        const noteId = w.openNote()?.id
+        const text = await host.edit(target.plugin, target.renderer, source)
+        if (text === null) return
+        const editor = w.editor()
+        if (!noteId || editor?.noteId !== noteId) throw new Error('E_PLUGIN_NOTE_CHANGED')
+        const refused = await editor.pluginBlockEdit({ ...at, source }, text)
+        if (refused) throw new Error(refused)
+      } catch (error) {
+        fail(target.plugin, error)
+      }
+    }
+    setPluginDrawer(
+      (key, source, theme) => {
+        const target = rendererOfKey(key)
+        return target
+          ? host.render(target.plugin, target.renderer, source, theme)
+          : Promise.resolve(null)
+      },
+      `${drawnKey}#${editableKey}`,
+      { editable: new Set(JSON.parse(editableKey) as string[]), edit: editBlock },
+    )
     return () => setPluginDrawer(undefined, '')
-  }, [host, drawnKey])
+  }, [host, drawnKey, editableKey, fail])
 
   const keys = useMemo(() => {
     const { keys: given, dropped } = pluginKeys(plugins, takenByApp)

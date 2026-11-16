@@ -70,7 +70,15 @@ export function createPluginRenderer(
               PLUGIN_ISLAND,
               `${spec.key}\n${textOf(child).replace(/\n$/, '')}`,
             )
-            if (child.position) drawing.position = child.position
+            // Where the block is in the note, so the page can put an edit of it back (ADR 0029).
+            if (child.position) {
+              drawing.position = child.position
+              const { start, end } = child.position
+              if (start.offset !== undefined && end.offset !== undefined) {
+                drawing.properties['dataBlockFrom'] = start.offset
+                drawing.properties['dataBlockTo'] = end.offset
+              }
+            }
             parent.children[at] = drawing
           } else if (spec) found.push({ parent, at, pre: child, key: spec.key })
           else walk(child)

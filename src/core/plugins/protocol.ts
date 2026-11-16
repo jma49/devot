@@ -28,7 +28,12 @@ const PLUGIN_METHODS = [
 export type PluginMethod = (typeof PLUGIN_METHODS)[number]
 
 /** Methods the host calls on a plugin. */
-export type HostMethod = 'command.run' | 'preview.render' | 'import.convert' | 'export.convert'
+export type HostMethod =
+  | 'command.run'
+  | 'preview.render'
+  | 'preview.edit'
+  | 'import.convert'
+  | 'export.convert'
 
 const METHOD_PERMISSION: Readonly<Record<PluginMethod, PluginPermission | null>> = {
   'note.read': 'note.read',
@@ -74,6 +79,8 @@ export const MAX_PENDING_CALLS = 64
 export const HOST_CALL_TIMEOUT_MS: Readonly<Record<HostMethod, number>> = {
   'command.run': 60_000,
   'preview.render': 5_000,
+  // The user edits the block in the plugin's panel for as long as they like.
+  'preview.edit': 60 * 60_000,
   'import.convert': 30_000,
   'export.convert': 30_000,
 }
@@ -289,6 +296,7 @@ export interface Converted {
 /** A plugin's answer to a host call, checked; throws E_PLUGIN_RESULT_INVALID. */
 export function checkResult(method: 'command.run', value: unknown): null
 export function checkResult(method: 'preview.render', value: unknown): string | null
+export function checkResult(method: 'preview.edit', value: unknown): string | null
 export function checkResult(method: 'import.convert', value: unknown): Converted
 export function checkResult(method: 'export.convert', value: unknown): string
 export function checkResult(method: HostMethod, value: unknown): unknown {
@@ -301,6 +309,13 @@ export function checkResult(method: HostMethod, value: unknown): unknown {
     case 'preview.render':
       if (value === null || value === undefined) return null
       return typeof value === 'string' && value.length <= MAX_RENDER_CHARS ? value : invalid()
+    case 'preview.edit':
+      if (value === null || value === undefined) return null
+      return typeof value === 'string' &&
+        wellFormed(value) === value &&
+        utf8Length(value) <= MAX_BODY_BYTES
+        ? value
+        : invalid()
     case 'import.convert': {
       if (!isRecord(value)) return invalid()
       const { title, markdown } = value

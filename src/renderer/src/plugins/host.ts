@@ -113,6 +113,11 @@ export interface PluginHost {
     source: string,
     theme?: DrawingTheme,
   ): Promise<string | null>
+  /**
+   * Asks the plugin for a drawn block's new text (ADR 0029), the plugin active meanwhile; null when the user closes its
+   * panel or the plugin declines.
+   */
+  edit(plugin: string, renderer: string, source: string): Promise<string | null>
   convertImport(
     plugin: string,
     format: string,
@@ -144,6 +149,8 @@ interface Session {
   seq: number
   running: number
   shown: boolean
+  /** Ends the block edit under way as declined. */
+  editing?: (() => void) | undefined
   calls: number
   stopped: boolean
 }
@@ -171,6 +178,7 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
   const markHidden = (s: Session) => {
     if (!s.shown) return
     s.shown = false
+    s.editing?.()
     void tell(s, { name: 'ui.hidden' })
   }
 
@@ -382,6 +390,24 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
           theme ? { renderer, source, theme } : { renderer, source },
         ),
       )
+    },
+
+    async edit(plugin, renderer, source) {
+      const s = session(plugin)
+      if (s.editing) throw new Error('E_PLUGIN_BUSY')
+      const closed = new Promise<null>((resolve) => (s.editing = () => resolve(null)))
+      s.running += 1
+      try {
+        return await Promise.race([
+          request(plugin, 'preview.edit', { renderer, source }).then((value) =>
+            checkResult('preview.edit', value),
+          ),
+          closed,
+        ])
+      } finally {
+        s.running -= 1
+        s.editing = undefined
+      }
     },
 
     async convertImport(plugin, format, file) {

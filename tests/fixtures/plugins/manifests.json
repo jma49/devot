@@ -30,6 +30,18 @@
       }
     },
     {
+      "name": "an editable SVG preview renderer",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["preview"],
+        "contributes": {
+          "previewRenderers": [
+            { "id": "sketch", "language": "sketch", "output": "svg", "editable": true }
+          ]
+        }
+      }
+    },
+    {
       "name": "a light and a dark theme from API version 2",
       "patch": {
         "apiVersion": 2,
@@ -149,6 +161,30 @@
         "permissions": ["preview"],
         "contributes": {
           "previewRenderers": [{ "id": "graph", "language": "dot", "output": "svg" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "an editable preview renderer that answers Markdown",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["preview"],
+        "contributes": {
+          "previewRenderers": [{ "id": "text", "language": "text2", "editable": true }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a preview renderer whose editable is not true or false",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["preview"],
+        "contributes": {
+          "previewRenderers": [
+            { "id": "sketch", "language": "sketch", "output": "svg", "editable": "yes" }
+          ]
         }
       },
       "code": "E_PLUGIN_CONTRIBUTION_INVALID"
