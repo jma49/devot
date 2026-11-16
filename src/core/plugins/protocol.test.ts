@@ -5,6 +5,7 @@ import {
   checkResult,
   MAX_RENDER_CHARS,
   MAX_STORAGE_VALUE_BYTES,
+  NOTES_LIMIT,
   readMessage,
   type CallMessage,
 } from './protocol'
@@ -216,5 +217,48 @@ describe('storage and settings calls', () => {
     }
     expect(checkCall(call('storage.get', { key: 'k', extra: 1 }), storage)).toEqual(refused)
     expect(checkCall(call('storage.keys', { key: 'k' }), storage)).toEqual(refused)
+  })
+})
+
+describe('note reading calls', () => {
+  const reader = context(['notes.read'], false)
+
+  it('need notes.read, not note.read, and no running command', () => {
+    expect(checkCall(call('notes.list'), context(['note.read'], true))).toEqual({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
+    expect(checkCall(call('notebooks.list'), reader)).toEqual({
+      ok: true,
+      call: { method: 'notebooks.list' },
+    })
+  })
+
+  it('cap how many notes one call answers', () => {
+    expect(checkCall(call('notes.list'), reader)).toEqual({
+      ok: true,
+      call: { method: 'notes.list', limit: NOTES_LIMIT.default },
+    })
+    expect(checkCall(call('notes.list', { limit: 10_000 }), reader)).toEqual({
+      ok: true,
+      call: { method: 'notes.list', limit: NOTES_LIMIT.max },
+    })
+    expect(checkCall(call('notes.search', { query: 'plan', limit: 10_000 }), reader)).toEqual({
+      ok: true,
+      call: { method: 'notes.search', query: 'plan', limit: NOTES_LIMIT.search },
+    })
+  })
+
+  it('refuse a bad limit, query or note ID', () => {
+    const refused = { ok: false, code: 'E_PLUGIN_MESSAGE_INVALID' }
+    for (const limit of [0, -1, 1.5, '5']) {
+      expect(checkCall(call('notes.list', { limit }), reader)).toEqual(refused)
+    }
+    for (const query of ['', '   ', 'q'.repeat(201), '\ud800', 7]) {
+      expect(checkCall(call('notes.search', { query }), reader)).toEqual(refused)
+    }
+    for (const id of ['', '../x', 'a b', 'x'.repeat(65), 1]) {
+      expect(checkCall(call('notes.get', { id }), reader)).toEqual(refused)
+    }
   })
 })

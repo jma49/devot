@@ -162,6 +162,8 @@ export const messages = {
   'plugins.permission.import': 'Import files you pick in its formats',
   'plugins.permission.export': 'Export the open note in its formats',
   'plugins.permission.storage': 'Keep its own data on this Mac',
+  'plugins.permission.notesRead':
+    'Read all your notes and notebooks, outside Templates and the Trash',
   'plugins.settingsLabel': '{name} settings',
   'plugins.settingFailed': 'The setting could not be changed.',
   'plugins.importAs': 'Import {title}…',

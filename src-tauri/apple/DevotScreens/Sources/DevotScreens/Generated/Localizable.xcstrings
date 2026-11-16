@@ -26436,6 +26436,23 @@
         }
       }
     },
+    "plugins.permission.notesRead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read all your notes and notebooks, outside Templates and the Trash"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取你的所有笔记和笔记本（模板和废纸篓除外）"
+          }
+        }
+      }
+    },
     "plugins.permission.preview" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -65,11 +65,26 @@ function plugin(id: string, granted: PluginPermission[], enabled = true): Instal
     version: '1.0.0',
     apiVersion: 2,
     main: 'main.js',
-    permissions: ['note.read', 'note.edit', 'commands', 'preview', 'import', 'export', 'storage'],
+    permissions: [
+      'note.read',
+      'note.edit',
+      'commands',
+      'preview',
+      'import',
+      'export',
+      'storage',
+      'notes.read',
+    ],
     contributes: { commands: [{ id: 'go', title: 'Go' }] },
   })
   return { manifest, enabled, granted }
 }
+
+const NOTES = [
+  { id: 'n1', title: 'Plan', notebook: null, createdAt: 1, updatedAt: 3 },
+  { id: 'n2', title: 'Plan B', notebook: null, createdAt: 1, updatedAt: 2 },
+  { id: 'n3', title: 'Diary', notebook: null, createdAt: 1, updatedAt: 1 },
+]
 
 function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'body') {
   const warnings: [string, string][] = []
@@ -92,6 +107,16 @@ function setup(answers: Record<string, ReturnType<typeof fakePlugin>>, note = 'b
       delete: async (p, key) => void stored.delete(`${p} ${key}`),
       keys: async (p) =>
         [...stored.keys()].filter((k) => k.startsWith(`${p} `)).map((k) => k.slice(p.length + 1)),
+    },
+    notes: {
+      list: async (limit) => NOTES.slice(0, limit),
+      search: async (query, limit) => NOTES.filter((n) => n.title.includes(query)).slice(0, limit),
+      get: async (id) => {
+        const found = NOTES.find((n) => n.id === id)
+        if (!found) throw new Error('E_PLUGIN_NOTE_NOT_FOUND')
+        return { id, title: found.title, notebook: null, markdown: `# ${found.title}` }
+      },
+      notebooks: async () => [{ id: 'b1', name: 'Work', parent: null }],
     },
     settings: async (p) => ({ unit: p === 'com.a' ? 'km' : 'mi' }),
     showUi: vi.fn<PluginHostDeps['showUi']>(),
@@ -260,6 +285,14 @@ describe('the plugin host', () => {
         delete: async () => {},
         keys: async () => [],
       },
+      notes: {
+        list: async () => [],
+        search: async () => [],
+        get: async () => {
+          throw new Error('E_PLUGIN_NOTE_NOT_FOUND')
+        },
+        notebooks: async () => [],
+      },
       settings: async () => ({}),
       showUi: () => {},
       hideUi: () => {},
@@ -342,5 +375,37 @@ describe('the plugin host', () => {
     host.settingsChanged('com.a')
     await vi.waitFor(() => expect(a.events).toEqual(['settings.changed']))
     expect(b.events).toEqual([])
+  })
+
+  it('lists, searches and reads notes for a plugin with notes.read, at any time', async () => {
+    const a = fakePlugin()
+    const b = fakePlugin()
+    const { host } = setup({ 'com.a': a, 'com.b': b })
+    host.load([plugin('com.a', ['notes.read']), plugin('com.b', ['commands'])])
+    await host.run('com.b', 'go')
+    expect(await a.call('notes.list', { limit: 2 })).toMatchObject({
+      ok: true,
+      value: [{ id: 'n1' }, { id: 'n2' }],
+    })
+    expect(await a.call('notes.search', { query: 'Plan' })).toMatchObject({
+      ok: true,
+      value: [{ id: 'n1' }, { id: 'n2' }],
+    })
+    expect(await a.call('notes.get', { id: 'n3' })).toMatchObject({
+      ok: true,
+      value: { id: 'n3', title: 'Diary', markdown: '# Diary' },
+    })
+    expect(await a.call('notes.get', { id: 'gone' })).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_NOTE_NOT_FOUND',
+    })
+    expect(await a.call('notebooks.list')).toMatchObject({
+      ok: true,
+      value: [{ id: 'b1', name: 'Work' }],
+    })
+    expect(await b.call('notes.list')).toMatchObject({
+      ok: false,
+      code: 'E_PLUGIN_PERMISSION_DENIED',
+    })
   })
 })

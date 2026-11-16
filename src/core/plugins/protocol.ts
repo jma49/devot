@@ -18,6 +18,10 @@ const PLUGIN_METHODS = [
   'storage.delete',
   'storage.keys',
   'settings.get',
+  'notes.list',
+  'notes.search',
+  'notes.get',
+  'notebooks.list',
 ] as const
 export type PluginMethod = (typeof PLUGIN_METHODS)[number]
 
@@ -34,6 +38,10 @@ const METHOD_PERMISSION: Readonly<Record<PluginMethod, PluginPermission | null>>
   'storage.delete': 'storage',
   'storage.keys': 'storage',
   'settings.get': null,
+  'notes.list': 'notes.read',
+  'notes.search': 'notes.read',
+  'notes.get': 'notes.read',
+  'notebooks.list': 'notes.read',
 }
 
 /** The note methods, and showing a panel, work only while a command of the plugin runs or its panel is open. */
@@ -45,6 +53,10 @@ export const MAX_RENDER_CHARS = 256 * 1024
 const MAX_EXPORT_CHARS = 20 * 1024 * 1024
 /** A stored value as JSON; Rust also caps a plugin's whole store (`plugins/storage.rs`). */
 export const MAX_STORAGE_VALUE_BYTES = 256 * 1024
+/** Notes one `notes.list` or `notes.search` answers at most, and when the plugin names no limit. */
+export const NOTES_LIMIT = { max: 500, search: 100, default: 50 } as const
+const MAX_QUERY_CHARS = 200
+const NOTE_ID = /^[A-Za-z0-9-]{1,64}$/
 const STORAGE_KEY = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/
 const MAX_JSON_DEPTH = 32
 /** Calls a plugin may have waiting on the host at once. */
@@ -66,6 +78,10 @@ export type PluginCall =
   | { method: 'storage.delete'; key: string }
   | { method: 'storage.keys' }
   | { method: 'settings.get' }
+  | { method: 'notes.list'; limit: number }
+  | { method: 'notes.search'; query: string; limit: number }
+  | { method: 'notes.get'; id: string }
+  | { method: 'notebooks.list' }
 
 export type JsonValue =
   | null
@@ -160,6 +176,13 @@ function isJson(value: unknown, depth = 0): value is JsonValue {
   )
 }
 
+function limit(p: Record<string, unknown>, max: number): number | null {
+  const value = p['limit'] ?? NOTES_LIMIT.default
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+    ? Math.min(value, max)
+    : null
+}
+
 const storageKey = (p: Record<string, unknown>): string | null => {
   const key = p['key']
   return typeof key === 'string' && STORAGE_KEY.test(key) ? key : null
@@ -173,7 +196,23 @@ function params(call: CallMessage, method: PluginMethod): PluginCall | null {
     case 'ui.hide':
     case 'storage.keys':
     case 'settings.get':
+    case 'notebooks.list':
       return Object.keys(p).length === 0 ? { method } : null
+    case 'notes.list': {
+      const n = limit(p, NOTES_LIMIT.max)
+      return n === null ? null : { method, limit: n }
+    }
+    case 'notes.search': {
+      const n = limit(p, NOTES_LIMIT.search)
+      const query = p['query']
+      if (n === null || typeof query !== 'string' || wellFormed(query) !== query) return null
+      if (query.trim() === '' || [...query].length > MAX_QUERY_CHARS) return null
+      return { method, query, limit: n }
+    }
+    case 'notes.get': {
+      const id = p['id']
+      return typeof id === 'string' && NOTE_ID.test(id) ? { method, id } : null
+    }
     case 'storage.get':
     case 'storage.delete': {
       const key = storageKey(p)

@@ -12,7 +12,7 @@ pub const API_OLDEST: u64 = 1;
 pub const MAX_BYTES: usize = 64 * 1024;
 pub const RESERVED_FOLDER: &str = "__devot";
 
-pub const PERMISSIONS: [&str; 9] = [
+pub const PERMISSIONS: [&str; 10] = [
     "note.read",
     "note.edit",
     "commands",
@@ -22,10 +22,11 @@ pub const PERMISSIONS: [&str; 9] = [
     "import",
     "export",
     "storage",
+    "notes.read",
 ];
 
 /// The API version that added each permission, in the order of `PERMISSIONS`.
-const PERMISSION_SINCE: [u64; 9] = [1, 1, 1, 1, 1, 1, 1, 1, 2];
+const PERMISSION_SINCE: [u64; 10] = [1, 1, 1, 1, 1, 1, 1, 1, 2, 2];
 const SETTINGS_SINCE: u64 = 2;
 const SETTING_TEXT_MAX: usize = 1000;
 

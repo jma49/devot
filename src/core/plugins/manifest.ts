@@ -18,6 +18,7 @@ const PLUGIN_PERMISSIONS = [
   'import',
   'export',
   'storage',
+  'notes.read',
 ] as const
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number]
 
@@ -32,6 +33,7 @@ const PERMISSION_SINCE: Readonly<Record<PluginPermission, number>> = {
   import: 1,
   export: 1,
   storage: 2,
+  'notes.read': 2,
 }
 
 /** Settings came with API version 2. */

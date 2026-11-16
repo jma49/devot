@@ -4514,6 +4514,10 @@ public enum L10n {
     text("plugins.permission.storage", "Keep its own data on this Mac")
   }
 
+  public static func pluginsPermissionNotesRead() -> String {
+    text("plugins.permission.notesRead", "Read all your notes and notebooks, outside Templates and the Trash")
+  }
+
   public static func pluginsSettingsLabel(name p0: String) -> String {
     fill(text("plugins.settingsLabel", "{name} settings"), ["name": p0])
   }

@@ -26,6 +26,10 @@
     { "name": "a minimum app version", "patch": { "minAppVersion": "1.1.7" } },
     { "name": "API version 2", "patch": { "apiVersion": 2 } },
     {
+      "name": "notes.read from API version 2",
+      "patch": { "apiVersion": 2, "permissions": ["notes.read"], "contributes": null }
+    },
+    {
       "name": "storage from API version 2",
       "patch": { "apiVersion": 2, "permissions": ["storage"], "contributes": null }
     },
@@ -92,6 +96,11 @@
     }
   ],
   "invalid": [
+    {
+      "name": "notes.read asked for by an API version 1 manifest",
+      "patch": { "permissions": ["notes.read"], "contributes": null },
+      "code": "E_PLUGIN_PERMISSION_UNKNOWN"
+    },
     {
       "name": "storage asked for by an API version 1 manifest",
       "patch": { "permissions": ["storage"], "contributes": null },

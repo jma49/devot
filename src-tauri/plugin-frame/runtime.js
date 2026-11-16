@@ -364,6 +364,12 @@
         delete: (key) => call('storage.delete', { key }).then(() => undefined),
         keys: () => call('storage.keys'),
       }),
+      notes: Object.freeze({
+        list: (options = {}) => call('notes.list', { limit: options.limit }),
+        search: (text, options = {}) => call('notes.search', { query: text, limit: options.limit }),
+        get: (id) => call('notes.get', { id }),
+      }),
+      notebooks: Object.freeze({ list: () => call('notebooks.list') }),
       settings: Object.freeze({
         get: () => call('settings.get'),
         onChange: (fn) => {

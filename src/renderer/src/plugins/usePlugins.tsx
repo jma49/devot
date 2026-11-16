@@ -43,6 +43,7 @@ import {
 } from './contributions'
 import { frameConnector, showFrame } from './frames'
 import { createPluginHost, type PluginHost } from './host'
+import { pluginNotes } from './notes'
 import { pluginRenderersChanged } from './rendererRevision'
 import { failureText, logFailure } from '../failure'
 
@@ -101,6 +102,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
       },
       storage: pluginStorage,
+      notes: pluginNotes(() => latest.current.core ?? undefined),
       settings: pluginSettings,
       showUi: (plugin, height) => setPanel({ plugin, height }),
       hideUi: (plugin) => setPanel((now) => (now?.plugin === plugin ? null : now)),

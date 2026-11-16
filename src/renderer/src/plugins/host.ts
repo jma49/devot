@@ -39,6 +39,8 @@ export interface PluginHostDeps {
   replaceNote(edit: { base: string; markdown: string }): Promise<void>
   /** The plugin's own store (Rust checks its `storage` permission again). */
   storage: PluginStorage
+  /** Live notes outside Templates and the Trash, for a plugin with `notes.read`. */
+  notes: PluginNotes
   /** Every setting the plugin's manifest declares, with its value. */
   settings(plugin: string): Promise<Record<string, unknown>>
   showUi(plugin: string, height: number): void
@@ -51,6 +53,24 @@ export interface PluginStorage {
   set(plugin: string, key: string, value: JsonValue): Promise<void>
   delete(plugin: string, key: string): Promise<void>
   keys(plugin: string): Promise<string[]>
+}
+
+export interface PluginNoteSummary {
+  id: string
+  title: string
+  notebook: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface PluginNotes {
+  /** Most recently changed first. */
+  list(limit: number): Promise<PluginNoteSummary[]>
+  /** Best matches first, as the app's search finds them. */
+  search(query: string, limit: number): Promise<PluginNoteSummary[]>
+  /** Throws E_PLUGIN_NOTE_NOT_FOUND for a missing, trashed or template note. */
+  get(id: string): Promise<{ id: string; title: string; notebook: string | null; markdown: string }>
+  notebooks(): Promise<{ id: string; name: string; parent: string | null }[]>
 }
 
 export interface PluginHost {
@@ -149,6 +169,14 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
         return deps.storage.keys(s.id)
       case 'settings.get':
         return deps.settings(s.id)
+      case 'notes.list':
+        return deps.notes.list(call.limit)
+      case 'notes.search':
+        return deps.notes.search(call.query, call.limit)
+      case 'notes.get':
+        return deps.notes.get(call.id)
+      case 'notebooks.list':
+        return deps.notes.notebooks()
     }
   }
 
