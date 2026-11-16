@@ -28,6 +28,7 @@ pub const PERMISSIONS: [&str; 10] = [
 /// The API version that added each permission, in the order of `PERMISSIONS`.
 const PERMISSION_SINCE: [u64; 10] = [1, 1, 1, 1, 1, 1, 1, 1, 2, 2];
 const SETTINGS_SINCE: u64 = 2;
+const SLASH_SINCE: u64 = 2;
 const SETTING_TEXT_MAX: usize = 1000;
 
 const RESERVED_LANGUAGES: [&str; 5] = ["math", "mermaid", "plantuml", "puml", "markmap"];
@@ -164,6 +165,7 @@ fn is_setting_text(text: &str) -> bool {
 pub struct Contributions {
     pub commands: Vec<Command>,
     pub menus: Vec<Menu>,
+    pub slash_menu: Vec<Menu>,
     pub keymaps: Vec<Keymap>,
     pub preview_renderers: Vec<Renderer>,
     pub import_formats: Vec<ImportFormat>,
@@ -527,6 +529,18 @@ fn contributions(
         })
         .collect::<Result<Vec<_>, &'static str>>()?;
     unique(menus.iter().map(|x| x.command.as_str()))?;
+    let slash_menu = list(c.get("slashMenu"), COMMANDS_MAX)?
+        .iter()
+        .map(|raw| {
+            Ok(Menu {
+                command: command(entry(raw)?.get("command"))?,
+            })
+        })
+        .collect::<Result<Vec<_>, &'static str>>()?;
+    unique(slash_menu.iter().map(|x| x.command.as_str()))?;
+    if !slash_menu.is_empty() && api < SLASH_SINCE {
+        return Err(CONTRIBUTION);
+    }
     let keymaps = list(c.get("keymaps"), COMMANDS_MAX)?
         .iter()
         .map(|raw| {
@@ -606,6 +620,7 @@ fn contributions(
         (!commands.is_empty(), "commands"),
         (!menus.is_empty(), "menus"),
         (!menus.is_empty(), "commands"),
+        (!slash_menu.is_empty(), "commands"),
         (!keymaps.is_empty(), "keymaps"),
         (!keymaps.is_empty(), "commands"),
         (!preview_renderers.is_empty(), "preview"),
@@ -621,6 +636,7 @@ fn contributions(
     Ok(Contributions {
         commands,
         menus,
+        slash_menu,
         keymaps,
         preview_renderers,
         import_formats,

@@ -16,6 +16,17 @@
     }
   },
   "valid": [
+    {
+      "name": "a command in the slash menu from API version 2",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["note.edit", "commands"],
+        "contributes": {
+          "commands": [{ "id": "bold", "title": "Bold" }],
+          "slashMenu": [{ "command": "bold" }]
+        }
+      }
+    },
     { "name": "the base", "patch": {} },
     {
       "name": "no optional fields",
@@ -96,6 +107,41 @@
     }
   ],
   "invalid": [
+    {
+      "name": "the slash menu in an API version 1 manifest",
+      "patch": {
+        "permissions": ["commands"],
+        "contributes": {
+          "commands": [{ "id": "bold", "title": "Bold" }],
+          "slashMenu": [{ "command": "bold" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "the slash menu naming an unknown command",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["commands"],
+        "contributes": {
+          "commands": [{ "id": "bold", "title": "Bold" }],
+          "slashMenu": [{ "command": "italic" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "one command twice in the slash menu",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["commands"],
+        "contributes": {
+          "commands": [{ "id": "bold", "title": "Bold" }],
+          "slashMenu": [{ "command": "bold" }, { "command": "bold" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
     {
       "name": "notes.read asked for by an API version 1 manifest",
       "patch": { "permissions": ["notes.read"], "contributes": null },

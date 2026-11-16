@@ -264,6 +264,7 @@ export const messages: Record<keyof typeof en, string> = {
   'slash.groupBasic': '基本格式',
   'slash.groupAlerts': '提示块',
   'slash.groupOther': '其他',
+  'slash.groupPlugins': '插件',
   'slash.blockquote': '引用',
   'slash.codeblock': '代码块',
   'slash.imageFile': '图片文件',

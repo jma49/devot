@@ -1642,6 +1642,10 @@ public enum L10n {
     text("slash.groupOther", "Other")
   }
 
+  public static func slashGroupPlugins() -> String {
+    text("slash.groupPlugins", "Plugins")
+  }
+
   public static func slashBlockquote() -> String {
     text("slash.blockquote", "Blockquote")
   }

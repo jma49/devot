@@ -18,6 +18,7 @@ import { keyMatches } from '../commands/keys'
 import { COMMANDS, commandKeys, RESERVED_KEYS } from '../commands/registry'
 import type { Core } from '../core-client'
 import type { EditorHandle } from '../editor/handle'
+import { setSlashPlugins } from '../editor/slashPlugins'
 import { format, t } from '../i18n'
 import { isImeKey } from '../ime'
 import { editingAllowed, LICENCE_REQUIRED, openLicenceSettings } from '../licence'
@@ -39,6 +40,7 @@ import {
   pluginKeys,
   rendererOfKey,
   rendererSpecs,
+  slashCommands,
   stopsImport,
   type PluginAction,
 } from './contributions'
@@ -240,6 +242,12 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     },
     [host, fail],
   )
+
+  const slash = useMemo(() => slashCommands(plugins), [plugins])
+  useEffect(() => {
+    setSlashPlugins(slash, (plugin, id) => void act({ kind: 'command', plugin, id }))
+    return () => setSlashPlugins([], null)
+  }, [slash, act])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

@@ -60,6 +60,7 @@ describe('parseManifest', () => {
       contributes: {
         commands: [{ id: 'count', title: 'Count Words' }],
         menus: [{ command: 'count' }],
+        slashMenu: [],
         keymaps: [{ command: 'count', key: 'Mod+Shift+U' }],
         previewRenderers: [],
         importFormats: [],

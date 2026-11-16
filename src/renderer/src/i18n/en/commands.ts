@@ -268,6 +268,7 @@ export const messages = {
   'slash.groupBasic': 'Basic Formatting',
   'slash.groupAlerts': 'Alerts',
   'slash.groupOther': 'Other',
+  'slash.groupPlugins': 'Plugins',
   'slash.blockquote': 'Blockquote',
   'slash.codeblock': 'Codeblock',
   'slash.imageFile': 'Image File',
