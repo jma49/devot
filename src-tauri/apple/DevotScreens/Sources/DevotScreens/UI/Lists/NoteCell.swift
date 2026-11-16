@@ -103,9 +103,11 @@ final class NoteCell: UICollectionViewListCell {
         return first.isEmpty ? L10n.noteUntitled() : first
     }
 
-    /// One space while the excerpt is on its way keeps the row two lines tall from the first paint.
+    /// One space, while the excerpt is on its way or when the note has no text, keeps the row two lines
+    /// tall from the first paint. An empty line collapsed the row when its excerpt arrived, and the rows
+    /// below moved up under a tap already aimed at them (#967).
     private static func second(_ row: Row) -> String {
-        let excerpt = row.excerpt ?? " "
+        let excerpt = row.excerpt.flatMap { $0.isEmpty ? nil : $0 } ?? " "
         guard let tag = row.tag else { return excerpt }
         return "#\(tag.name) \(excerpt)"
     }
