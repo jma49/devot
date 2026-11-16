@@ -10,6 +10,7 @@ import { startShortcutSettings } from './commands/shortcutSettings'
 import { editorSettings, startEditorSettings, subscribeEditorSettings } from './editorSettings'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
+import { startBackdropPainter } from './theme/backdropWindow'
 import { startMotion } from './motionPreference'
 import { startSidebarSurround } from './sidebarSurround'
 import { applyMotionScale } from './motionTiming'
@@ -25,6 +26,7 @@ document.title = t('settings.title')
 watchCompositions(window)
 startEditorSettings()
 startAppearance()
+startBackdropPainter()
 startMotion()
 applyMotionScale(document.documentElement)
 startShortcutSettings()

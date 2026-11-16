@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  backdropPaints,
   backdropThemes,
   compile,
   cssValue,
@@ -284,6 +285,29 @@ describe('token compiler', () => {
       expect(themed).toContain(
         `--backdrop: linear-gradient(160deg, ${mixed('rgb(0 0 128 / 0.5)', 'rgb(0 64 64 / 0.5)')} 0%`,
       )
+    })
+
+    it('gives each gradient as numbers too, rounded as the CSS writes them, for painting it dithered', () => {
+      expect(backdropPaints(backdrops)).toEqual({
+        dawn: {
+          light: {
+            angle: 160,
+            solid: [128, 128, 0, 0.5],
+            stops: [
+              { color: [255, 0, 0, 0.5], position: 0 },
+              { color: [0, 255, 0, 0.5], position: 1 },
+            ],
+          },
+          dark: {
+            angle: 160,
+            solid: [0, 64, 64, 0.5],
+            stops: [
+              { color: [0, 0, 128, 0.5], position: 0 },
+              { color: [0, 128, 0, 0.5], position: 1 },
+            ],
+          },
+        },
+      })
     })
 
     it('refuses a gradient theme without both appearances, or with an id that is not a plain word', () => {

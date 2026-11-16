@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client'
 import { editorSettings, startEditorSettings, subscribeEditorSettings } from './editorSettings'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
+import { startBackdropPainter } from './theme/backdropWindow'
 import { startMotion } from './motionPreference'
 import { applyMotionScale } from './motionTiming'
 import { resolveLocale, setLocale, t } from './i18n'
@@ -22,6 +23,7 @@ document.title = t('quickCapture.windowTitle')
 watchCompositions(window)
 startEditorSettings()
 startAppearance()
+startBackdropPainter()
 startMotion()
 applyMotionScale(document.documentElement)
 if (!DEVOT_UI_TEST) {

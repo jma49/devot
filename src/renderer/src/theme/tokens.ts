@@ -1580,3 +1580,319 @@ export const phoneThemes = {
     }
   }
 } as const
+
+/** The gradient themes' backdrops as numbers (design/tokens/backdrops.tokens.json). */
+export const backdrops = {
+  "dawn": {
+    "light": {
+      "angle": 160,
+      "solid": [
+        248,
+        216,
+        227,
+        0.7
+      ],
+      "stops": [
+        {
+          "color": [
+            245,
+            196,
+            216,
+            0.7
+          ],
+          "position": 0
+        },
+        {
+          "color": [
+            248,
+            216,
+            227,
+            0.7
+          ],
+          "position": 0.5
+        },
+        {
+          "color": [
+            253,
+            238,
+            220,
+            0.7
+          ],
+          "position": 1
+        }
+      ]
+    },
+    "dark": {
+      "angle": 160,
+      "solid": [
+        58,
+        31,
+        44,
+        0.6
+      ],
+      "stops": [
+        {
+          "color": [
+            74,
+            34,
+            54,
+            0.6
+          ],
+          "position": 0
+        },
+        {
+          "color": [
+            58,
+            31,
+            44,
+            0.6
+          ],
+          "position": 0.5
+        },
+        {
+          "color": [
+            61,
+            44,
+            37,
+            0.6
+          ],
+          "position": 1
+        }
+      ]
+    }
+  },
+  "tide": {
+    "light": {
+      "angle": 160,
+      "solid": [
+        216,
+        227,
+        248,
+        0.7
+      ],
+      "stops": [
+        {
+          "color": [
+            196,
+            216,
+            247,
+            0.7
+          ],
+          "position": 0
+        },
+        {
+          "color": [
+            216,
+            227,
+            248,
+            0.7
+          ],
+          "position": 0.5
+        },
+        {
+          "color": [
+            198,
+            229,
+            242,
+            0.7
+          ],
+          "position": 1
+        }
+      ]
+    },
+    "dark": {
+      "angle": 160,
+      "solid": [
+        27,
+        40,
+        65,
+        0.6
+      ],
+      "stops": [
+        {
+          "color": [
+            30,
+            47,
+            80,
+            0.6
+          ],
+          "position": 0
+        },
+        {
+          "color": [
+            27,
+            40,
+            65,
+            0.6
+          ],
+          "position": 0.5
+        },
+        {
+          "color": [
+            22,
+            58,
+            68,
+            0.6
+          ],
+          "position": 1
+        }
+      ]
+    }
+  },
+  "sage": {
+    "light": {
+      "angle": 160,
+      "solid": [
+        220,
+        236,
+        214,
+        0.7
+      ],
+      "stops": [
+        {
+          "color": [
+            201,
+            230,
+            210,
+            0.7
+          ],
+          "position": 0
+        },
+        {
+          "color": [
+            220,
+            236,
+            214,
+            0.7
+          ],
+          "position": 0.5
+        },
+        {
+          "color": [
+            218,
+            233,
+            191,
+            0.7
+          ],
+          "position": 1
+        }
+      ]
+    },
+    "dark": {
+      "angle": 160,
+      "solid": [
+        29,
+        42,
+        34,
+        0.6
+      ],
+      "stops": [
+        {
+          "color": [
+            30,
+            58,
+            42,
+            0.6
+          ],
+          "position": 0
+        },
+        {
+          "color": [
+            29,
+            42,
+            34,
+            0.6
+          ],
+          "position": 0.5
+        },
+        {
+          "color": [
+            47,
+            55,
+            32,
+            0.6
+          ],
+          "position": 1
+        }
+      ]
+    }
+  },
+  "ember": {
+    "light": {
+      "angle": 160,
+      "solid": [
+        252,
+        211,
+        170,
+        0.7
+      ],
+      "stops": [
+        {
+          "color": [
+            249,
+            218,
+            149,
+            0.7
+          ],
+          "position": 0
+        },
+        {
+          "color": [
+            252,
+            211,
+            170,
+            0.7
+          ],
+          "position": 0.5
+        },
+        {
+          "color": [
+            255,
+            198,
+            160,
+            0.7
+          ],
+          "position": 1
+        }
+      ]
+    },
+    "dark": {
+      "angle": 160,
+      "solid": [
+        74,
+        44,
+        20,
+        0.6
+      ],
+      "stops": [
+        {
+          "color": [
+            79,
+            59,
+            14,
+            0.6
+          ],
+          "position": 0
+        },
+        {
+          "color": [
+            74,
+            44,
+            20,
+            0.6
+          ],
+          "position": 0.5
+        },
+        {
+          "color": [
+            99,
+            36,
+            25,
+            0.6
+          ],
+          "position": 1
+        }
+      ]
+    }
+  }
+} as const

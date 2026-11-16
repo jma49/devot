@@ -253,6 +253,41 @@ export function backdropThemes(
   })
 }
 
+/** A colour as CSS writes it: red, green and blue 0 to 255, alpha 0 to 1. */
+export type BackdropColour = readonly [number, number, number, number]
+
+function paintColour(c: ColorValue): BackdropColour {
+  const [r, g, b] = c.components.map((x) => Math.round(x * 255)) as [number, number, number]
+  return [r, g, b, c.alpha === undefined ? 1 : round(c.alpha)]
+}
+
+/** A gradient theme's backdrop as numbers, for painting it where CSS would band (theme/backdropPaint.ts). */
+export interface BackdropPaint {
+  angle: number
+  solid: BackdropColour
+  stops: { color: BackdropColour; position: number }[]
+}
+
+export function backdropPaints(
+  backdrops: TokenTree,
+): Record<string, { light: BackdropPaint; dark: BackdropPaint }> {
+  const flat = flatten(backdrops)
+  return Object.fromEntries(
+    backdropThemes(backdrops).map(({ id }) => {
+      const paint = (appearance: 'light' | 'dark'): BackdropPaint => {
+        const stops = flat.find((t) => t.path === `backdrop.${id}.${appearance}`)!
+          .value as GradientStop[]
+        return {
+          angle: BACKDROP_DEGREES,
+          solid: paintColour(colourAt(stops, 0.5)),
+          stops: stops.map((s) => ({ color: paintColour(s.color), position: round(s.position) })),
+        }
+      }
+      return [id, { light: paint('light'), dark: paint('dark') }]
+    }),
+  )
+}
+
 /** The iPhone's own theme slots (`phone-theme.<id>.light|dark.<slot>`) that stand in for a theme colour. */
 export const PHONE_THEME_COLOURS: Readonly<Record<string, string>> = {
   background: 'color.phone.background',
@@ -436,6 +471,9 @@ export function compile(
       null,
       2,
     )} as const`,
+    '',
+    "/** The gradient themes' backdrops as numbers (design/tokens/backdrops.tokens.json). */",
+    `export const backdrops = ${JSON.stringify(backdropPaints(backdrops), null, 2)} as const`,
     '',
   ].join('\n')
 

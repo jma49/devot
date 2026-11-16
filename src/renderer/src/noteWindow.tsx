@@ -14,6 +14,7 @@ import { applyMotionScale } from './motionTiming'
 import { NoteWindow } from './noteWindow/NoteWindow'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
+import { startBackdropPainter } from './theme/backdropWindow'
 import './theme/tokens.css'
 import './app.css'
 import './preview/content.css'
@@ -36,6 +37,7 @@ watchCompositions(window)
 startEditorSettings()
 startShortcutSettings()
 startAppearance()
+startBackdropPainter()
 startMotion()
 applyMotionScale(document.documentElement)
 if (!DEVOT_UI_TEST) {
