@@ -77,8 +77,15 @@ test('changes that cannot be saved stay, are reported and are saved once writing
   await expect(body(page)).toHaveText('saved first, then more')
   expect((await stored(page, 'Kept'))?.bodyMd).toBe('saved first')
 
-  await failNoteWrites(page)
-  await notice(page).getByRole('button', { name: 'Try Again' }).click()
+  // Writing works again and Try Again is pressed in one task: the core's own retry, a second or more
+  // apart, otherwise saved both notes and took the notice and its button away before the click (issue 943).
+  await expect(notice(page).getByRole('button', { name: 'Try Again' })).toBeVisible()
+  await page.evaluate(() => {
+    localStorage.removeItem('devot.test.failNoteWrites')
+    const alert = document.querySelector('[role="alert"]')
+    const buttons = [...(alert?.querySelectorAll('button') ?? [])]
+    buttons.find((button) => button.textContent === 'Try Again')!.click()
+  })
   await expect(notice(page)).toHaveCount(0)
   expect((await stored(page, 'Kept'))?.bodyMd).toBe('saved first, then more')
   expect(await stored(page, 'Other, renamed')).toBeDefined()

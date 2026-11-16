@@ -98,7 +98,18 @@ export interface MockMirror {
  * Every UI test runs with Object.prototype frozen (as the app does) and Tauri IPC mocked;
  * the `window.devot*` globals hold the mock state. Storage is the in-memory adapter (vite.ui-test.config.ts).
  */
-export const test = base.extend<{ install: 'kept' | 'new' }>({
+export const test = base.extend<{ install: 'kept' | 'new' }, { warmBrowser: void }>({
+  // A worker's first page starts WebKit's processes from cold, which took 21 s of a 30 s test on a busy runner
+  // (issue 950): each worker opens one before its first test, under its own time limit.
+  warmBrowser: [
+    async ({ browser }, use) => {
+      const context = await browser.newContext()
+      await context.newPage()
+      await context.close()
+      await use()
+    },
+    { scope: 'worker', auto: true, timeout: 60_000 },
+  ],
   // UI tests run as an install from before Write mode (Edit by default, lastState.ts) unless they ask for a new one.
   install: ['kept', { option: true }],
   page: async ({ page, install }, use) => {
