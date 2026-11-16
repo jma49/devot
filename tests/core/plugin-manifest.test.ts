@@ -46,6 +46,7 @@ describe('parseManifest', () => {
       name: 'Word Count',
       version: '1.2.0',
       apiVersion: 1,
+      minAppVersion: '',
       description: '',
       author: '',
       main: 'main.js',

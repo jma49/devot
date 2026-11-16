@@ -3,7 +3,10 @@
 import { isRecord } from '../isRecord'
 import { trimWhitespace } from '../text'
 
-const PLUGIN_API_VERSION = 1
+/** The newest plugin API this Devot speaks; a later one is additive, so a plugin written for an older one still runs. */
+export const PLUGIN_API_VERSION = 1
+/** The oldest plugin API still run (ADR 0020: one is kept at least 12 months after the next ships). */
+export const PLUGIN_API_OLDEST = 1
 
 const PLUGIN_PERMISSIONS = [
   'note.read',
@@ -16,6 +19,18 @@ const PLUGIN_PERMISSIONS = [
   'export',
 ] as const
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number]
+
+/** The API version that added each permission: a manifest written for an older one cannot ask for it. */
+const PERMISSION_SINCE: Readonly<Record<PluginPermission, number>> = {
+  'note.read': 1,
+  'note.edit': 1,
+  commands: 1,
+  menus: 1,
+  keymaps: 1,
+  preview: 1,
+  import: 1,
+  export: 1,
+}
 
 export interface PluginCommand {
   id: string
@@ -35,7 +50,9 @@ export interface PluginManifest {
   id: string
   name: string
   version: string
-  apiVersion: typeof PLUGIN_API_VERSION
+  apiVersion: number
+  /** The oldest Devot release it runs on (`major.minor.patch`), or empty. */
+  minAppVersion: string
   description: string
   author: string
   main: string
@@ -160,7 +177,23 @@ export function isPackagePath(value: unknown): value is string {
   )
 }
 
-function permissions(value: unknown): PluginPermission[] {
+function apiVersion(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    return fail('E_PLUGIN_API_VERSION')
+  }
+  if (value > PLUGIN_API_VERSION) return fail('E_PLUGIN_API_TOO_NEW')
+  if (value < PLUGIN_API_OLDEST) return fail('E_PLUGIN_API_RETIRED')
+  return value
+}
+
+function minAppVersion(value: unknown): string {
+  if (value === undefined) return ''
+  return typeof value === 'string' && VERSION.test(value)
+    ? value
+    : fail('E_PLUGIN_MANIFEST_INVALID')
+}
+
+function permissions(value: unknown, api: number): PluginPermission[] {
   if (value === undefined) return []
   if (!Array.isArray(value) || value.length > PLUGIN_PERMISSIONS.length) {
     return fail('E_PLUGIN_MANIFEST_INVALID')
@@ -170,6 +203,7 @@ function permissions(value: unknown): PluginPermission[] {
     if (!(PLUGIN_PERMISSIONS as readonly unknown[]).includes(p)) {
       return fail('E_PLUGIN_PERMISSION_UNKNOWN')
     }
+    if (PERMISSION_SINCE[p as PluginPermission] > api) return fail('E_PLUGIN_PERMISSION_UNKNOWN')
     if (out.includes(p as PluginPermission)) return fail('E_PLUGIN_MANIFEST_INVALID')
     out.push(p as PluginPermission)
   }
@@ -256,19 +290,20 @@ function contributions(value: unknown, granted: readonly PluginPermission[]): Pl
 export function parseManifest(value: unknown): PluginManifest {
   if (!isRecord(value)) return fail('E_PLUGIN_MANIFEST_INVALID')
   if (!isPluginId(value['id'])) return fail('E_PLUGIN_ID_INVALID')
-  if (value['apiVersion'] !== PLUGIN_API_VERSION) return fail('E_PLUGIN_API_VERSION')
+  const api = apiVersion(value['apiVersion'])
   const version = value['version']
   if (typeof version !== 'string' || !VERSION.test(version)) {
     return fail('E_PLUGIN_MANIFEST_INVALID')
   }
   const main = value['main']
   if (!isPackagePath(main) || !main.endsWith('.js')) return fail('E_PLUGIN_MANIFEST_INVALID')
-  const granted = permissions(value['permissions'])
+  const granted = permissions(value['permissions'], api)
   return {
     id: value['id'],
     name: requiredText(value['name'], LIMITS.name),
     version,
-    apiVersion: PLUGIN_API_VERSION,
+    apiVersion: api,
+    minAppVersion: minAppVersion(value['minAppVersion']),
     description: optionalText(value['description'], LIMITS.description),
     author: optionalText(value['author'], LIMITS.author),
     main,

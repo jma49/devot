@@ -153,3 +153,16 @@ test('shows why a package was refused, by its code', async ({ page }) => {
   await page.getByRole('button', { name: 'Install from Archive…' }).click()
   await expect(page.getByRole('alert')).toHaveText('The plugin could not be installed.')
 })
+
+test('says a package needs a newer Devot', async ({ page }) => {
+  await fakeRust(page, null)
+  await page.addInitScript(() => {
+    const w = window
+    w.devotIpcMocks = { ...w.devotIpcMocks, plugin_install_pick: { error: 'E_PLUGIN_APP_TOO_OLD' } }
+  })
+  await openSettings(page, 'Plugins')
+  await page.getByRole('button', { name: 'Install from Archive…' }).click()
+  await expect(page.getByRole('alert')).toHaveText(
+    'The plugin could not be installed. It needs a newer version of Devot.',
+  )
+})

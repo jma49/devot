@@ -173,10 +173,12 @@ mod tests {
         files.insert(manifest::FILE.to_string(), MANIFEST.as_bytes().to_vec());
         files.insert("dist/main.js".to_string(), b"devot".to_vec());
         files.insert("icon.svg".to_string(), b"<svg/>".to_vec());
-        let staged = plugins.stage(Package {
-            manifest: manifest::parse_bytes(MANIFEST.as_bytes()).unwrap(),
-            files,
-        });
+        let staged = plugins
+            .stage(Package {
+                manifest: manifest::parse_bytes(MANIFEST.as_bytes()).unwrap(),
+                files,
+            })
+            .unwrap();
         plugins.install(staged.token).unwrap();
         (data, plugins)
     }

@@ -21,6 +21,9 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
   E_APP_STORE_UPSTREAM: 'failure.serverUnavailable',
   E_APP_STORE_UNAVAILABLE: 'failure.serverUnavailable',
   E_APP_STORE_PRODUCT_UNAVAILABLE: 'failure.serverUnavailable',
+  E_PLUGIN_API_TOO_NEW: 'failure.pluginNeedsNewerDevot',
+  E_PLUGIN_APP_TOO_OLD: 'failure.pluginNeedsNewerDevot',
+  E_PLUGIN_API_RETIRED: 'failure.pluginTooOld',
 }
 
 /** Messages that already advise what to do next: no reason is added after them. */

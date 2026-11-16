@@ -1,5 +1,5 @@
 {
-  "about": "Plugin manifest cases run by src/core/plugins/manifest.test.ts and src-tauri/src/plugins/manifest.rs. Each case is the base with its patch's keys set on top (null removes a key).",
+  "about": "Plugin manifest cases run by tests/core/plugin-manifest.test.ts and src-tauri/src/plugins/manifest.rs. Each case is the base with its patch's keys set on top (null removes a key). appVersions: whether a minAppVersion runs on an app version, which only Rust decides.",
   "base": {
     "id": "com.example.word-count",
     "name": "Word Count",
@@ -23,6 +23,7 @@
     },
     { "name": "a main script in a folder", "patch": { "main": "dist/plugin.min.js" } },
     { "name": "a one-part id", "patch": { "id": "wordcount" } },
+    { "name": "a minimum app version", "patch": { "minAppVersion": "1.1.7" } },
     { "name": "unknown keys are left out", "patch": { "homepage": "https://example.com" } },
     {
       "name": "every contribution",
@@ -78,7 +79,33 @@
       "patch": { "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
       "code": "E_PLUGIN_ID_INVALID"
     },
-    { "name": "another API version", "patch": { "apiVersion": 2 }, "code": "E_PLUGIN_API_VERSION" },
+    {
+      "name": "an API version newer than this Devot speaks",
+      "patch": { "apiVersion": 2 },
+      "code": "E_PLUGIN_API_TOO_NEW"
+    },
+    { "name": "API version 0", "patch": { "apiVersion": 0 }, "code": "E_PLUGIN_API_VERSION" },
+    {
+      "name": "a fractional API version",
+      "patch": { "apiVersion": 1.5 },
+      "code": "E_PLUGIN_API_VERSION"
+    },
+    { "name": "no API version", "patch": { "apiVersion": null }, "code": "E_PLUGIN_API_VERSION" },
+    {
+      "name": "a minimum app version of two parts",
+      "patch": { "minAppVersion": "1.2" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "a minimum app version with a prerelease",
+      "patch": { "minAppVersion": "1.2.0-beta1" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "a minimum app version as a number",
+      "patch": { "minAppVersion": 1 },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
     {
       "name": "an API version as text",
       "patch": { "apiVersion": "1" },
@@ -203,6 +230,30 @@
       "code": "E_PLUGIN_CONTRIBUTION_INVALID"
     },
     {
+      "name": "a renderer for the built-in plantuml language",
+      "patch": {
+        "permissions": ["preview"],
+        "contributes": { "previewRenderers": [{ "id": "taken", "language": "plantuml" }] }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a renderer for the built-in puml language",
+      "patch": {
+        "permissions": ["preview"],
+        "contributes": { "previewRenderers": [{ "id": "taken", "language": "puml" }] }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a renderer for the built-in markmap language",
+      "patch": {
+        "permissions": ["preview"],
+        "contributes": { "previewRenderers": [{ "id": "taken", "language": "markmap" }] }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
       "name": "two renderers for one language",
       "patch": {
         "permissions": ["preview"],
@@ -252,5 +303,15 @@
       "patch": { "contributes": [] },
       "code": "E_PLUGIN_CONTRIBUTION_INVALID"
     }
+  ],
+  "appVersions": [
+    { "minAppVersion": "", "app": "1.0.0", "runs": true },
+    { "minAppVersion": "1.2.0", "app": "1.2.0", "runs": true },
+    { "minAppVersion": "1.2.0", "app": "1.1.7", "runs": false },
+    { "minAppVersion": "1.2.0", "app": "1.10.0", "runs": true },
+    { "minAppVersion": "1.2.0", "app": "1.2.0-beta3", "runs": true },
+    { "minAppVersion": "1.2.0", "app": "1.1.9-beta1", "runs": false },
+    { "minAppVersion": "2.0.0", "app": "1.99.99", "runs": false },
+    { "minAppVersion": "9.0.0", "app": "0.0.0", "runs": true }
   ]
 }

@@ -8,7 +8,7 @@ A plugin is a folder of static files with a manifest. The user installs it from 
 - The manifest (at most 64 KiB of JSON):
   - `id`: lowercase letters and digits in parts joined by `.` or `-` (`com.example.word-count`), at most 64 characters; `devot` and `devot.*` are reserved.
   - `name` (1 to 60 characters, one line), `version` (`major.minor.patch`), optional `description` (300) and `author` (100).
-  - `apiVersion`: the extension API version it was written for (`PLUGIN_API_VERSION`, 1 now). Another version is refused, never run in a mode it was not written for.
+  - `apiVersion`: the extension API version it was written for (`PLUGIN_API_VERSION`, 1 now). Another version is refused, never run in a mode it was not written for. ADR 0020 amends this: versions only add, and every version from `PLUGIN_API_OLDEST` on runs; an optional `minAppVersion` names the oldest Devot release a plugin runs on.
   - `main`: the script the plugin's page runs, a `.js` file in the package.
   - `permissions`: what it asks for, from the list below, each once.
   - `contributes`: `commands` (`id`, `title`), `menus` (`command`), `keymaps` (`command`, `key`), `previewRenderers` (`id`, `language`), `importFormats` (`id`, `title`, `extensions`) and `exportFormats` (`id`, `title`, `extension`). A contribution needs its permission, and menus and keymaps name one of the plugin's commands.
