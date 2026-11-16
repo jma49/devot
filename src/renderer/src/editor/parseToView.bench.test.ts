@@ -4,6 +4,7 @@ import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { afterEach, describe, expect, it } from 'vitest'
 import { expectWithinBudget } from '../../../../tests/support/budget'
+import { collect } from '../../../../tests/support/growth'
 import { noteMarkdown } from './markdown'
 import { parseToView } from './parseToView'
 
@@ -99,8 +100,11 @@ async function openedParsed(doc: string): Promise<EditorView> {
   return view
 }
 
+// Each key starts after a collection: the 4 MB notes' garbage otherwise fell due during any key of
+// either view, which made the keys after a jump look twice as dear as they are (#937).
 function typeAtEnd(view: EditorView): number {
   const at = view.state.doc.length
+  collect()
   const start = performance.now()
   view.dispatch({
     changes: { from: at, insert: 'a' },
@@ -109,8 +113,7 @@ function typeAtEnd(view: EditorView): number {
   return performance.now() - start
 }
 
-// A key's own cost is its fastest time: a 4 MB note's keys spread over twice that with collection pauses,
-// which half the keys of either view can catch.
+// A key's own cost is its fastest time, which a stall of the machine cannot reach.
 const fastest = (times: number[]) => Math.min(...times)
 
 describe('a jump to the end of a long note the parser has not reached', () => {
