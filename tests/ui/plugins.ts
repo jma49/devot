@@ -65,7 +65,12 @@ export async function servePlugins(page: Page, plugins: TestPlugin[]): Promise<v
       return route.fulfill({ status: 404, body: '' })
     const base = `${url.origin}/__devot-plugins/${found[1]}/`
     const rest = found[2]!
-    const answer = (body: string, contentType: string, csp = "default-src 'none'") =>
+    const answer = (
+      body: string,
+      contentType: string,
+      csp = "default-src 'none'",
+      shared = false,
+    ) =>
       route.fulfill({
         status: 200,
         body,
@@ -74,6 +79,7 @@ export async function servePlugins(page: Page, plugins: TestPlugin[]): Promise<v
           'Content-Security-Policy': csp,
           'X-Content-Type-Options': 'nosniff',
           'Cache-Control': 'no-store',
+          ...(shared ? { 'Access-Control-Allow-Origin': '*' } : {}),
         },
       })
     if (rest === '') {
@@ -93,7 +99,12 @@ export async function servePlugins(page: Page, plugins: TestPlugin[]): Promise<v
       ...plugin.files,
     }
     if (Object.hasOwn(files, rest)) {
-      return answer(files[rest]!, MIME[rest.split('.').pop() ?? ''] ?? 'application/octet-stream')
+      return answer(
+        files[rest]!,
+        MIME[rest.split('.').pop() ?? ''] ?? 'application/octet-stream',
+        undefined,
+        true,
+      )
     }
     return route.fulfill({ status: 404, body: '' })
   })

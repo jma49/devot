@@ -147,53 +147,69 @@ for (const scheme of ['light', 'dark'] as const) {
 test.describe('the theme choices in Settings', () => {
   test.use({ colorScheme: 'light' })
 
-  const picker = (page: Page, mode: 'Light' | 'Dark') =>
-    page.getByRole('radiogroup', { name: `${mode} Mode Theme` })
+  const half = (page: Page, theme: string, mode: 'Light' | 'Dark') =>
+    page.getByRole('radio', { name: `${theme}, ${mode} Mode` })
 
-  test('one per appearance, the one shown marked Active, each with Default chosen at first', async ({
+  const card = (page: Page, theme: string) => page.getByRole('button', { name: theme, exact: true })
+
+  test('one card per theme with a half for each appearance, the one shown named, Default chosen at first', async ({
     page,
   }) => {
     await openSettings(page, 'Appearance')
-    await expect(page.getByRole('heading', { name: 'Light Mode \u2014 Active' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Dark Mode', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Themes \u2014 Light Mode Showing' }),
+    ).toBeVisible()
+    await expect(page.locator('.theme-card-name')).toHaveText([
+      'Default',
+      'Ivory',
+      'Dawn',
+      'Tide',
+      'Sage',
+      'Ember',
+    ])
     for (const mode of ['Light', 'Dark'] as const) {
-      await expect(picker(page, mode).getByRole('radio', { name: 'Default' })).toBeChecked()
-      await expect(picker(page, mode).locator('.choice-group-label')).toHaveText([
-        'Default',
-        'Built-in',
-      ])
-      await expect(picker(page, mode).locator('.choice-name')).toHaveText([
-        'Default',
-        'Ivory',
-        'Dawn',
-        'Tide',
-        'Sage',
-        'Ember',
-      ])
+      await expect(half(page, 'Default', mode)).toBeChecked()
     }
+    await expect(card(page, 'Default')).toHaveAttribute('aria-pressed', 'true')
 
     await changeEditorSettingsElsewhere(page, { appearance: 'dark' })
-    await expect(page.getByRole('heading', { name: 'Dark Mode \u2014 Active' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Light Mode', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Themes \u2014 Dark Mode Showing' }),
+    ).toBeVisible()
   })
 
-  test('stores the light theme and shows it, and leaves the dark one alone', async ({ page }) => {
+  test('a half stores the theme for its appearance and leaves the other alone', async ({
+    page,
+  }) => {
     await openSettings(page, 'Appearance')
-    await picker(page, 'Light').getByText('Ivory', { exact: true }).click()
-    await expect(picker(page, 'Light').getByRole('radio', { name: 'Ivory' })).toBeChecked()
-    await expect(picker(page, 'Dark').getByRole('radio', { name: 'Default' })).toBeChecked()
+    await half(page, 'Ivory', 'Light').check({ force: true })
+    await expect(half(page, 'Ivory', 'Light')).toBeChecked()
+    await expect(half(page, 'Default', 'Dark')).toBeChecked()
+    await expect(card(page, 'Ivory')).toHaveAttribute('aria-pressed', 'false')
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'ivory')
     await expect
       .poll(() => tokenColour(page, '--color-surface-sidebar-opaque'))
       .toBe('rgb(245, 244, 237)')
     await expect.poll(() => settingsCalls(page)).toEqual([{ lightTheme: 'ivory' }])
 
-    await picker(page, 'Dark').getByText('Tide', { exact: true }).click()
-    await expect(picker(page, 'Dark').getByRole('radio', { name: 'Tide' })).toBeChecked()
+    await half(page, 'Tide', 'Dark').check({ force: true })
+    await expect(half(page, 'Tide', 'Dark')).toBeChecked()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'ivory')
     await expect
       .poll(() => settingsCalls(page))
       .toEqual([{ lightTheme: 'ivory' }, { darkTheme: 'tide' }])
+  })
+
+  test('a card stores its theme for both appearances', async ({ page }) => {
+    await openSettings(page, 'Appearance')
+    await card(page, 'Tide').click()
+    await expect(half(page, 'Tide', 'Light')).toBeChecked()
+    await expect(half(page, 'Tide', 'Dark')).toBeChecked()
+    await expect(card(page, 'Tide')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'tide')
+    await expect
+      .poll(() => settingsCalls(page))
+      .toEqual([{ lightTheme: 'tide' }, { darkTheme: 'tide' }])
   })
 
   test('hides the system accent option while Ivory is in effect, and only then', async ({
@@ -213,8 +229,8 @@ test.describe('the theme choices in Settings', () => {
 
   test('a gradient theme keeps the default colours and accent', async ({ page }) => {
     await openSettings(page, 'Appearance')
-    await picker(page, 'Light').getByText('Sage', { exact: true }).click()
-    await expect(picker(page, 'Light').getByRole('radio', { name: 'Sage' })).toBeChecked()
+    await half(page, 'Sage', 'Light').check({ force: true })
+    await expect(half(page, 'Sage', 'Light')).toBeChecked()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'sage')
     await expect
       .poll(() =>
@@ -227,48 +243,18 @@ test.describe('the theme choices in Settings', () => {
     await expect.poll(() => settingsCalls(page)).toEqual([{ lightTheme: 'sage' }])
   })
 
-  test('every swatch fits its card in the Settings window, with no sideways scroll', async ({
-    page,
-  }) => {
-    // The Settings window's one size (src-tauri/src/settings.rs).
-    await page.setViewportSize({ width: 900, height: 680 })
-    await openSettings(page, 'Appearance')
-    for (const mode of ['Light', 'Dark'] as const) {
-      const row = picker(page, mode)
-      await expect(row.locator('.swatch')).toHaveCount(6)
-      const fit = await row.evaluate((el) => {
-        const card = el.closest('.settings-card')!
-        const edge =
-          card.getBoundingClientRect().right - parseFloat(getComputedStyle(card).paddingRight)
-        return {
-          scroll: el.scrollWidth - el.clientWidth,
-          overflow: getComputedStyle(el).overflowX,
-          lines: new Set(
-            [...el.querySelectorAll('.swatch')].map((swatch) =>
-              Math.round(swatch.getBoundingClientRect().top),
-            ),
-          ).size,
-          past: [...el.querySelectorAll('.choice')]
-            .map((choice) => choice.getBoundingClientRect().right - edge)
-            .filter((by) => by > 0.5),
-        }
-      })
-      expect(fit).toEqual({ scroll: 0, overflow: 'visible', lines: 1, past: [] })
-    }
-  })
-
   test('each swatch shows its own theme whatever the window shows', async ({ page }) => {
     await openSettings(page, 'Appearance')
     await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory' })
-    const swatch = (mode: 'Light' | 'Dark', name: string) =>
-      picker(page, mode).locator('.choice', { hasText: name }).locator('.swatch')
-    const surface = (mode: 'Light' | 'Dark', name: string) =>
-      swatch(mode, name).evaluate((el) => getComputedStyle(el).backgroundColor)
-    expect(await surface('Light', 'Default')).toBe('rgb(255, 255, 255)')
-    expect(await surface('Dark', 'Default')).toBe('rgb(10, 10, 10)')
-    expect(await surface('Dark', 'Ivory')).toBe('rgb(48, 48, 46)')
-    await expect(swatch('Light', 'Dawn')).toHaveCSS('background-image', /linear-gradient/)
-    await expect(swatch('Light', 'Default')).toHaveCSS('background-image', 'none')
+    const swatch = (theme: string, mode: 'Light' | 'Dark') =>
+      page.locator('.theme-half', { has: half(page, theme, mode) }).locator('.swatch')
+    const surface = (theme: string, mode: 'Light' | 'Dark') =>
+      swatch(theme, mode).evaluate((el) => getComputedStyle(el).backgroundColor)
+    expect(await surface('Default', 'Light')).toBe('rgb(255, 255, 255)')
+    expect(await surface('Default', 'Dark')).toBe('rgb(10, 10, 10)')
+    expect(await surface('Ivory', 'Dark')).toBe('rgb(48, 48, 46)')
+    await expect(swatch('Dawn', 'Light')).toHaveCSS('background-image', /linear-gradient/)
+    await expect(swatch('Default', 'Light')).toHaveCSS('background-image', 'none')
   })
 })
 

@@ -59,6 +59,26 @@ const sketch = testPlugin(
 )
 sketch.manifest['apiVersion'] = 2
 
+// A plugin as large as a whiteboard loads its code as a module beside its main script, on first use.
+const LAZY = `
+const here = document.currentScript.src
+devot.preview.handle('lazy', async (source) => (await import(new URL('draw.js', here).href)).draw(source))
+`
+
+const lazy = testPlugin(
+  'com.example.lazy',
+  ['preview'],
+  { previewRenderers: [{ id: 'lazy', language: 'lazy', output: 'svg' }] },
+  LAZY,
+  {
+    files: {
+      'draw.js':
+        'export const draw = (source) => \'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40"><text x="4" y="24">\' + source + \'</text></svg>\'',
+    },
+  },
+)
+lazy.manifest['apiVersion'] = 2
+
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 
 async function previewOf(page: Page, text: string) {
@@ -72,7 +92,7 @@ async function previewOf(page: Page, text: string) {
 test.use({ colorScheme: 'light' })
 
 test.beforeEach(async ({ page }) => {
-  await servePlugins(page, [graphs, index, sketch])
+  await servePlugins(page, [graphs, index, sketch, lazy])
   await openApp(page)
   await pluginFrame(page, 'com.example.graphs')
 })
@@ -148,4 +168,12 @@ test('edits a drawn block in its plugin and puts the edit in the note, or leaves
   await page.keyboard.press('Meta+KeyE')
   await expect(body(page)).toContainText('hi!')
   await expect(body(page)).not.toContainText('keep!')
+})
+
+test('draws a block with code the plugin loads as a module from its own files', async ({
+  page,
+}) => {
+  await pluginFrame(page, 'com.example.lazy')
+  const preview = await previewOf(page, '```lazy\nfrom a module\n```\n')
+  await expect(preview.locator('.plugin-drawing text')).toHaveText('from a module')
 })

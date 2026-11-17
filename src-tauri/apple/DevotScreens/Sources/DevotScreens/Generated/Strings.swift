@@ -7250,40 +7250,36 @@ public enum L10n {
     text("appearanceSettings.darkMode", "Dark Mode")
   }
 
-  public static func appearanceSettingsModeActive() -> String {
-    text("appearanceSettings.modeActive", "— Active")
+  public static func appearanceSettingsThemes() -> String {
+    text("appearanceSettings.themes", "Themes")
   }
 
-  public static func appearanceSettingsLightTheme() -> String {
-    text("appearanceSettings.lightTheme", "Light Mode Theme")
+  public static func appearanceSettingsThemesLightActive() -> String {
+    text("appearanceSettings.themesLightActive", "— Light Mode Showing")
   }
 
-  public static func appearanceSettingsDarkTheme() -> String {
-    text("appearanceSettings.darkTheme", "Dark Mode Theme")
+  public static func appearanceSettingsThemesDarkActive() -> String {
+    text("appearanceSettings.themesDarkActive", "— Dark Mode Showing")
   }
 
-  public static func appearanceSettingsThemesDefault() -> String {
-    text("appearanceSettings.themesDefault", "Default")
+  public static func appearanceSettingsThemesHint() -> String {
+    text("appearanceSettings.themesHint", "Choose a theme to use it in Light and Dark Mode, or one of its swatches to use it in that mode only.")
   }
 
-  public static func appearanceSettingsThemesBuiltIn() -> String {
-    text("appearanceSettings.themesBuiltIn", "Built-in")
+  public static func appearanceSettingsThemeInMode(theme p0: String, mode p1: String) -> String {
+    fill(text("appearanceSettings.themeInMode", "{theme}, {mode}"), ["theme": p0, "mode": p1])
   }
 
-  public static func appearanceSettingsPluginTheme() -> String {
-    text("appearanceSettings.pluginTheme", "Plugin Theme")
+  public static func appearanceSettingsThemeNoLight() -> String {
+    text("appearanceSettings.themeNoLight", "No light colors")
   }
 
-  public static func appearanceSettingsPluginThemeHint() -> String {
-    text("appearanceSettings.pluginThemeHint", "Its colors are drawn over the theme above.")
+  public static func appearanceSettingsThemeNoDark() -> String {
+    text("appearanceSettings.themeNoDark", "No dark colors")
   }
 
-  public static func appearanceSettingsPluginThemeNone() -> String {
-    text("appearanceSettings.pluginThemeNone", "None")
-  }
-
-  public static func appearanceSettingsPluginThemeBy(title p0: String, plugin p1: String) -> String {
-    fill(text("appearanceSettings.pluginThemeBy", "{title} ({plugin})"), ["title": p0, "plugin": p1])
+  public static func appearanceSettingsMoreThemes() -> String {
+    text("appearanceSettings.moreThemes", "Get More Themes")
   }
 
   public static func appearanceSettingsSwatchSample() -> String {
