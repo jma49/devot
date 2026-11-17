@@ -6003,9 +6003,9 @@ button.note-info-row:focus-visible {
   display: grid;
   grid-template-columns: repeat(
     auto-fill,
-    minmax(calc(2 * var(--size-settings-swatch-width) + var(--space-4) + 2 * var(--space-5)), 1fr)
+    minmax(calc(2 * var(--size-settings-swatch-width) + var(--space-3) + 2 * var(--space-4)), 1fr)
   );
-  gap: var(--space-5);
+  gap: var(--space-4);
   padding: var(--space-7) 0;
 }
 
@@ -6015,7 +6015,7 @@ button.note-info-row:focus-visible {
   flex-direction: column;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-5) var(--space-5) var(--space-4);
+  padding: var(--space-5) var(--space-4) var(--space-4);
   border-radius: var(--radius-settings-card);
   box-shadow: inset 0 0 0 1px var(--color-line-hairline);
   transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
@@ -6027,7 +6027,7 @@ button.note-info-row:focus-visible {
 
 .theme-card-halves {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 /* Over the card, under its swatches: anywhere else on the card chooses the theme for both appearances. */
