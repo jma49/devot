@@ -91,9 +91,12 @@ const runScript = (stdin: string) =>
   })
 it('run-if-pushing-commits skips a push that only deletes branches', () => {
   expect(runScript(`(delete) ${zero} refs/heads/x ${sha}\n`)).toBe('')
-  expect(runScript('')).toBe('')
+  expect(
+    runScript(`(delete) ${zero} refs/heads/x ${sha}\n(delete) ${zero} refs/heads/y ${sha}\n`),
+  ).toBe('')
 })
-it('run-if-pushing-commits runs the command when any ref sends commits', () => {
+it('run-if-pushing-commits runs the command when any ref sends commits, or when run by hand', () => {
+  expect(runScript('')).toBe('ran\n')
   expect(runScript(`refs/heads/x ${sha} refs/heads/x ${zero}\n`)).toBe('ran\n')
   expect(
     runScript(`(delete) ${zero} refs/heads/y ${sha}\nrefs/heads/x ${sha} refs/heads/x ${zero}\n`),
