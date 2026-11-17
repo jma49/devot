@@ -20,7 +20,13 @@ const theme = (
   id,
   title,
   appearance,
-  colors: { 'surface-editor': editor, 'accent-fill': '#8839ef', 'not-a-token': '#000000' },
+  colors: {
+    'surface-editor': editor,
+    'accent-fill': '#8839ef',
+    'not-a-token': '#000000',
+    'status-active-mark': '#ff00ff',
+    'icon-tile-general': '#ff00ff',
+  },
 })
 
 const CAT = 'online.devot.theme-catppuccin'
@@ -84,6 +90,14 @@ test('draws the chosen plugin theme over the window’s theme, in light, dark an
     ),
   ).toBe('')
   await expect(page.locator('html')).toHaveAttribute('data-plugin-theme', `${CAT}/latte`)
+  // Icons keep Devot's colors under every theme.
+  expect(
+    await page.evaluate(() =>
+      ['--color-status-active-mark', '--color-icon-tile-general'].map((name) =>
+        getComputedStyle(document.documentElement).getPropertyValue(name).trim(),
+      ),
+    ),
+  ).not.toContain('#ff00ff')
   await page.emulateMedia({ colorScheme: 'dark' })
   await expect.poll(() => rootColor(page)).toBe('#1e1e2e')
   await changeEditorSettingsElsewhere(page, { appearance: 'light' })

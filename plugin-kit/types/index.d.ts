@@ -168,7 +168,7 @@ export type DevotPermission =
   | 'notes.read'
   | 'themes'
 
-/** A theme file (API 2): colors by token, each named as its CSS variable after `--color-`, as `#rrggbb` or `#rrggbbaa`. */
+/** A theme file (API 2): colors by token, each named as its CSS variable after `--color-`, as `#rrggbb` or `#rrggbbaa`. Icon tokens (`status-*-mark`, `icon-tile-*`, `tag-icon-*`, `phone-status-tile-*`) are not applied: icons keep Devot's colors. */
 export interface DevotThemeFile {
   colors: Record<string, string>
 }

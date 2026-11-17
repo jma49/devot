@@ -17,6 +17,7 @@ A plugin with the `themes` permission (API version 2) lists color themes, and Se
 - A file holds colors only: no CSS, fonts, URLs or sizes, so a theme cannot load anything or break the layout.
 - The choice is one theme per appearance, stored in `plugins.json` (`plugin_themes`, `plugin_theme_choose`); a choice whose plugin is off, removed or no longer lists it falls back to Devot's own theme.
 - Every window draws the chosen theme over the built-in tokens by setting `--color-*` on the root element, for the tokens this build knows only (`src/renderer/src/theme/pluginThemes.ts`); a token a theme leaves out keeps Devot's color.
+- Icon colors are not a theme's: status marks, settings tiles, tag icons and phone status tiles keep Devot's colors whatever a theme file says, so an icon keeps its meaning and contrast in every theme.
 
 ## Consequences
 

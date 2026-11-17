@@ -29,9 +29,15 @@ export interface PluginThemes {
 
 export const NO_PLUGIN_THEMES: PluginThemes = { themes: [], chosen: { light: null, dark: null } }
 
-/** Each color token as a theme file names it: its CSS variable after `--color-`. */
+/** Icons keep Devot's colors under every theme, so a status or a settings pane reads the same in all of them. */
+export const isIconColor = (token: string): boolean =>
+  /^(?:icon-tile-|tag-icon-|phone-status-tile-)/.test(token) || /^status-[a-z]+-mark$/.test(token)
+
+/** Each color token a theme may set, as a theme file names it: its CSS variable after `--color-`. */
 export const THEME_COLORS: ReadonlySet<string> = new Set(
-  Object.keys(light).map((k) => k.slice('color.'.length).replaceAll('.', '-')),
+  Object.keys(light)
+    .map((k) => k.slice('color.'.length).replaceAll('.', '-'))
+    .filter((token) => !isIconColor(token)),
 )
 
 const COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/
