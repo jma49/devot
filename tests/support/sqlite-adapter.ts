@@ -51,7 +51,7 @@ import type {
   TextCondition,
   TrashedNote,
 } from '../../src/core/storage'
-import { MAX_PUT_BOOKS } from '../../src/core/storage'
+import { MAX_BODY_IDS, MAX_PUT_BOOKS } from '../../src/core/storage'
 import { tempDir } from './temp-dirs'
 
 /**
@@ -1318,7 +1318,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       notes: activityNotes.all({ since }),
       revisions: activityRevisions.all({ since }),
     }),
-    listNoteActivity: async (ids, since) => noteActivity.all({ ids: JSON.stringify(ids), since }),
+    async listNoteActivity(ids, since) {
+      // As the Tauri command refuses.
+      if (ids.length > MAX_BODY_IDS) throw new Error('E_NOTE_IDS_TOO_MANY')
+      return noteActivity.all({ ids: JSON.stringify(ids), since })
+    },
     listAgentWrites: async (limit) =>
       listAgentWrites.all({ limit }).map((row) => ({
         ...row,

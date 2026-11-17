@@ -10,6 +10,7 @@ import {
   createNoteService,
   DAY_MS,
   KEEP_NEWEST,
+  MAX_BODY_IDS,
   REVISION_PAUSE_MS,
   STRIP_DAYS,
   stripLevel,
@@ -231,6 +232,39 @@ describe('activity strips on SQLite', () => {
     await notes.flush()
     await sweeps.until(done + 1)
     expect(await onDay()).toEqual({ edits: 1, chars: 50 })
+  })
+
+  it('reads more notes than one call takes in chunks, as separate calls would', async () => {
+    const storage = sqlite()
+    const sizes: number[] = []
+    const counted: SqliteAdapter = {
+      ...storage,
+      listNoteActivity: async (ids, since) => {
+        sizes.push(ids.length)
+        return storage.listNoteActivity(ids, since)
+      },
+    }
+    const { notes } = service(counted)
+    const first = await notes.create()
+    await typeAndPause(notes, first, 'first')
+    const last = await notes.create()
+    await typeAndPause(notes, last, 'last note')
+    const filler = Array.from({ length: MAX_BODY_IDS - 1 }, (_, i) => `absent-${i}`)
+    const ids = [first, ...filler, last]
+    sizes.length = 0
+    const strips = await notes.noteActivity(ids, time, UTC)
+    expect(sizes).toEqual([MAX_BODY_IDS, 1])
+    const head = await notes.noteActivity(ids.slice(0, MAX_BODY_IDS), time, UTC)
+    const tail = await notes.noteActivity([last], time, UTC)
+    expect(strips).toEqual({ ...head, ...tail })
+    expect(strips[first]!.at(-1)!.edits).toBe(1)
+    expect(strips[last]!.at(-1)!.edits).toBe(1)
+  })
+
+  it('refuses more ids in one storage call than the command takes', async () => {
+    const storage = sqlite()
+    const ids = Array.from({ length: MAX_BODY_IDS + 1 }, (_, i) => `n${i}`)
+    await expect(storage.listNoteActivity(ids, 0)).rejects.toThrow('E_NOTE_IDS_TOO_MANY')
   })
 
   it('forgets a purged note', async () => {
