@@ -23,7 +23,7 @@ function commands(text: string): string[] {
   const lines = text.split('\n')
   const found: string[] = []
   for (let i = 0; i < lines.length; i++) {
-    const run = /^(\s*)(?:-\s+)?run:\s*(.+)$/.exec(lines[i]!)
+    const run = /^(\s*(?:-\s+)?)run:\s*(.+)$/.exec(lines[i]!)
     if (!run) continue
     const block = /^[|>][+-]?$/.test(run[2]!.trim())
     const body: string[] = []
@@ -51,6 +51,9 @@ it('commands() reads single-line and block-scalar run steps', () => {
     '          cargo build && cargo test',
     '      - run: >-',
     '          echo folded',
+    '      - run: |',
+    '          pnpm in-a-list-item',
+    '        working-directory: src-tauri',
     '      - run: pnpm last',
   ].join('\n')
   expect(commands(yaml)).toEqual([
@@ -60,6 +63,7 @@ it('commands() reads single-line and block-scalar run steps', () => {
     'cargo build',
     'cargo test',
     'echo folded',
+    'pnpm in-a-list-item',
     'pnpm last',
   ])
 })
