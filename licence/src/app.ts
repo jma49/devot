@@ -60,7 +60,7 @@ export const LIMITS = {
   resendPerIp: 10,
   /** A daily cap per address on top of the hourly one: a few a day, not 72. */
   resendPerAddressPerDay: 6,
-  /** /resend sends allowed a day in all, well under Resend's 100 a day, so issued mails keep room. */
+  /** /resend mails sent a day in all, well under Resend's 100 a day, so issued mails keep room. */
   resendAllPerDay: 25,
   resendWindowSeconds: 3600,
   /** /buy Checkout Sessions allowed an hour per IP, so a script cannot fill Stripe with sessions. */
@@ -364,22 +364,18 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     let allowed = byIp <= LIMITS.resendPerIp
     let byAddress = 0
     if (allowed) {
-      const [hourly, daily, everyone] = await Promise.all([
+      const [hourly, daily] = await Promise.all([
         store.hit(await rateKey('address', lower), hour),
         store.hit(await rateKey('address-day', lower), day),
-        store.hit('resend:all', day),
       ])
       byAddress = hourly
-      allowed =
-        hourly <= LIMITS.resendPerAddress &&
-        daily <= LIMITS.resendPerAddressPerDay &&
-        everyone <= LIMITS.resendAllPerDay
+      allowed = hourly <= LIMITS.resendPerAddress && daily <= LIMITS.resendPerAddressPerDay
     }
     if (!allowed) {
       log('I_LICENCE_RESEND_LIMITED')
     } else {
       deps.defer(
-        mailAll(email, `${await rateKey('address', lower)}/${byAddress}/${hour}`).catch(
+        mailAll(email, `${await rateKey('address', lower)}/${byAddress}/${hour}`, day).catch(
           (error: unknown) => fail(error),
         ),
       )
@@ -388,7 +384,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     return resentPage()
   }
 
-  async function mailAll(email: string, attempt: string): Promise<void> {
+  async function mailAll(email: string, attempt: string, day: number): Promise<void> {
     const lower = email.toLowerCase()
     // The keyed hash finds the purchase whatever capitals Stripe stored; the customer lookup
     // still serves purchases recorded before the hash was kept.
@@ -411,6 +407,11 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       const owner =
         emails.get(licence.customerId) || (await licensee(licence, undefined, async () => email))
       keys.push(await keyFor(licence, owner))
+    }
+    // Counted here, not per request, so addresses that bought nothing cannot spend the day's sends.
+    if ((await store.hit('resend:all', day)) > LIMITS.resendAllPerDay) {
+      log('I_LICENCE_RESEND_LIMITED')
+      return
     }
     await mailer.send(licenceMail(email, 'resend', keys, `resend/${attempt}`))
     log(`I_LICENCE_RESENT ${live.map((l) => l.id).join(' ')}`)
