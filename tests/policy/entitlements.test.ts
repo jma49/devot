@@ -8,22 +8,31 @@ const MAC = 'src-tauri/macos/Devot.entitlements'
 const IOS = 'src-tauri/gen/apple/devot_iOS/devot_iOS.entitlements'
 const APPLE = 'src-tauri/gen/apple'
 
-/** The top-level dict of an entitlements plist, whose values are strings or string arrays. */
-function entitlements(path: string): Record<string, string | string[]> {
-  const body = /<plist[^>]*>\s*<dict>([^]*)<\/dict>\s*<\/plist>/.exec(
-    readFileSync(path, 'utf8'),
-  )?.[1]
-  if (body === undefined) throw new Error(`E_TEST_NOT_A_PLIST ${path}`)
-  const entries = body.matchAll(
-    /<key>([^<]+)<\/key>\s*(?:<string>([^<]*)<\/string>|<array>([^]*?)<\/array>)/g,
-  )
-  return Object.fromEntries(
-    [...entries].map(([, key, text, array]) => [
-      key!,
-      text ?? [...array!.matchAll(/<string>([^<]*)<\/string>/g)].map((m) => m[1]!),
-    ]),
-  )
+type Value = string | boolean | string[]
+
+/** The top-level dict of an entitlements plist; a value that is not a string, boolean or string array throws. */
+function parseEntitlements(text: string, label = 'plist'): Record<string, Value> {
+  const body = /<plist[^>]*>\s*<dict>([^]*)<\/dict>\s*<\/plist>/.exec(text)?.[1]
+  if (body === undefined) throw new Error(`E_TEST_NOT_A_PLIST ${label}`)
+  const result: Record<string, Value> = {}
+  const keys = [...body.matchAll(/<key>([^<]+)<\/key>/g)]
+  for (const [i, match] of keys.entries()) {
+    const key = match[1]!
+    const rest = body.slice(match.index + match[0].length, keys[i + 1]?.index ?? body.length)
+    const value =
+      /^\s*<string>([^<]*)<\/string>\s*$/.exec(rest)?.[1] ??
+      (/^\s*<true\/>\s*$/.test(rest) ? true : /^\s*<false\/>\s*$/.test(rest) ? false : undefined)
+    const array = /^\s*<array>([^]*?)<\/array>\s*$/.exec(rest)?.[1]
+    const items = array === undefined ? null : array.replaceAll(/<string>[^<]*<\/string>/g, '')
+    if (value !== undefined) result[key] = value
+    else if (array !== undefined && items?.trim() === '')
+      result[key] = [...array.matchAll(/<string>([^<]*)<\/string>/g)].map((m) => m[1]!)
+    else throw new Error(`E_TEST_PLIST_VALUE ${key}`)
+  }
+  return result
 }
+
+const entitlements = (path: string) => parseEntitlements(readFileSync(path, 'utf8'), path)
 
 const ICLOUD = {
   'com.apple.developer.icloud-container-identifiers': [CONTAINER],
@@ -35,6 +44,20 @@ const INTENTS = 'src-tauri/gen/apple/devot_Intents/devot_Intents.entitlements'
 const WIDGET = 'src-tauri/gen/apple/devot_Widget/devot_Widget.entitlements'
 const IOS_LOCAL = 'src-tauri/gen/apple/devot_iOS/devot_iOS-local.entitlements'
 const APP_GROUP = { 'com.apple.security.application-groups': ['group.io.github.jma49.devot'] }
+
+const plist = (dict: string) =>
+  `<?xml version="1.0"?><plist version="1.0"><dict>${dict}</dict></plist>`
+
+describe('the entitlements parser', () => {
+  it('reads booleans and throws on a value it cannot read', () => {
+    expect(
+      parseEntitlements(plist('<key>get-task-allow</key><true/><key>x</key><string>y</string>')),
+    ).toEqual({ 'get-task-allow': true, x: 'y' })
+    expect(() =>
+      parseEntitlements(plist('<key>nested</key><dict><key>a</key><true/></dict>')),
+    ).toThrow('E_TEST_PLIST_VALUE nested')
+  })
+})
 
 describe('the entitlements', () => {
   it('give the Mac app exactly its App ID, team, CloudKit in Production, push and the keychain group', () => {
