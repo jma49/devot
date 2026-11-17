@@ -1366,6 +1366,87 @@ fn a_deleted_notebook_stays_deleted_against_stale_copies() {
 }
 
 #[test]
+fn a_newer_live_stamp_brings_a_deleted_notebook_back() {
+    let (_dir, mut store) = temp_store();
+    let mut deleted = book("b1", "Back", "0000000000000010-0000-a");
+    deleted.deleted_at = Some(20);
+    deleted.deleted_hlc = Some("0000000000000020-0000-b".into());
+    store.put_book(&deleted).unwrap();
+    let mut kept = book("b1", "Back", "0000000000000010-0000-a");
+    kept.deleted_hlc = Some("0000000000000030-0000-a".into());
+    store.put_book(&kept).unwrap();
+    let books = store.list_books().unwrap();
+    assert_eq!(books.len(), 1);
+    assert_eq!(books[0].deleted_at, None);
+    assert_eq!(
+        books[0].deleted_hlc.as_deref(),
+        Some("0000000000000030-0000-a")
+    );
+    store.put_book(&deleted).unwrap();
+    assert_eq!(
+        store.list_books().unwrap().len(),
+        1,
+        "the older delete loses"
+    );
+}
+
+#[test]
+fn a_newer_live_stamp_brings_a_deleted_tag_back() {
+    let (_dir, mut store) = temp_store();
+    let tag = |deleted_at: Option<i64>, deleted_hlc: &str| TagRecord {
+        id: "t1".into(),
+        name: "back".into(),
+        name_hlc: "0000000000000010-0000-a".into(),
+        created_at: 1,
+        updated_at: 1,
+        deleted_at,
+        deleted_hlc: Some(deleted_hlc.into()),
+        color: None,
+        color_hlc: String::new(),
+    };
+    store
+        .put_tag(&tag(Some(20), "0000000000000020-0000-b"))
+        .unwrap();
+    assert!(store.list_tags().unwrap().is_empty());
+    store
+        .put_tag(&tag(None, "0000000000000030-0000-a"))
+        .unwrap();
+    let tags = store.list_tags().unwrap();
+    assert_eq!(tags.len(), 1);
+    assert_eq!(tags[0].deleted_at, None);
+    store
+        .put_tag(&tag(Some(20), "0000000000000020-0000-b"))
+        .unwrap();
+    assert_eq!(
+        store.list_tags().unwrap().len(),
+        1,
+        "the older delete loses"
+    );
+}
+
+#[test]
+fn a_newer_live_stamp_brings_a_deleted_saved_search_back() {
+    let (_dir, mut store) = temp_store();
+    let mut deleted = saved_search("s1", "Back", "0000000000000010-0000-a");
+    deleted.deleted_at = Some(20);
+    deleted.deleted_hlc = Some("0000000000000020-0000-b".into());
+    store.put_saved_search(&deleted).unwrap();
+    assert!(store.list_saved_searches().unwrap().is_empty());
+    let mut kept = saved_search("s1", "Back", "0000000000000010-0000-a");
+    kept.deleted_hlc = Some("0000000000000030-0000-a".into());
+    store.put_saved_search(&kept).unwrap();
+    let searches = store.list_saved_searches().unwrap();
+    assert_eq!(searches.len(), 1);
+    assert_eq!(searches[0].deleted_at, None);
+    store.put_saved_search(&deleted).unwrap();
+    assert_eq!(
+        store.list_saved_searches().unwrap().len(),
+        1,
+        "the older delete loses"
+    );
+}
+
+#[test]
 fn merges_status_and_pinning_per_field() {
     let (_dir, mut store) = temp_store();
     let mut newer = note("a", "A", 10);

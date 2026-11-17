@@ -68,7 +68,7 @@ fn validate(book: &BookRecord) -> Result<(), &'static str> {
     if book.created_at < 0 || book.updated_at < book.created_at {
         return Err("E_BOOK_TIME_INVALID");
     }
-    if book.deleted_at.is_some() != book.deleted_hlc.is_some() {
+    if book.deleted_at.is_some() && book.deleted_hlc.is_none() {
         return Err("E_BOOK_DELETE_INVALID");
     }
     Ok(())
@@ -185,6 +185,15 @@ mod tests {
         iconed.icon = None;
         iconed.icon_color = None;
         assert_eq!(validate(&iconed), Ok(()));
+    }
+
+    #[test]
+    fn accepts_a_live_notebook_with_a_delete_stamp() {
+        let mut brought_back = book();
+        brought_back.deleted_hlc = Some(HLC.into());
+        assert_eq!(validate(&brought_back), Ok(()));
+        brought_back.deleted_hlc = Some("x".repeat(65));
+        assert_eq!(validate(&brought_back), Err("E_BOOK_HLC_INVALID"));
     }
 
     #[test]

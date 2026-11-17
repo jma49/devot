@@ -11,6 +11,7 @@ import {
   createNoteService,
   createTagService,
 } from '../../src/core'
+import { createSavedSearchService } from '../../src/core/savedSearches'
 import { createSyncEngine, HAS_SYNCED } from '../../src/core/sync/engine'
 import { RESTORE_CHOICE, RESTORED_AT } from '../../src/core/sync/restore'
 import { startNodeRelay } from '../../relay/src/node/server'
@@ -59,6 +60,7 @@ function device(name: string, host: RelayHost, vault: TestVault, token: string) 
       engine,
       books: createBookService({ storage, clock, newId }),
       tags: createTagService({ storage, clock, newId }),
+      searches: createSavedSearchService({ storage, clock, newId }),
     }
     const close = async () => {
       await engine.stop()
@@ -150,6 +152,29 @@ describe('turning sync on after a backup was restored', () => {
     await b.live.notes.setBody(id, 'Monday\nWednesday\n')
     await settle(b, a)
     expect((await a.note(id))?.bodyMd).toBe('Monday\nWednesday\n')
+  })
+
+  it('brings back the notebook, tag and saved search another device deleted, when asked to keep', async () => {
+    const { a, b } = await pair()
+    const book = await a.live.books.create('Work', null)
+    const tag = await a.live.tags.ensure('later')
+    const search = await a.live.searches.create('Open work', 'is:active')
+    await settle(a, b)
+    const backup = join(tempDir('devot-restore-backup-'), 'backup.sqlite')
+    await a.live.storage.db.backup(backup)
+    await b.live.books.remove(book)
+    await b.live.tags.remove(tag)
+    await b.live.searches.remove(search)
+    await settle(b, a)
+    expect(await a.live.storage.isLiveBook(book)).toBe(false)
+    await a.restore(backup)
+    await a.live.engine.afterRestore('keep')
+    await settle(a, b)
+    for (const d of [a, b]) {
+      expect((await d.live.storage.listBooks()).map((x) => x.id)).toContain(book)
+      expect((await d.live.storage.listTags()).map((x) => x.id)).toContain(tag)
+      expect((await d.live.storage.listSavedSearches()).map((x) => x.id)).toContain(search)
+    }
   })
 
   it('carries Keep through a note a window saved while Keep ran', async () => {

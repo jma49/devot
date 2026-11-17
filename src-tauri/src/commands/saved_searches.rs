@@ -38,7 +38,7 @@ pub(super) fn validate(search: &SavedSearchRecord) -> Result<(), &'static str> {
     if search.created_at < 0 || search.updated_at < search.created_at {
         return Err("E_SAVED_SEARCH_TIME_INVALID");
     }
-    if search.deleted_at.is_some() != search.deleted_hlc.is_some() {
+    if search.deleted_at.is_some() && search.deleted_hlc.is_none() {
         return Err("E_SAVED_SEARCH_DELETE_INVALID");
     }
     Ok(())
@@ -96,9 +96,18 @@ mod tests {
     }
 
     #[test]
+    fn accepts_a_live_saved_search_with_a_delete_stamp() {
+        let mut brought_back = search();
+        brought_back.deleted_hlc = Some(HLC.into());
+        assert_eq!(validate(&brought_back), Ok(()));
+        brought_back.deleted_hlc = Some("\u{e9}".into());
+        assert_eq!(validate(&brought_back), Err("E_SAVED_SEARCH_HLC_INVALID"));
+    }
+
+    #[test]
     fn rejects_bad_saved_searches() {
         type Case = (fn(&mut SavedSearchRecord), &'static str);
-        let cases: [Case; 14] = [
+        let cases: [Case; 13] = [
             (|s| s.id = "x".into(), "E_SAVED_SEARCH_ID_INVALID"),
             (|s| s.name = String::new(), "E_SAVED_SEARCH_NAME_INVALID"),
             (|s| s.name = " a".into(), "E_SAVED_SEARCH_NAME_INVALID"),
@@ -120,10 +129,6 @@ mod tests {
                 "E_SAVED_SEARCH_SORT_KEY_INVALID",
             ),
             (|s| s.updated_at = 0, "E_SAVED_SEARCH_TIME_INVALID"),
-            (
-                |s| s.deleted_hlc = Some(HLC.into()),
-                "E_SAVED_SEARCH_DELETE_INVALID",
-            ),
             (|s| s.deleted_at = Some(3), "E_SAVED_SEARCH_DELETE_INVALID"),
         ];
         for (mutate, code) in cases {
