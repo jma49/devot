@@ -1077,6 +1077,45 @@ mod seats {
         )
     }
 
+    /// A lease in the right shape whose signature comes from a key the build does not hold.
+    fn forged_lease(id: &str, device: &str) -> String {
+        use base64::Engine as _;
+        use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+        use ed25519_dalek::Signer as _;
+        let payload = serde_json::json!({
+            "id": id,
+            "device": device,
+            "kid": "test",
+            "issuedAt": "2026-10-24T09:30:00Z",
+            "expiresAt": "2099-01-01T00:00:00Z",
+        });
+        let signed = format!(
+            "devot1dev.{}",
+            URL_SAFE_NO_PAD.encode(payload.to_string().as_bytes())
+        );
+        let signature = ed25519_dalek::SigningKey::from_bytes(&[7; 32]).sign(signed.as_bytes());
+        format!("{signed}.{}", URL_SAFE_NO_PAD.encode(signature.to_bytes()))
+    }
+
+    fn sold_after_seats() -> String {
+        sign(
+            "devot1",
+            &serde_json::json!({
+                "id": ID,
+                "kid": "test",
+                "plan": "pro",
+                "licensee": "buyer@example.com",
+                "issuedAt": "2026-12-01T00:00:00Z",
+            }),
+        )
+    }
+
+    fn stored_lease(s: &Seats) -> Option<String> {
+        let text = s.activation.key.lock().expect("seat").clone()?;
+        let stored: serde_json::Value = serde_json::from_str(&text).expect("seat is JSON");
+        stored["lease"].as_str().map(str::to_owned)
+    }
+
     struct Seats {
         licence: Arc<Licence>,
         now: Arc<AtomicI64>,
@@ -1266,7 +1305,8 @@ mod seats {
                 limit: 3,
             })
         });
-        s.licence.set(&key(ID)).expect("set");
+        s.licence.set(&sold_after_seats()).expect("set");
+        assert_eq!(stored_lease(&s), None);
         let snapshot = s.licence.snapshot();
         assert_eq!(
             snapshot.activation.map(|seat| seat.state),
@@ -1279,17 +1319,7 @@ mod seats {
     #[test]
     fn a_key_sold_after_seats_gets_no_window_when_the_worker_is_unreachable() {
         let s = seat_setup(|_| Err("E_NET_TIMEOUT"));
-        let fresh = sign(
-            "devot1",
-            &serde_json::json!({
-                "id": ID,
-                "kid": "test",
-                "plan": "pro",
-                "licensee": "buyer@example.com",
-                "issuedAt": "2026-12-01T00:00:00Z",
-            }),
-        );
-        s.licence.set(&fresh).expect("set");
+        s.licence.set(&sold_after_seats()).expect("set");
         let snapshot = s.licence.snapshot();
         assert_eq!(snapshot.code, Some("E_LICENCE_ACTIVATION_REQUIRED"));
         assert_eq!(
@@ -1397,12 +1427,75 @@ mod seats {
                 limit: 3,
             })
         });
-        s.licence.set(&key(ID)).expect("set");
+        s.licence.set(&sold_after_seats()).expect("set");
+        assert_eq!(stored_lease(&s), None);
         assert_eq!(
             s.licence.snapshot().activation.map(|seat| seat.state),
             Some(SeatState::Required)
         );
         assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    }
+
+    #[test]
+    fn a_first_lease_that_does_not_verify_is_not_stored_and_counts_as_an_outage() {
+        let s = seat_setup(|device| {
+            Ok(ActivationReply {
+                lease: forged_lease(ID, device),
+                used: 1,
+                limit: 3,
+            })
+        });
+        s.licence.set(&key(ID)).expect("set");
+        assert_eq!(stored_lease(&s), None);
+        let snapshot = s.licence.snapshot();
+        assert_eq!(snapshot.code, Some("E_LICENCE_ACTIVATION_FAILED"));
+        // Not a refusal: a key from before seats gets its window, and a retry keeps it.
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+        assert_eq!(
+            s.licence.refresh_activation(),
+            Err("E_LICENCE_ACTIVATION_FAILED")
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    }
+
+    fn a_renewal_with(bad: fn(&str) -> String) {
+        let broken = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&broken);
+        let s = seat_setup(move |device| {
+            if flag.load(Ordering::SeqCst) {
+                Ok(ActivationReply {
+                    lease: bad(device),
+                    used: 2,
+                    limit: 3,
+                })
+            } else {
+                active(device)
+            }
+        });
+        s.licence.set(&key(ID)).expect("set");
+        let kept = stored_lease(&s).expect("a lease");
+        broken.store(true, Ordering::SeqCst);
+        assert_eq!(
+            s.licence.refresh_activation(),
+            Err("E_LICENCE_ACTIVATION_FAILED")
+        );
+        assert_eq!(stored_lease(&s), Some(kept));
+        let seat = s.licence.snapshot().activation.expect("seat");
+        assert_eq!((seat.state, seat.used), (SeatState::Active, 1));
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    }
+
+    #[test]
+    fn a_renewal_whose_lease_is_signed_by_another_key_keeps_the_lease_there() {
+        a_renewal_with(|device| forged_lease(ID, device));
+    }
+
+    #[test]
+    fn a_renewal_whose_lease_is_for_another_licence_keeps_the_lease_there() {
+        a_renewal_with(|device| lease_for(OTHER_ID, device, "2099-01-01T00:00:00Z"));
     }
 
     #[test]

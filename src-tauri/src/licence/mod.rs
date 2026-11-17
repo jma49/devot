@@ -721,6 +721,14 @@ impl Licence {
                 return Err(code);
             }
         };
+        // A lease that does not verify would read as no lease at all: keep the one there, and
+        // treat the reply like an unreachable Worker, since a damaged answer is not a refusal.
+        let fits = verify_activation(&reply.lease, &self.keys)
+            .is_ok_and(|lease| lease.id == licence_id && lease.device == device);
+        if !fits {
+            log::warn!("W_LICENCE_LEASE_INVALID licence={licence_id}");
+            return Err("E_LICENCE_ACTIVATION_FAILED");
+        }
         self.with_activation_record(|stored| {
             stored.lease = Some(reply.lease.clone());
             stored.used = reply.used;
