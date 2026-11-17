@@ -64,6 +64,42 @@ it('commands() reads single-line and block-scalar run steps', () => {
   ])
 })
 
+it('the pre-push jobs other than block-main run only when the push sends commits', () => {
+  const push = lefthook.slice(lefthook.indexOf('pre-push:'))
+  const jobs = push.split('    - name: ').slice(1)
+  expect(jobs.length).toBeGreaterThan(1)
+  for (const entry of jobs) {
+    const name = entry.split('\n')[0]
+    if (name === 'block-main') continue
+    expect({
+      name,
+      wrapped: /^ {6}run: sh scripts\/run-if-pushing-commits\.sh '/m.test(entry),
+    }).toEqual({
+      name,
+      wrapped: true,
+    })
+    expect(entry).toMatch(/^ {6}use_stdin: true$/m)
+  }
+})
+
+const sha = 'a'.repeat(40)
+const zero = '0'.repeat(40)
+const runScript = (stdin: string) =>
+  execFileSync('sh', ['scripts/run-if-pushing-commits.sh', 'echo ran'], {
+    input: stdin,
+    encoding: 'utf8',
+  })
+it('run-if-pushing-commits skips a push that only deletes branches', () => {
+  expect(runScript(`(delete) ${zero} refs/heads/x ${sha}\n`)).toBe('')
+  expect(runScript('')).toBe('')
+})
+it('run-if-pushing-commits runs the command when any ref sends commits', () => {
+  expect(runScript(`refs/heads/x ${sha} refs/heads/x ${zero}\n`)).toBe('ran\n')
+  expect(
+    runScript(`(delete) ${zero} refs/heads/y ${sha}\nrefs/heads/x ${sha} refs/heads/x ${zero}\n`),
+  ).toBe('ran\n')
+})
+
 it('pnpm check runs the dependency audit', () => {
   expect(scripts['deps:audit']).toBe('pnpm audit --audit-level=high')
   expect(scripts['check']).toContain('pnpm deps:audit')
@@ -1077,7 +1113,7 @@ it('the pre-push hook runs the policy tests for pushes of docs and images, which
   const docs = ['README.md', 'CLAUDE.md', 'design/layout.md', 'docs/images/x.png', 'docs/x.webp']
   expect(pushedBy('policy-tests', docs)).toEqual(docs)
   const push = lefthook.slice(lefthook.indexOf('- name: policy-tests'))
-  expect(push).toMatch(/^ {6}run: pnpm test:policy$/m)
+  expect(push).toContain("run: sh scripts/run-if-pushing-commits.sh 'pnpm test:policy'")
 })
 
 it('the pre-push hook runs the type check and unit tests for code and config, not for docs or images', () => {
