@@ -8,6 +8,9 @@ it('a failed Vitest or Playwright test fails CI on its first run, and the XCUITe
   // A retry turned a flaky test green, so it stayed unfixed and each flake cost a run (docs/specs/quality.md, Flaky tests).
   expect(read('vitest.config.ts')).not.toMatch(/\bretry\s*:/)
   expect(read('playwright.config.ts')).not.toMatch(/\bretries\s*:/)
+  expect(read('scripts/ci/devot-screens-tests.sh')).toContain(
+    '[ "$status" -eq 0 ] || tail -n 80 "$log"',
+  )
   for (const script of ['iphone-ui-tests.sh', 'devot-screens-tests.sh', 'devot-store-tests.sh']) {
     const text = read(`scripts/ci/${script}`)
     expect({ script, retry: text.includes('-retry-tests-on-failure -test-iterations 2') }).toEqual({
