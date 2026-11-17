@@ -731,7 +731,7 @@ impl Licence {
                 .and_then(|lease| activation::instant_ms(&lease.expires_at))
         };
         let offered = end(&reply.lease);
-        let kept = self.with_activation_record(|stored| stored.lease.as_deref().and_then(&end))?;
+        let kept = self.with_activation_record(|stored| stored.lease.as_deref().and_then(end))?;
         if offered.is_none() || offered < kept {
             log::warn!("W_LICENCE_LEASE_INVALID licence={licence_id}");
             return Err("E_LICENCE_ACTIVATION_FAILED");
