@@ -39,6 +39,7 @@ import { remarkSoftBreaks } from './softBreaks'
 import {
   createPluginRenderer,
   type MarkdownNodes,
+  type PluginLinkTargets,
   type PluginRendererSpec,
   type RenderPluginBlock,
 } from './plugins'
@@ -63,7 +64,7 @@ export {
 } from './code'
 export { createEmojiRenderer, type EmojiTable } from './emoji'
 export { createMathRenderer, type MathEngine } from './math'
-export type { PluginRendererSpec, RenderPluginBlock } from './plugins'
+export type { PluginLinkTargets, PluginRendererSpec, RenderPluginBlock } from './plugins'
 
 /** GitHub's schema plus `mark`, https iframes and devot:// URLs. Math arrives as `code.language-math` and is rendered after sanitizing. */
 const schema: Schema = {
@@ -126,7 +127,11 @@ const WITH_EMBEDS = BUILTIN_RENDERERS.map((r) =>
 export function createPreviewRegistry(
   options: {
     builtins?: boolean
-    plugins?: { specs: readonly PluginRendererSpec[]; render: RenderPluginBlock }
+    plugins?: {
+      specs: readonly PluginRendererSpec[]
+      render: RenderPluginBlock
+      linkTargets?: PluginLinkTargets
+    }
   } = {},
 ): PreviewRegistry {
   const builtins = options.builtins ? WITH_EMBEDS : []
@@ -137,7 +142,7 @@ export function createPreviewRegistry(
   const toNodes: MarkdownNodes = async (markdown, context) =>
     (await transformed(pluginProcessor, markdown, context, inner)).children
   return createRegistry([
-    createPluginRenderer(plugins.specs, plugins.render, toNodes),
+    createPluginRenderer(plugins.specs, plugins.render, toNodes, plugins.linkTargets),
     // Heading ids still reach an answer's headings; every other built-in has
     // run over it already (code blocks, swatches).
     ...builtins.map((r) => (r === headingIds ? r : outsidePluginBlocks(r))),
