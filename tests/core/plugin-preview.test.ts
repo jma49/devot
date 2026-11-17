@@ -133,6 +133,64 @@ describe('plugin preview renderers', () => {
     expect(out).toContain('throw')
   })
 
+  it("shows a note an answer links to as a chip, asking for the targets the note's own text did not list", async () => {
+    const listed = '0192a6f0-0000-7000-8000-000000000001'
+    const answered = '0192a6f0-0000-7000-8000-000000000002'
+    const gone = '0192a6f0-0000-7000-8000-000000000003'
+    const target = (title: string) => ({
+      title,
+      status: 'none' as const,
+      tasks: { done: 0, total: 0 },
+      tags: [],
+    })
+    const asked: string[][] = []
+    const out = toHtml(
+      await renderPreview(
+        '```chart\nx\n```',
+        { labels, loadedEmbeds: [], noteLinks: { [listed]: target('Listed') } },
+        createPreviewRegistry({
+          builtins: true,
+          plugins: {
+            specs,
+            render: async () =>
+              `- [Listed](devot://note/${listed})\n- [Answered](devot://note/${answered})\n- [Gone](devot://note/${gone})`,
+            linkTargets: async (ids) => {
+              asked.push(ids)
+              return { [answered]: target('Answered') }
+            },
+          },
+        }),
+      ),
+    )
+    expect(asked).toEqual([[answered, gone]])
+    expect(out.match(/class="note-chip"/g)).toHaveLength(2)
+    expect(out.match(/note-link-missing/g)).toHaveLength(1)
+    expect(out).toContain(`href="devot://note/${gone}" class="note-link-missing"`)
+  })
+
+  it('asks for no targets where the preview shows no chips, or when the answer links to no notes', async () => {
+    const asked: string[][] = []
+    const registry = createPreviewRegistry({
+      builtins: true,
+      plugins: {
+        specs,
+        render: async (_k, source) =>
+          source === 'links' ? '[n](devot://note/0192a6f0-0000-7000-8000-000000000002)' : 'plain',
+        linkTargets: async (ids) => {
+          asked.push(ids)
+          return {}
+        },
+      },
+    })
+    await renderPreview('```chart\nlinks\n```', { labels, loadedEmbeds: [] }, registry)
+    await renderPreview(
+      '```chart\nplain\n```',
+      { labels, loadedEmbeds: [], noteLinks: {} },
+      registry,
+    )
+    expect(asked).toEqual([])
+  })
+
   it('never runs plugin renderers on a plugin answer', async () => {
     let calls = 0
     const out = await html('```chart\nx\n```', async () => {

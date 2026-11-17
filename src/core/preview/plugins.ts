@@ -8,6 +8,7 @@ import {
   PIECE_OFFSET_PROPERTIES,
   PLUGIN_ISLAND,
   PREVIEW_API_VERSION,
+  type NoteLinkTarget,
   type PreviewContext,
   type PreviewRenderer,
 } from './registry'
@@ -20,6 +21,27 @@ export interface PluginRendererSpec {
 }
 
 export type RenderPluginBlock = (key: string, source: string) => Promise<string | null>
+
+/** The notes an answer links to that the note's own text does not: a plugin's answer may list notes the note never names. */
+export type PluginLinkTargets = (ids: string[]) => Promise<Readonly<Record<string, NoteLinkTarget>>>
+
+const NOTE_LINK = /devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/g
+
+async function withAnswerTargets(
+  markdown: string,
+  context: PreviewContext,
+  linkTargets: PluginLinkTargets | undefined,
+): Promise<PreviewContext> {
+  const known = context.noteLinks
+  // Without `noteLinks` the preview shows plain links (an export), so there is nothing to ask.
+  if (!known || !linkTargets) return context
+  const missing = [...new Set([...markdown.matchAll(NOTE_LINK)].map((m) => m[1] as string))].filter(
+    (id) => !Object.hasOwn(known, id),
+  )
+  if (missing.length === 0) return context
+  const found = await linkTargets(missing).catch(() => ({}))
+  return { ...context, noteLinks: { ...known, ...found } }
+}
 
 export type MarkdownNodes = (markdown: string, context: PreviewContext) => Promise<RootContent[]>
 
@@ -53,6 +75,7 @@ export function createPluginRenderer(
   specs: readonly PluginRendererSpec[],
   render: RenderPluginBlock,
   toNodes: MarkdownNodes,
+  linkTargets?: PluginLinkTargets,
 ): PreviewRenderer {
   const byLanguage = new Map(specs.map((s) => [s.language, s]))
   return {
@@ -90,7 +113,8 @@ export function createPluginRenderer(
           const source = textOf(pre).replace(/\n$/, '')
           const markdown = await render(key, source).catch(() => null)
           if (markdown === null) return
-          const children = (await toNodes(markdown, context)).filter(
+          const answerContext = await withAnswerTargets(markdown, context, linkTargets)
+          const children = (await toNodes(markdown, answerContext)).filter(
             (node): node is ElementContent => node.type !== 'doctype',
           )
           children.forEach(makeInert)

@@ -490,7 +490,7 @@ const coreApi = {
     pluginRender = render
     previewRegistry = createPreviewRegistry({
       builtins: true,
-      plugins: { specs, render },
+      plugins: { specs, render, linkTargets: (ids) => required().linkTargets(ids) },
     })
     pluginRevision += 1
   },
