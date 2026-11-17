@@ -1499,6 +1499,16 @@ mod seats {
     }
 
     #[test]
+    fn a_renewal_whose_lease_ends_before_the_one_there_keeps_the_lease_there() {
+        a_renewal_with(|device| lease_for(ID, device, "2098-12-31T23:59:59Z"));
+    }
+
+    #[test]
+    fn a_renewal_whose_lease_ends_at_no_real_instant_keeps_the_lease_there() {
+        a_renewal_with(|device| lease_for(ID, device, "2099-13-40T00:00:00Z"));
+    }
+
+    #[test]
     fn a_failed_renewal_keeps_the_lease_that_is_there() {
         let fail = Arc::new(AtomicBool::new(false));
         let flag = Arc::clone(&fail);
