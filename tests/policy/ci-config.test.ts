@@ -20,10 +20,49 @@ function job(name: string): string {
 }
 
 function commands(text: string): string[] {
-  return [...text.matchAll(/^\s*(?:-\s+)?run:\s*(.+)$/gm)].flatMap((m) =>
-    (m[1] ?? '').split('&&').map((c) => c.trim()),
-  )
+  const lines = text.split('\n')
+  const found: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const run = /^(\s*)(?:-\s+)?run:\s*(.+)$/.exec(lines[i]!)
+    if (!run) continue
+    const block = /^[|>][+-]?$/.test(run[2]!.trim())
+    const body: string[] = []
+    if (block) {
+      const indent = run[1]!.length
+      while (
+        i + 1 < lines.length &&
+        (lines[i + 1]!.trim() === '' || /^\s*/.exec(lines[i + 1]!)![0].length > indent)
+      )
+        body.push(lines[++i]!)
+    } else body.push(run[2]!)
+    for (const line of body) for (const c of line.split('&&')) if (c.trim()) found.push(c.trim())
+  }
+  return found
 }
+
+it('commands() reads single-line and block-scalar run steps', () => {
+  const yaml = [
+    '    steps:',
+    '      - run: pnpm lint && pnpm test',
+    '      - name: build',
+    '        run: |',
+    '          cargo fmt --check',
+    '',
+    '          cargo build && cargo test',
+    '      - run: >-',
+    '          echo folded',
+    '      - run: pnpm last',
+  ].join('\n')
+  expect(commands(yaml)).toEqual([
+    'pnpm lint',
+    'pnpm test',
+    'cargo fmt --check',
+    'cargo build',
+    'cargo test',
+    'echo folded',
+    'pnpm last',
+  ])
+})
 
 it('pnpm check runs the dependency audit', () => {
   expect(scripts['deps:audit']).toBe('pnpm audit --audit-level=high')
