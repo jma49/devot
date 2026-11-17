@@ -21,4 +21,29 @@ describe('a drawing taken from the frame', () => {
     expect(path.getAttribute('marker-end')).toBe('url(#arrow)')
     expect(path.hasAttribute('filter')).toBe(false)
   })
+
+  it('drops animations that could point a link elsewhere later, and filter images', () => {
+    const { svg } = importSvg(
+      drawing(
+        '<a href="#n"><text>n</text>' +
+          '<set attributeName="href" to="https://tracker.example/s" />' +
+          '<animate attributeName="href" values="https://tracker.example/a" />' +
+          '<animateMotion path="M0 0" /><animateTransform attributeName="transform" />' +
+          '<discard begin="1s" /></a>' +
+          '<filter id="f"><feImage href="https://tracker.example/i" /><feGaussianBlur stdDeviation="1" /></filter>',
+      ),
+    )
+    for (const name of [
+      'set',
+      'animate',
+      'animateMotion',
+      'animateTransform',
+      'discard',
+      'feImage',
+    ])
+      expect(svg.getElementsByTagName(name)).toHaveLength(0)
+    expect(svg.outerHTML).not.toContain('tracker')
+    expect(svg.querySelector('a')?.getAttribute('href')).toBe('#n')
+    expect(svg.getElementsByTagName('feGaussianBlur')).toHaveLength(1)
+  })
 })
