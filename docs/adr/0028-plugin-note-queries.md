@@ -15,6 +15,7 @@ A plugin with `notes.read` sees enough of each note to filter and sort it, and a
 - `notes.get` carries `properties`: the note's front matter as JSON values, read with the YAML core schema; front matter that is not a map, or that cannot be read, gives `{}` (`src/core/frontMatter.ts`).
 - The page loads the front matter parser the first time a plugin reads a note, so the main window starts without it.
 - When an enabled plugin has both `preview` and `notes.read`, every plugin block is rendered again 1 s after the notes settle from a change, made in this window or elsewhere (`src/renderer/src/plugins/libraryTurn.ts`); without such a plugin nothing is redrawn.
+  Only the pieces of the note that may hold a plugin's block are rendered again (`mayHoldPluginBlock`, `src/core/preview/plugins.ts`): the rest of a long note stays as it is shown.
 - An island may name a revision; the page draws an island again when its revision changes, even when its source has not (`src/renderer/src/preview/islands.ts`).
 
 ## Consequences

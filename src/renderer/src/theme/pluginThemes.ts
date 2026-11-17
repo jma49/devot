@@ -110,6 +110,40 @@ export function applyPluginTheme(
   return now
 }
 
+export interface ThemeStorage {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+}
+
+const REMEMBERED_KEY = 'devot.pluginThemes'
+
+/** Keeps the themes in effect, so the next window paints them first rather than the theme under them until Rust answers. */
+export function rememberThemes(storage: ThemeStorage | undefined, themes: PluginThemes): void {
+  const inEffect = (['light', 'dark'] as const).flatMap((a) => themeInEffect(themes, a) ?? [])
+  try {
+    storage?.setItem(REMEMBERED_KEY, JSON.stringify({ themes: inEffect, chosen: themes.chosen }))
+  } catch {
+    console.warn('W_PLUGIN_THEMES_NOT_KEPT')
+  }
+}
+
+export function rememberedThemes(storage: ThemeStorage | undefined): PluginThemes {
+  try {
+    const kept = storage?.getItem(REMEMBERED_KEY)
+    return kept ? readPluginThemes(JSON.parse(kept)) : NO_PLUGIN_THEMES
+  } catch {
+    return NO_PLUGIN_THEMES
+  }
+}
+
+function windowStorage(): ThemeStorage | undefined {
+  try {
+    return (globalThis as { localStorage?: ThemeStorage }).localStorage
+  } catch {
+    return undefined
+  }
+}
+
 export const listPluginThemes = () => invoke<unknown>('plugin_themes').then(readPluginThemes)
 
 export const choosePluginTheme = (appearance: Appearance, theme: ThemeRef | null) =>
@@ -137,10 +171,11 @@ let started = false
 /** Draws the chosen plugin theme and follows choices, plugins turned on or off, and the appearance. Once per page. */
 export function startPluginThemes(
   root: ThemeTarget = document.documentElement as unknown as ThemeTarget,
+  storage: ThemeStorage | undefined = windowStorage(),
 ): void {
   if (started) return
   started = true
-  let themes = NO_PLUGIN_THEMES
+  let themes = rememberedThemes(storage)
   let applied: Set<string> = new Set()
   let asked = 0
   const apply = () => {
@@ -152,11 +187,13 @@ export function startPluginThemes(
       (next) => {
         if (request !== asked) return
         themes = next
+        rememberThemes(storage, next)
         apply()
       },
       () => console.warn('W_PLUGIN_THEMES_FAILED'),
     )
   }
+  apply()
   load()
   watchPluginThemes(load)
   watchPlugins(load)

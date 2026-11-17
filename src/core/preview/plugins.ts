@@ -43,6 +43,16 @@ async function withAnswerTargets(
   return { ...context, noteLinks: { ...known, ...found } }
 }
 
+/**
+ * Whether a piece of a note may hold a block in one of `languages`: never wrong about a piece that does.
+ * A fence may write its language with a character reference or a backslash escape, and raw HTML may hold a `pre`.
+ */
+export function mayHoldPluginBlock(text: string, languages: readonly string[]): boolean {
+  if (languages.length === 0) return false
+  if (!text.includes('```') && !text.includes('~~~') && !/<pre/i.test(text)) return false
+  return text.includes('&') || text.includes('\\') || languages.some((l) => text.includes(l))
+}
+
 export type MarkdownNodes = (markdown: string, context: PreviewContext) => Promise<RootContent[]>
 
 function languageOf(pre: Element): { code: Element; language: string } | undefined {

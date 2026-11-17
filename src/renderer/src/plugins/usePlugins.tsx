@@ -197,9 +197,9 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   useEffect(() => {
     if (!core || !host) return
     const was = applied.current
-    applied.current = { core, host, key: drawnKey }
-    if (specsKey === '[]' && (was === undefined || was.key.startsWith('[]#'))) return
-    if (was?.core === core && was.host === host && was.key === drawnKey) return
+    applied.current = { core, host, key: specsKey }
+    if (specsKey === '[]' && (was === undefined || was.key === '[]')) return
+    if (was?.core === core && was.host === host && was.key === specsKey) return
     const render = (key: string, source: string) => {
       const target = rendererOfKey(key)
       return target ? host.render(target.plugin, target.renderer, source) : Promise.resolve(null)
@@ -208,7 +208,14 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     void core
       .setPluginRenderers(specs, Comlink.proxy(render))
       .then(pluginRenderersChanged, () => console.warn('W_PLUGIN_RENDERERS_FAILED'))
-  }, [core, host, drawnKey, specsKey])
+  }, [core, host, specsKey])
+
+  useEffect(() => {
+    if (!core || libraryTurn === 0) return
+    void core
+      .pluginNotesChanged()
+      .then(pluginRenderersChanged, () => console.warn('W_PLUGIN_RENDERERS_FAILED'))
+  }, [core, libraryTurn])
 
   const editableKey = JSON.stringify(editableRenderers(plugins))
   useEffect(() => {

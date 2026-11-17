@@ -84,6 +84,8 @@ export interface PreviewOptions {
   frontMatterInInfo?: boolean
   /** Changes when plugins' renderers do, so pieces rendered before are rendered again. */
   pluginRenderers?: number
+  /** Changes when the notes plugins read may have: only pieces that may hold a plugin's block are rendered again. */
+  pluginNotes?: number
 }
 
 export interface PreviewContext extends PreviewOptions {

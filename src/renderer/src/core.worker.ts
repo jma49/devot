@@ -114,6 +114,8 @@ let coreParts:
 // One piece renderer for the window's life, so piece keys never repeat; the plugins' renderers change under it.
 let previewRegistry = createPreviewRegistry({ builtins: true })
 let pluginRevision = 0
+let pluginNotesRevision = 0
+let pluginLanguages: readonly string[] = []
 let pluginRender: RenderPluginBlock | undefined
 const noteSplitter = shareSplitter(createBlockSplitter(PIECE_LENGTH))
 const pieces = createPieceRenderer({
@@ -123,6 +125,12 @@ const pieces = createPieceRenderer({
     ids: () => previewRegistry.ids(),
     renderers: () => previewRegistry.renderers(),
   },
+  pluginLanguages: () => pluginLanguages,
+})
+
+const pluginRevisions = () => ({
+  pluginRenderers: pluginRevision,
+  pluginNotes: pluginNotesRevision,
 })
 
 const required = () => {
@@ -132,7 +140,7 @@ const required = () => {
 
 const livePreview = createLivePreviewRenderer({
   renderPieces: (markdown, options, known) =>
-    pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
+    pieces(markdown, { ...options, ...pluginRevisions() }, known),
   linkTargets: (ids, embeds) => required().linkTargets(ids, embeds),
   onTargetsFailed: () => console.warn('W_LINK_TARGETS_FAILED'),
   split: noteSplitter(),
@@ -461,12 +469,12 @@ const coreApi = {
     noteFrontMatter(head, note, untitled),
   /** The open note's preview in pieces; `known` are the keys of the pieces the page shows. */
   renderPreviewPieces: (markdown: string, options: PreviewOptions, known: string[]) =>
-    pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
+    pieces(markdown, { ...options, ...pluginRevisions() }, known),
   /** The preview closed, so the pieces it showed are kept no longer than a note left. */
   forgetShownPieces: () => pieces.forgetShown(),
   /** A preview render the page does not show, which leaves the open note's pieces cached. */
   warmPreviewPieces: (markdown: string, options: PreviewOptions) =>
-    pieces.sample(markdown, { ...options, pluginRenderers: pluginRevision }),
+    pieces.sample(markdown, { ...options, ...pluginRevisions() }),
   /** The code languages, math and emoji the open note and the first `listed` notes use. */
   warmFeatures: (openText: string, listed: string[]) => {
     const parts = coreParts
@@ -492,7 +500,12 @@ const coreApi = {
       builtins: true,
       plugins: { specs, render, linkTargets: (ids) => required().linkTargets(ids) },
     })
+    pluginLanguages = specs.map((s) => s.language)
     pluginRevision += 1
+  },
+  /** The notes plugins' blocks may show changed (ADR 0028): the pieces that may hold such a block render again, the rest stay. */
+  pluginNotesChanged: () => {
+    pluginNotesRevision += 1
   },
   /**
    * Prepares the mirror (once); nothing runs until `mirrorReconcile`. Notes a file changed outside Devot is brought back

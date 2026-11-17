@@ -38,6 +38,7 @@ import { createNoteEmbeds, NOTE_EMBEDS_ID, type RenderEmbedded } from './noteEmb
 import { remarkSoftBreaks } from './softBreaks'
 import {
   createPluginRenderer,
+  mayHoldPluginBlock,
   type MarkdownNodes,
   type PluginLinkTargets,
   type PluginRendererSpec,
@@ -444,12 +445,15 @@ export function createPieceRenderer({
   capacity = KEPT_CHARACTERS,
   pieceLength = PIECE_LENGTH,
   split = createBlockSplitter(pieceLength),
+  pluginLanguages,
 }: {
   registry?: PreviewRegistry
   capacity?: number
   pieceLength?: number
   /** Cuts the note into pieces; one that remembers the note before cuts an edited note again only around the edit. */
   split?: (markdown: string) => NoteSplit
+  /** The languages plugins render now; without it every piece counts as holding a plugin's block. */
+  pluginLanguages?: () => readonly string[]
 } = {}): PieceRenderer {
   const cache = new Map<string, Rendered>()
   let cached = 0
@@ -571,21 +575,32 @@ export function createPieceRenderer({
     const names = registry.renderers().includes(headingIds)
     const { blocks, was: wasAt } = (showing ? split : splitSample)(markdown)
     // Only front matter shows the note's fields: other pieces do not render again when those change.
-    const { note: fields, ...bodyOptions } = options
+    const { note: fields, pluginNotes, ...bodyOptions } = options
     const bodyKey = JSON.stringify(bodyOptions)
     const front = fields !== undefined && markdown.startsWith('---')
-    const firstKey = front ? JSON.stringify(options) : bodyKey
+    const firstKey = front ? JSON.stringify({ ...bodyOptions, note: fields }) : bodyKey
+    const languages = pluginLanguages?.()
+    const notesKey = (text: string) =>
+      pluginNotes !== undefined && (!languages || mayHoldPluginBlock(text, languages))
+        ? `${pluginNotes} `
+        : ''
     const before = showing ? last : undefined
     const copies = copiesOf(blocks, wasAt, before)
-    const sameOptions = before?.options === `${firstKey}\u0000${bodyKey}`
+    const optionsKey = `${pluginNotes ?? ''}\u0000${firstKey}\u0000${bodyKey}`
+    const sameOptions = before?.options === optionsKey
     const keys = blocks.map((block, i) => {
       const j = wasAt[i]!
       if (sameOptions && j >= 0 && (i === 0) === (j === 0) && before!.copies[j] === copies[i]) {
         return before!.keys[j]!
       }
-      return keyOf(block.text, i === 0, copies[i]!, i === 0 ? firstKey : bodyKey)
+      return keyOf(
+        block.text,
+        i === 0,
+        copies[i]!,
+        notesKey(block.text) + (i === 0 ? firstKey : bodyKey),
+      )
     })
-    if (showing) last = { blocks, copies, keys, options: `${firstKey}\u0000${bodyKey}` }
+    if (showing) last = { blocks, copies, keys, options: optionsKey }
     const parserOf = (i: number) => (i === 0 ? processor : bodyProcessor)
 
     const found = keys.map((key) => {
