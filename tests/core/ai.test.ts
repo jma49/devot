@@ -583,6 +583,27 @@ describe('editing notes', () => {
     expect((await s.ai.update({ id: ids.shared, tags: [] })).tags).toEqual([])
   })
 
+  it("reads one note's tags without listing the library when it sets tags", async () => {
+    let listed = 0
+    const s = setup((sqlite) => ({
+      ...sqlite,
+      noteTags: undefined,
+      tagsInBooks: undefined,
+      listNotes: async (page) => {
+        listed += 1
+        return sqlite.listNotes(page)
+      },
+    }))
+    const { ids } = await world(s)
+    await s.tags.addToNote(ids.shared, 'Work')
+    await s.notes.flush()
+    listed = 0
+    const updated = await s.ai.update({ id: ids.shared, tags: ['work', 'Fresh'] })
+    expect(updated.tags).toEqual(['Fresh', 'Work'])
+    // Two lists are left: inBooks, for each tagsInBooks (6 before the point lookup).
+    expect(listed).toBe(2)
+  })
+
   it('refuses a tag name only hidden notebooks use, so it is not confirmed', async () => {
     const s = setup()
     const { ids } = await world(s)
