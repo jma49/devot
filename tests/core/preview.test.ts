@@ -490,6 +490,49 @@ describe('embeds', () => {
       expect(JSON.stringify(tree)).not.toMatch(/p\.png/)
     })
 
+    it('wait through a picture, whose fallback image still shows', async () => {
+      const tree = await render(
+        `<picture><source srcset="https://tracker.example/a.png"><img src="${file}" alt="a"></picture>`,
+        wait(),
+      )
+      expect(JSON.stringify(tree)).not.toMatch(/tracker\.example/)
+      expect(tags(tree, 'img').map((img) => img.properties['src'])).toEqual([file])
+    })
+
+    it("hold back a picture's fallback image from the web", async () => {
+      const tree = await render(
+        '<picture><source srcset="https://tracker.example/a.png"><img src="https://tracker.example/b.png"></picture>',
+        wait(),
+      )
+      expect(tags(tree, 'img')).toHaveLength(0)
+      expect(byClass(tree, 'image-placeholder')).toHaveLength(1)
+      expect(JSON.stringify(tree)).not.toMatch(/\.png/)
+    })
+
+    it('carry no web address in anything that loads', async () => {
+      const vectors = [
+        `<picture><source srcset="https://t.example/1.png" media="(min-width: 1px)"><img src="${file}"></picture>`,
+        `<img src="${file}" srcset="https://t.example/2.png 2x">`,
+        `<img src="${file}" longdesc="https://t.example/3">`,
+        '<video poster="https://t.example/4.png" src="https://t.example/4.mp4"></video>',
+        '<audio src="https://t.example/5.mp3"></audio>',
+        '<table background="https://t.example/6.png"><tr><td background="https://t.example/7.png">x</td></tr></table>',
+        '<div style="background:url(https://t.example/8.png)">x</div>',
+        '<a href="https://ok.example/" ping="https://t.example/9">x</a>',
+        '<object data="https://t.example/10"></object><embed src="https://t.example/11">',
+        '<input type="image" src="https://t.example/12.png">',
+        '<link rel="stylesheet" href="https://t.example/13.css">',
+        '<svg><image href="https://t.example/14.png"></image></svg>',
+      ]
+      const tree = await render(vectors.join('\n\n'), wait())
+      for (const node of elements(tree)) {
+        for (const [key, value] of Object.entries(node.properties)) {
+          if (node.tagName === 'a' && key === 'href') continue
+          expect(`${node.tagName}[${key}]=${String(value)}`).not.toMatch(/https?:\/\//)
+        }
+      }
+    })
+
     it('load once their site is loaded', async () => {
       const tree = await render(md, wait(['tracker.example']))
       expect(byClass(tree, 'image-placeholder')).toHaveLength(0)

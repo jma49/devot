@@ -67,11 +67,33 @@ export { createEmojiRenderer, type EmojiTable } from './emoji'
 export { createMathRenderer, type MathEngine } from './math'
 export type { PluginLinkTargets, PluginRendererSpec, RenderPluginBlock } from './plugins'
 
-/** GitHub's schema plus `mark`, https iframes and devot:// URLs. Math arrives as `code.language-math` and is rendered after sanitizing. */
+// `img[src]` is the one image load the `devot.images` renderer can hold back, so nothing else may load:
+// a dropped `picture` keeps its fallback `img`.
+const UNLOADED_TAGS = new Set(['picture', 'source'])
+const UNLOADED_ATTRIBUTES = new Set(['srcSet', 'longDesc'])
+
+const loadsOnlyImgSrc = (attributes: NonNullable<Schema['attributes']>) =>
+  Object.fromEntries(
+    Object.entries(attributes)
+      .filter(([tag]) => !UNLOADED_TAGS.has(tag))
+      .map(([tag, list]) => [
+        tag,
+        list.filter((a) => !UNLOADED_ATTRIBUTES.has(typeof a === 'string' ? a : a[0])),
+      ]),
+  )
+
+/** GitHub's schema less `picture`, `source`, `srcset` and `longdesc`, plus `mark`, https iframes and devot:// URLs. Math arrives as `code.language-math` and is rendered after sanitizing. */
 const schema: Schema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), 'mark', 'iframe'],
-  attributes: { ...defaultSchema.attributes, iframe: ['src', 'title', 'width', 'height'] },
+  tagNames: [
+    ...(defaultSchema.tagNames ?? []).filter((name) => !UNLOADED_TAGS.has(name)),
+    'mark',
+    'iframe',
+  ],
+  attributes: {
+    ...loadsOnlyImgSrc(defaultSchema.attributes ?? {}),
+    iframe: ['src', 'title', 'width', 'height'],
+  },
   protocols: {
     ...defaultSchema.protocols,
     href: ['http', 'https', 'mailto', 'devot'],
