@@ -227,6 +227,37 @@ describe('plugin preview renderers', () => {
     expect(calls).toBe(1)
   })
 
+  it('renders again only the pieces that may hold a plugin block when the notes plugins read change', async () => {
+    const asked: string[] = []
+    const pieces = createPieceRenderer({
+      registry: createPreviewRegistry({
+        builtins: true,
+        plugins: {
+          specs,
+          render: async (_k, source) => {
+            asked.push(source)
+            return source.toUpperCase()
+          },
+        },
+      }),
+      pieceLength: 10,
+      pluginLanguages: () => ['chart'],
+    })
+    const note =
+      '```chart\nabc\n```\n\nmore text about a chart\n\n```js\nlet a\n```\n\n```&#99;hart\ndef\n```\n'
+    const options = { labels, loadedEmbeds: [] }
+    const first = await pieces(note, { ...options, pluginNotes: 0 })
+    expect(asked).toEqual(['abc', 'def'])
+    const second = await pieces(
+      note,
+      { ...options, pluginNotes: 1 },
+      first.map((p) => p.key),
+    )
+    expect(asked).toEqual(['abc', 'def', 'abc', 'def'])
+    expect(second.map((p) => p.nodes !== undefined)).toEqual([true, false, false, true])
+    expect(second.map((p, i) => p.key === first[i]!.key)).toEqual([false, true, true, false])
+  })
+
   it('leaves a block of a renderer that draws SVG to the page, as an island naming the renderer and where the block is', async () => {
     const asked: string[] = []
     const out = await html(

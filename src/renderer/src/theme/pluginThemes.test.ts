@@ -5,6 +5,8 @@ import {
   isIconColor,
   NO_PLUGIN_THEMES,
   readPluginThemes,
+  rememberedThemes,
+  rememberThemes,
   themeInEffect,
   THEME_COLORS,
   type ThemeTarget,
@@ -121,5 +123,55 @@ describe('applyPluginTheme', () => {
     expect(root.props.size).toBe(0)
     expect(applied.size).toBe(0)
     expect(root.dataset['pluginTheme']).toBeUndefined()
+  })
+})
+
+describe('rememberedThemes', () => {
+  const store = () => {
+    const kept = new Map<string, string>()
+    return {
+      kept,
+      getItem: (key: string) => kept.get(key) ?? null,
+      setItem: (key: string, value: string) => void kept.set(key, value),
+    }
+  }
+  const dusk = { ...nord, id: 'nord-dusk', title: 'Nord Dusk', appearance: 'dark' }
+  const other = { ...nord, id: 'nord-other', title: 'Nord Other' }
+
+  it('gives a window the themes in effect at the last load, and no others', () => {
+    const storage = store()
+    const loaded = readPluginThemes({
+      themes: [nord, other, dusk],
+      chosen: { light: { plugin: nord.plugin, theme: nord.id }, dark: null },
+    })
+    rememberThemes(storage, loaded)
+    const remembered = rememberedThemes(storage)
+    expect(remembered.themes.map((t) => t.id)).toEqual(['nord-light'])
+    expect(themeInEffect(remembered, 'light')?.colors).toEqual({ 'surface-editor': '#eceff4' })
+    expect(themeInEffect(remembered, 'dark')).toBeUndefined()
+  })
+
+  it('forgets a theme no longer chosen', () => {
+    const storage = store()
+    rememberThemes(
+      storage,
+      readPluginThemes({
+        themes: [nord],
+        chosen: { light: { plugin: nord.plugin, theme: nord.id }, dark: null },
+      }),
+    )
+    rememberThemes(
+      storage,
+      readPluginThemes({ themes: [nord], chosen: { light: null, dark: null } }),
+    )
+    expect(rememberedThemes(storage)).toEqual(NO_PLUGIN_THEMES)
+  })
+
+  it('starts without a theme when nothing readable is kept', () => {
+    const storage = store()
+    expect(rememberedThemes(storage)).toEqual(NO_PLUGIN_THEMES)
+    storage.kept.set('devot.pluginThemes', '{not json')
+    expect(rememberedThemes(storage)).toEqual(NO_PLUGIN_THEMES)
+    expect(rememberedThemes(undefined)).toEqual(NO_PLUGIN_THEMES)
   })
 })

@@ -106,6 +106,20 @@ test('draws the chosen plugin theme over the window’s theme, in light, dark an
   await expect.poll(() => rootColor(page)).toBe('#1e1e2e')
 })
 
+test('a window opened again paints the chosen plugin theme before Rust answers', async ({
+  page,
+}) => {
+  await fakeRust(page, { light: { plugin: CAT, theme: 'latte' }, dark: null })
+  await openApp(page)
+  await expect.poll(() => rootColor(page)).toBe('#eff1f5')
+  await page.addInitScript(() => {
+    window.devotIpcMocks = { ...window.devotIpcMocks, plugin_themes: () => new Promise(() => {}) }
+  })
+  await page.reload()
+  await expect.poll(() => rootColor(page)).toBe('#eff1f5')
+  await expect(page.locator('html')).toHaveAttribute('data-plugin-theme', `${CAT}/latte`)
+})
+
 test('shows each plugin as a card of its light and dark themes after the built-in ones', async ({
   page,
 }) => {
