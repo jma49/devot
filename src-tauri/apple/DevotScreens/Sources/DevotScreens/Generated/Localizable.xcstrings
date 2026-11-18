@@ -26011,6 +26011,23 @@
         }
       }
     },
+    "phone.toast.saveFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save. Devot keeps trying."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未能保存。Devot 会继续尝试。"
+          }
+        }
+      }
+    },
     "phone.toast.trashed" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -264,7 +264,10 @@ interface PhoneTestDriver {
 export function PhoneApp() {
   const [state, dispatch] = useReducer(navigate, undefined, initialNavigation)
   const bridge = useRef<ScreensBridge | null>(null)
-  const phoneData = usePhoneData(() => bridge.current?.libraryListed())
+  const phoneData = usePhoneData(
+    () => bridge.current?.libraryListed(),
+    () => bridge.current?.notify({ notice: 'note.saveFailed' }),
+  )
   const [discarding, setDiscarding] = useState<ReadonlySet<string>>(() => new Set())
   // A discarded note leaves every screen the moment it is left, before its purge returns.
   const store =

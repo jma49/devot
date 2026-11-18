@@ -33,6 +33,7 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
   Undo puts the note back as it was, its place in the list too (a status write moves `updatedAt`, so `note.undoStatus` restores that as well).
   A second action replaces the toast and the first stays done.
   Completing a note already completed does nothing.
+- A note that newly could not be saved shows the same toast with a warning glyph and no Undo, saying Devot keeps trying, once per new failure; a save refused for the licence shows none, since the lock and its Pro prompt explain it.
 - Settings is native: every pane is a SwiftUI form (`docs/specs/iphone-screens.md`, Settings tree), and the page draws no Settings of its own.
   Keyboard, Mirror, Integrations, Local HTTP API, Plugins and Usage (the phone records no usage events) have no row on the phone, and General has one only when the build can send crash reports, its one setting there.
 - A pane leaves out what only the Mac has: the Mac's Glass Transparency, the system accent color, the board, activity strip, menu bar, updates, command line tool and folder buttons, Synced Scrolling (there is no split view) and Installed Font (iOS lists no installed fonts to an app; it stays only while it is the choice).

@@ -5926,6 +5926,10 @@ public enum L10n {
     text("phone.toast.undo", "Undo")
   }
 
+  public static func phoneToastSaveFailed() -> String {
+    text("phone.toast.saveFailed", "Could not save. Devot keeps trying.")
+  }
+
   public static func phoneListRecent() -> String {
     text("phone.list.recent", "Recent")
   }

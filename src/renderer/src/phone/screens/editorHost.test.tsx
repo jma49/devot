@@ -12,7 +12,7 @@ import { closePurchase } from '../../purchaseSheet'
 import { haptic } from '../haptics'
 import { PhoneApp } from '../PhoneApp'
 import { closeGate } from '../requireEditing'
-import { setTestCore, testCore } from '../testShell'
+import { failTestSave, setTestCore, testCore } from '../testShell'
 import type { ScreensNotice } from './message'
 import type { ScreensHandlers } from './ops'
 
@@ -495,6 +495,12 @@ describe('the editor host under the native screens', () => {
       notice: 'editor.haptic',
       kind: 'warning',
     })
+  })
+
+  it('tells Swift to show the save toast when a note newly could not be saved', async () => {
+    await start()
+    act(() => failTestSave())
+    expect(notices('note.saveFailed')).toStrictEqual([{ notice: 'note.saveFailed' }])
   })
 
   it('duplicates the shown note with its tags, and answers with the copy', async () => {

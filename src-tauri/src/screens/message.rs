@@ -611,6 +611,8 @@ pub enum Notice {
     EditorPicker(EditorPicker),
     #[serde(rename = "editor.haptic")]
     EditorHaptic(EditorHaptic),
+    #[serde(rename = "note.saveFailed")]
+    NoteSaveFailed(Empty),
 }
 
 const NOTICES: &[&str] = &[
@@ -630,6 +632,7 @@ const NOTICES: &[&str] = &[
     "editor.note",
     "editor.picker",
     "editor.haptic",
+    "note.saveFailed",
 ];
 
 /// What Rust tells Swift itself, never passed on from the page: a notice without fields, after
@@ -1129,7 +1132,8 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
         | Notice::BooksChanged(_)
         | Notice::TagsChanged(_)
         | Notice::SavedSearchesChanged(_)
-        | Notice::EditorHaptic(_) => Ok(()),
+        | Notice::EditorHaptic(_)
+        | Notice::NoteSaveFailed(_) => Ok(()),
     }
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useInsertionEffect, useRef, useState } from 'react'
-import type { TakenIn } from '../../../core'
+import type { SaveProblem, TakenIn } from '../../../core'
 import type {
   BookRecord,
   NoteSummary,
@@ -11,7 +11,9 @@ import { listBackups } from '../backups'
 import { startCore, stopCore, type Core } from '../core-client'
 import { errorCode } from '../../../core/errors'
 import { useExternalChanges } from '../externalChanges'
+import { LICENCE_REQUIRED, LICENCE_UNREADABLE } from '../licence'
 import { saveEdits } from '../saveGuards'
+import { logNewProblems } from '../saving'
 import { welcomeContent } from '../welcome/content'
 import { listSeeded } from '../welcome/seed'
 import { createCoreGate } from './coreGate'
@@ -70,11 +72,16 @@ export type PhoneStore = PhoneData & {
  * The phone's one core: started once, every list reloaded after each write. `onListed` runs once
  * the first listing is done, with the first-launch notes seeded into an empty library, or has failed.
  */
-export function usePhoneData(onListed: () => void = () => {}): PhoneStore {
+export function usePhoneData(
+  onListed: () => void = () => {},
+  onSaveFailed: () => void = () => {},
+): PhoneStore {
   const [data, setData] = useState<PhoneData>(EMPTY)
   const listedRef = useRef(onListed)
+  const saveFailedRef = useRef(onSaveFailed)
   useInsertionEffect(() => {
     listedRef.current = onListed
+    saveFailedRef.current = onSaveFailed
   })
   const coreRef = useRef<Core | null>(null)
   const [takenIn] = useState(() => new Set<(change: TakenIn) => void>())
@@ -120,8 +127,15 @@ export function usePhoneData(onListed: () => void = () => {}): PhoneStore {
   useEffect(() => {
     let alive = true
     let started: Core | null = null
+    let problems: readonly SaveProblem[] = []
     void startCore(
-      () => {},
+      (next) => {
+        const fresh = logNewProblems(problems, next)
+        problems = next
+        // A licence refusal is the lock's to explain, through its Pro prompt (requireEditing.ts).
+        if (fresh.some((p) => p.code !== LICENCE_REQUIRED && p.code !== LICENCE_UNREADABLE))
+          saveFailedRef.current()
+      },
       (writes) => {
         noteWritesReported(writes.keys())
         void refresh()

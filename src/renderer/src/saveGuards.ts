@@ -5,7 +5,7 @@ import type { SaveProblem } from '../../core'
 import { errorCode } from '../../core/errors'
 import type { Core } from './core-client'
 import { invoke } from './ipc'
-import { createQuitGuard, newProblems, type QuitGuard } from './saving'
+import { createQuitGuard, logNewProblems, type QuitGuard } from './saving'
 import { unlistenLater } from './windowEvents'
 
 /** Flushes pending edits; a failed save stays in the core (which retries and reports it), so the caller goes on. */
@@ -28,9 +28,7 @@ export function useSaveProblems(
     (next: SaveProblem[]) => {
       const previous = problemsRef.current
       problemsRef.current = next
-      const fresh = newProblems(previous, next)
-      for (const problem of fresh) console.warn('W_NOTE_SAVE_FAILED', problem.id, problem.code)
-      if (fresh.length > 0) setDismissed(false)
+      if (logNewProblems(previous, next).length > 0) setDismissed(false)
       quitGuard.update(next)
       closeGuard.update(next)
       setProblems(next)
