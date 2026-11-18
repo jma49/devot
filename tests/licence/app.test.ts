@@ -105,8 +105,8 @@ const resend = (email: string, ip = '203.0.113.1') =>
   )
 
 /** /buy, then the buyer pays: the session as Stripe has it afterwards. */
-async function buy(email: string) {
-  const response = await get('/buy')
+async function buy(email: string, ip?: string) {
+  const response = await get('/buy', ip ? { 'CF-Connecting-IP': ip } : {})
   expect(response.status).toBe(303)
   const sessionId = response.headers.get('Location')?.split('/').pop() ?? ''
   return stripe.pay(sessionId, email)
@@ -551,23 +551,34 @@ describe('/resend', () => {
     expect(mailer.sent).toHaveLength(LIMITS.resendPerAddressPerDay)
   })
 
-  it('sends at most 25 a day in all, leaving room for purchase mails', async () => {
+  it('does not spend the daily allowance on addresses that bought nothing', async () => {
     await webhook('checkout.session.completed', rawSession(await buy('buyer@example.com')))
     mailer.sent.length = 0
-    // Unrelated addresses use most of the day's allowance; they bought nothing, so none is mailed.
-    const filler = (i: number) =>
-      resend(`filler${i}@example.com`, `203.0.${Math.floor(i / 250)}.${(i % 250) + 1}`)
-    for (let i = 0; i < LIMITS.resendAllPerDay - 1; i++) await filler(i)
-    await resend('buyer@example.com', '198.51.100.1')
+    for (let i = 0; i < 30; i++) await resend(`nobody${i}@example.com`, `203.0.113.${(i % 3) + 1}`)
+    await settle()
+    expect(mailer.sent).toHaveLength(0)
+    const known = await resend('buyer@example.com', '198.51.100.1')
+    const unknown = await resend('nobody@example.com', '198.51.100.2')
+    expect(await known.text()).toBe(await unknown.text())
     await settle()
     expect(mailer.sent.map((m) => m.to)).toEqual(['buyer@example.com'])
-    // The last request fills the day: the buyer's own asks now go nowhere, however often they ask.
-    await filler(LIMITS.resendAllPerDay - 1)
-    for (let i = 0; i < LIMITS.resendPerAddress; i++) {
-      await resend('buyer@example.com', `198.51.101.${i + 1}`)
+    expect(logs).not.toContain('I_LICENCE_RESEND_LIMITED')
+  })
+
+  it('sends at most 25 a day in all, leaving room for purchase mails', async () => {
+    const buyers = Array.from({ length: LIMITS.resendAllPerDay + 1 }, (_, i) => `b${i}@example.com`)
+    for (const [i, buyer] of buyers.entries()) {
+      await webhook('checkout.session.completed', rawSession(await buy(buyer, `192.0.2.${i + 1}`)))
     }
+    mailer.sent.length = 0
+    for (const [i, buyer] of buyers.entries()) await resend(buyer, `198.51.100.${i + 1}`)
     await settle()
-    expect(mailer.sent).toHaveLength(1)
+    expect(mailer.sent.map((m) => m.to)).toEqual(buyers.slice(0, LIMITS.resendAllPerDay))
+    expect(logs).toContain('I_LICENCE_RESEND_LIMITED')
+    clock = new Date(clock.getTime() + 86400 * 1000)
+    await resend(buyers[LIMITS.resendAllPerDay] ?? '', '198.51.101.1')
+    await settle()
+    expect(mailer.sent).toHaveLength(LIMITS.resendAllPerDay + 1)
   })
 
   it("an over-limit IP does not spend a buyer's recovery allowance", async () => {

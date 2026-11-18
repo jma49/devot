@@ -75,4 +75,5 @@ Part of the [architecture overview](../architecture.md).
   No hardware identifier, address or machine name is stored, and the key travels in the request body.
   The app's `activation` item also lists every licence it has tried (32 at most), so a migration window cannot be restarted by pasting a key again or swapping keys; a seat item that cannot be read locks the device, and one that does not parse is replaced when the key is pasted again.
   A refusal from the Worker (any code but an unreachable one) ends that licence's migration window at once, whether the key was pasted or held from before seats.
+  The app verifies a reply's lease for this licence and device before storing it; one that does not verify, or that ends before the stored lease does, keeps the stored lease and window and counts as unreachable (`E_LICENCE_ACTIVATION_FAILED`), not as a refusal.
   A pasted key the keychain will not store changes no seat: the licence held keeps its lease or window, and the new key is not counted as tried.
