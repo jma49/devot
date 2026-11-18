@@ -259,5 +259,26 @@ describe('the settings Rust reports', () => {
     expect(asAiSettingsView({ ...view, openai: provider('maybe') })).toBeUndefined()
     expect(asAiSettingsView({ ...view, anthropic: undefined })).toBeUndefined()
     expect(asAiSettingsView(null)).toBeUndefined()
+
+    const withCli = {
+      ...view,
+      active: 'claudeCli',
+      cli: {
+        claudeCli: { state: 'ready', model: 'sonnet' },
+        codexCli: { state: 'notInstalled', model: '' },
+      },
+    }
+    expect(asAiSettingsView(withCli)).toEqual(withCli)
+    expect(
+      asAiSettingsView({
+        ...withCli,
+        cli: {
+          claudeCli: { state: 'bogus', model: '' },
+          codexCli: { state: 'notInstalled', model: '' },
+        },
+      }),
+    ).toBeUndefined()
+    expect(asAiGenerated({ ...GENERATED, provider: 'claudeCli' })?.provider).toBe('claudeCli')
+    expect(asAiGenerated({ ...GENERATED, provider: 'codexCli' })?.provider).toBe('codexCli')
   })
 })

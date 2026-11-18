@@ -81,6 +81,7 @@ enum SettingsIndex {
     Entry(pane: "sync", label: "syncSettings.usage.title", only: nil),
     Entry(pane: "sync", label: "syncSettings.enabled", only: nil),
     Entry(pane: "sync", label: "syncSettings.status", only: nil),
+    Entry(pane: "ai", label: "aiSettings.localTitle", only: .mac),
     Entry(pane: "ai", label: "aiSettings.active", only: .mac),
     Entry(pane: "ai", label: "phone.ai.provider", only: .phone),
     Entry(pane: "ai", label: "aiSettings.suggestOnIdle", only: nil),

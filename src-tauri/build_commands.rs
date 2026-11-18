@@ -221,6 +221,7 @@ const AI: &[&str] = &[
     "ai_settings_set",
     "ai_key_set",
     "ai_key_clear",
+    "ai_cli_refresh",
     "http_api_get",
     "http_api_set",
     "http_api_token_rotate",

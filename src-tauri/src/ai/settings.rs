@@ -20,6 +20,40 @@ pub struct ProviderSettings {
     pub model: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct CliProviderSettings {
+    pub model: String,
+    /// Tracks whether an external payload explicitly supplied this object (`false` preserves stored
+    /// desktop CLI models when iOS omits desktop-only fields).
+    #[serde(skip)]
+    pub(crate) provided: bool,
+}
+
+impl PartialEq for CliProviderSettings {
+    fn eq(&self, other: &Self) -> bool {
+        self.model == other.model
+    }
+}
+
+impl Eq for CliProviderSettings {}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireCliSettings {
+    #[serde(default)]
+    model: String,
+}
+
+impl<'de> Deserialize<'de> for CliProviderSettings {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = WireCliSettings::deserialize(deserializer)?;
+        Ok(Self {
+            model: wire.model,
+            provided: true,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AiSettings {
@@ -29,10 +63,25 @@ pub struct AiSettings {
     pub suggest_on_idle: bool,
     pub anthropic: ProviderSettings,
     pub openai: ProviderSettings,
+    #[serde(default, rename = "claudeCli")]
+    pub claude_cli: CliProviderSettings,
+    #[serde(default, rename = "codexCli")]
+    pub codex_cli: CliProviderSettings,
+}
+
+pub struct StoredSettings {
+    pub settings: AiSettings,
+    /// Whether `ai-settings.json` explicitly recorded an `active` provider.
+    pub explicit_active: bool,
 }
 
 fn default_for(id: ProviderId) -> ProviderSettings {
-    let p = provider(id);
+    let Some(p) = provider(id) else {
+        return ProviderSettings {
+            endpoint: String::new(),
+            model: String::new(),
+        };
+    };
     ProviderSettings {
         endpoint: p.default_endpoint().to_string(),
         model: p.default_model().unwrap_or_default().to_string(),
@@ -46,66 +95,106 @@ impl Default for AiSettings {
             suggest_on_idle: false,
             anthropic: default_for(ProviderId::Anthropic),
             openai: default_for(ProviderId::Openai),
+            claude_cli: CliProviderSettings::default(),
+            codex_cli: CliProviderSettings::default(),
         }
     }
 }
 
 impl AiSettings {
-    pub fn of(&self, id: ProviderId) -> &ProviderSettings {
+    pub fn of(&self, id: ProviderId) -> Option<&ProviderSettings> {
         match id {
-            ProviderId::Anthropic => &self.anthropic,
-            ProviderId::Openai => &self.openai,
+            ProviderId::Anthropic => Some(&self.anthropic),
+            ProviderId::Openai => Some(&self.openai),
+            ProviderId::ClaudeCli | ProviderId::CodexCli => None,
         }
     }
 
-    fn of_mut(&mut self, id: ProviderId) -> &mut ProviderSettings {
+    fn of_mut(&mut self, id: ProviderId) -> Option<&mut ProviderSettings> {
         match id {
-            ProviderId::Anthropic => &mut self.anthropic,
-            ProviderId::Openai => &mut self.openai,
+            ProviderId::Anthropic => Some(&mut self.anthropic),
+            ProviderId::Openai => Some(&mut self.openai),
+            ProviderId::ClaudeCli | ProviderId::CodexCli => None,
+        }
+    }
+
+    pub fn cli_model(&self, id: ProviderId) -> &str {
+        match id {
+            ProviderId::ClaudeCli => &self.claude_cli.model,
+            ProviderId::CodexCli => &self.codex_cli.model,
+            ProviderId::Anthropic | ProviderId::Openai => "",
         }
     }
 
     pub fn validated(mut self) -> Result<Self, &'static str> {
-        for id in ProviderId::ALL {
-            let entry = self.of_mut(id);
+        for id in ProviderId::HTTP {
+            let Some(p) = provider(id) else { continue };
+            let Some(entry) = self.of_mut(id) else {
+                continue;
+            };
             entry.endpoint = if entry.endpoint.trim().is_empty() {
-                provider(id).default_endpoint().to_string()
+                p.default_endpoint().to_string()
             } else {
                 clean_endpoint(&entry.endpoint)?
             };
             entry.model = clean_model(&entry.model)?;
             if entry.model.is_empty() {
-                entry.model = provider(id).default_model().unwrap_or_default().to_string();
+                entry.model = p.default_model().unwrap_or_default().to_string();
             }
         }
+        self.claude_cli.model = clean_model(&self.claude_cli.model)?;
+        self.codex_cli.model = clean_model(&self.codex_cli.model)?;
         Ok(self)
     }
 
-    fn lenient(value: &Value) -> Self {
+    fn lenient(value: &Value) -> StoredSettings {
         let mut settings = Self::default();
+        let mut explicit_active = false;
         if let Some(active) = value
             .get("active")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
         {
             settings.active = active;
+            explicit_active = true;
         }
         if let Some(on) = value.get("suggestOnIdle").and_then(Value::as_bool) {
             settings.suggest_on_idle = on;
         }
-        for id in ProviderId::ALL {
+        for id in ProviderId::HTTP {
+            let Some(p) = provider(id) else { continue };
             let stored = value.get(id.as_str());
             let text = |key: &str| stored.and_then(|s| s.get(key)).and_then(Value::as_str);
-            let entry = settings.of_mut(id);
+            let Some(entry) = settings.of_mut(id) else {
+                continue;
+            };
             if let Some(endpoint) = text("endpoint").and_then(|e| clean_endpoint(e).ok()) {
                 entry.endpoint = endpoint;
             }
             if let Some(model) = text("model").and_then(|m| clean_model(m).ok())
-                && (!model.is_empty() || provider(id).default_model().is_none())
+                && (!model.is_empty() || p.default_model().is_none())
             {
                 entry.model = model;
             }
         }
-        settings
+        for (key, target) in [
+            ("claudeCli", &mut settings.claude_cli),
+            ("codexCli", &mut settings.codex_cli),
+        ] {
+            if let Some(stored) = value.get(key) {
+                target.provided = true;
+                if let Some(model) = stored
+                    .get("model")
+                    .and_then(Value::as_str)
+                    .and_then(|m| clean_model(m).ok())
+                {
+                    target.model = model;
+                }
+            }
+        }
+        StoredSettings {
+            settings,
+            explicit_active,
+        }
     }
 }
 
@@ -148,10 +237,14 @@ pub fn same_origin(a: &str, b: &str) -> bool {
 }
 
 /// A model name as providers write them (`claude-sonnet-5-5`, `llama3.2:3b`, `vendor/model@2`); empty means the default.
+/// Refuses a leading `-` so a model override can never be interpreted as a CLI flag.
 pub fn clean_model(model: &str) -> Result<String, &'static str> {
     let model = model.trim();
     let allowed = |c: char| c.is_ascii_alphanumeric() || "._:/@+-".contains(c);
-    if model.chars().count() > MAX_MODEL_CHARS || !model.chars().all(allowed) {
+    if model.starts_with('-')
+        || model.chars().count() > MAX_MODEL_CHARS
+        || !model.chars().all(allowed)
+    {
         return Err("E_AI_MODEL_INVALID");
     }
     Ok(model.to_string())
@@ -177,26 +270,39 @@ impl SettingsStore {
         }
     }
 
-    fn read(&self) -> Option<AiSettings> {
+    fn read(&self) -> Option<StoredSettings> {
         self.file
             .read_as(|map| Some(AiSettings::lenient(&Value::Object(map))))
     }
 
+    pub fn get_stored(&self) -> StoredSettings {
+        self.read().unwrap_or_else(|| StoredSettings {
+            settings: AiSettings::default(),
+            explicit_active: false,
+        })
+    }
+
     /// The defaults while the file cannot be read.
     pub fn get(&self) -> AiSettings {
-        self.read().unwrap_or_default()
+        self.get_stored().settings
     }
 
     /// Refused while the file cannot be read, so a change made from the defaults shown meanwhile
     /// never replaces what it holds.
     pub fn set(&self, settings: AiSettings) -> Result<AiSettings, &'static str> {
-        let settings = settings.validated()?;
+        let mut settings = settings.validated()?;
         let _writing = self
             .write
             .lock()
             .map_err(|_| "E_AI_SETTINGS_WRITE_FAILED")?;
-        if self.read().is_none() {
+        let Some(existing) = self.read() else {
             return Err("E_AI_SETTINGS_READ_FAILED");
+        };
+        if !settings.claude_cli.provided && settings.claude_cli.model.is_empty() {
+            settings.claude_cli.model = existing.settings.claude_cli.model;
+        }
+        if !settings.codex_cli.provided && settings.codex_cli.model.is_empty() {
+            settings.codex_cli.model = existing.settings.codex_cli.model;
         }
         self.file.write(&settings)?;
         Ok(settings)
@@ -366,5 +472,57 @@ mod tests {
             Err("E_AI_SETTINGS_READ_FAILED")
         );
         assert!(dir.path().join(FILE).is_dir());
+    }
+
+    #[test]
+    fn cli_model_overrides_reject_leading_hyphens_and_preserve_when_ios_omits_cli_fields() {
+        let (_dir, store) = store();
+        assert!(!store.get_stored().explicit_active);
+        let mut settings = store.get();
+        settings.active = ProviderId::ClaudeCli;
+        settings.claude_cli.model = "opus".into();
+        settings.codex_cli.model = "gpt-5.4".into();
+        let saved = store.set(settings).unwrap();
+        assert_eq!(saved.claude_cli.model, "opus");
+        assert_eq!(saved.codex_cli.model, "gpt-5.4");
+        assert!(store.get_stored().explicit_active);
+
+        let mut bad = store.get();
+        bad.claude_cli.model = "--dangerously-skip-permissions".into();
+        assert_eq!(store.set(bad).unwrap_err(), "E_AI_MODEL_INVALID");
+
+        // An iOS payload omits `claudeCli` and `codexCli`: deserialization defaults them and `set`
+        // keeps the previously stored desktop overrides rather than wiping them.
+        let ios_payload: AiSettings = serde_json::from_str(
+            r#"{
+                "active": "openai",
+                "suggestOnIdle": true,
+                "anthropic": {"endpoint": "https://api.anthropic.com", "model": "claude-sonnet-5-5"},
+                "openai": {"endpoint": "https://api.openai.com/v1", "model": "gpt-4o"}
+            }"#,
+        )
+        .unwrap();
+        assert!(!ios_payload.claude_cli.provided);
+        let after_ios = store.set(ios_payload).unwrap();
+        assert_eq!(after_ios.active, ProviderId::Openai);
+        assert_eq!(after_ios.claude_cli.model, "opus");
+        assert_eq!(after_ios.codex_cli.model, "gpt-5.4");
+
+        // Explicitly sending `claudeCli: { model: "" }` clears the override.
+        let cleared_payload: AiSettings = serde_json::from_str(
+            r#"{
+                "active": "claudeCli",
+                "suggestOnIdle": false,
+                "anthropic": {"endpoint": "https://api.anthropic.com", "model": ""},
+                "openai": {"endpoint": "https://api.openai.com/v1", "model": ""},
+                "claudeCli": {"model": ""},
+                "codexCli": {"model": ""}
+            }"#,
+        )
+        .unwrap();
+        assert!(cleared_payload.claude_cli.provided);
+        let after_clear = store.set(cleared_payload).unwrap();
+        assert_eq!(after_clear.claude_cli.model, "");
+        assert_eq!(after_clear.codex_cli.model, "");
     }
 }

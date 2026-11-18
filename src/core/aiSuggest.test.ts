@@ -127,12 +127,46 @@ const settings = (over: Partial<AiSettingsView> = {}, key = 'set', model = 'm'):
 }
 
 describe('the provider', () => {
-  it('is ready with a key and a model', () => {
+  it('is ready with a key and a model, or with a ready local CLI', () => {
     expect(providerReady(settings())).toBe('ready')
     expect(providerReady(settings({}, 'unset'))).toBe('E_AI_KEY_MISSING')
     expect(providerReady(settings({}, 'unknown'))).toBe('E_AI_KEY_MISSING')
     expect(providerReady(settings({}, 'unavailable'))).toBe('E_AI_KEY_MISSING')
     expect(providerReady(settings({}, 'set', ''))).toBe('E_AI_MODEL_MISSING')
+
+    expect(
+      providerReady(
+        settings({
+          active: 'claudeCli',
+          cli: {
+            claudeCli: { state: 'ready', model: '' },
+            codexCli: { state: 'notInstalled', model: '' },
+          },
+        }),
+      ),
+    ).toBe('ready')
+    expect(
+      providerReady(
+        settings({
+          active: 'codexCli',
+          cli: {
+            claudeCli: { state: 'ready', model: '' },
+            codexCli: { state: 'signedOut', model: '' },
+          },
+        }),
+      ),
+    ).toBe('E_AI_AUTH_FAILED')
+    expect(
+      providerReady(
+        settings({
+          active: 'codexCli',
+          cli: {
+            claudeCli: { state: 'ready', model: '' },
+            codexCli: { state: 'notInstalled', model: '' },
+          },
+        }),
+      ),
+    ).toBe('E_AI_CLI_MISSING')
   })
 })
 

@@ -68,6 +68,7 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
   { pane: 'sync', label: 'syncSettings.usage.title' },
   { pane: 'sync', label: 'syncSettings.enabled' },
   { pane: 'sync', label: 'syncSettings.status' },
+  { pane: 'ai', label: 'aiSettings.localTitle', only: 'mac' },
   { pane: 'ai', label: 'aiSettings.active', only: 'mac' },
   { pane: 'ai', label: 'phone.ai.provider', only: 'phone' },
   { pane: 'ai', label: 'aiSettings.suggestOnIdle' },

@@ -626,6 +626,7 @@ fn endpoint_of(settings: &mut AiSettings, id: ProviderId) -> &mut String {
     match id {
         ProviderId::Anthropic => &mut settings.anthropic.endpoint,
         ProviderId::Openai => &mut settings.openai.endpoint,
+        ProviderId::ClaudeCli | ProviderId::CodexCli => unreachable!("HTTP provider only"),
     }
 }
 
@@ -633,6 +634,7 @@ fn key_of(snapshot: &Snapshot, id: ProviderId) -> KeyState {
     match id {
         ProviderId::Anthropic => snapshot.anthropic.key,
         ProviderId::Openai => snapshot.openai.key,
+        ProviderId::ClaudeCli | ProviderId::CodexCli => unreachable!("HTTP provider only"),
     }
 }
 
@@ -645,6 +647,7 @@ fn a_stored_key_never_goes_to_a_server_it_was_not_entered_for() {
         let other = match c.id {
             ProviderId::Anthropic => ProviderId::Openai,
             ProviderId::Openai => ProviderId::Anthropic,
+            ProviderId::ClaudeCli | ProviderId::CodexCli => unreachable!("HTTP provider only"),
         };
         app.keys.set(c.id, KEY).unwrap();
         app.keys.set(other, KEY).unwrap();
@@ -741,6 +744,7 @@ fn streamed(id: ProviderId, pieces: &[&str], stop: &str, end: bool) -> String {
             }
             body
         }
+        ProviderId::ClaudeCli | ProviderId::CodexCli => unreachable!("HTTP stream only"),
     }
 }
 
@@ -748,6 +752,7 @@ fn ended(id: ProviderId) -> &'static str {
     match id {
         ProviderId::Anthropic => "end_turn",
         ProviderId::Openai => "stop",
+        ProviderId::ClaudeCli | ProviderId::CodexCli => unreachable!("HTTP stream only"),
     }
 }
 
@@ -798,6 +803,7 @@ fn a_stream_cut_off_by_the_cap_says_so_and_one_that_breaks_off_is_no_answer() {
         let cap = match c.id {
             ProviderId::Anthropic => "max_tokens",
             ProviderId::Openai => "length",
+            ProviderId::ClaudeCli | ProviderId::CodexCli => unreachable!("HTTP stream only"),
         };
         let mock = Mock::replying(200, streamed(c.id, &["cut"], cap, true));
         let app = setup(c.id, &mock.base);
@@ -903,4 +909,256 @@ fn streamed_text_crosses_a_few_pieces_at_a_time() {
     assert_eq!(every.push("a").as_deref(), Some("a"));
     assert_eq!(every.push("b").as_deref(), Some("b"));
     assert_eq!(every.rest(), None);
+}
+
+struct StubCli {
+    states: Mutex<super::cli::CliStates>,
+    probes: Mutex<usize>,
+    runs: Mutex<Vec<(ProviderId, String, bool)>>,
+    reply: Mutex<Result<(String, Vec<String>), &'static str>>,
+}
+
+impl StubCli {
+    fn new(claude: super::CliState, codex: super::CliState) -> Arc<Self> {
+        Arc::new(Self {
+            states: Mutex::new(super::cli::CliStates {
+                claude_cli: claude,
+                codex_cli: codex,
+            }),
+            probes: Mutex::new(0),
+            runs: Mutex::new(Vec::new()),
+            reply: Mutex::new(Ok(("cli-model".into(), vec!["Hel".into(), "lo".into()]))),
+        })
+    }
+}
+
+impl super::cli::CliBackend for StubCli {
+    fn probe(&self) -> super::cli::CliStates {
+        *self.probes.lock().unwrap() += 1;
+        *self.states.lock().unwrap()
+    }
+
+    fn run(
+        &self,
+        id: ProviderId,
+        model: &str,
+        request: &super::provider::Prepared<'_>,
+        _timeout: Duration,
+        on_text: &mut dyn FnMut(&str) -> bool,
+    ) -> Result<super::cli::CliDone, &'static str> {
+        self.runs
+            .lock()
+            .unwrap()
+            .push((id, model.to_string(), request.stream));
+        match self.reply.lock().unwrap().clone() {
+            Ok((used_model, chunks)) => {
+                let mut text = String::new();
+                for chunk in chunks {
+                    text.push_str(&chunk);
+                    if request.stream && !on_text(&chunk) {
+                        return Err("E_AI_CANCELLED");
+                    }
+                }
+                Ok(super::cli::CliDone {
+                    model: if model.is_empty() {
+                        used_model
+                    } else {
+                        model.to_string()
+                    },
+                    completion: super::Completion {
+                        text,
+                        stop: Stop::End,
+                        usage: Some(super::provider::Usage {
+                            input_tokens: 9,
+                            output_tokens: 4,
+                        }),
+                    },
+                })
+            }
+            Err(code) => Err(code),
+        }
+    }
+}
+
+#[test]
+fn desktop_defaults_to_first_ready_cli_when_unconfigured_and_without_anthropic_key() {
+    use super::CliState;
+    let dir = tempfile::tempdir().unwrap();
+    let cli = StubCli::new(CliState::Ready, CliState::SignedOut);
+    let ai = Ai::new(
+        SettingsStore::new(&dir.path().join(FILE)),
+        Arc::new(MemoryKeys::default()),
+        Gate::open(),
+    )
+    .with_cli(Arc::clone(&cli) as Arc<dyn super::cli::CliBackend>);
+
+    let snap = ai.snapshot();
+    assert_eq!(snap.active, ProviderId::ClaudeCli);
+    assert_eq!(
+        snap.cli
+            .as_ref()
+            .map(|c| (c.claude_cli.state, c.codex_cli.state)),
+        Some((CliState::Ready, CliState::SignedOut))
+    );
+    // Repeated snapshot hits cache; refresh_cli probes again.
+    let _ = ai.snapshot();
+    assert_eq!(*cli.probes.lock().unwrap(), 1);
+    *cli.states.lock().unwrap() = super::cli::CliStates {
+        claude_cli: CliState::NotInstalled,
+        codex_cli: CliState::Ready,
+    };
+    let refreshed = ai.refresh_cli();
+    assert_eq!(*cli.probes.lock().unwrap(), 2);
+    assert_eq!(refreshed.active, ProviderId::CodexCli);
+
+    // Storing an Anthropic key leaves anthropic when explicit active is unset? Only when key is unset!
+    ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    assert_eq!(ai.snapshot().active, ProviderId::Anthropic);
+}
+
+#[test]
+fn concurrent_refresh_cli_is_never_overwritten_by_earlier_probe() {
+    use super::CliState;
+    use std::sync::mpsc;
+
+    struct RacedCli {
+        calls: Mutex<usize>,
+        entered_first: mpsc::SyncSender<()>,
+        release_first: Mutex<Option<mpsc::Receiver<()>>>,
+    }
+
+    impl super::cli::CliBackend for RacedCli {
+        fn probe(&self) -> super::cli::CliStates {
+            let call = {
+                let mut guard = self.calls.lock().unwrap();
+                *guard += 1;
+                *guard
+            };
+            if call == 1 {
+                let _ = self.entered_first.send(());
+                let rx = self.release_first.lock().unwrap().take().unwrap();
+                let _ = rx.recv_timeout(Duration::from_secs(2));
+                super::cli::CliStates {
+                    claude_cli: CliState::SignedOut,
+                    codex_cli: CliState::NotInstalled,
+                }
+            } else {
+                super::cli::CliStates {
+                    claude_cli: CliState::Ready,
+                    codex_cli: CliState::NotInstalled,
+                }
+            }
+        }
+
+        fn run(
+            &self,
+            _: ProviderId,
+            _: &str,
+            _: &super::provider::Prepared<'_>,
+            _: Duration,
+            _: &mut dyn FnMut(&str) -> bool,
+        ) -> Result<super::cli::CliDone, &'static str> {
+            Err("E_AI_PROVIDER_UNAVAILABLE")
+        }
+    }
+
+    let (entered_tx, entered_rx) = mpsc::sync_channel(1);
+    let (release_tx, release_rx) = mpsc::sync_channel(1);
+    let cli = Arc::new(RacedCli {
+        calls: Mutex::new(0),
+        entered_first: entered_tx,
+        release_first: Mutex::new(Some(release_rx)),
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let ai = Arc::new(
+        Ai::new(
+            SettingsStore::new(&dir.path().join(FILE)),
+            Arc::new(MemoryKeys::default()),
+            Gate::open(),
+        )
+        .with_cli(Arc::clone(&cli) as Arc<dyn super::cli::CliBackend>),
+    );
+
+    let ai1 = Arc::clone(&ai);
+    let t1 = std::thread::spawn(move || ai1.snapshot());
+    entered_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+
+    let ai2 = Arc::clone(&ai);
+    let t2 = std::thread::spawn(move || ai2.refresh_cli());
+    std::thread::sleep(Duration::from_millis(30));
+
+    let _ = release_tx.send(());
+    let first = t1.join().unwrap();
+    let refreshed = t2.join().unwrap();
+    assert_eq!(first.active, ProviderId::Anthropic);
+    assert_eq!(refreshed.active, ProviderId::ClaudeCli);
+    assert_eq!(
+        refreshed.cli.as_ref().map(|c| c.claude_cli.state),
+        Some(CliState::Ready)
+    );
+    assert_eq!(
+        ai.snapshot().cli.as_ref().map(|c| c.claude_cli.state),
+        Some(CliState::Ready)
+    );
+    assert_eq!(*cli.calls.lock().unwrap(), 2);
+}
+
+#[test]
+fn cli_providers_enforce_gates_stream_and_refuse_api_keys() {
+    use super::CliState;
+    use crate::licence::testing;
+    let dir = tempfile::tempdir().unwrap();
+    let licence = testing::licence(dir.path(), true);
+    let cli = StubCli::new(CliState::Ready, CliState::Ready);
+    let ai = Ai::new(
+        SettingsStore::new(&dir.path().join(FILE)),
+        Arc::new(MemoryKeys::default()),
+        Gate::of(&licence),
+    )
+    .with_cli(Arc::clone(&cli) as Arc<dyn super::cli::CliBackend>);
+
+    assert_eq!(ai.generate(&ask()).unwrap_err(), "E_LICENCE_REQUIRED");
+    assert!(cli.runs.lock().unwrap().is_empty());
+
+    licence.set(&testing::key(testing::ID)).unwrap();
+    let mut bad = ask();
+    bad.messages.clear();
+    assert_eq!(ai.generate(&bad).unwrap_err(), "E_AI_REQUEST_INVALID");
+    assert!(cli.runs.lock().unwrap().is_empty());
+
+    let mut s = ai.settings.get();
+    s.active = ProviderId::CodexCli;
+    s.codex_cli.model = "gpt-5.4".into();
+    ai.set_settings(s).unwrap();
+
+    let generated = ai.generate(&ask()).unwrap();
+    assert_eq!(generated.provider, ProviderId::CodexCli);
+    assert_eq!(generated.model, "gpt-5.4");
+    assert_eq!(generated.text, "Hello");
+
+    let mut heard = Vec::new();
+    let streamed = ai
+        .stream(&ask(), |piece| {
+            heard.push(piece.to_string());
+            true
+        })
+        .unwrap();
+    assert_eq!(heard, ["Hel", "lo"]);
+    assert_eq!(streamed.text, "Hello");
+    assert_eq!(
+        *cli.runs.lock().unwrap(),
+        [
+            (ProviderId::CodexCli, "gpt-5.4".into(), false),
+            (ProviderId::CodexCli, "gpt-5.4".into(), true),
+        ]
+    );
+
+    assert_eq!(
+        ai.set_key(ProviderId::ClaudeCli, KEY).unwrap_err(),
+        "E_AI_REQUEST_INVALID"
+    );
+    assert_eq!(
+        ai.clear_key(ProviderId::CodexCli).unwrap_err(),
+        "E_AI_REQUEST_INVALID"
+    );
 }

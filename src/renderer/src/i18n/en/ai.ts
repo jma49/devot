@@ -29,6 +29,27 @@ export const messages = {
   'aiSettings.activeHint': 'The provider AI features use.',
   'aiSettings.provider.anthropic': 'Claude (Anthropic)',
   'aiSettings.provider.openai': 'OpenAI-compatible',
+  'aiSettings.provider.claudeCli': 'Claude Code',
+  'aiSettings.provider.codexCli': 'Codex',
+  'aiSettings.localTitle': 'On This Mac',
+  'aiSettings.localFootnote':
+    'Devot detects Claude Code and Codex installed on this Mac and uses your existing sign-in, with no API key needed. Tools run without file access or extensions, and receive only notes from notebooks with Allow AI Access on.',
+  'aiSettings.cliReady': 'Ready',
+  'aiSettings.cliSignedOut': 'Sign-in needed',
+  'aiSettings.cliNotInstalled': 'Not installed',
+  'aiSettings.cliUse': 'Use',
+  'aiSettings.cliActive': 'Active',
+  'aiSettings.cliUseLabel': 'Use {provider}',
+  'aiSettings.cliActiveLabel': '{provider} is active',
+  'aiSettings.cliModelLabel': '{provider} model',
+  'aiSettings.cliModelHint': 'Optional model override. Leave empty for the tool\u2019s default.',
+  'aiSettings.cliModelDefault': 'Default',
+  'aiSettings.cliRefreshTitle': 'Installed Tools',
+  'aiSettings.cliRefreshHint':
+    'Check again after installing or signing in to Claude Code or Codex.',
+  'aiSettings.cliRefresh': 'Refresh',
+  'aiSettings.cliRefreshing': 'Checking\u2026',
+  'aiSettings.cliRefreshed': 'Checked installed AI tools.',
   'aiSettings.endpoint': 'Endpoint',
   'aiSettings.endpointHint':
     'Where requests go: an https address, or an http address for a server on this Mac. Leave empty for the default. Moving to another server removes the stored key.',
@@ -89,8 +110,10 @@ export const messages = {
   'aiEdit.reason.trialEnded':
     'Your trial has ended, and AI needs a Devot license. Add one in Settings > License.',
   'aiEdit.reason.noKey': 'No AI provider is set up. Add a key in Settings > AI.',
+  'aiEdit.reason.cliMissing':
+    'The selected AI tool is not installed on this Mac. Check Settings > AI.',
   'aiEdit.reason.noModel': 'The AI provider has no model set. Choose one in Settings > AI.',
-  'aiEdit.reason.auth': 'The AI provider refused the key. Check it in Settings > AI.',
+  'aiEdit.reason.auth': 'The AI provider refused the key or needs sign-in. Check Settings > AI.',
   'aiEdit.reason.rateLimited':
     'The AI provider is busy or the rate limit was reached. Try again later.',
   'aiEdit.reason.network':

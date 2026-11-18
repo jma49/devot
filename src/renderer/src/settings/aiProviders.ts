@@ -2,7 +2,7 @@
 // (src-tauri/src/ai). A key goes in with ai_key_set and is never read back.
 import {
   asAiSettingsView,
-  type AiProviderId,
+  type AiApiProviderId,
   type AiSettingsChange,
   type AiSettingsView,
 } from '../../../core/aiProvider'
@@ -18,7 +18,9 @@ export const loadAiSettings = () => view('ai_settings_get')
 
 export const saveAiSettings = (settings: AiSettingsChange) => view('ai_settings_set', { settings })
 
-export const saveAiKey = (provider: AiProviderId, key: string) =>
+export const saveAiKey = (provider: AiApiProviderId, key: string) =>
   view('ai_key_set', { provider, key })
 
-export const removeAiKey = (provider: AiProviderId) => view('ai_key_clear', { provider })
+export const removeAiKey = (provider: AiApiProviderId) => view('ai_key_clear', { provider })
+
+export const refreshAiCli = () => view('ai_cli_refresh')

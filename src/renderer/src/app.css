@@ -4265,11 +4265,12 @@ button.note-info-row:focus-visible {
   background: var(--color-text-tertiary);
 }
 
-.client-state-dot[data-state='connected'] {
+.client-state-dot[data-state='connected'],
+.client-state-dot[data-state='ready'] {
   background: var(--color-status-done-mark);
 }
 
-.client-state-dot:is([data-state='stale'], [data-state='other']) {
+.client-state-dot:is([data-state='stale'], [data-state='other'], [data-state='signedOut']) {
   background: var(--color-status-hold-mark);
 }
 

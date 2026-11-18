@@ -57,4 +57,17 @@ describe('why there is no proposal', () => {
     expect(aiEditFailure('E_LICENCE_REQUIRED').message).not.toContain('keychain')
     expect(aiSuggestFailure('E_LICENCE_UNREADABLE')).toContain('keychain')
   })
+
+  it('explains a missing or signed-out CLI without leaking the code', () => {
+    const missing = aiEditFailure('E_AI_CLI_MISSING')
+    expect(missing.message).toContain('not installed')
+    expect(missing.message).not.toContain('E_')
+    expect(missing.retry).toBe(false)
+
+    const auth = aiEditFailure('E_AI_AUTH_FAILED')
+    expect(auth.message).toContain('sign-in')
+    expect(auth.retry).toBe(false)
+
+    expect(aiSuggestFailure('E_AI_CLI_MISSING')).toContain('not installed')
+  })
 })

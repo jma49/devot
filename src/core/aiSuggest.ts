@@ -3,6 +3,7 @@
 
 import {
   allowedBookIds,
+  isCliProvider,
   type AiGenerateInput,
   type AiGenerator,
   type AiSettingsView,
@@ -94,10 +95,15 @@ export function cleanSuggestion(
   return text.length > SUGGEST_MAX_CHARS ? text.slice(0, SUGGEST_MAX_CHARS) : text
 }
 
-/** Whether the active provider can answer: a key stored and a model named. */
+/** Whether the active provider can answer: a stored key and model, or a ready local CLI. */
 export function providerReady(
   settings: AiSettingsView,
-): 'ready' | 'E_AI_KEY_MISSING' | 'E_AI_MODEL_MISSING' {
+): 'ready' | 'E_AI_KEY_MISSING' | 'E_AI_MODEL_MISSING' | 'E_AI_CLI_MISSING' | 'E_AI_AUTH_FAILED' {
+  if (isCliProvider(settings.active)) {
+    const cli = settings.cli?.[settings.active]
+    if (!cli || cli.state === 'notInstalled') return 'E_AI_CLI_MISSING'
+    return cli.state === 'ready' ? 'ready' : 'E_AI_AUTH_FAILED'
+  }
   const active = settings[settings.active]
   if (active.key !== 'set') return 'E_AI_KEY_MISSING'
   return active.model === '' ? 'E_AI_MODEL_MISSING' : 'ready'

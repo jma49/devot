@@ -171,4 +171,397 @@ describe('the AI pane', () => {
     expect(active.value).toBe('anthropic')
     expect(toggle.checked).toBe(false)
   })
+
+  it('shows On This Mac CLI tools, selects one, refreshes status, and saves a CLI model override', async () => {
+    let viewState = {
+      active: 'claudeCli',
+      suggestOnIdle: false,
+      anthropic: provider,
+      openai: provider,
+      cli: {
+        claudeCli: { state: 'ready', model: '' },
+        codexCli: { state: 'signedOut', model: '' },
+      },
+    }
+    type SettingsPayload = typeof stored & {
+      claudeCli?: { model: string }
+      codexCli?: { model: string }
+    }
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === 'ai_settings_get') return viewState
+      if (command === 'ai_settings_set') {
+        const { settings } = args as { settings: SettingsPayload }
+        viewState = {
+          ...viewState,
+          active: settings.active,
+          suggestOnIdle: settings.suggestOnIdle,
+          anthropic: { ...provider, ...settings.anthropic },
+          openai: { ...provider, ...settings.openai },
+          cli: {
+            claudeCli: {
+              ...viewState.cli.claudeCli,
+              model: settings.claudeCli?.model ?? viewState.cli.claudeCli.model,
+            },
+            codexCli: {
+              ...viewState.cli.codexCli,
+              model: settings.codexCli?.model ?? viewState.cli.codexCli.model,
+            },
+          },
+        }
+        return viewState
+      }
+      if (command === 'ai_cli_refresh') {
+        viewState = {
+          ...viewState,
+          cli: {
+            ...viewState.cli,
+            codexCli: { ...viewState.cli.codexCli, state: 'ready' },
+          },
+        }
+        return viewState
+      }
+      return undefined
+    })
+
+    await pane()
+    const refreshBtn = [...host.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Refresh',
+    )!
+    await act(async () => refreshBtn.click())
+    expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === 'ai_cli_refresh')).toBe(true)
+
+    const useCodex = host.querySelector<HTMLButtonElement>('button[aria-label="Use Codex"]')!
+    expect(useCodex.getAttribute('aria-disabled')).toBe('false')
+    await act(async () => useCodex.click())
+    expect(host.querySelector<HTMLSelectElement>('select[id$="active"]')!.value).toBe('codexCli')
+
+    const codexModel = host.querySelector<HTMLInputElement>('input[aria-label="Codex model"]')!
+    act(() => {
+      codexModel.focus()
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        codexModel,
+        'gpt-5.4',
+      )
+      codexModel.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => codexModel.blur())
+    const lastSet = vi
+      .mocked(invoke)
+      .mock.calls.filter(([cmd]) => cmd === 'ai_settings_set')
+      .at(-1)?.[1] as { settings: { active: string; codexCli: { model: string } } }
+    expect(lastSet.settings.active).toBe('codexCli')
+    expect(lastSet.settings.codexCli).toEqual({ model: 'gpt-5.4' })
+  })
+
+  it('reconciles active provider after Save Key and Remove Key without re-posting stale active', async () => {
+    let viewState = {
+      active: 'claudeCli',
+      suggestOnIdle: false,
+      anthropic: { ...provider, key: 'unset' },
+      openai: { ...provider, key: 'unset' },
+      cli: {
+        claudeCli: { state: 'ready', model: '' },
+        codexCli: { state: 'notInstalled', model: '' },
+      },
+    }
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'ai_settings_get') return viewState
+      if (command === 'ai_key_set') {
+        viewState = {
+          ...viewState,
+          active: 'anthropic',
+          anthropic: { ...provider, key: 'set' },
+        }
+        return viewState
+      }
+      if (command === 'ai_key_clear') {
+        viewState = {
+          ...viewState,
+          active: 'claudeCli',
+          anthropic: { ...provider, key: 'unset' },
+        }
+        return viewState
+      }
+      return viewState
+    })
+
+    await pane()
+    const active = host.querySelector<HTMLSelectElement>('select[id$="active"]')!
+    expect(active.value).toBe('claudeCli')
+
+    const keyInput = host.querySelector<HTMLInputElement>(
+      'input[aria-label="API key for Claude (Anthropic)"]',
+    )!
+    act(() => {
+      keyInput.focus()
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        keyInput,
+        'sk-ant-test',
+      )
+      keyInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    const anthropicSection = keyInput.closest('section')!
+    const saveKey = [...anthropicSection.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Save Key',
+    )!
+    await act(async () => saveKey.click())
+    expect(active.value).toBe('anthropic')
+    expect(
+      host
+        .querySelector<HTMLButtonElement>('button[aria-label="Use Claude Code"]')
+        ?.getAttribute('aria-disabled'),
+    ).toBe('false')
+
+    await act(async () => field('endpoint').blur())
+    const removeKey = [...anthropicSection.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Remove Key',
+    )!
+    await act(async () => removeKey.click())
+    expect(active.value).toBe('claudeCli')
+    expect(
+      host.querySelector<HTMLButtonElement>('button[aria-label="Claude Code is active"]'),
+    ).not.toBeNull()
+
+    await act(async () => root.render(<></>))
+    expect(vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === 'ai_settings_set')).toEqual([])
+  })
+
+  it('keeps validation errors visible when Refresh is clicked directly after an invalid model draft', async () => {
+    let viewState = {
+      active: 'claudeCli',
+      suggestOnIdle: false,
+      anthropic: provider,
+      openai: provider,
+      cli: {
+        claudeCli: { state: 'ready', model: '' },
+        codexCli: { state: 'signedOut', model: '' },
+      },
+    }
+    const callOrder: string[] = []
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      callOrder.push(command)
+      if (command === 'ai_settings_get') return viewState
+      if (command === 'ai_settings_set') {
+        const { settings } = args as { settings: { codexCli?: { model: string } } }
+        if (settings.codexCli?.model.startsWith('-')) {
+          throw new Error('E_AI_MODEL_INVALID')
+        }
+        return viewState
+      }
+      if (command === 'ai_cli_refresh') {
+        viewState = {
+          ...viewState,
+          cli: {
+            ...viewState.cli,
+            codexCli: { ...viewState.cli.codexCli, state: 'ready' },
+          },
+        }
+        return viewState
+      }
+      return undefined
+    })
+
+    await pane()
+    const codexModel = host.querySelector<HTMLInputElement>('input[aria-label="Codex model"]')!
+    act(() => {
+      codexModel.focus()
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        codexModel,
+        '-bad',
+      )
+      codexModel.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    const refreshBtn = [...host.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Refresh',
+    )!
+    await act(async () => refreshBtn.click())
+
+    expect(callOrder).toEqual(['ai_settings_get', 'ai_settings_set', 'ai_cli_refresh'])
+    expect(codexModel.value).toBe('')
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      'The AI settings could not be saved.',
+    )
+  })
+
+  it('reconciles active provider refs when unmounted while Save Key is pending so unmount does not post stale active', async () => {
+    const viewState = {
+      active: 'claudeCli',
+      suggestOnIdle: false,
+      anthropic: { ...provider, key: 'unset' },
+      openai: { ...provider, key: 'unset' },
+      cli: {
+        claudeCli: { state: 'ready', model: '' },
+        codexCli: { state: 'notInstalled', model: '' },
+      },
+    }
+    let finishKey!: (next: typeof viewState) => void
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === 'ai_settings_get') return Promise.resolve(viewState)
+      if (command === 'ai_key_set') {
+        return new Promise((resolve) => {
+          finishKey = resolve
+        })
+      }
+      return Promise.resolve(viewState)
+    })
+
+    await pane()
+    const keyInput = host.querySelector<HTMLInputElement>(
+      'input[aria-label="API key for Claude (Anthropic)"]',
+    )!
+    act(() => {
+      keyInput.focus()
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        keyInput,
+        'sk-ant-test',
+      )
+      keyInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const anthropicSection = keyInput.closest('section')!
+    const saveKey = [...anthropicSection.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Save Key',
+    )!
+    act(() => {
+      saveKey.click()
+    })
+
+    await act(async () => root.render(<></>))
+    finishKey({
+      ...viewState,
+      active: 'anthropic',
+      anthropic: { ...provider, key: 'set' },
+    })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    expect(vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === 'ai_settings_set')).toEqual([])
+  })
+
+  it('keeps validation errors visible when blur fails with an invalid model before clicking Refresh', async () => {
+    let viewState = {
+      active: 'claudeCli',
+      suggestOnIdle: false,
+      anthropic: provider,
+      openai: provider,
+      cli: {
+        claudeCli: { state: 'ready', model: '' },
+        codexCli: { state: 'signedOut', model: '' },
+      },
+    }
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === 'ai_settings_get') return viewState
+      if (command === 'ai_settings_set') {
+        const { settings } = args as { settings: { codexCli?: { model: string } } }
+        if (settings.codexCli?.model.startsWith('-')) throw new Error('E_AI_MODEL_INVALID')
+        return viewState
+      }
+      if (command === 'ai_cli_refresh') {
+        viewState = {
+          ...viewState,
+          cli: { ...viewState.cli, codexCli: { state: 'ready', model: '' } },
+        }
+        return viewState
+      }
+      return undefined
+    })
+
+    await pane()
+    const codexModel = host.querySelector<HTMLInputElement>('input[aria-label="Codex model"]')!
+    act(() => {
+      codexModel.focus()
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        codexModel,
+        '-bad',
+      )
+      codexModel.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => codexModel.blur())
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      'The AI settings could not be saved.',
+    )
+
+    const refreshBtn = [...host.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Refresh',
+    )!
+    await act(async () => refreshBtn.click())
+    expect(
+      host
+        .querySelector<HTMLButtonElement>('button[aria-label="Use Codex"]')
+        ?.getAttribute('aria-disabled'),
+    ).toBe('false')
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      'The AI settings could not be saved.',
+    )
+  })
+
+  it('keeps validation errors visible when blur fails concurrently with clicking Refresh', async () => {
+    let viewState = {
+      active: 'claudeCli',
+      suggestOnIdle: false,
+      anthropic: provider,
+      openai: provider,
+      cli: {
+        claudeCli: { state: 'ready', model: '' },
+        codexCli: { state: 'signedOut', model: '' },
+      },
+    }
+    const callOrder: string[] = []
+    let rejectSave!: (err: unknown) => void
+    vi.mocked(invoke).mockImplementation((command) => {
+      callOrder.push(command)
+      if (command === 'ai_settings_get') return Promise.resolve(viewState)
+      if (command === 'ai_settings_set') {
+        return new Promise((_resolve, reject) => {
+          rejectSave = reject
+        })
+      }
+      if (command === 'ai_cli_refresh') {
+        viewState = {
+          ...viewState,
+          cli: { ...viewState.cli, codexCli: { state: 'ready', model: '' } },
+        }
+        return Promise.resolve(viewState)
+      }
+      return Promise.resolve(undefined)
+    })
+
+    await pane()
+    const codexModel = host.querySelector<HTMLInputElement>('input[aria-label="Codex model"]')!
+    act(() => {
+      codexModel.focus()
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        codexModel,
+        '-bad',
+      )
+      codexModel.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const refreshBtn = [...host.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Refresh',
+    )!
+    act(() => {
+      codexModel.blur()
+      refreshBtn.click()
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      rejectSave(new Error('E_AI_MODEL_INVALID'))
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    expect(callOrder).toEqual(['ai_settings_get', 'ai_settings_set', 'ai_cli_refresh'])
+    expect(codexModel.value).toBe('')
+    expect(
+      host
+        .querySelector<HTMLButtonElement>('button[aria-label="Use Codex"]')
+        ?.getAttribute('aria-disabled'),
+    ).toBe('false')
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      'The AI settings could not be saved.',
+    )
+  })
 })

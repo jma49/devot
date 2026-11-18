@@ -87,6 +87,10 @@ tungstenite = { version = "0.30", default-features = false, features = ["handsha
 # rendering, so no dependencies of its own.
 qrcode = { version = "0.14", default-features = false }
 
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+# Isolated empty working folders per local CLI invocation (`ai::cli`).
+tempfile = "3"
+
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # Off a phone: it turns on reqwest's rustls without a crypto provider, and Tauri's dev server
 # proxy on a phone then panics at launch building its reqwest client.
