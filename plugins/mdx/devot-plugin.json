@@ -1,0 +1,56 @@
+{
+  "id": "community.mdx",
+  "name": "MDX",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "description": "Import and export MDX files, highlight MDX syntax, preview JSX components and expressions, and convert between MDX and Markdown.",
+  "author": "Devot",
+  "main": "main.js",
+  "permissions": [
+    "note.read",
+    "note.edit",
+    "commands",
+    "menus",
+    "keymaps",
+    "preview",
+    "import",
+    "export"
+  ],
+  "contributes": {
+    "commands": [
+      { "id": "studio", "title": "Preview and Inspect MDX" },
+      { "id": "toggle-preview", "title": "Toggle MDX Preview Block" },
+      { "id": "compile-markdown", "title": "Compile MDX to Markdown" },
+      { "id": "convert-to-mdx", "title": "Convert Markdown to MDX" },
+      { "id": "insert-callout", "title": "Insert MDX Callout" },
+      { "id": "insert-tabs", "title": "Insert MDX Tabs" },
+      { "id": "insert-steps", "title": "Insert MDX Steps" }
+    ],
+    "menus": [
+      { "command": "studio" },
+      { "command": "toggle-preview" },
+      { "command": "compile-markdown" },
+      { "command": "convert-to-mdx" }
+    ],
+    "slashMenu": [
+      { "command": "insert-callout" },
+      { "command": "insert-tabs" },
+      { "command": "insert-steps" }
+    ],
+    "keymaps": [
+      { "command": "studio", "key": "Mod+Ctrl+Shift+M" },
+      { "command": "toggle-preview", "key": "Mod+Ctrl+Shift+P" },
+      { "command": "compile-markdown", "key": "Mod+Ctrl+Shift+C" }
+    ],
+    "previewRenderers": [
+      { "id": "mdx", "language": "mdx" },
+      { "id": "mdx-code", "language": "mdx-code" },
+      { "id": "mdx-source", "language": "mdx-source" }
+    ],
+    "importFormats": [
+      { "id": "mdx", "title": "MDX Files", "extensions": ["mdx"] },
+      { "id": "mdx-markdown", "title": "MDX Files as Markdown", "extensions": ["mdx"] }
+    ],
+    "exportFormats": [{ "id": "mdx", "title": "MDX", "extension": "mdx" }]
+  }
+}

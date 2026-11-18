@@ -1483,4 +1483,53 @@ mod tests {
         );
         assert_eq!(export_name(".hidden", "txt"), "hidden.txt");
     }
+
+    #[test]
+    fn packages_installs_serves_and_plans_menus_for_the_mdx_plugin() {
+        use std::io::Write;
+        let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../plugins/mdx"));
+        let from_folder = package::read_folder(root).unwrap();
+        assert_eq!(from_folder.manifest.id, "community.mdx");
+        assert_eq!(from_folder.manifest.api_version, 2);
+
+        let zip_dir = tempfile::tempdir().unwrap();
+        let zip_path = zip_dir.path().join("mdx.zip");
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&zip_path).unwrap());
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        for (name, bytes) in &from_folder.files {
+            zip.start_file(format!("mdx/{name}"), opts).unwrap();
+            zip.write_all(bytes).unwrap();
+        }
+        zip.finish().unwrap();
+        let from_archive = package::read_archive(&zip_path).unwrap();
+        assert_eq!(from_archive.manifest, from_folder.manifest);
+
+        let data = tempfile::tempdir().unwrap();
+        let plugins = Plugins::new(data.path());
+        let staged = plugins.stage(from_folder).unwrap();
+        let installed = plugins.install(staged.token).unwrap();
+        assert!(installed.enabled);
+
+        for (path, expected_mime) in [
+            ("/community.mdx/", "text/html"),
+            ("/community.mdx/__devot/frame.html", "text/html"),
+            ("/community.mdx/main.js", "text/javascript"),
+            ("/community.mdx/panel.css", "text/css"),
+        ] {
+            let served = serve::answer(&plugins, path);
+            assert_eq!(served.status, tauri::http::StatusCode::OK, "{path}");
+            assert_eq!(served.mime, expected_mime, "{path}");
+        }
+
+        #[cfg(desktop)]
+        {
+            let planned = menu::plan(std::slice::from_ref(&installed), true);
+            let labels: Vec<_> = planned.iter().map(|p| p.text.as_str()).collect();
+            assert!(labels.contains(&"Preview and Inspect MDX"));
+            assert!(labels.contains(&"MDX Files…"));
+            assert!(labels.contains(&"MDX Files as Markdown…"));
+            assert!(labels.contains(&"Note as MDX…"));
+        }
+    }
 }
