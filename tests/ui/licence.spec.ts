@@ -261,6 +261,7 @@ test.describe('locked sync and AI', () => {
       w.devotIpcMocks = {
         ...w.devotIpcMocks,
         ai_generate: { error: 'E_LICENCE_REQUIRED' },
+        ai_stream: { error: 'E_LICENCE_REQUIRED' },
       }
     })
     await openApp(page)
