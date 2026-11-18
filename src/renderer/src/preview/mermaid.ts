@@ -31,7 +31,20 @@ import { diagramPalette, exportPalette, type DiagramPalette } from './mermaid-th
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const XLINK_NS = 'http://www.w3.org/1999/xlink'
-const DROPPED = new Set(['script', 'foreignObject', 'iframe', 'image', 'use'])
+// Animations can set an `href` after import, and `feImage` loads one; no engine draws them.
+const DROPPED = new Set([
+  'script',
+  'foreignObject',
+  'iframe',
+  'image',
+  'use',
+  'feImage',
+  'set',
+  'animate',
+  'animateMotion',
+  'animateTransform',
+  'discard',
+])
 
 /** Scripts only: without `allow-same-origin` the frame's origin is opaque. */
 export const MERMAID_FRAME_SANDBOX = 'allow-scripts'

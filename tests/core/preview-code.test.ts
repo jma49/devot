@@ -8,6 +8,8 @@ import {
   renderPreview,
   type PreviewLabels,
 } from '../../src/core'
+import { trimTrailingBlankLines } from '../../src/core/preview/code'
+import { expectWithinBudget } from '../support/budget'
 
 const labels: PreviewLabels = {
   alerts: {
@@ -275,5 +277,36 @@ describe('code blocks stay safe', () => {
     expect(html).not.toMatch(/onclick|style=|<path d="M0"/)
     const code = elements(tree).find((e) => e.tagName === 'code')!
     expect(text(code)).toBe('let a')
+  })
+})
+
+describe('blank lines at the end of a code block', () => {
+  it.each([
+    ['', ''],
+    ['\n\n', ''],
+    ['\r\n\r\n', ''],
+    ['x', 'x'],
+    ['x\n', 'x'],
+    ['x\n\n  \t\n \n', 'x'],
+    ['x  \n\n', 'x  '],
+    ['  x\n', '  x'],
+    ['x\r\n \r\n', 'x'],
+    ['x\r', 'x\r'],
+    ['x\r\r\n', 'x\r'],
+    ['x\n\r', 'x\n\r'],
+    ['x\n \r\n', 'x'],
+    ['x\n\ny', 'x\n\ny'],
+    ['x \t', 'x \t'],
+    [' \n', ' '],
+    ['\n x', '\n x'],
+  ])('trim %j to %j', (input, expected) => {
+    expect(trimTrailingBlankLines(input)).toBe(expected)
+  })
+
+  it('are found in time linear in the block', (context) => {
+    const block = '\n'.repeat(200_000) + 'x'
+    const start = performance.now()
+    expect(trimTrailingBlankLines(block)).toBe(block)
+    expectWithinBudget(context, performance.now() - start, 20)
   })
 })
