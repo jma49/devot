@@ -259,6 +259,7 @@ async function revokedList(): Promise<string[]> {
 }
 
 const later = (days: number) => new Date(NOW.getTime() + days * 86_400_000)
+const hoursAfter = (from: Date, hours: number) => new Date(from.getTime() + hours * 3_600_000)
 
 describe('the exchange', () => {
   it('gives a Devot Pro purchase a licence key the current format verifies, with the fixed licensee', async () => {
@@ -741,7 +742,6 @@ describe('the renewal check at /activate', () => {
 
   it("a refusal stands for every device until Apple's next good answer, still one call a day", async () => {
     const { payload, key } = await exchanged()
-    const otherChain = await chain()
     const refusals: [string, number, () => void][] = [
       ['E_APP_STORE_NOT_FOUND', 404, () => apple.transactions.clear()],
       [
@@ -749,9 +749,7 @@ describe('the renewal check at /activate', () => {
         409,
         () => apple.put({ ...payload, originalTransactionId: '2000000000000077' }),
       ],
-      ['E_APP_STORE_UPSTREAM', 503, () => (signing = otherChain)],
     ]
-    const real = signing
     let day = 2
     for (const [code, status, refuse] of refusals) {
       clock = later(day)
@@ -761,16 +759,55 @@ describe('the renewal check at /activate', () => {
       expect(await activate(key, 1)).toEqual(refused)
       apple.transactions.clear()
       apple.put(payload)
-      signing = real
       expect(await activate(key, 1)).toEqual(refused)
       expect(await activate(key, 2)).toEqual(refused)
+      clock = hoursAfter(later(day), 1.1)
+      expect(await activate(key, 3)).toEqual(refused)
       clock = later(day + 0.9)
       expect(await activate(key, 3)).toEqual(refused)
       expect(apple.calls).toHaveLength(1)
       clock = later(day + 1)
       for (const n of [1, 2, 3]) expect((await activate(key, n)).status).toBe(200)
       expect(apple.calls).toHaveLength(2)
+      clock = hoursAfter(later(day + 1), 1.1)
+      expect((await activate(key, 1)).status).toBe(200)
+      expect(apple.calls).toHaveLength(2)
       day += 2
+    }
+  })
+
+  it('an answer that cannot be verified refuses, and Apple is asked again an hour later', async () => {
+    const { key } = await exchanged()
+    const real = signing
+    const upstream = { status: 503, body: { code: 'E_APP_STORE_UPSTREAM' } }
+    try {
+      const first = later(2)
+      clock = first
+      signing = await chain()
+      expect(await activate(key, 1)).toEqual(upstream)
+      expect(apple.calls).toHaveLength(1)
+      const retry = hoursAfter(first, 61 / 60)
+      clock = retry
+      expect(await activate(key, 1)).toEqual(upstream)
+      expect(apple.calls).toHaveLength(2)
+      signing = real
+      clock = hoursAfter(retry, 59 / 60)
+      expect(await activate(key, 2)).toEqual(upstream)
+      expect(apple.calls).toHaveLength(2)
+      const good = hoursAfter(retry, 61 / 60)
+      clock = good
+      const raced = await Promise.all([activate(key, 1), activate(key, 2)])
+      expect(raced.map((r) => r.status)).toContain(200)
+      for (const n of [1, 2, 3]) expect((await activate(key, n)).status).toBe(200)
+      expect(apple.calls).toHaveLength(3)
+      clock = hoursAfter(good, 23)
+      expect((await activate(key, 1)).status).toBe(200)
+      expect(apple.calls).toHaveLength(3)
+      clock = hoursAfter(good, 24)
+      expect((await activate(key, 1)).status).toBe(200)
+      expect(apple.calls).toHaveLength(4)
+    } finally {
+      signing = real
     }
   })
 

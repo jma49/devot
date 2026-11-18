@@ -104,8 +104,8 @@ export function aiStorageOver(storage: StorageAdapter): AiStorage {
       return counts
     },
     async noteTags(noteId) {
-      const [notes, tags] = await Promise.all([storage.listNotes(), liveTags()])
-      const tagIds = notes.find((n) => n.id === noteId)?.tagIds ?? []
+      const [[note], tags] = await Promise.all([storage.getSummaries([noteId]), liveTags()])
+      const tagIds = note?.tagIds ?? []
       return tagIds.flatMap((id) => {
         const name = tags.get(id)
         return name === undefined ? [] : [{ id, name }]

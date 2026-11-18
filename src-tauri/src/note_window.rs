@@ -332,6 +332,7 @@ pub fn open(app: &AppHandle, id: &str) -> Result<(), &'static str> {
         ))
         .build()
         .map_err(|_| "E_NOTE_WINDOW_OPEN_FAILED")?;
+    crate::native::content_window_built(&window);
     bring_forward(&window);
     Ok(())
 }
