@@ -357,6 +357,7 @@ const coreApi = {
   undoAgentWrites: (id: string, writer: { kind: WriterKind; names: readonly string[] }) =>
     required().undoAgentWrites(id, writer),
   undoAgentWrite: (id: string, writeId: string) => required().undoAgentWrite(id, writeId),
+  restoreAgentWrites: (id: string, token: string) => required().restoreAgentWrites(id, token),
   clearAuthorship: (id: string) => required().clearAuthorship(id),
   agentWrites: (limit: number) => required().agentWrites(limit),
   authoredNotes: () => required().authoredNotes(),

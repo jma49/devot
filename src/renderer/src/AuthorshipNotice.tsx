@@ -1,6 +1,8 @@
 // The review notice above the editor (ADR 0007): when agents changed the open note since the owner
 // last looked, it names them and offers Review Changes, which steps through each unseen write's
-// places in document order with per-step Keep and Undo, and an Undo All for each writer.
+// places in document order with per-step Keep and Undo, and an Undo All for each writer. Undo marks
+// what it takes back while it has the pointer or the keyboard, and Restore takes back an Undo of
+// several writes while the note is unchanged since.
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import type { ReviewStep } from '../../core/authorship'
 import type { AgentWriteSummary } from '../../core/storage'
@@ -64,6 +66,8 @@ type Phase =
       done: ReadonlySet<string>
       /** Review began in Preview; the editor it selects in is on its way. */
       entering: boolean
+      /** The last write left the review, which stays only to offer Restore. */
+      holding: boolean
       busy: boolean
     }
 
@@ -85,12 +89,39 @@ export function keyedSteps(
 
 /**
  * Undo takes back whole writes: the step's write, every place of it, and the later writes that rewrote its text
- * (`group`, newest first); the label says so when that is more than the step shown.
+ * (`group`, newest first, the step's write last); the label says so when that is more than the step shown, and
+ * names the writers other than the step's with how many of the writes are theirs.
  */
-export function undoLabel(group: readonly string[], places: number): string {
-  if (group.length > 1) return format(t('authorship.undoGroup'), { count: String(group.length) })
-  if (places > 1) return format(t('authorship.undoWhole'), { count: String(places) })
-  return t('authorship.undo')
+export function undoLabel(
+  group: readonly string[],
+  places: number,
+  writerOf: (writeId: string) => WriterRef | undefined = () => undefined,
+): string {
+  if (group.length <= 1) {
+    if (places > 1) return format(t('authorship.undoWhole'), { count: String(places) })
+    return t('authorship.undo')
+  }
+  const count = String(group.length)
+  const own = writerOf(group[group.length - 1]!)
+  const others = new Map<string, { writer: WriterRef; count: number }>()
+  for (const writeId of group.slice(0, -1)) {
+    const writer = writerOf(writeId)
+    if (!own || !writer || writerKey(writer) === writerKey(own)) continue
+    const entry = others.get(writerKey(writer))
+    if (entry) entry.count += 1
+    else others.set(writerKey(writer), { writer, count: 1 })
+  }
+  if (others.size === 0) return format(t('authorship.undoGroup'), { count })
+  const parts = [...others.values()].map((other) =>
+    format(t('authorship.undoGroupBy'), {
+      count: String(other.count),
+      writer: writerLabel(other.writer),
+    }),
+  )
+  const list = new Intl.ListFormat(currentLocale(), {
+    type: 'conjunction',
+  }).format(parts)
+  return format(t('authorship.undoGroupOthers'), { count, others: list })
 }
 
 export function AuthorshipNotice(props: {
@@ -109,12 +140,20 @@ export function AuthorshipNotice(props: {
   onEndReview?: () => void
   /** Keep: marks one write seen. */
   onKeepWrite?: (writeId: string) => Promise<boolean>
-  /** Undo: takes out one write as an owner edit; false when it failed. */
-  onUndoWrite?: (writeId: string) => Promise<boolean>
+  /** Undo: takes out one write and the later ones that rewrote its text as an owner edit; false when it failed, 'restorable' when Restore is offered for it. */
+  onUndoWrite?: (writeId: string) => Promise<boolean | 'restorable'>
+  /** While Restore can take back the newest Undo of several writes: those writes, newest first, and the write it was pressed on. */
+  restore?: { writes: readonly string[]; writeId: string } | undefined
+  /** Restore: puts back the writes `restore` names; false when it failed. */
+  onRestore?: () => Promise<boolean>
   onUndoAll: (writer: WriterRef) => Promise<void>
   onDismiss: () => void
 }) {
   const [phase, setPhase] = useState<Phase>(IDLE)
+  const [undoAimed, setUndoAimed] = useState({
+    pointer: false,
+    keyboard: false,
+  })
   const section = useRef<HTMLElement>(null)
   const nextButton = useRef<HTMLButtonElement>(null)
   // Bumped when a review ends or the notice goes, so a Keep or Undo answering late changes nothing.
@@ -134,9 +173,15 @@ export function AuthorshipNotice(props: {
   const rowOf = new Map(
     [...props.written, ...props.unseen].map((row) => [row.writeId, row] as const),
   )
-  const collect = (kept: ReadonlySet<string>, done: ReadonlySet<string>) =>
+  /** The steps still to review; `back` adds writes Restore just brought back, whose unseen rows may not have come yet. */
+  const collect = (
+    kept: ReadonlySet<string>,
+    done: ReadonlySet<string>,
+    back: readonly string[] = [],
+  ) =>
     keyedSteps(
-      props.editor.current?.reviewSteps(new Set([...ids].filter((id) => !done.has(id)))) ?? [],
+      props.editor.current?.reviewSteps(new Set([...ids, ...back].filter((id) => !done.has(id)))) ??
+        [],
       kept,
       done,
     )
@@ -175,6 +220,7 @@ export function AuthorshipNotice(props: {
       kept: new Set(),
       done: new Set(),
       entering,
+      holding: false,
       busy: false,
     })
     if (!entering) {
@@ -204,25 +250,37 @@ export function AuthorshipNotice(props: {
     if (phase.kind === 'reviewing') show(stepFrom(phase.index, by, phase.steps.length))
   }
 
-  /** Moves on after the current step left the review: the next step takes its place, and the review ends after the last. */
+  /**
+   * Moves on after the current step left the review: the next step takes its place, and the review ends after the
+   * last, unless it stays to offer Restore (`hold`).
+   */
   const advance = (
     from: Extract<Phase, { kind: 'reviewing' }>,
     kept: ReadonlySet<string>,
     done: ReadonlySet<string>,
+    hold = false,
   ) => {
     const steps = collect(kept, done)
-    if (steps.length === 0) {
+    if (steps.length === 0 && !hold) {
       endReview()
       return
     }
     const at = Math.min(from.index, steps.length - 1)
-    setPhase({ ...from, index: at, steps, kept, done, busy: false })
+    setPhase({
+      ...from,
+      index: at,
+      steps,
+      kept,
+      done,
+      holding: steps.length === 0,
+      busy: false,
+    })
     showAt(steps, at)
   }
 
   /** Runs `act` for the current step's write; when it succeeds, that write and the others in `leaving` leave the review. */
   const finishWrite = async (
-    act: (writeId: string) => Promise<boolean>,
+    act: (writeId: string) => Promise<boolean | 'restorable'>,
     leaving: readonly string[] = [],
   ) => {
     if (phase.kind !== 'reviewing' || phase.busy) return
@@ -236,7 +294,12 @@ export function AuthorshipNotice(props: {
       setPhase({ ...phase, busy: false })
       return
     }
-    advance(phase, phase.kept, new Set([...phase.done, current.writeId, ...leaving]))
+    advance(
+      phase,
+      phase.kept,
+      new Set([...phase.done, current.writeId, ...leaving]),
+      ok === 'restorable',
+    )
   }
 
   const keepCurrent = () => {
@@ -260,6 +323,34 @@ export function AuthorshipNotice(props: {
     if (current) void finishWrite(props.onUndoWrite, groupOf(current.writeId))
   }
 
+  /** Restore: the writes come back into the review, at the first step of the write whose Undo it took back. */
+  const restoreUndone = async () => {
+    const offer = props.restore
+    if (!offer || !props.onRestore || !props.editing || phase.kind !== 'reviewing' || phase.busy)
+      return
+    const mine = generation.current
+    setPhase({ ...phase, busy: true })
+    const ok = await props.onRestore().catch(() => false)
+    if (mine !== generation.current) return
+    if (!ok) {
+      setPhase({ ...phase, busy: false })
+      return
+    }
+    const back = new Set(offer.writes)
+    const done = new Set([...phase.done].filter((id) => !back.has(id)))
+    const steps = collect(phase.kept, done, offer.writes)
+    const at = Math.max(
+      0,
+      steps.findIndex((step) => step.writeId === offer.writeId),
+    )
+    setPhase({ ...phase, index: at, steps, done, holding: false, busy: false })
+    showAt(steps, at)
+  }
+
+  // A review held for Restore ends once Restore is no longer offered: the note changed, or Restore failed.
+  if (phase.kind === 'reviewing' && phase.holding && !phase.busy && props.restore === undefined)
+    setPhase(IDLE)
+
   const onKeyDown = (event: KeyboardEvent) => {
     if (phase.kind !== 'reviewing' || phase.busy || event.metaKey || event.ctrlKey || event.altKey)
       return
@@ -276,14 +367,31 @@ export function AuthorshipNotice(props: {
 
   const shown = phase.kind === 'reviewing' ? phase.steps[phase.index] : undefined
   const shownRow = shown ? rowOf.get(shown.writeId) : undefined
+  const shownGroup = shown ? groupOf(shown.writeId) : []
   const undoText =
     phase.kind === 'reviewing' && shown
       ? undoLabel(
-          groupOf(shown.writeId),
+          shownGroup,
           // Every place of the write as the text is now, kept ones too.
           props.editor.current?.reviewSteps(new Set([shown.writeId])).length ?? 1,
+          (writeId) => rowOf.get(writeId),
         )
       : t('authorship.undo')
+  // What Undo would take back, marked while it is aimed at; the step's key, so a new step marks again.
+  const preview =
+    phase.kind === 'reviewing' &&
+    !phase.busy &&
+    shown &&
+    props.editing &&
+    (undoAimed.pointer || undoAimed.keyboard)
+      ? `${shown.key}\n${shownGroup.join('\n')}`
+      : ''
+  useEffect(() => {
+    const editor = props.editor.current
+    if (!preview || !editor) return
+    editor.previewWrites(new Set(preview.split('\n').slice(1)))
+    return () => editor.previewWrites(new Set())
+  }, [preview, props.editor])
   const stepText =
     phase.kind === 'reviewing' && shown && shownRow
       ? format(t(shown.from === shown.to ? 'authorship.stepDeletion' : 'authorship.step'), {
@@ -292,7 +400,11 @@ export function AuthorshipNotice(props: {
           writer: writerLabel(shownRow),
           time: fullDate(shownRow.at, locale),
         })
-      : t('authorship.noSteps')
+      : props.restore
+        ? format(t('authorship.undid'), {
+            count: String(props.restore.writes.length),
+          })
+        : t('authorship.noSteps')
 
   return (
     <section
@@ -350,8 +462,24 @@ export function AuthorshipNotice(props: {
                 aria-keyshortcuts="U"
                 aria-disabled={!shown || phase.busy || !props.editing}
                 onClick={undoCurrent}
+                onPointerEnter={() => setUndoAimed((aimed) => ({ ...aimed, pointer: true }))}
+                onPointerLeave={() => setUndoAimed((aimed) => ({ ...aimed, pointer: false }))}
+                onFocus={() => setUndoAimed((aimed) => ({ ...aimed, keyboard: true }))}
+                onBlur={() => setUndoAimed((aimed) => ({ ...aimed, keyboard: false }))}
               >
                 {undoText}
+              </button>
+            ) : null}
+            {props.restore && props.onRestore ? (
+              <button
+                type="button"
+                className="button"
+                aria-disabled={phase.busy || !props.editing}
+                onClick={() => void restoreUndone()}
+              >
+                {format(t('authorship.restore'), {
+                  count: String(props.restore.writes.length),
+                })}
               </button>
             ) : null}
             <button type="button" className="button" disabled={phase.busy} onClick={endReview}>

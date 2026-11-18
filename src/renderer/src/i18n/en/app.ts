@@ -45,6 +45,7 @@ export const messages = {
   'core.failed':
     'Something went wrong inside Devot. If your changes stop saving, quit and open Devot again.',
   'change.failed': 'The change could not be made.',
+  'change.restoreStale': 'The note changed since the Undo, so those edits cannot be restored.',
   'change.tagNameTaken': 'Another tag already has that name.',
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
   'change.tagRenameSearchTooLong':

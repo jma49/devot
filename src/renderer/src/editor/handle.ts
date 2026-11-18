@@ -11,6 +11,7 @@ import { acceptSpec, suggestAt } from './ghostText'
 import { imageAt, viewImageAt } from './images'
 import { insertCommand, type InsertId } from './insert'
 import { replayEarlyKeys, type EarlyKey } from './earlyKeys'
+import { setReviewPreview } from './reviewPreview'
 import { linkForNewNote, runEditCommand, type LinkAt } from './lineCommands'
 import { pastePlain, pasteUrlAsIn, setImageSize } from './noteKeys'
 import { pluginInsert, pluginSelection } from './pluginText'
@@ -67,6 +68,10 @@ export interface EditorHandle {
   reviewSteps: (writeIds: ReadonlySet<string>) => ReviewStep[]
   /** The writes Undo of `writeId` takes back with it, newest first (undoGroup). */
   undoGroup: (writeId: string) => string[]
+  /** Marks every place of the writes in `writeIds` (reviewSteps), until the next call; an empty set clears the marks. */
+  previewWrites: (writeIds: ReadonlySet<string>) => void
+  /** Calls `listener` on every change to the replica's document, until the returned function is called. */
+  changed: (listener: () => void) => () => void
   /** Selects `from`-`to` and scrolls it to the middle, leaving the keyboard where it is. */
   reveal: (from: number, to: number) => void
   /** The main selection, for a plugin's `note.selection`. */
@@ -165,6 +170,14 @@ export function editorHandle(
     },
     reviewSteps: (writeIds) => reviewSteps(doc, writeIds, noteId),
     undoGroup: (writeId) => undoGroup(doc, writeId, noteId),
+    previewWrites: (writeIds) =>
+      ready.dispatch({
+        effects: setReviewPreview.of(writeIds.size === 0 ? [] : reviewSteps(doc, writeIds, noteId)),
+      }),
+    changed: (listener) => {
+      doc.on('update', listener)
+      return () => doc.off('update', listener)
+    },
     reveal: (from, to) => {
       const length = ready.state.doc.length
       const anchor = Math.min(from, length)

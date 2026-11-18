@@ -186,18 +186,18 @@ export const sameSummaries = (
 
 /**
  * This device's rows, read again whenever `when` changes (the lists reloaded, or a write changed a
- * note's rows; never for the owner's own saves) and after `reload`. A read that loses a race to a
- * later one, or finds the rows unchanged, is dropped.
+ * note's rows; never for the owner's own saves) and after `reload`, which resolves once its read is
+ * shown or dropped. A read that loses a race to a later one, or finds the rows unchanged, is dropped.
  */
 export function useAgentWrites(core: Core | undefined, when: unknown) {
   const [view, setView] = useState<AgentWritesView>(EMPTY)
   const asked = useRef(0)
   const shown = useRef<readonly AgentWriteSummary[]>([])
   const shownAuthored = useRef<readonly string[]>([])
-  const reload = useCallback(() => {
-    if (!core) return
+  const reload = useCallback((): Promise<void> => {
+    if (!core) return Promise.resolve()
     const ask = (asked.current += 1)
-    Promise.all([core.agentWrites(MAX_AGENT_WRITES_LISTED), core.authoredNotes()]).then(
+    return Promise.all([core.agentWrites(MAX_AGENT_WRITES_LISTED), core.authoredNotes()]).then(
       ([rows, authored]) => {
         // The same rows keep the same view, so a read renders neither the window nor the sidebar.
         if (ask !== asked.current) return
@@ -209,6 +209,7 @@ export function useAgentWrites(core: Core | undefined, when: unknown) {
       (e: unknown) => console.warn('W_AGENT_WRITES_LIST_FAILED', e),
     )
   }, [core])
-  useEffect(reload, [reload, when])
+  const load = useCallback(() => void reload(), [reload])
+  useEffect(load, [load, when])
   return useMemo(() => ({ view, reload }), [view, reload])
 }

@@ -35,6 +35,7 @@ export const messages: Record<keyof typeof en, string> = {
   'start.retry': '重试',
   'core.failed': 'Devot 内部出了问题。如果修改不再保存，请退出并重新打开 Devot。',
   'change.failed': '无法进行这项更改。',
+  'change.restoreStale': '撤销之后笔记已有改动，无法恢复那些编辑。',
   'change.tagNameTaken': '已有其他标签使用这个名称。',
   'change.tagNameInvalid': '标签名称须为一行，最多 {max} 个字符。',
   'change.tagRenameSearchTooLong':
