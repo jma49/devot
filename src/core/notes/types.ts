@@ -49,6 +49,8 @@ export interface NoteServiceOptions {
   now?: () => number
   /** How long after a pause a small note is saved (300 ms); a large one waits longer (see saveDelay). */
   saveDelayMs?: number
+  /** The size of a note's Yjs state from which saving it logs W_NOTE_BODY_LARGE once (8 MiB). */
+  largeBodyBytes?: number
   /** Doubles with each failure in a row, up to 30 s. */
   retryDelayMs?: number
   /** Called with every note whose save failed, oldest first, whenever that list changes. */
