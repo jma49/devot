@@ -166,4 +166,6 @@ export const messages: Record<keyof typeof en, string> = {
   'note.titleLabel': '标题',
   'note.bodyLabel': '笔记正文',
   'noteMenu.clearAuthorship': '清除作者标记…',
+  'empty.paneLabel': '快捷操作',
+  'empty.paneHint': '选择一篇笔记，或从下方开始。',
 }

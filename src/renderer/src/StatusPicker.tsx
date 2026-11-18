@@ -8,9 +8,9 @@ import { STATUS_ICONS } from './NoteRow'
 import { PickerList, usePickerOpen, type PickerOption } from './Picker'
 import { STATUS_COMMANDS } from './statusKeys'
 
-function statusOptions(): PickerOption[] {
+function statusOptions(showShortcuts: boolean): PickerOption[] {
   return NOTE_STATUSES.map((status) => {
-    const key = commandKeys(STATUS_COMMANDS[status])[0]
+    const key = showShortcuts ? commandKeys(STATUS_COMMANDS[status])[0] : undefined
     return {
       id: status,
       className: `status-${status}`,
@@ -34,11 +34,14 @@ function statusOptions(): PickerOption[] {
 export function StatusPicker(props: {
   value: NoteStatus
   mixed?: boolean
+  disabled?: boolean
+  showShortcuts?: boolean
   onChange: (status: NoteStatus) => void
 }) {
   const box = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = usePickerOpen(box)
+  const shownOpen = open && !props.disabled
   const shown = props.mixed ? 'none' : props.value
   const value = props.mixed
     ? t('status.mixed')
@@ -62,10 +65,11 @@ export function StatusPicker(props: {
         }
         data-value={props.mixed ? '' : props.value}
         aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        aria-expanded={shownOpen}
+        disabled={props.disabled}
+        onClick={() => setOpen(!shownOpen)}
         onKeyDown={(e) => {
-          if (e.key !== 'ArrowDown' || open) return
+          if (e.key !== 'ArrowDown' || shownOpen || props.disabled) return
           e.preventDefault()
           setOpen(true)
         }}
@@ -76,10 +80,10 @@ export function StatusPicker(props: {
         <span className="popup-value">{value}</span>
         <Icon name="popup" size="xs" />
       </button>
-      {open ? (
+      {shownOpen ? (
         <PickerList
           label={t('note.statusLabel')}
-          options={statusOptions()}
+          options={statusOptions(props.showShortcuts !== false)}
           value={props.mixed ? undefined : props.value}
           onClose={close}
           onPick={(status) => {

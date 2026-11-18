@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { clearDraft, isEmptyCapture, notebookToShow, readDraft, writeDraft } from './draft'
+import {
+  addQuickTag,
+  clearDraft,
+  flushQuickTagDraft,
+  isEmptyCapture,
+  notebookToShow,
+  normalizeQuickTag,
+  readDraft,
+  writeDraft,
+} from './draft'
 import { memoryStorage } from '../../../../tests/support/local-storage'
 
 describe('the quick capture draft', () => {
@@ -8,8 +17,28 @@ describe('the quick capture draft', () => {
     expect(readDraft(storage)).toBeNull()
     writeDraft({ title: 'Call', body: 'about the lease', bookId: 'b1' }, storage)
     expect(readDraft(storage)).toEqual({ title: 'Call', body: 'about the lease', bookId: 'b1' })
-    writeDraft({ title: '', body: 'x', bookId: null }, storage)
-    expect(readDraft(storage)).toEqual({ title: '', body: 'x', bookId: null })
+    writeDraft({ title: '', body: 'x', bookId: null, status: 'active', tags: ['work'] }, storage)
+    expect(readDraft(storage)).toEqual({
+      title: '',
+      body: 'x',
+      bookId: null,
+      status: 'active',
+      tags: ['work'],
+    })
+  })
+
+  it('omits default status and empty tags, and keeps status or tags set before text', () => {
+    const storage = memoryStorage()
+    writeDraft({ title: 'Note', body: '', bookId: null, status: 'none', tags: [] }, storage)
+    expect(readDraft(storage)).toEqual({ title: 'Note', body: '', bookId: null })
+    writeDraft({ title: '', body: '', bookId: null, status: 'on_hold', tags: ['inbox'] }, storage)
+    expect(readDraft(storage)).toEqual({
+      title: '',
+      body: '',
+      bookId: null,
+      status: 'on_hold',
+      tags: ['inbox'],
+    })
   })
 
   it('is cleared once its note is saved, or when it holds nothing', () => {
@@ -23,7 +52,14 @@ describe('the quick capture draft', () => {
   })
 
   it('reads a damaged draft as none', () => {
-    for (const stored of ['{', '[]', '{"title":1,"body":"","bookId":null}', '{"title":"a"}']) {
+    for (const stored of [
+      '{',
+      '[]',
+      '{"title":1,"body":"","bookId":null}',
+      '{"title":"a"}',
+      '{"title":"a","body":"","bookId":null,"status":"unknown"}',
+      '{"title":"a","body":"","bookId":null,"tags":[12]}',
+    ]) {
       const storage = memoryStorage()
       storage.setItem('devot.quickCapture.draft', stored)
       expect(readDraft(storage)).toBeNull()
@@ -72,5 +108,28 @@ describe('notebookToShow', () => {
   it('falls back when the chosen notebook is gone', () => {
     expect(notebookToShow('gone', 'b1', ids)).toBe('b1')
     expect(notebookToShow('gone', 'also-gone', ids)).toBeNull()
+  })
+})
+
+describe('quick capture tag helpers', () => {
+  it('strips leading # and rejects empty or multiline tags', () => {
+    expect(normalizeQuickTag('#work')).toBe('work')
+    expect(normalizeQuickTag('  ##project-x  ')).toBe('project-x')
+    expect(normalizeQuickTag('#  ')).toBeNull()
+    expect(normalizeQuickTag('a\nb')).toBeNull()
+  })
+
+  it('deduplicates tags ignoring case', () => {
+    expect(addQuickTag(['Work'], '#work')).toEqual({ next: ['Work'], added: null })
+    expect(addQuickTag(['Work'], '#urgent')).toEqual({
+      next: ['Work', 'urgent'],
+      added: 'urgent',
+    })
+  })
+
+  it('flushes uncommitted comma-separated or #-prefixed tag text once', () => {
+    expect(flushQuickTagDraft(['work'], '   ')).toEqual(['work'])
+    expect(flushQuickTagDraft(['work'], '#Pending')).toEqual(['work', 'Pending'])
+    expect(flushQuickTagDraft(['Work'], '#work, alpha, #beta')).toEqual(['Work', 'alpha', 'beta'])
   })
 })

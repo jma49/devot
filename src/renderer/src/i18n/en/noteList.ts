@@ -12,6 +12,7 @@ export const prefixes = [
   'gallery',
   'time',
   'shareWeb',
+  'empty',
 ]
 
 export const messages = {
@@ -183,4 +184,6 @@ export const messages = {
   'note.titleLabel': 'Title',
   'note.bodyLabel': 'Note body',
   'noteMenu.clearAuthorship': 'Clear Authorship\u2026',
+  'empty.paneLabel': 'Quick Actions',
+  'empty.paneHint': 'Select a note or start from an action below.',
 } as const

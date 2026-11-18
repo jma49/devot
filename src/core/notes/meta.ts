@@ -23,7 +23,7 @@ export function metaMethods(
   const { storage, clock, now, live, loading, coldWrites } = ctx
   const { keepBaseline, recordEvents, sweep } = k.versions
   const { settle } = k.problems
-  const { takeIn } = k.relay
+  const { relay, takeIn } = k.relay
   const { getStored, summaries, using } = k.memory
   const { exclusive, failed, write, save, schedule } = k.saving
   const { requireBook } = k.books
@@ -75,6 +75,7 @@ export function metaMethods(
           at: stored.updatedAt,
         })
         await storage.putNoteMeta(metaOf(record))
+        relay({ kind: 'saved', noteId: id, updatedAt: record.updatedAt })
         recordEvents(undefined, before, record)
         sweep()
       }),

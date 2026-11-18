@@ -13,6 +13,7 @@
     "allow-system-accent",
     "allow-quick-capture-save",
     "allow-quick-capture-prefill-take",
-    "allow-quick-capture-close"
+    "allow-quick-capture-close",
+    "allow-symbol-png"
   ]
 }

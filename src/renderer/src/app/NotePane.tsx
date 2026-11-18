@@ -46,6 +46,7 @@ import type { NoteOpening } from './useNoteOpening'
 import type { useOpenNote } from './useOpenNote'
 import type { useOutline } from './useOutline'
 import type { useTrash } from './useTrash'
+import { EmptyNotePane } from './EmptyNotePane'
 
 const NO_FOLDS: ReadonlySet<string> = new Set()
 
@@ -100,6 +101,7 @@ export function NotePane({
   setChangeNotice,
   tags,
   loadHeadlines,
+  openPalette,
 }: {
   core: Core | undefined
   editing: boolean
@@ -150,6 +152,7 @@ export function NotePane({
   setChangeNotice: (code: string | undefined) => void
   tags: TagRecord[]
   loadHeadlines: HeadlineLoader | undefined
+  openPalette: () => void
 }) {
   const { inTrash, multiIds, selectedNotes, inTemplates, selectedIsTemplate, tree } = view
   const { selectedNote, activeFilter, sidebarTagged, searching } = view
@@ -473,6 +476,14 @@ export function NotePane({
           readOnly={!editing}
           onUse={(id) => void pickBuiltIn(id)}
           onEditCopy={(id) => void editBuiltInCopy(id)}
+        />
+      ) : core && !selected && !inTrash && !multiIds ? (
+        <EmptyNotePane
+          editing={editing}
+          onNewNote={() => void making.create()}
+          onOpenToday={() => void making.openToday()}
+          onOpenPalette={openPalette}
+          onNewFromTemplate={() => making.setPicking({ recent: making.recentTemplates.load() })}
         />
       ) : null}
     </main>

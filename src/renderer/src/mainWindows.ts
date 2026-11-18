@@ -11,8 +11,11 @@ import type { WireStorage } from './storage/wire'
 const EVENT = 'devot://lists-changed'
 const TEST_CHANNEL = 'devot.test.listsChanged'
 
-/** Runs `run` once, `ms` after the first call that finds nothing waiting; `flush` runs a waiting one at once. */
-export function coalesced(run: () => void, ms: number): (() => void) & { flush(): void } {
+/** Runs `run` once, `ms` after the first call that finds nothing waiting; `flush` runs a waiting one at once and `cancel` clears any pending call. */
+export function coalesced(
+  run: () => void,
+  ms: number,
+): (() => void) & { flush(): void; cancel(): void } {
   let timer: ReturnType<typeof setTimeout> | undefined
   const fire = () => {
     clearTimeout(timer)
@@ -25,6 +28,10 @@ export function coalesced(run: () => void, ms: number): (() => void) & { flush()
   return Object.assign(call, {
     flush() {
       if (timer !== undefined) fire()
+    },
+    cancel() {
+      clearTimeout(timer)
+      timer = undefined
     },
   })
 }
@@ -78,15 +85,28 @@ export interface ListsLink {
  */
 export function listsLink(self: string): ListsLink {
   if (DEVOT_UI_TEST) {
-    const channel = new BroadcastChannel(TEST_CHANNEL)
+    let channel = new BroadcastChannel(TEST_CHANNEL)
+    let closed = false
+    const activeChannel = () => {
+      if (closed) {
+        channel = new BroadcastChannel(TEST_CHANNEL)
+        closed = false
+      }
+      return channel
+    }
     return {
-      send: () => channel.postMessage({ from: self }),
+      send: () => activeChannel().postMessage({ from: self }),
       listen(handler) {
+        const current = activeChannel()
         const take = (event: MessageEvent<{ from: string }>) => {
           if (event.data.from !== self) handler()
         }
-        channel.addEventListener('message', take)
-        return Promise.resolve(() => channel.removeEventListener('message', take))
+        current.addEventListener('message', take)
+        return Promise.resolve(() => {
+          current.removeEventListener('message', take)
+          current.close()
+          if (channel === current) closed = true
+        })
       },
     }
   }

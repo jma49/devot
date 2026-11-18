@@ -113,9 +113,9 @@ describe('Tauri command permissions', () => {
     ])
   })
 
-  it('lets only main windows open another one and tell the others the library changed', () => {
+  it('lets only main windows open another one, and main and note windows tell the others the library changed', () => {
     expect(windowsWith('allow-main-window-new')).toEqual(['main'])
-    expect(windowsWith('allow-main-windows-changed')).toEqual(['main'])
+    expect(windowsWith('allow-main-windows-changed')).toEqual(['main', 'note-*'])
   })
 
   it('declares at least one app command', () => {
@@ -382,6 +382,7 @@ describe('Tauri command permissions', () => {
       'allow-licence-get',
       'allow-link-title',
       'allow-log-write',
+      'allow-main-windows-changed',
       'allow-note-backlinks',
       'allow-note-get',
       'allow-note-link-graph',
@@ -390,6 +391,8 @@ describe('Tauri command permissions', () => {
       'allow-note-put',
       'allow-note-put-meta',
       'allow-note-relay-send',
+      'allow-note-tag-get',
+      'allow-note-tag-put',
       'allow-note-window-close-cancel',
       'allow-note-window-close-ready',
       'allow-note-window-note',
@@ -407,6 +410,7 @@ describe('Tauri command permissions', () => {
       'allow-settings-open-licence',
       'allow-symbol-png',
       'allow-system-accent',
+      'allow-tag-put',
       'allow-tags-list',
       'allow-text-look-up',
       'allow-text-speak',
@@ -449,7 +453,7 @@ describe('Tauri command permissions', () => {
       [...readFileSync(file, 'utf8').matchAll(/invoke(?:<[^>]*>)?\('([a-z_]+)'/g)].map(
         (m) => m[1] ?? '',
       )
-    // Its core never changes notebooks or tags, keeps saved searches, applies a template, lists the
+    // Its core never changes notebooks or renames tags, keeps saved searches, applies a template, lists the
     // Trash, compacts the history, shows activity, lists agent writes, searches by meaning or seeds the
     // first-launch notes:
     // those start in the main window.
@@ -461,8 +465,6 @@ describe('Tauri command permissions', () => {
       'book_put',
       'books_put',
       'files_copy',
-      'note_tag_get',
-      'note_tag_put',
       'notes_trash_list',
       'revisions_compact',
       'revisions_compactable',
@@ -471,7 +473,6 @@ describe('Tauri command permissions', () => {
       'saved_searches_list',
       'semantic_search',
       'semantic_status',
-      'tag_put',
       'tag_rename',
       'welcome_seed',
     ]
@@ -498,6 +499,7 @@ describe('Tauri command permissions', () => {
       'allow-quick-capture-close',
       'allow-quick-capture-prefill-take',
       'allow-quick-capture-save',
+      'allow-symbol-png',
       'allow-system-accent',
       'core:event:allow-listen',
       'core:event:allow-unlisten',

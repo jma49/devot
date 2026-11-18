@@ -206,6 +206,7 @@ export const LUCIDE_ICONS = {
   tag: CircleIcon,
   'sidebar.toggle': PanelLeftIcon,
   'note.new': SquarePenIcon,
+  'note.today': CalendarIcon,
   'trash.empty': ArchiveXIcon,
   'mode.focus': Maximize2Icon,
   'mode.focus.exit': Minimize2Icon,

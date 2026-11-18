@@ -11,6 +11,7 @@
 use crate::commands::notes::{MAX_BODY_BYTES, MAX_TITLE_CHARS};
 use crate::editor_settings::{EditorSettingsStore, is_notebook_id};
 use crate::pending::{GaveUp, Pending};
+use crate::storage::NOTE_STATUSES;
 use crate::{exit, strings};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -44,6 +45,8 @@ const MIN_HEIGHT: f64 = 240.0;
 /// text in its window. Only one the main window has not claimed yet is sure not to be written.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(15);
 const CODE_MAX: usize = 80;
+pub const MAX_CAPTURE_TAGS: usize = 50;
+const MAX_CAPTURE_TAG_CHARS: usize = 100;
 
 /// Whether the menu bar icon is shown; set and cleared on the main thread alone (`apply`).
 #[derive(Default)]
@@ -291,12 +294,16 @@ pub fn open_quick_capture<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Capture {
     title: String,
     body: String,
     book_id: Option<String>,
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
 }
 
 /// What the main window gets: the capture and the ID to answer it by (`quick_capture_done`).
@@ -307,10 +314,14 @@ struct CaptureRequest {
     title: String,
     body: String,
     book_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    status: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    tags: Vec<String>,
 }
 
-/// The limits `note_put` holds a note to; the window clips its title (`clipTitle`) before it sends.
-fn check(capture: &Capture) -> Result<(), &'static str> {
+/// The limits `note_put`, status, and tags hold a note to; the window clips its title (`clipTitle`) before it sends.
+fn check(capture: Capture) -> Result<Capture, &'static str> {
     if capture.title.trim().is_empty() && capture.body.trim().is_empty() {
         return Err("E_QUICK_CAPTURE_EMPTY");
     }
@@ -320,7 +331,39 @@ fn check(capture: &Capture) -> Result<(), &'static str> {
     if !title_ok || capture.body.len() > MAX_BODY_BYTES || !book_ok {
         return Err("E_QUICK_CAPTURE_INVALID");
     }
-    Ok(())
+    let status = match capture.status {
+        None => None,
+        Some(s) => {
+            if !NOTE_STATUSES.contains(&s.as_str()) {
+                return Err("E_NOTE_STATUS_INVALID");
+            }
+            (s != "none").then_some(s)
+        }
+    };
+    if capture.tags.len() > MAX_CAPTURE_TAGS {
+        return Err("E_CAPTURE_TAGS_TOO_MANY");
+    }
+    let mut seen = std::collections::HashSet::with_capacity(capture.tags.len());
+    let mut clean_tags = Vec::with_capacity(capture.tags.len());
+    for raw in capture.tags {
+        let trimmed = raw.trim();
+        if trimmed.is_empty()
+            || raw.contains(['\n', '\r'])
+            || trimmed.chars().count() > MAX_CAPTURE_TAG_CHARS
+        {
+            return Err("E_TAG_NAME_INVALID");
+        }
+        if seen.insert(trimmed.to_lowercase()) {
+            clean_tags.push(trimmed.to_owned());
+        }
+    }
+    Ok(Capture {
+        title: capture.title,
+        body: capture.body,
+        book_id: capture.book_id,
+        status,
+        tags: clean_tags,
+    })
 }
 
 type Answer = Result<(), String>;
@@ -386,7 +429,7 @@ pub async fn quick_capture_save(
     if window.label() != QUICK_CAPTURE {
         return Err("E_QUICK_CAPTURE_WINDOW".into());
     }
-    check(&capture)?;
+    let capture = check(capture)?;
     // The core keeps a note it could not save pending, so a refused one would seem made.
     let licence = Arc::clone(&licence);
     tauri::async_runtime::spawn_blocking(move || {
@@ -400,6 +443,8 @@ pub async fn quick_capture_save(
         title: capture.title,
         body: capture.body,
         book_id: capture.book_id,
+        status: capture.status,
+        tags: capture.tags,
     };
     if crate::main_windows::emit_front(&app, CAPTURE_EVENT, request).is_err() {
         captures.forget(id);
@@ -471,6 +516,8 @@ mod tests {
             title: title.into(),
             body: body.into(),
             book_id: book_id.map(String::from),
+            status: None,
+            tags: Vec::new(),
         }
     }
 
@@ -483,18 +530,48 @@ mod tests {
 
     #[test]
     fn takes_a_title_or_a_body_into_a_notebook_or_none() {
-        assert_eq!(check(&capture("Groceries", "", None)), Ok(()));
-        assert_eq!(check(&capture("", "- milk", Some("0b0c-1d_2"))), Ok(()));
-        assert_eq!(
-            check(&capture(&"t".repeat(MAX_TITLE_CHARS), "", None)),
-            Ok(())
-        );
+        assert!(check(capture("Groceries", "", None)).is_ok());
+        assert!(check(capture("", "- milk", Some("0b0c-1d_2"))).is_ok());
+        assert!(check(capture(&"t".repeat(MAX_TITLE_CHARS), "", None)).is_ok());
+    }
+
+    #[test]
+    fn takes_optional_status_and_bounded_tags() {
+        let mut with_meta = capture("Idea", "body", None);
+        with_meta.status = Some("active".into());
+        with_meta.tags = vec!["  work ".into(), "Work".into(), "urgent".into()];
+        let cleaned = check(with_meta).expect("valid status and tags");
+        assert_eq!(cleaned.status, Some("active".into()));
+        assert_eq!(cleaned.tags, vec!["work", "urgent"]);
+
+        let mut none_status = capture("Idea", "", None);
+        none_status.status = Some("none".into());
+        assert_eq!(check(none_status).unwrap().status, None);
+
+        let mut bad_status = capture("Idea", "", None);
+        bad_status.status = Some("archived".into());
+        assert_eq!(check(bad_status), Err("E_NOTE_STATUS_INVALID"));
+
+        let mut too_many = capture("Idea", "", None);
+        too_many.tags = (0..=MAX_CAPTURE_TAGS).map(|i| format!("t{i}")).collect();
+        assert_eq!(check(too_many), Err("E_CAPTURE_TAGS_TOO_MANY"));
+
+        for bad_tag in [
+            "",
+            "  ",
+            "line1\nline2",
+            &"x".repeat(MAX_CAPTURE_TAG_CHARS + 1),
+        ] {
+            let mut c = capture("Idea", "", None);
+            c.tags = vec![bad_tag.into()];
+            assert_eq!(check(c), Err("E_TAG_NAME_INVALID"), "{bad_tag:?}");
+        }
     }
 
     #[test]
     fn refuses_an_empty_capture() {
         assert_eq!(
-            check(&capture("  ", "\n\t", None)),
+            check(capture("  ", "\n\t", None)),
             Err("E_QUICK_CAPTURE_EMPTY")
         );
     }
@@ -510,7 +587,7 @@ mod tests {
             capture("t", "", Some("../books")),
             capture("t", "", Some(&"a".repeat(65))),
         ] {
-            assert_eq!(check(&bad), Err("E_QUICK_CAPTURE_INVALID"), "{bad:?}");
+            assert_eq!(check(bad), Err("E_QUICK_CAPTURE_INVALID"));
         }
     }
 
@@ -520,6 +597,13 @@ mod tests {
         assert!(read(
             serde_json::json!({ "title": "t", "body": "b", "bookId": null })
         ));
+        assert!(read(serde_json::json!({
+            "title": "t",
+            "body": "b",
+            "bookId": null,
+            "status": "on_hold",
+            "tags": ["work"]
+        })));
         assert!(!read(
             serde_json::json!({ "title": "t", "body": "b", "bookId": null, "pinned": true })
         ));
@@ -533,10 +617,31 @@ mod tests {
             title: "T".into(),
             body: "B".into(),
             book_id: Some("b1".into()),
+            status: None,
+            tags: Vec::new(),
         };
         assert_eq!(
             serde_json::to_value(request).unwrap(),
             serde_json::json!({ "id": 3, "title": "T", "body": "B", "bookId": "b1" })
+        );
+        let with_meta = CaptureRequest {
+            id: 4,
+            title: "T".into(),
+            body: "B".into(),
+            book_id: None,
+            status: Some("active".into()),
+            tags: vec!["work".into()],
+        };
+        assert_eq!(
+            serde_json::to_value(with_meta).unwrap(),
+            serde_json::json!({
+                "id": 4,
+                "title": "T",
+                "body": "B",
+                "bookId": null,
+                "status": "active",
+                "tags": ["work"]
+            })
         );
     }
 

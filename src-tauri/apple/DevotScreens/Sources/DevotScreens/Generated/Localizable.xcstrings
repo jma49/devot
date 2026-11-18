@@ -10133,6 +10133,40 @@
         }
       }
     },
+    "empty.paneHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a note or start from an action below."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择一篇笔记，或从下方开始。"
+          }
+        }
+      }
+    },
+    "empty.paneLabel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷操作"
+          }
+        }
+      }
+    },
     "export.allName" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -27898,6 +27932,23 @@
         }
       }
     },
+    "quickCapture.addTag" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加标签"
+          }
+        }
+      }
+    },
     "quickCapture.body" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -27928,6 +27979,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消"
+          }
+        }
+      }
+    },
+    "quickCapture.cancelShortcut" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esc"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esc"
           }
         }
       }
@@ -27983,6 +28051,23 @@
         }
       }
     },
+    "quickCapture.noMatchingNotebooks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching notebooks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配的笔记本"
+          }
+        }
+      }
+    },
     "quickCapture.noNotebook" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -28034,6 +28119,40 @@
         }
       }
     },
+    "quickCapture.notebookSearch" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter notebooks…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "筛选笔记本…"
+          }
+        }
+      }
+    },
+    "quickCapture.removeTag" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Tag {name}"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除标签 {name}"
+          }
+        }
+      }
+    },
     "quickCapture.save" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -28068,6 +28187,23 @@
         }
       }
     },
+    "quickCapture.saveShortcut" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘↩"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘↩"
+          }
+        }
+      }
+    },
     "quickCapture.stillSaving" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -28081,6 +28217,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Devot 仍在保存这篇笔记。它会出现在你的笔记中；再次保存之前请先去那里看看。"
+          }
+        }
+      }
+    },
+    "quickCapture.tags" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标签"
           }
         }
       }

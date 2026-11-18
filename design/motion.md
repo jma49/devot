@@ -139,6 +139,10 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Related by Meaning in search results:** rule 2. The section and its rows arrive at once under the search's own results, when the device's model answers, and they never push those results: they only come after them. A newer query replaces the section at once, and a query that matches nothing by meaning takes it away at once.
 - **Ask Your Notes sheet:** a modal dialog with the dialog motion. The question, the wait, the answer and a failure swap in place at once (rule 2). A streamed answer grows as its text arrives, a few words at a time, with no fade, caret or typing effect of ours, and the sheet's height follows it at once; a citation or a source opens its note as another note does, and the sheet goes at once. Reduced motion follows the dialog's rule.
 - **Image viewer:** opens and closes as a modal dialog does. **Plugin panel:** opens as one and closes at once, because a closing copy would run its frame again.
+- **Empty-pane launcher:** rule 2 for the card itself, which appears and disappears in place with the view without an entrance slide.
+  Each enabled action row has the Buttons press (`motion.scale.press` over `motion.duration.quick` on `motion.easing.move`, settling on `motion.easing.spring`) and eases its `color.fill.tool-hover` wash over `motion.duration.hover` on `motion.easing.out`, while actions withheld under an ended trial fade to `opacity.disabled` without pressing.
+- **Quick capture controls:** the notebook and status pop-ups grow, fade, unfold and close backwards on an inert copy (`closing.ts`) like any picker.
+  Tag chips restored from a draft or committed inline take no entrance animation, and the body container's focus ring and surface ease over `motion.duration.quick` and `motion.duration.hover`.
 
 ## iPhone
 

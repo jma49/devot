@@ -116,7 +116,9 @@ pub fn start(app: &AppHandle) {
                     let db = app.state::<Db>().inner().clone();
                     tauri::async_runtime::block_on(db.call_quietly(|store| store.data_version()))
                 });
-                if changed && crate::main_windows::emit_all(&app, CHANGED_EVENT, ()).is_err() {
+                if changed
+                    && crate::main_windows::emit_editing_all(&app, CHANGED_EVENT, ()).is_err()
+                {
                     log::warn!("W_WATCH_EVENT_FAILED");
                 }
                 std::thread::sleep(EVERY);

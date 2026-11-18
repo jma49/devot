@@ -221,7 +221,7 @@ export function useNoteWindowChanges({
   lists: LibraryLists
   knownNotes: RefObject<ReadonlyMap<string, NoteSummary>>
 }) {
-  const { showWrites, retitleListed, refresh, authorshipChanged } = lists
+  const { showWrites, retitleListed, refresh, patch, authorshipChanged } = lists
   useEffect(() => {
     if (!core) return
     const listening = relay.link.listen((message) => {
@@ -237,9 +237,15 @@ export function useNoteWindowChanges({
         })
       if (message.kind === 'saved') {
         if (message.authored) authorshipChanged()
-        // A note made there (a `[[` link to a new note) is not listed yet.
+        // A note made there (a `[[` link to a new note), or metadata saved there, updates the lists.
         if (knownNotes.current.has(message.noteId)) {
           showWrites(new Map([[message.noteId, message.updatedAt]]))
+          if (typeof core.mergeStored === 'function' && typeof patch === 'function') {
+            void core
+              .mergeStored()
+              .then(() => patch(core, [message.noteId]))
+              .catch(() => {})
+          }
         } else void refresh(core).catch(() => {})
         void core.mirrorTouch([message.noteId])
       } else if (message.kind === 'title') {
@@ -247,5 +253,5 @@ export function useNoteWindowChanges({
       }
     })
     return () => void listening.then((stop) => stop())
-  }, [core, relay, showWrites, retitleListed, refresh, authorshipChanged, knownNotes])
+  }, [core, relay, showWrites, retitleListed, refresh, patch, authorshipChanged, knownNotes])
 }

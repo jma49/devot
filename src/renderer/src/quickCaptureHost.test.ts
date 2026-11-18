@@ -9,6 +9,17 @@ describe('readCaptureRequest', () => {
     expect(readCaptureRequest({ ...REQUEST, bookId: null })).toEqual({ ...REQUEST, bookId: null })
   })
 
+  it('reads optional status and tags when valid', () => {
+    expect(
+      readCaptureRequest({ ...REQUEST, status: 'active', tags: ['  work ', 'urgent'] }),
+    ).toEqual({
+      ...REQUEST,
+      status: 'active',
+      tags: ['work', 'urgent'],
+    })
+    expect(readCaptureRequest({ ...REQUEST, status: 'none', tags: [] })).toEqual(REQUEST)
+  })
+
   it('refuses anything else', () => {
     for (const payload of [
       null,
@@ -19,6 +30,11 @@ describe('readCaptureRequest', () => {
       { ...REQUEST, title: 3 },
       { ...REQUEST, body: undefined },
       { ...REQUEST, bookId: 7 },
+      { ...REQUEST, status: 'invalid' },
+      { ...REQUEST, tags: 'work' },
+      { ...REQUEST, tags: [''] },
+      { ...REQUEST, tags: ['a\nb'] },
+      { ...REQUEST, tags: Array.from({ length: 51 }, (_, i) => `t${i}`) },
     ])
       expect(readCaptureRequest(payload)).toBeNull()
   })

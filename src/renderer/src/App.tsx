@@ -654,6 +654,7 @@ export function App() {
         lastState={lastStateParts}
         find={find}
         historyBar={historyBar}
+        openPalette={() => palette.openPalette()}
         authorshipNotice={authorship.authorshipNotice}
         quickTagNote={quickTagNote}
         setQuickTagNote={setQuickTagNote}

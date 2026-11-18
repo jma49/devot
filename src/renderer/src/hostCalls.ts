@@ -23,7 +23,14 @@ export function useQuickCapture(core: Core | undefined, refresh: (c: Core) => Pr
           request,
           (id) => invoke('quick_capture_claim', { id }),
           async (r) => {
-            await core.capture(r.title, r.body, r.bookId)
+            if (r.status !== undefined || r.tags !== undefined) {
+              await core.capture(r.title, r.body, r.bookId, {
+                ...(r.status !== undefined ? { status: r.status } : {}),
+                ...(r.tags !== undefined ? { tags: r.tags } : {}),
+              })
+            } else {
+              await core.capture(r.title, r.body, r.bookId)
+            }
           },
           (id, error) => invoke('quick_capture_done', { id, error }),
         ).then((saved) => {
