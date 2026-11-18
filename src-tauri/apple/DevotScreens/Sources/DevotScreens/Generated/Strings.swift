@@ -694,6 +694,22 @@ public enum L10n {
     text("command.extendSelectionDown", "Extend Selection Down")
   }
 
+  public static func commandInspector() -> String {
+    text("command.inspector", "Toggle Inspector")
+  }
+
+  public static func commandInspectorOutline() -> String {
+    text("command.inspectorOutline", "Focus Inspector Outline")
+  }
+
+  public static func commandInspectorInfo() -> String {
+    text("command.inspectorInfo", "Focus Inspector Info")
+  }
+
+  public static func commandInspectorHistory() -> String {
+    text("command.inspectorHistory", "Focus Inspector History")
+  }
+
   public static func commandShowOutline() -> String {
     text("command.showOutline", "Show Outline")
   }
@@ -1990,6 +2006,10 @@ public enum L10n {
     fill(text("noteInfo.open", "Note info: {summary}"), ["summary": p0])
   }
 
+  public static func noteInfoEditProperties() -> String {
+    text("noteInfo.editProperties", "Edit Properties")
+  }
+
   public static func noteInfoProperties() -> String {
     text("noteInfo.properties", "Properties")
   }
@@ -2140,6 +2160,26 @@ public enum L10n {
 
   public static func stepperMore() -> String {
     text("stepper.more", "More")
+  }
+
+  public static func outlineResize() -> String {
+    text("outline.resize", "Resize Inspector")
+  }
+
+  public static func outlineTabs() -> String {
+    text("outline.tabs", "Inspector Tabs")
+  }
+
+  public static func outlineInspector() -> String {
+    text("outline.inspector", "Inspector")
+  }
+
+  public static func outlineInfo() -> String {
+    text("outline.info", "Info")
+  }
+
+  public static func outlineHistory() -> String {
+    text("outline.history", "History")
   }
 
   public static func outlineLabel() -> String {

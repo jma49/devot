@@ -3663,6 +3663,8 @@ public enum Tokens {
     public static let dragCardMinWidth: CGFloat = 60
     public static let dragCardMaxWidth: CGFloat = 300
     public static let paneMinWidth: CGFloat = 240
+    public static let inspectorMinWidth: CGFloat = 180
+    public static let inspectorMaxWidth: CGFloat = 480
     public static let outlineWidth: CGFloat = 220
     public static let sidebarCollapseWidth: CGFloat = 1000
     public static let windowControlsInset: CGFloat = 84

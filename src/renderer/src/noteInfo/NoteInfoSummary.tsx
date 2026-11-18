@@ -1,4 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { RefObject } from 'react'
+import type { EditorHandle } from '../editor/handle'
+import { PropertyEditor } from './PropertyEditor'
+import { createPortal } from 'react-dom'
 import { frontMatterHead } from '../../../core/frontMatterHead'
 import type { NoteFacts } from '../../../core/noteFacts'
 import { propertyCount } from '../../../core/preview/propertyCount'
@@ -28,7 +32,7 @@ import { summaryText } from './summary'
 const FACTS_WAIT_MS = 300
 
 function useNoteFacts(core: Core, markdown: string, fields: PreviewNoteFields | undefined) {
-  const [facts, setFacts] = useState<NoteFacts>()
+  const [facts, setFacts] = useState<NoteFacts & { characters: number }>()
   const counted = useRef(false)
   // The window passes the fields as a new object on every render: they are counted again only when they change.
   const fieldsKey = fields ? JSON.stringify(fields) : ''
@@ -45,7 +49,13 @@ function useNoteFacts(core: Core, markdown: string, fields: PreviewNoteFields | 
         ]).then(
           ([tally, frontMatter]) => {
             counted.current = true
-            if (current) setFacts({ tasks: tally.tasks, words: tally.words, frontMatter })
+            if (current)
+              setFacts({
+                tasks: tally.tasks,
+                words: tally.words,
+                characters: tally.characters,
+                frontMatter,
+              })
           },
           (e: unknown) => console.warn('W_NOTE_FACTS_FAILED', errorCode(e)),
         )
@@ -129,6 +139,10 @@ function useMentions(core: Core, noteId: string, open: boolean) {
 }
 
 export interface NoteInfoSummaryProps {
+  editor?: RefObject<EditorHandle | null> | undefined
+  onShowInspectorInfo?: (() => void) | undefined
+  inline?: boolean
+  inspectorPanel?: HTMLElement | null
   core: Core
   info: NoteInfoData
   markdown: string
@@ -148,11 +162,13 @@ export interface NoteInfoSummaryProps {
 export function NoteInfoSummary(props: NoteInfoSummaryProps) {
   const { core, info, markdown, note } = props
   const [open, setOpen] = useState(false)
+  // The inspector shows the card now: an open popover would come back once the inspector goes.
+  if (open && props.inspectorPanel) setOpen(false)
   const button = useRef<HTMLButtonElement>(null)
   const anchor = useRef<HTMLSpanElement>(null)
   const facts = useNoteFacts(core, markdown, note)
   const { backlinks, reload } = useBacklinks(core, info.noteId)
-  const mentions = useMentions(core, info.noteId, open)
+  const mentions = useMentions(core, info.noteId, open || !!props.inspectorPanel || !!props.inline)
   const now = useNow()
 
   const show = (next: boolean) => {
@@ -161,7 +177,7 @@ export function NoteInfoSummary(props: NoteInfoSummaryProps) {
     setOpen(next)
   }
   const close = () => show(false)
-  const toggle = () => show(!open)
+  const toggle = () => (props.onShowInspectorInfo ? props.onShowInspectorInfo() : show(!open))
   useNoteInfoCommand(toggle)
 
   useLayoutEffect(() => {
@@ -200,6 +216,44 @@ export function NoteInfoSummary(props: NoteInfoSummaryProps) {
         now,
       )
     : ''
+  const head =
+    props.editor && (props.inline || props.inspectorPanel) ? frontMatterHead(markdown) : null
+  const card = (
+    <NoteInfoCard
+      info={info}
+      facts={facts}
+      backlinks={backlinks}
+      mentions={mentions.mentions}
+      onOpenNote={props.onOpenNote}
+      onLinkMention={
+        props.canLinkMentions
+          ? (id) =>
+              void core.linkMention(id, info.noteId).then(
+                () => {
+                  mentions.reload()
+                  reload()
+                },
+                (e: unknown) => {
+                  console.warn('W_MENTION_LINK_FAILED', id, errorCode(e))
+                  mentions.reload()
+                },
+              )
+          : undefined
+      }
+      onSetDates={props.onSetDates}
+      onApplyFrontMatter={props.onApplyFrontMatter}
+      inline={props.inline || !!props.inspectorPanel}
+      propertyEditor={
+        head && props.editor ? (
+          <PropertyEditor key={head} head={head} editor={props.editor} noteId={info.noteId} />
+        ) : null
+      }
+      characters={facts?.characters}
+      onClose={close}
+    />
+  )
+
+  if (props.inline) return card
   return (
     <span ref={anchor} className="note-info-anchor">
       <button
@@ -208,40 +262,14 @@ export function NoteInfoSummary(props: NoteInfoSummaryProps) {
         className="note-summary"
         title={titleWithKey('command.noteInfo', 'view.noteInfo')}
         aria-label={format(t('noteInfo.open'), { summary: text })}
-        aria-haspopup="dialog"
-        aria-expanded={open}
+        aria-haspopup={props.onShowInspectorInfo ? undefined : 'dialog'}
+        aria-expanded={props.onShowInspectorInfo ? undefined : open}
         data-pending={facts ? undefined : ''}
         onClick={toggle}
       >
         {text}
       </button>
-      {open ? (
-        <NoteInfoCard
-          info={info}
-          facts={facts}
-          backlinks={backlinks}
-          mentions={mentions.mentions}
-          onOpenNote={props.onOpenNote}
-          onLinkMention={
-            props.canLinkMentions
-              ? (id) =>
-                  void core.linkMention(id, info.noteId).then(
-                    () => {
-                      mentions.reload()
-                      reload()
-                    },
-                    (e: unknown) => {
-                      console.warn('W_MENTION_LINK_FAILED', id, errorCode(e))
-                      mentions.reload()
-                    },
-                  )
-              : undefined
-          }
-          onSetDates={props.onSetDates}
-          onApplyFrontMatter={props.onApplyFrontMatter}
-          onClose={close}
-        />
-      ) : null}
+      {props.inspectorPanel ? createPortal(card, props.inspectorPanel) : open ? card : null}
     </span>
   )
 }

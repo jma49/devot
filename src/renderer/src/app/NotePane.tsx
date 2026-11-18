@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { Inspector } from '../outline/Inspector'
+import { LazyHistory } from '../LazyHistory'
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react'
 import type { TagRecord } from '../../../core'
 import type { Suggester } from '../../../core/aiSuggest'
@@ -23,7 +26,6 @@ import { isImeKey } from '../ime'
 import { ModeControl, editorOnly, type Mode } from '../ModeControl'
 import type { useNoteActions } from '../noteActions'
 import { NoteEditor, type ApplyRestore } from '../NoteEditor'
-import { OutlinePanel } from '../outline/OutlinePanel'
 import { LiveNoteInfoSummary } from '../noteInfo/NoteInfoSummary'
 import { LivePreview } from '../preview/Preview'
 import { tagChanges, type FrontMatterChange } from '../preview/frontMatterApply'
@@ -154,6 +156,7 @@ export function NotePane({
   loadHeadlines: HeadlineLoader | undefined
   openPalette: () => void
 }) {
+  const [infoPanel, setInfoPanel] = useState<HTMLDivElement | null>(null)
   const { inTrash, multiIds, selectedNotes, inTemplates, selectedIsTemplate, tree } = view
   const { selectedNote, activeFilter, sidebarTagged, searching } = view
   const { backAt, forwardAt, step, editNote, takesKeyboard, closeUnopenable, select } = open
@@ -360,6 +363,11 @@ export function NotePane({
                   key={selected}
                   core={core}
                   text={openText}
+                  inspectorPanel={infoPanel}
+                  editor={editing && !switching ? editorRef : undefined}
+                  onShowInspectorInfo={
+                    outlineShown ? () => outline.tab.toggleInfo(selected) : undefined
+                  }
                   info={{
                     noteId: selectedNote.id,
                     createdAt: selectedNote.createdAt,
@@ -453,16 +461,55 @@ export function NotePane({
               />
             )}
             {outlineShown ? (
-              <OutlinePanel
+              <Inspector
                 key={selected}
-                text={openText}
-                caret={caretLine}
-                mode={mode}
-                previewPane={previewPane}
-                folded={outlineFolds.current.get(selected) ?? NO_FOLDS}
-                onToggle={toggleOutlineFold}
-                onJump={jumpToHeading}
-                onLeave={() => editorRef.current?.focus()}
+                noteId={selected}
+                room={outline.outlineRoom}
+                tab={outline.tab}
+                infoRef={setInfoPanel}
+                info={
+                  selectedIsTemplate &&
+                  selectedNote && (
+                    <LiveNoteInfoSummary
+                      inline
+                      core={core}
+                      text={openText}
+                      info={{
+                        noteId: selected,
+                        createdAt: selectedNote.createdAt,
+                        updatedAt: selectedNote.updatedAt,
+                      }}
+                      editor={editing && !switching ? editorRef : undefined}
+                      onOpenNote={(id) => void select(id)}
+                    />
+                  )
+                }
+                history={
+                  <LazyHistory
+                    key={selected}
+                    inline
+                    shown={outline.tab.active === 'history'}
+                    core={core}
+                    noteId={selected}
+                    title={title}
+                    books={view.books}
+                    updatedAt={selectedNote?.updatedAt}
+                    readOnly={!editing || switching}
+                    onRestore={(update) => {
+                      if (editorRef.current?.noteId === selected) restoreRef.current?.(update)
+                    }}
+                  />
+                }
+                outline={{
+                  text: openText,
+                  caret: caretLine,
+                  mode: mode,
+                  previewPane: previewPane,
+                  folded: outlineFolds.current.get(selected) ?? NO_FOLDS,
+                  onToggle: toggleOutlineFold,
+                  onJump: jumpToHeading,
+                  onLeave: () => editorRef.current?.focus(),
+                }}
               />
             ) : null}
             {historyBar.overlay}

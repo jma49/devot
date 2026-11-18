@@ -59,13 +59,17 @@ import { TagEditor } from '../TagEditor'
 import { textStore } from '../textStore'
 import { unlistenLater } from '../windowEvents'
 import { useEditorSetting } from '../editorSettings'
-import { OutlinePanel, lineStore } from '../outline/OutlinePanel'
+import { Inspector, useInspectorTab } from '../outline/Inspector'
+import { lineStore } from '../outline/lineStore'
+import { LazyHistory } from '../LazyHistory'
+import type { ApplyRestore } from '../NoteEditor'
 import { scrollPreviewTo } from '../outline/room'
 import { useOutlineRoom } from '../outline/useOutlineRoom'
 import type { ScrollPane } from '../preview/scrollSync'
 import { ActivationBar, TrialEndedBar } from '../TrialNotices'
 import { failureText } from '../failure'
 import { nextLife, type NoteLife } from './noteLife'
+import { summaryAfterWrites } from './summaryWrites'
 
 // Coalesced notifications mirror the main window cadence so bursts of tag or metadata writes batch cleanly.
 const LISTS_WROTE_MS = 250
@@ -138,8 +142,11 @@ export function NoteWindow() {
   const [editorCounts] = useState(() => countsStore())
   const outlineSetting = useEditorSetting('outline')
   const showCounts = useEditorSetting('showCounts')
+  const tab = useInspectorTab()
+  const restoreRef = useRef<ApplyRestore | null>(null)
+  const [infoPanel, setInfoPanel] = useState<HTMLDivElement | null>(null)
   const outlineRoom = useOutlineRoom(panesRef, mode, noteId)
-  const outlineShown = outlineSetting && outlineRoom
+  const outlineShown = outlineSetting && outlineRoom.fits
   const countsShown = Boolean(core && noteId && showCounts && mode !== 'preview')
   const [viewing, setViewing] = useState<ViewedImage | null>(null)
   const [held, setHeld] = useState<'quit' | 'close' | undefined>()
@@ -202,7 +209,10 @@ export function NoteWindow() {
       listsWrote = wrote
       listsReload = reload
       listsWroteRef.current = wrote
-      started = await startCore(onSaveProblems, undefined, (code) => console.error(code), {
+      const showWrites = (writes: ReadonlyMap<string, number>) => {
+        if (alive) setNoteSummary((now) => summaryAfterWrites(now, writes))
+      }
+      started = await startCore(onSaveProblems, showWrites, (code) => console.error(code), {
         lean: true,
         relayAll: true,
         onWrote: () => wrote(),
@@ -516,6 +526,9 @@ export function NoteWindow() {
                       updatedAt: noteSummary.updatedAt,
                     }}
                     note={previewFields}
+                    inspectorPanel={infoPanel}
+                    editor={readOnly ? undefined : editorRef}
+                    onShowInspectorInfo={outlineShown ? () => tab.toggleInfo(noteId) : undefined}
                     onOpenNote={openNote}
                     onSetDates={readOnly ? undefined : setNoteDates}
                     onApplyFrontMatter={readOnly ? undefined : applyFrontMatter}
@@ -546,6 +559,7 @@ export function NoteWindow() {
                   linked: () => {},
                 }}
                 showAlertMenu={showAlertMenu}
+                restoreRef={restoreRef}
                 handleRef={editorRef}
                 onCaretLine={caretLine.set}
                 onOpenImage={setViewing}
@@ -571,24 +585,62 @@ export function NoteWindow() {
                 />
               )}
               {outlineShown ? (
-                <OutlinePanel
-                  text={openText}
-                  caret={caretLine}
-                  mode={mode}
-                  previewPane={previewPane}
-                  folded={folded}
-                  onToggle={(key) =>
-                    setFolded((now) => {
-                      const next = new Set(now)
-                      if (!next.delete(key)) next.add(key)
-                      return next
-                    })
+                <Inspector
+                  noteId={noteId}
+                  room={outlineRoom}
+                  tab={tab}
+                  infoRef={setInfoPanel}
+                  info={
+                    isTemplate &&
+                    noteSummary && (
+                      <LiveNoteInfoSummary
+                        inline
+                        core={core}
+                        text={openText}
+                        info={{
+                          noteId: noteSummary.id,
+                          createdAt: noteSummary.createdAt,
+                          updatedAt: noteSummary.updatedAt,
+                        }}
+                        editor={readOnly ? undefined : editorRef}
+                        onOpenNote={openNote}
+                      />
+                    )
                   }
-                  onJump={(line) => {
-                    editorRef.current?.goToLine(line, 'start', false)
-                    if (!editorOnly(mode) && previewPane) scrollPreviewTo(previewPane, line)
+                  history={
+                    <LazyHistory
+                      key={noteId}
+                      inline
+                      shown={tab.active === 'history'}
+                      core={core}
+                      noteId={noteId}
+                      title={title}
+                      books={books}
+                      updatedAt={noteSummary?.updatedAt}
+                      readOnly={readOnly}
+                      onRestore={(update) => {
+                        if (editorRef.current?.noteId === noteId) restoreRef.current?.(update)
+                      }}
+                    />
+                  }
+                  outline={{
+                    text: openText,
+                    caret: caretLine,
+                    mode,
+                    previewPane,
+                    folded,
+                    onToggle: (key) =>
+                      setFolded((now) => {
+                        const next = new Set(now)
+                        if (!next.delete(key)) next.add(key)
+                        return next
+                      }),
+                    onJump: (line) => {
+                      editorRef.current?.goToLine(line, 'start', false)
+                      if (!editorOnly(mode) && previewPane) scrollPreviewTo(previewPane, line)
+                    },
+                    onLeave: () => editorRef.current?.focus(),
                   }}
-                  onLeave={() => editorRef.current?.focus()}
                 />
               ) : null}
             </div>

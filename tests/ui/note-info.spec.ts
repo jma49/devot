@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openApp } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
 
 async function newNote(page: Page, title: string, body = '') {
   const before = await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').count()
@@ -133,6 +133,31 @@ test('the card lists the backlinks and opens one', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Source')
 })
 
+test('the inspector lists the backlinks and opens one', async ({ page }) => {
+  await newNote(page, 'Target', 'The linked note')
+  await newNote(page, 'Source', 'Links to ')
+  await page.keyboard.type('[[Targ')
+  await page
+    .locator('.cm-tooltip-autocomplete li')
+    .filter({ hasText: /^Target/ })
+    .first()
+    .click()
+  const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+  // The link is stored when the source saves, so the target may need opening again.
+  await expect(async () => {
+    await rows.first().click()
+    await rows.last().click()
+    await expect(summary(page)).toHaveText(/1 backlink/, { timeout: 1000 })
+  }).toPass()
+  await changeEditorSettingsElsewhere(page, { outline: true })
+  await page.getByRole('tab', { name: 'Info' }).click()
+  const link = page.getByRole('tabpanel', { name: 'Info' }).getByRole('button', { name: 'Source' })
+  await expect(link).toBeVisible()
+  await link.click()
+  await expect(page.getByRole('tab', { name: 'Info' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Source')
+})
+
 test('the card keeps its keylines', async ({ page }) => {
   await newNote(page, 'Lines', 'Some text.')
   await summary(page).click()
@@ -143,4 +168,16 @@ test('the card keeps its keylines', async ({ page }) => {
   expect(Math.abs((await left('.note-info-icon')) - 16)).toBeLessThanOrEqual(1)
   expect(Math.abs((await left('.note-info-label')) - 42)).toBeLessThanOrEqual(1)
   expect(Math.abs((await left('.note-info-value')) - 116)).toBeLessThanOrEqual(1)
+})
+
+test('edits the front matter beside the open note', async ({ page }) => {
+  await newNote(page, 'Plan', '---\nowner: Ada\n---\nBody')
+  await changeEditorSettingsElsewhere(page, { outline: true })
+  await page.getByRole('tab', { name: 'Info' }).click()
+  const panel = page.getByRole('tabpanel', { name: 'Info' })
+  await panel.getByRole('button', { name: 'Edit Properties' }).click()
+  await panel.getByRole('textbox', { name: 'Properties' }).fill('owner: Sam')
+  await panel.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(panel.locator('dd')).toContainText('Sam')
+  await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText('owner: Sam')
 })

@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useId, useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { NoteFacts } from '../../../core/noteFacts'
 import type { PropertyRow } from '../../../core/preview/frontMatterView'
 import { closingRef } from '../closing'
@@ -70,7 +70,7 @@ function Section(props: {
   children: ReactNode
 }) {
   const [open, setOpen] = useState(() => sectionOpen(props.section))
-  const id = `note-info-${props.section}`
+  const id = useId()
   return (
     <section className="note-info-section" data-open={open || undefined}>
       <button
@@ -153,6 +153,9 @@ function PropertyValue(props: {
  */
 export function NoteInfoCard(props: {
   info: NoteInfoData
+  propertyEditor?: ReactNode
+  inline?: boolean
+  characters?: number | undefined
   facts: NoteFacts | undefined
   backlinks: readonly Backlink[] | undefined
   mentions: readonly UnlinkedMention[] | undefined
@@ -168,10 +171,13 @@ export function NoteInfoCard(props: {
   const locale = currentLocale()
   const card = useRef<HTMLDivElement>(null)
   const rows = useRef<Partial<Record<DateField, HTMLButtonElement | null>>>({})
-  const setCard = useCallback((el: HTMLDivElement | null) => {
-    card.current = el
-    return cardRef(el)
-  }, [])
+  const setCard = useCallback(
+    (el: HTMLDivElement | null) => {
+      card.current = el
+      if (!props.inline) return cardRef(el)
+    },
+    [props.inline],
+  )
   const [picker, setPicker] = useState<Picker>(CLOSED)
   const pickerNow = useRef(picker)
   const saves = useRef(0)
@@ -220,11 +226,11 @@ export function NoteInfoCard(props: {
         return
       }
       const anchor = card.current?.parentElement
-      if (!anchor?.contains(target)) onClose()
+      if (!props.inline && !anchor?.contains(target)) onClose()
     }
     document.addEventListener('mousedown', away)
     return () => document.removeEventListener('mousedown', away)
-  }, [editing, closePicker, onClose])
+  }, [editing, closePicker, onClose, props.inline])
 
   const setDate = (field: DateField, at: number): Promise<DateOutcome> => {
     if (!onSetDates) return Promise.resolve('failed')
@@ -303,13 +309,13 @@ export function NoteInfoCard(props: {
   return (
     <div
       ref={setCard}
-      className="note-info-card"
-      role="dialog"
+      className={props.inline ? 'inspector-info' : 'note-info-card'}
+      role={props.inline ? 'region' : 'dialog'}
       aria-label={t('noteInfo.label')}
       tabIndex={-1}
       data-find-skip=""
       onKeyDown={(event) => {
-        if (event.key !== 'Escape') return
+        if (props.inline || event.key !== 'Escape') return
         event.preventDefault()
         event.stopPropagation()
         onClose()
@@ -345,6 +351,7 @@ export function NoteInfoCard(props: {
                 <code>{front.yaml}</code>
               </pre>
             )}
+            {props.propertyEditor}
           </Section>
         ) : null}
         <Section section="backlinks" title={t('noteInfo.backlinks')} count={backlinks?.length ?? 0}>
@@ -436,6 +443,11 @@ export function NoteInfoCard(props: {
         <Row icon="settings.markdown" label={t('noteInfo.words')}>
           {facts ? formatNumber(facts.words, locale) : null}
         </Row>
+        {props.inline && (
+          <Row label={t('counts.characters')}>
+            {props.characters === undefined ? null : formatNumber(props.characters, locale)}
+          </Row>
+        )}
       </div>
       {editing ? (
         <DatePicker

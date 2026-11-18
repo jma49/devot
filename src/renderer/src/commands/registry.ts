@@ -677,6 +677,28 @@ export const COMMANDS = [
     scope: 'window',
     keys: [],
   },
+  { id: 'view.inspector', label: 'command.inspector', group: 'view', scope: 'window', keys: [] },
+  {
+    id: 'view.inspectorOutline',
+    label: 'command.inspectorOutline',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
+  {
+    id: 'view.inspectorInfo',
+    label: 'command.inspectorInfo',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
+  {
+    id: 'view.inspectorHistory',
+    label: 'command.inspectorHistory',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
   {
     id: 'view.outline',
     label: 'command.showOutline',

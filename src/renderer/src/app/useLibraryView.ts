@@ -432,6 +432,7 @@ export function useLibraryView({
     listedSet,
     shownSelection,
     multiIds,
+    books,
     knownNotes,
     selectedNotes,
   }

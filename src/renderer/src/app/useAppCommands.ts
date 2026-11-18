@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import type { NoteSummary, TrashedNote } from '../../../core'
+import type { InspectorTab } from '../outline/inspectorTab'
 import type { Area } from '../areas'
 import { appHandlers, type AppCommandState } from '../commands/appHandlers'
 import { useCommandMenu } from '../commands/commandMenu'
@@ -45,6 +46,7 @@ export function useAppCommands({
   settings: { syncScroll, historyBarShown, outlineShown, authorshipShown, listDates },
   view,
   panes,
+  showInspectorTab,
   toggleSidebarCommand,
   togglePreviewCommand,
   open,
@@ -89,6 +91,7 @@ export function useAppCommands({
   >
   view: ViewState
   panes: ReturnType<typeof usePanes>
+  showInspectorTab: (tab: InspectorTab) => void
   toggleSidebarCommand: () => void
   togglePreviewCommand: () => void
   open: ReturnType<typeof useOpenNote>
@@ -185,6 +188,7 @@ export function useAppCommands({
       saveSearch,
       askNotes,
       toggleFocus,
+      showInspectorTab,
       toggleSidebar: toggleSidebarCommand,
       focusArea: (area) => requestFocus({ kind: 'area', area }),
       moveArea: (by) => moveArea(by),

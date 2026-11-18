@@ -1,7 +1,7 @@
-// The width of a resizable pane (the sidebar, the note list, the board), which the user
-// sets by dragging its right edge. It is a view preference of the window: it
-// lives in the webview's local storage, never in the settings files, and is
-// saved when a drag ends.
+// The width of a resizable pane (the sidebar, the note list, the board, the inspector), which the
+// user sets by dragging its edge: the trailing edge, or the leading one for the inspector. It is a
+// view preference of the window: it lives in the webview's local storage, never in the settings
+// files, and is saved when a drag ends.
 import { NOTE_STATUSES } from '../../core/storage'
 import { sizes } from './theme/tokens'
 
@@ -9,10 +9,22 @@ const px = (value: string) => Number.parseFloat(value)
 
 export interface PaneSpec {
   key: string
+  leading?: boolean
   min: number
   default: number
   max: number
 }
+
+export const INSPECTOR_PANE: PaneSpec = {
+  key: 'devot.inspector.width',
+  leading: true,
+  min: px(sizes['size.inspector-min-width']),
+  default: px(sizes['size.outline-width']),
+  max: px(sizes['size.inspector-max-width']),
+}
+
+export const paneDirection = (pane: PaneSpec, rtl: boolean) =>
+  Boolean(pane.leading) === rtl ? 1 : -1
 
 export const LIST_PANE: PaneSpec = {
   key: 'devot.list.width',
@@ -81,8 +93,9 @@ export function paneWidthForKey(
   key: string,
   shift: boolean,
   width: number,
+  rtl = false,
 ): number | 'reset' | undefined {
-  const step = shift ? PANE_KEY_STEP_LARGE : PANE_KEY_STEP
+  const step = (shift ? PANE_KEY_STEP_LARGE : PANE_KEY_STEP) * paneDirection(pane, rtl)
   switch (key) {
     case 'ArrowLeft':
       return clampPaneWidth(pane, width - step)

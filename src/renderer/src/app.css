@@ -2014,17 +2014,47 @@ button {
   text-align: center;
 }
 
+.inspector-resize,
 .list-resize,
 .sidebar-resize {
   position: absolute;
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   bottom: 0;
   z-index: 1;
   width: var(--size-pane-resize-handle);
   cursor: col-resize;
 }
 
+.inspector-resize {
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+  touch-action: none;
+}
+
+.inspector [role='tabpanel'] {
+  overflow: auto;
+  min-height: 0;
+}
+.inspector .segment {
+  flex: 1;
+}
+.property-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.inspector-info {
+  position: relative;
+}
+.inspector-history .history-body {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+.inspector-history .history-list {
+  max-height: calc(var(--size-dialog-row) * 7);
+}
+.inspector-resize:focus-visible,
 .list-resize:focus-visible,
 .sidebar-resize:focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
@@ -3045,6 +3075,7 @@ div.card-placeholder {
   color: var(--color-text-secondary);
 }
 
+.segment[aria-selected='true'],
 .segment[aria-pressed='true'] {
   background: var(--color-fill-segment-on);
   box-shadow: 0 0 0 0.5px var(--color-line-hairline);
@@ -3114,20 +3145,23 @@ div.card-placeholder {
 
 /* The Outline takes the last column; the preview moves in front of it (OutlinePanel.tsx, design/motion.md). */
 .panes[data-outline] {
-  grid-template-columns: minmax(0, 1fr) var(--size-outline-width);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .panes-split[data-outline] {
-  grid-template-columns: repeat(2, minmax(var(--size-pane-min-width), 1fr)) var(
-      --size-outline-width
-    );
+  grid-template-columns: repeat(2, minmax(var(--size-pane-min-width), 1fr)) auto;
 }
 
 .panes[data-outline] > .preview {
   grid-area: 1 / -3 / 2 / -2;
 }
 
-.panes > .outline {
+.panes > .inspector {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  gap: var(--space-3);
   grid-area: 1 / -2 / 2 / -1;
   min-height: 0;
   overflow-y: auto;
@@ -3136,7 +3170,7 @@ div.card-placeholder {
   animation: outline-in var(--motion-duration-slide) var(--motion-easing-move);
 }
 
-:root[data-motion='reduced'] .panes > .outline {
+:root[data-motion='reduced'] .panes > .inspector {
   animation-duration: var(--motion-duration-toggle);
 }
 

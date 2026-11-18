@@ -1,3 +1,4 @@
+import type { InspectorTab } from '../outline/inspectorTab'
 import type { NoteStatus, NoteSummary, TrashedNote } from '../../../core'
 import type { BookNode } from '../../../core/books'
 import type { EditorSettings } from '../../../core/editorSettings'
@@ -46,6 +47,7 @@ export interface AppCommandState {
   sidebarShown: boolean
   syncScroll: boolean
   historyBarShown: boolean
+  /** The Outline setting is on and no other inspector tab covers it, so View > Outline hides it. */
   outlineShown: boolean
   authorshipShown: boolean
   listDates: EditorSettings['listDates']
@@ -93,6 +95,7 @@ export interface AppCommandActions {
   saveSearch: () => Run
   askNotes: () => Run
   toggleFocus: () => Run
+  showInspectorTab: (tab: InspectorTab) => Run
   /** Show or Hide Sidebar from its key or menu item. */
   toggleSidebar: () => Run
   focusArea: (area: Area) => Run
@@ -169,8 +172,18 @@ export function appHandlers(at: AppCommandState, act: AppCommandActions): Comman
       run: flip((now) => ({ historyBar: !now.historyBar })),
       label: at.historyBarShown ? 'command.hideHistoryBar' : 'command.showHistoryBar',
     },
+    'view.inspector': { run: flip((now) => ({ outline: !now.outline })) },
+    ...(at.openNote && !at.inTrash && !at.focus
+      ? {
+          'view.inspectorOutline': { run: () => act.showInspectorTab('outline') },
+          'view.inspectorInfo': { run: () => act.showInspectorTab('info') },
+          'view.inspectorHistory': { run: () => act.showInspectorTab('history') },
+        }
+      : {}),
     'view.outline': {
-      run: flip((now) => ({ outline: !now.outline })),
+      run: at.outlineShown
+        ? flip(() => ({ outline: false }))
+        : () => act.showInspectorTab('outline'),
       label: at.outlineShown ? 'command.hideOutline' : 'command.showOutline',
     },
     'view.authorship': {

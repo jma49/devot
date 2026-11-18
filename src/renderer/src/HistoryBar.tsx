@@ -30,7 +30,7 @@ import {
 } from './historySteps'
 import { currentLocale, format, t } from './i18n'
 import { isImeKey } from './ime'
-import { describeChange } from './RevisionHistory'
+import { describeChange } from './historyChange'
 import { useText, type TextStore } from './textStore'
 import { failureText, logFailure } from './failure'
 

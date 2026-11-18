@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   BOARD_PANE,
+  INSPECTOR_PANE,
   LIST_PANE,
   SIDEBAR_PANE,
   clampPaneWidth,
@@ -172,4 +173,14 @@ describe('the board width', () => {
     store.clear()
     expect(shownPaneWidth(BOARD_PANE, store.stored(), fittedBoardWidth(4))).toBe(774)
   })
+})
+
+it('grows the inspector toward the start of the line', () => {
+  expect(INSPECTOR_PANE.default).toBe(220)
+  expect(paneWidthForKey(INSPECTOR_PANE, 'Home', false, 220)).toBe(180)
+  expect(paneWidthForKey(INSPECTOR_PANE, 'End', false, 220)).toBe(480)
+  expect(paneWidthForKey(INSPECTOR_PANE, 'Enter', false, 280)).toBe('reset')
+  expect(paneWidthForKey(INSPECTOR_PANE, 'ArrowLeft', false, 220)).toBe(230)
+  expect(paneWidthForKey(INSPECTOR_PANE, 'ArrowRight', false, 220)).toBe(210)
+  expect(paneWidthForKey(INSPECTOR_PANE, 'ArrowRight', false, 220, true)).toBe(230)
 })

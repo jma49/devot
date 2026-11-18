@@ -2,8 +2,9 @@ import { useRef, useState, type RefObject } from 'react'
 import { useEditorSetting } from '../editorSettings'
 import type { EditorHandle } from '../editor/handle'
 import { editorOnly, type Mode } from '../ModeControl'
-import { lineStore } from '../outline/OutlinePanel'
+import { lineStore } from '../outline/lineStore'
 import { scrollPreviewTo } from '../outline/room'
+import { useInspectorTab } from '../outline/Inspector'
 import { useOutlineRoom } from '../outline/useOutlineRoom'
 import type { ScrollPane } from '../preview/scrollSync'
 
@@ -23,13 +24,14 @@ export function useOutline({
   editorRef: RefObject<EditorHandle | null>
   previewPane: ScrollPane | null
 }) {
+  const tab = useInspectorTab()
   const outlineSetting = useEditorSetting('outline')
   const [caretLine] = useState(() => lineStore())
   // In a ref, so folding one note does not render App again.
   const outlineFolds = useRef(new Map<string, ReadonlySet<string>>())
   const [, setFolded] = useState(0)
   const outlineRoom = useOutlineRoom(panesRef, mode, selected)
-  const outlineShown = outlineSetting && !focus && outlineRoom
+  const outlineShown = outlineSetting && !focus && outlineRoom.fits
   const toggleOutlineFold = (key: string) => {
     if (selected === undefined) return
     const next = new Set(outlineFolds.current.get(selected))
@@ -41,5 +43,14 @@ export function useOutline({
     editorRef.current?.goToLine(line, 'start', false)
     if (!editorOnly(mode) && previewPane) scrollPreviewTo(previewPane, line)
   }
-  return { outlineShown, caretLine, outlineFolds, toggleOutlineFold, jumpToHeading }
+  return {
+    tab,
+    outlineRoom,
+    outlineSetting,
+    outlineShown,
+    caretLine,
+    outlineFolds,
+    toggleOutlineFold,
+    jumpToHeading,
+  }
 }

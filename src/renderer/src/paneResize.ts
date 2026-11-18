@@ -1,11 +1,12 @@
-// The drag and keyboard behaviour of a pane's resize edge, shared by the
-// sidebar and the note list: pointer capture, arrow keys, Home/End, Enter
-// and double-click to reset. The width is saved when a drag or key ends; a
-// reset forgets it, so the pane follows its default or `fitted` width again.
+// The drag and keyboard behaviour of a pane's resize edge, shared by the sidebar, the note list and
+// the inspector: pointer capture, arrow keys, Home/End, Enter and double-click to reset. The width
+// is saved when a drag or key ends; a reset forgets it, so the pane follows its default or `fitted`
+// width again.
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import {
   clampPaneWidth,
   currentPaneWidthStore,
+  paneDirection,
   paneWidthForKey,
   shownPaneWidth,
   type PaneSpec,
@@ -24,7 +25,10 @@ export function usePaneResize(pane: PaneSpec, fitted?: number) {
     currentPaneWidthStore(pane).clear()
   }
   const dragged = (from: { x: number; width: number }, e: PointerEvent<HTMLDivElement>) =>
-    clampPaneWidth(pane, from.width + e.clientX - from.x)
+    clampPaneWidth(
+      pane,
+      from.width + (e.clientX - from.x) * paneDirection(pane, document.dir === 'rtl'),
+    )
 
   const edge = {
     role: 'separator' as const,
@@ -35,7 +39,7 @@ export function usePaneResize(pane: PaneSpec, fitted?: number) {
     tabIndex: 0,
     onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      const next = paneWidthForKey(pane, e.key, e.shiftKey, width)
+      const next = paneWidthForKey(pane, e.key, e.shiftKey, width, document.dir === 'rtl')
       if (next === undefined) return
       e.preventDefault()
       if (next === 'reset') reset()

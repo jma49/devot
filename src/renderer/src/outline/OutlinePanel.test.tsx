@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { outlineHeadings } from './headings'
-import { lineStore, OutlineTree } from './OutlinePanel'
+import { lineStore } from './lineStore'
+import { OutlineTree } from './OutlinePanel'
 
 vi.mock('../icons/Icon', () => ({ Icon: () => null }))
 
