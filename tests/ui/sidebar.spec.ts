@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openApp } from './fixtures'
+import { expect, pickMenuItem, test, openApp } from './fixtures'
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -30,7 +30,7 @@ test('lists the sections in order: All Notes, Pinned, Templates, Notebooks, Stat
       (el) => el.textContent,
     ),
   )
-  const sections = ['All Notes', 'Pinned', 'Templates', 'Notebooks', 'Status']
+  const sections = ['All Notes', 'Today\u2019s Note', 'Pinned', 'Templates', 'Notebooks', 'Status']
   expect(order.slice(0, sections.length)).toEqual(sections)
   expect(order.indexOf('Tags')).toBeGreaterThan(order.indexOf('Dropped'))
   expect(order.at(-1)).toBe('Trash')
@@ -182,4 +182,30 @@ test('the sidebar scrolls when its notebooks and tags overflow, and focus reveal
   await last.focus()
   await expect(last).toBeInViewport()
   expect(await area.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+})
+
+test("Today's Note in top Sources opens today's daily note and hides inside a workspace", async ({
+  page,
+}) => {
+  const today = await page.evaluate(() => {
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  })
+  const todayRow = sidebar(page).getByRole('button', { name: 'Today\u2019s Note', exact: true })
+  await expect(todayRow).toBeVisible()
+  await todayRow.click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue(today)
+
+  await page.getByRole('button', { name: 'New Notebook' }).click()
+  const bookField = page.getByRole('textbox', { name: 'Notebook name' })
+  await bookField.fill('FocusBook')
+  await bookField.press('Enter')
+  await page
+    .getByRole('tree', { name: 'Notebooks' })
+    .getByRole('treeitem', { name: /^FocusBook\b/ })
+    .locator('> .book-row')
+    .click({ button: 'right' })
+  await pickMenuItem(page, 'Open as Workspace')
+  await expect(todayRow).toHaveCount(0)
 })

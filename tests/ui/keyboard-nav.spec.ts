@@ -421,6 +421,11 @@ test('the arrow keys move through the sidebar, and the selection follows', async
     await expect(focused).toHaveAttribute('tabindex', '0')
   }
   await page.keyboard.press('ArrowDown')
+  await expect(
+    sidebar(page).getByRole('button', { name: 'Today\u2019s Note', exact: true }),
+  ).toBeFocused()
+  await expect(header(page)).toHaveText('All Notes')
+  await page.keyboard.press('ArrowDown')
   await expectAt(source(page, 'Pinned'), 'Pinned')
   await expect(source(page, 'Pinned')).toHaveAttribute('aria-pressed', 'true')
   await page.keyboard.press('ArrowDown')

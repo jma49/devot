@@ -5,6 +5,7 @@ import { t } from '../i18n'
 import { actionOfEntry, type PluginAction } from '../plugins/contributions'
 import type { Selection } from '../Sidebar'
 import type { NoteFilter } from '../../../core/tags'
+import type { Mode } from '../viewModes'
 import type { PaletteActions } from './CommandPalette'
 import { withTagClause } from './entries'
 import type { PaletteEntry } from './results'
@@ -28,6 +29,8 @@ export interface PaletteContext {
   showFilter: (next: NoteFilter) => Run
   changeQuery: (next: string) => Run
   putTagOnNotes: (ids: readonly string[], tagId: string) => Run
+  setMode: (mode: Mode) => Run
+  openNoteWindow: (id: string) => Run
   editor: () => EditorHandle | null
   select: (id: string) => Run
 }
@@ -101,17 +104,30 @@ export function paletteActions(entry: PaletteEntry, at: PaletteContext): Palette
         },
       }
     case 'note':
+    case 'content': {
+      const openInPane = () => {
+        // Notes listed are live: leave the Trash to show one. The open note stays as it is.
+        if (at.inTrash) at.showLibrary({ kind: 'all' })
+        else if (entry.id === at.selected) return
+        return at.select(entry.id)
+      }
       return {
         primary: {
           label: t('palette.open'),
-          run: () => {
-            // Notes listed are live: leave the Trash to show one. The open
-            // note stays as it is.
-            if (at.inTrash) at.showLibrary({ kind: 'all' })
-            else if (entry.id === at.selected) return
-            return at.select(entry.id)
+          run: openInPane,
+        },
+        shift: {
+          label: t('palette.openSplit'),
+          run: async () => {
+            await openInPane()
+            await at.setMode('split')
           },
         },
+        meta: {
+          label: t('noteMenu.openInWindow'),
+          run: () => at.openNoteWindow(entry.id),
+        },
       }
+    }
   }
 }

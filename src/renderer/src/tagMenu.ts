@@ -10,18 +10,20 @@ import {
   type MenuGroups,
 } from './contextMenu'
 
-export type TagAction = 'rename' | 'settings' | 'filter' | 'copyId' | 'delete'
+export type TagAction = 'rename' | 'pin' | 'settings' | 'filter' | 'copyId' | 'delete'
 
 export interface TagMenuTarget {
   id: string
   color: TagColorValue | null
   filtered: boolean
+  pinned?: boolean
   /** Shown in a workspace's sidebar, which deletes no tag (it is in notes outside it too). */
   inWorkspace?: boolean
 }
 
 export const TAG_COMMANDS: Readonly<Record<TagAction, CommandId>> = {
   rename: 'tag.rename',
+  pin: 'tag.pin',
   settings: 'tag.settings',
   filter: 'tag.filter',
   copyId: 'tag.copyId',
@@ -37,7 +39,10 @@ const entry = (
 /** The swatch row follows the first group. Rename is F2 only: Tag Settings holds the name. */
 export const TAG_MENU: MenuGroups<TagAction, TagMenuTarget> = [
   [entry('settings')],
-  [entry('filter', { checked: (tag) => tag.filtered })],
+  [
+    entry('filter', { checked: (tag) => tag.filtered }),
+    entry('pin', { label: (tag) => (tag.pinned ? 'tagMenu.unpin' : 'tagMenu.pin') }),
+  ],
   [entry('copyId')],
   [entry('delete', { shown: (tag) => !tag.inWorkspace })],
 ]

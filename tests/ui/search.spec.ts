@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore, openApp } from './fixtures'
+import { expect, test, pickBook, pickNoteMore, pickStatus, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
@@ -108,4 +108,74 @@ test('the syntax help opens from its button, and Escape closes it before clearin
   await button.click()
   await header(page).click()
   await expect(help).toBeHidden()
+})
+
+test('inline filter pills and syntax autocomplete stay bidirectionally synced', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'New Notebook' }).click()
+  const bookField = page.getByRole('textbox', { name: 'Notebook name' })
+  await bookField.fill('Weekly notes')
+  await bookField.press('Enter')
+  await page.getByRole('button', { name: /^All Notes/ }).click()
+
+  await createNote(page, 'Sprint alpha', 'Launch roadmap inside Weekly notes')
+  await pickStatus(page, 'Active')
+  const tagField = page.getByRole('combobox', { name: 'Add Tag' })
+  await tagField.fill('urgent')
+  await tagField.press('Enter')
+  await pickBook(page, 'Weekly notes')
+
+  await createNote(page, 'Backlog beta', 'Another roadmap note')
+  await pickStatus(page, 'On Hold')
+
+  const box = search(page)
+  const suggestions = page.getByRole('listbox', { name: 'Search suggestions' })
+  const pills = page.locator('.search-pill')
+
+  await box.click()
+  await box.fill('in:we')
+  await expect(suggestions).toBeVisible()
+  await expect(suggestions.getByRole('option')).toContainText(['in:Weekly notes'])
+
+  // First Escape closes autocomplete without clearing typed query.
+  await box.press('Escape')
+  await expect(suggestions).toBeHidden()
+  await expect(box).toHaveValue('in:we')
+
+  await box.fill('in:week')
+  await expect(suggestions).toBeVisible()
+  await box.press('Tab')
+  await expect(pills).toHaveCount(1)
+  await expect(pills.nth(0)).toContainText('in:')
+  await expect(pills.nth(0)).toContainText('Weekly notes')
+  await expect(box).toHaveValue('')
+
+  await box.fill('#u')
+  await expect(suggestions.getByRole('option')).toContainText(['#urgent'])
+  await box.press('Enter')
+  await expect(pills).toHaveCount(2)
+
+  await box.fill('is:act')
+  await expect(suggestions.getByRole('option')).toContainText(['is:active'])
+  await box.press('Enter')
+  await expect(pills).toHaveCount(3)
+
+  await box.fill('-pinned:t')
+  await expect(suggestions.getByRole('option')).toContainText(['-pinned:true'])
+  await box.press('Enter')
+  await expect(pills).toHaveCount(4)
+
+  await expect(noteRows(page)).toHaveText([/^Sprint alpha/])
+
+  // Removing a middle pill leaves the rest intact; Backspace at caret 0 unwraps the last pill.
+  await pills
+    .nth(1)
+    .getByRole('button', { name: /Remove filter #urgent/ })
+    .click()
+  await expect(pills).toHaveCount(3)
+  await box.focus()
+  await box.press('Backspace')
+  await expect(pills).toHaveCount(2)
+  await expect(box).toHaveValue('-pinned:true')
 })

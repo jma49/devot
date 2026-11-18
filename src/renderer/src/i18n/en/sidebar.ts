@@ -21,6 +21,7 @@ export const prefixes = [
 export const messages = {
   'sidebar.label': 'Sidebar',
   'sidebar.allNotes': 'All Notes',
+  'sidebar.today': 'Today\u2019s Note',
   'sidebar.workspaceLabel': 'Workspace {name}',
   'sidebar.workspaceBack': 'Go Up a Level',
   'sidebar.workspaceParent': 'Open {name} as Workspace',
@@ -96,6 +97,8 @@ export const messages = {
   'colorPicker.previewDark': 'How the tag looks in dark',
   'colorPicker.done': 'Done',
   'tagMenu.filter': 'Filter by Tag',
+  'tagMenu.pin': 'Pin Tag',
+  'tagMenu.unpin': 'Unpin Tag',
   'tagMenu.copyId': 'Copy Tag ID',
   'tagMenu.delete': 'Delete Tag',
   'tag.confirmDelete': 'Delete the tag \u201c{name}\u201d?',

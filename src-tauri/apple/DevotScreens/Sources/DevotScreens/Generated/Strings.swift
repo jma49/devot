@@ -1718,6 +1718,10 @@ public enum L10n {
     text("palette.notes", "Notes")
   }
 
+  public static func paletteMatchingContent() -> String {
+    text("palette.matchingContent", "Matching Content")
+  }
+
   public static func paletteEmpty() -> String {
     text("palette.empty", "No results.")
   }
@@ -1728,6 +1732,10 @@ public enum L10n {
 
   public static func paletteOpen() -> String {
     text("palette.open", "Open")
+  }
+
+  public static func paletteOpenSplit() -> String {
+    text("palette.openSplit", "Open in Split View")
   }
 
   public static func paletteShowTag() -> String {
@@ -5186,6 +5194,18 @@ public enum L10n {
     text("search.clear", "Clear Search")
   }
 
+  public static func searchSuggestions() -> String {
+    text("search.suggestions", "Search suggestions")
+  }
+
+  public static func searchFilters() -> String {
+    text("search.filters", "Active filters")
+  }
+
+  public static func searchRemoveFilter(filter p0: String) -> String {
+    fill(text("search.removeFilter", "Remove filter {filter}"), ["filter": p0])
+  }
+
   public static func searchHelp() -> String {
     text("search.help", "Search Syntax")
   }
@@ -7606,6 +7626,10 @@ public enum L10n {
     text("sidebar.allNotes", "All Notes")
   }
 
+  public static func sidebarToday() -> String {
+    text("sidebar.today", "Today’s Note")
+  }
+
   public static func sidebarWorkspaceLabel(name p0: String) -> String {
     fill(text("sidebar.workspaceLabel", "Workspace {name}"), ["name": p0])
   }
@@ -7904,6 +7928,14 @@ public enum L10n {
 
   public static func tagMenuFilter() -> String {
     text("tagMenu.filter", "Filter by Tag")
+  }
+
+  public static func tagMenuPin() -> String {
+    text("tagMenu.pin", "Pin Tag")
+  }
+
+  public static func tagMenuUnpin() -> String {
+    text("tagMenu.unpin", "Unpin Tag")
   }
 
   public static func tagMenuCopyId() -> String {

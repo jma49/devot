@@ -3,6 +3,7 @@ import type { messages as en } from '../en/sidebar'
 export const messages: Record<keyof typeof en, string> = {
   'sidebar.label': '边栏',
   'sidebar.allNotes': '所有笔记',
+  'sidebar.today': '今日笔记',
   'sidebar.workspaceLabel': '工作区 {name}',
   'sidebar.workspaceBack': '返回上一级',
   'sidebar.workspaceParent': '将 {name} 作为工作区打开',
@@ -78,6 +79,8 @@ export const messages: Record<keyof typeof en, string> = {
   'colorPicker.previewDark': '标签在深色模式下的样子',
   'colorPicker.done': '完成',
   'tagMenu.filter': '按标签筛选',
+  'tagMenu.pin': '置顶标签',
+  'tagMenu.unpin': '取消置顶标签',
   'tagMenu.copyId': '拷贝标签 ID',
   'tagMenu.delete': '删除标签',
   'tag.confirmDelete': '删除标签“{name}”？',

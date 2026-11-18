@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BODY_MATCH_LIMIT,
+  canSearchPaletteBody,
   escapeStep,
   lineOfQuery,
+  mergeBodyMatches,
   paletteGroups,
   paletteResults,
   ROOT,
@@ -29,6 +32,7 @@ const source = {
   outline: entries('outline', ['Intro', 'Plan', 'Ship it']),
   source: entries('source', ['Commands', 'Notebooks', 'Tags']),
   line: [],
+  content: [],
 }
 
 const shape = (query: string) =>
@@ -155,5 +159,60 @@ describe('scoping', () => {
     expect(state).toEqual(ROOT)
     expect(escapeStep(state)).toBeNull()
     expect(escapeStep({ scope: null, query: 'abc' })).toEqual(ROOT)
+  })
+})
+
+describe('body matches', () => {
+  it('allows async body search only for >= 2 non-whitespace characters in root or note scope', () => {
+    expect(canSearchPaletteBody({ scope: null, query: '' })).toBe(false)
+    expect(canSearchPaletteBody({ scope: null, query: ' a ' })).toBe(false)
+    expect(canSearchPaletteBody({ scope: null, query: 'ab' })).toBe(true)
+    expect(canSearchPaletteBody({ scope: 'note', query: 'ab' })).toBe(true)
+    expect(canSearchPaletteBody({ scope: 'note', query: 'a b' })).toBe(true)
+    expect(canSearchPaletteBody({ scope: 'note', query: '\u4f60\u597d' })).toBe(true)
+    expect(canSearchPaletteBody({ scope: 'command', query: 'open' })).toBe(false)
+    expect(canSearchPaletteBody({ scope: 'book', query: 'work' })).toBe(false)
+    expect(canSearchPaletteBody({ scope: 'tag', query: 'urgent' })).toBe(false)
+    expect(canSearchPaletteBody({ scope: 'outline', query: 'heading' })).toBe(false)
+    expect(canSearchPaletteBody({ scope: 'line', query: '12' })).toBe(false)
+  })
+
+  it('merges body matches below synchronous groups, deduplicates against note title hits, and caps at 12', () => {
+    const syncGroups = paletteGroups('meeting', {
+      ...source,
+      note: [
+        { kind: 'note', id: 'n-title-1', label: 'Meeting 1', detail: 'Work' },
+        { kind: 'note', id: 'n-title-2', label: 'Meeting 2' },
+      ],
+    })
+    const bodyHits: PaletteEntry[] = [
+      {
+        kind: 'content',
+        id: 'n-title-1',
+        label: 'Meeting 1',
+        detail: 'Work',
+        excerpt: 'agenda for meeting',
+      },
+      ...Array.from({ length: 15 }, (_, i) => ({
+        kind: 'content' as const,
+        id: `n-body-${i}`,
+        label: `Note ${i}`,
+        detail: 'Projects',
+        excerpt: `...matched ${i} text...`,
+        highlightTerms: ['matched'],
+      })),
+    ]
+    const merged = mergeBodyMatches(syncGroups, bodyHits)
+    expect(merged.map((g) => g.kind)).toEqual(['note', 'content'])
+    const content = merged.find((g) => g.kind === 'content')!
+    expect(content.results).toHaveLength(BODY_MATCH_LIMIT)
+    expect(content.results.some((r) => r.id === 'n-title-1')).toBe(false)
+    expect(content.results[0]).toMatchObject({
+      id: 'n-body-0',
+      detail: 'Projects',
+      excerpt: '...matched 0 text...',
+      ranges: [],
+    })
+    expect(mergeBodyMatches(syncGroups, bodyHits.slice(0, 1)).map((g) => g.kind)).toEqual(['note'])
   })
 })

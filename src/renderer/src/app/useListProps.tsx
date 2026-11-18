@@ -10,6 +10,7 @@ import type { ListSelection } from '../listSelection'
 import type { NoteAction } from '../noteMenu'
 import { SearchField } from '../SearchField'
 import { useStable } from '../stable'
+import type { BookRecord, TagRecord } from '../../../core/storage'
 import type { useSearch } from '../useSearch'
 import type { ViewState } from './useLibraryView'
 
@@ -40,6 +41,8 @@ function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void
 /** Props for the memoized list and its header that keep their identity between renders, so typing in a note renders neither. */
 export function useListProps({
   view,
+  books,
+  tags,
   setLayouts,
   search,
   editing,
@@ -56,6 +59,8 @@ export function useListProps({
   changeSelection,
 }: {
   view: ViewState
+  books: readonly BookRecord[]
+  tags: readonly TagRecord[]
   setLayouts: Dispatch<SetStateAction<ViewLayouts>>
   search: ReturnType<typeof useSearch>
   editing: boolean
@@ -105,6 +110,8 @@ export function useListProps({
         onClear={clearSearchStable}
         onOptions={editing ? openSearchFieldMenu : undefined}
         placeholder={inView ? t('search.placeholder') : t('search.placeholderAll')}
+        books={books}
+        tags={tags}
       />
     ),
     [
@@ -112,6 +119,8 @@ export function useListProps({
       query,
       inView,
       editing,
+      books,
+      tags,
       changeQueryStable,
       clearSearchStable,
       openSearchFieldMenu,

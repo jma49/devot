@@ -23,7 +23,12 @@ export const filterRow = (
   label: ReactNode,
   count: number,
   extra?: string,
-  tag?: { name: string; color: TagColorValue | null; onMenu: (at: MenuPoint) => void },
+  tag?: {
+    name: string
+    color: TagColorValue | null
+    pinned?: boolean
+    onMenu: (at: MenuPoint) => void
+  },
   /** An agent's row counts its unseen changes, and none when there are none. */
   unseen?: boolean,
 ) => {
@@ -48,6 +53,7 @@ export const filterRow = (
       {...rowProps(key)}
       {...drop.handlers}
       className={`source filter${extra ? ` ${extra}` : ''}${drop.className}${rowMenuTarget === key ? ' menu-target' : ''}`}
+      data-pinned={tag?.pinned ? 'true' : undefined}
       aria-pressed={sameFilter(props.filter, filter)}
       onClick={() => props.onFilter(sameFilter(props.filter, filter) ? null : filter)}
       onMouseDown={keepFocusOnMenu}
@@ -63,6 +69,11 @@ export const filterRow = (
       <span className="source-label" dir="auto">
         {label}
       </span>
+      {tag?.pinned ? (
+        <span className="tag-pin" aria-hidden="true">
+          <Icon name="notes.pinned" size="xs" />
+        </span>
+      ) : null}
       {unseen && count === 0 ? null : (
         <span className="source-count" aria-hidden={unseen || undefined}>
           {format(count)}
@@ -78,11 +89,11 @@ export const filterRow = (
 }
 
 export function tagsSection(v: SidebarView) {
-  const { props } = v
+  const { props, orderedTags, pinnedTags } = v
   const ws = props.workspace
   const { folded, revealed } = v.folds
   const { editingTag, setEditingTag, tagMenu, openTagMenu, runTagAction, tagTarget } = v.menus
-  return props.tags.length > 0 ? (
+  return orderedTags.length > 0 ? (
     <>
       {sectionHeader(
         v,
@@ -107,7 +118,7 @@ export function tagsSection(v: SidebarView) {
           aria-labelledby="tags-heading"
           ref={revealed('section:tags')}
         >
-          {props.tags.map((tag) => (
+          {orderedTags.map((tag) => (
             <li
               key={tag.id}
               data-motion-key={`tag:${tag.id}`}
@@ -153,6 +164,7 @@ export function tagsSection(v: SidebarView) {
                   {
                     name: tag.name,
                     color: tag.color,
+                    pinned: pinnedTags.has(tag.id),
                     onMenu: (at) => openTagMenu(tag, at),
                   },
                 )

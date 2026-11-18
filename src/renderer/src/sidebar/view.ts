@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import type { TagRecord } from '../../../core/storage'
 import type { SidebarProps } from './model'
 import type { Drops } from './useDrops'
 import type { Folds } from './useFolds'
@@ -15,6 +16,8 @@ export interface SidebarView {
   elements: RowElements
   selectedBook: string | undefined
   nameEditing: string | undefined
+  pinnedTags: ReadonlySet<string>
+  orderedTags: readonly TagRecord[]
 }
 
 /** The sidebar's row elements: every row the arrow keys reach, by row key, and the notebooks' rows, by notebook ID. */

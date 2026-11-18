@@ -9,6 +9,7 @@ import type { ExportFailure } from '../ExportNotice'
 import type { IconName } from '../icons/symbols'
 import type { MessageKey } from '../i18n'
 import { currentLocale } from '../i18n'
+import type { PinnedTagStore } from '../pinnedTags'
 import type { SectionStore } from '../sidebarSections'
 
 export type Selection =
@@ -117,8 +118,12 @@ export interface SidebarProps {
   onCopyFailed?: (failure: ExportFailure, code: string) => void
   /** Makes a new note (the All Notes row's menu); absent while the library is not open. */
   onNewNote?: (() => void) | undefined
+  /** Opens or creates today's daily note from the top Sources list. */
+  onOpenToday?: (() => void) | undefined
   /** Where the collapsed sections are kept; this window's local storage by default. */
   sectionStore?: SectionStore
+  /** Where pinned sidebar tag IDs are kept; this device's local storage by default. */
+  pinnedTagStore?: PinnedTagStore | undefined
   workspace?: SidebarWorkspace | undefined
   onOpenWorkspace?: (id: string) => void
   onWorkspaceUp?: () => void
@@ -164,11 +169,13 @@ export function visibleRows(tree: BookNode[], collapsed: ReadonlySet<string>): B
   return out
 }
 
-/** A row the arrow keys move between; its key is `all`, `pinned`, `book:<id>`, `status:<status>`, `search:<id>`, `tag:<id>`, `agent:<writer>`, `templates` or `trash`. */
+/** A row the arrow keys move between; its key is `all`, `today`, `pinned`, `book:<id>`, `status:<status>`, `search:<id>`, `tag:<id>`, `agent:<writer>`, `templates` or `trash`. */
 export interface Row {
   key: string
-  shows: { selection: Selection } | { filter: NoteFilter } | { search: string }
+  shows: { selection: Selection } | { filter: NoteFilter } | { search: string } | { today: true }
 }
+
+export const todayRow = (): Row => ({ key: 'today', shows: { today: true } })
 
 export const searchRow = (id: string): Row => ({ key: `search:${id}`, shows: { search: id } })
 

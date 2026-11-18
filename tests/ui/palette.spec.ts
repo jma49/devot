@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test'
 import {
   expect,
   test,
+  pickBook,
   pickNoteMore,
   openNotePinned,
   statusPicker,
@@ -588,4 +589,54 @@ test('the outline source lists headings and tasks; Return moves the caret there'
   await options(page).nth(2).click()
   await expect(palette(page)).toBeHidden()
   await expect(body(page)).toBeFocused()
+})
+
+test('body matches appear under Matching Content with highlights and Shift+Enter opens split view', async ({
+  page,
+}) => {
+  await createBook(page, 'Research')
+  await sidebar(page)
+    .getByRole('button', { name: /All Notes/ })
+    .click()
+
+  await createNote(page, 'Zephyr overview')
+  await body(page).click()
+  await page.keyboard.insertText('Quick zephyr summary.')
+
+  await createNote(page, 'Architecture memo')
+  await body(page).click()
+  await page.keyboard.insertText('Details about the zephyr protocol live here.')
+  await pickBook(page, 'Research')
+
+  await search(page, 'z')
+  await expect(group(page, 'Matching Content')).toHaveCount(0)
+
+  await field(page).fill('zephyr')
+  await expect(group(page, 'Notes').getByRole('option')).toHaveText(['Zephyr overview'])
+  const contentGroup = group(page, 'Matching Content')
+  await expect(contentGroup).toBeVisible()
+  const contentRows = contentGroup.getByRole('option')
+  await expect(contentRows).toHaveCount(1)
+  await expect(contentRows.first().locator('.palette-content-title')).toHaveText(
+    'Architecture memo',
+  )
+  await expect(contentRows.first().locator('.palette-excerpt mark')).toHaveText(['zephyr'])
+  await expect(contentRows.first().locator('.palette-badge')).toHaveText('Research')
+
+  // Scope into note search and open the body match in Split View via Shift+Enter.
+  await field(page).press('Escape')
+  for (let i = 0; i < 5; i += 1) await field(page).press('ArrowDown')
+  await expect(active(page)).toContainText('Search notes')
+  await field(page).press('Enter')
+  await field(page).fill('zephyr')
+  await expect(contentRows).toHaveCount(1)
+  await field(page).press('ArrowDown')
+  await expect(active(page)).toContainText('Architecture memo')
+  await expect(palette(page).locator('#palette-keys')).toContainText('Open in Split View')
+  await expect(palette(page).locator('#palette-keys')).toContainText('Open in New Window')
+  await field(page).press('Shift+Enter')
+  await expect(palette(page)).toBeHidden()
+  await expect(titleField(page)).toHaveValue('Architecture memo')
+  await expect(body(page)).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Preview' })).toBeVisible()
 })

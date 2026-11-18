@@ -68,7 +68,12 @@ import { dailySettings, useNoteMaking } from './app/useNoteMaking'
 import { useNoteOpening } from './app/useNoteOpening'
 import { useOpenNote } from './app/useOpenNote'
 import { useOutline } from './app/useOutline'
-import { usePalette, usePaletteKeyboard, usePaletteLibrary } from './app/usePalette'
+import {
+  usePalette,
+  usePaletteBodySearch,
+  usePaletteKeyboard,
+  usePaletteLibrary,
+} from './app/usePalette'
 import { useListLayoutFade, usePanes, useSidebarMenu } from './app/usePanes'
 import { useQuickTagNote } from './app/useQuickTagNote'
 import { useSavedSearches } from './app/useSavedSearches'
@@ -476,6 +481,8 @@ export function App() {
   })
   const listProps = useListProps({
     view,
+    books,
+    tags,
     setLayouts: view.setLayouts,
     search: searchState,
     editing,
@@ -567,6 +574,12 @@ export function App() {
     tags,
     loadHeadlines,
   })
+  const paletteBodySearch = usePaletteBodySearch({
+    core,
+    tree,
+    tags,
+    loadHeadlines,
+  })
   const linkNotice = useAppDeepLinks({
     ready: restored && core !== undefined,
     core,
@@ -606,6 +619,7 @@ export function App() {
     exportBook: exports.exportBook,
     openPalette: palette.openPalette,
     create: making.create,
+    openToday: making.openToday,
     askEmptyTrash: trashList.askEmptyTrash,
     menus: sidebarMenus,
   })
@@ -743,6 +757,7 @@ export function App() {
         templatePicker={making.templatePicker}
         palette={palette}
         paletteLibrary={paletteLibrary}
+        paletteBodySearch={paletteBodySearch}
         commands={appCommands}
         pluginEntries={plugins.entries}
         noteOpen={openNote !== undefined}

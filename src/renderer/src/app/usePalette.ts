@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { NoteSummary, TagRecord } from '../../../core'
 import type { BookNode } from '../../../core/books'
+import { highlightTerms, parseSearch } from '../../../core/search'
 import { visible } from '../areas'
 import { inEditor, sheetOpen, useMenuEvent } from '../commands/dispatch'
+import type { Core } from '../core-client'
 import type { EditorHandle } from '../editor/handle'
-import { newestUntitled, useHeadlines, type HeadlineLoader } from '../headlines'
+import { displayTitles, newestUntitled, useHeadlines, type HeadlineLoader } from '../headlines'
 import type { ImageMenuTarget } from '../imageMenu'
+import type { PaletteBodySearch } from '../palette/bodySearch'
 import { libraryEntries, outlineEntries } from '../palette/entries'
-import type { PaletteSource } from '../palette/results'
+import type { PaletteEntry, PaletteSource } from '../palette/results'
 
 const SHOW_PALETTE = 'devot:show-palette'
 
@@ -150,4 +153,54 @@ export function usePaletteLibrary({
     [paletteOpen, tree, tags, notes, paletteHeadlines],
   )
   return paletteLibrary
+}
+
+function bookNameMap(tree: readonly BookNode[]): Map<string, string> {
+  const names = new Map<string, string>()
+  const walk = (nodes: readonly BookNode[]) => {
+    for (const node of nodes) {
+      names.set(node.id, node.name)
+      walk(node.children)
+    }
+  }
+  walk(tree)
+  return names
+}
+
+/** Async full-text body search callback for the Command Palette, scoped cleanly to active core state. */
+export function usePaletteBodySearch({
+  core,
+  tree,
+  tags,
+  loadHeadlines,
+}: {
+  core: Core | undefined
+  tree: BookNode[]
+  tags: TagRecord[]
+  loadHeadlines: HeadlineLoader | undefined
+}): PaletteBodySearch | undefined {
+  const bookNames = useMemo(() => bookNameMap(tree), [tree])
+  return useMemo(() => {
+    if (!core) return undefined
+    return async (query: string): Promise<PaletteEntry[]> => {
+      const { found } = await core.search(query)
+      const bodyHits = found
+        .filter((n): n is NoteSummary & { excerpt: string } => Boolean(n.excerpt))
+        .slice(0, 32)
+      if (bodyHits.length === 0) return []
+      const titles = await displayTitles(loadHeadlines, bodyHits)
+      const terms = highlightTerms(parseSearch(query), tags).body
+      return bodyHits.map((hit): PaletteEntry => {
+        const bookName = hit.bookId === null ? undefined : bookNames.get(hit.bookId)
+        return {
+          kind: 'content',
+          id: hit.id,
+          label: titles.get(hit.id) ?? '',
+          ...(bookName === undefined ? {} : { detail: bookName }),
+          excerpt: hit.excerpt,
+          highlightTerms: terms,
+        }
+      })
+    }
+  }, [core, bookNames, tags, loadHeadlines])
 }

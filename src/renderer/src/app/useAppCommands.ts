@@ -126,8 +126,17 @@ export function useAppCommands({
   const { shownSelection, canBoard, boardShown, canGallery, galleryShown } = view
   const { selectedIsTemplate, tree, sortButtonRef, listOrder } = view
   const { sidebarShown, focus, toggleFocus } = panes
-  const { backAt, forwardAt, nextId, previousId, changeSelection, closeNote, step, openListed } =
-    open
+  const {
+    backAt,
+    forwardAt,
+    nextId,
+    previousId,
+    changeSelection,
+    closeNote,
+    step,
+    openListed,
+    openNoteWindow,
+  } = open
   const { select } = open
   const { showLibrary, leaveWorkspace, showFilter, changeQuery, stableOpenWorkspace } = viewChanges
   const { create, setPicking, recentTemplates, openToday, noteFromSelection, noteFromLink } = making
@@ -251,6 +260,8 @@ export function useAppCommands({
       showFilter,
       changeQuery,
       putTagOnNotes,
+      setMode,
+      openNoteWindow,
       editor: () => editorRef.current,
       select: (id) => select(id),
     })

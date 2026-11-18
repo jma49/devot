@@ -21,6 +21,8 @@ const context = (extra: Partial<PaletteContext> = {}): PaletteContext => ({
   showFilter: vi.fn<PaletteContext['showFilter']>(),
   changeQuery: vi.fn<PaletteContext['changeQuery']>(),
   putTagOnNotes: vi.fn<PaletteContext['putTagOnNotes']>(),
+  setMode: vi.fn<PaletteContext['setMode']>(),
+  openNoteWindow: vi.fn<PaletteContext['openNoteWindow']>(),
   editor: () => null,
   select: vi.fn<PaletteContext['select']>(),
   ...extra,
@@ -72,5 +74,27 @@ describe('paletteActions', () => {
     const open = context({ selected: 'n' })
     await paletteActions(entry('note', 'n'), open).primary.run()
     expect(open.select).not.toHaveBeenCalled()
+  })
+
+  it('offers Shift (Split View) and Mod (New Window) on both note and content entries', async () => {
+    for (const kind of ['note', 'content'] as const) {
+      const at = context({ inTrash: true })
+      const actions = paletteActions(entry(kind, 'n1', 'Matched Note'), at)
+      expect(actions.shift?.label).toBe('Open in Split View')
+      expect(actions.meta?.label).toBe('Open in New Window')
+
+      await actions.shift!.run()
+      expect(at.showLibrary).toHaveBeenCalledWith({ kind: 'all' })
+      expect(at.select).toHaveBeenCalledWith('n1')
+      expect(at.setMode).toHaveBeenCalledWith('split')
+
+      const alreadyOpen = context({ selected: 'n1' })
+      await paletteActions(entry(kind, 'n1'), alreadyOpen).shift!.run()
+      expect(alreadyOpen.select).not.toHaveBeenCalled()
+      expect(alreadyOpen.setMode).toHaveBeenCalledWith('split')
+
+      await actions.meta!.run()
+      expect(at.openNoteWindow).toHaveBeenCalledWith('n1')
+    }
   })
 })
