@@ -53,18 +53,29 @@ fn is_main_window(ns_window: *const std::ffi::c_void) -> bool {
         .any(|(_, address)| *address == ns_window as usize)
 }
 
-/// A main window exists now: on the Mac its web view gets the 120 Hz unlock, WebRTC and resource
-/// hints off, and its keys the Format menu's priority; on the iPhone its fields lose the bar above
-/// the keyboard and the native screens attach. Every main window, `main` included, comes through
-/// here.
+/// A window that shows note content (main and note windows) exists now: on the Mac its web view
+/// gets WebRTC and resource hints off, which no content policy governs.
+pub fn content_window_built(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        macos::turn_off_peer_connections(window);
+        macos::turn_off_resource_hints(window);
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = window;
+}
+
+/// A main window exists now: on the Mac its web view gets the 120 Hz unlock, the content window
+/// hardening (`content_window_built`), and its keys the Format menu's priority; on the iPhone its
+/// fields lose the bar above the keyboard and the native screens attach. Every main window, `main`
+/// included, comes through here.
 pub fn main_window_built(window: &tauri::WebviewWindow) {
+    content_window_built(window);
     #[cfg(target_os = "macos")]
     {
         macos::round_window_corner(window);
         macos::keep_glass_active(window);
         macos::unlock_high_refresh_rate(window);
-        macos::turn_off_peer_connections(window);
-        macos::turn_off_resource_hints(window);
         match window.ns_window() {
             Ok(address) if !address.is_null() => crate::locks::lock(&MAIN_WINDOWS)
                 .push((window.label().to_owned(), address as usize)),
