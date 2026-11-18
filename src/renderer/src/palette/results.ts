@@ -25,9 +25,11 @@ export const SOURCE_KEYS: Readonly<Record<PaletteSource, string | undefined>> = 
   note: undefined,
 }
 
-export type PaletteKind = PaletteSource | 'source'
+export type PaletteKind = PaletteSource | 'source' | 'content'
 
 const PALETTE_KINDS: readonly PaletteKind[] = ['command', 'book', 'tag', 'note']
+
+export const BODY_MATCH_LIMIT = 12
 
 export interface PaletteState {
   scope: PaletteSource | null
@@ -88,6 +90,8 @@ export interface PaletteEntry {
   level?: number
   depth?: number
   done?: boolean
+  excerpt?: string
+  highlightTerms?: readonly string[]
   bookIcon?: { icon: string | null; color: TagColor | null }
   tagColor?: TagColorValue
 }
@@ -106,6 +110,7 @@ const QUERY_LIMIT: Readonly<Record<PaletteKind, number>> = {
   book: 20,
   tag: 20,
   note: 20,
+  content: BODY_MATCH_LIMIT,
   outline: 200,
   line: 1,
   source: 10,
@@ -116,6 +121,7 @@ const BROWSE_LIMIT: Readonly<Record<PaletteKind, number>> = {
   book: 5,
   tag: 5,
   note: 5,
+  content: 0,
   outline: Infinity,
   line: 1,
   source: Infinity,
@@ -176,4 +182,27 @@ export function paletteResults(
   }
   if (state.query.trim() === '') return paletteGroups('', entries, ['source'])
   return paletteGroups(state.query, entries)
+}
+
+/** True when typing in the palette should run an async full-text body search. */
+export function canSearchPaletteBody(state: PaletteState): boolean {
+  if (state.scope !== null && state.scope !== 'note') return false
+  return [...state.query.replace(/\s+/g, '')].length >= 2
+}
+
+/** Appends deduplicated body matches below synchronous note/title matches, capped at `limit`. */
+export function mergeBodyMatches(
+  groups: readonly PaletteGroup[],
+  bodyMatches: readonly PaletteEntry[],
+  limit = BODY_MATCH_LIMIT,
+): PaletteGroup[] {
+  if (bodyMatches.length === 0) return [...groups]
+  const titleIds = new Set(groups.find((g) => g.kind === 'note')?.results.map((r) => r.id))
+  const unique: PaletteResult[] = []
+  for (const entry of bodyMatches) {
+    if (titleIds.has(entry.id)) continue
+    unique.push({ ...entry, kind: 'content', ranges: [] })
+    if (unique.length >= limit) break
+  }
+  return unique.length > 0 ? [...groups, { kind: 'content', results: unique }] : [...groups]
 }

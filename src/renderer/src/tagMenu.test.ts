@@ -10,13 +10,26 @@ const entry = (target: TagMenuTarget, action: string) =>
     .find((each) => each.action === action)
 
 describe('TAG_MENU', () => {
-  it('lists Tag Settings, Filter by Tag, Copy Tag ID and Delete Tag, each in its group', () => {
+  it('lists Tag Settings, Filter by Tag, Pin Tag, Copy Tag ID and Delete Tag, each in its group', () => {
     expect(actions({ id: 't', color: null, filtered: false })).toEqual([
       ['settings'],
-      ['filter'],
+      ['filter', 'pin'],
       ['copyId'],
       ['delete'],
     ])
+  })
+
+  it('labels Pin Tag or Unpin Tag from pinned state', () => {
+    const unpinned = entry({ id: 't', color: null, filtered: false, pinned: false }, 'pin')
+    const pinned = entry({ id: 't', color: null, filtered: false, pinned: true }, 'pin')
+    const labelOf = (item: typeof unpinned, target: TagMenuTarget) =>
+      typeof item?.label === 'function' ? item.label(target) : item?.label
+    expect(labelOf(unpinned, { id: 't', color: null, filtered: false, pinned: false })).toBe(
+      'tagMenu.pin',
+    )
+    expect(labelOf(pinned, { id: 't', color: null, filtered: false, pinned: true })).toBe(
+      'tagMenu.unpin',
+    )
   })
 
   it('checks whether the list is filtered by the tag', () => {
@@ -30,6 +43,7 @@ describe('TAG_MENU', () => {
     expect(actions({ id: 't', color: null, filtered: false, inWorkspace: true }).flat()).toEqual([
       'settings',
       'filter',
+      'pin',
       'copyId',
     ])
   })

@@ -73,7 +73,7 @@ export function shownGroups<A extends string, T>(
     .filter((group) => group.length > 0)
 }
 
-const labelFor = <A extends string, T>(entry: MenuEntry<A, T>, target: T): string =>
+export const labelFor = <A extends string, T>(entry: MenuEntry<A, T>, target: T): string =>
   entry.text?.(target) ?? t(typeof entry.label === 'function' ? entry.label(target) : entry.label)
 
 export interface NativeItemOptions {

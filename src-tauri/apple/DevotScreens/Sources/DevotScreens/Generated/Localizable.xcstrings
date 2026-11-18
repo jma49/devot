@@ -22543,6 +22543,23 @@
         }
       }
     },
+    "palette.matchingContent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matching Content"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配内容"
+          }
+        }
+      }
+    },
     "palette.moveNoteHere" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -22692,6 +22709,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开来源"
+          }
+        }
+      }
+    },
+    "palette.openSplit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Split View"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在分栏视图中打开"
           }
         }
       }
@@ -28867,6 +28901,23 @@
         }
       }
     },
+    "search.filters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active filters"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前筛选条件"
+          }
+        }
+      }
+    },
     "search.help" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -29139,6 +29190,23 @@
         }
       }
     },
+    "search.removeFilter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove filter {filter}"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除筛选条件 {filter}"
+          }
+        }
+      }
+    },
     "search.results" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -29152,6 +29220,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜索"
+          }
+        }
+      }
+    },
+    "search.suggestions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search suggestions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索建议"
           }
         }
       }
@@ -31600,6 +31685,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "模板"
+          }
+        }
+      }
+    },
+    "sidebar.today" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today’s Note"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日笔记"
           }
         }
       }
@@ -37537,6 +37639,23 @@
         }
       }
     },
+    "tagMenu.pin" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pin Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "置顶标签"
+          }
+        }
+      }
+    },
     "tagMenu.rename" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -37567,6 +37686,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "标签设置…"
+          }
+        }
+      }
+    },
+    "tagMenu.unpin" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpin Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消置顶标签"
           }
         }
       }

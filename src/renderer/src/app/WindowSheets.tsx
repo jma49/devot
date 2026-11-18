@@ -5,12 +5,13 @@ import { t } from '../i18n'
 import { GraphSheet } from '../graph/GraphSheet'
 import { ImageViewer, type ViewedImage } from '../ImageViewer'
 import { CommandPalette } from '../palette/CommandPalette'
+import type { PaletteBodySearch } from '../palette/bodySearch'
 import { commandEntries, sourceEntries } from '../palette/entries'
 import type { PaletteEntry } from '../palette/results'
 import type { useAppCommands } from './useAppCommands'
 import type { usePalette, usePaletteLibrary } from './usePalette'
 
-const NO_LIBRARY = { book: [], tag: [], note: [] }
+const NO_LIBRARY = { book: [], tag: [], note: [], content: [] }
 
 /** The main window's sheets and dialogs that stack above the notices, in their order. */
 export function WindowSheets(props: {
@@ -21,6 +22,7 @@ export function WindowSheets(props: {
   templatePicker: ReactNode
   palette: ReturnType<typeof usePalette>
   paletteLibrary: ReturnType<typeof usePaletteLibrary>
+  paletteBodySearch?: PaletteBodySearch | undefined
   commands: ReturnType<typeof useAppCommands>
   pluginEntries: (noteOpen: boolean) => PaletteEntry[]
   noteOpen: boolean
@@ -62,9 +64,11 @@ export function WindowSheets(props: {
             source: sourceEntries(t),
             outline: palette.paletteOutline,
             line: [],
+            content: [],
             ...(props.paletteLibrary ?? NO_LIBRARY),
           }}
           actions={commands.actionsOfEntry}
+          searchNotes={props.paletteBodySearch}
           initialScope={palette.paletteScope}
           lineCount={commands.commands['edit.goToLine'] ? palette.paletteLines : 0}
           onClose={palette.closePalette}

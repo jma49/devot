@@ -195,6 +195,7 @@ describe('Sidebar in a workspace', () => {
       selection: { kind: 'book', id: 'w1' },
       statusCounts: new Map([['active', 2]]),
       workspace: { book: space, parents: [top], library: [{ ...top, children: [space] }] },
+      onOpenToday: noop,
     })
 
   it('shows its title with the notebooks above it, and a way back up', () => {
@@ -211,7 +212,7 @@ describe('Sidebar in a workspace', () => {
     expect(found.every(([, at]) => at >= 0)).toBe(true)
     const positions = found.map(([, at]) => at)
     expect(positions).toEqual([...positions].sort((a, b) => a - b))
-    for (const hidden of ['Pinned', 'Templates', 'Trash', 'Inbox']) {
+    for (const hidden of ['Pinned', 'Templates', 'Trash', 'Inbox', 'Today\u2019s Note']) {
       expect(html).not.toContain(`>${hidden}<`)
     }
   })
@@ -227,5 +228,42 @@ describe('Sidebar in a workspace', () => {
     const html = render(sectionStore(memoryStorage(), 'main'))
     expect(html).not.toContain('sidebar-workspace')
     expect(html).toContain('data-sidebar-row="all"')
+  })
+})
+
+describe("Today's Note and pinned tags", () => {
+  it("renders Today's Note in top Sources outside workspaces without stealing aria-current", () => {
+    const html = render(sectionStore(memoryStorage(), 'main'), [book], {
+      onOpenToday: noop,
+    })
+    expect(html).toContain('data-sidebar-row="today"')
+    expect(html).toContain('>Today\u2019s Note<')
+    expect(html).not.toMatch(/data-sidebar-row="today"[^>]*aria-current="true"/)
+    const found = order(html, ['All Notes', 'Today\u2019s Note', 'Pinned', 'Templates'])
+    expect(found.every(([, at]) => at >= 0)).toBe(true)
+    const positions = found.map(([, at]) => at)
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
+  })
+
+  it('renders pinned tags ahead of unpinned tags with data-pinned and tag-pin indicator', () => {
+    const storage = memoryStorage()
+    storage.setItem('devot.pinnedTags', JSON.stringify(['t3']))
+    const html = render(sectionStore(storage, 'main'), [book], {
+      tags: [tag('t1', 'Alpha'), tag('t2', 'Beta'), tag('t3', 'Gamma')],
+      tagCounts: new Map([
+        ['t1', 1],
+        ['t2', 2],
+        ['t3', 3],
+      ]),
+      pinnedTagStore: storage,
+    })
+    const posT3 = html.indexOf('data-motion-key="tag:t3"')
+    const posT1 = html.indexOf('data-motion-key="tag:t1"')
+    const posT2 = html.indexOf('data-motion-key="tag:t2"')
+    expect(posT3).toBeGreaterThan(-1)
+    expect(posT3).toBeLessThan(posT1)
+    expect(posT1).toBeLessThan(posT2)
+    expect(html).toMatch(/data-sidebar-row="tag:t3"[^>]*data-pinned="true"/)
+    expect(html).toContain('class="tag-pin"')
   })
 })

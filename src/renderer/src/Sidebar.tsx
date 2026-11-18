@@ -1,7 +1,8 @@
-import { memo, useEffect, useMemo, useRef, type CSSProperties } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { flattenBookTree } from '../../core/books'
 import { t } from './i18n'
 import { useKeymap } from './commands/shortcutSettings'
+import { orderTagsWithPinned, PINNED_TAGS_KEY, readPinnedTags, togglePinnedTag } from './pinnedTags'
 import { watchScrollEdges } from './scrollEdge'
 import { Icon } from './icons/Icon'
 import { usePaneResize } from './paneResize'
@@ -50,13 +51,30 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
       deeper ? 1 : -1,
     )
   })
+  const [pinnedTagList, setPinnedTagList] = useState<string[]>(() =>
+    readPinnedTags(props.pinnedTagStore),
+  )
+  useEffect(() => {
+    if (props.pinnedTagStore !== undefined) return
+    const sync = (e: StorageEvent) => {
+      if (e.key === PINNED_TAGS_KEY || e.key === null) setPinnedTagList(readPinnedTags())
+    }
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, [props.pinnedTagStore])
+  const pinnedTags = useMemo(() => new Set(pinnedTagList), [pinnedTagList])
+  const orderedTags = useMemo(
+    () => orderTagsWithPinned(props.tags, pinnedTags),
+    [props.tags, pinnedTags],
+  )
+  const onTogglePinTag = (id: string) => setPinnedTagList(togglePinnedTag(id, props.pinnedTagStore))
   const motionKeys = useMemo(
     () => [
       ...flattenBookTree(tree).map((n) => `book:${n.id}`),
       ...(props.savedSearches ?? []).map((s) => `search:${s.id}`),
-      ...props.tags.map((tag) => `tag:${tag.id}`),
+      ...orderedTags.map((tag) => `tag:${tag.id}`),
     ],
-    [tree, props.savedSearches, props.tags],
+    [tree, props.savedSearches, orderedTags],
   )
   const sidebarElement = () => nav.current
   useRowMotion(sidebarElement, 'data-motion-key', motionKeys, ws?.book.id ?? '', 'slide')
@@ -66,7 +84,15 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
   const drops = useDrops(props, folds.collapsed)
   const elements = useRowElements()
   const { rowElements } = elements
-  const menus = useMenus({ props, toggle: folds.toggle, rowElements, allSelection, allKey })
+  const menus = useMenus({
+    props,
+    toggle: folds.toggle,
+    rowElements,
+    allSelection,
+    allKey,
+    pinnedTagIds: pinnedTags,
+    onTogglePinTag,
+  })
   const { editing, rowMenuTarget, openAllNotesMenu, openTrashMenu } = menus
   const trashDrop = drops.noteTarget('trash', props.onTrashNotes, true)
   const selectedBook = selection?.kind === 'book' ? selection.id : undefined
@@ -74,7 +100,16 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
   const nameEditing = editing ?? renaming
   const booksShown =
     !folded.has('books') || (nameEditing !== undefined && nameEditing !== ws?.book.id)
-  const keys = useRowKeys({ props, folds, menus, rowElements, booksShown, allSelection, allKey })
+  const keys = useRowKeys({
+    props,
+    folds,
+    menus,
+    rowElements,
+    booksShown,
+    allSelection,
+    allKey,
+    orderedTags,
+  })
   const { rowProps, onRowsKey } = keys
   const view: SidebarView = {
     props,
@@ -85,6 +120,8 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
     elements,
     selectedBook,
     nameEditing,
+    pinnedTags,
+    orderedTags,
   }
 
   return (
@@ -126,6 +163,21 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         </li>
         {ws ? null : (
           <>
+            {props.onOpenToday ? (
+              <li>
+                <button
+                  type="button"
+                  {...rowProps('today')}
+                  className="source"
+                  onClick={props.onOpenToday}
+                >
+                  <Icon name="notes.today" size="md" />
+                  <span className="source-label" dir="auto">
+                    {t('sidebar.today')}
+                  </span>
+                </button>
+              </li>
+            ) : null}
             <li>
               {filterRow(
                 view,

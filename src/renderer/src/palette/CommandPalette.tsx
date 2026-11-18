@@ -1,6 +1,7 @@
 import { fieldStep } from '../Picker'
 import {
   useEffect,
+  useInsertionEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -15,11 +16,14 @@ import { Icon } from '../icons/Icon'
 import { BookIcon } from '../BookIcon'
 import { TagDot } from '../TagDot'
 import { isImeKey } from '../ime'
+import { searchPattern } from '../../../core/search'
 import type { IconName } from '../icons/symbols'
-import { MarkedRanges } from '../Marked'
+import { Marked, MarkedRanges } from '../Marked'
+import { createBodySearchController, type PaletteBodySearch } from './bodySearch'
 import {
   escapeStep,
   lineOfQuery,
+  mergeBodyMatches,
   paletteResults,
   ROOT,
   typeInto,
@@ -69,6 +73,7 @@ const GROUP_LABEL: Readonly<Record<PaletteKind, MessageKey>> = {
   book: 'palette.notebooks',
   tag: 'palette.tags',
   note: 'palette.notes',
+  content: 'palette.matchingContent',
   outline: 'palette.outline',
   line: 'palette.line',
   source: 'palette.sources',
@@ -79,6 +84,7 @@ const ICON: Readonly<Record<PaletteKind, IconName>> = {
   book: 'notebook',
   tag: 'tag',
   note: 'notes.all',
+  content: 'notes.all',
   outline: 'outline',
   line: 'find.next',
   source: 'search',
@@ -116,17 +122,27 @@ const optionId = (i: number) => `palette-option-${i}`
 export function CommandPalette(props: {
   entries: Readonly<Record<PaletteKind, readonly PaletteEntry[]>>
   actions: (entry: PaletteEntry) => PaletteActions
+  searchNotes?: PaletteBodySearch | undefined
   initialScope?: PaletteSource | undefined
   /** How many lines the open note has (Go to Line); 0 or none when no note is open. */
   lineCount?: number | undefined
   onClose: (picked?: () => void | Promise<unknown>) => void
 }) {
-  const { entries, actions, onClose } = props
+  const { entries, actions, searchNotes, onClose } = props
   const dialog = useRef<HTMLDialogElement>(null)
   const input = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<PaletteState>(() =>
     props.initialScope ? { scope: props.initialScope, query: '' } : ROOT,
   )
+  const [bodyMatches, setBodyMatches] = useState<readonly PaletteEntry[]>([])
+  const bodyController = useRef<ReturnType<typeof createBodySearchController>>(null)
+  const stateRef = useRef(state)
+  const searchNotesRef = useRef(searchNotes)
+  useInsertionEffect(() => {
+    stateRef.current = state
+    searchNotesRef.current = searchNotes
+  })
+  const hasSearch = Boolean(searchNotes)
   const [active, setActive] = useState(0)
   const [held, setHeld] = useState<Held>(NO_MODIFIERS)
   useLayoutEffect(() => {
@@ -159,8 +175,25 @@ export function CommandPalette(props: {
     }
   }, [])
 
+  useEffect(() => {
+    if (!hasSearch) {
+      bodyController.current = null
+      return
+    }
+    const controller = createBodySearchController({
+      search: (q) => (searchNotesRef.current ? searchNotesRef.current(q) : Promise.resolve([])),
+      onResults: setBodyMatches,
+    })
+    bodyController.current = controller
+    controller.update(stateRef.current)
+    return () => {
+      controller.reset()
+      if (bodyController.current === controller) bodyController.current = null
+    }
+  }, [hasSearch])
+
   const lineCount = props.lineCount ?? 0
-  const groups = useMemo(() => {
+  const syncGroups = useMemo(() => {
     if (state.scope !== 'line') return paletteResults(state, entries)
     const line = lineOfQuery(state.query, lineCount)
     const goTo: PaletteEntry[] =
@@ -176,6 +209,10 @@ export function CommandPalette(props: {
           ]
     return paletteResults(state, { ...entries, line: goTo })
   }, [state, entries, lineCount])
+  const groups = useMemo(() => {
+    if (!hasSearch) return syncGroups
+    return mergeBodyMatches(syncGroups, bodyMatches)
+  }, [hasSearch, syncGroups, bodyMatches])
   const results = groups.flatMap((g) => g.results)
   const starts = groups.map((_, i) =>
     groups.slice(0, i).reduce((sum, g) => sum + g.results.length, 0),
@@ -190,6 +227,7 @@ export function CommandPalette(props: {
   }, [index])
 
   const close = (picked?: () => void | Promise<unknown>) => {
+    bodyController.current?.reset()
     // Closed first, so the keyboard can go back to the window.
     dialog.current?.close()
     onClose(picked)
@@ -197,6 +235,7 @@ export function CommandPalette(props: {
 
   const change = (next: PaletteState) => {
     setState(next)
+    bodyController.current?.update(next)
     setActive(0)
     if (list.current) list.current.scrollTop = 0
     input.current?.focus()
@@ -325,7 +364,9 @@ export function CommandPalette(props: {
           autoFocus
           value={state.query}
           onChange={(e) => {
-            setState(typeInto(state, e.target.value))
+            const next = typeInto(state, e.target.value)
+            setState(next)
+            bodyController.current?.update(next)
             setActive(0)
             if (list.current) list.current.scrollTop = 0
           }}
@@ -341,7 +382,7 @@ export function CommandPalette(props: {
       >
         {groups.map((group, g) => (
           <div key={group.kind} role="group" aria-label={t(GROUP_LABEL[group.kind])}>
-            {showHeaders ? (
+            {showHeaders || group.kind === 'content' ? (
               <div className="palette-group" aria-hidden="true">
                 {t(GROUP_LABEL[group.kind])}
               </div>
@@ -352,7 +393,9 @@ export function CommandPalette(props: {
                 <div
                   key={`${r.kind}:${r.id}`}
                   id={optionId(i)}
-                  className="palette-row"
+                  className={
+                    r.kind === 'content' ? 'palette-row palette-row-content' : 'palette-row'
+                  }
                   role="option"
                   aria-selected={i === index}
                   style={
@@ -383,16 +426,33 @@ export function CommandPalette(props: {
                       size="sm"
                     />
                   )}
-                  <span
-                    className={`palette-label${r.kind === 'command' ? ' palette-command' : ''}${r.done ? ' palette-done' : ''}`}
-                    dir="auto"
-                  >
-                    <MarkedRanges text={r.label} ranges={r.ranges} />
-                    {r.description ? (
-                      <span className="palette-description">{r.description}</span>
-                    ) : null}
-                    {r.detail ? <span className="palette-detail">{r.detail}</span> : null}
-                  </span>
+                  {r.kind === 'content' ? (
+                    <>
+                      <span className="palette-label palette-content-line" dir="auto">
+                        <span className="palette-content-title">{r.label}</span>
+                        {r.excerpt ? (
+                          <span className="palette-excerpt">
+                            <Marked
+                              text={r.excerpt}
+                              pattern={searchPattern(r.highlightTerms ?? [])}
+                            />
+                          </span>
+                        ) : null}
+                      </span>
+                      {r.detail ? <span className="palette-badge">{r.detail}</span> : null}
+                    </>
+                  ) : (
+                    <span
+                      className={`palette-label${r.kind === 'command' ? ' palette-command' : ''}${r.done ? ' palette-done' : ''}`}
+                      dir="auto"
+                    >
+                      <MarkedRanges text={r.label} ranges={r.ranges} />
+                      {r.description ? (
+                        <span className="palette-description">{r.description}</span>
+                      ) : null}
+                      {r.detail ? <span className="palette-detail">{r.detail}</span> : null}
+                    </span>
+                  )}
                   {r.shortcut ? <kbd className="palette-key">{r.shortcut}</kbd> : null}
                 </div>
               )

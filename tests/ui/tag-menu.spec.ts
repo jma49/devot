@@ -109,6 +109,7 @@ test('right-click shows the tag menu at the pointer, in the window', async ({ pa
   await expect(items).toHaveText([
     'Tag Settings\u2026',
     /^Filter by Tag$/,
+    'Pin Tag',
     'Copy Tag ID',
     /^Delete Tag/,
   ])
@@ -392,4 +393,32 @@ test('a Copy Tag ID that fails says so, with its code', async ({ page }) => {
   await openMenu(page, 'idea')
   await pickItem(page, 'Copy Tag ID')
   await expect(page.getByRole('alert')).toContainText('The ID could not be copied.')
+})
+
+test('Pin Tag promotes a tag to the top of Tags, persists across reload, and Unpin restores it', async ({
+  page,
+}) => {
+  await setUp(page)
+  const tagNames = () => sidebar(page).locator('#tags-list .source-label').allTextContents()
+
+  expect(await tagNames()).toEqual(['idea', 'sync'])
+  await openMenu(page, 'sync')
+  await pickItem(page, 'Pin Tag')
+
+  await expect.poll(tagNames).toEqual(['sync', 'idea'])
+  await expect(tagRow(page, 'sync')).toHaveAttribute('data-pinned', 'true')
+  await expect(tagRow(page, 'sync').locator('.tag-pin')).toBeVisible()
+
+  await reloadApp(page)
+  await expect.poll(tagNames).toEqual(['sync', 'idea'])
+  await expect(tagRow(page, 'sync')).toHaveAttribute('data-pinned', 'true')
+
+  await tagRow(page, 'sync').focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(tagRow(page, 'idea')).toBeFocused()
+
+  await openMenu(page, 'sync')
+  await pickItem(page, 'Unpin Tag')
+  await expect.poll(tagNames).toEqual(['idea', 'sync'])
+  await expect(tagRow(page, 'sync')).not.toHaveAttribute('data-pinned')
 })

@@ -34,6 +34,7 @@ export function useLibrarySidebar({
   exportBook,
   openPalette,
   create,
+  openToday,
   askEmptyTrash,
   menus,
 }: {
@@ -50,6 +51,7 @@ export function useLibrarySidebar({
   exportBook: (action: 'exportMarkdown' | 'exportHtml', id: string) => Promise<void>
   openPalette: (scope?: PaletteSource) => void
   create: () => Promise<void>
+  openToday: () => Promise<void>
   askEmptyTrash: () => void
   menus: RefObject<SidebarMenus | null>
 }) {
@@ -135,6 +137,7 @@ export function useLibrarySidebar({
     if (inTrash) showLibrary({ kind: 'all' })
     void create()
   })
+  const sidebarOpenToday = useStable(() => void openToday())
   const sidebarWorkspaceUp = useStable(() => workspaceUp())
   const sidebarDeleteTag = useStable((id: string) =>
     setConfirm({
@@ -183,6 +186,7 @@ export function useLibrarySidebar({
       onEmptyTrash={askEmptyTrash}
       onCopyFailed={sidebarCopyFailed}
       onNewNote={core && editing ? sidebarNewNote : undefined}
+      onOpenToday={core ? sidebarOpenToday : undefined}
       readOnly={!editing}
       workspace={sidebarWorkspace}
       onOpenWorkspace={stableOpenWorkspace}

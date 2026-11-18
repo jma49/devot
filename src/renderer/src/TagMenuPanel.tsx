@@ -14,7 +14,7 @@ import { ColorPicker } from './ColorPicker'
 import { CustomSwatch } from './ColorSwatches'
 import { commandKeys } from './commands/registry'
 import { shortcutLabel } from './commands/keys'
-import { shownGroups, type MenuPoint } from './contextMenu'
+import { labelFor, shownGroups, type MenuPoint } from './contextMenu'
 import { t, type MessageKey } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
@@ -231,7 +231,7 @@ export function TagMenu(props: {
                   <span className="tag-menu-check" aria-hidden="true">
                     {checked ? <Icon name="check" size="sm" /> : null}
                   </span>
-                  <span className="picker-name">{t(entry.label as MessageKey)}</span>
+                  <span className="picker-name">{labelFor(entry, tag)}</span>
                   {key ? <kbd className="picker-key">{shortcutLabel(key)}</kbd> : null}
                 </button>
               )

@@ -1,6 +1,6 @@
 import { useEffect, type KeyboardEvent, type RefObject } from 'react'
 import type { BookNode } from '../../../core/books'
-import type { NoteStatus } from '../../../core/storage'
+import type { NoteStatus, TagRecord } from '../../../core/storage'
 import { bookActionShown, bookShortcut } from '../bookMenu'
 import { commandMatches, heldCommandKey } from '../commands/registry'
 import type { CollapsibleSection } from '../sidebarSections'
@@ -12,6 +12,7 @@ import {
   sameFilter,
   searchRow,
   STATUSES,
+  todayRow,
   visibleRows,
   WORKSPACE_ROW,
   type Row,
@@ -37,6 +38,7 @@ export function useRowKeys({
   booksShown,
   allSelection,
   allKey,
+  orderedTags,
 }: {
   props: SidebarProps
   folds: Folds
@@ -45,6 +47,7 @@ export function useRowKeys({
   booksShown: boolean
   allSelection: Selection
   allKey: string
+  orderedTags: readonly TagRecord[]
 }) {
   const { tree, selection } = props
   const ws = props.workspace
@@ -65,6 +68,7 @@ export function useRowKeys({
   // The arrow keys move through every row in the order shown, and the sidebar is one tab stop: the row of the view shown.
   const rowOrder: Row[] = [
     libraryRow(allSelection),
+    ...(ws || !props.onOpenToday ? [] : [todayRow()]),
     ...(ws ? [] : [filterRowOf({ kind: 'pinned' }), libraryRow({ kind: 'templates' })]),
     ...(booksShown ? rowList.map((n) => libraryRow({ kind: 'book', id: n.id })) : []),
     ...(folded.has('status')
@@ -75,7 +79,7 @@ export function useRowKeys({
       : savedSearches.flatMap((s) => (s.id === editingSearch ? [] : [searchRow(s.id)]))),
     ...(folded.has('tags')
       ? []
-      : props.tags.flatMap((tag) =>
+      : orderedTags.flatMap((tag) =>
           tag.id === editingTag ? [] : [filterRowOf({ kind: 'tag', tagId: tag.id })],
         )),
     ...(folded.has('agents') ? [] : (props.agents ?? []).map((a) => filterRowOf(agentFilter(a)))),
@@ -99,6 +103,7 @@ export function useRowKeys({
   /** All Notes or a notebook shows without a filter, the Trash shows (a filter does not apply there), and a filter row turns its filter on. */
   const arrive = (row: Row, focusRow = true) => {
     if (focusRow) rowElements.current.get(row.key)?.focus()
+    if ('today' in row.shows) return
     if ('search' in row.shows) return props.onRunSavedSearch?.(row.shows.search)
     if ('selection' in row.shows) {
       const { selection: next } = row.shows
@@ -112,6 +117,7 @@ export function useRowKeys({
     const fixed =
       key === allKey ||
       key === WORKSPACE_ROW ||
+      key === 'today' ||
       key === 'pinned' ||
       key === 'templates' ||
       key === 'trash' ||
@@ -178,7 +184,8 @@ export function useRowKeys({
     const onStep = (e: Event) => {
       const by = (e as CustomEvent<unknown>).detail
       if (by !== 1 && by !== -1) return
-      const to = rowOrder[rowOrder.findIndex((r) => r.key === shownKey) + by]
+      const steppable = rowOrder.filter((r) => !('today' in r.shows))
+      const to = steppable[steppable.findIndex((r) => r.key === shownKey) + by]
       if (to !== undefined) arrive(to, false)
     }
     window.addEventListener(SIDEBAR_STEP, onStep)

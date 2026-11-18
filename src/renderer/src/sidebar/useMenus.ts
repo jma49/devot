@@ -49,12 +49,16 @@ export function useMenus({
   rowElements,
   allSelection,
   allKey,
+  pinnedTagIds,
+  onTogglePinTag,
 }: {
   props: SidebarProps
   toggle: (id: string, open?: boolean) => void
   rowElements: RefObject<Map<string, HTMLElement>>
   allSelection: Selection
   allKey: string
+  pinnedTagIds: ReadonlySet<string>
+  onTogglePinTag: (id: string) => void
 }) {
   const { tree } = props
   const ws = props.workspace
@@ -128,10 +132,12 @@ export function useMenus({
   }
 
   const runTagAction = (action: TagAction, tag: TagMenuTarget) => {
-    if (props.readOnly && !(action === 'filter' || action === 'copyId')) return
+    if (props.readOnly && !(action === 'filter' || action === 'copyId' || action === 'pin')) return
     switch (action) {
       case 'rename':
         return setEditingTag(tag.id)
+      case 'pin':
+        return onTogglePinTag(tag.id)
       case 'settings':
         return setTagSettings(tag.id)
       case 'filter':
@@ -150,6 +156,7 @@ export function useMenus({
     id: tag.id,
     color: tag.color,
     filtered: sameFilter(props.filter, { kind: 'tag', tagId: tag.id }),
+    pinned: pinnedTagIds.has(tag.id),
     inWorkspace: ws !== undefined,
   })
   const openTagMenu = (tag: TagRecord, at?: MenuPoint) => {

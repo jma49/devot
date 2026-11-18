@@ -571,6 +571,14 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'tag.pin',
+    label: 'tagMenu.pin',
+    group: 'tag',
+    scope: 'tagRow',
+    keys: [],
+    palette: false,
+  },
+  {
     id: 'tag.copyId',
     label: 'tagMenu.copyId',
     group: 'tag',

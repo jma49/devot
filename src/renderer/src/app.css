@@ -653,6 +653,28 @@ button {
   color: var(--color-text-secondary);
 }
 
+.tag-pin {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.tag-row .tag-pin .icon {
+  background-color: var(--color-text-tertiary);
+}
+
+.tag-row .tag-pin .icon-svg {
+  color: var(--color-text-tertiary);
+}
+
+.sidebar .drop-fill .tag-pin .icon {
+  background-color: var(--color-accent-on-fill);
+}
+
+.sidebar .drop-fill .tag-pin .icon-svg {
+  color: var(--color-accent-on-fill);
+}
+
 /* Under the pointer: the wash one step under the selected fill. Selected and drop-target rows keep theirs. */
 .source:not([aria-pressed='true'], [aria-current='true'], .drop-fill):hover,
 .books li:not([aria-selected='true']) > .book-row:not(.drop-fill):hover,
@@ -1688,6 +1710,111 @@ button {
 
 .list-filter .search-field > input:first-child {
   padding-inline-start: var(--space-4);
+}
+
+.search-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-note-pill-gap);
+  flex: 0 1 auto;
+  max-width: 65%;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-inline-start: calc((var(--size-toolbar-control) - var(--size-note-pill)) / 2);
+  padding-inline-end: var(--space-2);
+}
+
+.search-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.search-pill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: var(--size-note-pill-gap);
+  height: var(--size-note-pill);
+  padding-block: 0;
+  padding-inline: var(--size-note-pill-pad) var(--size-note-pill-end-remove);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-card);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  line-height: 1;
+}
+
+.search-pill:has(> .tag-dot) {
+  padding-inline-start: var(--size-note-pill-end-dot);
+}
+
+.search-pill-key {
+  color: var(--color-text-secondary);
+}
+
+.search-pill-label {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-pill-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--size-note-pill-remove);
+  height: var(--size-note-pill-remove);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-capsule);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  transition:
+    color var(--motion-duration-hover) var(--motion-easing-out),
+    background var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.search-pill-remove:hover {
+  background: var(--color-fill-tool-hover);
+  color: var(--color-text-primary);
+}
+
+.search-pill-remove:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.list-filter .search-field:has(> .search-pills) input {
+  min-width: 56px;
+}
+
+.tag-suggestions.search-suggestions {
+  left: 0;
+  right: 0;
+  min-width: 0;
+  width: auto;
+  max-height: min(var(--size-picker-min-height), 45vh);
+}
+
+.search-suggestion-prefix {
+  color: var(--color-text-tertiary);
+}
+
+.search-suggestion-detail {
+  margin-left: auto;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+}
+
+.search-suggestion .tag-dot {
+  flex: none;
+}
+
+.search-suggestion:has(> .icon, > .icon-svg)::before {
+  content: none;
 }
 
 .list-count {
@@ -7048,6 +7175,54 @@ button.note-info-row:focus-visible {
   font-size: var(--font-size-caption);
 }
 
+.palette-content-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.palette-content-title {
+  flex: 0 1 auto;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+.palette-excerpt {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+}
+
+.palette-excerpt mark {
+  border-radius: var(--radius-mark);
+  background: var(--color-match-bg);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  padding-inline: var(--space-1);
+}
+
+.palette-badge {
+  flex: none;
+  max-width: 28%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--space-8);
+}
+
 .palette-key {
   flex: none;
   padding: 0 var(--space-3);
@@ -7073,7 +7248,18 @@ button.note-info-row:focus-visible {
 
 .palette-row[aria-selected='true'] .palette-detail,
 .palette-row[aria-selected='true'] .palette-description,
-.palette-row[aria-selected='true'] .palette-done {
+.palette-row[aria-selected='true'] .palette-done,
+.palette-row[aria-selected='true'] .palette-excerpt {
+  color: var(--color-accent-on-fill);
+}
+
+.palette-row[aria-selected='true'] .palette-excerpt mark,
+.palette-row[aria-selected='true'] .palette-badge {
+  background: color-mix(
+    in srgb,
+    var(--color-accent-on-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
   color: var(--color-accent-on-fill);
 }
 
