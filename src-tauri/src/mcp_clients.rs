@@ -45,18 +45,6 @@ const CLI_FAILED: &str = "E_MCP_CLI_FAILED";
 const CLI_TIMEOUT: &str = "E_MCP_CLI_TIMEOUT";
 /// `claude mcp` answers in a moment; a hung one is stopped rather than left holding Settings.
 const CLI_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
-/// Where Homebrew, npm and Claude Code's own installer put `claude`, which a GUI app's short PATH
-/// leaves out; in the home folder, then anywhere.
-const CLAUDE_IN_HOME: [&str; 5] = [
-    ".local/bin/claude",
-    ".claude/local/claude",
-    ".npm-global/bin/claude",
-    ".volta/bin/claude",
-    ".bun/bin/claude",
-];
-const CLAUDE_ANYWHERE: [&str; 2] = ["/opt/homebrew/bin/claude", "/usr/local/bin/claude"];
-/// What `claude`, a Node script when npm installed it, needs to find `node` from a GUI app.
-const CLI_PATH: &str = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin";
 
 /// Devot's own changes to client configs go one at a time.
 static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -675,31 +663,21 @@ fn disconnect(
     Ok(status(client, path, launch))
 }
 
-fn is_executable(path: &Path) -> bool {
-    std::fs::metadata(path)
-        .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
-}
-
 /// The `claude` on `path_var`'s PATH, else in the places installers put it.
 fn find_claude(
     path_var: Option<&OsStr>,
     home: &Path,
     executable: impl Fn(&Path) -> bool,
 ) -> Option<PathBuf> {
-    let on_path = path_var
-        .into_iter()
-        .flat_map(std::env::split_paths)
-        .filter(|dir| dir.is_absolute())
-        .map(|dir| dir.join("claude"));
-    let known = CLAUDE_ANYWHERE
-        .iter()
-        .map(PathBuf::from)
-        .chain(CLAUDE_IN_HOME.iter().map(|rest| home.join(rest)));
-    on_path.chain(known).find(|path| executable(path))
+    crate::ai::cli::find_claude(path_var, Some(home), executable)
 }
 
 fn claude_cli(home: &Path) -> Option<PathBuf> {
-    find_claude(std::env::var_os("PATH").as_deref(), home, is_executable)
+    find_claude(
+        std::env::var_os("PATH").as_deref(),
+        home,
+        crate::ai::cli::is_executable,
+    )
 }
 
 fn add_args(launch: &Launch) -> Vec<String> {
@@ -738,31 +716,12 @@ fn shown_command(cli: &Path, args: &[String]) -> String {
         .join(" ")
 }
 
-/// The CLI's own folder first (a native install), then where `node` lives.
-fn cli_path_for(cli: &Path) -> OsString {
-    let mut path = OsString::new();
-    if let Some(dir) = cli.parent() {
-        path.push(dir);
-        path.push(":");
-    }
-    if let Some(dir) = std::fs::canonicalize(cli)
-        .ok()
-        .as_deref()
-        .and_then(Path::parent)
-    {
-        path.push(dir);
-        path.push(":");
-    }
-    path.push(CLI_PATH);
-    path
-}
-
 /// Runs `cli` with `args` as they are, no shell between; its output is the client's and is never
 /// read or logged.
 fn run_cli(cli: &Path, args: &[String], wait: std::time::Duration) -> Result<(), &'static str> {
     let mut child = std::process::Command::new(cli)
         .args(args)
-        .env("PATH", cli_path_for(cli))
+        .env("PATH", crate::ai::cli::cli_path_for(cli))
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

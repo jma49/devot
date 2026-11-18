@@ -219,6 +219,8 @@ pub fn run() {
             commands::sync::sync_file_delete,
             ai::ai_key_set,
             ai::ai_key_clear,
+            #[cfg(desktop)]
+            ai::ai_cli_refresh,
             licence::licence_get,
             licence::licence_set,
             licence::licence_remove,
@@ -569,11 +571,14 @@ fn launch(
         image_text::system(),
         image_text::Pace::default(),
     ));
-    app.manage(std::sync::Arc::new(ai::Ai::new(
+    let ai = ai::Ai::new(
         ai::settings::SettingsStore::new(&data_dir.join(ai::settings::FILE)),
         std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),
         licence::Gate::of(&licence),
-    )));
+    );
+    #[cfg(desktop)]
+    let ai = ai.with_local_cli();
+    app.manage(std::sync::Arc::new(ai));
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     let share_store = std::sync::Arc::new(web_share::Keychain::new(&app.config().identifier));
     #[cfg(not(any(target_os = "macos", target_os = "ios")))]

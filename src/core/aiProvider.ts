@@ -4,8 +4,15 @@ import { TEMPLATES_BOOK_ID } from './books'
 import type { Entitlements } from './entitlements'
 import type { BookRecord } from './storage'
 
-export const AI_PROVIDERS = ['anthropic', 'openai'] as const
+export const AI_API_PROVIDERS = ['anthropic', 'openai'] as const
+export type AiApiProviderId = (typeof AI_API_PROVIDERS)[number]
+export const AI_CLI_PROVIDERS = ['claudeCli', 'codexCli'] as const
+export type AiCliProviderId = (typeof AI_CLI_PROVIDERS)[number]
+export const AI_PROVIDERS = [...AI_API_PROVIDERS, ...AI_CLI_PROVIDERS] as const
 export type AiProviderId = (typeof AI_PROVIDERS)[number]
+
+export const isCliProvider = (value: AiProviderId): value is AiCliProviderId =>
+  value === 'claudeCli' || value === 'codexCli'
 
 export interface AiMessage {
   role: 'user' | 'assistant'
@@ -127,17 +134,56 @@ export interface AiProviderView {
   key: AiKeyState
 }
 
+export type AiCliState = 'ready' | 'signedOut' | 'notInstalled'
+
+export interface AiCliProviderView {
+  state: AiCliState
+  model: string
+}
+
+export interface AiCliViews {
+  claudeCli: AiCliProviderView
+  codexCli: AiCliProviderView
+}
+
+export interface AiCliSettings {
+  model: string
+}
+
 export interface AiSettingsView {
   active: AiProviderId
   /** Next edit suggestions after a pause in typing, not only on their key. */
   suggestOnIdle: boolean
   anthropic: AiProviderView
   openai: AiProviderView
+  cli?: AiCliViews
 }
 
 /** What Settings changes: the key goes in through its own command. */
 export type AiSettingsChange = Pick<AiSettingsView, 'active' | 'suggestOnIdle'> &
-  Record<AiProviderId, Pick<AiProviderView, 'endpoint' | 'model'>>
+  Record<AiApiProviderId, Pick<AiProviderView, 'endpoint' | 'model'>> &
+  Partial<Record<AiCliProviderId, AiCliSettings>>
+
+function asCliProviderView(value: unknown): AiCliProviderView | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { state, model } = value as Record<string, unknown>
+  if (
+    (state !== 'ready' && state !== 'signedOut' && state !== 'notInstalled') ||
+    typeof model !== 'string'
+  ) {
+    return undefined
+  }
+  return { state, model }
+}
+
+function asCliViews(value: unknown): AiCliViews | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { claudeCli, codexCli } = value as Record<string, unknown>
+  const c = asCliProviderView(claudeCli)
+  const x = asCliProviderView(codexCli)
+  if (!c || !x) return undefined
+  return { claudeCli: c, codexCli: x }
+}
 
 function asProviderView(value: unknown): AiProviderView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
@@ -156,9 +202,20 @@ function asProviderView(value: unknown): AiProviderView | undefined {
 
 export function asAiSettingsView(value: unknown): AiSettingsView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { active, suggestOnIdle, anthropic, openai } = value as Record<string, unknown>
+  const { active, suggestOnIdle, anthropic, openai, cli } = value as Record<string, unknown>
   const a = asProviderView(anthropic)
   const o = asProviderView(openai)
   if (!isProvider(active) || !a || !o) return undefined
+  if (cli !== undefined) {
+    const parsedCli = asCliViews(cli)
+    if (!parsedCli) return undefined
+    return {
+      active,
+      suggestOnIdle: suggestOnIdle === true,
+      anthropic: a,
+      openai: o,
+      cli: parsedCli,
+    }
+  }
   return { active, suggestOnIdle: suggestOnIdle === true, anthropic: a, openai: o }
 }

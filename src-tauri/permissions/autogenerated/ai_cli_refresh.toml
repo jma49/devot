@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-cli-refresh"
+description = "Enables the ai_cli_refresh command without any pre-configured scope."
+commands.allow = ["ai_cli_refresh"]
+
+[[permission]]
+identifier = "deny-ai-cli-refresh"
+description = "Denies the ai_cli_refresh command without any pre-configured scope."
+commands.deny = ["ai_cli_refresh"]

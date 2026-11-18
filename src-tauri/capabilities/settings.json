@@ -48,6 +48,7 @@
     "allow-ai-settings-set",
     "allow-ai-key-set",
     "allow-ai-key-clear",
+    "allow-ai-cli-refresh",
     "allow-http-api-get",
     "allow-http-api-set",
     "allow-http-api-token-rotate",

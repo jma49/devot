@@ -18,6 +18,8 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
   E_AI_REQUEST_REJECTED: 'failure.serverRefused',
   E_SYNC_TOKEN_REFUSED: 'failure.serverRefused',
   E_AI_PROVIDER_UNAVAILABLE: 'failure.serverUnavailable',
+  E_AI_CLI_MISSING: 'failure.cliMissing',
+  E_AI_AUTH_FAILED: 'failure.aiAuth',
   E_APP_STORE_UPSTREAM: 'failure.serverUnavailable',
   E_APP_STORE_UNAVAILABLE: 'failure.serverUnavailable',
   E_APP_STORE_PRODUCT_UNAVAILABLE: 'failure.serverUnavailable',

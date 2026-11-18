@@ -188,7 +188,8 @@ describe('Tauri command permissions', () => {
     const settings = capabilities().filter((c) => c.windows.includes('settings'))
     // It hears changes made in the main window (Cmd+= and Cmd+-) as events.
     expect(settings.flatMap(permissionIds).sort()).toEqual([
-      // Settings > AI sets the endpoints and models, and puts keys in; none comes back out.
+      // Settings > AI sets the endpoints and models, refreshes detected CLIs, and puts keys in; none comes back out.
+      'allow-ai-cli-refresh',
       'allow-ai-key-clear',
       'allow-ai-key-set',
       'allow-ai-settings-get',
@@ -526,7 +527,7 @@ describe('Tauri command permissions', () => {
   it('lets only the main window generate, the main and Settings windows read the settings, and only the Settings window set providers and keys', () => {
     expect(windowsWith('allow-ai-generate')).toEqual(['main'])
     expect(windowsWith('allow-ai-settings-get')).toEqual(['main', 'settings'])
-    for (const command of ['settings-set', 'key-set', 'key-clear']) {
+    for (const command of ['settings-set', 'key-set', 'key-clear', 'cli-refresh']) {
       expect(windowsWith(`allow-ai-${command}`)).toEqual(['settings'])
     }
   })

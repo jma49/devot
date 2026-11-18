@@ -110,6 +110,82 @@ public enum L10n {
     text("aiSettings.provider.openai", "OpenAI-compatible")
   }
 
+  public static func aiSettingsProviderClaudeCli() -> String {
+    text("aiSettings.provider.claudeCli", "Claude Code")
+  }
+
+  public static func aiSettingsProviderCodexCli() -> String {
+    text("aiSettings.provider.codexCli", "Codex")
+  }
+
+  public static func aiSettingsLocalTitle() -> String {
+    text("aiSettings.localTitle", "On This Mac")
+  }
+
+  public static func aiSettingsLocalFootnote() -> String {
+    text("aiSettings.localFootnote", "Devot detects Claude Code and Codex installed on this Mac and uses your existing sign-in, with no API key needed. Tools run without file access or extensions, and receive only notes from notebooks with Allow AI Access on.")
+  }
+
+  public static func aiSettingsCliReady() -> String {
+    text("aiSettings.cliReady", "Ready")
+  }
+
+  public static func aiSettingsCliSignedOut() -> String {
+    text("aiSettings.cliSignedOut", "Sign-in needed")
+  }
+
+  public static func aiSettingsCliNotInstalled() -> String {
+    text("aiSettings.cliNotInstalled", "Not installed")
+  }
+
+  public static func aiSettingsCliUse() -> String {
+    text("aiSettings.cliUse", "Use")
+  }
+
+  public static func aiSettingsCliActive() -> String {
+    text("aiSettings.cliActive", "Active")
+  }
+
+  public static func aiSettingsCliUseLabel(provider p0: String) -> String {
+    fill(text("aiSettings.cliUseLabel", "Use {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsCliActiveLabel(provider p0: String) -> String {
+    fill(text("aiSettings.cliActiveLabel", "{provider} is active"), ["provider": p0])
+  }
+
+  public static func aiSettingsCliModelLabel(provider p0: String) -> String {
+    fill(text("aiSettings.cliModelLabel", "{provider} model"), ["provider": p0])
+  }
+
+  public static func aiSettingsCliModelHint() -> String {
+    text("aiSettings.cliModelHint", "Optional model override. Leave empty for the tool’s default.")
+  }
+
+  public static func aiSettingsCliModelDefault() -> String {
+    text("aiSettings.cliModelDefault", "Default")
+  }
+
+  public static func aiSettingsCliRefreshTitle() -> String {
+    text("aiSettings.cliRefreshTitle", "Installed Tools")
+  }
+
+  public static func aiSettingsCliRefreshHint() -> String {
+    text("aiSettings.cliRefreshHint", "Check again after installing or signing in to Claude Code or Codex.")
+  }
+
+  public static func aiSettingsCliRefresh() -> String {
+    text("aiSettings.cliRefresh", "Refresh")
+  }
+
+  public static func aiSettingsCliRefreshing() -> String {
+    text("aiSettings.cliRefreshing", "Checking…")
+  }
+
+  public static func aiSettingsCliRefreshed() -> String {
+    text("aiSettings.cliRefreshed", "Checked installed AI tools.")
+  }
+
   public static func aiSettingsEndpoint() -> String {
     text("aiSettings.endpoint", "Endpoint")
   }
@@ -322,12 +398,16 @@ public enum L10n {
     text("aiEdit.reason.noKey", "No AI provider is set up. Add a key in Settings > AI.")
   }
 
+  public static func aiEditReasonCliMissing() -> String {
+    text("aiEdit.reason.cliMissing", "The selected AI tool is not installed on this Mac. Check Settings > AI.")
+  }
+
   public static func aiEditReasonNoModel() -> String {
     text("aiEdit.reason.noModel", "The AI provider has no model set. Choose one in Settings > AI.")
   }
 
   public static func aiEditReasonAuth() -> String {
-    text("aiEdit.reason.auth", "The AI provider refused the key. Check it in Settings > AI.")
+    text("aiEdit.reason.auth", "The AI provider refused the key or needs sign-in. Check Settings > AI.")
   }
 
   public static func aiEditReasonRateLimited() -> String {
@@ -488,6 +568,14 @@ public enum L10n {
 
   public static func failureServerUnavailable() -> String {
     text("failure.serverUnavailable", "The server is not available now. Try again later.")
+  }
+
+  public static func failureCliMissing() -> String {
+    text("failure.cliMissing", "The AI tool is not installed on this Mac.")
+  }
+
+  public static func failureAiAuth() -> String {
+    text("failure.aiAuth", "Check the key or sign-in in Settings > AI.")
   }
 
   public static func failurePluginNeedsNewerDevot() -> String {

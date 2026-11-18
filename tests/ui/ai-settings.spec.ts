@@ -206,3 +206,82 @@ test('a refused key is reported beside its own field', async ({ page }) => {
   await field.fill('another')
   await expect(error).toHaveCount(0)
 })
+
+test('discovers local CLI providers On This Mac, refreshes login status, switches active provider and saves a model override', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const w = window
+    const provider = (endpoint: string, model: string, defaultModel: string) => ({
+      endpoint,
+      model,
+      defaultEndpoint: endpoint,
+      defaultModel,
+      key: 'unset',
+    })
+    const state: Record<string, any> = {
+      active: 'claudeCli',
+      suggestOnIdle: false,
+      anthropic: provider('https://api.anthropic.com', 'claude-sonnet-5-5', 'claude-sonnet-5-5'),
+      openai: provider('https://api.openai.com/v1', '', ''),
+      cli: {
+        claudeCli: { state: 'ready', model: '' },
+        codexCli: { state: 'signedOut', model: '' },
+      },
+    }
+    const copy = () => JSON.parse(JSON.stringify(state))
+    w.devotIpcMocks = {
+      ai_settings_get: () => copy(),
+      ai_settings_set: (args: { settings: Record<string, any> }) => {
+        for (const id of ['anthropic', 'openai']) {
+          state[id].endpoint = args.settings[id].endpoint
+          state[id].model = args.settings[id].model
+        }
+        if (args.settings['claudeCli'])
+          state['cli'].claudeCli.model = args.settings['claudeCli'].model
+        if (args.settings['codexCli']) state['cli'].codexCli.model = args.settings['codexCli'].model
+        state['active'] = args.settings['active']
+        state['suggestOnIdle'] = args.settings['suggestOnIdle']
+        return copy()
+      },
+      ai_cli_refresh: () => {
+        state['cli'].codexCli.state = 'ready'
+        return copy()
+      },
+    }
+  })
+
+  await openSettings(page, 'AI')
+  const panel = page.getByRole('tabpanel')
+  const local = panel.getByRole('region', { name: 'On This Mac' })
+  const claudeRow = local.getByRole('group', { name: 'Claude Code' })
+  const codexRow = local.getByRole('group', { name: 'Codex' })
+
+  await expect(claudeRow).toContainText('Ready')
+  await expect(claudeRow.locator('.client-state-dot')).toHaveAttribute('data-state', 'ready')
+  await expect(claudeRow.getByRole('button', { name: 'Claude Code is active' })).toBeDisabled()
+  await expect(codexRow).toContainText('Sign-in needed')
+  await expect(codexRow.locator('.client-state-dot')).toHaveAttribute('data-state', 'signedOut')
+  await expect(codexRow.getByRole('button', { name: 'Use Codex' })).toBeDisabled()
+  await expect(panel.getByRole('combobox', { name: 'Provider' })).toHaveValue('claudeCli')
+
+  await local.getByRole('button', { name: 'Refresh' }).click()
+  await expect(codexRow).toContainText('Ready')
+  await expect(codexRow.getByRole('button', { name: 'Use Codex' })).toBeEnabled()
+
+  await codexRow.getByRole('button', { name: 'Use Codex' }).click()
+  await expect(panel.getByRole('combobox', { name: 'Provider' })).toHaveValue('codexCli')
+  await expect(codexRow.getByRole('button', { name: 'Codex is active' })).toBeDisabled()
+
+  const codexModel = local.getByRole('textbox', { name: 'Codex model' })
+  await codexModel.fill('gpt-5.4')
+  await codexModel.press('Enter')
+  await expect
+    .poll(async () => (await calls(page, 'ai_settings_set')).at(-1))
+    .toMatchObject({
+      settings: {
+        active: 'codexCli',
+        codexCli: { model: 'gpt-5.4' },
+      },
+    })
+})

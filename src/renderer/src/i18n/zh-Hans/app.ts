@@ -8,6 +8,8 @@ export const messages: Record<keyof typeof en, string> = {
   'failure.addressRefused': 'Devot 不会连接到这个地址。',
   'failure.serverRefused': '服务器拒绝了请求。',
   'failure.serverUnavailable': '服务器现在不可用。请稍后再试。',
+  'failure.cliMissing': '这台 Mac 上未安装该 AI 工具。',
+  'failure.aiAuth': '请在“设置 > AI”中检查密钥或登录状态。',
   'failure.pluginNeedsNewerDevot': '它需要更新版本的 Devot。',
   'failure.pluginTooOld': '它是为旧版 Devot 编写的，当前版本已不再运行它。',
   'notice.undo': '撤销',

@@ -10,19 +10,27 @@ pub const MAX_INPUT_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_MODEL_CHARS: usize = 200;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum ProviderId {
     Anthropic,
     Openai,
+    ClaudeCli,
+    CodexCli,
 }
 
 impl ProviderId {
-    pub const ALL: [ProviderId; 2] = [ProviderId::Anthropic, ProviderId::Openai];
+    pub const HTTP: [ProviderId; 2] = [ProviderId::Anthropic, ProviderId::Openai];
+
+    pub fn is_cli(self) -> bool {
+        matches!(self, ProviderId::ClaudeCli | ProviderId::CodexCli)
+    }
 
     pub fn as_str(self) -> &'static str {
         match self {
             ProviderId::Anthropic => "anthropic",
             ProviderId::Openai => "openai",
+            ProviderId::ClaudeCli => "claudeCli",
+            ProviderId::CodexCli => "codexCli",
         }
     }
 }
@@ -135,10 +143,11 @@ pub trait Provider: Sync {
     fn event(&self, data: &str, into: &mut Partial) -> Result<String, &'static str>;
 }
 
-pub fn provider(id: ProviderId) -> &'static dyn Provider {
+pub fn provider(id: ProviderId) -> Option<&'static dyn Provider> {
     match id {
-        ProviderId::Anthropic => &super::anthropic::Anthropic,
-        ProviderId::Openai => &super::openai::OpenAi,
+        ProviderId::Anthropic => Some(&super::anthropic::Anthropic),
+        ProviderId::Openai => Some(&super::openai::OpenAi),
+        ProviderId::ClaudeCli | ProviderId::CodexCli => None,
     }
 }
 
