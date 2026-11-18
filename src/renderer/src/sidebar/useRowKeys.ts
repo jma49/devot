@@ -13,6 +13,7 @@ import {
   searchRow,
   STATUSES,
   todayRow,
+  unseenAgentsFilter,
   visibleRows,
   WORKSPACE_ROW,
   type Row,
@@ -68,6 +69,9 @@ export function useRowKeys({
   // The arrow keys move through every row in the order shown, and the sidebar is one tab stop: the row of the view shown.
   const rowOrder: Row[] = [
     libraryRow(allSelection),
+    ...(props.unseenAgents && props.unseenAgents.count > 0
+      ? [filterRowOf(unseenAgentsFilter(props.unseenAgents.noteIds))]
+      : []),
     ...(ws || !props.onOpenToday ? [] : [todayRow()]),
     ...(ws ? [] : [filterRowOf({ kind: 'pinned' }), libraryRow({ kind: 'templates' })]),
     ...(booksShown ? rowList.map((n) => libraryRow({ kind: 'book', id: n.id })) : []),
@@ -118,6 +122,7 @@ export function useRowKeys({
       key === allKey ||
       key === WORKSPACE_ROW ||
       key === 'today' ||
+      key === 'unseen' ||
       key === 'pinned' ||
       key === 'templates' ||
       key === 'trash' ||

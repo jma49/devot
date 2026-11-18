@@ -67,6 +67,8 @@ export const messages = {
   'noteInfo.tasksOther': '{done} of {count} tasks',
   'noteInfo.created': 'Created',
   'noteInfo.updated': 'Updated',
+  'noteInfo.aiAccessOn': 'On',
+  'noteInfo.aiAccessOff': 'Off',
   'noteInfo.editDateNamed': '{field}: {date}. Change the date',
   'noteInfo.dateIncomplete': 'Enter a complete date and time.',
   'noteInfo.timeSkipped': 'This time doesn’t exist on this day because the clocks change.',

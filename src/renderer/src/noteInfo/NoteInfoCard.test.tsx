@@ -353,4 +353,34 @@ describe('the date picker', () => {
     expect(warn).toHaveBeenCalledWith('W_NOTE_DATES_FAILED', info.noteId)
     warn.mockRestore()
   })
+
+  it("shows the notebook's Allow AI Access as a switch that turns it the other way", () => {
+    const toggle = vi.fn<() => void>()
+    show({ aiAccess: { state: 'off', onToggle: toggle } })
+    const sw = document.querySelector('[role="switch"]')
+    expect(sw?.getAttribute('aria-checked')).toBe('false')
+    // The state is the switch's own (aria-checked), so its name is the setting alone.
+    expect(sw?.getAttribute('aria-label')).toBe('Allow AI Access')
+    expect(sw?.querySelector('.note-info-value')?.getAttribute('aria-hidden')).toBe('true')
+    expect(sw?.textContent).toContain('Off')
+    click(sw)
+    expect(toggle).toHaveBeenCalledTimes(1)
+  })
+
+  it('says a note in no notebook has no AI access, with nothing to turn on', () => {
+    show({ aiAccess: { state: 'noBook' } })
+    expect(document.querySelector('[role="switch"]')).toBeNull()
+    const row = document.querySelector('[data-info="aiAccess"]')
+    expect(row?.querySelector('.note-info-value')?.textContent).toBe(
+      'Assign a notebook to allow AI access',
+    )
+    expect(row?.hasAttribute('title')).toBe(false)
+  })
+
+  it('shows the switch on but unchangeable without a way to change it', () => {
+    show({ aiAccess: { state: 'on' } })
+    const sw = document.querySelector('[role="switch"]')
+    expect(sw?.getAttribute('aria-checked')).toBe('true')
+    expect(sw?.hasAttribute('disabled')).toBe(true)
+  })
 })

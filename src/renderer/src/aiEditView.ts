@@ -22,6 +22,7 @@ const REASONS: Record<string, MessageKey> = {
   E_AI_SELECTION_TOO_LARGE: 'aiEdit.reason.tooLarge',
   E_AI_PROPOSAL_STALE: 'aiEdit.reason.stale',
   E_AI_REFUSED: 'aiEdit.reason.refused',
+  E_AI_CANCELLED: 'aiEdit.reason.cancelled',
 }
 
 /** Asking again cannot help until the user changes something elsewhere (a notebook switch, a key, the selection). */

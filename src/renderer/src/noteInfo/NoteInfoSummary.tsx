@@ -23,6 +23,7 @@ import type { NoteInfoData } from './infoCard'
 import {
   NoteInfoCard,
   type Backlink,
+  type NoteAiAccess,
   type SetNoteDates,
   type UnlinkedMention,
 } from './NoteInfoCard'
@@ -153,6 +154,7 @@ export interface NoteInfoSummaryProps {
   onApplyFrontMatter?: ((change: FrontMatterChange) => void) | undefined
   /** Whether notes can be changed, so a mention can be made a link. */
   canLinkMentions?: boolean | undefined
+  aiAccess?: NoteAiAccess | undefined
 }
 
 /**
@@ -242,6 +244,7 @@ export function NoteInfoSummary(props: NoteInfoSummaryProps) {
       }
       onSetDates={props.onSetDates}
       onApplyFrontMatter={props.onApplyFrontMatter}
+      aiAccess={props.aiAccess}
       inline={props.inline || !!props.inspectorPanel}
       propertyEditor={
         head && props.editor ? (

@@ -10,6 +10,7 @@ import { IMPORT_FAILED, pickImport } from '../importer'
 import type { PaletteSource } from '../palette/results'
 import { Sidebar, type Selection, type SidebarMenus } from '../Sidebar'
 import { useStable } from '../stable'
+import { markAllWritesSeen } from './markAllWritesSeen'
 import type { Confirm } from './useConfirm'
 import type { LibraryChanges } from './useLibraryChanges'
 import type { LibraryLists } from './useLibraryLists'
@@ -58,7 +59,9 @@ export function useLibrarySidebar({
   const { notes, books, tags, templates, trash } = lists
   const { counts, workspaceNode, sidebarTree, searchingAll, libraryBook, inTrash, inTemplates } =
     view
-  const { library, activeFilter, pinnedCount, statuses, agents, sidebarTags, sidebarTagged } = view
+  const { library, activeFilter, pinnedCount, statuses, agents, unseenAgents, unseenWritesByNote } =
+    view
+  const { agentWrites, sidebarTags, sidebarTagged } = view
   const { sidebarWorkspace, savedSearchRows } = view
   const { showLibrary, showFilter, workspaceUp, stableOpenWorkspace } = viewChanges
   const { changeBooks, createBook, moveNotes, putTagOnNotes, trashNotes } = libraryChanges
@@ -139,6 +142,14 @@ export function useLibrarySidebar({
   })
   const sidebarOpenToday = useStable(() => void openToday())
   const sidebarWorkspaceUp = useStable(() => workspaceUp())
+  const sidebarMarkAllAgentWritesSeen = useStable(() => {
+    if (!core || unseenWritesByNote.size === 0) return
+    void markAllWritesSeen(
+      (noteId, writeIds) => core.markWritesSeen(noteId, writeIds),
+      unseenWritesByNote,
+      () => agentWrites.reload(),
+    )
+  })
   const sidebarDeleteTag = useStable((id: string) =>
     setConfirm({
       kind: 'tag',
@@ -174,6 +185,8 @@ export function useLibrarySidebar({
       pinnedCount={pinnedCount}
       statusCounts={statuses}
       agents={agents}
+      unseenAgents={unseenAgents}
+      onMarkAllAgentWritesSeen={sidebarMarkAllAgentWritesSeen}
       tags={sidebarTags}
       tagCounts={sidebarTagged}
       onRenameTag={sidebarRenameTag}

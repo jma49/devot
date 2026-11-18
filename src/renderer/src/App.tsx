@@ -397,6 +397,8 @@ export function App() {
     multiIds,
     selectedIsTemplate,
     mode,
+    setMode,
+    editorMode: modes.editorMode,
     agentWrites,
     shown,
     editorRef,

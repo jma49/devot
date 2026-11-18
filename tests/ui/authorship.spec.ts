@@ -625,3 +625,120 @@ test('once the trial is over without a licence, Undo All and Clear Authorship ar
   await expect(notice(page).getByRole('button', { name: 'Review Changes' })).toBeEnabled()
   expect(await openNoteMore(page)).not.toContain('Clear Authorship…')
 })
+
+const modeButton = (page: Page, name: string) =>
+  page.getByRole('group', { name: 'View mode' }).getByRole('button', { name, exact: true })
+
+test('Keep marks one change seen and moves on, Undo takes out only that change, and a deletion shows what it removed', async ({
+  page,
+}) => {
+  await seed(page, [
+    {
+      id: PLAN,
+      title: 'Plan',
+      owner: 'Owner intro.\nRemove me.\n',
+      edits: [
+        { writer: CLAUDE, markdown: 'Owner intro.\nRemove me.\nClaude paragraph.\n' },
+        { writer: CLAUDE, markdown: 'Owner intro.\nClaude paragraph.\n' },
+        { writer: CODEX, markdown: 'Owner intro.\nClaude paragraph.\nCodex line.\n' },
+      ],
+      seen: 1,
+    },
+  ])
+  await noteRow(page, 'Plan').click()
+  await expect(notice(page)).toContainText('2 changes by')
+  await notice(page).getByRole('button', { name: 'Review Changes' }).click()
+  const status = notice(page).getByRole('status')
+  await expect(status).toHaveText(/^Change 1 of 2: Claude Code \(MCP\) deleted text here, /)
+  await expect(notice(page).getByRole('region', { name: 'Deleted text' })).toHaveText('Remove me.')
+
+  await notice(page).getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(body(page)).toContainText('Remove me.')
+  await expect(status).toHaveText(/^Change 1 of 1: Codex \(MCP\), /)
+  await expect(notice(page).getByRole('region', { name: 'Deleted text' })).toHaveCount(0)
+
+  await notice(page).getByRole('button', { name: 'Keep', exact: true }).click()
+  await expect(notice(page)).toHaveCount(0)
+  // The seen write by the same writer and the kept one stay.
+  await expect(body(page)).toContainText('Claude paragraph.')
+  await expect(body(page)).toContainText('Codex line.')
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (
+          JSON.parse(localStorage.getItem('devot.test.agentWrites') ?? '[]') as { seen: boolean }[]
+        ).map((row) => row.seen),
+      ),
+    )
+    .toEqual([true, true])
+})
+
+test('Review Changes from Preview reviews in the editor, and Done goes back to Preview', async ({
+  page,
+}) => {
+  await seed(page, [PLAN_NOTE])
+  await noteRow(page, 'Plan').click()
+  await modeButton(page, 'Preview').click()
+  await expect(modeButton(page, 'Preview')).toHaveAttribute('aria-pressed', 'true')
+
+  await notice(page).getByRole('button', { name: 'Review Changes' }).click()
+  await expect(modeButton(page, 'Preview')).toHaveAttribute('aria-pressed', 'false')
+  await expect(notice(page).getByRole('status')).toHaveText(/^Change 1 of 2: Claude Code \(MCP\), /)
+  await expect(page.locator('.cm-selectionBackground').first()).toBeVisible()
+  await expect(notice(page).getByRole('button', { name: 'Next Change' })).toBeFocused()
+
+  await notice(page).getByRole('button', { name: 'Done' }).click()
+  await expect(modeButton(page, 'Preview')).toHaveAttribute('aria-pressed', 'true')
+  await expect(notice(page).getByRole('button', { name: 'Review Changes' })).toBeVisible()
+})
+
+test('Unseen Changes sits under All Notes, lists the notes agents changed, and Mark All Read settles them', async ({
+  page,
+}) => {
+  await seed(page, [
+    PLAN_NOTE,
+    { id: OTHER, title: 'Other', owner: 'Other text.\n', edits: [] },
+    { id: THIRD, title: 'Third', owner: 'Third text.\n', edits: [] },
+  ])
+  await httpApi(page, 'notes.update', OTHER, { markdown: 'Other text.\nFrom the API.\n' })
+  const unseen = sidebar(page).getByRole('button', { name: /^Unseen Changes/ })
+  await expect(unseen).toHaveAccessibleName('Unseen Changes 3 unseen changes')
+  const allNotes = (await sidebar(page)
+    .getByRole('button', { name: /^All Notes/ })
+    .boundingBox())!
+  expect((await unseen.boundingBox())!.y).toBeGreaterThan(allNotes.y)
+
+  await unseen.click()
+  await expect(noteRows(page)).toHaveCount(2)
+  await expect(noteRow(page, 'Third')).toHaveCount(0)
+
+  await sidebar(page).getByRole('button', { name: 'Mark All Read' }).click()
+  await expect(unseen).toHaveCount(0)
+  await expect(noteRows(page)).toHaveCount(3)
+  await expect(noteRow(page, 'Plan')).not.toContainText('changed by')
+  await expect(noteRow(page, 'Other')).not.toContainText('changed by')
+})
+
+test('Note Info shows the notebook’s Allow AI Access, and turns it off and on', async ({
+  page,
+}) => {
+  await seed(page, [PLAN_NOTE])
+  await noteRow(page, 'Plan').click()
+  await page.locator('.note-meta .note-summary').click()
+  const access = page
+    .getByRole('dialog', { name: 'Note info' })
+    .getByRole('switch', { name: 'Allow AI Access', exact: true })
+  await expect(access).toHaveAttribute('aria-checked', 'true')
+  const stored = () =>
+    page.evaluate(
+      () =>
+        (JSON.parse(localStorage.getItem('devot.test.books') ?? '[]') as { aiAccess: boolean }[])[0]
+          ?.aiAccess,
+    )
+  await access.click()
+  await expect(access).toHaveAttribute('aria-checked', 'false')
+  await expect.poll(stored).toBe(false)
+  await access.click()
+  await expect(access).toHaveAttribute('aria-checked', 'true')
+  await expect.poll(stored).toBe(true)
+})

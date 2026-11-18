@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -11,7 +12,7 @@ use serde_json::{Value, json};
 use super::keychain::{KeyStore, MemoryKeys};
 use super::provider::{GenerateRequest, Message, ProviderId, Role, Stop};
 use super::settings::{AiSettings, FILE, SettingsStore};
-use super::{Ai, KeyState, Snapshot};
+use super::{Ai, KeyState, Snapshot, StreamKey, Streams};
 use crate::licence::Gate;
 
 const KEY: &str = "test-key-0123456789";
@@ -944,6 +945,7 @@ impl super::cli::CliBackend for StubCli {
         model: &str,
         request: &super::provider::Prepared<'_>,
         _timeout: Duration,
+        cancelled: &dyn Fn() -> bool,
         on_text: &mut dyn FnMut(&str) -> bool,
     ) -> Result<super::cli::CliDone, &'static str> {
         self.runs
@@ -954,6 +956,9 @@ impl super::cli::CliBackend for StubCli {
             Ok((used_model, chunks)) => {
                 let mut text = String::new();
                 for chunk in chunks {
+                    if cancelled() {
+                        return Err("E_AI_CANCELLED");
+                    }
                     text.push_str(&chunk);
                     if request.stream && !on_text(&chunk) {
                         return Err("E_AI_CANCELLED");
@@ -1056,6 +1061,7 @@ fn concurrent_refresh_cli_is_never_overwritten_by_earlier_probe() {
             _: &str,
             _: &super::provider::Prepared<'_>,
             _: Duration,
+            _: &dyn Fn() -> bool,
             _: &mut dyn FnMut(&str) -> bool,
         ) -> Result<super::cli::CliDone, &'static str> {
             Err("E_AI_PROVIDER_UNAVAILABLE")
@@ -1161,4 +1167,126 @@ fn cli_providers_enforce_gates_stream_and_refuse_api_keys() {
         ai.clear_key(ProviderId::CodexCli).unwrap_err(),
         "E_AI_REQUEST_INVALID"
     );
+}
+
+#[test]
+fn cancel_stream_stops_active_http_stream_and_validates_id() {
+    use std::sync::mpsc;
+
+    let dir = tempfile::tempdir().unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+
+    let store = SettingsStore::new(&dir.path().join(FILE));
+    let mut s = store.get();
+    s.active = ProviderId::Anthropic;
+    s.anthropic.endpoint = base;
+    store.set(s).unwrap();
+    let keys = Arc::new(MemoryKeys::default());
+    keys.set(ProviderId::Anthropic, KEY).unwrap();
+    let ai = Arc::new(Ai::new(store, keys, Gate::open()));
+
+    assert_eq!(
+        ai.cancel_stream(&key(0)).unwrap_err(),
+        "E_AI_REQUEST_INVALID"
+    );
+    assert!(!ai.cancel_stream(&key(99)).unwrap());
+    assert_eq!(
+        ai.stream_with_id(Some(key(0)), &ask(), |_| true)
+            .unwrap_err(),
+        "E_AI_REQUEST_INVALID"
+    );
+
+    let (release_tx, release_rx) = mpsc::sync_channel::<()>(1);
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let _ = read_request(&mut socket);
+        let first = sse(&[
+            json!({"type": "content_block_delta", "delta": {"type": "text_delta", "text": "one"}}),
+        ]);
+        let head = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n{first}"
+        );
+        socket.write_all(head.as_bytes()).unwrap();
+        socket.flush().unwrap();
+        let _ = release_rx.recv_timeout(Duration::from_secs(2));
+        let rest = streamed(ProviderId::Anthropic, &["two"], "end_turn", true);
+        let _ = socket.write_all(rest.as_bytes());
+        let _ = socket.flush();
+    });
+
+    let (first_tx, first_rx) = mpsc::sync_channel::<String>(1);
+    let ai_run = Arc::clone(&ai);
+    let worker = std::thread::spawn(move || {
+        ai_run.stream_with_id(Some(key(42)), &ask(), |piece| {
+            let _ = first_tx.send(piece.to_string());
+            true
+        })
+    });
+
+    assert_eq!(
+        first_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+        "one"
+    );
+    assert_eq!(ai.cancel_stream(&key(42)), Ok(true));
+    let _ = release_tx.send(());
+
+    assert_eq!(worker.join().unwrap().unwrap_err(), "E_AI_CANCELLED");
+    server.join().unwrap();
+    assert_eq!(ai.cancel_stream(&key(42)), Ok(false));
+    // A cancel for a stream that already ended is not kept for a later one: only 99 waits.
+    assert_eq!(ai.early_cancels(), 1);
+}
+
+#[test]
+fn a_cancel_that_arrives_before_the_stream_starts_still_stops_it() {
+    let server = Mock::replying(500, "");
+    let app = setup(ProviderId::Anthropic, &server.base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+
+    assert_eq!(app.ai.cancel_stream(&key(7)), Ok(false));
+    assert_eq!(
+        app.ai
+            .stream_with_id(Some(key(7)), &ask(), |_| true)
+            .unwrap_err(),
+        "E_AI_CANCELLED"
+    );
+    assert_eq!(server.hits(), 0);
+
+    for early in 100..300 {
+        app.ai.cancel_stream(&key(early)).unwrap();
+    }
+    assert!(app.ai.early_cancels() <= 64);
+}
+
+fn key(id: u64) -> StreamKey {
+    StreamKey::new("main", id)
+}
+
+#[test]
+fn streams_of_two_windows_with_one_number_stay_apart() {
+    let mut streams = Streams::default();
+    let a = StreamKey::new("main", 5);
+    let b = StreamKey::new("main-2", 5);
+    let flag_a = streams.register(&a).unwrap();
+    let flag_b = streams.register(&b).unwrap();
+    assert!(streams.cancel(&a));
+    assert!(flag_a.load(Ordering::SeqCst));
+    assert!(!flag_b.load(Ordering::SeqCst));
+    streams.finish(&a, &flag_a);
+    assert!(streams.cancel(&b));
+    assert!(flag_b.load(Ordering::SeqCst));
+}
+
+#[test]
+fn a_cancel_after_a_stream_ended_stops_no_later_stream() {
+    let mut streams = Streams::default();
+    let ended = StreamKey::new("main", 9);
+    let flag = streams.register(&ended).unwrap();
+    streams.finish(&ended, &flag);
+    assert!(!streams.cancel(&ended));
+    let again = streams
+        .register(&ended)
+        .expect("a late cancel is not an early one");
+    assert!(!again.load(Ordering::SeqCst));
 }

@@ -138,6 +138,7 @@ export const messages = {
   'note.bookLabel': 'Notebook',
   'note.bookValue': 'Notebook: {book}',
   'note.noBook': 'No Notebook',
+  'note.aiAccessNoBook': 'Assign a notebook to allow AI access',
   'noteList.label': 'Notes',
   'noteList.newNote': 'New Note',
   'noteList.countOne': '{count} note',

@@ -356,6 +356,7 @@ const coreApi = {
     required().appendToNote(id, text, options),
   undoAgentWrites: (id: string, writer: { kind: WriterKind; names: readonly string[] }) =>
     required().undoAgentWrites(id, writer),
+  undoAgentWrite: (id: string, writeId: string) => required().undoAgentWrite(id, writeId),
   clearAuthorship: (id: string) => required().clearAuthorship(id),
   agentWrites: (limit: number) => required().agentWrites(limit),
   authoredNotes: () => required().authoredNotes(),

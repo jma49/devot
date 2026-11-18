@@ -161,18 +161,29 @@ export interface AiEditSource {
   selection: string
 }
 
+export interface AiEditOptions {
+  onProgress?: (chunk: string) => void
+  signal?: AbortSignal
+}
+
 /** Asks the active provider through the access rule (createAiGenerator); E_AI_ACCESS_DENIED for a note in no notebook, E_AI_REPLY_CUT_OFF when the reply hit the token cap, E_AI_REPLY_EMPTY. */
 export async function proposeAiEdit(
   generator: AiGenerator,
   source: AiEditSource,
   ask: AiEditAsk,
+  options?: AiEditOptions,
 ): Promise<AiProposal> {
   if (source.bookId === null) throw new Error('E_AI_ACCESS_DENIED')
   const input = aiEditInput(ask, source.selection)
-  const generated = await generator.generate(input, {
-    by: 'user',
-    books: [source.bookId],
-  })
+  const generated = await generator.generate(
+    input,
+    {
+      by: 'user',
+      books: [source.bookId],
+    },
+    options?.onProgress,
+    options?.signal,
+  )
   if (generated.stop === 'maxTokens') throw new Error('E_AI_REPLY_CUT_OFF')
   const replacement = cleanAiReply(generated.text, source.selection, ask)
   if (replacement === '') throw new Error('E_AI_REPLY_EMPTY')

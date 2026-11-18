@@ -135,7 +135,13 @@ export const messages = {
   'authorship.stepDeletion': 'Change {index} of {count}: {writer} deleted text here, {time}',
   'authorship.previous': 'Previous Change',
   'authorship.next': 'Next Change',
+  'authorship.keep': 'Keep',
+  'authorship.undo': 'Undo',
+  'authorship.undoWhole': 'Undo Whole Edit ({count} Places)',
+  'authorship.undoGroup': 'Undo {count} Edits',
   'authorship.done': 'Done',
+  'authorship.removedLabel': 'Deleted text',
+  'authorship.removedDropped': 'The deleted text is too old to preview.',
   'authorship.noSteps': 'The text these changes wrote is gone.',
   'authorship.undoDropped':
     'Some text the agent deleted was too old to keep, so Undo All could not put it back.',

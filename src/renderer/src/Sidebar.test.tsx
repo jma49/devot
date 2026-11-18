@@ -76,6 +76,7 @@ function render(
       onSearchBooks={noop}
       onSearchTags={noop}
       onEmptyTrash={noop}
+      onMarkAllAgentWritesSeen={noop}
       sectionStore={store}
       {...more}
     />,
@@ -147,6 +148,27 @@ describe('Sidebar sections', () => {
     expect(html).toContain('aria-label="Search Notebooks"')
     expect(html).toContain('aria-label="Search Tags"')
     expect(html).toContain('aria-label="New Notebook"')
+  })
+})
+
+describe('Unseen agent changes in the sidebar', () => {
+  it('shows no row while every agent change has been seen', () => {
+    const html = render(sectionStore(memoryStorage(), 'main'), [book], {
+      unseenAgents: { count: 0, noteIds: new Set() },
+    })
+    expect(html).not.toContain('Unseen Changes')
+    expect(html).not.toContain('Mark All Read')
+  })
+
+  it('shows the unseen count right under All Notes, with Mark All Read', () => {
+    const html = render(sectionStore(memoryStorage(), 'main'), [book], {
+      unseenAgents: { count: 3, noteIds: new Set(['n1', 'n2']) },
+    })
+    const found = order(html, ['All Notes', 'Unseen Changes', 'Pinned'])
+    expect(found.every(([, at]) => at >= 0)).toBe(true)
+    const positions = found.map(([, at]) => at)
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
+    expect(html).toContain('aria-label="Mark All Read"')
   })
 })
 

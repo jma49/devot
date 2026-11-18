@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentWriteSummary } from '../../core/storage'
-import { agentWritesView, MAX_AGENTS_LISTED, sameSummaries, unseenOf } from './agentWrites'
+import { agentWritesView, inNotes, MAX_AGENTS_LISTED, sameSummaries, unseenOf } from './agentWrites'
 
 const row = (
   noteId: string,
@@ -49,6 +49,17 @@ describe('agentWritesView', () => {
     const view = agentWritesView([row('a', 50, 'mcp', 'Claude Code', true)], ['a', 'old'])
     expect([...view.authored]).toEqual(['a', 'old'])
     expect(view.byNote.has('old')).toBe(false)
+  })
+
+  it('tracks total unseen outside writes and scopes them per workspace', () => {
+    const mixed = [row('a', 60, 'aiEdit', '', false), ...rows]
+    const view = agentWritesView(mixed)
+    expect(view.unseenCount).toBe(3)
+    expect([...view.unseenNoteIds].sort()).toEqual(['a', 'b', 'c'])
+
+    const scoped = inNotes(view, new Set(['a', 'b']))
+    expect(scoped.unseenCount).toBe(2)
+    expect([...scoped.unseenNoteIds].sort()).toEqual(['a', 'b'])
   })
 
   it('lists a bounded number of agents', () => {

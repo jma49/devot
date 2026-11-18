@@ -102,6 +102,9 @@ export interface SidebarProps {
   statusCounts: ReadonlyMap<NoteStatus, number>
   /** The Agents section (ADR 0007): the writers of this device's recent agent writes, newest first. */
   agents?: readonly AgentSummary[]
+  /** Unseen outside agent writes (MCP and HTTP API) surfaced near the top for quick triage. */
+  unseenAgents?: { count: number; noteIds: ReadonlySet<string> }
+  onMarkAllAgentWritesSeen: () => void
   tags: readonly TagRecord[]
   tagCounts: ReadonlyMap<string, number>
   onRenameTag: (id: string, name: string) => void
@@ -169,13 +172,21 @@ export function visibleRows(tree: BookNode[], collapsed: ReadonlySet<string>): B
   return out
 }
 
-/** A row the arrow keys move between; its key is `all`, `today`, `pinned`, `book:<id>`, `status:<status>`, `search:<id>`, `tag:<id>`, `agent:<writer>`, `templates` or `trash`. */
+/** A row the arrow keys move between; its key is `all`, `unseen`, `today`, `pinned`, `book:<id>`, `status:<status>`, `search:<id>`, `tag:<id>`, `agent:<writer>`, `templates` or `trash`. */
 export interface Row {
   key: string
   shows: { selection: Selection } | { filter: NoteFilter } | { search: string } | { today: true }
 }
 
 export const todayRow = (): Row => ({ key: 'today', shows: { today: true } })
+
+export const UNSEEN_AGENT_WRITER = '*'
+
+export const unseenAgentsFilter = (noteIds: ReadonlySet<string>): NoteFilter => ({
+  kind: 'agent',
+  writer: UNSEEN_AGENT_WRITER,
+  noteIds,
+})
 
 export const searchRow = (id: string): Row => ({ key: `search:${id}`, shows: { search: id } })
 
@@ -191,7 +202,9 @@ export const filterRowOf = (filter: NoteFilter): Row => ({
       : filter.kind === 'status'
         ? `status:${filter.status}`
         : filter.kind === 'agent'
-          ? `agent:${filter.writer}`
+          ? filter.writer === UNSEEN_AGENT_WRITER
+            ? 'unseen'
+            : `agent:${filter.writer}`
           : `tag:${filter.tagId}`,
   shows: { filter },
 })

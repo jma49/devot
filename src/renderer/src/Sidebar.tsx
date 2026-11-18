@@ -14,7 +14,14 @@ import { currentSectionStore } from './sidebarSections'
 import { bookNode } from './sidebar/bookTree'
 import { sidebarDialogs } from './sidebar/dialogs'
 import { agentsSection, filterRow, tagsSection } from './sidebar/filterSections'
-import { format, libraryRow, STATUSES, type Selection, type SidebarProps } from './sidebar/model'
+import {
+  format,
+  libraryRow,
+  STATUSES,
+  unseenAgentsFilter,
+  type Selection,
+  type SidebarProps,
+} from './sidebar/model'
 import { savedSearchesSection } from './sidebar/savedSearches'
 import { sectionHeader } from './sidebar/sectionHeader'
 import { useDrops } from './sidebar/useDrops'
@@ -161,6 +168,29 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
             <span className="source-count">{format(props.total)}</span>
           </button>
         </li>
+        {props.unseenAgents && props.unseenAgents.count > 0 ? (
+          <li className="unseen-source">
+            {filterRow(
+              view,
+              unseenAgentsFilter(props.unseenAgents.noteIds),
+              'notebook.ai',
+              t('sidebar.unseenChanges'),
+              props.unseenAgents.count,
+              'agent-row unseen-row',
+              undefined,
+              true,
+            )}
+            <button
+              type="button"
+              className="tool tool-small unseen-settle"
+              aria-label={t('sidebar.markAllRead')}
+              title={t('sidebar.markAllRead')}
+              onClick={props.onMarkAllAgentWritesSeen}
+            >
+              <Icon name="check" size="xs" />
+            </button>
+          </li>
+        ) : null}
         {ws ? null : (
           <>
             {props.onOpenToday ? (

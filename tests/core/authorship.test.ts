@@ -13,18 +13,22 @@ import {
   newAuthorshipId,
   newWriter,
   packRanges,
+  PUT_BACK,
   readAllWrites,
   readWriters,
   readWrites,
   recordTransaction,
+  reverseWrite,
   reverseWrites,
   RESTORED,
   reviewSteps,
   UNDONE,
+  undoGroup,
   unpackRanges,
   validWriterName,
   WRITERS,
   WRITES,
+  type ReviewStep,
   type Writer,
 } from '../../src/core/authorship'
 
@@ -543,7 +547,73 @@ describe('Review Changes steps', () => {
     expect(shown(doc)).toEqual(['Zero. ', '2^', '^'])
     const steps = reviewSteps(doc)
     expect(steps.map((s) => s.writeId)).toEqual([added, replaced, cut])
-    expect(steps[2]).toEqual({ writeId: cut, from: 17, to: 17, deleted: true })
+    expect(steps[1]).toEqual({
+      writeId: replaced,
+      from: 10,
+      to: 11,
+      deleted: true,
+      anchor: expect.any(String),
+      end: expect.any(String),
+      removed: 'two',
+    })
+    expect(steps[2]).toEqual({
+      writeId: cut,
+      from: 17,
+      to: 17,
+      deleted: true,
+      anchor: expect.any(String),
+      end: expect.any(String),
+      removed: ' four',
+    })
+  })
+
+  it('carries deleted text per hunk across multi-hunk writes and omits removed when dropped', () => {
+    const doc = docWith('Alpha\nbeta\ngamma\ndelta\n', 7)
+    const multi = applyAgentEdit(doc, {
+      writer: claude,
+      at: 1000,
+      markdown: 'Alpha\ngamma\n',
+    })!
+    const steps = reviewSteps(doc, new Set([multi]))
+    expect(steps).toEqual([
+      {
+        writeId: multi,
+        from: 6,
+        to: 6,
+        deleted: true,
+        anchor: '7:6',
+        end: '7:10',
+        removed: 'beta\n',
+      },
+      {
+        writeId: multi,
+        from: 12,
+        to: 12,
+        deleted: true,
+        anchor: '7:17',
+        end: '7:22',
+        removed: 'delta\n',
+      },
+    ])
+
+    const droppedDoc = docWith('One alpha two.\n')
+    const droppedWrite = applyAgentEdit(droppedDoc, {
+      writer: claude,
+      at: 1000,
+      markdown: 'One two.\n',
+      maxRemovedBytes: 0,
+    })!
+    const droppedSteps = reviewSteps(droppedDoc, new Set([droppedWrite]))
+    expect(droppedSteps).toEqual([
+      {
+        writeId: droppedWrite,
+        from: 4,
+        to: 4,
+        deleted: true,
+        anchor: expect.any(String),
+        end: expect.any(String),
+      },
+    ])
   })
 
   it('splits a run the owner typed inside, and follows the text as it is now', () => {
@@ -557,6 +627,57 @@ describe('Review Changes steps', () => {
     expect(shown(doc)).toEqual(['Agent ', 'paragraph.\n'])
   })
 
+  it('gives a step that merged with another a new last item, so it reads as a new step', () => {
+    const owner = docWith('Top.\n')
+    let agent = loaded(owner, 2)
+    const w1 = edit(agent, claude, 'Top.\nA1\nA2\n', 1000)!
+    sync(agent, owner)
+    agent = loaded(owner, 3)
+    const w2 = edit(agent, codex, 'Top.\nA1\nX\nA2\n', 2000)!
+    sync(agent, owner)
+    const before = reviewSteps(owner)
+    expect(before.map((step) => body(owner).slice(step.from, step.to))).toEqual([
+      'A1\n',
+      'X\n',
+      'A2\n',
+    ])
+    reverseWrite(owner, w2)
+    const after = reviewSteps(owner, new Set([w1]))
+    expect(after).toHaveLength(1)
+    expect(after[0]!.anchor).toBe(before[0]!.anchor)
+    expect(after[0]!.end).not.toBe(before[0]!.end)
+    expect(after[0]!.end).toBe(before[2]!.end)
+  })
+
+  it('anchors each step to its first item, which stays put when another step’s text goes', () => {
+    const owner = docWith('Alpha.\nBeta.\nGamma.\n')
+    const agent = loaded(owner, 2)
+    const write = edit(agent, claude, 'Alpha.\nOne.\nBeta.\nTwo.\nGamma.\nThree.\n')!
+    sync(agent, owner)
+    const before = reviewSteps(owner).map((step) => step.anchor)
+    expect(before).toHaveLength(3)
+    expect(new Set(before).size).toBe(3)
+    const text = owner.getText('body')
+    text.delete(body(owner).indexOf('One.\n'), 'One.\n'.length)
+    expect(reviewSteps(owner, new Set([write])).map((step) => step.anchor)).toEqual(before.slice(1))
+  })
+
+  it('splits a write’s steps where another write deleted text, whichever writes are asked for', () => {
+    const doc = docWith('Start.\n')
+    const a = edit(doc, claude, 'Start.\nAlpha beta gamma delta.\n')!
+    const b = edit(doc, codex, 'Start.\nAlpha gamma delta.\n', 2000)!
+    const extent = (step: ReviewStep) => `${step.writeId}@${step.anchor}..${step.end}`
+    const both = reviewSteps(doc)
+    expect(both.map((step) => step.writeId)).toEqual([a, b, a])
+    expect(shown(doc)).toEqual(['Alpha ', '^', 'gamma delta.\n'])
+    expect(reviewSteps(doc, new Set([a])).map(extent)).toEqual(
+      both.filter((step) => step.writeId === a).map(extent),
+    )
+    expect(reviewSteps(doc, new Set([b])).map(extent)).toEqual(
+      both.filter((step) => step.writeId === b).map(extent),
+    )
+  })
+
   it('keeps to the writes asked for, and skips one whose writer is unknown', () => {
     const doc = docWith('A.\n')
     const first = edit(doc, claude, 'A. B.\n')!
@@ -564,5 +685,85 @@ describe('Review Changes steps', () => {
     expect(shown(doc, new Set([first]))).toEqual([' B.'])
     doc.getMap(WRITERS).delete(codex.session)
     expect(shown(doc)).toEqual([' B.'])
+  })
+})
+
+describe('per-write Undo', () => {
+  it('reverts only the named write and preserves earlier writes by the same writer', () => {
+    const owner = docWith('Intro.\n')
+    let agent = loaded(owner, 2)
+    const first = edit(agent, claude, 'Intro.\nFirst clause.\n', 1000)!
+    sync(agent, owner)
+    agent = loaded(owner, 3)
+    const second = edit(agent, claude, 'Intro.\nFirst line.\nSecond line.\n', 2000)!
+    sync(agent, owner)
+    expect(body(owner)).toBe('Intro.\nFirst line.\nSecond line.\n')
+
+    const result = reverseWrite(owner, second)
+    expect(result).toEqual({ writes: 1, dropped: 0 })
+    expect(body(owner)).toBe('Intro.\nFirst clause.\n')
+    // Text from the earlier write that came back stays attributed to the earlier write.
+    expect(agentText(owner)).toBe('First clause.\n')
+    expect(readWrites(owner).map((w) => w.id)).toEqual([first])
+  })
+
+  it('undoes later writes that rewrote the named write’s text along with it, newest first', () => {
+    const owner = docWith('Intro.\n')
+    const first = edit(owner, claude, 'Intro.\nAlpha beta gamma.\n', 1000)!
+    const second = edit(owner, claude, 'Intro.\nAlpha gamma delta.\n', 2000)!
+    const apart = edit(owner, codex, 'Start.\nIntro.\nAlpha gamma delta.\n', 3000)!
+    expect(undoGroup(owner, first)).toEqual([second, first])
+    expect(undoGroup(owner, second)).toEqual([second])
+    expect(undoGroup(owner, apart)).toEqual([apart])
+
+    expect(reverseWrite(owner, first)).toEqual({ writes: 2, dropped: 0 })
+    expect(body(owner)).toBe('Start.\nIntro.\n')
+    expect(readWrites(owner).map((w) => w.id)).toEqual([apart])
+  })
+
+  it('puts text two writes both deleted back once, though they are undone one at a time', () => {
+    const owner = docWith('Keep REMOVE me end.\n')
+    const a = loaded(owner, 2)
+    const b = loaded(owner, 3)
+    const first = edit(a, claude, 'Keep me end.\n', 1000)!
+    const second = edit(b, codex, 'Keep me end.\n', 2000)!
+    sync(a, owner)
+    sync(b, owner)
+    expect(body(owner)).toBe('Keep me end.\n')
+
+    reverseWrite(owner, first)
+    expect(body(owner)).toBe('Keep REMOVE me end.\n')
+    const other = loaded(owner, 4)
+    reverseWrite(other, second)
+    expect(body(other)).toBe('Keep REMOVE me end.\n')
+  })
+
+  it('remembers text it put back though another device set the write’s record at the same time', () => {
+    for (const [undoer, setter] of [
+      [4, 5],
+      [5, 4],
+    ]) {
+      const owner = docWith('Keep REMOVE me end.\n')
+      const a = loaded(owner, 2)
+      const b = loaded(owner, 3)
+      const first = edit(a, claude, 'Keep me end.\n', 1000)!
+      const second = edit(b, codex, 'Keep me end.\n', 2000)!
+      sync(a, owner)
+      sync(b, owner)
+
+      const undoing = loaded(owner, undoer!)
+      const setting = loaded(owner, setter!)
+      reverseWrite(undoing, first)
+      const records = setting.getMap('writes')
+      records.set(first, { ...(records.get(first) as object) })
+      sync(undoing, setting)
+      sync(setting, undoing)
+
+      reverseWrite(undoing, second)
+      expect(body(undoing)).toBe('Keep REMOVE me end.\n')
+      expect(undoing.getMap(PUT_BACK).size).toBe(2)
+      clearAuthorship(undoing)
+      expect(undoing.getMap(PUT_BACK).size).toBe(0)
+    }
   })
 })

@@ -1004,6 +1004,23 @@
         }
       }
     },
+    "aiEdit.reason.cancelled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The request stopped before it finished. Try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请求在完成前停止了，请重试。"
+          }
+        }
+      }
+    },
     "aiEdit.reason.cliMissing" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1357,6 +1374,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用 AI 编辑：{preset}"
+          }
+        }
+      }
+    },
+    "aiEdit.writing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing the proposal…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在生成建议…"
           }
         }
       }
@@ -3622,6 +3656,23 @@
         }
       }
     },
+    "authorship.keep" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留"
+          }
+        }
+      }
+    },
     "authorship.kind.aiEdit" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3775,6 +3826,40 @@
         }
       }
     },
+    "authorship.removedDropped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The deleted text is too old to preview."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已删除的文字太旧，无法预览。"
+          }
+        }
+      }
+    },
+    "authorship.removedLabel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleted text"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已删除的文字"
+          }
+        }
+      }
+    },
     "authorship.review" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3822,6 +3907,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第 {index} 处更改（共 {count} 处）：{writer} 在这里删除了文字，{time}"
+          }
+        }
+      }
+    },
+    "authorship.undo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销"
           }
         }
       }
@@ -3907,6 +4009,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "代理删除的部分文字太旧，已无法保留，所以“全部撤销”没能把它们放回去。"
+          }
+        }
+      }
+    },
+    "authorship.undoGroup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo {count} Edits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销 {count} 次编辑"
+          }
+        }
+      }
+    },
+    "authorship.undoWhole" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo Whole Edit ({count} Places)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销整次编辑（{count} 处）"
           }
         }
       }
@@ -19415,6 +19551,23 @@
         }
       }
     },
+    "note.aiAccessNoBook" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assign a notebook to allow AI access"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分配笔记本后可开启 AI 访问"
+          }
+        }
+      }
+    },
     "note.bodyLabel" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19802,6 +19955,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开笔记本"
+          }
+        }
+      }
+    },
+    "noteInfo.aiAccessOff" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已关闭"
+          }
+        }
+      }
+    },
+    "noteInfo.aiAccessOn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已开启"
           }
         }
       }
@@ -31400,6 +31587,23 @@
         }
       }
     },
+    "sidebar.markAllRead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark All Read"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部标为已读"
+          }
+        }
+      }
+    },
     "sidebar.mirrorOffShort" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -31719,6 +31923,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "废纸篓"
+          }
+        }
+      }
+    },
+    "sidebar.unseenChanges" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unseen Changes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未读更改"
           }
         }
       }

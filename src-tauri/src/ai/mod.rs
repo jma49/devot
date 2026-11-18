@@ -9,14 +9,14 @@ pub mod provider;
 pub mod settings;
 mod transport;
 
-use std::sync::Arc;
-#[cfg(any(desktop, test))]
-use std::sync::Mutex;
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::State;
 use tauri::ipc::Channel;
+use tauri::{State, Webview};
 
 #[cfg(any(desktop, test))]
 pub use cli::CliState;
@@ -85,12 +85,98 @@ pub struct Ai {
     keys: Arc<dyn KeyStore>,
     licence: Gate,
     timeout: Duration,
+    streams: Mutex<Streams>,
     #[cfg(any(desktop, test))]
     cli: Option<Arc<dyn cli::CliBackend>>,
     #[cfg(any(desktop, test))]
     cli_states: Mutex<Option<cli::CliStates>>,
     #[cfg(any(desktop, test))]
     cli_probe: Mutex<()>,
+}
+
+/// How many cancels for streams not yet started, and streams ended, are remembered; a page has a few at a time.
+const REMEMBERED_STREAMS: usize = 64;
+
+/// A stream as the page names it: the webview that asked (every main window shares one `Ai`) and its number there.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct StreamKey {
+    webview: String,
+    id: u64,
+}
+
+impl StreamKey {
+    pub fn new(webview: impl Into<String>, id: u64) -> Self {
+        Self {
+            webview: webview.into(),
+            id,
+        }
+    }
+}
+
+fn remember(list: &mut VecDeque<StreamKey>, key: &StreamKey) {
+    if list.len() == REMEMBERED_STREAMS {
+        list.pop_front();
+    }
+    list.push_back(key.clone());
+}
+
+#[derive(Default)]
+struct Streams {
+    active: HashMap<StreamKey, Arc<AtomicBool>>,
+    /// Streams the page cancelled before Rust registered them (registration runs on a blocking thread).
+    cancelled_early: VecDeque<StreamKey>,
+    /// Streams that ended: a cancel that comes after is late, not early, and must not stop a later stream.
+    ended: VecDeque<StreamKey>,
+}
+
+impl Streams {
+    /// The new stream's cancel flag, or None when the page cancelled it before it started.
+    fn register(&mut self, key: &StreamKey) -> Option<Arc<AtomicBool>> {
+        if self.cancelled_early.contains(key) {
+            self.cancelled_early.retain(|early| early != key);
+            return None;
+        }
+        self.ended.retain(|ended| ended != key);
+        let flag = Arc::new(AtomicBool::new(false));
+        self.active.insert(key.clone(), Arc::clone(&flag));
+        Some(flag)
+    }
+
+    /// True if the stream was running; one not started yet stops as it starts, and one that ended is left alone.
+    fn cancel(&mut self, key: &StreamKey) -> bool {
+        if let Some(flag) = self.active.get(key) {
+            flag.store(true, Ordering::SeqCst);
+            return true;
+        }
+        if !self.ended.contains(key) {
+            remember(&mut self.cancelled_early, key);
+        }
+        false
+    }
+
+    fn finish(&mut self, key: &StreamKey, flag: &Arc<AtomicBool>) {
+        if self
+            .active
+            .get(key)
+            .is_some_and(|entry| Arc::ptr_eq(entry, flag))
+        {
+            self.active.remove(key);
+            remember(&mut self.ended, key);
+        }
+    }
+}
+
+struct StreamGuard<'a> {
+    streams: &'a Mutex<Streams>,
+    key: StreamKey,
+    flag: Arc<AtomicBool>,
+}
+
+impl Drop for StreamGuard<'_> {
+    fn drop(&mut self) {
+        let mut guard = self.streams.lock().unwrap_or_else(|e| e.into_inner());
+        guard.finish(&self.key, &self.flag);
+    }
 }
 
 impl Ai {
@@ -100,6 +186,7 @@ impl Ai {
             keys,
             licence,
             timeout: transport::TIMEOUT,
+            streams: Mutex::new(Streams::default()),
             #[cfg(any(desktop, test))]
             cli: None,
             #[cfg(any(desktop, test))]
@@ -299,7 +386,7 @@ impl Ai {
                 model,
                 timeout,
                 backend,
-            } => match backend.run(id, &model, &prepared, timeout, &mut |_| true) {
+            } => match backend.run(id, &model, &prepared, timeout, &|| false, &mut |_| true) {
                 Ok(done) => {
                     log::info!("I_AI_GENERATED provider={}", id.as_str());
                     Ok(Generated {
@@ -319,38 +406,72 @@ impl Ai {
     }
 
     /// As `generate`, with the answer's text handed to `on_text` as it arrives; `on_text` returning false stops reading.
+    #[cfg(test)]
     pub fn stream(
         &self,
         request: &GenerateRequest,
+        on_text: impl FnMut(&str) -> bool,
+    ) -> Result<Generated, &'static str> {
+        self.stream_with_id(None, request, on_text)
+    }
+
+    /// As `stream`, binding `stream` (when present) so `cancel_stream` can abort an in-flight stream early.
+    pub fn stream_with_id(
+        &self,
+        stream: Option<StreamKey>,
+        request: &GenerateRequest,
         mut on_text: impl FnMut(&str) -> bool,
     ) -> Result<Generated, &'static str> {
+        let cancel_guard = match stream {
+            Some(key) if key.id == 0 => return Err("E_AI_REQUEST_INVALID"),
+            Some(key) => {
+                let mut guard = self.streams.lock().unwrap_or_else(|e| e.into_inner());
+                let flag = guard.register(&key).ok_or("E_AI_CANCELLED")?;
+                Some(StreamGuard {
+                    streams: &self.streams,
+                    key,
+                    flag,
+                })
+            }
+            None => None,
+        };
+        let is_cancelled = || {
+            cancel_guard
+                .as_ref()
+                .is_some_and(|guard| guard.flag.load(Ordering::SeqCst))
+        };
         let (prepared, call) = self.prepare(request, true)?;
+        if is_cancelled() {
+            return Err("E_AI_CANCELLED");
+        }
         match call {
             PreparedCall::Http(call) => {
                 let _ = prepared;
                 let mut partial = Partial::default();
                 let mut stopped = false;
-                let outcome = transport::post_stream(&call.wire, call.timeout, |data| {
-                    let added = call.implementation.event(data, &mut partial)?;
-                    if !added.is_empty() && !on_text(&added) {
-                        stopped = true;
-                        return Ok(false);
-                    }
-                    Ok(!partial.ended)
-                })
-                .and_then(|streamed| match streamed {
-                    transport::Streamed::Status(status) => Err(call.refused(status)),
-                    transport::Streamed::Done if stopped => Err("E_AI_CANCELLED"),
-                    transport::Streamed::Done => {
-                        // A stream that breaks off before the provider says it stopped is not an answer.
-                        let stop = partial.stop.ok_or("E_AI_RESPONSE_INVALID")?;
-                        Ok(Completion {
-                            usage: partial.usage(),
-                            text: std::mem::take(&mut partial.text),
-                            stop,
-                        })
-                    }
-                });
+                let outcome =
+                    transport::post_stream(&call.wire, call.timeout, is_cancelled, |data| {
+                        let added = call.implementation.event(data, &mut partial)?;
+                        if !added.is_empty() && !on_text(&added) {
+                            stopped = true;
+                            return Ok(false);
+                        }
+                        Ok(!partial.ended)
+                    })
+                    .and_then(|streamed| match streamed {
+                        transport::Streamed::Status(status) => Err(call.refused(status)),
+                        transport::Streamed::Cancelled => Err("E_AI_CANCELLED"),
+                        transport::Streamed::Done if stopped => Err("E_AI_CANCELLED"),
+                        transport::Streamed::Done => {
+                            // A stream that breaks off before the provider says it stopped is not an answer.
+                            let stop = partial.stop.ok_or("E_AI_RESPONSE_INVALID")?;
+                            Ok(Completion {
+                                usage: partial.usage(),
+                                text: std::mem::take(&mut partial.text),
+                                stop,
+                            })
+                        }
+                    });
                 match outcome {
                     Ok(done) => {
                         log::info!("I_AI_STREAMED provider={}", call.id.as_str());
@@ -365,7 +486,7 @@ impl Ai {
                 model,
                 timeout,
                 backend,
-            } => match backend.run(id, &model, &prepared, timeout, &mut on_text) {
+            } => match backend.run(id, &model, &prepared, timeout, &is_cancelled, &mut on_text) {
                 Ok(done) => {
                     log::info!("I_AI_STREAMED provider={}", id.as_str());
                     Ok(Generated {
@@ -382,6 +503,21 @@ impl Ai {
                 }
             },
         }
+    }
+
+    /// Marks stream `stream` cancelled; returns true if it was running, and one not started yet stops as it starts.
+    pub fn cancel_stream(&self, stream: &StreamKey) -> Result<bool, &'static str> {
+        if stream.id == 0 {
+            return Err("E_AI_REQUEST_INVALID");
+        }
+        let mut guard = self.streams.lock().unwrap_or_else(|e| e.into_inner());
+        Ok(guard.cancel(stream))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn early_cancels(&self) -> usize {
+        let guard = self.streams.lock().unwrap_or_else(|e| e.into_inner());
+        guard.cancelled_early.len()
     }
 
     fn prepare<'a>(
@@ -509,10 +645,13 @@ pub async fn ai_stream(
     ai: State<'_, Arc<Ai>>,
     request: GenerateRequest,
     on_text: Channel<String>,
+    webview: Webview,
+    stream_id: Option<u64>,
 ) -> Result<Generated, String> {
+    let stream = stream_id.map(|id| StreamKey::new(webview.label(), id));
     task::blocking_with(&ai, FAILED, move |ai| {
         let mut pieces = Pieces::new(SEND_EVERY);
-        let generated = ai.stream(&request, |text| {
+        let generated = ai.stream_with_id(stream, &request, |text| {
             pieces
                 .push(text)
                 .is_none_or(|ready| on_text.send(ready).is_ok())
@@ -523,6 +662,17 @@ pub async fn ai_stream(
         Ok(generated)
     })
     .await
+}
+
+/// Cancels an active `ai_stream` request of this webview by `stream_id`.
+#[tauri::command]
+pub async fn ai_stream_cancel(
+    ai: State<'_, Arc<Ai>>,
+    webview: Webview,
+    stream_id: u64,
+) -> Result<bool, String> {
+    ai.cancel_stream(&StreamKey::new(webview.label(), stream_id))
+        .map_err(Into::into)
 }
 
 /// How often streamed text crosses to the page: each crossing costs a message, and the eye reads no faster.

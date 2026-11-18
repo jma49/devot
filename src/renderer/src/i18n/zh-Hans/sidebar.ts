@@ -163,6 +163,8 @@ export const messages: Record<keyof typeof en, string> = {
   'book.subOne': '{count} 个子笔记本',
   'book.subOther': '{count} 个子笔记本',
   'sidebar.agents': '代理',
+  'sidebar.unseenChanges': '未读更改',
+  'sidebar.markAllRead': '全部标为已读',
   'sidebar.hideTitle': '隐藏边栏',
   'sidebar.showTitle': '显示边栏',
 }

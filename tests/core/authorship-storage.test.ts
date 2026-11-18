@@ -622,3 +622,65 @@ describe('the UI tests’ memory adapter', () => {
     expect(await run(memoryStorage)).toEqual(expected)
   })
 })
+
+describe('per-write Keep and Undo on SQLite', () => {
+  it('keeps one write seen without altering other writes, and undoes one write while preserving seen historical writes and restoring deleted text', async () => {
+    const s = await setup()
+    const id = await s.notes.create('Plan', s.shared)
+    await s.notes.setBody(id, 'Owner opening.\nMiddle line.\nOwner closing.\n')
+    await s.notes.flush()
+
+    // First write by Claude (marked seen as historical context).
+    await s.claude.ai.update({
+      id,
+      body: { patches: [{ find: 'Owner opening.', replace: 'Claude opening.' }] },
+    })
+    // Second and third writes by Claude (remain unseen).
+    await s.claude.ai.update({
+      id,
+      body: { patches: [{ find: 'Middle line.\n', replace: '' }] },
+    })
+    await s.claude.ai.update({
+      id,
+      body: { patches: [{ find: 'Owner closing.', replace: 'Claude closing.' }] },
+    })
+    await s.notes.mergeStored()
+
+    const initialWrites = readWrites(await stored(s.storage, id))
+    expect(initialWrites).toHaveLength(3)
+    const [seenWrite, deletionWrite, replacementWrite] = initialWrites
+    await s.notes.markWritesSeen(id, [seenWrite!.id])
+    const seenMap = () => new Map(rows(s.storage, id).map((r) => [r.write_id, r.seen]))
+    expect(seenMap()).toEqual(
+      new Map([
+        [seenWrite!.id, 1],
+        [deletionWrite!.id, 0],
+        [replacementWrite!.id, 0],
+      ]),
+    )
+
+    // Per-write Keep marks ONLY that write seen.
+    await s.notes.markWritesSeen(id, [replacementWrite!.id])
+    expect(seenMap()).toEqual(
+      new Map([
+        [seenWrite!.id, 1],
+        [deletionWrite!.id, 0],
+        [replacementWrite!.id, 1],
+      ]),
+    )
+
+    // Per-write Undo reverts ONLY deletionWrite, restoring its deleted text while keeping seen historical & other writes intact.
+    const reversed = await s.notes.undoAgentWrite(id, deletionWrite!.id)
+    expect(reversed).toMatchObject({ writes: 1, dropped: 0 })
+    await s.notes.flush()
+
+    const doc = await stored(s.storage, id)
+    expect(doc.getText(BODY).toString()).toBe('Claude opening.\nMiddle line.\nClaude closing.\n')
+    expect(seenMap()).toEqual(
+      new Map([
+        [seenWrite!.id, 1],
+        [replacementWrite!.id, 1],
+      ]),
+    )
+  })
+})

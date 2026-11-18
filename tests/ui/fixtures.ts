@@ -177,6 +177,7 @@ export async function mockTauri(page: Page): Promise<void> {
             if (typeof mock === 'object' && mock !== null && 'error' in mock) throw mock.error
             return typeof mock === 'function' ? (mock as (a: unknown) => unknown)(args) : mock
           }
+          if (cmd === 'ai_stream_cancel') return false
           // One notebook, allowed: Integrations shows no prompt unless a test says otherwise.
           if (cmd === 'settings_ai_access_summary') return { notebooks: 1, allowed: 1 }
 

@@ -72,6 +72,7 @@ pub trait CliBackend: Send + Sync {
         model: &str,
         request: &Prepared<'_>,
         timeout: Duration,
+        cancelled: &dyn Fn() -> bool,
         on_text: &mut dyn FnMut(&str) -> bool,
     ) -> Result<CliDone, &'static str>;
 }
@@ -94,6 +95,7 @@ impl CliBackend for SystemCli {
         model: &str,
         request: &Prepared<'_>,
         timeout: Duration,
+        cancelled: &dyn Fn() -> bool,
         on_text: &mut dyn FnMut(&str) -> bool,
     ) -> Result<CliDone, &'static str> {
         let home = home_dir();
@@ -106,7 +108,7 @@ impl CliBackend for SystemCli {
             ProviderId::Anthropic | ProviderId::Openai => return Err("E_AI_PROVIDER_UNAVAILABLE"),
         }
         .ok_or("E_AI_CLI_MISSING")?;
-        run_cli_binary(&cli, id, model, request, timeout, on_text)
+        run_cli_binary(&cli, id, model, request, timeout, cancelled, on_text)
     }
 }
 
@@ -387,8 +389,12 @@ fn run_cli_binary(
     model_override: &str,
     request: &Prepared<'_>,
     timeout: Duration,
+    cancelled: &dyn Fn() -> bool,
     on_text: &mut dyn FnMut(&str) -> bool,
 ) -> Result<CliDone, &'static str> {
+    if cancelled() {
+        return Err("E_AI_CANCELLED");
+    }
     let (args, stdin_text) = match id {
         ProviderId::ClaudeCli => (
             claude_args(request.stream, request.system, model_override),
@@ -436,7 +442,11 @@ fn run_cli_binary(
     if id == ProviderId::ClaudeCli && !request.stream {
         run_claude_single(child, stdout, rx_err, deadline, model_override)
     } else {
-        run_jsonl_stream(child, stdout, rx_err, deadline, id, model_override, on_text)
+        let halt = Halt {
+            deadline,
+            cancelled,
+        };
+        run_jsonl_stream(child, stdout, rx_err, halt, id, model_override, on_text)
     }
 }
 
@@ -513,6 +523,12 @@ fn run_claude_single(
     parse_claude_json(&out, status, &stderr, model_override)
 }
 
+/// When a stream stops early: its deadline passes or the user cancels it.
+struct Halt<'a> {
+    deadline: Instant,
+    cancelled: &'a dyn Fn() -> bool,
+}
+
 enum StreamMsg {
     Line(Vec<u8>),
     TooLarge,
@@ -524,11 +540,15 @@ fn run_jsonl_stream(
     mut child: Child,
     stdout: std::process::ChildStdout,
     rx_err: Option<mpsc::Receiver<Vec<u8>>>,
-    deadline: Instant,
+    halt: Halt<'_>,
     id: ProviderId,
     model_override: &str,
     on_text: &mut dyn FnMut(&str) -> bool,
 ) -> Result<CliDone, &'static str> {
+    let Halt {
+        deadline,
+        cancelled,
+    } = halt;
     let (tx, rx) = mpsc::sync_channel(32);
     std::thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
@@ -565,11 +585,18 @@ fn run_jsonl_stream(
     let mut codex_state = CodexStreamState::default();
 
     loop {
-        let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+        if cancelled() {
+            kill_and_reap(&mut child);
+            return Err("E_AI_CANCELLED");
+        }
+        let Some(remaining) = deadline
+            .checked_duration_since(Instant::now())
+            .filter(|r| !r.is_zero())
+        else {
             kill_and_reap(&mut child);
             return Err("E_AI_TIMEOUT");
         };
-        match rx.recv_timeout(remaining) {
+        match rx.recv_timeout(remaining.min(Duration::from_millis(40))) {
             Ok(StreamMsg::TooLarge) => {
                 kill_and_reap(&mut child);
                 return Err("E_AI_RESPONSE_TOO_LARGE");
@@ -597,14 +624,15 @@ fn run_jsonl_stream(
                     return Err(code);
                 }
             }
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                kill_and_reap(&mut child);
-                return Err("E_AI_TIMEOUT");
-            }
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
 
+    if cancelled() {
+        kill_and_reap(&mut child);
+        return Err("E_AI_CANCELLED");
+    }
     let status = wait_child_until(&mut child, deadline)?;
     let stderr = read_stderr(rx_err);
     match id {
@@ -1393,6 +1421,7 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
             "sonnet",
             &req,
             Duration::from_secs(5),
+            &|| false,
             &mut |text| {
                 pieces.push(text.to_string());
                 true
@@ -1421,6 +1450,7 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
             "",
             &req,
             Duration::from_secs(5),
+            &|| false,
             &mut |_| {
                 heard += 1;
                 false
@@ -1430,8 +1460,29 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
         assert_eq!(cancelled, "E_AI_CANCELLED");
         assert_eq!(heard, 1);
 
-        // Timeout kills and reaps a slow CLI script promptly.
+        // An external cancel signal kills a slow CLI script promptly.
         let slow = write_script(dir.path(), "slow-cli", "exec sleep 5\n");
+        let abort = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let abort_trigger = std::sync::Arc::clone(&abort);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(60));
+            abort_trigger.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        let started_cancel = Instant::now();
+        let externally_cancelled = run_cli_binary(
+            &slow,
+            ProviderId::CodexCli,
+            "",
+            &req,
+            Duration::from_secs(5),
+            &|| abort.load(std::sync::atomic::Ordering::SeqCst),
+            &mut |_| true,
+        )
+        .unwrap_err();
+        assert_eq!(externally_cancelled, "E_AI_CANCELLED");
+        assert!(started_cancel.elapsed() < Duration::from_secs(2));
+
+        // Timeout kills and reaps a slow CLI script promptly.
         let started = Instant::now();
         let timed_out = run_cli_binary(
             &slow,
@@ -1439,6 +1490,7 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
             "",
             &req,
             Duration::from_millis(150),
+            &|| false,
             &mut |_| true,
         )
         .unwrap_err();

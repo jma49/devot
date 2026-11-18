@@ -258,6 +258,8 @@ export interface NoteService {
     id: string,
     writer: { kind: WriterKind; names: readonly string[] },
   ): Promise<Reversal & { update: Uint8Array }>
+  /** Undo one write (`writeId`) as an owner edit, leaving seen historical writes intact; the text before is kept as a version. */
+  undoAgentWrite(id: string, writeId: string): Promise<Reversal & { update: Uint8Array }>
   /** Clear Authorship: drops every authorship record of the note. Returns the Yjs update, for the editor's replica. */
   clearAuthorship(id: string): Promise<Uint8Array>
   /** The agent_writes rows of notes not in the Trash, newest first (StorageAdapter.listAgentWrites). */
