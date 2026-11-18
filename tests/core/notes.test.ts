@@ -1,7 +1,7 @@
 import fc from 'fast-check'
 import { copyFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import {
   BODY,
@@ -338,5 +338,53 @@ describe('hand-set dates', () => {
     await app.storage.putNote({ ...stale, bodyVersion: current.bodyVersion, updatedAt: MAR_1 })
     const stored = (await app.storage.getNote(id))!
     expect([stored.createdAt, stored.updatedAt]).toEqual([MAR_1, MAR_2])
+  })
+})
+
+describe('a note with a large Yjs state', () => {
+  const warned = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls.filter((c) => c[0] === 'W_NOTE_BODY_LARGE')
+
+  async function grow(notes: NoteService, id: string, text: string) {
+    const editor = await editorFor(notes, id)
+    editor.text.insert(0, text)
+    await editor.settled()
+    await notes.flush()
+  }
+
+  it('logs W_NOTE_BODY_LARGE once per note from the threshold', async () => {
+    const storage = openSqliteAdapter(freshPath())
+    open.push(storage)
+    const notes = createNoteService({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+      largeBodyBytes: 1000,
+    })
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const small = await notes.create('S')
+      await grow(notes, small, 'short')
+      expect(warned(spy)).toEqual([])
+
+      const big = await notes.create('B')
+      await grow(notes, big, 'x'.repeat(1000))
+      const bytes = (
+        storage.db.prepare('SELECT length(ydoc) AS n FROM notes WHERE id = ?').get(big) as {
+          n: number
+        }
+      ).n
+      expect(warned(spy)).toEqual([['W_NOTE_BODY_LARGE', big, bytes]])
+
+      await grow(notes, big, 'more')
+      expect(warned(spy)).toHaveLength(1)
+
+      const other = await notes.create('O')
+      await grow(notes, other, 'y'.repeat(1000))
+      expect(warned(spy).map((c) => c[1])).toEqual([big, other])
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
