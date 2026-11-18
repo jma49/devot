@@ -8,7 +8,7 @@ type Box = { x: number; y: number; width: number; height: number }
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const showSidebar = (page: Page) => page.getByRole('button', { name: 'Show Sidebar' })
-const mode = (page: Page, name: 'Edit' | 'Split' | 'Preview') =>
+const mode = (page: Page, name: 'Write Mode' | 'Edit' | 'Split' | 'Preview') =>
   page.getByRole('group', { name: 'View mode' }).getByRole('button', { name })
 const format = (page: Page) => page.getByRole('toolbar', { name: 'Format' })
 

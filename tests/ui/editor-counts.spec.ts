@@ -48,3 +48,30 @@ test('the footer keeps the bottom-right corner of the content column in every la
   await mode('Edit')
   await expect.poll(inset).toBe(0)
 })
+
+test('a notice renders on Glass and stays clear of the editor footer', async ({ page }) => {
+  await openApp(page)
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await body(page).click()
+  await page.keyboard.type('one two three')
+  await expect(counts(page)).toHaveText('Words 3Characters 11')
+
+  await page.evaluate(() => {
+    const w = window
+    w.dispatchEvent(
+      new w.CustomEvent('devot:open-url', {
+        detail: { kind: 'note', id: '01890a5d-ac96-774b-bcce-b302099a8057' },
+      }),
+    )
+  })
+  const notice = page.locator('.notices .notice').first()
+  await expect(notice).toBeVisible()
+  await notice.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  await expect(notice).toHaveCSS('border-radius', '18px')
+  expect(await notice.evaluate((el) => getComputedStyle(el).backdropFilter)).not.toBe('none')
+  await expect(notice.getByRole('button', { name: 'Dismiss' })).toHaveCSS('border-radius', '999px')
+
+  const noticeBox = (await notice.boundingBox())!
+  const countsBox = (await counts(page).boundingBox())!
+  expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(countsBox.y)
+})

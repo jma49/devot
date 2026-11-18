@@ -60,6 +60,11 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
       size('segment-height') / 2,
     ],
     ['tooltip, keycap', radius('glass-tooltip') - space('3'), radius('button')],
+    [
+      'notice, button capsule',
+      radius('glass-popover') - size('glass-popover-inset'),
+      size('menu-row') / 2,
+    ],
   ])('%s', (_pair, computed, documented) => {
     expect(computed).toBe(documented)
   })

@@ -107,4 +107,47 @@ test.describe('Glass', () => {
     await expect(footer(page).locator('.palette-hint')).toHaveCount(3)
     await expect(footer(page).locator('.palette-hint').nth(2)).toHaveText(/esc\s*Close$/)
   })
+
+  test('modifier hints show side by side at rest and take the accent when held', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: 'New Notebook' }).click()
+    const nameField = page.getByRole('textbox', { name: 'Notebook name' })
+    await nameField.fill('Work')
+    await nameField.press('Enter')
+
+    await openPalette(page)
+    await input(page).fill('b work')
+    const hints = footer(page).locator('.palette-hint')
+    await expect(hints).toHaveCount(3)
+    await expect(hints.nth(0)).toContainText('Open Notebook')
+    await expect(hints.nth(1)).toContainText('Open as Workspace')
+    await expect(hints.nth(2)).toContainText('Back')
+    await expect(footer(page).locator('.palette-hint[data-active="true"]')).toHaveCount(0)
+
+    const tokenColour = (name: string) =>
+      page.evaluate((token) => {
+        const probe = document.createElement('div')
+        probe.style.color = `var(${token})`
+        document.body.append(probe)
+        const colour = getComputedStyle(probe).color
+        probe.remove()
+        return colour
+      }, name)
+
+    await page.keyboard.down('Meta')
+    const active = footer(page).locator('.palette-hint[data-active="true"]')
+    await expect(active).toHaveCount(1)
+    await expect(active).toContainText('Open as Workspace')
+    await expect(active).toHaveCSS('color', await tokenColour('--color-accent-text'))
+    await expect(active.locator('kbd')).toHaveCSS(
+      'background-color',
+      await tokenColour('--color-accent-fill'),
+    )
+    await expect(active.locator('kbd')).toHaveCSS(
+      'color',
+      await tokenColour('--color-accent-on-fill'),
+    )
+    await page.keyboard.up('Meta')
+  })
 })

@@ -90,8 +90,12 @@ export function TrialEndedBar() {
     reserve()
     const observer = new ResizeObserver(reserve)
     observer.observe(el)
+    const content = el.closest('.window')?.querySelector('.content')
+    const contentObserver = content ? new MutationObserver(reserve) : undefined
+    contentObserver?.observe(content!, { childList: true })
     return () => {
       observer.disconnect()
+      contentObserver?.disconnect()
       root.style.removeProperty('--trial-bar-inset')
     }
   }, [over])

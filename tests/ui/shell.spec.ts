@@ -198,14 +198,19 @@ test('the selected view mode is a raised glass segment', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' })
   await freshStart(page)
   await createNote(page, 'Modes')
-  const split = page
-    .getByRole('group', { name: 'View mode' })
-    .getByRole('button', { name: 'Split' })
-  await split.click()
-  await expect(split).toHaveAttribute('aria-pressed', 'true')
-  await expect
-    .poll(() => css(split, 'background-color'))
-    .toBe(await tokenColor(page, '--color-fill-row-selected'))
+  const modes = page.getByRole('group', { name: 'View mode' })
+  expect(
+    await modes
+      .getByRole('button')
+      .evaluateAll((buttons) => buttons.map((b) => b.getAttribute('aria-label'))),
+  ).toEqual(['Write Mode', 'Edit', 'Split', 'Preview'])
+  const selected = await tokenColor(page, '--color-fill-row-selected')
+  for (const name of ['Split', 'Write Mode'] as const) {
+    const button = modes.getByRole('button', { name })
+    await button.click()
+    await expect(button).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => css(button, 'background-color')).toBe(selected)
+  }
 })
 
 test('the window stays put while the caret scrolls to the end of a long note', async ({ page }) => {

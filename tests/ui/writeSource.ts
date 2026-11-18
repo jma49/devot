@@ -4,7 +4,7 @@ import { expect } from './fixtures'
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
 const modes = (page: Page) => page.getByRole('group', { name: 'View mode' })
 const writeButton = (page: Page) =>
-  page.locator('.editor-toolbar').getByRole('button', { name: 'Write Mode', exact: true })
+  modes(page).getByRole('button', { name: 'Write Mode', exact: true })
 
 const runCommand = (page: Page, id: string) =>
   page.evaluate(
@@ -32,7 +32,9 @@ export async function inEditMode(
   await check(() => lines(page))
   await runCommand(page, 'view.write')
   await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
-  await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
+  await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName(
+    'Write Mode',
+  )
 }
 
 /** Waits for the note's Markdown to be `expected`, line for line. */
