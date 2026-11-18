@@ -70,6 +70,9 @@ export function areaTargets(
       (editor && visible(body) && !body.hidden ? () => editor.focus() : undefined) ??
       one('main [data-devot-part="preview"]') ??
       one('main input.title') ??
+      one(
+        'main > :not([data-devot-part="toolbar"]) button:not(:disabled):not([aria-disabled="true"])',
+      ) ??
       one('main > :not([data-devot-part="toolbar"]) button:not(:disabled)'),
     history: one('.history-bar [role="slider"]'),
   }

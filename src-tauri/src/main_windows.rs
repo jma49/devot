@@ -183,24 +183,33 @@ pub fn emit_all<R: Runtime, S: Serialize + Clone>(
     sent
 }
 
-/// Every main window other than `label`.
-pub fn emit_others<R: Runtime, S: Serialize + Clone>(
+/// Sends `event` to every window whose core edits notes (`main`, `main-*`, `note-*`), optionally excluding `sender`.
+fn emit_editing<R: Runtime, S: Serialize + Clone>(
     app: &AppHandle<R>,
-    label: &str,
+    sender: Option<&str>,
     event: &str,
     payload: S,
 ) -> tauri::Result<()> {
     let mut sent = Ok(());
-    for (other, _) in shown_windows(app) {
-        if other == label {
+    for label in app.webview_windows().into_keys() {
+        if !crate::note_relay::may_relay(&label) || sender == Some(label.as_str()) {
             continue;
         }
-        let result = app.emit_to(other, event, payload.clone());
+        let result = app.emit_to(label, event, payload.clone());
         if sent.is_ok() {
             sent = result;
         }
     }
     sent
+}
+
+/// Sends `event` to every window whose core edits notes (`main`, `main-*`, `note-*`).
+pub fn emit_editing_all<R: Runtime, S: Serialize + Clone>(
+    app: &AppHandle<R>,
+    event: &str,
+    payload: S,
+) -> tauri::Result<()> {
+    emit_editing(app, None, event, payload)
 }
 
 /// Brings `window` to the front, shown and unminimized.
@@ -344,14 +353,14 @@ pub fn main_window_new(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
 /// The window saved something other windows list: they load their lists again (`lists_changed`).
 pub const LISTS_EVENT: &str = "devot://lists-changed";
 
-/// A main window wrote to the library: the other main windows reload their lists and the notes they
-/// hold (a status, a notebook or a tag one window changed, a note it made or trashed).
+/// An editing window (`main`, `main-*`, or `note-*`) wrote to the library: the other editing
+/// windows reload their lists/metadata and the notes they hold.
 #[tauri::command]
 pub fn main_windows_changed(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    if !is_main(window.label()) {
+    if !crate::note_relay::may_relay(window.label()) {
         return Err("E_MAIN_WINDOW_ONLY".into());
     }
-    if emit_others(&app, window.label(), LISTS_EVENT, ()).is_err() {
+    if emit_editing(&app, Some(window.label()), LISTS_EVENT, ()).is_err() {
         log::warn!("W_MAIN_WINDOW_LISTS_EMIT_FAILED");
     }
     Ok(())

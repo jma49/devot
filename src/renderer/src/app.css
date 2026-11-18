@@ -8462,7 +8462,8 @@ button.popup:focus-visible {
   .link-dialog,
   .sheet,
   .plugin-panel,
-  .notice
+  .notice,
+  .empty-pane-card
 ) {
   background: var(--glass-material-bg);
   -webkit-backdrop-filter: var(--glass-backdrop);
@@ -8766,4 +8767,110 @@ dialog[open].sheet.import {
   border-radius: var(--radius-control);
   font: inherit;
   font-size: var(--font-size-body);
+}
+
+/* Empty-pane Glass launcher */
+.empty-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  min-height: 0;
+  padding: var(--space-8);
+  user-select: none;
+}
+
+.empty-pane-hint {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: 1.4;
+  text-align: center;
+}
+
+.empty-pane-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  width: min(100%, var(--size-settings-field));
+  padding: var(--size-glass-popover-inset);
+  border-radius: var(--radius-glass-popover);
+}
+
+.empty-pane-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: var(--size-glass-dialog-row);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-glass-menu-row);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: default;
+  outline-color: transparent;
+  outline-offset: var(--size-focus-ring);
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    opacity var(--motion-duration-hover) var(--motion-easing-out),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
+    outline-offset var(--motion-duration-quick) var(--motion-easing-quick),
+    scale var(--press-duration, var(--motion-duration-settle))
+      var(--press-easing, var(--motion-easing-spring));
+}
+
+.empty-pane-action:not([aria-disabled='true']):hover {
+  background: var(--color-fill-tool-hover);
+}
+
+.empty-pane-action:not([aria-disabled='true']):active {
+  --press-duration: var(--motion-duration-quick);
+  --press-easing: var(--motion-easing-move);
+  scale: var(--press-scale);
+}
+
+.empty-pane-action:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+:root[data-motion='reduced'] .empty-pane-action {
+  outline-offset: 0;
+}
+
+.empty-pane-action[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+}
+
+.empty-pane-action-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-secondary);
+}
+
+.empty-pane-action-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-pane-key {
+  flex: none;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-button);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-caption);
+  line-height: 1.2;
 }

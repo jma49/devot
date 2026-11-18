@@ -5774,6 +5774,14 @@ public enum L10n {
     text("noteMenu.clearAuthorship", "Clear Authorship…")
   }
 
+  public static func emptyPaneLabel() -> String {
+    text("empty.paneLabel", "Quick Actions")
+  }
+
+  public static func emptyPaneHint() -> String {
+    text("empty.paneHint", "Select a note or start from an action below.")
+  }
+
   public static func phoneTabNotes() -> String {
     text("phone.tab.notes", "Notes")
   }
@@ -6864,6 +6872,34 @@ public enum L10n {
 
   public static func quickCaptureNoNotebook() -> String {
     text("quickCapture.noNotebook", "No Notebook")
+  }
+
+  public static func quickCaptureNotebookSearch() -> String {
+    text("quickCapture.notebookSearch", "Filter notebooks…")
+  }
+
+  public static func quickCaptureNoMatchingNotebooks() -> String {
+    text("quickCapture.noMatchingNotebooks", "No matching notebooks")
+  }
+
+  public static func quickCaptureTags() -> String {
+    text("quickCapture.tags", "Tags")
+  }
+
+  public static func quickCaptureAddTag() -> String {
+    text("quickCapture.addTag", "Add Tag")
+  }
+
+  public static func quickCaptureRemoveTag(name p0: String) -> String {
+    fill(text("quickCapture.removeTag", "Remove Tag {name}"), ["name": p0])
+  }
+
+  public static func quickCaptureSaveShortcut() -> String {
+    text("quickCapture.saveShortcut", "⌘↩")
+  }
+
+  public static func quickCaptureCancelShortcut() -> String {
+    text("quickCapture.cancelShortcut", "Esc")
   }
 
   public static func quickCaptureSave() -> String {

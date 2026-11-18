@@ -33,4 +33,17 @@ describe('coalesced', () => {
     coalesced(run, 250).flush()
     expect(run).not.toHaveBeenCalled()
   })
+
+  it('cancels a waiting call without firing and schedules cleanly afterwards', () => {
+    vi.useFakeTimers()
+    const run = vi.fn<() => void>()
+    const call = coalesced(run, 250)
+    call()
+    call.cancel()
+    vi.advanceTimersByTime(250)
+    expect(run).not.toHaveBeenCalled()
+    call()
+    vi.advanceTimersByTime(250)
+    expect(run).toHaveBeenCalledTimes(1)
+  })
 })

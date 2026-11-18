@@ -1,5 +1,15 @@
 import type { BrowserContext, Page } from '@playwright/test'
-import { expect, mockTauri, openApp, pickMenuItem, test } from './fixtures'
+import {
+  bookPicker,
+  expect,
+  mockTauri,
+  openApp,
+  pickBook,
+  pickMenuItem,
+  pickStatus,
+  statusPicker,
+  test,
+} from './fixtures'
 import { slowCore } from './slowCore'
 
 // A note in a window of its own (note.html, src-tauri/src/note_window.rs). Rust opens the window and
@@ -21,6 +31,7 @@ const storedNotes = () =>
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const title = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const rows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+const tagInput = (page: Page) => page.getByRole('combobox', { name: 'Add Tag' })
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
@@ -363,4 +374,121 @@ test('a note trashed and then purged in the main window turns its window read-on
   await page.getByRole('dialog').getByRole('button', { name: 'Empty Trash' }).click()
   await expect(win.getByRole('alert')).toContainText('This note was deleted for good')
   await expect(body(win)).toContainText('Text')
+})
+
+test('note window syncs metadata pills (notebook, status, tags, Note Info) with the main window', async ({
+  page,
+  context,
+}) => {
+  await page.getByRole('button', { name: 'New Notebook' }).click()
+  const bookField = page.getByRole('textbox', { name: 'Notebook name' })
+  await bookField.fill('Projects')
+  await bookField.press('Enter')
+  await page
+    .getByRole('navigation', { name: 'Sidebar' })
+    .getByRole('button', { name: /^All Notes/ })
+    .click()
+
+  const id = await noteInMain(page, 'Roadmap', 'Milestone alpha')
+  const win = await openNoteWindow(context, id)
+
+  await expect(win.locator('.note-meta .note-summary')).toContainText('2 words')
+  await expect(statusPicker(win)).toHaveAttribute('data-value', 'none')
+  await expect(bookPicker(win)).toHaveAttribute('data-value', '')
+
+  await pickBook(win, 'Projects')
+  await pickStatus(win, 'Active')
+  await tagInput(win).fill('launch')
+  await tagInput(win).press('Enter')
+
+  await expect(win.locator('.note-meta .chip', { hasText: 'launch' })).toBeVisible()
+  await expect(bookPicker(page)).toHaveAccessibleName('Notebook: Projects')
+  await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
+  await expect(page.locator('.note-meta .chip', { hasText: 'launch' })).toBeVisible()
+
+  await pickBook(page, 'No Notebook')
+  await pickStatus(page, 'Completed')
+  await tagInput(page).fill('reviewed')
+  await tagInput(page).press('Enter')
+  await page.getByRole('button', { name: 'Remove Tag launch' }).click()
+
+  await expect(bookPicker(win)).toHaveAttribute('data-value', '')
+  await expect(statusPicker(win)).toHaveAttribute('data-value', 'completed')
+  await expect(win.locator('.note-meta .chip', { hasText: 'reviewed' })).toBeVisible()
+  await expect(win.locator('.note-meta .chip', { hasText: 'launch' })).toHaveCount(0)
+
+  await win.locator('.note-meta .note-summary').click()
+  await expect(win.getByRole('dialog', { name: 'Note info' })).toBeVisible()
+  await win.keyboard.press('Escape')
+  await expect(win.getByRole('dialog', { name: 'Note info' })).toHaveCount(0)
+})
+
+test('note window locks metadata pills in Trash and expired trial, and restores editing when put back', async ({
+  page,
+  context,
+}) => {
+  const id = await noteInMain(page, 'Syncable', 'Body text')
+  const win = await openNoteWindow(context, id)
+  await expect(win.locator('.note-meta-fields')).not.toHaveAttribute('inert')
+
+  await rows(page).first().click({ button: 'right' })
+  await pickMenuItem(page, 'Move to Trash')
+  await expect(win.locator('.note-meta-fields')).toHaveAttribute('inert', '')
+
+  await page
+    .getByRole('navigation', { name: 'Sidebar' })
+    .getByRole('button', { name: /^Trash \d+$/ })
+    .click()
+  await rows(page).first().click()
+  await page.getByRole('button', { name: 'Restore' }).click()
+  await expect(win.locator('.note-meta-fields')).not.toHaveAttribute('inert')
+
+  await win.evaluate(() => {
+    const w = window
+    w.dispatchEvent(
+      new w.CustomEvent('devot:licence-changed', {
+        detail: {
+          gated: true,
+          state: 'none',
+          code: null,
+          id: null,
+          licensee: null,
+          plan: null,
+          trial: { state: 'ended', endsAt: Date.now() - 1, code: null },
+        },
+      }),
+    )
+  })
+  await expect(win.locator('.note-meta-fields')).toHaveAttribute('inert', '')
+})
+
+test('note window provides Cmd+F find in Edit and Preview and live counts footer when not preview-only', async ({
+  page,
+  context,
+}) => {
+  const id = await noteInMain(page, 'Counting', 'one two **three**\n\none more')
+  const win = await openNoteWindow(context, id)
+
+  const counts = win.locator('.editor-counts')
+  await expect(counts).toHaveText('Words 5Characters 18')
+
+  await win.keyboard.press('Meta+f')
+  const findBar = win.getByRole('search', { name: 'Find in Note' })
+  await expect(findBar).toBeVisible()
+  await findBar.getByRole('textbox', { name: 'Find' }).fill('one')
+  await expect(findBar.getByRole('status')).toHaveText('1 of 2')
+  await win.keyboard.press('Meta+g')
+  await expect(findBar.getByRole('status')).toHaveText('2 of 2')
+  await win.keyboard.press('Escape')
+  await expect(findBar).toHaveCount(0)
+
+  await win.getByRole('button', { name: 'Split', exact: true }).click()
+  await expect(counts).toHaveText('Words 1 of 5Characters 3 of 18')
+
+  await win.getByRole('button', { name: 'Preview', exact: true }).click()
+  await expect(counts).toHaveCount(0)
+  await win.keyboard.press('Meta+f')
+  await expect(findBar).toBeVisible()
+  await findBar.getByRole('textbox', { name: 'Find' }).fill('one')
+  await expect(findBar.getByRole('status')).toHaveText('1 of 2')
 })

@@ -7,6 +7,7 @@ import {
   createClock,
   createIdGenerator,
   createNoteService,
+  createTagService,
 } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
@@ -25,6 +26,7 @@ function services() {
     storage,
     notes: createNoteService({ storage, clock, newId, saveDelayMs: 60_000 }),
     books: createBookService({ storage, clock, newId }),
+    tags: createTagService({ storage, clock, newId }),
   }
 }
 
@@ -86,6 +88,41 @@ describe('quick capture', () => {
       'E_BOOK_NOT_FOUND',
     )
     expect(await notes.list()).toEqual([])
+  })
+
+  it('applies optional status and deduplicated tags before resolving, and rejects invalid metadata cleanly', async () => {
+    const { path, notes, books, tags } = services()
+    const bookId = await books.create('Projects', null)
+    const id = await captureNote(
+      notes,
+      {
+        title: 'Launch checklist',
+        markdown: '- Ship v1',
+        bookId,
+        status: 'active',
+        tags: ['  work ', 'Work', 'release'],
+      },
+      tags,
+    )
+    const other = openSqliteAdapter(path)
+    open.push(other)
+    const summaries = await other.getSummaries([id])
+    expect(summaries[0]).toMatchObject({ id, bookId, status: 'active' })
+    const allTags = await other.listTags()
+    expect(allTags.map((t) => t.name).sort()).toEqual(['release', 'work'])
+    expect(summaries[0]?.tagIds).toHaveLength(2)
+
+    await expect(
+      captureNote(
+        notes,
+        { title: 'Bad', markdown: '', bookId: null, status: 'bogus' as never },
+        tags,
+      ),
+    ).rejects.toThrow('E_NOTE_STATUS_INVALID')
+    await expect(
+      captureNote(notes, { title: 'Bad tag', markdown: '', bookId: null, tags: ['   '] }, tags),
+    ).rejects.toThrow('E_TAG_NAME_INVALID')
+    expect(await notes.list()).toHaveLength(1)
   })
 })
 

@@ -1,13 +1,18 @@
 import { errorCode } from './errors'
 import { attachmentMarkdown, checkUpload } from './files'
 import type { NoteService } from './notes'
-import type { StorageAdapter } from './storage'
+import { NOTE_STATUSES, type NoteStatus, type StorageAdapter } from './storage'
+import { cleanTagName, sameName, type TagService } from './tags'
 
 export interface QuickCapture {
   title: string
   markdown: string
   bookId: string | null
+  status?: NoteStatus
+  tags?: readonly string[]
 }
+
+export type CaptureInput = QuickCapture
 
 /**
  * Makes a note of a quick capture (menu bar mode) and saves it before it
@@ -17,11 +22,27 @@ export interface QuickCapture {
  * in the core, which retries it and reports it like any unsaved edit, and a
  * capture sent again would only make it twice.
  */
-export async function captureNote(notes: NoteService, capture: QuickCapture): Promise<string> {
+export async function captureNote(
+  notes: NoteService,
+  capture: QuickCapture,
+  tagService?: Pick<TagService, 'addToNote'>,
+): Promise<string> {
   if (capture.title.trim() === '' && capture.markdown.trim() === '')
     throw new Error('E_QUICK_CAPTURE_EMPTY')
+  if (capture.status !== undefined && !NOTE_STATUSES.includes(capture.status)) {
+    throw new Error('E_NOTE_STATUS_INVALID')
+  }
+  const cleanTags: string[] = []
+  for (const raw of capture.tags ?? []) {
+    const clean = cleanTagName(raw)
+    if (!cleanTags.some((existing) => sameName(existing, clean))) cleanTags.push(clean)
+  }
   const id = await notes.create(capture.title, capture.bookId)
   if (capture.markdown !== '') await notes.setBody(id, capture.markdown)
+  if (capture.status && capture.status !== 'none') await notes.setStatus(id, capture.status)
+  if (cleanTags.length > 0 && tagService) {
+    for (const name of cleanTags) await tagService.addToNote(id, name)
+  }
   await notes.flush().catch(() => {})
   return id
 }

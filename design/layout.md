@@ -139,6 +139,20 @@ A control or block in a note is filled or outlined, never both, and a dashed bor
   A head row `size.date-picker-head` (32) has the month and three `size.date-picker-nav` (26) circles (previous, today, next); weekday captions are `size.date-picker-week` (22) tall; days are `size.date-picker-cell` (32) rows with a `size.date-picker-day` (30) circle, the selected day filled `color.accent.fill`, today in `color.accent.text`, days of the months around in tertiary and days ruled out at `opacity.disabled`.
   The time row sits on `color.fill.card` in `radius.glass-menu-row`, and Cancel and Set share the foot, Set filled with the accent.
 
+## Empty editor pane
+
+- When no note, multiple selection, Trash view or built-in template preview is shown, `.empty-pane` centres in `.content` with `space.8` padding and `space.5` between the hint and the action card.
+- A caption hint (`font-size.caption`, tertiary) sits centred above the glass card (`size.settings-field` max width, `radius.glass-popover` corners, `size.glass-popover-inset` padding) painted with `--glass-material-bg`, the glass rim and the popover shadow.
+- Each action row is a full-width `size.glass-dialog-row` button (`radius.glass-menu-row`, `space.5` side padding, `space.4` gap) holding a `size.icon-sm` secondary icon, the body-size label and a trailing `color.fill.track` shortcut badge (`radius.button`, `color.line.hairline` edge, `font-size.caption` in secondary text).
+- Under hover an enabled row takes `color.fill.tool-hover`; actions unavailable while editing is locked keep their row and fade once to `opacity.disabled`.
+
+## Quick capture
+
+- `.quick-capture` paints the opaque `color.surface.editor` base with `size.glass-dialog-inset` padding; the inner sheet uses `radius.glass-group` in `--glass-sheet` (which resolves to `color.surface.editor` under Reduce Transparency or Increase Contrast) with `glass-rim`, `space.5` padding and `space.4` between regions.
+- The bold `font-size.title` title input leads a wrap-friendly `.note-meta` row of 26 pt capsules (`size.note-pill` notebook picker and status picker, then `#` tag chips and the inline `+ Tag` field, `space.3` apart).
+- The body editor sits inside a `color.fill.card` box (`radius.card`, `space.4` padding) with an inset focus ring (`size.focus-ring` in `color.focus.ring`).
+- The footer sits under a `color.line.separator` hairline (`space.4` above) with non-interactive `⌘↩` Save and `Esc` Cancel hints (`font-size.caption`, tertiary) on the left and capsule Cancel and Save buttons (`size.glass-dialog-button`, `radius.capsule`) on the right.
+
 ## Capsules
 
 A capsule's radius is half its height (`radius.capsule`), so each end is a half circle; these rules place what sits inside one.

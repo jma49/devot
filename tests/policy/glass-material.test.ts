@@ -60,6 +60,7 @@ const GLASS = [
   '.search-help',
   '.plugin-panel',
   '.notice',
+  '.empty-pane-card',
 ]
 
 describe('the glass material', () => {

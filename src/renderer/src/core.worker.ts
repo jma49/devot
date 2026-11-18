@@ -232,8 +232,12 @@ const coreApi = {
   list: (limit?: number) => required().list(limit),
   create: (title?: string, bookId?: string | null) => required().create(title, bookId),
   /** A quick capture from the menu bar, saved before it resolves (see captureNote). */
-  capture: (title: string, markdown: string, bookId: string | null) =>
-    captureNote(required(), { title, markdown, bookId }),
+  capture: (
+    title: string,
+    markdown: string,
+    bookId: string | null,
+    options?: { status?: NoteStatus; tags?: readonly string[] },
+  ) => captureNote(required(), { title, markdown, bookId, ...options }, requiredTags()),
   /** A share from another iPhone app, saved before it resolves (see captureShare). */
   captureShare: (share: SharedNote) => {
     const parts = coreParts
