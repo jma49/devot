@@ -125,7 +125,12 @@ export function cleanWriterName(name: string): string {
 }
 
 export function newWriter(kind: WriterKind, name: string, process: string): Writer {
-  return { session: newAuthorshipId(), kind, name: cleanWriterName(name), process }
+  return {
+    session: newAuthorshipId(),
+    kind,
+    name: cleanWriterName(name),
+    process,
+  }
 }
 
 function writeVarUint(out: number[], value: number) {
@@ -206,7 +211,12 @@ function readWriter(session: string, value: unknown): Writer | null {
   if (!AUTHORSHIP_ID.test(session) || !isRecord(value) || value['v'] !== RECORD_VERSION) return null
   const { kind, name, process } = value
   if (!isKind(kind) || typeof name !== 'string' || typeof process !== 'string') return null
-  return { session, kind, name: cleanWriterName(name), process: process.slice(0, 64) }
+  return {
+    session,
+    kind,
+    name: cleanWriterName(name),
+    process: process.slice(0, 64),
+  }
 }
 
 function readWrite(
@@ -670,7 +680,11 @@ export function reviewSteps(doc: Y.Doc, only?: ReadonlySet<string>, noteId?: str
             prev.end = last
             if (part) prev.text = `${prev.text ?? ''}${part}`
           } else {
-            byOwner.set(owner, { anchor: `${item.id.client}:${a}`, end: last, text: part })
+            byOwner.set(owner, {
+              anchor: `${item.id.client}:${a}`,
+              end: last,
+              text: part,
+            })
           }
         }
         for (const [owner, { anchor, end: last, text }] of byOwner)
@@ -744,6 +758,29 @@ export interface Reversal {
   dropped: number
 }
 
+type Piece = { start: number; end: number; text: string; owner?: string }
+type MapEntry = { map: string; key: string; had: boolean; value: unknown }
+type DeletedPiece = {
+  client: number
+  clock: number
+  text: string
+  write: string | undefined
+}
+
+/** What Restore needs to take back one Undo: what its transaction changed, and the document as it left it. */
+export interface UndoneWrites {
+  /** The writes it took back, newest first. */
+  writes: readonly string[]
+  /** The document right after the Undo; Restore refuses once it differs. */
+  after: Y.Snapshot
+  /** The body items the Undo inserted: text it put back. */
+  inserted: readonly IdRange[]
+  /** The text the Undo deleted, by the ID of its first item, with the write that had inserted it. */
+  deleted: readonly DeletedPiece[]
+  /** Each authorship map entry the Undo set, in order, with whether it was there before and its value then. */
+  entries: readonly MapEntry[]
+}
+
 /**
  * Undo All for one writer (its kind and every name it has gone by, across sessions), as one Yjs transaction: each of its
  * writes' deleted text goes back where its deleted items sit, every live character it
@@ -756,8 +793,8 @@ function reverseTargetWrites(
   all: readonly AgentWrite[],
   writers: ReadonlyMap<string, Writer>,
   targets: readonly AgentWrite[],
-): Reversal {
-  if (targets.length === 0) return { writes: 0, dropped: 0 }
+): { reversal: Reversal; undone: UndoneWrites | undefined } {
+  if (targets.length === 0) return { reversal: { writes: 0, dropped: 0 }, undone: undefined }
   const targetIds = new Set(targets.map((write) => write.id))
   const insertedIndex = spansByClient(targets.map((w) => ({ ranges: w.inserted, owner: w.id })))
   const insertedSpans = new Map<number, Span[]>()
@@ -802,7 +839,7 @@ function reverseTargetWrites(
   for (const list of undone.values()) list.sort((a, b) => a[0] - b[0])
   for (const list of owners.values()) list.sort((a, b) => a[0] - b[0])
   // The text to put back, by the ID it had: each ID once, though two devices may both have deleted it.
-  const pieces = new Map<number, { start: number; end: number; text: string; owner?: string }[]>()
+  const pieces = new Map<number, Piece[]>()
   const restored = new Map<number, Span[]>()
   let dropped = 0
   for (const write of [...targets].reverse()) {
@@ -842,80 +879,204 @@ function reverseTargetWrites(
   }
   for (const list of pieces.values()) list.sort((a, b) => a.start - b.start)
   const text = doc.getText(BODY)
+  const entries: MapEntry[] = []
+  const set = (name: string, key: string, value: unknown) => {
+    const map = doc.getMap(name)
+    entries.push({ map: name, key, had: map.has(key), value: map.get(key) })
+    map.set(key, value)
+  }
+  let inserted: IdRange[] = []
+  const deleted: DeletedPiece[] = []
   doc.transact((tr) => {
-    const inserts: { index: number; order: number; text: string; owner?: string }[] = []
-    let at = 0
-    let order = 0
-    // oxlint-disable-next-line no-underscore-dangle -- Yjs has no public walk over a text's items with their IDs (ADR 0007, risk 5).
-    for (let item = text._start; item; item = item.right) {
-      if (!item.deleted) {
-        if (item.countable) at += item.length
-        continue
-      }
-      const list = pieces.get(item.id.client)
-      if (!list) continue
-      const { clock } = item.id
-      const end = clock + item.length
-      let lo = 0
-      let hi = list.length
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1
-        if (list[mid]!.end <= clock) lo = mid + 1
-        else hi = mid
-      }
-      // A piece contiguous in clock may span tombstones with live text between them; each part goes back at its own tombstone.
-      for (let i = lo; i < list.length && list[i]!.start < end; i += 1) {
-        const piece = list[i]!
-        const a = Math.max(piece.start, clock)
-        const b = Math.min(piece.end, end)
-        const part = piece.text.slice(a - piece.start, b - piece.start)
-        inserts.push({
-          index: at,
-          order: (order += 1),
-          text: part,
-          ...(piece.owner === undefined ? {} : { owner: piece.owner }),
-        })
-      }
-    }
-    const client = tr.doc.clientID
-    let clock = tr.beforeState.get(client) ?? 0
-    const extended = new Map<string, IdRange[]>()
-    for (const piece of inserts.sort((a, b) => b.index - a.index || b.order - a.order)) {
-      text.insert(piece.index, piece.text)
-      if (piece.owner !== undefined) {
-        const list = extended.get(piece.owner) ?? []
-        pushRange(list, client, clock, piece.text.length)
-        extended.set(piece.owner, list)
-      }
-      clock += piece.text.length
-    }
+    const extended = putBackPieces(text, tr, pieces)
     const runs: [number, number][] = []
     walkOwned(text, insertedIndex, (from, length) => runs.push([from, length]))
     for (const [from, length] of runs.reverse()) text.delete(from, length)
-    const restoredMap = doc.getMap(RESTORED)
-    for (const [id, ranges] of extended) {
-      restoredMap.set(newAuthorshipId(), {
-        v: RECORD_VERSION,
-        write: id,
-        ids: packRanges(ranges, []),
-      })
-    }
-    const undoneMap = doc.getMap(UNDONE)
-    const putBackMap = doc.getMap(PUT_BACK)
+    addRestored(extended, set)
     const writes = doc.getMap(WRITES)
     for (const write of targets) {
-      undoneMap.set(write.id, true)
-      if (write.removed !== undefined) putBackMap.set(write.id, true)
+      set(UNDONE, write.id, true)
+      if (write.removed !== undefined) set(PUT_BACK, write.id, true)
       // The deleted text is of no use once undone, and would count against the cap and push a live writer's out.
       // `reversed` is what an earlier build on another device reads; this build reads `undone`.
       const raw = writes.get(write.id)
       if (!isRecord(raw)) continue
       const { removed: _removed, ...kept } = raw
       if (raw['removed'] !== undefined || raw['reversed'] !== true)
-        writes.set(write.id, { ...kept, reversed: true })
+        set(WRITES, write.id, { ...kept, reversed: true })
+    }
+    const changed = captureWrite(text, tr)
+    inserted = changed.inserted
+    let offset = 0
+    for (const range of changed.deleted) {
+      const slice = changed.removed.slice(offset, offset + range.length)
+      offset += range.length
+      const span: Span = [range.clock, range.clock + range.length]
+      for (const [a, b, write] of splitOwned(span, insertedIndex.get(range.client) ?? [])) {
+        deleted.push({
+          client: range.client,
+          clock: a,
+          text: slice.slice(a - range.clock, b - range.clock),
+          write,
+        })
+      }
     }
   })
-  return { writes: targets.length, dropped }
+  return {
+    reversal: { writes: targets.length, dropped },
+    undone: {
+      writes: [...targets].reverse().map((write) => write.id),
+      after: Y.snapshot(doc),
+      inserted,
+      deleted,
+      entries,
+    },
+  }
+}
+
+/**
+ * Puts each piece back where its deleted items sit, in `tr`: a piece contiguous in clock may span tombstones with live
+ * text between them, and each part goes back at its own tombstone. Returns the ranges each owner's pieces now have.
+ */
+function putBackPieces(
+  text: Y.Text,
+  tr: Y.Transaction,
+  pieces: ReadonlyMap<number, readonly Piece[]>,
+): Map<string, IdRange[]> {
+  const inserts: {
+    index: number
+    order: number
+    text: string
+    owner?: string
+  }[] = []
+  let at = 0
+  let order = 0
+  // oxlint-disable-next-line no-underscore-dangle -- Yjs has no public walk over a text's items with their IDs (ADR 0007, risk 5).
+  for (let item = text._start; item; item = item.right) {
+    if (!item.deleted) {
+      if (item.countable) at += item.length
+      continue
+    }
+    const list = pieces.get(item.id.client)
+    if (!list) continue
+    const { clock } = item.id
+    const end = clock + item.length
+    let lo = 0
+    let hi = list.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (list[mid]!.end <= clock) lo = mid + 1
+      else hi = mid
+    }
+    for (let i = lo; i < list.length && list[i]!.start < end; i += 1) {
+      const piece = list[i]!
+      const a = Math.max(piece.start, clock)
+      const b = Math.min(piece.end, end)
+      inserts.push({
+        index: at,
+        order: (order += 1),
+        text: piece.text.slice(a - piece.start, b - piece.start),
+        ...(piece.owner === undefined ? {} : { owner: piece.owner }),
+      })
+    }
+  }
+  const client = tr.doc.clientID
+  let clock = tr.beforeState.get(client) ?? 0
+  const extended = new Map<string, IdRange[]>()
+  for (const piece of inserts.sort((a, b) => b.index - a.index || b.order - a.order)) {
+    text.insert(piece.index, piece.text)
+    if (piece.owner !== undefined) {
+      const list = extended.get(piece.owner) ?? []
+      pushRange(list, client, clock, piece.text.length)
+      extended.set(piece.owner, list)
+    }
+    clock += piece.text.length
+  }
+  return extended
+}
+
+/**
+ * Puts each piece back right after the deleted items it was, in `tr`, so it sits among the tombstones beside it as
+ * the text it brings back did: inserting by offset would put it before them, and move another write's deletion point
+ * across it. Returns the ranges each owner's pieces now have.
+ */
+function insertAfterTombstones(
+  text: Y.Text,
+  tr: Y.Transaction,
+  pieces: ReadonlyMap<number, readonly Piece[]>,
+): Map<string, IdRange[]> {
+  const parts: {
+    client: number
+    last: number
+    text: string
+    owner?: string
+  }[] = []
+  const bounds = new Map(
+    [...pieces].map(([client, list]) => [client, list.map((p): Span => [p.start, p.end])]),
+  )
+  // oxlint-disable-next-line no-underscore-dangle -- Yjs has no public walk over a text's items with their IDs (ADR 0007, risk 5).
+  for (let item = text._start; item; item = item.right) {
+    const list = item.deleted ? pieces.get(item.id.client) : undefined
+    if (!list) continue
+    const { clock } = item.id
+    const end = clock + item.length
+    for (
+      let i = firstAfter(bounds.get(item.id.client)!, clock);
+      i < list.length && list[i]!.start < end;
+      i += 1
+    ) {
+      const piece = list[i]!
+      const a = Math.max(piece.start, clock)
+      const b = Math.min(piece.end, end)
+      parts.push({
+        client: item.id.client,
+        last: b - 1,
+        text: piece.text.slice(a - piece.start, b - piece.start),
+        ...(piece.owner === undefined ? {} : { owner: piece.owner }),
+      })
+    }
+  }
+  const { store } = tr.doc
+  const own = tr.doc.clientID
+  const extended = new Map<string, IdRange[]>()
+  for (const part of parts) {
+    const left = Y.getItemCleanEnd(tr, store, Y.createID(part.client, part.last))
+    const clock = Y.getState(store, own)
+    const { right } = left
+    const id = Y.createID(own, clock)
+    new Y.Item(
+      id,
+      left,
+      left.lastId,
+      right,
+      right?.id ?? null,
+      text,
+      null,
+      new Y.ContentString(part.text),
+    ).integrate(tr, 0)
+    if (part.owner !== undefined) {
+      const list = extended.get(part.owner) ?? []
+      pushRange(list, own, clock, part.text.length)
+      extended.set(part.owner, list)
+    }
+  }
+  // Its search markers cache offsets that the items above moved; Y.Text builds them again.
+  // oxlint-disable-next-line no-underscore-dangle -- the cache has no public reset (ADR 0007, risk 5).
+  text._searchMarker?.splice(0)
+  return extended
+}
+
+function addRestored(
+  extended: ReadonlyMap<string, IdRange[]>,
+  set: (map: string, key: string, value: unknown) => void,
+) {
+  for (const [id, ranges] of extended) {
+    set(RESTORED, newAuthorshipId(), {
+      v: RECORD_VERSION,
+      write: id,
+      ids: packRanges(ranges, []),
+    })
+  }
 }
 
 /**
@@ -938,7 +1099,7 @@ export function reverseWrites(
     const writer = writers.get(write.session)
     return writer !== undefined && writer.kind === who.kind && names.has(writer.name)
   })
-  return reverseTargetWrites(doc, all, writers, targets)
+  return reverseTargetWrites(doc, all, writers, targets).reversal
 }
 
 /** `writeId` and every later live write that deleted text one of them inserted, oldest first. */
@@ -982,9 +1143,54 @@ export function undoGroup(doc: Y.Doc, writeId: string, noteId?: string): string[
  * writes included) intact. Text another writer wrote that these writes deleted comes back attributed to that writer.
  */
 export function reverseWrite(doc: Y.Doc, writeId: string, noteId?: string): Reversal {
+  return undoWrite(doc, writeId, noteId).reversal
+}
+
+/** `reverseWrite`, with what `restoreWrites` needs to take the Undo back; undefined when it undid nothing. */
+export function undoWrite(
+  doc: Y.Doc,
+  writeId: string,
+  noteId?: string,
+): { reversal: Reversal; undone: UndoneWrites | undefined } {
   const writers = readWriters(doc, noteId)
   const all = readAllWrites(doc, noteId)
   return reverseTargetWrites(doc, all, writers, groupOf(all, writers, writeId))
+}
+
+/**
+ * Restore after an Undo, as one Yjs transaction: the text the Undo put back goes again, the text it took out comes back
+ * with new items that `restored` gives to the writes that had it, and every record the Undo set is as it was, so the
+ * writes are live again. Returns false, changing nothing, when the document changed since the Undo.
+ */
+export function restoreWrites(doc: Y.Doc, undone: UndoneWrites): boolean {
+  if (!Y.equalSnapshots(Y.snapshot(doc), undone.after)) return false
+  const text = doc.getText(BODY)
+  const pieces = new Map<number, Piece[]>()
+  for (const { client, clock, text: part, write } of undone.deleted) {
+    const list = pieces.get(client) ?? []
+    list.push({
+      start: clock,
+      end: clock + part.length,
+      text: part,
+      ...(write === undefined ? {} : { owner: write }),
+    })
+    pieces.set(client, list)
+  }
+  for (const list of pieces.values()) list.sort((a, b) => a.start - b.start)
+  doc.transact((tr) => {
+    const runs: [number, number][] = []
+    walkOwned(text, spansByClient([{ ranges: undone.inserted, owner: '' }]), (from, length) =>
+      runs.push([from, length]),
+    )
+    for (const [from, length] of runs.reverse()) text.delete(from, length)
+    const extended = insertAfterTombstones(text, tr, pieces)
+    for (const { map, key, had, value } of [...undone.entries].reverse()) {
+      if (had) doc.getMap(map).set(key, value)
+      else doc.getMap(map).delete(key)
+    }
+    addRestored(extended, (map, key, value) => doc.getMap(map).set(key, value))
+  })
+  return true
 }
 
 /** Clear Authorship: deletes every entry of the maps in one transaction; returns how many writes there were. */

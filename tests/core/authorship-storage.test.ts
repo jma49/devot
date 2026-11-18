@@ -56,7 +56,12 @@ function app(path: string) {
     saveDelayMs: 5,
     log: (...parts) => logs.push(parts.join(' ')),
   })
-  return { storage, notes, books: createBookService({ storage, clock, newId }), logs }
+  return {
+    storage,
+    notes,
+    books: createBookService({ storage, clock, newId }),
+    logs,
+  }
 }
 
 /** an outside writer: a connection of its own to the same file, for one client. */
@@ -124,15 +129,30 @@ describe('recording agent writes', () => {
     })
     // Before the app has done anything: an outside writer wrote the row itself.
     expect(rows(s.claude.storage, id)).toEqual([
-      { write_id: expect.any(String), kind: 'mcp', name: 'Claude Code', created: 1, seen: 0 },
+      {
+        write_id: expect.any(String),
+        kind: 'mcp',
+        name: 'Claude Code',
+        created: 1,
+        seen: 0,
+      },
     ])
     const doc = await stored(s.storage, id)
     expect(readWrites(doc)).toEqual([
-      expect.objectContaining({ session: CLAUDE.session, created: true, removed: undefined }),
+      expect.objectContaining({
+        session: CLAUDE.session,
+        created: true,
+        removed: undefined,
+      }),
     ])
     expect(agentText(doc)).toEqual(['Monday\n'])
     expect(await s.storage.listAgentWrites(10)).toEqual([
-      expect.objectContaining({ noteId: id, kind: 'mcp', name: 'Claude Code', seen: false }),
+      expect.objectContaining({
+        noteId: id,
+        kind: 'mcp',
+        name: 'Claude Code',
+        seen: false,
+      }),
     ])
   })
 
@@ -143,8 +163,17 @@ describe('recording agent writes', () => {
       markdown: 'Text\n',
       notebook: s.shared,
     })
-    await s.claude.ai.update({ id, title: 'Plan', body: { markdown: 'Text\n' } })
-    await s.claude.ai.update({ id, title: 'Renamed', status: 'active', tags: ['work'] })
+    await s.claude.ai.update({
+      id,
+      title: 'Plan',
+      body: { markdown: 'Text\n' },
+    })
+    await s.claude.ai.update({
+      id,
+      title: 'Renamed',
+      status: 'active',
+      tags: ['work'],
+    })
     const writes = readWrites(await stored(s.storage, id))
     expect(writes.map((w) => w.fields)).toEqual([[], ['title', 'tags', 'status']])
     await s.claude.ai.trash(id)
@@ -199,7 +228,14 @@ describe('interleaved owner and agent edits', () => {
     await s.notes.flush()
     await s.claude.ai.update({
       id,
-      body: { patches: [{ find: 'Intro.', replace: 'Intro.\n\nThe agent adds this paragraph.' }] },
+      body: {
+        patches: [
+          {
+            find: 'Intro.',
+            replace: 'Intro.\n\nThe agent adds this paragraph.',
+          },
+        ],
+      },
     })
     await s.notes.mergeStored()
     // The owner types inside the agent's paragraph, then after it.
@@ -209,7 +245,12 @@ describe('interleaved owner and agent edits', () => {
     await s.codex.ai.update({
       id,
       body: {
-        patches: [{ find: "owner's own line.", replace: "owner's own line.\nCodex was here." }],
+        patches: [
+          {
+            find: "owner's own line.",
+            replace: "owner's own line.\nCodex was here.",
+          },
+        ],
       },
     })
     await s.notes.mergeStored()
@@ -240,7 +281,10 @@ describe('interleaved owner and agent edits', () => {
 
   it('Undo All reverts one agent and keeps the owner’s later edits and the other agent’s text', async () => {
     const s = await interleaved()
-    const result = await s.notes.undoAgentWrites(s.id, { kind: 'mcp', names: ['Claude Code'] })
+    const result = await s.notes.undoAgentWrites(s.id, {
+      kind: 'mcp',
+      names: ['Claude Code'],
+    })
     expect(result).toMatchObject({ writes: 2, dropped: 0 })
     await s.notes.flush()
     const doc = await stored(s.storage, s.id)
@@ -319,8 +363,15 @@ describe('the agent_writes index', () => {
     expect(await s.storage.markAgentWritesSeen(id, [first!.writeId, 'unknown0000'])).toBe(1)
     // Nothing left to change: the other windows hear of no write.
     expect(await s.storage.markAgentWritesSeen(id, [first!.writeId])).toBe(0)
-    await s.claude.ai.update({ id, body: { markdown: 'Draft text, longer.\n' } })
-    await s.notes.applyAiEdit(id, { from: 0, original: 'Draft', replacement: 'Final' })
+    await s.claude.ai.update({
+      id,
+      body: { markdown: 'Draft text, longer.\n' },
+    })
+    await s.notes.applyAiEdit(id, {
+      from: 0,
+      original: 'Draft',
+      replacement: 'Final',
+    })
     await s.notes.flush()
     const listed = await s.storage.listAgentWrites(10)
     expect(listed.map((w) => [w.kind, w.name, w.seen])).toEqual([
@@ -333,7 +384,12 @@ describe('the agent_writes index', () => {
     const doc = await stored(s.storage, id)
     const aiEdit = readWrites(doc).find((w) => w.id === listed[0]!.writeId)
     const writers = doc.getMap(WRITERS).toJSON()
-    expect(writers[aiEdit!.session]).toEqual({ v: 1, kind: 'aiEdit', name: '', process: 'mac1' })
+    expect(writers[aiEdit!.session]).toEqual({
+      v: 1,
+      kind: 'aiEdit',
+      name: '',
+      process: 'mac1',
+    })
   })
 
   it('derives missing rows again on the note’s next write, and purging deletes them', async () => {
@@ -393,7 +449,13 @@ describe('the agent_writes index', () => {
     const s = await setup()
     const id = await s.notes.create('Plan')
     const note = (await s.storage.getNote(id))!
-    const row = { writeId: 'AAAAAAAAAAA', kind: 'mcp' as const, name: 'x', at: 1, created: false }
+    const row = {
+      writeId: 'AAAAAAAAAAA',
+      kind: 'mcp' as const,
+      name: 'x',
+      at: 1,
+      created: false,
+    }
     for (const bad of [
       { ...row, writeId: 'short' },
       { ...row, kind: 'owner' as 'mcp' },
@@ -431,7 +493,10 @@ describe('seen on this device', () => {
       [id, 'Claude Code', true],
       [id, 'Claude Code', true],
     ])
-    await s.claude.ai.update({ id, body: { markdown: 'Draft, longer still.\n' } })
+    await s.claude.ai.update({
+      id,
+      body: { markdown: 'Draft, longer still.\n' },
+    })
     expect((await s.notes.agentWrites(10)).map((w) => w.seen)).toEqual([false, true, true])
   })
 
@@ -447,7 +512,10 @@ describe('seen on this device', () => {
     const id = await notes.create('Plan')
     notes.hold(id)
     await notes.open(id)
-    const writeId = await notes.agentWrite(id, { writer: CLAUDE, markdown: 'Agent text.\n' })
+    const writeId = await notes.agentWrite(id, {
+      writer: CLAUDE,
+      markdown: 'Agent text.\n',
+    })
     expect(rows(storage, id)).toEqual([])
     await notes.markWritesSeen(id, [writeId!])
     expect(rows(storage, id).map((r) => [r.write_id, r.seen])).toEqual([[writeId, 1]])
@@ -494,7 +562,11 @@ describe('the deleted-text cap', () => {
   it('keeps at most 1 MiB of deleted text per note, dropping the oldest first', async () => {
     const s = await setup()
     const half = `${'Seven hundred kilobytes of words. '.repeat(20_000)}\n`
-    const { id } = await s.claude.ai.create({ title: 'Big', markdown: half, notebook: s.shared })
+    const { id } = await s.claude.ai.create({
+      title: 'Big',
+      markdown: half,
+      notebook: s.shared,
+    })
     await s.claude.ai.update({ id, body: { markdown: 'Gone.\n' } })
     await s.claude.ai.update({ id, body: { markdown: half } })
     await s.claude.ai.update({ id, body: { markdown: 'Gone again.\n' } })
@@ -502,7 +574,10 @@ describe('the deleted-text cap', () => {
     // The first deletion went: the two after it hold what they deleted.
     expect(writes.map((w) => w.removed !== undefined)).toEqual([false, false, true, true])
     expect(writes[1]!.deleted.length).toBeGreaterThan(0)
-    const result = await s.notes.undoAgentWrites(id, { kind: 'mcp', names: ['Claude Code'] })
+    const result = await s.notes.undoAgentWrites(id, {
+      kind: 'mcp',
+      names: ['Claude Code'],
+    })
     expect(result).toMatchObject({ writes: 4, dropped: 1 })
   })
 })
@@ -515,8 +590,14 @@ describe('two devices changing one write before they sync', () => {
       markdown: 'Keep. One two three four.\n',
       notebook: s.shared,
     })
-    await s.codex.ai.update({ id, body: { patches: [{ find: 'two ', replace: '' }] } })
-    await s.claude.ai.update({ id, body: { patches: [{ find: 'Keep. ', replace: '' }] } })
+    await s.codex.ai.update({
+      id,
+      body: { patches: [{ find: 'two ', replace: '' }] },
+    })
+    await s.claude.ai.update({
+      id,
+      body: { patches: [{ find: 'Keep. ', replace: '' }] },
+    })
     const base = await stored(s.storage, id)
     const device = (client: number) => {
       const doc = new Y.Doc()
@@ -546,7 +627,10 @@ describe('two devices changing one write before they sync', () => {
     expect(doc.getText(BODY).toString()).toBe('One two three four.\nMore.\n')
     expect(agentText(doc).join('')).toBe('One two three four.\nMore.\n')
     // What came back stays the text of Claude's first write, so its Undo All takes that out too.
-    await again.notes.undoAgentWrites(id, { kind: 'mcp', names: ['Claude Code'] })
+    await again.notes.undoAgentWrites(id, {
+      kind: 'mcp',
+      names: ['Claude Code'],
+    })
     await again.notes.flush()
     expect((await stored(again.storage, id)).getText(BODY).toString()).toBe('More.\n')
   })
@@ -598,7 +682,13 @@ describe('the UI tests’ memory adapter', () => {
       const newId = createIdGenerator()
       let time = 1_790_000_000_000
       const now = () => (time += 1000)
-      const notes = createNoteService({ storage, clock, newId, now, saveDelayMs: 5 })
+      const notes = createNoteService({
+        storage,
+        clock,
+        newId,
+        now,
+        saveDelayMs: 5,
+      })
       const id = await notes.create('Plan')
       const other = await notes.create('Other')
       await notes.agentWrite(id, { writer: CLAUDE, markdown: 'One.\n' })
@@ -606,7 +696,11 @@ describe('the UI tests’ memory adapter', () => {
       await notes.flush()
       const [first] = await storage.listAgentWrites(10)
       await storage.markAgentWritesSeen(first!.noteId, [first!.writeId])
-      await notes.applyAiEdit(id, { from: 0, original: 'One', replacement: 'Uno' })
+      await notes.applyAiEdit(id, {
+        from: 0,
+        original: 'One',
+        replacement: 'Uno',
+      })
       await notes.agentWrite(id, { writer: CLAUDE, markdown: 'Uno. Dos.\n' })
       await notes.trash(other)
       await notes.flush()
@@ -633,7 +727,9 @@ describe('per-write Keep and Undo on SQLite', () => {
     // First write by Claude (marked seen as historical context).
     await s.claude.ai.update({
       id,
-      body: { patches: [{ find: 'Owner opening.', replace: 'Claude opening.' }] },
+      body: {
+        patches: [{ find: 'Owner opening.', replace: 'Claude opening.' }],
+      },
     })
     // Second and third writes by Claude (remain unseen).
     await s.claude.ai.update({
@@ -642,7 +738,9 @@ describe('per-write Keep and Undo on SQLite', () => {
     })
     await s.claude.ai.update({
       id,
-      body: { patches: [{ find: 'Owner closing.', replace: 'Claude closing.' }] },
+      body: {
+        patches: [{ find: 'Owner closing.', replace: 'Claude closing.' }],
+      },
     })
     await s.notes.mergeStored()
 
@@ -681,6 +779,99 @@ describe('per-write Keep and Undo on SQLite', () => {
         [seenWrite!.id, 1],
         [replacementWrite!.id, 1],
       ]),
+    )
+  })
+})
+
+describe('Restore after a group Undo on SQLite', () => {
+  /** A note where Codex rewrote Claude's text: undoing Claude's write takes both back. */
+  const rewritten = async () => {
+    const s = await setup()
+    const id = await s.notes.create('Plan', s.shared)
+    await s.notes.setBody(id, 'Owner line.\n')
+    await s.notes.agentWrite(id, {
+      writer: CLAUDE,
+      markdown: 'Owner line.\nAlpha beta gamma.\n',
+    })
+    await s.notes.agentWrite(id, {
+      writer: CODEX,
+      markdown: 'Owner line.\nAlpha gamma delta.\n',
+    })
+    await s.notes.flush()
+    const [first, second] = readWrites(await stored(s.storage, id))
+    return { s, id, first: first!.id, second: second!.id }
+  }
+
+  it('puts the text and the writes back, and their rows come back unseen', async () => {
+    const { s, id, first, second } = await rewritten()
+    await s.notes.markWritesSeen(id, [first, second])
+    const undone = await s.notes.undoAgentWrite(id, first)
+    expect(undone).toMatchObject({
+      writes: 2,
+      restore: { writes: [second, first] },
+    })
+    await s.notes.flush()
+    expect((await stored(s.storage, id)).getText(BODY).toString()).toBe('Owner line.\n')
+    expect(rows(s.storage, id)).toEqual([])
+
+    const restored = await s.notes.restoreAgentWrites(id, undone.restore!.token)
+    expect(restored.writes).toBe(2)
+    await s.notes.flush()
+    const doc = await stored(s.storage, id)
+    expect(doc.getText(BODY).toString()).toBe('Owner line.\nAlpha gamma delta.\n')
+    expect(readWrites(doc).map((w) => w.id)).toEqual([first, second])
+    expect(new Map(rows(s.storage, id).map((r) => [r.write_id, r.seen]))).toEqual(
+      new Map([
+        [first, 0],
+        [second, 0],
+      ]),
+    )
+    expect(s.logs).toContain(`I_AUTHORSHIP_RESTORED ${id} 2`)
+    // Taken once.
+    await expect(s.notes.restoreAgentWrites(id, undone.restore!.token)).rejects.toThrow(
+      'E_AUTHORSHIP_RESTORE_STALE',
+    )
+  })
+
+  it('offers no Restore for one write, and refuses one once the note changed', async () => {
+    const { s, id, second } = await rewritten()
+    expect((await s.notes.undoAgentWrite(id, second)).restore).toBeUndefined()
+
+    const again = await rewritten()
+    const undone = await again.s.notes.undoAgentWrite(again.id, again.first)
+    await again.s.notes.setBody(again.id, 'Owner line, typed.\n')
+    await expect(again.s.notes.restoreAgentWrites(again.id, undone.restore!.token)).rejects.toThrow(
+      'E_AUTHORSHIP_RESTORE_STALE',
+    )
+    await again.s.notes.flush()
+    expect((await stored(again.s.storage, again.id)).getText(BODY).toString()).toBe(
+      'Owner line, typed.\n',
+    )
+  })
+
+  it('refuses another note or token without spending the offer, and a later Undo replaces it', async () => {
+    const { s, id, first } = await rewritten()
+    const other = await s.notes.create('Other', s.shared)
+    const undone = await s.notes.undoAgentWrite(id, first)
+    const token = undone.restore!.token
+    await expect(s.notes.restoreAgentWrites(other, token)).rejects.toThrow(
+      'E_AUTHORSHIP_RESTORE_STALE',
+    )
+    await expect(s.notes.restoreAgentWrites(id, 'not-the-token')).rejects.toThrow(
+      'E_AUTHORSHIP_RESTORE_STALE',
+    )
+    expect((await s.notes.restoreAgentWrites(id, token)).writes).toBe(2)
+
+    await s.notes.setBody(other, 'Other line.\n')
+    await s.notes.agentWrite(other, {
+      writer: CLAUDE,
+      markdown: 'Other line.\nAdded.\n',
+    })
+    await s.notes.flush()
+    const again = await s.notes.undoAgentWrite(id, first)
+    await s.notes.undoAgentWrite(other, readWrites(await stored(s.storage, other))[0]!.id)
+    await expect(s.notes.restoreAgentWrites(id, again.restore!.token)).rejects.toThrow(
+      'E_AUTHORSHIP_RESTORE_STALE',
     )
   })
 })

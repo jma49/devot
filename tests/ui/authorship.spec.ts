@@ -673,6 +673,46 @@ test('Keep marks one change seen and moves on, Undo takes out only that change, 
     .toEqual([true, true])
 })
 
+test('Undo 2 Edits marks what it takes back, and Restore brings both edits back until the note changes', async ({
+  page,
+}) => {
+  await seed(page, [
+    {
+      id: PLAN,
+      title: 'Plan',
+      owner: 'Owner intro.\n',
+      edits: [
+        { writer: CLAUDE, markdown: 'Owner intro.\nZzz qqq!\n' },
+        { writer: CODEX, markdown: 'Owner intro.\nZzz www!\n' },
+      ],
+    },
+  ])
+  await noteRow(page, 'Plan').click()
+  await notice(page).getByRole('button', { name: 'Review Changes' }).click()
+  const status = notice(page).getByRole('status')
+  await expect(status).toHaveText(/^Change 1 of \d+: Claude Code \(MCP\), /)
+  const undo = notice(page).getByRole('button', { name: 'Undo 2 Edits (1 by Codex (MCP))' })
+  await undo.hover()
+  await expect(page.locator('.cm-review-preview').first()).toBeVisible()
+  await undo.click()
+  await expect(body(page)).not.toContainText('Zzz')
+  await expect(status).toHaveText('Undid 2 edits.')
+  await expect(page.locator('.cm-review-preview')).toHaveCount(0)
+
+  await notice(page).getByRole('button', { name: 'Restore 2 Edits' }).click()
+  await expect(body(page)).toContainText('Zzz www!')
+  await expect(status).toHaveText(/^Change 1 of \d+: Claude Code \(MCP\), /)
+  await expect(notice(page).getByRole('button', { name: 'Restore 2 Edits' })).toHaveCount(0)
+
+  // Once the note changes after the Undo, Restore goes with the review.
+  await undo.click()
+  await expect(notice(page).getByRole('button', { name: 'Restore 2 Edits' })).toBeVisible()
+  await body(page).click()
+  await page.keyboard.type('x')
+  await expect(notice(page)).toHaveCount(0)
+  await expect(body(page)).not.toContainText('Zzz')
+})
+
 test('Review Changes from Preview reviews in the editor, and Done goes back to Preview', async ({
   page,
 }) => {

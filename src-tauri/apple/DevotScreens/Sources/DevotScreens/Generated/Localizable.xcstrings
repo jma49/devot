@@ -3860,6 +3860,23 @@
         }
       }
     },
+    "authorship.restore" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore {count} Edits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复 {count} 次编辑"
+          }
+        }
+      }
+    },
     "authorship.review" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3907,6 +3924,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第 {index} 处更改（共 {count} 处）：{writer} 在这里删除了文字，{time}"
+          }
+        }
+      }
+    },
+    "authorship.undid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undid {count} edits."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已撤销 {count} 次编辑。"
           }
         }
       }
@@ -4026,6 +4060,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "撤销 {count} 次编辑"
+          }
+        }
+      }
+    },
+    "authorship.undoGroupBy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{count} by {writer}"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{writer} {count} 次"
+          }
+        }
+      }
+    },
+    "authorship.undoGroupOthers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo {count} Edits ({others})"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销 {count} 次编辑（{others}）"
           }
         }
       }
@@ -5335,6 +5403,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这篇笔记已不在废纸篓中，所以没有删除。它可能已在另一个窗口或另一台设备上被恢复。"
+          }
+        }
+      }
+    },
+    "change.restoreStale" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The note changed since the Undo, so those edits cannot be restored."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销之后笔记已有改动，无法恢复那些编辑。"
           }
         }
       }

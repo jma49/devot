@@ -21,9 +21,11 @@ import {
   reverseWrite,
   reverseWrites,
   RESTORED,
+  restoreWrites,
   reviewSteps,
   UNDONE,
   undoGroup,
+  undoWrite,
   unpackRanges,
   validWriterName,
   WRITERS,
@@ -89,7 +91,10 @@ describe('authorship IDs and names', () => {
     ]
     const packed = packRanges(inserted, deleted)
     expect(unpackRanges(packed)).toEqual({ inserted, deleted })
-    expect(unpackRanges(packRanges([], []))).toEqual({ inserted: [], deleted: [] })
+    expect(unpackRanges(packRanges([], []))).toEqual({
+      inserted: [],
+      deleted: [],
+    })
     expect(unpackRanges(packed.slice(0, packed.length - 1))).toBeNull()
     // More inserted ranges than ranges, a zero length, a client not in the list.
     expect(unpackRanges(new Uint8Array([1, 7, 5, 0, 1, 1]))).toBeNull()
@@ -110,7 +115,12 @@ describe('recording a write', () => {
     const id = edit(doc, claude, 'Milk, eggs and bread.\n')!
     expect(updates).toHaveLength(1)
     const [write] = readWrites(doc)
-    expect(write).toMatchObject({ id, session: claude.session, at: 1000, created: false })
+    expect(write).toMatchObject({
+      id,
+      session: claude.session,
+      at: 1000,
+      created: false,
+    })
     expect(write!.removed).toBe(' and eggs')
     expect(agentText(doc)).toBe(', eggs and bread')
     expect(doc.getMap(WRITERS).get(claude.session)).toEqual({
@@ -130,8 +140,17 @@ describe('recording a write', () => {
 
   it('derives the rows of the index, newest first', () => {
     const doc = docWith('')
-    applyAgentEdit(doc, { writer: claude, at: 5, markdown: 'One\n', created: true })
-    applyAgentEdit(doc, { writer: codex, at: 9, fields: ['tags', 'nonsense' as 'tags'] })
+    applyAgentEdit(doc, {
+      writer: claude,
+      at: 5,
+      markdown: 'One\n',
+      created: true,
+    })
+    applyAgentEdit(doc, {
+      writer: codex,
+      at: 9,
+      fields: ['tags', 'nonsense' as 'tags'],
+    })
     const rows = agentWriteRows(doc)
     expect(rows.map((r) => [r.kind, r.name, r.at, r.created])).toEqual([
       ['mcp', 'Codex', 9, false],
@@ -218,7 +237,10 @@ describe('Undo All', () => {
     sync(agent, owner)
     expect(body(owner)).toBe('Title\nAlpha BETA delta.\nClaude really wrote this.\nCodex line.\n')
 
-    const result = reverseWrites(owner, { kind: 'mcp', names: ['Claude Code'] })
+    const result = reverseWrites(owner, {
+      kind: 'mcp',
+      names: ['Claude Code'],
+    })
     expect(result).toEqual({ writes: 2, dropped: 0 })
     // The owner's word typed inside the agent's paragraph stays on its own (ADR 0007, risk 2).
     expect(body(owner)).toBe('Title\nAlpha beta gammareally .\nCodex line.\n')
@@ -396,7 +418,12 @@ describe('Undo All', () => {
       markdown: `${'b'.repeat(600)}\n`,
       maxRemovedBytes: max,
     })
-    applyAgentEdit(doc, { writer: claude, at: 2, markdown: '', maxRemovedBytes: max })
+    applyAgentEdit(doc, {
+      writer: claude,
+      at: 2,
+      markdown: '',
+      maxRemovedBytes: max,
+    })
     const [older, newer] = readWrites(doc)
     expect(older!.removed).toBeUndefined()
     expect(newer!.removed).toBe(`${'b'.repeat(600)}\n`)
@@ -413,12 +440,22 @@ describe('the deleted text of an undone write', () => {
       markdown: `${'b'.repeat(600)}\n`,
       maxRemovedBytes: max,
     })
-    applyAgentEdit(doc, { writer: claude, at: 2, markdown: '', maxRemovedBytes: max })
+    applyAgentEdit(doc, {
+      writer: claude,
+      at: 2,
+      markdown: '',
+      maxRemovedBytes: max,
+    })
     reverseWrites(doc, { kind: 'mcp', names: ['Claude Code'] })
     const undone = [...doc.getMap(UNDONE).keys()]
     expect(undone).toHaveLength(1)
     expect(doc.getMap(WRITES).get(undone[0]!)).not.toHaveProperty('removed')
-    applyAgentEdit(doc, { writer: codex, at: 3, markdown: '', maxRemovedBytes: max })
+    applyAgentEdit(doc, {
+      writer: codex,
+      at: 3,
+      markdown: '',
+      maxRemovedBytes: max,
+    })
     expect(readWrites(doc)[0]!.removed).toBe(`${'a'.repeat(600)}\n`)
   })
 })
@@ -440,11 +477,20 @@ describe('two devices changing one write before they sync', () => {
     sync(agent, base)
     const [a, b] = devices(base)
     expect(reverseWrites(a, { kind: 'mcp', names: ['Claude Code'] }).writes).toBe(1)
-    applyAgentEdit(b, { writer: codex, at: 2000, markdown: 'New.\n', maxRemovedBytes: 6 })
-    expect(readAllWrites(b).find((w) => w.id === x)).toMatchObject({ state: 'dropped' })
+    applyAgentEdit(b, {
+      writer: codex,
+      at: 2000,
+      markdown: 'New.\n',
+      maxRemovedBytes: 6,
+    })
+    expect(readAllWrites(b).find((w) => w.id === x)).toMatchObject({
+      state: 'dropped',
+    })
     exchange(a, b)
     for (const doc of [a, b]) {
-      expect(readAllWrites(doc).find((w) => w.id === x)).toMatchObject({ state: 'reversed' })
+      expect(readAllWrites(doc).find((w) => w.id === x)).toMatchObject({
+        state: 'reversed',
+      })
       expect(readWrites(doc).map((w) => w.session)).toEqual([codex.session])
       expect(reverseWrites(doc, { kind: 'mcp', names: ['Claude Code'] })).toEqual({
         writes: 0,
@@ -765,5 +811,103 @@ describe('per-write Undo', () => {
       clearAuthorship(undoing)
       expect(undoing.getMap(PUT_BACK).size).toBe(0)
     }
+  })
+})
+
+describe('Restore after a group Undo', () => {
+  /** What a reader sees of the writes, leaving out the IDs of the items they inserted, which Restore makes anew. */
+  const states = (doc: Y.Doc) =>
+    readAllWrites(doc).map(({ inserted: _inserted, ...write }) => write)
+  const steps = (doc: Y.Doc) =>
+    reviewSteps(doc).map(({ anchor: _anchor, end: _end, ...step }) => step)
+  const runs = (doc: Y.Doc) => attribute(doc).map(({ from, to, writeId }) => [from, to, writeId])
+
+  /** The owner's note, a write by Claude, a later Codex write that rewrote it, and one apart. */
+  const rewritten = () => {
+    const doc = docWith('Intro. Old owner words.\nEnd.\n')
+    const first = edit(doc, claude, 'Intro. Alpha beta gamma.\nEnd.\n', 1000)!
+    const second = edit(doc, codex, 'Intro. Alpha gamma delta.\nEnd.\n', 2000)!
+    const apart = edit(doc, claude, 'Intro. Alpha gamma delta.\nEnd. Apart.\n', 3000)!
+    return { doc, first, second, apart }
+  }
+
+  it('gives back the exact text, the authorship and the write states the Undo took', () => {
+    const { doc, first, second, apart } = rewritten()
+    const text = body(doc)
+    const before = { states: states(doc), steps: steps(doc), runs: runs(doc) }
+
+    const { reversal, undone } = undoWrite(doc, first)
+    expect(reversal).toEqual({ writes: 2, dropped: 0 })
+    expect(undone!.writes).toEqual([second, first])
+    expect(body(doc)).toBe('Intro. Old owner words.\nEnd. Apart.\n')
+    expect(readWrites(doc).map((w) => w.id)).toEqual([apart])
+
+    expect(restoreWrites(doc, undone!)).toBe(true)
+    expect(body(doc)).toBe(text)
+    expect(states(doc)).toEqual(before.states)
+    expect(steps(doc)).toEqual(before.steps)
+    expect(runs(doc)).toEqual(before.runs)
+    expect(undoGroup(doc, first)).toEqual([second, first])
+  })
+
+  it('takes back text the Undo gave to another writer, and keeps the restore on another device', () => {
+    const doc = docWith('Owner start.\n')
+    const codexWrite = edit(doc, codex, 'Owner start.\nCodex keeps this.\n', 1000)!
+    const first = edit(doc, claude, 'Owner start.\nZzz qqq!\n', 2000)!
+    const second = edit(doc, claude, 'Owner start.\nZzz www!\n', 3000)!
+    const text = body(doc)
+    const before = { states: states(doc), steps: steps(doc), runs: runs(doc) }
+
+    const { undone } = undoWrite(doc, first)
+    expect(undone!.writes).toEqual([second, first])
+    expect(body(doc)).toBe('Owner start.\nCodex keeps this.\n')
+    expect(doc.getMap(RESTORED).size).toBe(1)
+
+    expect(restoreWrites(doc, undone!)).toBe(true)
+    expect(body(doc)).toBe(text)
+    expect(states(doc)).toEqual(before.states)
+    expect(steps(doc)).toEqual(before.steps)
+    expect(runs(doc)).toEqual(before.runs)
+    expect(readWrites(doc).map((w) => w.id)).toEqual([codexWrite, first, second])
+
+    const other = loaded(doc, 9)
+    expect(body(other)).toBe(text)
+    expect(runs(other)).toEqual(before.runs)
+    // Undone again, the restored writes leave the same text as the first Undo did.
+    reverseWrite(other, first)
+    expect(body(other)).toBe('Owner start.\nCodex keeps this.\n')
+  })
+
+  it('refuses, changing nothing, once the note changed since the Undo', () => {
+    const typed = rewritten()
+    const one = undoWrite(typed.doc, typed.first).undone!
+    typed.doc.getText('body').insert(0, 'x')
+    const after = Y.encodeStateAsUpdate(typed.doc)
+    expect(restoreWrites(typed.doc, one)).toBe(false)
+    expect(Y.encodeStateAsUpdate(typed.doc)).toEqual(after)
+
+    // A deletion alone leaves the state vector as it was.
+    const cut = rewritten()
+    const two = undoWrite(cut.doc, cut.first).undone!
+    const vector = Y.encodeStateVector(cut.doc)
+    cut.doc.getText('body').delete(0, 1)
+    expect(Y.encodeStateVector(cut.doc)).toEqual(vector)
+    expect(restoreWrites(cut.doc, two)).toBe(false)
+
+    const synced = rewritten()
+    const three = undoWrite(synced.doc, synced.first).undone!
+    const device = loaded(synced.doc, 7)
+    edit(device, codex, `${body(device)}More.\n`, 4000)
+    sync(device, synced.doc)
+    expect(restoreWrites(synced.doc, three)).toBe(false)
+  })
+
+  it('still takes back the Undo after the note is stored and loaded again', () => {
+    const { doc, first } = rewritten()
+    const text = body(doc)
+    const { undone } = undoWrite(doc, first)
+    const reloaded = loaded(doc, 11)
+    expect(restoreWrites(reloaded, undone!)).toBe(true)
+    expect(body(reloaded)).toBe(text)
   })
 })

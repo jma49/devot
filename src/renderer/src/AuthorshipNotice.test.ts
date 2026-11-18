@@ -9,6 +9,7 @@ import {
   noticeWriters,
   stepFrom,
   undoAllLabel,
+  undoLabel,
 } from './AuthorshipNotice'
 import type { EditorHandle } from './editor/handle'
 
@@ -504,5 +505,208 @@ describe('the review notice', () => {
 
     await act(async () => root.unmount())
     host.remove()
+  })
+
+  it('names the other writers in an Undo of several edits, with how many are theirs', () => {
+    const rows = new Map([
+      ['w1', row('w1', 'mcp', 'Claude Code')],
+      ['w2', row('w2', 'mcp', 'Claude Code')],
+      ['w3', row('w3', 'mcp', 'Codex')],
+      ['w4', row('w4', 'mcp', 'Codex')],
+      ['w5', row('w5', 'http', '')],
+    ])
+    const writerOf = (id: string) => rows.get(id)
+    expect(undoLabel(['w2', 'w1'], 1, writerOf)).toBe('Undo 2 Edits')
+    expect(undoLabel(['w3', 'w2', 'w1'], 1, writerOf)).toBe('Undo 3 Edits (1 by Codex (MCP))')
+    expect(undoLabel(['w5', 'w4', 'w3', 'w1'], 1, writerOf)).toBe(
+      'Undo 4 Edits (1 by HTTP API and 2 by Codex (MCP))',
+    )
+    expect(undoLabel(['w3', 'w1'], 1)).toBe('Undo 2 Edits')
+  })
+
+  /** A review over `steps`, whose writes `groups` puts together for Undo, as the editor reads them now. */
+  function reviewHarness(
+    unseen: AgentWriteSummary[],
+    initial: { writeId: string; from: number; to: number; anchor: string }[],
+    groups: Record<string, string[]>,
+  ) {
+    let steps = initial.map((step) => ({ ...step, deleted: false, end: step.anchor }))
+    const previewWrites = vi.fn<EditorHandle['previewWrites']>()
+    const reveal = vi.fn<EditorHandle['reveal']>()
+    const handle = {
+      undoGroup: (id: string) => groups[id] ?? [id],
+      reviewSteps: (only: ReadonlySet<string>) => steps.filter((s) => only.has(s.writeId)),
+      reveal,
+      previewWrites,
+      focus: () => undefined,
+    } as unknown as EditorHandle
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    // As the parent renders it: a change of props inside an answer renders with the answer.
+    const rerender = (props: Partial<Parameters<typeof AuthorshipNotice>[0]> = {}) =>
+      root.render(
+        createElement(AuthorshipNotice, {
+          unseen,
+          written: unseen,
+          editor: { current: handle },
+          canReview: true,
+          editing: true,
+          onKeepWrite: async () => true,
+          onUndoWrite: async () => true,
+          onUndoAll: async () => undefined,
+          onDismiss: () => undefined,
+          ...props,
+        }),
+      )
+    const render = (props: Partial<Parameters<typeof AuthorshipNotice>[0]> = {}) =>
+      act(async () => rerender(props))
+    return {
+      host,
+      previewWrites,
+      reveal,
+      render,
+      rerender,
+      setSteps: (next: typeof initial) => {
+        steps = next.map((step) => ({ ...step, deleted: false, end: step.anchor }))
+      },
+      button: (name: string) =>
+        [...host.querySelectorAll('button')].find((b) => b.textContent === name),
+      undoButton: () => host.querySelector<HTMLButtonElement>('button[aria-keyshortcuts="U"]')!,
+      status: () => host.querySelector('[role="status"]')?.textContent,
+      done: async () => {
+        await act(async () => root.unmount())
+        host.remove()
+      },
+    }
+  }
+
+  it('marks what Undo takes back while it has the pointer or the keyboard', async () => {
+    const unseen = [row('w2', 'mcp', 'Codex'), row('w1', 'mcp', 'Claude Code')]
+    const h = reviewHarness(
+      unseen,
+      [
+        { writeId: 'w1', from: 0, to: 4, anchor: '1:0' },
+        { writeId: 'w2', from: 6, to: 9, anchor: '2:0' },
+      ],
+      { w1: ['w2', 'w1'] },
+    )
+    await h.render()
+    await act(async () => h.button('Review Changes')!.click())
+    expect(h.undoButton().textContent).toBe('Undo 2 Edits (1 by Codex (MCP))')
+    expect(h.previewWrites).not.toHaveBeenCalled()
+
+    await act(async () => {
+      h.undoButton().dispatchEvent(new PointerEvent('pointerover', { bubbles: true }))
+    })
+    expect(h.previewWrites).toHaveBeenLastCalledWith(new Set(['w2', 'w1']))
+    await act(async () => {
+      h.undoButton().dispatchEvent(new PointerEvent('pointerout', { bubbles: true }))
+    })
+    expect(h.previewWrites).toHaveBeenLastCalledWith(new Set())
+
+    await act(async () => h.undoButton().focus())
+    expect(h.previewWrites).toHaveBeenLastCalledWith(new Set(['w2', 'w1']))
+    await act(async () => h.button('Next Change')!.click())
+    expect(h.undoButton().textContent).toBe('Undo')
+    expect(h.previewWrites).toHaveBeenLastCalledWith(new Set(['w2']))
+    await act(async () => h.undoButton().blur())
+    expect(h.previewWrites).toHaveBeenLastCalledWith(new Set())
+    await h.done()
+  })
+
+  it('holds the review after an Undo of several edits to offer Restore, which brings the edits back to review', async () => {
+    const unseen = [row('w2', 'mcp', 'Codex'), row('w1', 'mcp', 'Claude Code')]
+    const steps = [
+      { writeId: 'w1', from: 0, to: 4, anchor: '1:0' },
+      { writeId: 'w2', from: 6, to: 9, anchor: '2:0' },
+    ]
+    const h = reviewHarness(unseen, steps, { w1: ['w2', 'w1'] })
+    const onEndReview = vi.fn<() => void>()
+    const restore = { writes: ['w2', 'w1'], writeId: 'w1' }
+    // The parent offers Restore before Undo answers, and takes the offer back once Restore has the rows again.
+    const onUndoWrite = vi.fn<(id: string) => Promise<boolean | 'restorable'>>(async () => {
+      h.setSteps([])
+      h.rerender({ ...base, unseen: [], written: unseen, restore })
+      return 'restorable'
+    })
+    const onRestore = vi.fn<() => Promise<boolean>>(async () => {
+      h.setSteps(steps)
+      h.rerender(base)
+      return true
+    })
+    const base = { onEndReview, onUndoWrite, onRestore }
+    await h.render(base)
+    await act(async () => h.button('Review Changes')!.click())
+    expect(h.button('Restore 2 Edits')).toBeUndefined()
+    await act(async () => h.undoButton().click())
+    expect(onEndReview).not.toHaveBeenCalled()
+    expect(h.status()).toBe('Undid 2 edits.')
+
+    await act(async () => h.button('Restore 2 Edits')!.click())
+    expect(onRestore).toHaveBeenCalledOnce()
+    expect(h.button('Restore 2 Edits')).toBeUndefined()
+    expect(h.status()).toContain('1 of 2')
+    expect(h.reveal).toHaveBeenLastCalledWith(0, 4)
+    expect(h.undoButton().textContent).toBe('Undo 2 Edits (1 by Codex (MCP))')
+    await h.done()
+  })
+
+  it('ends a review held for Restore once Restore is no longer offered', async () => {
+    const unseen = [row('w2', 'mcp', 'Codex'), row('w1', 'mcp', 'Claude Code')]
+    const h = reviewHarness(
+      unseen,
+      [
+        { writeId: 'w1', from: 0, to: 4, anchor: '1:0' },
+        { writeId: 'w2', from: 6, to: 9, anchor: '2:0' },
+      ],
+      { w1: ['w2', 'w1'] },
+    )
+    const onUndoWrite = async () => {
+      h.setSteps([])
+      h.rerender({
+        onUndoWrite,
+        restore: { writes: ['w2', 'w1'], writeId: 'w1' },
+        onRestore: async () => true,
+      })
+      return 'restorable' as const
+    }
+    await h.render({ onUndoWrite })
+    await act(async () => h.button('Review Changes')!.click())
+    await act(async () => h.undoButton().click())
+    expect(h.button('Done')).toBeDefined()
+    await h.render({ onUndoWrite })
+    expect(h.button('Done')).toBeUndefined()
+    expect(h.button('Review Changes')).toBeDefined()
+    await h.done()
+  })
+
+  it('ends a held review as Done does when Restore fails', async () => {
+    const unseen = [row('w2', 'mcp', 'Codex'), row('w1', 'mcp', 'Claude Code')]
+    const h = reviewHarness(
+      unseen,
+      [
+        { writeId: 'w1', from: 0, to: 4, anchor: '1:0' },
+        { writeId: 'w2', from: 6, to: 9, anchor: '2:0' },
+      ],
+      { w1: ['w2', 'w1'] },
+    )
+    const onEndReview = vi.fn<() => void>()
+    const props = {
+      onEndReview,
+      onUndoWrite: async () => {
+        h.setSteps([])
+        h.rerender({ ...props, restore: { writes: ['w2', 'w1'], writeId: 'w1' } })
+        return 'restorable' as const
+      },
+      onRestore: async () => false,
+    }
+    await h.render(props)
+    await act(async () => h.button('Review Changes')!.click())
+    await act(async () => h.undoButton().click())
+    await act(async () => h.button('Restore 2 Edits')!.click())
+    expect(onEndReview).toHaveBeenCalledOnce()
+    expect(h.button('Done')).toBeUndefined()
+    await h.done()
   })
 })

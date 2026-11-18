@@ -22,6 +22,7 @@ import type { ShowAiMenu, StartAiEdit } from './aiMenu'
 import type { ShowAlertMenu } from './alertMenu'
 import { authorshipMarks } from './authorship'
 import { authorshipUndo } from './authorshipUndo'
+import { reviewPreview } from './reviewPreview'
 import { editorCompletions } from './completions'
 import { countsReporter, type EditorCounts } from './counts'
 import { editorMenu } from './editorMenu'
@@ -318,6 +319,7 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
     authorshipSlot.of(marksFor(settings.authorship, doc, noteId)),
     // Undo is CodeMirror's history alone: no Yjs undo manager.
     authorshipUndo(doc),
+    reviewPreview,
     yCollab(text, null, { undoManager: false }),
     yjsHistory(note.restoring, note.restoredWrites),
     EditorView.contentAttributes.of({

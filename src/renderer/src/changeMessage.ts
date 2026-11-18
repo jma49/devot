@@ -13,7 +13,9 @@ export function changeMessage(code: string): string {
     case 'E_TAG_NAME_TAKEN':
       return t('change.tagNameTaken')
     case 'E_TAG_NAME_INVALID':
-      return format(t('change.tagNameInvalid'), { max: number(MAX_TAG_NAME_CHARS) })
+      return format(t('change.tagNameInvalid'), {
+        max: number(MAX_TAG_NAME_CHARS),
+      })
     case 'E_TAG_RENAME_SEARCH_TOO_LONG':
       return format(t('change.tagRenameSearchTooLong'), {
         max: number(MAX_SAVED_SEARCH_QUERY_CHARS),
@@ -22,8 +24,12 @@ export function changeMessage(code: string): string {
       return t('change.noteNotTrashed')
     case LICENCE_REQUIRED:
       return t('change.licenceRequired')
+    case 'E_AUTHORSHIP_RESTORE_STALE':
+      return t('change.restoreStale')
     case 'E_BOOK_NAME_INVALID':
-      return format(t('change.bookNameInvalid'), { max: number(MAX_BOOK_NAME_CHARS) })
+      return format(t('change.bookNameInvalid'), {
+        max: number(MAX_BOOK_NAME_CHARS),
+      })
     default:
       return failureText('change.failed', code)
   }
