@@ -69,6 +69,8 @@ pub const MAX_EVENT_BYTES: usize = 1024 * 1024;
 pub enum Streamed {
     /// The status was 2xx and every event went to `on_data`.
     Done,
+    /// Stopped before finishing because `cancelled` became true.
+    Cancelled,
     /// The status was not 2xx; the body is read and dropped, since it can quote the prompt.
     Status(u16),
 }
@@ -81,13 +83,17 @@ fn read_failed(e: &std::io::Error) -> &'static str {
     }
 }
 
-/// Sends `request` and hands `on_data` the data of each server-sent event as it arrives, until the stream ends or `on_data` says stop (false).
+/// Sends `request` and hands `on_data` the data of each server-sent event as it arrives, until the stream ends, `cancelled` becomes true, or `on_data` says stop (false).
 /// Call it from a blocking task, never the main thread.
 pub fn post_stream(
     request: &WireRequest,
     timeout: Duration,
+    cancelled: impl Fn() -> bool,
     mut on_data: impl FnMut(&str) -> Result<bool, &'static str>,
 ) -> Result<Streamed, &'static str> {
+    if cancelled() {
+        return Ok(Streamed::Cancelled);
+    }
     let agent = agent(timeout);
     let mut call = agent
         .post(&request.url)
@@ -109,9 +115,15 @@ pub fn post_stream(
         let _ = std::io::copy(&mut reader, &mut std::io::sink());
         return Ok(Streamed::Status(status));
     }
+    if cancelled() {
+        return Ok(Streamed::Cancelled);
+    }
     let mut total = 0usize;
     let mut line = Vec::new();
     loop {
+        if cancelled() {
+            return Ok(Streamed::Cancelled);
+        }
         line.clear();
         let event_limit = u64::try_from(MAX_EVENT_BYTES + 1).unwrap_or(u64::MAX);
         let n = (&mut reader)

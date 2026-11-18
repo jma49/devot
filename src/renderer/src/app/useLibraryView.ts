@@ -30,6 +30,7 @@ import { sameCounts, sameSearchRows } from '../listUpdates'
 import { applyOrder, orderChip, orderLabel, sortLocales, sortView, useListOrder } from '../noteSort'
 import { choicesFromTree, publishNotebooks, publishTemplates } from '../notebookChoices'
 import { agentFilter, type Selection, type SidebarWorkspace } from '../Sidebar'
+import { UNSEEN_AGENT_WRITER, unseenAgentsFilter } from '../sidebar/model'
 import { useKept } from '../stable'
 import type { useSearch } from '../useSearch'
 import type { LibraryLists } from './useLibraryLists'
@@ -109,26 +110,44 @@ export function useLibraryView({
         : undefined,
     [counted, workspaceNode, workspaceIds],
   )
-  const agents = useMemo(
-    () =>
-      workspaceNoteIds
-        ? inNotes(agentWrites.view, workspaceNoteIds).agents
-        : agentWrites.view.agents,
+  const scopedWrites = useMemo(
+    () => (workspaceNoteIds ? inNotes(agentWrites.view, workspaceNoteIds) : agentWrites.view),
     [agentWrites.view, workspaceNoteIds],
   )
+  const agents = scopedWrites.agents
+  const unseenAgents = useMemo(
+    () => ({ count: scopedWrites.unseenCount, noteIds: scopedWrites.unseenNoteIds }),
+    [scopedWrites],
+  )
+  const unseenWritesByNote = useMemo(() => {
+    const byNote = new Map<string, string[]>()
+    for (const [noteId, rows] of scopedWrites.byNote) {
+      const ids = rows.filter((row) => !row.seen && row.kind !== 'aiEdit').map((row) => row.writeId)
+      if (ids.length > 0) byNote.set(noteId, ids)
+    }
+    return byNote
+  }, [scopedWrites])
   // An agent's filter takes the notes it changed from this device's rows as they are now.
   const activeFilter = useMemo(() => {
     if (inTemplates) return null
     if (filter?.kind === 'tag' && !tags.some((tag) => tag.id === filter.tagId)) return null
     if (filter?.kind !== 'agent') return filter
+    if (filter.writer === UNSEEN_AGENT_WRITER) {
+      return unseenAgents.count > 0 ? unseenAgentsFilter(unseenAgents.noteIds) : null
+    }
     const agent = agents.find((a) => a.key === filter.writer)
     return agent ? agentFilter(agent) : null
-  }, [inTemplates, filter, tags, agents])
+  }, [inTemplates, filter, tags, agents, unseenAgents])
   // An agent filter whose agent is gone (its notes were trashed, or a workspace holds none of
   // them) is cleared, not only hidden: it must not turn back on by itself when the agent writes
   // again. Adjusted while rendering (React's rule for state that a change of inputs made stale),
   // so the list and the sidebar both see no filter at once.
-  if (filter?.kind === 'agent' && !agents.some((agent) => agent.key === filter.writer)) {
+  if (
+    filter?.kind === 'agent' &&
+    (filter.writer === UNSEEN_AGENT_WRITER
+      ? unseenAgents.count === 0
+      : !agents.some((agent) => agent.key === filter.writer))
+  ) {
     setFilter(null)
   }
   const listOrder = useListOrder(
@@ -283,10 +302,12 @@ export function useLibraryView({
         : activeFilter.kind === 'status'
           ? t(`status.${activeFilter.status}`)
           : activeFilter.kind === 'agent'
-            ? (() => {
-                const agent = agents.find((a) => a.key === activeFilter.writer)
-                return agent ? writerLabel(agent) : undefined
-              })()
+            ? activeFilter.writer === UNSEEN_AGENT_WRITER
+              ? t('sidebar.unseenChanges')
+              : (() => {
+                  const agent = agents.find((a) => a.key === activeFilter.writer)
+                  return agent ? writerLabel(agent) : undefined
+                })()
             : tags.find((tag) => tag.id === activeFilter.tagId)?.name
   const selectedNote =
     notes.find((n) => n.id === selected) ?? templates.find((n) => n.id === selected)
@@ -393,6 +414,8 @@ export function useLibraryView({
     inTemplates,
     agentWrites,
     agents,
+    unseenAgents,
+    unseenWritesByNote,
     activeFilter,
     listOrder,
     libraryView,

@@ -23,6 +23,12 @@ export type SetNoteDates = (
   dates: { createdAt?: number; updatedAt?: number },
 ) => Promise<void>
 
+/** The Allow AI Access of the note's notebook; `onToggle` is left out where the library cannot change. */
+export interface NoteAiAccess {
+  state: 'on' | 'off' | 'noBook'
+  onToggle?: (() => void) | undefined
+}
+
 export interface Backlink {
   id: string
   name: string
@@ -60,6 +66,42 @@ function Row(props: {
       <span className="note-info-label">{props.label}</span>
       <span className="note-info-value">{props.children}</span>
     </div>
+  )
+}
+
+function AiAccessRow({ access }: { access: NoteAiAccess }) {
+  const label = t('aiAccess.title')
+  if (access.state === 'noBook') {
+    return (
+      <div className="note-info-row" data-info="aiAccess">
+        <span className="note-info-icon">
+          <Icon name="notebook.ai" size="sm" />
+        </span>
+        <span className="note-info-label">{label}</span>
+        <span className="note-info-value">{t('note.aiAccessNoBook')}</span>
+      </div>
+    )
+  }
+  const on = access.state === 'on'
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      className="note-info-row note-info-toggle"
+      data-info="aiAccess"
+      disabled={!access.onToggle}
+      onClick={access.onToggle}
+    >
+      <span className="note-info-icon">
+        <Icon name="notebook.ai" size="sm" />
+      </span>
+      <span className="note-info-label">{label}</span>
+      <span className="note-info-value" aria-hidden="true">
+        {t(on ? 'noteInfo.aiAccessOn' : 'noteInfo.aiAccessOff')}
+      </span>
+    </button>
   )
 }
 
@@ -164,9 +206,10 @@ export function NoteInfoCard(props: {
   onLinkMention?: ((id: string) => void) | undefined
   onSetDates?: SetNoteDates | undefined
   onApplyFrontMatter?: ((change: FrontMatterChange) => void) | undefined
+  aiAccess?: NoteAiAccess | undefined
   onClose: () => void
 }) {
-  const { info, facts, backlinks, mentions, onOpenNote, onLinkMention } = props
+  const { info, facts, backlinks, mentions, onOpenNote, onLinkMention, aiAccess } = props
   const { onSetDates, onApplyFrontMatter, onClose } = props
   const locale = currentLocale()
   const card = useRef<HTMLDivElement>(null)
@@ -448,6 +491,7 @@ export function NoteInfoCard(props: {
             {props.characters === undefined ? null : formatNumber(props.characters, locale)}
           </Row>
         )}
+        {aiAccess ? <AiAccessRow access={aiAccess} /> : null}
       </div>
       {editing ? (
         <DatePicker

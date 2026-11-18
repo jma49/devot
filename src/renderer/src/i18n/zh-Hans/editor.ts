@@ -38,6 +38,8 @@ export const messages: Record<keyof typeof en, string> = {
   'noteInfo.tasksOther': '{count} 项任务中已完成 {done} 项',
   'noteInfo.created': '创建时间',
   'noteInfo.updated': '更新时间',
+  'noteInfo.aiAccessOn': '已开启',
+  'noteInfo.aiAccessOff': '已关闭',
   'noteInfo.editDateNamed': '{field}：{date}。更改日期',
   'noteInfo.dateIncomplete': '请输入完整的日期和时间。',
   'noteInfo.timeSkipped': '由于时钟调整，这一天不存在这个时间。',

@@ -37,6 +37,7 @@
     "allow-open-external",
     "allow-ai-generate",
     "allow-ai-stream",
+    "allow-ai-stream-cancel",
     "allow-ai-settings-get",
     "allow-licence-get",
     "allow-licence-set",

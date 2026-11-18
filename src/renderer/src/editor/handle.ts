@@ -1,7 +1,7 @@
 import { EditorSelection } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import * as Y from 'yjs'
-import { reviewSteps, type ReviewStep } from '../../../core/authorship'
+import { reviewSteps, undoGroup, type ReviewStep } from '../../../core/authorship'
 import type { ImageSize } from '../../../core/images'
 import type { CommandId } from '../commands/registry'
 import { imageMenuTarget, type ImageMenuTarget, type ImageSource } from '../imageMenu'
@@ -65,6 +65,8 @@ export interface EditorHandle {
   toggleTask: (at: number) => boolean
   /** Review Changes: the places the writes in `writeIds` changed, as the replica has them now (reviewSteps). */
   reviewSteps: (writeIds: ReadonlySet<string>) => ReviewStep[]
+  /** The writes Undo of `writeId` takes back with it, newest first (undoGroup). */
+  undoGroup: (writeId: string) => string[]
   /** Selects `from`-`to` and scrolls it to the middle, leaving the keyboard where it is. */
   reveal: (from: number, to: number) => void
   /** The main selection, for a plugin's `note.selection`. */
@@ -162,6 +164,7 @@ export function editorHandle(
       return change !== null
     },
     reviewSteps: (writeIds) => reviewSteps(doc, writeIds, noteId),
+    undoGroup: (writeId) => undoGroup(doc, writeId, noteId),
     reveal: (from, to) => {
       const length = ready.state.doc.length
       const anchor = Math.min(from, length)

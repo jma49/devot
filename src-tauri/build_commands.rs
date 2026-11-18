@@ -217,6 +217,7 @@ const SYNC: &[&str] = &[
 const AI: &[&str] = &[
     "ai_generate",
     "ai_stream",
+    "ai_stream_cancel",
     "ai_settings_get",
     "ai_settings_set",
     "ai_key_set",

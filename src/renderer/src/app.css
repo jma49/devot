@@ -983,6 +983,18 @@ button {
   height: var(--size-segment-height);
 }
 
+/* Unseen Changes: the filter row, then Mark All Read beside it in the same row height. */
+.unseen-source {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.unseen-source > .source {
+  flex: 1;
+  min-width: 0;
+}
+
 .books,
 .books ul {
   list-style: none;
@@ -5019,6 +5031,36 @@ button.note-info-row:focus-visible {
   max-width: calc(100vw - var(--space-10) * 2);
 }
 
+.ai-edit-prompt {
+  height: auto;
+  min-height: calc(var(--size-field-height) * 1.75);
+  max-height: calc(var(--size-dialog-row) * 5);
+  padding: var(--space-3) var(--space-4);
+  overflow-y: auto;
+  resize: none;
+  font: inherit;
+  line-height: 1.45;
+}
+
+.ai-edit-prompt:focus-visible {
+  box-shadow: inset 0 0 0 var(--size-focus-ring) var(--color-focus-ring);
+}
+
+.ai-edit-stream {
+  max-height: calc(var(--size-dialog-row) * 12);
+  overflow: auto;
+  margin: 0 0 var(--space-7);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-field);
+  background: var(--color-fill-track);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-footnote);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .ai-edit-diff {
   max-height: calc(var(--size-dialog-row) * 14);
   overflow: auto;
@@ -8147,6 +8189,32 @@ button.popup:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+.authorship-notice-removed {
+  flex: 1 0 100%;
+  box-sizing: border-box;
+  max-height: calc(var(--size-dialog-row) * 4);
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-diff-removed);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-footnote);
+  line-height: 1.45;
+}
+
+.authorship-notice-removed-text {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+  color: var(--color-text-primary);
+}
+
+.authorship-notice-removed-dropped {
+  font-family: var(--font-family-ui);
+  color: var(--color-text-secondary);
 }
 
 /* The history bar shows a past version: the notice stays, but does not respond until it is gone. */

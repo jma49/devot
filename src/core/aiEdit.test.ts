@@ -222,4 +222,33 @@ describe('asking for a proposal', () => {
       'E_AI_REPLY_EMPTY',
     )
   })
+
+  it('forwards streaming progress and the abort signal to the generator', async () => {
+    const controller = new AbortController()
+    const chunks: string[] = []
+    let seenSignal: AbortSignal | undefined
+    const generator: AiGenerator = {
+      generate: async (_input, _trigger, onText, signal) => {
+        seenSignal = signal
+        onText?.('Fixed ')
+        onText?.('text.')
+        return {
+          provider: 'anthropic',
+          model: 'claude-sonnet-5-5',
+          text: 'Fixed text.',
+          stop: 'end',
+          usage: null,
+        }
+      },
+    }
+    const proposal = await proposeAiEdit(
+      generator,
+      { bookId: 'book', selection: 'Fixd text.' },
+      preset('proofread'),
+      { onProgress: (chunk) => chunks.push(chunk), signal: controller.signal },
+    )
+    expect(seenSignal).toBe(controller.signal)
+    expect(chunks).toEqual(['Fixed ', 'text.'])
+    expect(proposal.replacement).toBe('Fixed text.')
+  })
 })

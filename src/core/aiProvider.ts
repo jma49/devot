@@ -43,7 +43,11 @@ export interface AiGenerated {
 export interface AiTransport {
   generate(input: AiGenerateInput): Promise<unknown>
   /** As `generate`, with the answer's text handed to `onText` piece by piece as it arrives (`ai_stream`). */
-  stream?(input: AiGenerateInput, onText: (text: string) => void): Promise<unknown>
+  stream?(
+    input: AiGenerateInput,
+    onText: (text: string) => void,
+    signal?: AbortSignal,
+  ): Promise<unknown>
 }
 
 export interface AiTrigger {
@@ -62,6 +66,7 @@ export interface AiGenerator {
     input: AiGenerateInput,
     trigger: AiTrigger,
     onText?: (text: string) => void,
+    signal?: AbortSignal,
   ): Promise<AiGenerated>
 }
 
@@ -105,17 +110,20 @@ export function allowedBookIds(books: readonly BookRecord[]): Set<string> {
 export function createAiGenerator(options: AiGeneratorOptions): AiGenerator {
   const { storage, transport, entitlements } = options
   return {
-    async generate(input, trigger, onText) {
+    async generate(input, trigger, onText, signal) {
       if ((trigger as { by?: unknown }).by !== 'user') throw new Error('E_AI_NOT_TRIGGERED')
       if (entitlements && !entitlements.has('aiProviders')) throw new Error('E_LICENCE_REQUIRED')
+      if (signal?.aborted) throw new Error('E_AI_CANCELLED')
       if (trigger.books.length > 0) {
         const allowed = allowedBookIds(await storage.listBooks())
         if (!trigger.books.every((id) => allowed.has(id))) throw new Error('E_AI_ACCESS_DENIED')
       }
+      if (signal?.aborted) throw new Error('E_AI_CANCELLED')
       const answer =
         onText && transport.stream
-          ? await transport.stream(input, onText)
+          ? await transport.stream(input, onText, signal)
           : await transport.generate(input)
+      if (signal?.aborted) throw new Error('E_AI_CANCELLED')
       const generated = asAiGenerated(answer)
       if (!generated) throw new Error('E_AI_RESPONSE_INVALID')
       return generated

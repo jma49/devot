@@ -182,6 +182,8 @@ export const messages = {
   'book.subOne': '{count} sub-notebook',
   'book.subOther': '{count} sub-notebooks',
   'sidebar.agents': 'Agents',
+  'sidebar.unseenChanges': 'Unseen Changes',
+  'sidebar.markAllRead': 'Mark All Read',
   'sidebar.hideTitle': 'Hide Sidebar',
   'sidebar.showTitle': 'Show Sidebar',
 } as const

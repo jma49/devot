@@ -18,15 +18,21 @@ import { LICENCE_REQUIRED } from './licence'
 import { LicenceButton } from './LicenceLocked'
 import { logFailure } from './failure'
 
+/** The instruction field grows with its lines up to its CSS cap, then scrolls. */
+function fitToText(field: HTMLTextAreaElement) {
+  field.style.height = 'auto'
+  field.style.height = `${field.scrollHeight}px`
+}
+
 type Phase =
   | { kind: 'prompt' }
-  | { kind: 'asking' }
+  | { kind: 'asking'; streamed: string }
   | { kind: 'review'; proposal: AiProposal }
   | { kind: 'failed'; code: string }
 
 /**
  * Edit with AI: asks the active provider for a rewrite of the selection (a preset at once, a custom instruction once
- * typed), shows it as a diff and applies what the user accepts through the note service, as one undoable edit.
+ * typed), streams the proposal as text arrives, and applies what the user accepts through the note service, as one undoable edit.
  */
 export function AiEditSheet(props: {
   core: Core
@@ -45,14 +51,22 @@ export function AiEditSheet(props: {
       ? { kind: 'failed', code: LICENCE_REQUIRED }
       : start.choice === 'prompt'
         ? { kind: 'prompt' }
-        : { kind: 'asking' },
+        : { kind: 'asking', streamed: '' },
   )
   const [prompt, setPrompt] = useState('')
   const [rejected, setRejected] = useState<ReadonlySet<number>>(new Set())
   const [busy, setBusy] = useState(false)
-  // Only the latest request's answer is shown; Cancel or closing drops any other.
+  // Only the latest request's answer is shown; Discard, Escape, Retry, or unmounting cancels any earlier stream.
   const attempt = useRef(0)
+  const activeAbort = useRef<AbortController | null>(null)
+  const mounted = useRef(false)
   const locale = currentLocale()
+
+  const cancelActive = useCallback(() => {
+    attempt.current += 1
+    activeAbort.current?.abort()
+    activeAbort.current = null
+  }, [])
 
   useLayoutEffect(() => {
     const el = dialog.current
@@ -60,23 +74,59 @@ export function AiEditSheet(props: {
     return () => el?.close()
   }, [])
 
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      // Deferred: a dialog still connected on the next microtask was only remounted (StrictMode).
+      queueMicrotask(() => {
+        if (!mounted.current) cancelActive()
+      })
+    }
+  }, [cancelActive])
+
   const ask = useCallback(
     (what: AiEditAsk) => {
-      const mine = ++attempt.current
-      setPhase({ kind: 'asking' })
+      cancelActive()
+      const mine = attempt.current
+      const controller = new AbortController()
+      activeAbort.current = controller
+      setPhase({ kind: 'asking', streamed: '' })
       setRejected(new Set())
       // The notebook as the core has it now: the note may have moved since the list was loaded.
       core
         .read(noteId)
-        .then(({ bookId }) => proposeAiEdit(generator, { bookId, selection: start.text }, what))
+        .then(({ bookId }) => {
+          if (mine !== attempt.current || controller.signal.aborted) {
+            throw new Error('E_AI_CANCELLED')
+          }
+          return proposeAiEdit(generator, { bookId, selection: start.text }, what, {
+            onProgress: (chunk) => {
+              if (mine !== attempt.current || controller.signal.aborted || chunk === '') return
+              setPhase((now) =>
+                now.kind === 'asking' ? { kind: 'asking', streamed: now.streamed + chunk } : now,
+              )
+            },
+            signal: controller.signal,
+          })
+        })
         .then(
-          (proposal) => mine === attempt.current && setPhase({ kind: 'review', proposal }),
-          (e: unknown) =>
-            mine === attempt.current &&
-            setPhase({ kind: 'failed', code: logFailure(errorCode(e), 'W_AI_EDIT_FAILED') }),
+          (proposal) => {
+            if (mine !== attempt.current) return
+            if (activeAbort.current === controller) activeAbort.current = null
+            setPhase({ kind: 'review', proposal })
+          },
+          (e: unknown) => {
+            if (mine !== attempt.current) return
+            if (activeAbort.current === controller) activeAbort.current = null
+            const code = errorCode(e)
+            // Only this sheet's own abort is quiet; Rust ending the stream is a failure to show.
+            if (code === 'E_AI_CANCELLED' && controller.signal.aborted) return
+            setPhase({ kind: 'failed', code: logFailure(code, 'W_AI_EDIT_FAILED') })
+          },
         )
     },
-    [core, generator, noteId, start.text],
+    [cancelActive, core, generator, noteId, start.text],
   )
   const again = () => ask(start.choice === 'prompt' ? { prompt } : { preset: start.choice })
 
@@ -89,7 +139,7 @@ export function AiEditSheet(props: {
   }, [ask, start.choice, locked])
 
   const close = () => {
-    attempt.current += 1
+    cancelActive()
     props.onClose()
   }
 
@@ -161,18 +211,21 @@ export function AiEditSheet(props: {
       {phase.kind === 'prompt' ? (
         <label className="sheet-field">
           <span className="sheet-detail">{t('aiEdit.promptDetail')}</span>
-          <input
-            className="pick-filter"
-            type="text"
+          <textarea
+            className="pick-filter ai-edit-prompt"
             aria-label={t('aiEdit.promptLabel')}
             autoComplete="off"
             autoFocus
+            rows={2}
             maxLength={MAX_AI_PROMPT_CHARS}
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => {
+              setPrompt(e.target.value)
+              fitToText(e.target)
+            }}
             onKeyDown={(e) => {
-              if (isImeKey(e.nativeEvent)) return
-              if (e.key === 'Enter') {
+              if (e.nativeEvent.isComposing || isImeKey(e.nativeEvent)) return
+              if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
                 e.preventDefault()
                 send()
               }
@@ -180,9 +233,17 @@ export function AiEditSheet(props: {
           />
         </label>
       ) : phase.kind === 'asking' ? (
-        <p className="sheet-detail" role="status">
-          {t('aiEdit.asking')}
-        </p>
+        <>
+          <p className="sheet-detail" role="status">
+            {phase.streamed.length > 0 ? t('aiEdit.writing') : t('aiEdit.asking')}
+          </p>
+          {phase.streamed.length > 0 ? (
+            // Text grows many times a second: the status line above says it is writing, and the review that follows is read out.
+            <section className="ai-edit-stream" aria-label={t('aiEdit.writing')} aria-live="off">
+              {phase.streamed}
+            </section>
+          ) : null}
+        </>
       ) : failure ? (
         <p role="alert" className="sheet-error">
           {failure.message}
@@ -266,7 +327,7 @@ export function AiEditSheet(props: {
           </>
         ) : phase.kind === 'asking' ? (
           <button type="button" className="button" onClick={close}>
-            {t('aiEdit.cancel')}
+            {t('aiEdit.discard')}
           </button>
         ) : (
           <>

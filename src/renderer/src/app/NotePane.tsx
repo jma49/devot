@@ -3,6 +3,7 @@ import { Inspector } from '../outline/Inspector'
 import { LazyHistory } from '../LazyHistory'
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react'
 import type { TagRecord } from '../../../core'
+import { findBookNode } from '../../../core/workspace'
 import type { Suggester } from '../../../core/aiSuggest'
 import { BookPicker } from '../BookPicker'
 import { BuiltInTemplate } from '../BuiltInTemplates'
@@ -26,6 +27,7 @@ import { isImeKey } from '../ime'
 import { ModeControl, editorOnly, type Mode } from '../ModeControl'
 import type { useNoteActions } from '../noteActions'
 import { NoteEditor, type ApplyRestore } from '../NoteEditor'
+import type { NoteAiAccess } from '../noteInfo/NoteInfoCard'
 import { LiveNoteInfoSummary } from '../noteInfo/NoteInfoSummary'
 import { LivePreview } from '../preview/Preview'
 import { tagChanges, type FrontMatterChange } from '../preview/frontMatterApply'
@@ -175,6 +177,16 @@ export function NotePane({
   const selectedTags = (selectedNote?.tagIds ?? []).flatMap(
     (id) => tags.find((tag) => tag.id === id) ?? [],
   )
+  const noteBook =
+    selectedNote?.bookId != null ? findBookNode(tree, selectedNote.bookId) : undefined
+  const aiAccess: NoteAiAccess = noteBook
+    ? {
+        state: noteBook.aiAccess ? 'on' : 'off',
+        onToggle: editing
+          ? () => void changeBooks((c) => c.setBookAiAccess(noteBook.id, !noteBook.aiAccess))
+          : undefined,
+      }
+    : { state: 'noBook' }
   // The services the title field and the header pickers use, so undo, sync and saving are theirs.
   const applyFrontMatter = (change: FrontMatterChange) => {
     if (!selected) return
@@ -378,6 +390,7 @@ export function NotePane({
                   onSetDates={editing ? setNoteDates : undefined}
                   onApplyFrontMatter={editing ? applyFrontMatter : undefined}
                   canLinkMentions={editing}
+                  aiAccess={aiAccess}
                 />
               ) : null}
             </div>

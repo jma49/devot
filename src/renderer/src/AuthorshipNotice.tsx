@@ -1,7 +1,7 @@
 // The review notice above the editor (ADR 0007): when agents changed the open note since the owner
 // last looked, it names them and offers Review Changes, which steps through each unseen write's
-// places in document order, and an Undo All for each writer.
-import { useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+// places in document order with per-step Keep and Undo, and an Undo All for each writer.
+import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import type { ReviewStep } from '../../core/authorship'
 import type { AgentWriteSummary } from '../../core/storage'
 import { writerKey, writerLabel, writersLabel, type WriterRef } from './authorshipLabels'
@@ -43,70 +43,252 @@ export function undoAllLabel(
   return named ? format(t('authorship.undoAllBy'), vars) : t('authorship.undoAll')
 }
 
+/**
+ * A review step with a key that stays the same while other steps are kept, undone or edited: its write and its first
+ * and last items, so a step that grows (two runs of a write become one) reads as new and is shown again.
+ */
+interface KeyedStep extends ReviewStep {
+  key: string
+}
+
+type Phase =
+  | { kind: 'idle'; busy: boolean }
+  | {
+      kind: 'reviewing'
+      index: number
+      steps: KeyedStep[]
+      height: number | undefined
+      /** Steps kept one by one while other steps of the same write are still to come. */
+      kept: ReadonlySet<string>
+      /** Writes kept or undone whole: they leave the review. */
+      done: ReadonlySet<string>
+      /** Review began in Preview; the editor it selects in is on its way. */
+      entering: boolean
+      busy: boolean
+    }
+
+const IDLE: Phase = { kind: 'idle', busy: false }
+
+const stepKey = (step: ReviewStep) => `${step.writeId}@${step.anchor}..${step.end}`
+
+/** Keys each step by its write and its first and last items, then leaves out kept steps and finished writes. */
+export function keyedSteps(
+  steps: readonly ReviewStep[],
+  kept: ReadonlySet<string>,
+  done: ReadonlySet<string>,
+): KeyedStep[] {
+  return steps
+    .filter((step) => !done.has(step.writeId))
+    .map((step) => ({ ...step, key: stepKey(step) }))
+    .filter((step) => !kept.has(step.key))
+}
+
+/**
+ * Undo takes back whole writes: the step's write, every place of it, and the later writes that rewrote its text
+ * (`group`, newest first); the label says so when that is more than the step shown.
+ */
+export function undoLabel(group: readonly string[], places: number): string {
+  if (group.length > 1) return format(t('authorship.undoGroup'), { count: String(group.length) })
+  if (places > 1) return format(t('authorship.undoWhole'), { count: String(places) })
+  return t('authorship.undo')
+}
+
 export function AuthorshipNotice(props: {
   /** The open note's unseen writes, newest first. */
   unseen: readonly AgentWriteSummary[]
   /** All of the open note's writes, seen or not. */
   written: readonly AgentWriteSummary[]
   editor: RefObject<EditorHandle | null>
-  /** The editor shows (Edit or Split), so Review Changes can select in it. */
+  /** The editor shows (Write, Edit or Split), so Review Changes can select in it. */
   canReview: boolean
-  /** Undo All changes the note; off once the trial is over without a licence. */
+  /** Undo changes the note; off once the trial is over without a licence. */
   editing: boolean
+  /** Review Changes was chosen in Preview: show an editor to review in. */
+  onStartReview?: () => void
+  /** The review ended: put back the mode it switched from, or focus the editor. */
+  onEndReview?: () => void
+  /** Keep: marks one write seen. */
+  onKeepWrite?: (writeId: string) => Promise<boolean>
+  /** Undo: takes out one write as an owner edit; false when it failed. */
+  onUndoWrite?: (writeId: string) => Promise<boolean>
   onUndoAll: (writer: WriterRef) => Promise<void>
   onDismiss: () => void
 }) {
-  const [step, setStep] = useState<{ index: number; steps: ReviewStep[] }>()
-  // Review keeps the notice's height, so the note's text does not jump when it starts or ends.
-  const [reviewHeight, setReviewHeight] = useState<number>()
+  const [phase, setPhase] = useState<Phase>(IDLE)
   const section = useRef<HTMLElement>(null)
-  const [busy, setBusy] = useState(false)
   const nextButton = useRef<HTMLButtonElement>(null)
+  // Bumped when a review ends or the notice goes, so a Keep or Undo answering late changes nothing.
+  const generation = useRef(0)
+  useEffect(
+    () => () => {
+      generation.current += 1
+    },
+    [],
+  )
+  useEffect(() => {
+    if (!props.canReview) generation.current += 1
+  }, [props.canReview])
   const locale = currentLocale()
   const writers = noticeWriters(props.unseen)
   const ids = new Set(props.unseen.map((row) => row.writeId))
-  const rowOf = new Map(props.unseen.map((row) => [row.writeId, row]))
-  // Preview hides the editor the review selects in, so switching to it ends the review as Done does.
-  if (step && !props.canReview) {
-    setStep(undefined)
-    setReviewHeight(undefined)
-  }
-  // The control with the keyboard goes away with the review, or with the notice: the editor takes it.
+  const rowOf = new Map(
+    [...props.written, ...props.unseen].map((row) => [row.writeId, row] as const),
+  )
+  const collect = (kept: ReadonlySet<string>, done: ReadonlySet<string>) =>
+    keyedSteps(
+      props.editor.current?.reviewSteps(new Set([...ids].filter((id) => !done.has(id)))) ?? [],
+      kept,
+      done,
+    )
+  // Switching to Preview by hand hides the editor the review selects in, so it ends the review as Done does.
+  if (phase.kind === 'reviewing' && !phase.entering && !props.canReview) setPhase(IDLE)
+
   const endReview = () => {
-    setStep(undefined)
-    setReviewHeight(undefined)
-    props.editor.current?.focus()
+    generation.current += 1
+    setPhase(IDLE)
+    // The control with the keyboard goes away with the review: the editor takes it, or Preview comes back.
+    if (props.onEndReview) props.onEndReview()
+    else props.editor.current?.focus()
+  }
+
+  const showAt = (steps: KeyedStep[], index: number) => {
+    const shown = steps[index]
+    if (shown) props.editor.current?.reveal(shown.from, shown.to)
+  }
+
+  // Review chosen in Preview waits for the editor to show before a switch to Preview ends it.
+  if (phase.kind === 'reviewing' && phase.entering && props.canReview) {
+    setPhase({ ...phase, entering: false })
+  }
+
+  const startReview = () => {
+    if (phase.kind !== 'idle' || phase.busy) return
+    const mine = ++generation.current
+    const entering = !props.canReview
+    // The editor stays mounted in Preview, so its steps can be read before it shows.
+    const steps = collect(new Set(), new Set())
+    setPhase({
+      kind: 'reviewing',
+      index: 0,
+      steps,
+      height: section.current?.getBoundingClientRect().height,
+      kept: new Set(),
+      done: new Set(),
+      entering,
+      busy: false,
+    })
+    if (!entering) {
+      showAt(steps, 0)
+      queueMicrotask(() => nextButton.current?.focus())
+      return
+    }
+    props.onStartReview?.()
+    // The editor scrolls to the step only once it shows, after the mode's switch.
+    requestAnimationFrame(() => {
+      if (mine !== generation.current) return
+      showAt(steps, 0)
+      nextButton.current?.focus()
+    })
   }
 
   const show = (index: number) => {
-    const steps = props.editor.current?.reviewSteps(ids) ?? []
-    const at = Math.min(index, steps.length - 1)
-    setStep({ index: Math.max(0, at), steps })
-    const shown = steps[at]
-    if (shown) props.editor.current?.reveal(shown.from, shown.to)
+    if (phase.kind !== 'reviewing' || phase.busy) return
+    const steps = collect(phase.kept, phase.done)
+    const at = Math.max(0, Math.min(index, steps.length - 1))
+    setPhase({ ...phase, index: at, steps })
+    showAt(steps, at)
   }
+
   // Previous and Next stay focusable at either end (aria-disabled), so the keys keep working there.
   const move = (by: 1 | -1) => {
-    if (step) show(stepFrom(step.index, by, step.steps.length))
+    if (phase.kind === 'reviewing') show(stepFrom(phase.index, by, phase.steps.length))
   }
+
+  /** Moves on after the current step left the review: the next step takes its place, and the review ends after the last. */
+  const advance = (
+    from: Extract<Phase, { kind: 'reviewing' }>,
+    kept: ReadonlySet<string>,
+    done: ReadonlySet<string>,
+  ) => {
+    const steps = collect(kept, done)
+    if (steps.length === 0) {
+      endReview()
+      return
+    }
+    const at = Math.min(from.index, steps.length - 1)
+    setPhase({ ...from, index: at, steps, kept, done, busy: false })
+    showAt(steps, at)
+  }
+
+  /** Runs `act` for the current step's write; when it succeeds, that write and the others in `leaving` leave the review. */
+  const finishWrite = async (
+    act: (writeId: string) => Promise<boolean>,
+    leaving: readonly string[] = [],
+  ) => {
+    if (phase.kind !== 'reviewing' || phase.busy) return
+    const current = phase.steps[phase.index]
+    if (!current) return
+    const mine = generation.current
+    setPhase({ ...phase, busy: true })
+    const ok = await act(current.writeId).catch(() => false)
+    if (mine !== generation.current) return
+    if (!ok) {
+      setPhase({ ...phase, busy: false })
+      return
+    }
+    advance(phase, phase.kept, new Set([...phase.done, current.writeId, ...leaving]))
+  }
+
+  const keepCurrent = () => {
+    if (phase.kind !== 'reviewing' || phase.busy || !props.onKeepWrite) return
+    const current = phase.steps[phase.index]
+    if (!current) return
+    const keep = props.onKeepWrite
+    // A write's last step to be kept marks the write seen; until then only the step leaves the review.
+    if (phase.steps.some((step) => step.writeId === current.writeId && step.key !== current.key)) {
+      advance(phase, new Set([...phase.kept, current.key]), phase.done)
+      return
+    }
+    void finishWrite(keep)
+  }
+
+  const groupOf = (writeId: string) => props.editor.current?.undoGroup(writeId) ?? [writeId]
+
+  const undoCurrent = () => {
+    if (!props.editing || !props.onUndoWrite || phase.kind !== 'reviewing') return
+    const current = phase.steps[phase.index]
+    if (current) void finishWrite(props.onUndoWrite, groupOf(current.writeId))
+  }
+
   const onKeyDown = (event: KeyboardEvent) => {
-    if (!step || event.metaKey || event.ctrlKey || event.altKey) return
+    if (phase.kind !== 'reviewing' || phase.busy || event.metaKey || event.ctrlKey || event.altKey)
+      return
     if (event.key === 'ArrowDown' || event.key === 'ArrowRight') move(1)
     else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') move(-1)
     else if (event.key === 'Home') show(0)
-    else if (event.key === 'End') show(step.steps.length - 1)
+    else if (event.key === 'End') show(phase.steps.length - 1)
+    else if (event.key === 'k' || event.key === 'K') keepCurrent()
+    else if (event.key === 'u' || event.key === 'U') undoCurrent()
     else if (event.key === 'Escape') endReview()
     else return
     event.preventDefault()
   }
 
-  const shown = step?.steps[step.index]
+  const shown = phase.kind === 'reviewing' ? phase.steps[phase.index] : undefined
   const shownRow = shown ? rowOf.get(shown.writeId) : undefined
+  const undoText =
+    phase.kind === 'reviewing' && shown
+      ? undoLabel(
+          groupOf(shown.writeId),
+          // Every place of the write as the text is now, kept ones too.
+          props.editor.current?.reviewSteps(new Set([shown.writeId])).length ?? 1,
+        )
+      : t('authorship.undo')
   const stepText =
-    shown && shownRow
+    phase.kind === 'reviewing' && shown && shownRow
       ? format(t(shown.from === shown.to ? 'authorship.stepDeletion' : 'authorship.step'), {
-          index: String(step!.index + 1),
-          count: String(step!.steps.length),
+          index: String(phase.index + 1),
+          count: String(phase.steps.length),
           writer: writerLabel(shownRow),
           time: fullDate(shownRow.at, locale),
         })
@@ -116,12 +298,16 @@ export function AuthorshipNotice(props: {
     <section
       ref={section}
       className="authorship-notice"
-      style={reviewHeight === undefined ? undefined : { minHeight: reviewHeight }}
+      style={
+        phase.kind === 'reviewing' && phase.height !== undefined
+          ? { minHeight: phase.height }
+          : undefined
+      }
       aria-label={t('authorship.notice')}
       data-devot-part="authorship-notice"
       onKeyDown={onKeyDown}
     >
-      {step ? (
+      {phase.kind === 'reviewing' ? (
         <>
           <p className="authorship-notice-text" role="status">
             {stepText}
@@ -131,7 +317,7 @@ export function AuthorshipNotice(props: {
               type="button"
               className="button"
               aria-keyshortcuts="ArrowUp"
-              aria-disabled={!shown || step.index === 0}
+              aria-disabled={!shown || phase.busy || phase.index === 0}
               onClick={() => move(-1)}
             >
               {t('authorship.previous')}
@@ -141,15 +327,53 @@ export function AuthorshipNotice(props: {
               className="button"
               ref={nextButton}
               aria-keyshortcuts="ArrowDown"
-              aria-disabled={!shown || step.index >= step.steps.length - 1}
+              aria-disabled={!shown || phase.busy || phase.index >= phase.steps.length - 1}
               onClick={() => move(1)}
             >
               {t('authorship.next')}
             </button>
-            <button type="button" className="button" onClick={endReview}>
+            {props.onKeepWrite ? (
+              <button
+                type="button"
+                className="button"
+                aria-keyshortcuts="K"
+                aria-disabled={!shown || phase.busy}
+                onClick={keepCurrent}
+              >
+                {t('authorship.keep')}
+              </button>
+            ) : null}
+            {props.onUndoWrite ? (
+              <button
+                type="button"
+                className="button"
+                aria-keyshortcuts="U"
+                aria-disabled={!shown || phase.busy || !props.editing}
+                onClick={undoCurrent}
+              >
+                {undoText}
+              </button>
+            ) : null}
+            <button type="button" className="button" disabled={phase.busy} onClick={endReview}>
               {t('authorship.done')}
             </button>
           </span>
+          {shown && (shown.removed !== undefined || shown.deleted) ? (
+            <div
+              className="authorship-notice-removed"
+              role="region"
+              aria-label={t('authorship.removedLabel')}
+              data-devot-part="authorship-removed"
+            >
+              {shown.removed !== undefined ? (
+                <del className="authorship-notice-removed-text">{shown.removed}</del>
+              ) : (
+                <span className="authorship-notice-removed-dropped">
+                  {t('authorship.removedDropped')}
+                </span>
+              )}
+            </div>
+          ) : null}
         </>
       ) : (
         <>
@@ -165,16 +389,8 @@ export function AuthorshipNotice(props: {
             )}
           </p>
           <span className="authorship-notice-actions">
-            {props.canReview ? (
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  setReviewHeight(section.current?.getBoundingClientRect().height)
-                  show(0)
-                  queueMicrotask(() => nextButton.current?.focus())
-                }}
-              >
+            {props.canReview || props.onStartReview ? (
+              <button type="button" className="button" onClick={startReview}>
                 {t('authorship.review')}
               </button>
             ) : null}
@@ -183,11 +399,12 @@ export function AuthorshipNotice(props: {
                 key={writerKey(writer)}
                 type="button"
                 className="button"
-                disabled={busy || !props.editing}
+                disabled={phase.busy || !props.editing}
                 onClick={() => {
-                  setBusy(true)
+                  setPhase({ kind: 'idle', busy: true })
+                  const mine = generation.current
                   void props.onUndoAll(writer).finally(() => {
-                    setBusy(false)
+                    if (mine === generation.current) setPhase(IDLE)
                     props.editor.current?.focus()
                   })
                 }}

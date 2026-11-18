@@ -40,6 +40,11 @@ describe('why there is no proposal', () => {
     })
     expect(aiEditFailure('E_AI_ACCESS_DENIED').message).toContain('Allow AI Access')
     expect(aiEditFailure('E_AI_TIMEOUT').retry).toBe(true)
+    // A stop the sheet did not ask for (Rust ended the stream) is said, not left waiting.
+    expect(aiEditFailure('E_AI_CANCELLED')).toEqual({
+      message: 'The request stopped before it finished. Try again.',
+      retry: true,
+    })
     expect(aiEditFailure('E_SOMETHING_ELSE').message).toBe(
       'The proposal could not be made or applied.',
     )

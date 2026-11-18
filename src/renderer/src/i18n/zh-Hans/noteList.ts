@@ -120,6 +120,7 @@ export const messages: Record<keyof typeof en, string> = {
   'note.bookLabel': '笔记本',
   'note.bookValue': '笔记本：{book}',
   'note.noBook': '无笔记本',
+  'note.aiAccessNoBook': '分配笔记本后可开启 AI 访问',
   'noteList.label': '笔记',
   'noteList.newNote': '新建笔记',
   'noteList.countOne': '{count} 篇笔记',

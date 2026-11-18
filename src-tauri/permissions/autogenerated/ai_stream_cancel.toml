@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-stream-cancel"
+description = "Enables the ai_stream_cancel command without any pre-configured scope."
+commands.allow = ["ai_stream_cancel"]
+
+[[permission]]
+identifier = "deny-ai-stream-cancel"
+description = "Denies the ai_stream_cancel command without any pre-configured scope."
+commands.deny = ["ai_stream_cancel"]

@@ -3,8 +3,9 @@
 // and which body items it inserted and deleted). Text is attributed by its item IDs, which stay
 // the same through merges, sync, garbage collection and restarts, so the records need no anchors.
 // Undo All marks a write in `undone` and adds the ranges it puts back to their owners in
-// `restored`, each under a key of its own: a Y.Map keeps one of two concurrent sets of a key, so
-// no reader depends on a record being set again after its write.
+// `restored`, and an undone write whose deleted text came back in `putBack`, each under a key of
+// its own: a Y.Map keeps one of two concurrent sets of a key, so no reader depends on a record
+// being set again after its write.
 // Records are untrusted input (another device, an outside writer, a later build): a reader skips one that
 // does not parse and leaves it in the map.
 
@@ -18,6 +19,7 @@ export const WRITERS = 'writers'
 export const WRITES = 'writes'
 export const UNDONE = 'undone'
 export const RESTORED = 'restored'
+export const PUT_BACK = 'putBack'
 
 export const WRITER_KINDS = ['mcp', 'http', 'aiEdit'] as const
 export type WriterKind = (typeof WRITER_KINDS)[number]
@@ -65,6 +67,8 @@ export interface AgentWrite {
   created: boolean
   /** `reversed`: Undo All took it back, kept only so a later reversal does not restore its text; `dropped`: its deleted text was dropped. */
   state: WriteState
+  /** Undo put its deleted text back, so a later Undo of a write that deleted the same items leaves them alone. */
+  putBack?: true
 }
 
 export type WriteState = 'live' | 'dropped' | 'reversed'
@@ -205,7 +209,12 @@ function readWriter(session: string, value: unknown): Writer | null {
   return { session, kind, name: cleanWriterName(name), process: process.slice(0, 64) }
 }
 
-function readWrite(id: string, value: unknown, undone: boolean): AgentWrite | null {
+function readWrite(
+  id: string,
+  value: unknown,
+  undone: boolean,
+  putBack: boolean,
+): AgentWrite | null {
   if (!AUTHORSHIP_ID.test(id) || !isRecord(value) || value['v'] !== RECORD_VERSION) return null
   const { writer, at, ids, removed, fields, created } = value
   if (typeof writer !== 'string' || !AUTHORSHIP_ID.test(writer)) return null
@@ -238,6 +247,7 @@ function readWrite(id: string, value: unknown, undone: boolean): AgentWrite | nu
     fields: ((fields as string[] | undefined) ?? []).filter(isField),
     created: created === true,
     state,
+    ...(state === 'reversed' && putBack ? { putBack: true as const } : {}),
   }
 }
 
@@ -279,6 +289,7 @@ export function readWriters(doc: Y.Doc, noteId?: string): Map<string, Writer> {
 /** Every write, undone ones included (reverseWrites needs their inserted ranges). */
 export function readAllWrites(doc: Y.Doc, noteId?: string): AgentWrite[] {
   const undone = doc.getMap(UNDONE)
+  const putBack = doc.getMap(PUT_BACK)
   const restored = new Map<string, IdRange[]>()
   doc.getMap(RESTORED).forEach((value, key) => {
     const entry = readRestored(value)
@@ -289,7 +300,7 @@ export function readAllWrites(doc: Y.Doc, noteId?: string): AgentWrite[] {
   })
   const found: AgentWrite[] = []
   doc.getMap(WRITES).forEach((value, id) => {
-    const write = readWrite(id, value, undone.get(id) === true)
+    const write = readWrite(id, value, undone.get(id) === true, putBack.get(id) === true)
     if (!write) return invalid(noteId, id)
     write.inserted.push(...(restored.get(id) ?? []))
     found.push(write)
@@ -498,6 +509,7 @@ export interface AuthoredRun {
 }
 
 type Owned = [start: number, end: number, owner: string]
+type DeletedOwned = [start: number, end: number, owner: string, text: string | undefined]
 
 /** Per client, the spans of `ranges` in clock order, each with its owner. */
 function spansByClient(owned: readonly { ranges: readonly IdRange[]; owner: string }[]) {
@@ -514,8 +526,25 @@ function spansByClient(owned: readonly { ranges: readonly IdRange[]; owner: stri
   return index
 }
 
+function deletedSpansByClient(writes: readonly AgentWrite[]) {
+  const index = new Map<number, DeletedOwned[]>()
+  for (const write of writes) {
+    let offset = 0
+    for (const r of write.deleted) {
+      const text = write.removed?.slice(offset, offset + r.length)
+      offset += r.length
+      const list = index.get(r.client)
+      const span: DeletedOwned = [r.clock, r.clock + r.length, write.id, text]
+      if (list) list.push(span)
+      else index.set(r.client, [span])
+    }
+  }
+  for (const list of index.values()) list.sort((a, b) => a[0] - b[0])
+  return index
+}
+
 /** The first span that ends after `clock`. */
-function firstAfter(spans: readonly Owned[], clock: number): number {
+function firstAfter(spans: readonly [number, number, ...unknown[]][], clock: number): number {
   let lo = 0
   let hi = spans.length
   while (lo < hi) {
@@ -573,48 +602,103 @@ export interface ReviewStep {
   to: number
   /** The write deleted text here. */
   deleted: boolean
+  /** The Yjs ID (`client:clock`) of the step's first item: stays the same while text elsewhere changes. */
+  anchor: string
+  /** The Yjs ID of the step's last item: changes when the step grows, as when the text between two of its runs goes. */
+  end: string
+  /** The text the write deleted at this step, when still kept. */
+  removed?: string
 }
 
-/** The steps of the writes in `only` (every write when left out), in document order, from one walk over the body. */
+/**
+ * The steps of the writes in `only` (every write when left out), in document order, from one walk
+ * over the body. Every live write is walked, so a step ends where another write's text or deletion
+ * point sits, whichever writes are asked for, and a step's key never depends on the others' review.
+ */
 export function reviewSteps(doc: Y.Doc, only?: ReadonlySet<string>, noteId?: string): ReviewStep[] {
-  const writes = writesWithWriters(doc, noteId)
-    .map(({ write }) => write)
-    .filter((write) => !only || only.has(write.id))
-  if (writes.length === 0) return []
+  const writes = writesWithWriters(doc, noteId).map(({ write }) => write)
+  if (writes.length === 0 || (only && !writes.some((write) => only.has(write.id)))) return []
   const inserted = spansByClient(writes.map((w) => ({ ranges: w.inserted, owner: w.id })))
-  const deleted = spansByClient(writes.map((w) => ({ ranges: w.deleted, owner: w.id })))
+  const deleted = deletedSpansByClient(writes)
   const steps: ReviewStep[] = []
-  const add = (from: number, to: number, writeId: string, wasDeleted: boolean) => {
+  const add = (
+    from: number,
+    to: number,
+    writeId: string,
+    wasDeleted: boolean,
+    anchor: string,
+    end: string,
+    removedText?: string,
+  ) => {
     const last = steps[steps.length - 1]
     if (last && last.writeId === writeId && from <= last.to) {
       last.to = Math.max(last.to, to)
       last.deleted ||= wasDeleted
-    } else steps.push({ writeId, from, to, deleted: wasDeleted })
+      last.end = end
+      if (removedText) last.removed = `${last.removed ?? ''}${removedText}`
+    } else {
+      steps.push({
+        writeId,
+        from,
+        to,
+        deleted: wasDeleted,
+        anchor,
+        end,
+        ...(removedText ? { removed: removedText } : {}),
+      })
+    }
   }
   let at = 0
   // oxlint-disable-next-line no-underscore-dangle -- Yjs has no public walk over a text's items with their IDs (ADR 0007, risk 5).
   for (let item = doc.getText(BODY)._start; item; item = item.right) {
     const live = !item.deleted
     if (live && !item.countable) continue
-    const spans = (live ? inserted : deleted).get(item.id.client)
+    if (!live) {
+      const spans = deleted.get(item.id.client)
+      if (spans) {
+        const { clock } = item.id
+        const end = clock + item.length
+        const byOwner = new Map<string, { anchor: string; end: string; text: string | undefined }>()
+        for (let i = firstAfter(spans, clock); i < spans.length && spans[i]![0] < end; i += 1) {
+          const [s, e, owner, slice] = spans[i]!
+          const a = Math.max(s, clock)
+          const b = Math.min(e, end)
+          const part = slice?.slice(a - s, b - s)
+          const prev = byOwner.get(owner)
+          const last = `${item.id.client}:${b - 1}`
+          if (prev) {
+            prev.end = last
+            if (part) prev.text = `${prev.text ?? ''}${part}`
+          } else {
+            byOwner.set(owner, { anchor: `${item.id.client}:${a}`, end: last, text: part })
+          }
+        }
+        for (const [owner, { anchor, end: last, text }] of byOwner)
+          add(at, at, owner, true, anchor, last, text)
+      }
+      continue
+    }
+    const spans = inserted.get(item.id.client)
     if (spans) {
       const { clock } = item.id
       const end = clock + item.length
-      const owners = new Set<string>()
       for (let i = firstAfter(spans, clock); i < spans.length && spans[i]![0] < end; i += 1) {
         const [s, e, owner] = spans[i]!
-        if (!live) {
-          if (!owners.has(owner)) add(at, at, owner, true)
-          owners.add(owner)
-          continue
-        }
         const a = Math.max(s, clock)
-        add(at + a - clock, at + Math.min(e, end) - clock, owner, false)
+        const b = Math.min(e, end)
+        add(
+          at + a - clock,
+          at + b - clock,
+          owner,
+          false,
+          `${item.id.client}:${a}`,
+          `${item.id.client}:${b - 1}`,
+        )
       }
     }
-    if (live) at += item.length
+    at += item.length
   }
-  return steps
+  return only ? steps.filter((step) => only.has(step.writeId)) : steps
 }
 
 /** The parts of `span` no span of `taken` covers; `taken` holds disjoint spans in order. */
@@ -667,19 +751,12 @@ export interface Reversal {
  * stays, inside the agent's text too, and comes back as theirs. Text the writer deleted that it
  * had itself inserted, or that an undone writer inserted, is not put back.
  */
-export function reverseWrites(
+function reverseTargetWrites(
   doc: Y.Doc,
-  who: { kind: WriterKind; names: readonly string[] },
-  noteId?: string,
+  all: readonly AgentWrite[],
+  writers: ReadonlyMap<string, Writer>,
+  targets: readonly AgentWrite[],
 ): Reversal {
-  const writers = readWriters(doc, noteId)
-  const all = readAllWrites(doc, noteId)
-  const names = new Set(who.names)
-  const mine = (write: AgentWrite) => {
-    const writer = writers.get(write.session)
-    return writer !== undefined && writer.kind === who.kind && names.has(writer.name)
-  }
-  const targets = all.filter((write) => write.state !== 'reversed' && mine(write))
   if (targets.length === 0) return { writes: 0, dropped: 0 }
   const targetIds = new Set(targets.map((write) => write.id))
   const insertedIndex = spansByClient(targets.map((w) => ({ ranges: w.inserted, owner: w.id })))
@@ -709,6 +786,19 @@ export function reverseWrites(
       }
     }
   }
+  // Text an earlier Undo already put back, perhaps on another device: each ID comes back once across Undos too.
+  const back = new Map<number, Span[]>()
+  for (const write of all) {
+    if (!write.putBack) continue
+    for (const range of write.deleted) {
+      const list = back.get(range.client) ?? []
+      list.push([range.clock, range.clock + range.length])
+      back.set(range.client, list)
+    }
+  }
+  for (const [client, list] of back) {
+    back.set(client, mergedSpans(list.map(([start, end]) => ({ clock: start, len: end - start }))))
+  }
   for (const list of undone.values()) list.sort((a, b) => a[0] - b[0])
   for (const list of owners.values()) list.sort((a, b) => a[0] - b[0])
   // The text to put back, by the ID it had: each ID once, though two devices may both have deleted it.
@@ -729,7 +819,10 @@ export function reverseWrites(
       const done = restored.get(range.client) ?? []
       const gone = undone.get(range.client) ?? []
       const theirs = owners.get(range.client) ?? []
-      for (const part of uncovered(span, own).flatMap((p) => uncovered(p, done))) {
+      const already = back.get(range.client) ?? []
+      for (const part of uncovered(span, own)
+        .flatMap((p) => uncovered(p, done))
+        .flatMap((p) => uncovered(p, already))) {
         const list = pieces.get(range.client) ?? []
         for (const kept of uncovered(part, gone)) {
           for (const [a, b, owner] of splitOwned(kept, theirs)) {
@@ -808,9 +901,11 @@ export function reverseWrites(
       })
     }
     const undoneMap = doc.getMap(UNDONE)
+    const putBackMap = doc.getMap(PUT_BACK)
     const writes = doc.getMap(WRITES)
     for (const write of targets) {
       undoneMap.set(write.id, true)
+      if (write.removed !== undefined) putBackMap.set(write.id, true)
       // The deleted text is of no use once undone, and would count against the cap and push a live writer's out.
       // `reversed` is what an earlier build on another device reads; this build reads `undone`.
       const raw = writes.get(write.id)
@@ -823,9 +918,78 @@ export function reverseWrites(
   return { writes: targets.length, dropped }
 }
 
+/**
+ * Undo All for one writer (its kind and every name it has gone by, across sessions), as one Yjs transaction: each of its
+ * writes' deleted text goes back where its deleted items sit, every live character it
+ * inserted is deleted, and its records are marked undone. Text the owner or another writer wrote
+ * stays, inside the agent's text too, and comes back as theirs. Text the writer deleted that it
+ * had itself inserted, or that an undone writer inserted, is not put back.
+ */
+export function reverseWrites(
+  doc: Y.Doc,
+  who: { kind: WriterKind; names: readonly string[] },
+  noteId?: string,
+): Reversal {
+  const writers = readWriters(doc, noteId)
+  const all = readAllWrites(doc, noteId)
+  const names = new Set(who.names)
+  const targets = all.filter((write) => {
+    if (write.state === 'reversed') return false
+    const writer = writers.get(write.session)
+    return writer !== undefined && writer.kind === who.kind && names.has(writer.name)
+  })
+  return reverseTargetWrites(doc, all, writers, targets)
+}
+
+/** `writeId` and every later live write that deleted text one of them inserted, oldest first. */
+function groupOf(
+  all: readonly AgentWrite[],
+  writers: ReadonlyMap<string, Writer>,
+  writeId: string,
+): AgentWrite[] {
+  const live = all.filter((write) => write.state !== 'reversed' && writers.has(write.session))
+  const start = live.findIndex((write) => write.id === writeId)
+  if (start < 0) return []
+  const group = [live[start]!]
+  const inserted: IdRange[] = [...live[start]!.inserted]
+  const touches = (r: IdRange) =>
+    inserted.some(
+      (own) =>
+        own.client === r.client &&
+        own.clock < r.clock + r.length &&
+        r.clock < own.clock + own.length,
+    )
+  for (const later of live.slice(start + 1)) {
+    if (!later.deleted.some(touches)) continue
+    group.push(later)
+    inserted.push(...later.inserted)
+  }
+  return group
+}
+
+/**
+ * The writes Undo of `writeId` takes back, newest first: it, and every later write that rewrote text it (or one of
+ * those) inserted, since undoing it alone would leave the later write's text in pieces.
+ */
+export function undoGroup(doc: Y.Doc, writeId: string, noteId?: string): string[] {
+  return groupOf(readAllWrites(doc, noteId), readWriters(doc, noteId), writeId)
+    .map((write) => write.id)
+    .reverse()
+}
+
+/**
+ * Undo one write (`writeId`) and the later writes `undoGroup` adds to it, leaving other writes (seen historical
+ * writes included) intact. Text another writer wrote that these writes deleted comes back attributed to that writer.
+ */
+export function reverseWrite(doc: Y.Doc, writeId: string, noteId?: string): Reversal {
+  const writers = readWriters(doc, noteId)
+  const all = readAllWrites(doc, noteId)
+  return reverseTargetWrites(doc, all, writers, groupOf(all, writers, writeId))
+}
+
 /** Clear Authorship: deletes every entry of the maps in one transaction; returns how many writes there were. */
 export function clearAuthorship(doc: Y.Doc): number {
-  const maps = [WRITES, WRITERS, UNDONE, RESTORED].map((name) => doc.getMap(name))
+  const maps = [WRITES, WRITERS, UNDONE, RESTORED, PUT_BACK].map((name) => doc.getMap(name))
   const count = maps[0]!.size
   if (maps.every((map) => map.size === 0)) return 0
   doc.transact(() => {

@@ -334,6 +334,10 @@ public enum L10n {
     text("aiEdit.asking", "Waiting for the AI provider…")
   }
 
+  public static func aiEditWriting() -> String {
+    text("aiEdit.writing", "Writing the proposal…")
+  }
+
   public static func aiEditReview(model p0: String) -> String {
     fill(text("aiEdit.review", "Proposed by {model}. Review the changes, then accept them or discard the proposal."), ["model": p0])
   }
@@ -436,6 +440,10 @@ public enum L10n {
 
   public static func aiEditReasonRefused() -> String {
     text("aiEdit.reason.refused", "The AI provider declined the request.")
+  }
+
+  public static func aiEditReasonCancelled() -> String {
+    text("aiEdit.reason.cancelled", "The request stopped before it finished. Try again.")
   }
 
   public static func aiEditReasonOther() -> String {
@@ -1944,6 +1952,14 @@ public enum L10n {
 
   public static func noteInfoUpdated() -> String {
     text("noteInfo.updated", "Updated")
+  }
+
+  public static func noteInfoAiAccessOn() -> String {
+    text("noteInfo.aiAccessOn", "On")
+  }
+
+  public static func noteInfoAiAccessOff() -> String {
+    text("noteInfo.aiAccessOff", "Off")
   }
 
   public static func noteInfoEditDateNamed(field p0: String, date p1: String) -> String {
@@ -3918,8 +3934,32 @@ public enum L10n {
     text("authorship.next", "Next Change")
   }
 
+  public static func authorshipKeep() -> String {
+    text("authorship.keep", "Keep")
+  }
+
+  public static func authorshipUndo() -> String {
+    text("authorship.undo", "Undo")
+  }
+
+  public static func authorshipUndoWhole(count p0: String) -> String {
+    fill(text("authorship.undoWhole", "Undo Whole Edit ({count} Places)"), ["count": p0])
+  }
+
+  public static func authorshipUndoGroup(count p0: String) -> String {
+    fill(text("authorship.undoGroup", "Undo {count} Edits"), ["count": p0])
+  }
+
   public static func authorshipDone() -> String {
     text("authorship.done", "Done")
+  }
+
+  public static func authorshipRemovedLabel() -> String {
+    text("authorship.removedLabel", "Deleted text")
+  }
+
+  public static func authorshipRemovedDropped() -> String {
+    text("authorship.removedDropped", "The deleted text is too old to preview.")
   }
 
   public static func authorshipNoSteps() -> String {
@@ -5636,6 +5676,10 @@ public enum L10n {
 
   public static func noteNoBook() -> String {
     text("note.noBook", "No Notebook")
+  }
+
+  public static func noteAiAccessNoBook() -> String {
+    text("note.aiAccessNoBook", "Assign a notebook to allow AI access")
   }
 
   public static func noteListLabel() -> String {
@@ -8260,6 +8304,14 @@ public enum L10n {
 
   public static func sidebarAgents() -> String {
     text("sidebar.agents", "Agents")
+  }
+
+  public static func sidebarUnseenChanges() -> String {
+    text("sidebar.unseenChanges", "Unseen Changes")
+  }
+
+  public static func sidebarMarkAllRead() -> String {
+    text("sidebar.markAllRead", "Mark All Read")
   }
 
   public static func sidebarHideTitle() -> String {

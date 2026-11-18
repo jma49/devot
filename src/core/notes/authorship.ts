@@ -1,7 +1,7 @@
-import { clearAuthorship, reverseWrites, type Reversal } from '../authorship'
+import { clearAuthorship, reverseWrite, reverseWrites, type Reversal } from '../authorship'
 import { errorCode } from '../errors'
 import { lineFeeds } from '../text'
-import type { NoteContext } from './context'
+import type { Live, NoteContext } from './context'
 import type { Kernel } from './kernel'
 import type { NoteService } from './types'
 
@@ -12,6 +12,7 @@ export function authorshipMethods(
   NoteService,
   | 'agentWrite'
   | 'undoAgentWrites'
+  | 'undoAgentWrite'
   | 'clearAuthorship'
   | 'agentWrites'
   | 'authoredNotes'
@@ -22,6 +23,20 @@ export function authorshipMethods(
   const { using } = k.memory
   const { save, schedule } = k.saving
   const { collected, authoredEdit } = k.edits
+  const reverseIn = (id: string, note: Live, reverse: () => Reversal) => {
+    takeVersion(note)
+    let result: Reversal = { writes: 0, dropped: 0 }
+    const update = collected(note, () =>
+      editBody(note, () => {
+        result = reverse()
+      }),
+    )
+    if (result.writes > 0) {
+      schedule(note)
+      options.log?.('I_AUTHORSHIP_UNDONE', id, String(result.writes))
+    }
+    return settled().then(() => ({ ...result, update }))
+  }
   return {
     agentWrite: (id, edit) =>
       using(id, (note) =>
@@ -32,21 +47,10 @@ export function authorshipMethods(
       ),
 
     undoAgentWrites: (id, writer) =>
-      using(id, async (note) => {
-        takeVersion(note)
-        let result: Reversal = { writes: 0, dropped: 0 }
-        const update = collected(note, () =>
-          editBody(note, () => {
-            result = reverseWrites(note.doc, writer, id)
-          }),
-        )
-        if (result.writes > 0) {
-          schedule(note)
-          options.log?.('I_AUTHORSHIP_UNDONE', id, String(result.writes))
-        }
-        await settled()
-        return { ...result, update }
-      }),
+      using(id, (note) => reverseIn(id, note, () => reverseWrites(note.doc, writer, id))),
+
+    undoAgentWrite: (id, writeId) =>
+      using(id, (note) => reverseIn(id, note, () => reverseWrite(note.doc, writeId, id))),
 
     clearAuthorship: (id) =>
       using(id, (note) => {

@@ -90,6 +90,7 @@ export const messages = {
     'Say how to change the selected text. Only the selection and your instruction are sent to the AI provider.',
   'aiEdit.send': 'Send',
   'aiEdit.asking': 'Waiting for the AI provider\u2026',
+  'aiEdit.writing': 'Writing the proposal\u2026',
   'aiEdit.review':
     'Proposed by {model}. Review the changes, then accept them or discard the proposal.',
   'aiEdit.changes': 'Proposed changes',
@@ -124,6 +125,7 @@ export const messages = {
   'aiEdit.reason.stale':
     'The selected text changed while the proposal was open. Select it again and ask again.',
   'aiEdit.reason.refused': 'The AI provider declined the request.',
+  'aiEdit.reason.cancelled': 'The request stopped before it finished. Try again.',
   'aiEdit.reason.other': 'The proposal could not be made or applied.',
   'aiSuggest.failed': 'No suggestion: {reason}',
   'aiSuggest.reason.empty': 'There is no text to continue from.',

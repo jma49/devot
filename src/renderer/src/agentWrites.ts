@@ -26,6 +26,10 @@ export interface AgentWritesView {
   changedBy: ReadonlyMap<string, WriterRef>
   /** The MCP clients and the HTTP API, newest first; Edit with AI is the owner's own. */
   agents: readonly AgentSummary[]
+  /** Unseen writes from outside writers (MCP and HTTP API), excluding Edit with AI. */
+  unseenCount: number
+  /** Notes with at least one unseen outside write. */
+  unseenNoteIds: ReadonlySet<string>
   /** Notes with any agent write, seen or not: the ones Clear Authorship applies to. */
   authored: ReadonlySet<string>
 }
@@ -41,18 +45,26 @@ export function agentWritesView(
   const byNote = new Map<string, AgentWriteSummary[]>()
   const changedBy = new Map<string, WriterRef>()
   const agents = new Map<string, AgentSummary & { noteIds: Set<string> }>()
+  let unseenCount = 0
+  const unseenNoteIds = new Set<string>()
   for (const row of rows) {
     const own = byNote.get(row.noteId)
     if (own) own.push(row)
     else byNote.set(row.noteId, [row])
     if (!row.seen && !changedBy.has(row.noteId))
       changedBy.set(row.noteId, { kind: row.kind, name: row.name })
+    if (!row.seen && row.kind !== 'aiEdit') {
+      unseenCount += 1
+      unseenNoteIds.add(row.noteId)
+    }
     addAgent(agents, row)
   }
   return {
     byNote,
     changedBy,
     agents: [...agents.values()].slice(0, MAX_AGENTS_LISTED),
+    unseenCount,
+    unseenNoteIds,
     authored: new Set(authored),
   }
 }
@@ -69,17 +81,27 @@ export function inNotes(view: AgentWritesView, noteIds: ReadonlySet<string>): Ag
   const byNote = new Map<string, readonly AgentWriteSummary[]>()
   const changedBy = new Map<string, WriterRef>()
   const agents = new Map<string, AgentSummary & { noteIds: Set<string> }>()
+  let unseenCount = 0
+  const unseenNoteIds = new Set<string>()
   for (const [id, rows] of view.byNote) {
     if (!noteIds.has(id)) continue
     byNote.set(id, rows)
     const changed = changedByOf(rows)
     if (changed) changedBy.set(id, changed)
-    for (const row of rows) addAgent(agents, row)
+    for (const row of rows) {
+      addAgent(agents, row)
+      if (!row.seen && row.kind !== 'aiEdit') {
+        unseenCount += 1
+        unseenNoteIds.add(id)
+      }
+    }
   }
   return {
     byNote,
     changedBy,
     agents: [...agents.values()].slice(0, MAX_AGENTS_LISTED),
+    unseenCount,
+    unseenNoteIds,
     authored: new Set([...view.authored].filter((id) => noteIds.has(id))),
   }
 }
@@ -114,21 +136,27 @@ function addAgent(
 }
 
 /**
- * Marks `shown`'s rows seen. A promise, so a quit can wait for it; `reload` false when the app is
- * leaving, since nothing reads the rows again.
+ * Marks `shown`'s rows seen, resolving with the failure's code or undefined once saved; it never
+ * rejects, so a quit can wait for it. `reload` false when the app is leaving, since nothing reads
+ * the rows again.
  */
 export function markSeen(
   core: Pick<Core, 'markWritesSeen'>,
   reload: () => void,
   shown: { noteId: string; ids: ReadonlySet<string> } | undefined,
   options?: { reload?: boolean },
-): Promise<void> {
-  if (!shown || shown.ids.size === 0) return Promise.resolve()
+): Promise<string | undefined> {
+  if (!shown || shown.ids.size === 0) return Promise.resolve(undefined)
   return core.markWritesSeen(shown.noteId, [...shown.ids]).then(
     () => {
       if (options?.reload !== false) reload()
+      return undefined
     },
-    (e: unknown) => console.warn('W_AGENT_WRITES_SEEN_FAILED', shown.noteId, errorCode(e)),
+    (e: unknown) => {
+      const code = errorCode(e)
+      console.warn('W_AGENT_WRITES_SEEN_FAILED', shown.noteId, code)
+      return code
+    },
   )
 }
 

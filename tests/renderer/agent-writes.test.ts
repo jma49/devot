@@ -66,7 +66,7 @@ describe('markSeen', () => {
       Promise.resolve(),
     )
     const reload = vi.fn<() => void>()
-    await markSeen(coreWith(markWritesSeen), reload, shown)
+    await expect(markSeen(coreWith(markWritesSeen), reload, shown)).resolves.toBeUndefined()
     expect(markWritesSeen).toHaveBeenCalledWith('a', ['W1', 'W2'])
     expect(reload).toHaveBeenCalledOnce()
   })
@@ -92,13 +92,13 @@ describe('markSeen', () => {
     expect(reload).not.toHaveBeenCalled()
   })
 
-  it('resolves when marking fails, so a quit is never held by it', async () => {
+  it('resolves with the failure code when marking fails, so a quit is never held by it', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const markWritesSeen = vi.fn<(noteId: string, ids: readonly string[]) => Promise<void>>(() =>
       Promise.reject(new Error('E_TEST')),
     )
     const reload = vi.fn<() => void>()
-    await expect(markSeen(coreWith(markWritesSeen), reload, shown)).resolves.toBeUndefined()
+    await expect(markSeen(coreWith(markWritesSeen), reload, shown)).resolves.toBe('E_TEST')
     expect(reload).not.toHaveBeenCalled()
     expect(warn).toHaveBeenCalledWith('W_AGENT_WRITES_SEEN_FAILED', 'a', 'E_TEST')
     warn.mockRestore()

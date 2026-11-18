@@ -528,6 +528,8 @@ describe('Tauri command permissions', () => {
 
   it('lets only the main window generate, the main and Settings windows read the settings, and only the Settings window set providers and keys', () => {
     expect(windowsWith('allow-ai-generate')).toEqual(['main'])
+    expect(windowsWith('allow-ai-stream')).toEqual(['main'])
+    expect(windowsWith('allow-ai-stream-cancel')).toEqual(['main'])
     expect(windowsWith('allow-ai-settings-get')).toEqual(['main', 'settings'])
     for (const command of ['settings-set', 'key-set', 'key-clear', 'cli-refresh']) {
       expect(windowsWith(`allow-ai-${command}`)).toEqual(['settings'])

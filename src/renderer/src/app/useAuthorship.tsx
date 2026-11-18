@@ -19,6 +19,7 @@ import { t } from '../i18n'
 import type { Mode } from '../ModeControl'
 import type { ApplyRestore } from '../NoteEditor'
 import { saveEdits } from '../saveGuards'
+import { followReviewSwitch, type ReviewSwitch } from './reviewSwitch'
 
 type AgentWrites = ReturnType<typeof useAgentWrites>
 
@@ -27,20 +28,43 @@ export function useShownWrites(core: Core | undefined, agentWrites: AgentWrites)
   const shownWrites = useRef<{ noteId: string; ids: Set<string> } | undefined>(undefined)
   // Marking runs in call order: a later note's reload must not overtake an
   // earlier note's write, or its older read can bring a dismissed notice back.
-  const seenQueue = useRef<Promise<void>>(Promise.resolve())
+  const seenQueue = useRef<Promise<unknown>>(Promise.resolve())
   const reloadAgentWrites = agentWrites.reload
   const markShownSeen = useCallback(
     (options?: { reload?: boolean }) => {
       const shown = shownWrites.current
       shownWrites.current = undefined
       if (!core) return Promise.resolve()
-      const next = seenQueue.current.then(() => markSeen(core, reloadAgentWrites, shown, options))
+      const next = seenQueue.current.then(async () => {
+        await markSeen(core, reloadAgentWrites, shown, options)
+      })
       seenQueue.current = next
       return next
     },
     [core, reloadAgentWrites],
   )
-  return { shownWrites, markShownSeen, reloadAgentWrites }
+  /** Stops the notice's set naming `writeId`, which was kept or undone by itself. */
+  const forgetShownWrite = useCallback((noteId: string, writeId: string) => {
+    const shown = shownWrites.current
+    if (shown?.noteId !== noteId) return
+    shown.ids.delete(writeId)
+    if (shown.ids.size === 0) shownWrites.current = undefined
+  }, [])
+  /** Marks one kept write seen, resolving with the failure's code or undefined once saved. */
+  const markWriteSeen = useCallback(
+    (noteId: string, writeId: string): Promise<string | undefined> => {
+      if (!core) return Promise.resolve('E_CORE_NOT_READY')
+      const next = seenQueue.current.then(async () => {
+        const failed = await markSeen(core, reloadAgentWrites, { noteId, ids: new Set([writeId]) })
+        if (failed === undefined) forgetShownWrite(noteId, writeId)
+        return failed
+      })
+      seenQueue.current = next
+      return next
+    },
+    [core, reloadAgentWrites, forgetShownWrite],
+  )
+  return { shownWrites, markShownSeen, markWriteSeen, forgetShownWrite, reloadAgentWrites }
 }
 
 export function useAuthorshipNotice({
@@ -51,8 +75,10 @@ export function useAuthorshipNotice({
   multiIds,
   selectedIsTemplate,
   mode,
+  setMode,
+  editorMode,
   agentWrites,
-  shown: { shownWrites, markShownSeen, reloadAgentWrites },
+  shown: { shownWrites, markShownSeen, markWriteSeen, forgetShownWrite, reloadAgentWrites },
   editorRef,
   restoreRef,
   setChangeNotice,
@@ -64,6 +90,8 @@ export function useAuthorshipNotice({
   multiIds: readonly string[] | undefined
   selectedIsTemplate: boolean
   mode: Mode
+  setMode: Dispatch<SetStateAction<Mode>>
+  editorMode: RefObject<Mode>
   agentWrites: AgentWrites
   shown: ReturnType<typeof useShownWrites>
   editorRef: RefObject<EditorHandle | null>
@@ -80,12 +108,22 @@ export function useAuthorshipNotice({
     () => unseenOf(agentWrites.view, noticeNote),
     [agentWrites.view, noticeNote],
   )
+  const reviewSwitch = useRef<ReviewSwitch | undefined>(undefined)
   useEffect(() => {
     if (shownWrites.current && shownWrites.current.noteId !== noticeNote) markShownSeen()
     if (noticeNote === undefined || openUnseen.length === 0) return
     shownWrites.current ??= { noteId: noticeNote, ids: new Set() }
     for (const row of openUnseen) shownWrites.current.ids.add(row.writeId)
   }, [noticeNote, openUnseen, markShownSeen, shownWrites])
+  useEffect(() => {
+    const { next, toPreview } = followReviewSwitch(reviewSwitch.current, {
+      noteId: noticeNote,
+      unseen: openUnseen.length,
+      mode,
+    })
+    reviewSwitch.current = next
+    if (toPreview) setMode('preview')
+  }, [noticeNote, openUnseen.length, mode, setMode])
   useEffect(() => {
     const seen = () => void markShownSeen()
     window.addEventListener('pagehide', seen)
@@ -105,6 +143,42 @@ export function useAuthorshipNotice({
       console.warn('W_AUTHORSHIP_UNDO_FAILED', noteId, errorCode(e))
       setChangeNotice(errorCode(e))
     }
+  }
+  const undoSingleWrite = async (noteId: string, writeId: string): Promise<boolean> => {
+    if (!core || !editing) return false
+    try {
+      const undone = await core.undoAgentWrite(noteId, writeId)
+      forgetShownWrite(noteId, writeId)
+      if (editorRef.current?.noteId === noteId) restoreRef.current?.(undone.update)
+      if (undone.dropped > 0) setUndoDropped(true)
+      await saveEdits(core)
+      reloadAgentWrites()
+      return true
+    } catch (e) {
+      console.warn('W_AUTHORSHIP_UNDO_FAILED', noteId, errorCode(e))
+      setChangeNotice(errorCode(e))
+      return false
+    }
+  }
+  const keepWrite = async (noteId: string, writeId: string): Promise<boolean> => {
+    const failed = await markWriteSeen(noteId, writeId)
+    if (failed !== undefined) setChangeNotice(failed)
+    return failed === undefined
+  }
+  const startReviewFromNotice = (noteId: string) => {
+    if (mode !== 'preview') return
+    const next = editorMode.current
+    reviewSwitch.current = { noteId, switchedTo: next, shown: false }
+    setMode(next)
+  }
+  const endReviewMode = (noteId: string) => {
+    const switched = reviewSwitch.current
+    reviewSwitch.current = undefined
+    if (switched && switched.noteId === noteId && mode === switched.switchedTo) {
+      setMode('preview')
+      return
+    }
+    if (mode !== 'preview') editorRef.current?.focus()
   }
   const [clearing, setClearing] = useState<string>()
   const clearNoteAuthorship = async (noteId: string) => {
@@ -129,6 +203,10 @@ export function useAuthorshipNotice({
         editor={editorRef}
         canReview={mode !== 'preview'}
         editing={editing}
+        onStartReview={() => startReviewFromNotice(noticeNote)}
+        onEndReview={() => endReviewMode(noticeNote)}
+        onKeepWrite={(writeId) => keepWrite(noticeNote, writeId)}
+        onUndoWrite={(writeId) => undoSingleWrite(noticeNote, writeId)}
         onUndoAll={(writer) => undoAgent(noticeNote, writer)}
         onDismiss={markShownSeen}
       />

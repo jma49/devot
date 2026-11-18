@@ -1,10 +1,12 @@
 import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, pickNoteMore, shownMenu, test } from './fixtures'
 
-// Edit with AI from the selection toolbar and the editor menu. Rust is faked in the page: `ai_generate` answers what the
-// test sets in `devotAiReplies` (a text, or `{ error }`), one per request, and every request is in `devotIpcCalls`.
+// Edit with AI from the selection toolbar and the editor menu. Rust is faked in the page: `ai_stream` sends the reply the
+// test sets (a text, `{ error }`, or `{ held }`, which stops after its first word until `devotFinishAnswer(n)` for the
+// n-th held reply) in pieces of a word, one reply per request; `devotAnswered` counts the replies sent in full, and every
+// request is in `devotIpcCalls`.
 
-type Reply = string | { error: string }
+type Reply = string | { error: string } | { held: string }
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const bookRow = (page: Page, name: string) =>
@@ -28,25 +30,34 @@ const savedBody = (page: Page) =>
 const requests = (page: Page) =>
   page.evaluate(() =>
     window.devotIpcCalls
-      .filter((c) => c.cmd === 'ai_generate')
+      .filter((c) => c.cmd === 'ai_stream')
       .map((c) => c.args['request'] as { messages: { content: string }[] }),
   )
 
+type FakeWindow = typeof window & {
+  devotFinishAnswer?: (n?: number) => void
+  devotAnswered?: number
+}
+
 async function fakeProvider(page: Page, replies: Reply[]) {
   await page.addInitScript((queued) => {
-    const w = window
+    const w = window as FakeWindow
+    const held: (() => void)[] = []
+    w.devotAnswered = 0
+    w.devotFinishAnswer = (n = 0) => held[n]?.()
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
-      ai_generate: () => {
+      ai_stream: async (args: { onText: { onmessage: (text: string) => void } }) => {
         const reply = queued.shift() ?? 'unexpected request'
-        if (typeof reply !== 'string') throw reply.error
-        return {
-          provider: 'anthropic',
-          model: 'claude-sonnet-5-5',
-          text: reply,
-          stop: 'end',
-          usage: null,
+        if (typeof reply !== 'string' && 'error' in reply) throw reply.error
+        const text = typeof reply === 'string' ? reply : reply.held
+        const mine = typeof reply === 'string' ? -1 : held.length
+        for (const [i, word] of text.split(/(?<= )/).entries()) {
+          args.onText.onmessage(word)
+          if (mine >= 0 && i === 0) await new Promise<void>((done) => (held[mine] = done))
         }
+        w.devotAnswered = (w.devotAnswered ?? 0) + 1
+        return { provider: 'anthropic', model: 'claude-sonnet-5-5', text, stop: 'end', usage: null }
       },
     }
   }, replies)
@@ -223,6 +234,78 @@ test('the editor menu asks with a custom instruction, and Discard leaves the not
   await expect.poll(() => savedBody(page)).toBe('hello there')
 })
 
+test('shows the proposal as it streams in, and Discard stops the request', async ({ page }) => {
+  await fakeProvider(page, [{ held: 'Hello brave new world' }, { held: 'Second try now' }])
+  await page.reload()
+  await notebook(page, 'Work', true)
+  await note(page, 'hello world')
+  await selectLine(page, 0)
+
+  await fromToolbar(page, 'Improve Writing')
+  const writing = sheet(page).getByRole('region', { name: 'Writing the proposal…' })
+  await expect(sheet(page).getByRole('status')).toHaveText('Writing the proposal…')
+  await expect(writing).toHaveText('Hello ')
+  await expect(writing).toHaveAttribute('aria-live', 'off')
+  await sheet(page).getByRole('button', { name: 'Discard' }).click()
+  await expect(sheet(page)).toBeHidden()
+  const streams = () =>
+    page.evaluate(() =>
+      window.devotIpcCalls
+        .filter((c) => c.cmd === 'ai_stream' || c.cmd === 'ai_stream_cancel')
+        .map((c) => ({ cmd: c.cmd, id: c.args['streamId'] })),
+    )
+  await expect
+    .poll(async () => (await streams()).map((call) => call.cmd))
+    .toEqual(['ai_stream', 'ai_stream_cancel'])
+  const [asked, cancel] = await streams()
+  expect(cancel!.id).toBe(asked!.id)
+
+  await selectLine(page, 0)
+  await fromToolbar(page, 'Improve Writing')
+  await expect(writing).toHaveText('Second ')
+  await expect.poll(async () => (await streams()).length).toBe(3)
+  expect((await streams())[2]!.id).not.toBe(asked!.id)
+
+  // The rest of the discarded answer arrives while the second streams, and none of it shows.
+  await page.evaluate(() => (window as FakeWindow).devotFinishAnswer!(0))
+  await expect.poll(() => page.evaluate(() => (window as FakeWindow).devotAnswered)).toBe(1)
+  await expect(writing).toHaveText('Second ')
+  await page.evaluate(() => (window as FakeWindow).devotFinishAnswer!(1))
+  await expect(writing).toBeHidden()
+  await expect(sheet(page).locator('ins').first()).toBeVisible()
+  await expect(sheet(page)).toContainText('Second')
+  await expect(sheet(page)).not.toContainText('brave')
+  await sheet(page).getByRole('button', { name: 'Discard' }).click()
+  await expect.poll(() => savedBody(page)).toBe('hello world')
+})
+
+test('a custom instruction takes several lines: Shift+Return breaks the line, Return sends', async ({
+  page,
+}) => {
+  await fakeProvider(page, ['HELLO'])
+  await page.reload()
+  await notebook(page, 'Work', true)
+  await note(page, 'hello')
+  await selectLine(page, 0)
+  await line(page, 0).getByText('hello').click({ button: 'right' })
+  await pickMenuItem(page, 'Custom Instruction…', 'Edit with AI')
+
+  const field = sheet(page).getByRole('textbox', { name: 'Instruction' })
+  const height = (await field.boundingBox())!.height
+  await field.pressSequentially('Shout it')
+  await field.press('Shift+Enter')
+  await field.pressSequentially('Keep it short')
+  await field.press('Shift+Enter')
+  await field.pressSequentially('No emoji')
+  await expect(field).toHaveValue('Shout it\nKeep it short\nNo emoji')
+  await expect.poll(async () => (await field.boundingBox())!.height).toBeGreaterThan(height)
+  expect(await requests(page)).toEqual([])
+  await field.press('Enter')
+  await expect(sheet(page).locator('ins')).toHaveText(['HELLO'])
+  const [request] = await requests(page)
+  expect(request!.messages[0]!.content).toMatch(/^Shout it\nKeep it short\nNo emoji\n\n<selection>/)
+})
+
 test('sends nothing from a notebook without AI access, and says why', async ({ page }) => {
   await fakeProvider(page, [])
   await page.reload()
@@ -252,6 +335,21 @@ test('asks again after a failure that may pass', async ({ page }) => {
   await sheet(page).getByRole('button', { name: 'Try Again' }).click()
   await expect(sheet(page).locator('ins')).toHaveText(['- one', '- two'])
   expect(await requests(page)).toHaveLength(2)
+})
+
+test('says when the request stopped on its own, and asks again', async ({ page }) => {
+  await fakeProvider(page, [{ error: 'E_AI_CANCELLED' }, '- one\n- two'])
+  await page.reload()
+  await notebook(page, 'Work', true)
+  await note(page, 'one, two')
+  await selectLine(page, 0)
+
+  await fromToolbar(page, 'Make Bullet List')
+  await expect(sheet(page).getByRole('alert')).toHaveText(
+    'The request stopped before it finished. Try again.',
+  )
+  await sheet(page).getByRole('button', { name: 'Try Again' }).click()
+  await expect(sheet(page).locator('ins')).toHaveText(['- one', '- two'])
 })
 
 test('names the missing key', async ({ page }) => {
