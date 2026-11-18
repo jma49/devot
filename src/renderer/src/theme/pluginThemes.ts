@@ -6,6 +6,7 @@ import { invoke } from '../ipc'
 import { watchPlugins } from '../plugins/api'
 import { unlistenLater } from '../windowEvents'
 import { shownAppearance, subscribeAppearance, type Appearance } from './appearance'
+import { legibleColors } from './themeLegibility'
 import { light } from './tokens'
 
 export interface ThemeRef {
@@ -63,7 +64,7 @@ function readTheme(value: unknown): OfferedTheme | undefined {
   for (const [key, color] of Object.entries(colors)) {
     if (THEME_COLORS.has(key) && typeof color === 'string' && COLOR.test(color)) known[key] = color
   }
-  return { plugin, pluginName, id, title, appearance, colors: known }
+  return { plugin, pluginName, id, title, appearance, colors: legibleColors(known, appearance) }
 }
 
 /** Read again here, as every answer from Rust is; what does not fit is left out. */

@@ -18,7 +18,7 @@ const nord = {
   id: 'nord-light',
   title: 'Nord Light',
   appearance: 'light',
-  colors: { 'surface-editor': '#eceff4', 'not-a-token': '#000000', 'ink-text': 'red' },
+  colors: { 'chart-series-1': '#eceff4', 'not-a-token': '#000000', 'ink-text': 'red' },
 }
 
 function target(): ThemeTarget & { props: Map<string, string> } {
@@ -40,7 +40,7 @@ describe('readPluginThemes', () => {
       themes: [nord],
       chosen: { light: { plugin: nord.plugin, theme: nord.id }, dark: null },
     })
-    expect(read.themes[0]?.colors).toEqual({ 'surface-editor': '#eceff4' })
+    expect(read.themes[0]?.colors).toEqual({ 'chart-series-1': '#eceff4' })
     expect(read.chosen).toEqual({ light: { plugin: nord.plugin, theme: nord.id }, dark: null })
   })
 
@@ -50,8 +50,8 @@ describe('readPluginThemes', () => {
         {
           ...nord,
           colors: {
-            'surface-editor': '#eceff4',
-            'status-active': '#88c0d0',
+            'chart-series-1': '#eceff4',
+            'status-active': '#2e3440',
             'status-active-mark': '#88c0d0',
             'status-dropped-mark': '#bf616a',
             'icon-tile-general': '#81a1c1',
@@ -64,8 +64,8 @@ describe('readPluginThemes', () => {
       chosen: {},
     })
     expect(read.themes[0]?.colors).toEqual({
-      'surface-editor': '#eceff4',
-      'status-active': '#88c0d0',
+      'chart-series-1': '#eceff4',
+      'status-active': '#2e3440',
     })
   })
 
@@ -117,7 +117,7 @@ describe('applyPluginTheme', () => {
     })
     const root = target()
     let applied = applyPluginTheme(themeInEffect(themes, 'light'), root, new Set())
-    expect([...root.props]).toEqual([['--color-surface-editor', '#eceff4']])
+    expect([...root.props]).toEqual([['--color-chart-series-1', '#eceff4']])
     expect(root.dataset['pluginTheme']).toBe('com.example.nord/nord-light')
     applied = applyPluginTheme(themeInEffect(themes, 'dark'), root, applied)
     expect(root.props.size).toBe(0)
@@ -147,7 +147,7 @@ describe('rememberedThemes', () => {
     rememberThemes(storage, loaded)
     const remembered = rememberedThemes(storage)
     expect(remembered.themes.map((t) => t.id)).toEqual(['nord-light'])
-    expect(themeInEffect(remembered, 'light')?.colors).toEqual({ 'surface-editor': '#eceff4' })
+    expect(themeInEffect(remembered, 'light')?.colors).toEqual({ 'chart-series-1': '#eceff4' })
     expect(themeInEffect(remembered, 'dark')).toBeUndefined()
   })
 
