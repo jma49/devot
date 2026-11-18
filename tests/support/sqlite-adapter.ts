@@ -51,7 +51,7 @@ import type {
   TextCondition,
   TrashedNote,
 } from '../../src/core/storage'
-import { MAX_PUT_BOOKS } from '../../src/core/storage'
+import { MAX_BODY_IDS, MAX_PUT_BOOKS } from '../../src/core/storage'
 import { tempDir } from './temp-dirs'
 
 /**
@@ -70,6 +70,14 @@ const imageColumn = (ranked: boolean) =>
   `coalesce((SELECT text FROM note_image_text i WHERE i.rowid = ${ranked ? 'n.rid' : 'n.rowid'}), '')`
 
 const inImages = (field: TextCondition['field']) => field !== 'title'
+
+/** As the Tauri commands refuse: a delete time needs its stamp, while a live record may carry one. */
+const refuseUnstampedDelete = (
+  record: { deletedAt: number | null; deletedHlc: string | null },
+  code: string,
+) => {
+  if (record.deletedAt !== null && record.deletedHlc === null) throw new Error(code)
+}
 
 /**
  * The notes found only once the text in their images counts, after every
@@ -1318,7 +1326,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       notes: activityNotes.all({ since }),
       revisions: activityRevisions.all({ since }),
     }),
-    listNoteActivity: async (ids, since) => noteActivity.all({ ids: JSON.stringify(ids), since }),
+    async listNoteActivity(ids, since) {
+      // As the Tauri command refuses.
+      if (ids.length > MAX_BODY_IDS) throw new Error('E_NOTE_IDS_TOO_MANY')
+      return noteActivity.all({ ids: JSON.stringify(ids), since })
+    },
     listAgentWrites: async (limit) =>
       listAgentWrites.all({ limit }).map((row) => ({
         ...row,
@@ -1334,6 +1346,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     listBooks: async () => books.all().map((row) => toBook(row)),
     isLiveBook: async (id) => liveBook.get(id) !== undefined,
     async putBook(book) {
+      refuseUnstampedDelete(book, 'E_BOOK_DELETE_INVALID')
       putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })
     },
     seedWelcome: (seed) => writeWelcomeSeed(adapter, seed),
@@ -1341,15 +1354,19 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       // As the Tauri command refuses.
       if (records.length === 0 || records.length > MAX_PUT_BOOKS)
         throw new Error('E_BOOKS_COUNT_INVALID')
+      for (const book of records) refuseUnstampedDelete(book, 'E_BOOK_DELETE_INVALID')
       db.transaction(() => {
         for (const book of records) putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })
       }).immediate()
     },
     listTags: async () => tags.all().map((row) => toTag(row)),
     async putTag(tag) {
+      refuseUnstampedDelete(tag, 'E_TAG_DELETE_INVALID')
       putTag.run(tag)
     },
     async renameTag(tag, searches) {
+      refuseUnstampedDelete(tag, 'E_TAG_DELETE_INVALID')
+      for (const saved of searches) refuseUnstampedDelete(saved, 'E_SAVED_SEARCH_DELETE_INVALID')
       db.transaction(() => {
         putTag.run(tag)
         for (const saved of searches) putSavedSearch.run(saved)
@@ -1357,6 +1374,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     },
     listSavedSearches: async () => savedSearches.all().map(toSavedSearch),
     async putSavedSearch(record) {
+      refuseUnstampedDelete(record, 'E_SAVED_SEARCH_DELETE_INVALID')
       putSavedSearch.run(record)
     },
     async putNoteTag(link) {

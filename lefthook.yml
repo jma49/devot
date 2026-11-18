@@ -26,12 +26,14 @@ pre-push:
       run: sh scripts/block-main-push.sh
       use_stdin: true
     - name: format
-      run: pnpm format:check
+      run: sh scripts/run-if-pushing-commits.sh 'pnpm format:check'
+      use_stdin: true
     - name: lint
       glob:
         - '*.{ts,tsx,js,mjs,cjs,json,yml,yaml}'
         - '**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml}'
-      run: pnpm lint
+      run: sh scripts/run-if-pushing-commits.sh 'pnpm lint'
+      use_stdin: true
     # The heavy steps run only when the push changes files they check: a push
     # of docs or images skips them (CI still runs what the change needs).
     # Each glob is listed with and without `**/`, which needs a folder.
@@ -39,23 +41,27 @@ pre-push:
       glob:
         - '*.{ts,tsx,js,mjs,cjs,json,yml,yaml}'
         - '**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml}'
-      run: pnpm typecheck
+      run: sh scripts/run-if-pushing-commits.sh 'pnpm typecheck'
+      use_stdin: true
     # Vitest also reads Rust sources, migrations and capabilities.
     - name: unit-tests
       glob:
         - '*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,html}'
         - '**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,html,rs,sql,sqlite}'
-      run: pnpm test:fast
+      run: sh scripts/run-if-pushing-commits.sh 'pnpm test:fast'
+      use_stdin: true
     # Policy and token tests read README.md, CLAUDE.md, the design notes and
     # the README images, which the unit-tests glob leaves out.
     - name: policy-tests
       glob:
         - '*.{md,png,jpg,jpeg,gif,webp,svg}'
         - '**/*.{md,png,jpg,jpeg,gif,webp,svg}'
-      run: pnpm test:policy
+      run: sh scripts/run-if-pushing-commits.sh 'pnpm test:policy'
+      use_stdin: true
     - name: rust
       glob:
         - 'src-tauri/*.{rs,toml,json}'
         - 'src-tauri/**/*.{rs,toml,json,sql,sqlite}'
         - 'src-tauri/Cargo.lock'
-      run: export PATH="$HOME/.cargo/bin:/opt/homebrew/opt/rustup/bin:/usr/local/opt/rustup/bin:$PATH" && cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      run: sh scripts/run-if-pushing-commits.sh 'export PATH="$HOME/.cargo/bin:/opt/homebrew/opt/rustup/bin:/usr/local/opt/rustup/bin:$PATH" && cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test'
+      use_stdin: true

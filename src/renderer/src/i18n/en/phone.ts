@@ -62,6 +62,7 @@ export const messages = {
   'phone.toast.trashed': 'Moved to Trash',
   'phone.toast.completed': 'Marked completed',
   'phone.toast.undo': 'Undo',
+  'phone.toast.saveFailed': 'Could not save. Devot keeps trying.',
   'phone.list.recent': 'Recent',
   'phone.note.title': 'Title',
   'phone.note.tag': 'Tag',

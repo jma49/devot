@@ -132,8 +132,20 @@ async function loadHighlighter(): Promise<Highlighter> {
 const MAX_HIGHLIGHT = 20_000
 const MAX_NUMBERED_LINES = 100_000
 
-/** Blank lines between a block's last line and its closing fence: the box ends under the text. */
-const TRAILING_BLANK_LINES = /(?:\r?\n[ \t]*)+$/
+/** Takes off the blank lines between a block's last line and its closing fence, so the box ends under the text. */
+export function trimTrailingBlankLines(text: string): string {
+  // A backward scan: the regex `/(?:\r?\n[ \t]*)+$/` backtracks quadratically on many blank lines before text.
+  let end = text.length
+  for (;;) {
+    let i = end
+    while (i > 0 && (text[i - 1] === ' ' || text[i - 1] === '\t')) i--
+    if (i === 0 || text[i - 1] !== '\n') break
+    i--
+    if (i > 0 && text[i - 1] === '\r') i--
+    end = i
+  }
+  return text.slice(0, end)
+}
 
 const FENCE = /^(`{3,}|~{3,})([^\n]*)/
 
@@ -256,7 +268,7 @@ export function createCodeRenderer(
       for (const [parent, { pre, code, info }] of blocks) {
         const lang = info.language ? codeLanguage(info.language) : null
         const raw = textOf(code)
-        const text = raw.replace(TRAILING_BLANK_LINES, '')
+        const text = trimTrailingBlankLines(raw)
         if (text !== raw) code.children = [txt(text)]
         if (info.language && highlight && text.length <= MAX_HIGHLIGHT) {
           const out = await highlight(lang?.grammar ?? info.language, text)

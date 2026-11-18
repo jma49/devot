@@ -31,7 +31,7 @@ fn validate_tag(tag: &TagRecord) -> Result<(), &'static str> {
     if tag.created_at < 0 || tag.updated_at < tag.created_at {
         return Err("E_TAG_TIME_INVALID");
     }
-    if tag.deleted_at.is_some() != tag.deleted_hlc.is_some() {
+    if tag.deleted_at.is_some() && tag.deleted_hlc.is_none() {
         return Err("E_TAG_DELETE_INVALID");
     }
     Ok(())
@@ -140,6 +140,15 @@ mod tests {
     }
 
     #[test]
+    fn accepts_a_live_tag_with_a_delete_stamp() {
+        let mut brought_back = tag();
+        brought_back.deleted_hlc = Some(HLC.into());
+        assert_eq!(validate_tag(&brought_back), Ok(()));
+        brought_back.deleted_hlc = Some("\u{e9}".into());
+        assert_eq!(validate_tag(&brought_back), Err("E_TAG_HLC_INVALID"));
+    }
+
+    #[test]
     fn validates_the_ids_of_a_membership_read() {
         assert_eq!(validate_link_ids(NOTE, ID), Ok(()));
         assert_eq!(validate_link_ids("x", ID), Err("E_NOTE_TAG_ID_INVALID"));
@@ -159,7 +168,7 @@ mod tests {
             (|t| t.name = "x".repeat(101), "E_TAG_NAME_INVALID"),
             (|t| t.name_hlc = String::new(), "E_TAG_HLC_INVALID"),
             (|t| t.updated_at = 0, "E_TAG_TIME_INVALID"),
-            (|t| t.deleted_hlc = Some(HLC.into()), "E_TAG_DELETE_INVALID"),
+            (|t| t.deleted_at = Some(3), "E_TAG_DELETE_INVALID"),
             (|t| t.color = Some("magenta".into()), "E_TAG_COLOR_INVALID"),
             (|t| t.color = Some("Red".into()), "E_TAG_COLOR_INVALID"),
             (|t| t.color = Some("red".into()), "E_TAG_COLOR_INVALID"),

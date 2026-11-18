@@ -23,6 +23,9 @@ export function saveDelay(baseMs: number, stateBytes: number): number {
 
 const MAX_RETRY_MS = 30_000
 
+/** A note whose Yjs state reaches this size is logged once (W_NOTE_BODY_LARGE); the sync limit is far above it (docs/specs/sync-and-encryption.md). */
+export const LARGE_BODY_BYTES = 8 * 1024 * 1024
+
 const codeOf = (error: unknown) => errorCode(error, 'E_STORAGE_WRITE_FAILED')
 
 /** Writes of the notes in memory: scheduled after a pause, one at a time per note, retried when they fail. */
@@ -33,6 +36,8 @@ export function createSaving(
   const { storage, options, now, live, failing } = ctx
   const saveDelayMs = options.saveDelayMs ?? 300
   const retryDelayMs = options.retryDelayMs ?? 1000
+  const largeBodyBytes = options.largeBodyBytes ?? LARGE_BODY_BYTES
+  const warnedLarge = new Set<string>()
   const { unchecked, keepBaseline, recordEvents, sweep } = k.versions
   const { report, settle } = k.problems
   const { relay, takeIn } = k.relay
@@ -169,7 +174,14 @@ export function createSaving(
       updatedAt: record.updatedAt,
       ...(authored ? { authored: true } : {}),
     })
-    if (state) note.stateBytes = state.byteLength
+    if (state) {
+      note.stateBytes = state.byteLength
+      if (state.byteLength < largeBodyBytes) warnedLarge.delete(record.id)
+      else if (!warnedLarge.has(record.id)) {
+        warnedLarge.add(record.id)
+        console.warn('W_NOTE_BODY_LARGE', record.id, state.byteLength)
+      }
+    }
     const saved = asWritten(heldOf(record))
     note.record = { ...note.record, bodyVersion: saved.bodyVersion }
     const before = note.saved

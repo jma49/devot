@@ -132,14 +132,16 @@ export interface Store {
   /** Marks a notification seen without acting on it. */
   noteNotification(notificationUuid: string, at: string): Promise<void>
   /**
-   * Claims a licence's daily App Store check: sets checked_at whatever Apple answers. `due` is null
-   * when it was checked after `before`, or is not a live App Store licence; `refusal` is the code
-   * the last check stored, whether or not this one is due.
+   * Claims a licence's App Store check: sets checked_at whatever Apple answers. `due` is null when
+   * it was checked after `before` (after `retry.before` while `retry.refusal` stands), or is not a
+   * live App Store licence; `refusal` is the code the last check stored, whether or not this one is
+   * due.
    */
   claimAppStoreCheck(
     licenceId: string,
     at: string,
     before: string,
+    retry: { refusal: LicenceCode; before: string },
   ): Promise<{ due: AppStoreCheck | null; refusal: LicenceCode | null }>
   /** Stores a check's refusal, or clears it after an answer that refused nothing. */
   settleAppStoreCheck(licenceId: string, refusal: LicenceCode | null): Promise<void>
@@ -366,15 +368,17 @@ export function d1Store(db: SqlDatabase): Store {
         .run()
     },
 
-    async claimAppStoreCheck(licenceId, at, before) {
+    async claimAppStoreCheck(licenceId, at, before, retry) {
       const claimed = await db
         .prepare(
           `UPDATE app_store_licences SET checked_at = ?2
            WHERE licence_id = ?1 AND revoked_at IS NULL AND issued_at IS NOT NULL
-             AND transaction_id IS NOT NULL AND (checked_at IS NULL OR checked_at <= ?3)
+             AND transaction_id IS NOT NULL
+             AND (checked_at IS NULL
+               OR checked_at <= CASE WHEN check_refusal IS ?4 THEN ?5 ELSE ?3 END)
            RETURNING environment, original_transaction_id, transaction_id, check_refusal`,
         )
-        .bind(licenceId, at, before)
+        .bind(licenceId, at, before, retry.refusal, retry.before)
         .first<{
           environment: AppStoreEnvironment
           original_transaction_id: string

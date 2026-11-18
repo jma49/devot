@@ -721,6 +721,21 @@ impl Licence {
                 return Err(code);
             }
         };
+        // A lease that does not verify would read as no lease at all, and one that ends before
+        // the lease there would shorten the seat: keep the one there, and treat the reply like
+        // an unreachable Worker, since a damaged or replayed answer is not a refusal.
+        let end = |lease: &str| {
+            verify_activation(lease, &self.keys)
+                .ok()
+                .filter(|lease| lease.id == licence_id && lease.device == device)
+                .and_then(|lease| activation::instant_ms(&lease.expires_at))
+        };
+        let offered = end(&reply.lease);
+        let kept = self.with_activation_record(|stored| stored.lease.as_deref().and_then(end))?;
+        if offered.is_none() || offered < kept {
+            log::warn!("W_LICENCE_LEASE_INVALID licence={licence_id}");
+            return Err("E_LICENCE_ACTIVATION_FAILED");
+        }
         self.with_activation_record(|stored| {
             stored.lease = Some(reply.lease.clone());
             stored.used = reply.used;

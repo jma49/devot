@@ -61,6 +61,7 @@ export const messages: Record<keyof typeof en, string> = {
   'phone.toast.trashed': '已移到废纸篓',
   'phone.toast.completed': '已标记为完成',
   'phone.toast.undo': '撤销',
+  'phone.toast.saveFailed': '未能保存。Devot 会继续尝试。',
   'phone.list.recent': '最近',
   'phone.note.title': '标题',
   'phone.note.tag': '标签',

@@ -5,7 +5,7 @@
 // - Images of attachments (`devot://file/<id>`) get a placeholder token in their `src` (`devot-image-<nonce>-<n>`); Rust puts the bytes in as `data:` URIs
 //   (src-tauri/src/export.rs), so the page stands alone. The preview already moved an image's size preset (`#half`) to a class (`image-size-half`).
 // - A page to print (Print... and Export as PDF...) loads nothing from the web, so no slow host holds a print job up: each web image becomes a link to it (its alt text,
-//   else its URL, as the text); a `picture`'s other sources are left out. An exported page keeps them as images.
+//   else its URL, as the text). An exported page keeps them as images. A `picture` arrives as its fallback image: the preview keeps no other source.
 // - Islands (Mermaid diagrams) take the SVG the UI drew, cleaned again here (no scripts, foreign objects, event handlers, links out, or `<` in its CSS, which could end
 //   the style element); without one, the diagram's source shows as a code block.
 // - A link within the note (`#x`) points at the prefixed id the preview gives its target (`#user-content-x`), so it jumps on the page too.
@@ -48,7 +48,19 @@ const WEB_URL = /^https?:/i
 const LOCAL_SRC = /^(?!data:|https?:|devot:)/i
 const HEADING = /^h[1-6]$/
 
-const DROPPED_SVG = new Set(['script', 'foreignObject', 'iframe', 'image', 'use'])
+const DROPPED_SVG = new Set([
+  'script',
+  'foreignObject',
+  'iframe',
+  'image',
+  'use',
+  'feImage',
+  'set',
+  'animate',
+  'animateMotion',
+  'animateTransform',
+  'discard',
+])
 
 const el = (tagName: string, properties: Properties, children: ElementContent[] = []): Element => ({
   type: 'element',
@@ -146,7 +158,6 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
         return inLink ? [text] : [el('a', { href: src }, [text])]
       }
     }
-    if (print && node.tagName === 'source') return []
     if (simple && (names.includes('frontmatter') || names.includes('swatch'))) return []
     if (simple && names.includes('code-block')) {
       const pre = node.children.find(

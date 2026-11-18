@@ -7,6 +7,7 @@ import {
   systemOffset,
 } from '../activity'
 import { textLength } from '../revisions'
+import { MAX_BODY_IDS, type ActivityRevision } from '../storage'
 import { BODY } from './body'
 import type { NoteContext } from './context'
 import type { Kernel } from './kernel'
@@ -35,7 +36,13 @@ export function activityMethods(
     },
 
     async noteActivity(ids, at, offsetAt = systemOffset) {
-      const revisions = await storage.listNoteActivity(ids, activitySince(stripStart(at, offsetAt)))
+      const since = activitySince(stripStart(at, offsetAt))
+      const revisions: ActivityRevision[] = []
+      for (let from = 0; from < ids.length; from += MAX_BODY_IDS) {
+        revisions.push(
+          ...(await storage.listNoteActivity(ids.slice(from, from + MAX_BODY_IDS), since)),
+        )
+      }
       const pending = new Map<string, number>()
       for (const id of ids) {
         const note = live.get(id)

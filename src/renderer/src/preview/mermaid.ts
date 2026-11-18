@@ -31,7 +31,20 @@ import { diagramPalette, exportPalette, type DiagramPalette } from './mermaid-th
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const XLINK_NS = 'http://www.w3.org/1999/xlink'
-const DROPPED = new Set(['script', 'foreignObject', 'iframe', 'image', 'use'])
+// Animations can set an `href` after import, and `feImage` loads one; no engine draws them.
+const DROPPED = new Set([
+  'script',
+  'foreignObject',
+  'iframe',
+  'image',
+  'use',
+  'feImage',
+  'set',
+  'animate',
+  'animateMotion',
+  'animateTransform',
+  'discard',
+])
 
 /** Scripts only: without `allow-same-origin` the frame's origin is opaque. */
 export const MERMAID_FRAME_SANDBOX = 'allow-scripts'
@@ -215,8 +228,19 @@ function ask(
   })
 }
 
+let imports = 0
+
+/** A drawing is cached by source, so each copy takes its own ids: two with one id share `url(#…)` targets and `#id` rules. */
+function withOwnIds(markup: string): string {
+  const root = /^\s*(?:<\?[^>]*>\s*)?<svg\b[^>]*?\sid="([^"]+)"/.exec(markup)?.[1]
+  if (root === undefined) return markup
+  const own = `${root}_${++imports}`
+  const escaped = root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return markup.replace(new RegExp(`(["'#])${escaped}(?![A-Za-z0-9])`, 'g'), `$1${own}`)
+}
+
 export function importSvg(markup: string): { svg: SVGSVGElement; css: string } {
-  const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml')
+  const parsed = new DOMParser().parseFromString(withOwnIds(markup), 'image/svg+xml')
   const root = parsed.documentElement
   if (root.localName !== 'svg' || root.namespaceURI !== SVG_NS) throw new Error('E_MERMAID_SVG')
   const css: string[] = []

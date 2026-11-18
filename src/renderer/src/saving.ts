@@ -11,6 +11,16 @@ export function newProblems(
   return next.filter((p) => !previous.some((q) => q.id === p.id && q.code === p.code))
 }
 
+/** The new problems in `next`, each logged once by note ID and code. */
+export function logNewProblems(
+  previous: readonly SaveProblem[],
+  next: readonly SaveProblem[],
+): SaveProblem[] {
+  const fresh = newProblems(previous, next)
+  for (const problem of fresh) console.warn('W_NOTE_SAVE_FAILED', problem.id, problem.code)
+  return fresh
+}
+
 /**
  * What the core worker sends the page with each new list of problems. It
  * goes on the worker's own channel, as the replies to the page's calls do,

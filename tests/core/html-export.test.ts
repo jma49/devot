@@ -75,6 +75,8 @@ const SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" onload="alert(1)">' +
   '<style>.node{fill:#eee}</style><script>alert(1)</script>' +
   '<foreignObject><div>x</div></foreignObject><a href="https://evil.example"><text>A</text></a>' +
+  '<filter><feImage href="https://evil.example/p"/></filter>' +
+  '<a><set attributeName="href" to="https://evil.example"/><animate attributeName="href"/></a>' +
   '<use href="#n"/><rect class="node" width="5" height="5" style="stroke: red"/></svg>'
 
 async function page(options: Partial<PageOptions> = {}) {
@@ -189,7 +191,10 @@ describe('HTML pages', () => {
     expect(exported.html).toContain(
       '<img src="https://example.com/r.png" alt="Remote" title="Remote image">',
     )
-    expect(exported.html).toContain('<source srcset="https://example.com/wide.png">')
+    expect(exported.html).toContain(
+      '<img src="https://example.com/narrow.png" alt="Narrow" class="image-block">',
+    )
+    expect(exported.html).not.toMatch(/<source|<picture|wide\.png/)
   })
 
   it("shows the UI's drawing of a diagram, cleaned; its source without one", async () => {
@@ -199,6 +204,7 @@ describe('HTML pages', () => {
     expect(drawn.html).toContain('<rect class="node" width="5" height="5" style="stroke: red">')
     expect(drawn.html).toContain('<a><text>A</text></a>')
     expect(drawn.html).not.toMatch(/<script|foreignObject|<use|onload|evil\.example/i)
+    expect(drawn.html).not.toMatch(/feImage|<set|<animate/i)
     const source = await page()
     expect(source.html).toContain(
       '<pre><code class="language-mermaid">graph TD; A-->B\n</code></pre>',
