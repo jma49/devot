@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import {
   expect,
+  changeEditorSettingsElsewhere,
   pickMenuItem,
   shownMenu,
   test,
@@ -251,4 +252,23 @@ test('labels a version sync kept before a merge with another device', async ({ p
   await expect(entries(page).filter({ hasText: 'Before a merge with another device' })).toHaveCount(
     1,
   )
+})
+
+test('the inspector preserves the selected diff and restores beside the note', async ({ page }) => {
+  await createNote(page, 'Plan', 'first line')
+  await reopen(page, 'Plan')
+  await appendText(page, '\nsecond line')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line')
+  await changeEditorSettingsElsewhere(page, { outline: true })
+  const history = page.getByRole('tab', { name: 'History' })
+  await history.click()
+  const panel = page.getByRole('tabpanel', { name: 'History' })
+  await panel.getByRole('option').filter({ hasText: 'Earliest version' }).click()
+  await expect(panel.locator('ins')).toHaveText(['second line'])
+  await page.getByRole('tab', { name: 'Outline' }).click()
+  await history.click()
+  await expect(panel.locator('ins')).toHaveText(['second line'])
+  await panel.getByRole('button', { name: 'Restore' }).click()
+  await expect(body(page)).toHaveText('first line')
+  await expect(panel).toBeVisible()
 })

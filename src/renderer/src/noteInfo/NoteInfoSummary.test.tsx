@@ -100,6 +100,30 @@ describe('the note summary', () => {
     expect(document.querySelector('.note-info-card')).toBeNull()
   })
 
+  it('forgets an open card once the inspector takes it, so it does not come back unasked', async () => {
+    const summary = await show('Some words here')
+    act(() => summary.click())
+    const panel = document.createElement('div')
+    document.body.append(panel)
+    const renderWith = (inspectorPanel: HTMLElement | null) =>
+      act(() =>
+        root!.render(
+          <NoteInfoSummary
+            core={core}
+            info={info}
+            markdown="Some words here"
+            inspectorPanel={inspectorPanel}
+            onOpenNote={() => {}}
+          />,
+        ),
+      )
+    renderWith(panel)
+    expect(panel.querySelector('.inspector-info')).not.toBeNull()
+    renderWith(null)
+    expect(document.querySelector('.note-info-card')).toBeNull()
+    expect(summary.getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('opens and closes from View > Note Info, once for a key that reaches the menu too', async () => {
     const summary = await show('Some words here')
     act(() => requestNoteInfo())

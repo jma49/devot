@@ -1,37 +1,16 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { BookRecord, DiffBlock, HistoryEntry } from '../../core'
 import { NOTE_STATUSES, type NoteStatus } from '../../core/storage'
 import { errorCode } from './backups'
-import { useMenuEvent } from './commands/dispatch'
+import { describeChange } from './historyChange'
 import type { Core } from './core-client'
 import { countOf } from './format'
 import { displayTitle, displayTitles } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { failureText, logFailure } from './failure'
 
-const entryId = (i: number) => `history-entry-${i}`
-
-const SHOW_HISTORY = 'devot:show-history'
-
-export function useHistoryMenu(open: () => void) {
-  useMenuEvent('devot://show-history', SHOW_HISTORY, open)
-}
-
 const when = (at: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at)
-
-export function describeChange(
-  entry: Extract<HistoryEntry, { kind: 'body' }>,
-  locale: string,
-): string {
-  // The oldest kept version: nothing before it to count a change from.
-  if (entry.change === null)
-    return countOf(entry.length, locale, 'history.earliestOne', 'history.earliestOther')
-  if (entry.change === 0) return t('history.sameLength')
-  return entry.change > 0
-    ? countOf(entry.change, locale, 'history.addedOne', 'history.addedOther')
-    : countOf(-entry.change, locale, 'history.removedOne', 'history.removedOther')
-}
 
 function describe(entry: HistoryEntry, books: BookRecord[], locale: string): string {
   if (entry.kind === 'body' && entry.merge) {
@@ -60,10 +39,14 @@ function describe(entry: HistoryEntry, books: BookRecord[], locale: string): str
   }
 }
 
+type Load<T> = { kind: 'ready'; value: T } | { kind: 'failed'; message: string }
+type Restore = { kind: 'idle' } | { kind: 'restoring' } | { kind: 'failed'; message: string }
+
 /**
- * The Revision History sheet: the note's versions and metadata events,
- * newest first. Picking a version shows how the note changed since; Restore
- * makes the note that version again (one undoable edit).
+ * The Revision History sheet, or the inspector's History tab (`inline`): the note's versions and
+ * metadata events, newest first. Picking a version shows how the note changed since; Restore makes
+ * the note that version again (one undoable edit). A hidden tab (`shown` false) fetches nothing and
+ * reads the versions again when it shows.
  */
 export function RevisionHistory(props: {
   core: Core
@@ -71,17 +54,33 @@ export function RevisionHistory(props: {
   title: string
   books: BookRecord[]
   onRestore: (update: Uint8Array) => void
-  onClose: () => void
+  onClose?: () => void
+  inline?: boolean
+  updatedAt?: number | undefined
+  shown?: boolean
   readOnly?: boolean
 }) {
   const { core, noteId } = props
+  const shown = props.shown ?? true
+  const prefix = useId()
+  const entryId = (i: number) => `${prefix}-entry-${i}`
+  const [revision, refresh] = useState(0)
+  const restoreRequest = useRef({ sequence: 0 })
+  const listRequest = useRef({ sequence: 0 })
+  const diffRequest = useRef({ sequence: 0 })
   const dialog = useRef<HTMLDialogElement>(null)
   const list = useRef<HTMLUListElement>(null)
-  const [entries, setEntries] = useState<HistoryEntry[]>()
-  const [active, setActive] = useState(0)
-  const [diff, setDiff] = useState<{ id: string; blocks: DiffBlock[] }>()
-  const [error, setError] = useState<string>()
-  const [busy, setBusy] = useState(false)
+  const [versions, setVersions] = useState<Load<HistoryEntry[]>>()
+  const entries = versions?.kind === 'ready' ? versions.value : undefined
+  const [activeId, setActiveId] = useState<string>()
+  const [diff, setDiff] = useState<{
+    id: string
+    revision: number
+    updatedAt: number | undefined
+    result: Load<DiffBlock[]>
+  }>()
+  const [restoring, setRestoring] = useState<Restore>({ kind: 'idle' })
+  const busy = restoring.kind === 'restoring'
   const locale = currentLocale()
   const [named, setNamed] = useState<string>()
   useEffect(() => {
@@ -95,52 +94,86 @@ export function RevisionHistory(props: {
   }, [core, noteId, props.title])
 
   useLayoutEffect(() => {
+    const restoreGuard = restoreRequest.current
     const el = dialog.current
     if (el && !el.open) el.showModal()
-    list.current?.focus()
-    return () => el?.close()
+    if (el) list.current?.focus()
+    return () => {
+      restoreGuard.sequence++
+      el?.close()
+    }
   }, [])
 
   useEffect(() => {
-    let current = true
+    if (!shown) return
+    const listGuard = listRequest.current
+    const request = ++listGuard.sequence
     core.history(noteId).then(
-      (found) => current && setEntries(found),
+      (found) => request === listGuard.sequence && setVersions({ kind: 'ready', value: found }),
       (e: unknown) =>
-        current &&
-        setError(failureText('history.failed', logFailure(errorCode(e), 'W_HISTORY_FAILED'))),
+        request === listGuard.sequence &&
+        setVersions({
+          kind: 'failed',
+          message: failureText('history.failed', logFailure(errorCode(e), 'W_HISTORY_FAILED')),
+        }),
     )
     return () => {
-      current = false
+      listGuard.sequence++
     }
-  }, [core, noteId])
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A saved edit or restore changes the version list.
+  }, [core, noteId, revision, props.updatedAt, shown])
 
-  const selected = entries?.[Math.min(active, entries.length - 1)]
+  const active = Math.max(0, entries?.findIndex((entry) => entry.id === activeId) ?? 0)
+  const selected = entries?.[active]
   const versionId = selected?.kind === 'body' ? selected.id : undefined
 
   useEffect(() => {
-    if (versionId === undefined) return
-    let current = true
+    if (versionId === undefined || !shown) return
+    const diffGuard = diffRequest.current
+    const request = ++diffGuard.sequence
+    const receive = (result: Load<DiffBlock[]>) => {
+      if (request === diffGuard.sequence)
+        setDiff({ id: versionId, revision, updatedAt: props.updatedAt, result })
+    }
     core.compareRevision(noteId, versionId).then(
-      (blocks) => current && setDiff({ id: versionId, blocks }),
+      (blocks) => receive({ kind: 'ready', value: blocks }),
       (e: unknown) =>
-        current &&
-        setError(failureText('history.failed', logFailure(errorCode(e), 'W_HISTORY_FAILED'))),
+        receive({
+          kind: 'failed',
+          message: failureText('history.failed', logFailure(errorCode(e), 'W_HISTORY_FAILED')),
+        }),
     )
     return () => {
-      current = false
+      diffGuard.sequence++
     }
-  }, [core, noteId, versionId])
+  }, [core, noteId, versionId, revision, props.updatedAt, shown])
 
   useEffect(() => {
-    document.getElementById(entryId(active))?.scrollIntoView({ block: 'nearest' })
+    list.current?.children[active]?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
   const pick = (i: number) => {
-    setActive(i)
-    setError(undefined)
+    if (busy) return
+    setActiveId(entries?.[i]?.id)
+    setRestoring({ kind: 'idle' })
   }
 
-  const blocks = diff && diff.id === versionId ? diff.blocks : undefined
+  const comparison =
+    diff &&
+    diff.id === versionId &&
+    diff.revision === revision &&
+    diff.updatedAt === props.updatedAt
+      ? diff.result
+      : undefined
+  const blocks = comparison?.kind === 'ready' ? comparison.value : undefined
+  const error =
+    restoring.kind === 'failed'
+      ? restoring.message
+      : versions?.kind === 'failed'
+        ? versions.message
+        : comparison?.kind === 'failed'
+          ? comparison.message
+          : undefined
   const changed = blocks?.some((b) => b.kind === 'added' || b.kind === 'removed') ?? false
 
   const onKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
@@ -162,36 +195,28 @@ export function RevisionHistory(props: {
   }
 
   const restore = async () => {
-    if (versionId === undefined) return
-    setBusy(true)
-    setError(undefined)
+    if (versionId === undefined || busy) return
+    const request = ++restoreRequest.current.sequence
+    setRestoring({ kind: 'restoring' })
     try {
-      props.onRestore(await core.restoreRevision(noteId, versionId))
+      const update = await core.restoreRevision(noteId, versionId)
+      props.onRestore(update)
+      if (restoreRequest.current.sequence !== request) return
+      props.onClose?.()
+      setRestoring({ kind: 'idle' })
+      refresh((n) => n + 1)
     } catch (e) {
-      setError(failureText('history.restoreFailed', logFailure(errorCode(e), 'W_HISTORY_FAILED')))
-      setBusy(false)
+      if (restoreRequest.current.sequence !== request) return
+      setRestoring({
+        kind: 'failed',
+        message: failureText('history.restoreFailed', logFailure(errorCode(e), 'W_HISTORY_FAILED')),
+      })
     }
   }
 
-  return (
-    <dialog
-      ref={dialog}
-      className="sheet history"
-      aria-labelledby="history-title"
-      onCancel={(e) => {
-        e.preventDefault()
-        if (!busy) props.onClose()
-      }}
-      // WebKit stops honouring preventDefault after a few Escapes in a row
-      // and closes the dialog itself: reopen it while busy, else tell App.
-      // (A close queued before the dialog was shown again is stale.)
-      onClose={(e) => {
-        if (e.target !== e.currentTarget || dialog.current?.open) return
-        if (busy) dialog.current?.showModal()
-        else props.onClose()
-      }}
-    >
-      <h2 id="history-title" className="sheet-title">
+  const content = (
+    <>
+      <h2 id={prefix} className="sheet-title">
         {t('history.title')}
       </h2>
       <p className="sheet-detail">
@@ -272,10 +297,34 @@ export function RevisionHistory(props: {
         >
           {t('history.restore')}
         </button>
-        <button type="button" className="button" disabled={busy} onClick={props.onClose}>
-          {t('history.done')}
-        </button>
+        {!props.inline && (
+          <button type="button" className="button" disabled={busy} onClick={props.onClose}>
+            {t('history.done')}
+          </button>
+        )}
       </div>
+    </>
+  )
+  if (props.inline) return <div className="inspector-history">{content}</div>
+  return (
+    <dialog
+      ref={dialog}
+      className="sheet history"
+      aria-labelledby={prefix}
+      onCancel={(e) => {
+        e.preventDefault()
+        if (!busy) props.onClose?.()
+      }}
+      // WebKit stops honouring preventDefault after a few Escapes in a row
+      // and closes the dialog itself: reopen it while busy, else tell App.
+      // (A close queued before the dialog was shown again is stale.)
+      onClose={(e) => {
+        if (e.target !== e.currentTarget || dialog.current?.open) return
+        if (busy) dialog.current?.showModal()
+        else props.onClose?.()
+      }}
+    >
+      {content}
     </dialog>
   )
 }

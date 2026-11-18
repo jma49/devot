@@ -1,6 +1,7 @@
 import type { BrowserContext, Page } from '@playwright/test'
 import {
   bookPicker,
+  changeEditorSettingsElsewhere,
   expect,
   mockTauri,
   openApp,
@@ -491,4 +492,22 @@ test('note window provides Cmd+F find in Edit and Preview and live counts footer
   await expect(findBar).toBeVisible()
   await findBar.getByRole('textbox', { name: 'Find' }).fill('one')
   await expect(findBar.getByRole('status')).toHaveText('1 of 2')
+})
+
+test("the note window's History tab lists a version its own typing kept", async ({
+  page,
+  context,
+}) => {
+  const id = await noteInMain(page, 'Plan', 'Start.')
+  const win = await openNoteWindow(context, id)
+  await changeEditorSettingsElsewhere(win, { outline: true })
+  await win.getByRole('tab', { name: 'History' }).click()
+  const panel = win.getByRole('tabpanel', { name: 'History' })
+  const versions = panel.getByRole('listbox', { name: 'Versions' }).getByRole('option')
+  await expect(panel.getByText('No versions yet').or(versions.first())).toBeVisible()
+  const before = await versions.count()
+  await body(win).click()
+  await win.keyboard.press('End')
+  await win.keyboard.type(' More.')
+  await expect.poll(() => versions.count()).toBeGreaterThan(before)
 })

@@ -9,7 +9,7 @@ import { countsStore } from './CountsFooter'
 import { refuseTextDrops } from './dragData'
 import { useAlertMenu } from './editor/alertMenu'
 import type { EditorHandle } from './editor/handle'
-import { useEditorSetting } from './editorSettings'
+import { changeEditorSettings, editorSettings, useEditorSetting } from './editorSettings'
 import { DB_CHANGED } from './externalChanges'
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
@@ -62,6 +62,8 @@ import { useListProps } from './app/useListProps'
 import { useMode, useModeSwitch } from './app/useMode'
 import { useNoteHeaderMenus } from './app/useNoteHeaderMenus'
 import { useNoteHistory } from './app/useNoteHistory'
+import { requestNoteInfo } from './noteInfo/command'
+import { inspectorRoute } from './outline/inspectorTab'
 import { dailySettings, useNoteMaking } from './app/useNoteMaking'
 import { useNoteOpening } from './app/useNoteOpening'
 import { useOpenNote } from './app/useOpenNote'
@@ -490,6 +492,25 @@ export function App() {
     changeSelection: open.changeSelection,
   })
   const appCommands = useAppCommands({
+    showInspectorTab: (tab) => {
+      const on = editorSettings().outline
+      const route = inspectorRoute({ on, room: outline.outlineRoom.fits && !focus })
+      if (route === 'fallback') {
+        if (tab === 'info') requestNoteInfo()
+        else if (tab === 'history') void showHistory(selected)
+        else if (!on)
+          void changeEditorSettings({ outline: true }).catch(() =>
+            console.warn('W_EDITOR_SETTINGS_SAVE_FAILED'),
+          )
+        return
+      }
+      outline.tab.show(tab, openNote?.id)
+      if (route === 'open')
+        void changeEditorSettings({ outline: true }).catch(() => {
+          outline.tab.dropFocus()
+          console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')
+        })
+    },
     core,
     editing,
     query,
@@ -502,7 +523,8 @@ export function App() {
     settings: {
       syncScroll: scroll.syncScroll,
       historyBarShown,
-      outlineShown: outline.outlineShown,
+      outlineShown:
+        outline.outlineSetting && (!outline.outlineShown || outline.tab.active === 'outline'),
       authorshipShown,
       listDates,
     },

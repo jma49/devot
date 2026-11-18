@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import type { BookRecord } from '../../../core'
 import type { Core } from '../core-client'
-import { RevisionHistory, useHistoryMenu } from '../RevisionHistory'
+import { LazyHistory } from '../LazyHistory'
+import { useMenuEvent } from '../commands/dispatch'
+const SHOW_HISTORY = 'devot:show-history'
+
+function useHistoryMenu(open: () => void) {
+  useMenuEvent('devot://show-history', SHOW_HISTORY, open)
+}
 
 /** The open note's revision history sheet, opened from the note's menu or the menu bar. */
 export function useNoteHistory({
@@ -39,15 +45,13 @@ export function useNoteHistory({
   }
   const sheet =
     core && historyFor && historyFor === selected && !inTrash ? (
-      <RevisionHistory
+      <LazyHistory
+        key={historyFor}
         core={core}
         noteId={historyFor}
         title={title}
         books={books}
-        onRestore={(update) => {
-          applyToOpenNote(historyFor, update)
-          setHistoryFor(undefined)
-        }}
+        onRestore={(update) => applyToOpenNote(historyFor, update)}
         onClose={() => setHistoryFor(undefined)}
         readOnly={!editing}
       />

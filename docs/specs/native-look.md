@@ -328,3 +328,9 @@ Part of the [design system](design-system.md).
   Lucide's title glyph uses the same text-relative box and a 1.75-unit light stroke.
   The title role also reaches custom notebook symbols; toolbar roles retain their own sizes.
   A disabled button only fades (`opacity.disabled`).
+
+The note inspector remembers its active tab per window.
+Arrow keys, Home and End select tabs or resize the focused separator.
+While the inspector shows, the note summary and View > Note Info show its Info tab and a second press goes back to the tab before it.
+A command for a tab moves the keyboard to that tab once the inspector has drawn it.
+Without room for the inspector (a narrow window or focus mode), the Info and History commands open the Note Info card and the History sheet instead.

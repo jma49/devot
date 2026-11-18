@@ -142,4 +142,22 @@ describe('appHandlers', () => {
       ],
     ).toBeUndefined()
   })
+
+  it('opens the inspector on a tab only for an open note outside focus mode', async () => {
+    const act = actions()
+    const open = appHandlers(state({ openNote: note('n'), selected: 'n' }), act)
+    await open['view.inspectorHistory']!.run()
+    expect(act.showInspectorTab).toHaveBeenCalledWith('history')
+    await open['view.outline']!.run()
+    expect(act.showInspectorTab).toHaveBeenLastCalledWith('outline')
+    expect(open['view.inspector']).toBeDefined()
+    const shown = actions()
+    await appHandlers(state({ openNote: note('n'), outlineShown: true }), shown)[
+      'view.outline'
+    ]!.run()
+    expect(shown.showInspectorTab).not.toHaveBeenCalled()
+    const focused = appHandlers(state({ openNote: note('n'), focus: true }), actions())
+    expect(focused['view.inspectorInfo']).toBeUndefined()
+    expect(appHandlers(state(), actions())['view.inspectorOutline']).toBeUndefined()
+  })
 })

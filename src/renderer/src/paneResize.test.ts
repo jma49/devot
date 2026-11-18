@@ -3,7 +3,7 @@ import { act, type KeyboardEvent, type PointerEvent } from 'react'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { renderHook, unmountAll } from '../../../tests/support/render-hook'
 import { restoreLocalStorage, useMemoryLocalStorage } from '../../../tests/support/local-storage'
-import { BOARD_PANE, fittedBoardWidth } from './paneWidth'
+import { BOARD_PANE, INSPECTOR_PANE, fittedBoardWidth } from './paneWidth'
 import { usePaneResize } from './paneResize'
 
 beforeEach(useMemoryLocalStorage)
@@ -87,4 +87,15 @@ describe('the resize edge of a fitted pane', () => {
     expect(saved()).toBeNull()
     expect(hook.current.width).toBe(fitted)
   })
+})
+
+it('resizes the inspector from its leading edge and resets its width', () => {
+  const hook = renderHook(() => usePaneResize(INSPECTOR_PANE), { props: {} })
+  act(() => hook.current.edge.onPointerDown(pointer(300)))
+  act(() => hook.current.edge.onPointerMove(pointer(250)))
+  expect(hook.current.width).toBe(270)
+  act(() => hook.current.edge.onPointerUp(pointer(320)))
+  expect(hook.current.width).toBe(200)
+  act(() => hook.current.edge.onDoubleClick())
+  expect(hook.current.width).toBe(220)
 })
