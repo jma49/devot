@@ -81,9 +81,9 @@ export function authorshipMethods(
     restoreAgentWrites: (id, token) =>
       using(id, (note) => {
         const offer = restorable
-        restorable = undefined
         if (offer?.noteId !== id || offer.token !== token)
           throw new Error('E_AUTHORSHIP_RESTORE_STALE')
+        restorable = undefined
         takeVersion(note)
         let restored = false
         const update = collected(note, () =>

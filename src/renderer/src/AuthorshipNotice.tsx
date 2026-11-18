@@ -333,7 +333,9 @@ export function AuthorshipNotice(props: {
     const ok = await props.onRestore().catch(() => false)
     if (mine !== generation.current) return
     if (!ok) {
-      setPhase({ ...phase, busy: false })
+      // A held review has nothing left once Restore fails, and the Restore button had the keyboard.
+      if (phase.holding) endReview()
+      else setPhase({ ...phase, busy: false })
       return
     }
     const back = new Set(offer.writes)
@@ -347,7 +349,7 @@ export function AuthorshipNotice(props: {
     showAt(steps, at)
   }
 
-  // A review held for Restore ends once Restore is no longer offered: the note changed, or Restore failed.
+  // A review held for Restore ends once the owner's typing took the offer back; the editor already has the keyboard.
   if (phase.kind === 'reviewing' && phase.holding && !phase.busy && props.restore === undefined)
     setPhase(IDLE)
 
@@ -464,7 +466,10 @@ export function AuthorshipNotice(props: {
                 onClick={undoCurrent}
                 onPointerEnter={() => setUndoAimed((aimed) => ({ ...aimed, pointer: true }))}
                 onPointerLeave={() => setUndoAimed((aimed) => ({ ...aimed, pointer: false }))}
-                onFocus={() => setUndoAimed((aimed) => ({ ...aimed, keyboard: true }))}
+                onFocus={(event) => {
+                  const keyboard = event.currentTarget.matches(':focus-visible')
+                  setUndoAimed((aimed) => ({ ...aimed, keyboard }))
+                }}
                 onBlur={() => setUndoAimed((aimed) => ({ ...aimed, keyboard: false }))}
               >
                 {undoText}

@@ -680,4 +680,33 @@ describe('the review notice', () => {
     expect(h.button('Review Changes')).toBeDefined()
     await h.done()
   })
+
+  it('ends a held review as Done does when Restore fails', async () => {
+    const unseen = [row('w2', 'mcp', 'Codex'), row('w1', 'mcp', 'Claude Code')]
+    const h = reviewHarness(
+      unseen,
+      [
+        { writeId: 'w1', from: 0, to: 4, anchor: '1:0' },
+        { writeId: 'w2', from: 6, to: 9, anchor: '2:0' },
+      ],
+      { w1: ['w2', 'w1'] },
+    )
+    const onEndReview = vi.fn<() => void>()
+    const props = {
+      onEndReview,
+      onUndoWrite: async () => {
+        h.setSteps([])
+        h.rerender({ ...props, restore: { writes: ['w2', 'w1'], writeId: 'w1' } })
+        return 'restorable' as const
+      },
+      onRestore: async () => false,
+    }
+    await h.render(props)
+    await act(async () => h.button('Review Changes')!.click())
+    await act(async () => h.undoButton().click())
+    await act(async () => h.button('Restore 2 Edits')!.click())
+    expect(onEndReview).toHaveBeenCalledOnce()
+    expect(h.button('Done')).toBeUndefined()
+    await h.done()
+  })
 })

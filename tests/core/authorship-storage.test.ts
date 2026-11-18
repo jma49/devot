@@ -848,4 +848,30 @@ describe('Restore after a group Undo on SQLite', () => {
       'Owner line, typed.\n',
     )
   })
+
+  it('refuses another note or token without spending the offer, and a later Undo replaces it', async () => {
+    const { s, id, first } = await rewritten()
+    const other = await s.notes.create('Other', s.shared)
+    const undone = await s.notes.undoAgentWrite(id, first)
+    const token = undone.restore!.token
+    await expect(s.notes.restoreAgentWrites(other, token)).rejects.toThrow(
+      'E_AUTHORSHIP_RESTORE_STALE',
+    )
+    await expect(s.notes.restoreAgentWrites(id, 'not-the-token')).rejects.toThrow(
+      'E_AUTHORSHIP_RESTORE_STALE',
+    )
+    expect((await s.notes.restoreAgentWrites(id, token)).writes).toBe(2)
+
+    await s.notes.setBody(other, 'Other line.\n')
+    await s.notes.agentWrite(other, {
+      writer: CLAUDE,
+      markdown: 'Other line.\nAdded.\n',
+    })
+    await s.notes.flush()
+    const again = await s.notes.undoAgentWrite(id, first)
+    await s.notes.undoAgentWrite(other, readWrites(await stored(s.storage, other))[0]!.id)
+    await expect(s.notes.restoreAgentWrites(id, again.restore!.token)).rejects.toThrow(
+      'E_AUTHORSHIP_RESTORE_STALE',
+    )
+  })
 })
