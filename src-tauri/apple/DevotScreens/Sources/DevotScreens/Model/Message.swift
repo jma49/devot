@@ -132,6 +132,7 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case editorNote = "editor.note"
     case editorPicker = "editor.picker"
     case editorHaptic = "editor.haptic"
+    case noteSaveFailed = "note.saveFailed"
     /// Rust's own: the sync snapshot changed.
     case syncChanged = "sync.changed"
     /// Rust's own: a pairing on show through iCloud may have moved on.

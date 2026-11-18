@@ -298,6 +298,8 @@ final class Screens: SettingsBridge {
         case .editorHaptic:
             guard let name = fields["kind"]?.string else { return invalid(kind) }
             haptics.play(page: name)
+        case .noteSaveFailed:
+            root.tabs.toasts.offer(UndoToast(kind: .saveFailed) {})
         default:
             return false
         }

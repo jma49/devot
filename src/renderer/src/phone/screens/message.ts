@@ -89,6 +89,7 @@ export type ScreensNotice =
   | { readonly notice: 'editor.picker'; readonly noteId: string; readonly picker: EditorPicker }
   | { readonly notice: 'editor.haptic'; readonly kind: HapticKind }
   | { readonly notice: 'note.new'; readonly bookId?: string }
+  | { readonly notice: 'note.saveFailed' }
   | {
       readonly notice: 'notes.changed'
       readonly rev: number

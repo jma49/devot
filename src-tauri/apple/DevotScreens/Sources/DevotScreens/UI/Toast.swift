@@ -1,10 +1,12 @@
 import UIKit
 
-/// An action that can be taken back for a few seconds.
+/// An action that can be taken back for a few seconds, or a note that could not be saved.
 struct UndoToast {
     enum Kind: Equatable {
         case trashed
         case completed
+        /// Nothing to take back: the toast has no Undo pill.
+        case saveFailed
     }
 
     let kind: Kind
@@ -23,6 +25,7 @@ final class ToastView: UIView {
     let icon = UIImageView()
     let label = UILabel()
     let undo = UIButton(type: .system)
+    private let row = UIStackView()
     let pan = UIPanGestureRecognizer()
     /// Held by the toast it places: once the toast has gone, activating it would crash.
     var aboveBar: NSLayoutConstraint?
@@ -32,7 +35,6 @@ final class ToastView: UIView {
         self.kind = kind
         super.init(frame: .zero)
         accessibilityIdentifier = "devot.toast"
-        accessibilityElements = [label, undo]
         addSubview(shadowView)
         glass.cornerConfiguration = .capsule()
         glass.clipsToBounds = true
@@ -72,7 +74,7 @@ final class ToastView: UIView {
             return attributes
         }
         undo.configuration = pill
-        let row = UIStackView(arrangedSubviews: [icon, label, undo])
+        for part in [icon, label, undo] { row.addArrangedSubview(part) }
         row.axis = .horizontal
         row.alignment = .center
         row.spacing = 10
@@ -103,6 +105,7 @@ final class ToastView: UIView {
         switch kind {
         case .trashed: L10n.phoneToastTrashed()
         case .completed: L10n.phoneToastCompleted()
+        case .saveFailed: L10n.phoneToastSaveFailed()
         }
     }
 
@@ -132,7 +135,14 @@ final class ToastView: UIView {
         case .completed:
             icon.image = UIImage(systemName: "checkmark.circle.fill", withConfiguration: size)
             icon.tintColor = Tokens.Color.statusDoneMark
+        case .saveFailed:
+            icon.image = UIImage(systemName: "exclamationmark.triangle.fill", withConfiguration: size)
+            icon.tintColor = Tokens.Color.alertWarning
         }
+        let undoable = kind != .saveFailed
+        undo.isHidden = !undoable
+        accessibilityElements = undoable ? [label, undo] : [label]
+        row.directionalLayoutMargins.trailing = undoable ? 6 : 16
     }
 }
 

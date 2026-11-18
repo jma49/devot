@@ -172,6 +172,7 @@ Part of the [architecture overview](../architecture.md).
 - **A save that fails loses nothing:** the note keeps its changes in memory and stays pending.
   The core tries it again 1 s later, waiting twice as long after each failure in a row (at most 30 s), and whenever something else saves it (opening another note, searching, quitting).
   It reports the note to the window (`onSaveProblems`; the worker sends the list on the channel its replies take, so the window hears of a failure before the reply of the call it happened in), which logs `W_NOTE_SAVE_FAILED <note ID> <code>` once per note and code and shows a notice while any note is unsaved: how many notes, Try Again and Dismiss (a new failure brings it back).
+  The iPhone logs the same way and has the native toast say it once for each new failure (`note.saveFailed`), with no notice to dismiss and none for a save refused for the licence, which the lock and its Pro prompt explain.
   Everything else goes on: a flush saves the other notes and then rejects with `E_NOTE_SAVE_FAILED` and the IDs it could not save, which the window's own saves ignore.
   A metadata change written at once (`writeMeta`, a batch change) that fails takes back only its own field.
   For a note not in memory it does not load the note: the stored record is written back with the field changed and its body as stored (no Yjs document is built), after the body is kept as a version when the history does not end with it, as a write of the note in memory would; a load of the note waits for such a write.

@@ -150,6 +150,19 @@ final class ToastPresenterTests: XCTestCase {
         XCTAssertEqual(view.label.text, L10n.phoneToastCompleted())
     }
 
+    func testASaveFailureSaysSoWithNoUndoAndAnUndoToastAfterItGetsItsPillBack() throws {
+        presenter.offer(toast(.saveFailed))
+        let view = try shown()
+        XCTAssertEqual(announced, [L10n.phoneToastSaveFailed()])
+        XCTAssertEqual(view.label.text, L10n.phoneToastSaveFailed())
+        XCTAssertTrue(view.undo.isHidden)
+        XCTAssertEqual(view.accessibilityElements?.count, 1)
+        XCTAssertEqual(timers.live.map(\.delay), [Tokens.Duration.phoneToast])
+        presenter.offer(toast(.trashed))
+        XCTAssertFalse(view.undo.isHidden)
+        XCTAssertEqual(view.accessibilityElements?.count, 2)
+    }
+
     func testASecondActionReplacesTheWordsInPlaceAndTakesTheUndoOverWithAFreshFourSeconds() throws {
         presenter.offer(toast(.trashed, "trash"))
         let view = try shown()

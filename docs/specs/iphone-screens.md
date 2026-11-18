@@ -235,6 +235,7 @@ The Notes and Library tabs' roots and every list they push are native (`DevotScr
 - The undo toast (`UI/Toast.swift`) is offered to `ListContext.undoToasts` by the one write that can be taken back: one note trashed (Undo restores it) or completed by its swipe (Undo sends `note.undoStatus` with the `undo` that `note.complete` answered).
   The page keeps no undo of its own: it answers a completion with `StatusUndo` (`status`, `updatedAt`, `statusHlc`, `bodyVersion`), which Rust checks and Swift holds for the toast.
   A second action replaces the words in place and the first stays done; a trash of several notes, a refused one and a restore offer nothing.
+- The page's `note.saveFailed` notice offers the same toast with no Undo pill, for a note that newly could not be saved.
 - The toast is a `UIVisualEffectView` of regular, non-interactive `UIGlassEffect` over a `FloatShadowView`, `size.phone-toast` high between the `size.phone-screen-edge` keylines.
   Its bottom is `size.phone-toast-gap` above the tab bar's top edge (`DevotTabBarController` tells the presenter), and never below the safe area or under `keyboardLayoutGuide`.
   The glass is put on after the rise, because UIKit may not install it on a moving host.
@@ -403,6 +404,7 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 | `editor.haptic { kind }`                           | page → Swift | a haptic the editor would play, played from Swift while a note's screen is up                                           |
 | `editor.gate { what }`                             | page → Swift | a write was tried while writes are locked: Swift opens the gate's sheet                                                 |
 | `note.new { bookId? }`                             | page → Swift | New Note in a list's capsule: Swift's gate decides, then pushes the editor and asks for the note                        |
+| `note.saveFailed`                                  | page → Swift | a note newly could not be saved (never one refused for the licence): Swift offers the toast with no Undo                |
 | `note.create { bookId? }`                          | Swift → page | the core makes an empty note and answers `{ id, rev }`, `rev` being its write's `notes.changed` revision                |
 | `note.discard { noteId }`                          | Swift → page | a new note's screen left untouched: the page purges the note if it is still as made                                     |
 | `licence.changed`                                  | Rust → Swift | the licence changed: Swift reads its snapshot again; only Rust may send it                                              |

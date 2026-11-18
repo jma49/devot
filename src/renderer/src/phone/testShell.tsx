@@ -84,8 +84,16 @@ const EMPTY: Omit<PhoneData, 'core'> = {
   loadedAt: 0,
 }
 
+let saveFailed: (() => void) | undefined
+
+/** What usePhoneData does when the core reports a note it newly could not save. */
+export const failTestSave = (): void => saveFailed?.()
+
 /** Stands in for usePhoneData: the same lists, read from the core `setTestCore` set after each change. */
-export function useTestPhoneData(): PhoneStore {
+export function useTestPhoneData(_onListed?: () => void, onSaveFailed?: () => void): PhoneStore {
+  useEffect(() => {
+    saveFailed = onSaveFailed
+  })
   const [data, setData] = useState<PhoneData>({ ...EMPTY, core: null })
   const refresh = useCallback(async () => {
     const core = shownCore
