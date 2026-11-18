@@ -71,6 +71,14 @@ const imageColumn = (ranked: boolean) =>
 
 const inImages = (field: TextCondition['field']) => field !== 'title'
 
+/** As the Tauri commands refuse: a delete time needs its stamp, while a live record may carry one. */
+const refuseUnstampedDelete = (
+  record: { deletedAt: number | null; deletedHlc: string | null },
+  code: string,
+) => {
+  if (record.deletedAt !== null && record.deletedHlc === null) throw new Error(code)
+}
+
 /**
  * The notes found only once the text in their images counts, after every
  * note found by its own text (a score of 0 ranks after any of bm25's, which
@@ -1334,6 +1342,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     listBooks: async () => books.all().map((row) => toBook(row)),
     isLiveBook: async (id) => liveBook.get(id) !== undefined,
     async putBook(book) {
+      refuseUnstampedDelete(book, 'E_BOOK_DELETE_INVALID')
       putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })
     },
     seedWelcome: (seed) => writeWelcomeSeed(adapter, seed),
@@ -1341,15 +1350,19 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       // As the Tauri command refuses.
       if (records.length === 0 || records.length > MAX_PUT_BOOKS)
         throw new Error('E_BOOKS_COUNT_INVALID')
+      for (const book of records) refuseUnstampedDelete(book, 'E_BOOK_DELETE_INVALID')
       db.transaction(() => {
         for (const book of records) putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })
       }).immediate()
     },
     listTags: async () => tags.all().map((row) => toTag(row)),
     async putTag(tag) {
+      refuseUnstampedDelete(tag, 'E_TAG_DELETE_INVALID')
       putTag.run(tag)
     },
     async renameTag(tag, searches) {
+      refuseUnstampedDelete(tag, 'E_TAG_DELETE_INVALID')
+      for (const saved of searches) refuseUnstampedDelete(saved, 'E_SAVED_SEARCH_DELETE_INVALID')
       db.transaction(() => {
         putTag.run(tag)
         for (const saved of searches) putSavedSearch.run(saved)
@@ -1357,6 +1370,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     },
     listSavedSearches: async () => savedSearches.all().map(toSavedSearch),
     async putSavedSearch(record) {
+      refuseUnstampedDelete(record, 'E_SAVED_SEARCH_DELETE_INVALID')
       putSavedSearch.run(record)
     },
     async putNoteTag(link) {
