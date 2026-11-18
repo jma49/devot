@@ -11,7 +11,7 @@ final class DeepLinkTests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
-        app.launch()
+        app.launch(stoppedAfter: self)
         // A cold debug build starts slowly on a CI simulator.
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: waitLimit(120)))
     }
@@ -44,7 +44,7 @@ final class DeepLinkTests: XCTestCase {
         // The record reaches the preferences store a moment after the app leaves; a kill before that reads as a crash.
         _ = XCTWaiter.wait(for: [XCTestExpectation(description: "the app stays in the background")], timeout: waitLimit(5))
         app.terminate()
-        app.launch()
+        app.launch(stoppedAfter: self)
         XCTAssertTrue(noteBar.waitForExistence(timeout: waitLimit(120)), "the note is on top again")
         keepScreen("restored note")
         noteBar.buttons.element(boundBy: 0).tap()

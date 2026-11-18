@@ -497,6 +497,7 @@ final class Screens: SettingsBridge {
                     guard case .ok(let result) = outcome, result["focused"]?.bool == true else {
                         return screen.focusRefused()
                     }
+                    screen.focusTaken()
                 }
             },
             left: { [weak self] _ in self?.discardLeftNewNotes() },
