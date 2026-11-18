@@ -37,6 +37,8 @@ export const APP_STORE_LIMITS = {
   windowSeconds: 3600,
   /** A licence's renewal asks Apple at most this often. */
   checkEveryMs: 86_400_000,
+  /** After E_APP_STORE_UPSTREAM, which no buyer causes, the next check is due this soon instead. */
+  upstreamRetryMs: 3_600_000,
 }
 
 /** The notifications that take a licence away; every other type changes nothing. */
@@ -265,17 +267,19 @@ export function appStoreRoutes(ctx: Context) {
 
   /**
    * At `/activate`, after the seat is granted: asks Apple about an App Store licence at most once
-   * a day, whatever the answer. Throws to refuse the lease. A refusal is stored and refuses every
-   * lease until a later check Apple answers well; only Apple being unreachable (or the Worker's
-   * own token refused) lets a licence with no standing refusal through unchecked.
+   * a day, whatever the answer, or once an hour while an answer that could not be verified
+   * (E_APP_STORE_UPSTREAM) stands. Throws to refuse the lease. A refusal is stored and refuses
+   * every lease until a later check Apple answers well; only Apple being unreachable (or the
+   * Worker's own token refused) lets a licence with no standing refusal through unchecked.
    */
   async function renewal(licenceId: string): Promise<void> {
     const at = now()
-    const before = instant(new Date(at.getTime() - APP_STORE_LIMITS.checkEveryMs))
+    const ago = (ms: number) => instant(new Date(at.getTime() - ms))
     const { due, refusal: standing } = await store.claimAppStoreCheck(
       licenceId,
       instant(at),
-      before,
+      ago(APP_STORE_LIMITS.checkEveryMs),
+      { refusal: 'E_APP_STORE_UPSTREAM', before: ago(APP_STORE_LIMITS.upstreamRetryMs) },
     )
     const refuse = (code: LicenceCode | null) => {
       if (code) throw new LicenceError(code, licenceId)
