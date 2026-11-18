@@ -11,6 +11,8 @@ import type { AgentWriteRow } from '../../src/core/authorship'
 import { checkUpload } from '../../src/core/files'
 import { noteLinks } from '../../src/core/links'
 import { checkNote, checkNoteMeta } from '../../src/core/noteLimits'
+import { checkDrawings, type NoteDrawingsRecord } from '../../src/core/plugins/drawings'
+import { isHlcText } from '../../src/core/hlc'
 import { isNotebookIcon } from '../../src/core/notebookIcons'
 import {
   bodyExcerpt,
@@ -308,6 +310,17 @@ export const SYNC_SQL = {
      WHERE excluded.note_hlc > files.note_hlc
        OR (excluded.note_hlc = files.note_hlc AND excluded.note_id > files.note_id)`,
   fileDelete: `DELETE FROM files WHERE id = @id`,
+} as const
+
+/** A note's kept plugin drawings (ADR 0030), the same statements as the Rust store's (storage/drawings.rs). */
+export const DRAWINGS_SQL = {
+  get: `SELECT note_id AS noteId, drawings, hlc FROM note_drawings WHERE note_id = @noteId`,
+  /** The newer clock wins, as for every field of a note. */
+  put: `INSERT INTO note_drawings (note_id, drawings, hlc) VALUES (@noteId, @drawings, @hlc)
+     ON CONFLICT (note_id) DO UPDATE SET drawings = excluded.drawings, hlc = excluded.hlc
+     WHERE excluded.hlc > note_drawings.hlc`,
+  drop: `DELETE FROM note_drawings WHERE note_id = @noteId`,
+  live: `SELECT 1 AS live FROM notes WHERE id = @noteId AND purged_at IS NULL`,
 } as const
 
 /**
@@ -847,6 +860,20 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const syncSetState = db.prepare(SYNC_SQL.setState)
   const syncReset = db.prepare(SYNC_SQL.reset)
   const syncNote = db.prepare<[{ id: string }], Row & { purged: number }>(SYNC_SQL.note)
+  const getDrawings = db.prepare<
+    [{ noteId: string }],
+    { noteId: string; drawings: string; hlc: string }
+  >(DRAWINGS_SQL.get)
+  const putDrawings = db.prepare<[{ noteId: string; drawings: string; hlc: string }]>(
+    DRAWINGS_SQL.put,
+  )
+  const dropDrawings = db.prepare<[{ noteId: string }]>(DRAWINGS_SQL.drop)
+  const drawingsNote = db.prepare<[{ noteId: string }], { live: number }>(DRAWINGS_SQL.live)
+  const drawingsOf = (noteId: string): NoteDrawingsRecord | null => {
+    const row = getDrawings.get({ noteId })
+    const drawings = row ? checkDrawings(JSON.parse(row.drawings)) : null
+    return row && drawings ? { noteId, drawings, hlc: row.hlc } : null
+  }
   const syncNoteTags = db.prepare<
     [{ id: string }],
     Omit<NoteTagRecord, 'present'> & { present: number }
@@ -1088,6 +1115,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
           dropFiles.run(id)
         }
         dropNoteLinks.run(id)
+        dropDrawings.run({ noteId: id })
         dropAgentWrites.run({ noteId: id })
         if (here) dropRevisions.run(id)
       })
@@ -1256,6 +1284,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
                   present: t.present === 1,
                   hlc: t.hlc,
                 })),
+                drawings: drawingsOf(id),
               }
             : null,
           book: book ? toBook(book, true) : null,
@@ -1379,6 +1408,16 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     },
     async putNoteTag(link) {
       putNoteTag.run({ ...link, present: link.present ? 1 : 0 })
+    },
+    async getNoteDrawings(noteId) {
+      return drawingsOf(noteId)
+    },
+    async putNoteDrawings({ noteId, drawings, hlc }) {
+      if (!isHlcText(hlc) || !checkDrawings(drawings)) throw new Error('E_NOTE_DRAWINGS_INVALID')
+      db.transaction(() => {
+        if (!drawingsNote.get({ noteId })) throw new Error('E_NOTE_NOT_FOUND')
+        putDrawings.run({ noteId, drawings: JSON.stringify(drawings), hlc })
+      }).immediate()
     },
     async getNoteTag(noteId, tagId) {
       const row = getNoteTag.get(noteId, tagId)

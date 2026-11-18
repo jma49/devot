@@ -4,6 +4,7 @@
 pub mod activity;
 pub mod authorship;
 pub mod books;
+pub mod drawings;
 pub mod files;
 pub mod images;
 pub mod notes;

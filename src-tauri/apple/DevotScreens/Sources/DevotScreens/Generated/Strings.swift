@@ -4718,6 +4718,10 @@ public enum L10n {
     text("plugins.drawingLabel", "Drawing from a plugin")
   }
 
+  public static func pluginsDrawingKeptStale() -> String {
+    text("plugins.drawingKeptStale", "This drawing updates on a Mac where its plugin is installed.")
+  }
+
   public static func pluginsPermissionNoteRead() -> String {
     text("plugins.permission.note.read", "Read the open note while you use it")
   }

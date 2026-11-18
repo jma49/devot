@@ -21,6 +21,7 @@ import type {
   TagRecord,
   TrashedNote,
 } from '../../../core'
+import type { NoteDrawingsRecord } from '../../../core/plugins/drawings'
 import { fromWire, type WireNote, type WireRevision, type WireStorage } from './wire'
 
 export const tauriWire: WireStorage = {
@@ -72,6 +73,8 @@ export const tauriWire: WireStorage = {
   putSavedSearch: (search) => invoke('saved_search_put', { search }),
   putNoteTag: (link) => invoke('note_tag_put', { link }),
   getNoteTag: (noteId, tagId) => invoke<NoteTagRecord | null>('note_tag_get', { noteId, tagId }),
+  getNoteDrawings: (noteId) => invoke<NoteDrawingsRecord | null>('note_drawings_get', { noteId }),
+  putNoteDrawings: (record) => invoke('note_drawings_put', { record }),
   putRevision: (revision) => invoke('revision_put', { revision }),
   listRevisions: (noteId) => invoke<RevisionSummary[]>('revisions_list', { noteId }),
   getRevision: (id) => invoke<WireRevision | null>('revision_get', { id }),

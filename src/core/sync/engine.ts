@@ -54,6 +54,7 @@ import {
   type SearchState,
   type TagState,
 } from './records'
+import { pruneNoteDrawings } from '../plugins/drawings'
 import {
   MAX_SYNC_IDS,
   type SyncEntry,
@@ -276,7 +277,7 @@ export interface SyncEngine {
 const storageFailure = (code: string) => code.startsWith('E_STORAGE_')
 
 function noteStateOf(row: NonNullable<SyncLocal['note']>, bodyHlc: string): NoteState {
-  const { note, purged, tags } = row
+  const { note, purged, tags, drawings } = row
   if (purged) return tombstone(note.id, note.deletedAt ?? 0, note.deletedHlc ?? '')
   return {
     kind: 'note',
@@ -297,6 +298,8 @@ function noteStateOf(row: NonNullable<SyncLocal['note']>, bodyHlc: string): Note
     deletedHlc: note.deletedHlc ?? '',
     bodyHlc,
     tags: tags.map((t) => ({ tagId: t.tagId, present: t.present, hlc: t.hlc })),
+    drawings: drawings?.drawings ?? [],
+    drawingsHlc: drawings?.hlc ?? '',
     ydoc: note.ydoc,
   }
 }
@@ -716,6 +719,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         }
       }
       for (const tag of row.tags) await storage.putNoteTag({ ...tag, hlc: tick() })
+      if (row.drawings) await storage.putNoteDrawings({ ...row.drawings, hlc: tick() })
     }
     const notes = [...(await storage.listNotes()), ...(await storage.listTrash())].map((n) => n.id)
     for (let at = 0; at < notes.length; at += MAX_SYNC_IDS) {
@@ -1049,6 +1053,13 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       if (had.get(tag.tagId) === tag.hlc) continue
       await storage.putNoteTag({ noteId: record.id, ...tag })
     }
+    if (record.drawingsHlc !== '' && record.drawingsHlc !== (row?.drawings?.hlc ?? '')) {
+      await storage.putNoteDrawings({
+        noteId: record.id,
+        drawings: record.drawings,
+        hlc: record.drawingsHlc,
+      })
+    }
   }
 
   const breaker = (id: string) => {
@@ -1316,6 +1327,16 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }
   }
 
+  /** A note pushed without the drawings of blocks its body no longer holds (ADR 0030), dropped here first. */
+  async function withoutGoneDrawings(
+    state: SyncRecord | null,
+    local: SyncLocal,
+  ): Promise<SyncRecord | null> {
+    if (state?.kind !== 'note' || state.drawings.length === 0 || !local.note) return state
+    const pruned = await pruneNoteDrawings(storage, clock, state.id, local.note.note.bodyMd)
+    return pruned ? { ...state, drawings: pruned.drawings, drawingsHlc: pruned.hlc } : state
+  }
+
   /** What the relay says to an attachment it cannot take, kept apart from a note's: notes still sync. */
   function keepLocal(id: string, print: string, code: string) {
     unsynced.set(id, { print, code })
@@ -1348,7 +1369,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       return null
     }
     const stamped = stamp(local)
-    const state = stateOf(local, stamped.bodyHlc)
+    const state = await withoutGoneDrawings(stateOf(local, stamped.bodyHlc), local)
     if (!state) {
       await sync.syncPut({ ...entry, synced: entry.edits })
       return null

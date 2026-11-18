@@ -51,6 +51,7 @@ function fakeCore() {
       return rendered
     },
     forgetShownPieces: async () => undefined,
+    noteDrawings: async () => [],
   } as unknown as Core
   return { core, asked, renders }
 }

@@ -27133,6 +27133,23 @@
         }
       }
     },
+    "plugins.drawingKeptStale" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This drawing updates on a Mac where its plugin is installed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张图会在装有其插件的 Mac 上更新。"
+          }
+        }
+      }
+    },
     "plugins.drawingLabel" : {
       "extractionState" : "manual",
       "localizations" : {

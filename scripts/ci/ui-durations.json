@@ -58,6 +58,7 @@
   "tests/ui/ime.spec.ts": 63324,
   "tests/ui/import.spec.ts": 90234,
   "tests/ui/interaction-motion.spec.ts": 44961,
+  "tests/ui/kept-drawings.spec.ts": 8000,
   "tests/ui/keyboard-nav.spec.ts": 139035,
   "tests/ui/keyboard-shortcuts.spec.ts": 66134,
   "tests/ui/licence.spec.ts": 60941,

@@ -9,6 +9,7 @@ import {
   type PluginRendererSpec,
   type RenderPluginBlock,
 } from '../../src/core'
+import { blockHash, drawingBlocks } from '../../src/core/plugins/drawings'
 import { labels } from '../support/preview-html'
 
 const specs = [{ key: 'com.example.chart/chart', language: 'chart', output: 'markdown' as const }]
@@ -282,5 +283,51 @@ describe('plugin preview renderers', () => {
     expect(out).toContain(
       '<div class="island island-plugin" data-devot-island="plugin" data-island-source="com.example.graphviz/dot\na -> b" data-block-from="7" data-block-to="24" data-source-line="3">',
     )
+  })
+})
+
+describe('kept plugin drawings (ADR 0030)', () => {
+  const kept = (
+    markdown: string,
+    options: { keptLanguages?: string[] } = {},
+    rendererSpecs = svgSpecs,
+  ) =>
+    renderPreview(
+      markdown,
+      { labels, loadedEmbeds: [], ...options },
+      createPreviewRegistry({
+        builtins: true,
+        plugins: { specs: rendererSpecs, render: async () => null },
+      }),
+    ).then(toHtml)
+  const svgSpecs: PluginRendererSpec[] = []
+  const sources = (out: string) =>
+    [...out.matchAll(/data-devot-island="kept-drawing" data-island-source="([^"]*)"/g)].map((m) =>
+      m[1]!.replaceAll('&#x26;', '&').replaceAll('&#x3C;', '<'),
+    )
+
+  it('makes an island of each block in a kept language, keyed as the note’s blocks are', async () => {
+    const note =
+      '```dot\na -> b\n```\n\n- item\n\n  ~~~dot\n  c -> d\n  ~~~\n\n> ```dot\n> e & <f>\n> ```\n\n```js\nx\n```\n'
+    const out = await kept(note, { keptLanguages: ['dot'] })
+    const found = sources(out).map((source) => {
+      const [language, hash, ...content] = source.split('\n')
+      expect(hash).toBe(blockHash(content.join('\n')))
+      return `${language}\n${hash}`
+    })
+    expect(new Set(found)).toEqual(
+      new Set([...drawingBlocks(note)].filter((b) => b.startsWith('dot\n'))),
+    )
+    expect(found).toHaveLength(3)
+    expect(out).toContain('language-js')
+  })
+
+  it('leaves code alone without kept languages, and a block a plugin here draws to the plugin', async () => {
+    expect(sources(await kept('```dot\na\n```\n'))).toEqual([])
+    const drawn = await kept('```dot\na\n```\n', { keptLanguages: ['dot'] }, [
+      { key: 'com.example.graphviz/dot', language: 'dot', output: 'svg' },
+    ])
+    expect(sources(drawn)).toEqual([])
+    expect(drawn).toContain('data-devot-island="plugin"')
   })
 })

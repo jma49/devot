@@ -5,6 +5,7 @@ mod activity;
 mod agent_writes;
 mod books;
 mod db;
+mod drawings;
 mod files;
 mod image_text;
 mod notes;
@@ -23,6 +24,7 @@ mod welcome;
 pub use sync::{SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal, SyncPending};
 
 pub use db::{Db, Write};
+pub use drawings::{KeptDrawing, NoteDrawings};
 pub use open::{SCHEMA_VERSION, snapshot};
 pub(crate) use readable::readable_text;
 pub use records::*;

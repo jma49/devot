@@ -33,12 +33,14 @@ import { noteLinks } from '../../../core/links'
 import { checkNote } from '../../../core/noteLimits'
 import { bodyExcerpt, excerptTerms } from '../../../core/search'
 import { savedSearchOrder } from '../../../core/savedSearches'
+import { checkDrawings, type NoteDrawingsRecord } from '../../../core/plugins/drawings'
 import { isTagColor, isTagColorValue } from '../../../core/tags'
 
 const NOTES = 'devot.test.notes'
 const BOOKS = 'devot.test.books'
 const TAGS = 'devot.test.tags'
 const NOTE_TAGS = 'devot.test.noteTags'
+const NOTE_DRAWINGS = 'devot.test.noteDrawings'
 const SAVED_SEARCHES = 'devot.test.savedSearches'
 const FILES = 'devot.test.files'
 const REVISIONS = 'devot.test.revisions'
@@ -386,6 +388,8 @@ export const memoryStorage: StorageAdapter = {
     localStorage.setItem(NOTES, JSON.stringify(next))
     const links = read<NoteTagRecord>(NOTE_TAGS).filter((l) => l.noteId !== id)
     localStorage.setItem(NOTE_TAGS, JSON.stringify(links))
+    const drawings = read<NoteDrawingsRecord>(NOTE_DRAWINGS).filter((d) => d.noteId !== id)
+    localStorage.setItem(NOTE_DRAWINGS, JSON.stringify(drawings))
     const writes = read<AgentWriteSummary>(AGENT_WRITES).filter((w) => w.noteId !== id)
     localStorage.setItem(AGENT_WRITES, JSON.stringify(writes))
     // Attachments another note still shows pass to it (a live one first,
@@ -635,6 +639,21 @@ export const memoryStorage: StorageAdapter = {
   async getNoteTag(noteId, tagId) {
     return (
       read<NoteTagRecord>(NOTE_TAGS).find((l) => l.noteId === noteId && l.tagId === tagId) ?? null
+    )
+  },
+  async getNoteDrawings(noteId) {
+    return read<NoteDrawingsRecord>(NOTE_DRAWINGS).find((d) => d.noteId === noteId) ?? null
+  },
+  async putNoteDrawings(record) {
+    if (checkDrawings(record.drawings) === null) throw new Error('E_NOTE_DRAWINGS_INVALID')
+    if (!read<Stored>(NOTES).some((n) => n.id === record.noteId && n.purgedAt === undefined))
+      throw new Error('E_NOTE_NOT_FOUND')
+    const all = read<NoteDrawingsRecord>(NOTE_DRAWINGS)
+    const current = all.find((d) => d.noteId === record.noteId)
+    if (current && current.hlc >= record.hlc) return
+    localStorage.setItem(
+      NOTE_DRAWINGS,
+      JSON.stringify([...all.filter((d) => d !== current), record]),
     )
   },
 }

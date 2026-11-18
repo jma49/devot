@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-drawings-put"
+description = "Enables the note_drawings_put command without any pre-configured scope."
+commands.allow = ["note_drawings_put"]
+
+[[permission]]
+identifier = "deny-note-drawings-put"
+description = "Denies the note_drawings_put command without any pre-configured scope."
+commands.deny = ["note_drawings_put"]

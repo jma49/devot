@@ -318,7 +318,7 @@ pub fn is_version(text: &str) -> bool {
         })
 }
 
-fn is_language(text: &str) -> bool {
+pub fn is_language(text: &str) -> bool {
     let mut bytes = text.bytes();
     let Some(first) = bytes.next() else {
         return false;

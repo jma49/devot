@@ -204,6 +204,9 @@ function unique<T>(items: readonly T[], key: (item: T) => string): void {
   }
 }
 
+export const isPluginLanguage = (value: unknown): value is string =>
+  typeof value === 'string' && LANGUAGE.test(value) && !RESERVED_LANGUAGES.includes(value)
+
 export function isPluginId(value: unknown): value is string {
   return (
     typeof value === 'string' &&

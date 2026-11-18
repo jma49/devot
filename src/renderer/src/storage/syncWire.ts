@@ -15,7 +15,7 @@ import type { RecordKind } from '../../../core/sync/protocol'
 import { fromBase64, toBase64, type WireNote } from './wire'
 
 export type WireSyncLocal = Omit<SyncLocal, 'note'> & {
-  note: { note: WireNote; purged: boolean; tags: NonNullable<SyncLocal['note']>['tags'] } | null
+  note: (Omit<NonNullable<SyncLocal['note']>, 'note'> & { note: WireNote }) | null
 }
 
 export interface WireSync extends Omit<SyncStore, 'syncRead' | 'syncFileData' | 'syncFilePut'> {

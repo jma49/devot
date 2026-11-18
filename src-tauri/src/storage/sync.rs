@@ -6,7 +6,10 @@
 use rusqlite::{OptionalExtension, named_params};
 use serde::{Deserialize, Serialize};
 
-use super::{BookRecord, NoteRecord, NoteTagRecord, Result, SavedSearchRecord, Store, TagRecord};
+use super::{
+    BookRecord, NoteDrawings, NoteRecord, NoteTagRecord, Result, SavedSearchRecord, Store,
+    TagRecord,
+};
 
 const SYNC_PENDING_SQL: &str = "SELECT id, edits, upload_key AS uploadKey FROM sync_records
      WHERE edits <> synced AND upload_key > @after ORDER BY upload_key LIMIT @limit";
@@ -107,6 +110,7 @@ pub struct SyncNoteRow {
     pub note: NoteRecord,
     pub purged: bool,
     pub tags: Vec<NoteTagRecord>,
+    pub drawings: Option<NoteDrawings>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -308,7 +312,13 @@ impl Store {
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;
-        Ok(Some(SyncNoteRow { note, purged, tags }))
+        let drawings = self.get_note_drawings(id)?;
+        Ok(Some(SyncNoteRow {
+            note,
+            purged,
+            tags,
+            drawings,
+        }))
     }
 
     fn sync_book(&self, id: &str) -> Result<Option<BookRecord>> {

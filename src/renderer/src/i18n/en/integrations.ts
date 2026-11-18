@@ -168,6 +168,7 @@ export const messages = {
   'plugins.drawingEdit': 'Edit',
   'plugins.drawingFailed': 'The plugin could not draw this block.',
   'plugins.drawingLabel': 'Drawing from a plugin',
+  'plugins.drawingKeptStale': 'This drawing updates on a Mac where its plugin is installed.',
   'plugins.permission.note.read': 'Read the open note while you use it',
   'plugins.permission.note.edit': 'Change the open note while you use it',
   'plugins.permission.commands': 'Add commands to the command palette',

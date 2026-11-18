@@ -125,6 +125,32 @@ test('draws a block as the plugin’s SVG, for the theme on screen, kept inside 
   expect(await page.evaluate(() => (globalThis as { drawn?: number }).drawn)).toBeUndefined()
 })
 
+test('keeps the drawing it shows with the note, as the page rebuilt it (ADR 0030)', async ({
+  page,
+}) => {
+  const preview = await previewOf(page, '```dot\na -> b\n```\n')
+  await expect(preview.locator('.plugin-drawing text')).toHaveText('light a -> b')
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (
+          JSON.parse(localStorage.getItem('devot.test.noteDrawings') ?? '[]') as {
+            drawings: { pluginId: string; language: string; appearance: string; svg: string }[]
+          }[]
+        )
+          .flatMap((r) => r.drawings)
+          .map((d) => [
+            d.pluginId,
+            d.language,
+            d.appearance,
+            /<script/.test(d.svg),
+            d.svg.includes('light a -'),
+          ]),
+      ),
+    )
+    .toEqual([['com.example.graphs', 'dot', 'light', false, true]])
+})
+
 test('shows a declined block as code, and says so when a drawing cannot be read', async ({
   page,
 }) => {

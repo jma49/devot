@@ -18,6 +18,8 @@ export interface IslandContext {
   width?: number | undefined
   /** Where a drawing's stylesheet goes when the element is not in the document itself (the editor's shadow root). */
   styleRoot?: DocumentOrShadowRoot | undefined
+  /** The note shown, in the preview: its kept plugin drawings are its own (ADR 0030). */
+  noteId?: string | undefined
 }
 
 export interface IslandContent {

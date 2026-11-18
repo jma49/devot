@@ -70,6 +70,8 @@ Part of the [architecture overview](../architecture.md).
 - **Client engine** (`src/core/sync/engine.ts`, in the main window's core worker, the iPhone app's one window included (`useSyncEngine`); docs/adr/0002-sync-latest-state-per-record.md, Client): the core builds and merges records, Rust seals them and holds the socket.
   A record is a note (with its tag memberships), a notebook or a tag under its own ID (`src/core/sync/records.ts`): `format byte || header length || JSON fields || Yjs state`.
   Allow AI Access is not in it (each device decides what AI tools may read), nor are revisions; an attachment travels as its own `file` record (#327).
+  A note's kept plugin drawings travel in its header as one field, `drawings` with `drawingsHlc` (ADR 0030): the higher clock wins, a list a build cannot read is taken as none, and a note that never kept one leaves both out, so its bytes and fingerprint are as before.
+  A Devot from before them pushes an edited note without them; the next newer device to merge it holds the higher clock and pushes them back.
   - **What changed:** every write of a note row, its tag rows, a notebook or a tag moves its `sync_records.edits` on (triggers in `migrations/0019_sync.sql`, so every writer counts); the engine looks at a record while `edits` differs from `synced` and pushes it only when its fingerprint (the fields, and the body's state vector and delete set, so equal content gives an equal print whatever the bytes) differs from the one the relay's version stands for here (`fingerprint`).
     The engine's own writes of another device's state set that print, so they are never pushed back.
   - **Push timing:** after 3 s without writes, at most 10 s after the first of a run of writes (`PUSH_IDLE_MS`, `PUSH_EVERY_MS`).

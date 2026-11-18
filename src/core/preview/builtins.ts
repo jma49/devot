@@ -12,6 +12,7 @@ import {
 } from '../images'
 import { createMathRenderer } from './math'
 import {
+  KEPT_DRAWING_ISLAND,
   PREVIEW_API_VERSION,
   type AlertKind,
   type PreviewNote,
@@ -20,6 +21,7 @@ import {
 } from './registry'
 import { remoteImageHost } from './remoteImages'
 import { fillPlaceholders } from '../text'
+import { sha256Hex } from '../sha256'
 import { createCodeRenderer } from './code'
 import { glyph } from './glyphs'
 import { headingIds } from './headingIds'
@@ -223,6 +225,33 @@ function diagramRenderer(kind: string, languages = [kind]): PreviewRenderer {
   }
 }
 
+function fenceLanguage(pre: Element): string | undefined {
+  const [code, ...rest] = pre.children
+  if (rest.length > 0 || code?.type !== 'element' || code.tagName !== 'code') return undefined
+  const names = code.properties['className']
+  const name = Array.isArray(names)
+    ? names.find((n) => typeof n === 'string' && n.startsWith('language-'))
+    : undefined
+  return typeof name === 'string' ? name.slice('language-'.length) : undefined
+}
+
+/** Blocks in a language the note keeps drawings in, which no plugin here drew (it ran first): the page shows the drawing. */
+const keptDrawings: PreviewRenderer = {
+  id: 'devot.kept-drawings',
+  apiVersion: PREVIEW_API_VERSION,
+  transform(tree, context) {
+    const languages = context.keptLanguages
+    if (!languages || languages.length === 0) return
+    rewrite(tree, (node) => {
+      if (node.tagName !== 'pre') return undefined
+      const language = fenceLanguage(node)
+      if (!language || !languages.includes(language)) return undefined
+      const content = textOf(node).replace(/\n$/, '')
+      return island(KEPT_DRAWING_ISLAND, `${language}\n${sha256Hex(content)}\n${content}`)
+    })
+  },
+}
+
 const COLOR =
   /^(?:#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})|rgba?\([0-9.,%\s/]+\)|hsla?\([0-9.,%\sdegra/]+\))$/i
 
@@ -405,6 +434,7 @@ export const BUILTIN_RENDERERS: readonly PreviewRenderer[] = [
   diagramRenderer('mermaid'),
   diagramRenderer('plantuml', ['plantuml', 'puml']),
   diagramRenderer('markmap'),
+  keptDrawings,
   createCodeRenderer(),
   headingIds,
   swatches,

@@ -422,6 +422,7 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 - The editor's formatting bar formats only while editing is allowed; a press while locked opens the gate's sheet, as Edit does.
 - A Find query sent while the note still loads waits for its editor (at most 5 s), and only the latest such query runs.
 - `note.info`, `note.setDates`, `note.applyFrontMatter` and `note.addTag` are answered by the core (`phone/screens/notes.ts`); `editor.find` drives CodeMirror's search on the shown editor, and Rust refuses a query over 1000 characters (`E_SCREENS_QUERY_TOO_LONG`).
+- The iPhone runs no plugin: the preview shows the drawing a Mac's plugin kept with the note for a block whose content and appearance still match, and the block as code with a short note otherwise (ADR 0030).
 - Note Info shows the note's front matter as the Mac's card does, and the preview under the native screens leaves it out (`frontMatterInInfo`); a template's front matter stays in its preview, and its rows offer no Apply.
 - A row whose title, status or tags differ from the note's shows the note's value and Apply, which goes through the gate as `WriteIntent.applyFrontMatter`; the editor screen reads Note Info again when the note's title, status or tags change while the sheet is up.
 - Rust checks `note.applyFrontMatter`: a title of at most 1000 characters, a known status, and at most 200 tag names that each pass `note.addTag`'s check; the page takes only what `frontMatterChange` would have offered.
