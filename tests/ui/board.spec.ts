@@ -327,10 +327,13 @@ test.describe('a long board', () => {
     const options = board(page).getByRole('option')
     expect(await options.count()).toBeLessThan(200)
     await expect(longCard(page, 1)).toHaveAttribute('aria-setsize', String(NOTES))
-    await column(page, 'No Status').evaluate((el) => {
-      el.scrollTop = el.scrollHeight
-    })
-    await expect(longCard(page, NOTES)).toBeVisible()
+    // Cards measured on the way down change the column's height, so one jump can stop short of the end (#1015).
+    await expect(async () => {
+      await column(page, 'No Status').evaluate((el) => {
+        el.scrollTop = el.scrollHeight
+      })
+      await expect(longCard(page, NOTES)).toBeVisible({ timeout: 500 })
+    }).toPass()
     await expect(longCard(page, 50)).toHaveCount(0)
     expect(await options.count()).toBeLessThan(200)
   })
