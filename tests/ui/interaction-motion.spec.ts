@@ -55,31 +55,56 @@ test('a segment thumb slides to the new mode, on top of the final state, and is 
   await expect(group).not.toHaveAttribute('data-sliding')
 })
 
-test('choosing Write mid-slide drops the thumb, and leaving Write slides none', async ({
-  page,
-}) => {
+test('the thumb slides to and from Write Mode and can be dragged there', async ({ page }) => {
   await openApp(page)
   await newNote(page).click()
   const group = page.getByRole('group', { name: 'View mode' })
-  const write = page
-    .locator('.editor-toolbar')
-    .getByRole('button', { name: 'Write Mode', exact: true })
-  await group.getByRole('button', { name: 'Preview' }).click()
-  await write.click()
-  await expect(write).toHaveAttribute('aria-pressed', 'true')
+  const pressed = group.getByRole('button', { pressed: true })
+  await group.getByRole('button', { name: 'Preview', exact: true }).click()
+  await expect(pressed).toHaveAccessibleName('Preview')
   await expect(page.locator('.segment-thumb')).toHaveCount(0)
-  await expect(group).not.toHaveAttribute('data-sliding')
+
   await page.evaluate(() => {
     const w = window
-    new MutationObserver(() => {
-      if (document.querySelector('.segment-thumb')) w.devotThumbSeen = true
+    delete w.devotThumb
+    new MutationObserver((_, observer) => {
+      const thumb = document.querySelector('.segment-thumb')
+      if (!thumb) return
+      observer.disconnect()
+      w.devotThumb = (thumb as HTMLElement).style.transform
     }).observe(document.body, { childList: true, subtree: true })
   })
-  await group.getByRole('button', { name: 'Split' }).click()
-  await expect(group.getByRole('button', { pressed: true })).toHaveAccessibleName('Split')
-  await expect(write).toHaveAttribute('aria-pressed', 'false')
-  await page.waitForTimeout(300)
-  expect(await page.evaluate(() => window.devotThumbSeen)).toBeUndefined()
+  await group.getByRole('button', { name: 'Write Mode', exact: true }).click()
+  await expect(pressed).toHaveAccessibleName('Write Mode')
+  await expect.poll(() => page.evaluate(() => window.devotThumb ?? '')).toMatch(/translateX\(/)
+  await expect(page.locator('.segment-thumb')).toHaveCount(0)
+  await expect(group).not.toHaveAttribute('data-sliding')
+
+  await page.evaluate(() => {
+    const w = window
+    delete w.devotThumb
+    new MutationObserver((_, observer) => {
+      const thumb = document.querySelector('.segment-thumb')
+      if (!thumb) return
+      observer.disconnect()
+      w.devotThumb = (thumb as HTMLElement).style.transform
+    }).observe(document.body, { childList: true, subtree: true })
+  })
+  await group.getByRole('button', { name: 'Split', exact: true }).click()
+  await expect(pressed).toHaveAccessibleName('Split')
+  await expect.poll(() => page.evaluate(() => window.devotThumb ?? '')).toMatch(/translateX\(/)
+  await expect(page.locator('.segment-thumb')).toHaveCount(0)
+  await expect(group).not.toHaveAttribute('data-sliding')
+
+  const from = await pressed.boundingBox()
+  const to = await group.getByRole('button', { name: 'Write Mode', exact: true }).boundingBox()
+  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
+  await page.mouse.down()
+  await expect(page.locator('.segment-thumb')).toHaveCount(1)
+  await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 5 })
+  await page.mouse.up()
+  await expect(pressed).toHaveAccessibleName('Write Mode')
+  await expect(page.locator('.segment-thumb')).toHaveCount(0)
 })
 
 test('dragging the thumb to another segment selects it', async ({ page }) => {

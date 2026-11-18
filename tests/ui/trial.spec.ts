@@ -331,17 +331,23 @@ test.describe('the trial-ended bar', () => {
     })
     // Measure the bar where it settles, not mid-slide.
     await bar(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+    await expect(bar(page)).toHaveCSS('border-radius', '18px')
+    expect(await bar(page).evaluate((el) => getComputedStyle(el).backdropFilter)).not.toBe('none')
     const lastRow = (await rows.last().boundingBox())!
     const barTop = (await bar(page).boundingBox())!.y
     expect(lastRow.y + lastRow.height).toBeLessThanOrEqual(barTop)
 
     // The note's last line clears it too.
     await rows.first().click()
+    await expect(page.locator('.editor-counts')).toBeVisible()
+    const countsBox = (await page.locator('.editor-counts').boundingBox())!
+    const noteBarBox = (await bar(page).boundingBox())!
+    expect(noteBarBox.y + noteBarBox.height).toBeLessThanOrEqual(countsBox.y)
     await page.locator('.editor-scroll').evaluate((el) => {
       el.scrollTop = el.scrollHeight
     })
     const lastLine = (await page.locator('.cm-line').last().boundingBox())!
-    expect(lastLine.y + lastLine.height).toBeLessThanOrEqual(barTop)
+    expect(lastLine.y + lastLine.height).toBeLessThanOrEqual(noteBarBox.y)
 
     // A row scrolled into view the way the list does it lands above the bar, not under it.
     await list.evaluate((el) => {
@@ -352,7 +358,7 @@ test.describe('the trial-ended bar', () => {
     await rows.nth(20).evaluate((el) => el.scrollIntoView({ block: 'nearest' }))
     const reached = (await rows.nth(20).boundingBox())!
     // Within a pixel: the row's bottom sits on the bar's top edge, and the two are rounded apart.
-    expect(reached.y + reached.height).toBeLessThanOrEqual(barTop + 1)
+    expect(reached.y + reached.height).toBeLessThanOrEqual(noteBarBox.y + 1)
   })
 })
 

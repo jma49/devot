@@ -250,6 +250,13 @@ test.describe('the main window', () => {
     await expect(notices(page)).toHaveText([
       'The mirror is paused: its folder cannot be written. It resumes once it can.Dismiss',
     ])
+    const paused = notices(page).first()
+    await expect(paused).toHaveCSS('border-radius', '18px')
+    expect(await paused.evaluate((el) => getComputedStyle(el).backdropFilter)).not.toBe('none')
+    await expect(paused.getByRole('button', { name: 'Dismiss' })).toHaveCSS(
+      'border-radius',
+      '999px',
+    )
     await changeMirrorElsewhere(page, { paused: null })
     await expect(notices(page)).toHaveCount(0)
 

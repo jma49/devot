@@ -187,9 +187,12 @@ test('Glass Edit mode draws a table box with fill only and list-row corners', as
   expect(await edge('.cm-md-table-last', 'border-bottom-right-radius')).toBe('12px')
 })
 
-test('the Write button takes the toolbar hover wash, pressed or not', async ({ page }) => {
+test('the Focus Mode tool button takes the toolbar hover wash, pressed or not', async ({
+  page,
+}) => {
   await openNote(page)
-  const write = page.getByRole('button', { name: 'Write Mode' })
+  await expect(page.locator('.editor-toolbar .write-mode')).toHaveCount(0)
+  const focus = page.getByRole('button', { name: 'Focus Mode' })
   const more = page.getByRole('button', { name: 'More', exact: true })
   const hovered = async (button: Locator) => {
     await button.hover()
@@ -203,9 +206,9 @@ test('the Write button takes the toolbar hover wash, pressed or not', async ({ p
   const expected = await hovered(more)
   expect(expected.shadow).toContain(wash)
   for (const pressed of ['false', 'true']) {
-    await expect(write).toHaveAttribute('aria-pressed', pressed)
-    expect(await hovered(write)).toEqual(expected)
-    await write.click()
+    await expect(focus).toHaveAttribute('aria-pressed', pressed)
+    expect(await hovered(focus)).toEqual(expected)
+    await focus.click()
   }
 })
 

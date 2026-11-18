@@ -237,23 +237,34 @@ export function CommandPalette(props: {
     }
   }
 
-  const footer = (() => {
-    if (!current) return null
-    if (current.kind === 'source') {
-      if (held.shift || held.meta) return null
-      return { keys: 'Enter', label: t('palette.open') }
+  const actionHints: { keys: string; label: string; active?: boolean }[] = (() => {
+    if (!current) return []
+    if (current.kind === 'source') return [{ keys: 'Enter', label: t('palette.open') }]
+    if (!hints) return []
+    const items: { keys: string; label: string; active?: boolean }[] = [
+      { keys: 'Enter', label: hints.primary.label },
+    ]
+    if (hints.shift) {
+      items.push({
+        keys: 'Shift+Enter',
+        label: hints.shift.label,
+        active: held.shift && !held.meta,
+      })
     }
-    if (!hints) return null
-    const action = chosen(hints, held)
-    if (!action) return null
-    const keys = held.meta ? 'Mod+Enter' : held.shift ? 'Shift+Enter' : 'Enter'
-    return { keys, label: action.label }
+    if (hints.meta) {
+      items.push({
+        keys: 'Mod+Enter',
+        label: hints.meta.label,
+        active: held.meta,
+      })
+    }
+    return items
   })()
 
   const scope = state.scope
   const placeholder = scope === null ? t('palette.placeholder') : t(PLACEHOLDER[scope])
   const showHeaders = scope === null
-  const showTabHint = current?.kind === 'source' && !held.shift && !held.meta
+  const showTabHint = current?.kind === 'source'
 
   return (
     <dialog
@@ -401,11 +412,15 @@ export function CommandPalette(props: {
         </p>
       ) : null}
       <div id="palette-keys" className="palette-keys">
-        {footer ? (
-          <span className="palette-hint">
-            <kbd>{shortcutLabel(footer.keys)}</kbd> {footer.label}
+        {actionHints.map((hint) => (
+          <span
+            key={hint.keys}
+            className="palette-hint"
+            data-active={hint.active ? 'true' : undefined}
+          >
+            <kbd>{shortcutLabel(hint.keys)}</kbd> {hint.label}
           </span>
-        ) : null}
+        ))}
         {showTabHint ? (
           <span className="palette-hint">
             <kbd>{shortcutLabel('Tab')}</kbd> {t('palette.openSource')}

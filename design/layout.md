@@ -14,7 +14,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 | Note list | 12 (search field, row highlights, the sort row's right end, right side from the divider) | 24 (sort label, captions, row text)           | `size.list-keyline-outer`, `size.list-keyline-inner`                       |
 | Editor    | 32 from the divider and the window edge                                                  | the same 32 for title, pills, text and blocks | `size.editor-keyline`                                                      |
 
-- **Toolbar:** every control is a 32 pt capsule centred on y = 26, the traffic lights' centre line. Toolbar groups start and end on the column's keylines. The editor toolbar ends with Write Mode (a 32 pt circle, a `.tool`), the Edit, Split and Preview group (three `size.view-segment-width` segments) and More, `space.4` apart, the last on the editor's right keyline.
+- **Toolbar:** every control is a 32 pt capsule centred on y = 26, the traffic lights' centre line. Toolbar groups start and end on the column's keylines. The editor toolbar ends with the Write, Edit, Split and Preview group (four `size.view-segment-width` segments) and More, `space.4` apart, the last on the editor's right keyline.
 - **Note list header:** the toolbar holds only the sidebar toggle and the view's name over its count, left-aligned `space.5` (10) after the toggle on the same y = 26 line.
   The name is cut off with an ellipsis and, with the sidebar hidden, keeps clear of the traffic lights by the toolbar's start padding.
   Actions on the list sit at the end of the search row, not in the toolbar: New Note is a `size.list-action` (32, the search field's height) round tool on `color.fill.track` (hover `color.fill.tool-hover`), `space.3` (6) after the field, its right edge on the list's outer keyline (12).
@@ -34,6 +34,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - One caption style for the sidebar and the list (`.section-header`, `.list-section`): caption size (11), semibold, tertiary text, no icon.
 - The editor footer (`.editor-counts`, words and characters) is caption size (11) in tertiary text, right-aligned and inset `space.10` from the content column's edge, with no rule above it; focus mode does not narrow it to the reading column, so it keeps the window's bottom-right corner.
   A note with a word goal shows its words as `340 / 1,500` in the same style, with the goal in the item's tooltip.
+  Notices (`.notices`) sit in the bottom-right corner as glass popovers (`radius.glass-popover`, `size.glass-popover-inset`) and rise clear of `.editor-counts` and `.history-bar` whenever either is shown.
 - Footnotes on screen start with a 48 pt hairline (`size.footnote-rule`) on the text's edge, with text at footnote size (12) in secondary. Print keeps the full-width rule.
 
 ## Settings footnotes

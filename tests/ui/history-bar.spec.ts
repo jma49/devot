@@ -482,3 +482,33 @@ test('the bar is off until turned on; the palette shows and hides it, named for 
     .click()
   await expect(bar(page)).toHaveCount(0)
 })
+
+test('notices clear both the editor footer and the history bar restore actions', async ({
+  page,
+}) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  const restore = bar(page).getByRole('button', { name: 'Restore Whole Version' })
+  await expect(restore).toBeVisible()
+
+  await page.evaluate(() => {
+    const w = window
+    w.dispatchEvent(
+      new w.CustomEvent('devot:open-url', {
+        detail: { kind: 'note', id: '01890a5d-ac96-774b-bcce-b302099a8057' },
+      }),
+    )
+  })
+  const notice = page.locator('.notices .notice').first()
+  await expect(notice).toBeVisible()
+  await notice.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+
+  const noticeBox = await boxOf(notice)
+  const countsBox = await boxOf(page.locator('.editor-counts'))
+  const barBox = await boxOf(bar(page))
+  const restoreBox = await boxOf(restore)
+  expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(countsBox.y)
+  expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(barBox.y)
+  expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(restoreBox.y)
+})

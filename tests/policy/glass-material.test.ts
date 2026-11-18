@@ -59,6 +59,7 @@ const GLASS = [
   '.link-dialog',
   '.search-help',
   '.plugin-panel',
+  '.notice',
 ]
 
 describe('the glass material', () => {
