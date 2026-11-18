@@ -7,7 +7,7 @@ import {
   systemOffset,
 } from '../activity'
 import { textLength } from '../revisions'
-import { MAX_BODY_IDS } from '../storage'
+import { MAX_BODY_IDS, type ActivityRevision } from '../storage'
 import { BODY } from './body'
 import type { NoteContext } from './context'
 import type { Kernel } from './kernel'

@@ -223,7 +223,7 @@ function withOwnIds(markup: string): string {
   if (root === undefined) return markup
   const own = `${root}_${++imports}`
   const escaped = root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return markup.replace(new RegExp(`(["'#])${escaped}(?![A-Za-z0-9_])`, 'g'), `$1${own}`)
+  return markup.replace(new RegExp(`(["'#])${escaped}(?![A-Za-z0-9])`, 'g'), `$1${own}`)
 }
 
 export function importSvg(markup: string): { svg: SVGSVGElement; css: string } {

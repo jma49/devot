@@ -585,15 +585,17 @@ describe('editing notes', () => {
 
   it("reads one note's tags without listing the library when it sets tags", async () => {
     let listed = 0
-    const s = setup((sqlite) => ({
-      ...sqlite,
-      noteTags: undefined,
-      tagsInBooks: undefined,
-      listNotes: async (page) => {
-        listed += 1
-        return sqlite.listNotes(page)
-      },
-    }))
+    const s = setup((sqlite) => {
+      // As the app's storage, which has no tag queries of its own.
+      const { noteTags: _noteTags, tagsInBooks: _tagsInBooks, ...plain } = sqlite
+      return {
+        ...plain,
+        listNotes: async (page) => {
+          listed += 1
+          return sqlite.listNotes(page)
+        },
+      } as SqliteAdapter
+    })
     const { ids } = await world(s)
     await s.tags.addToNote(ids.shared, 'Work')
     await s.notes.flush()

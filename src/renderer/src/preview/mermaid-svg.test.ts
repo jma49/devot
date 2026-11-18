@@ -26,13 +26,17 @@ describe('a drawing taken from the frame', () => {
     const markup =
       '<svg xmlns="http://www.w3.org/2000/svg" id="devot-mermaid-7">' +
       '<style>#devot-mermaid-7 .node{fill:red}#devot-mermaid-7-pie-gaps{stroke:blue}#devot-mermaid-70 .x{fill:green}</style>' +
-      '<defs><marker id="devot-mermaid-7-arrow"/><g id="devot-mermaid-7-sym"/></defs>' +
+      '<defs><marker id="devot-mermaid-7-arrow"/><g id="devot-mermaid-7-sym"/>' +
+      '<marker id="devot-mermaid-7_flowchart-v2-pointEnd"/></defs>' +
       '<path marker-end="url(#devot-mermaid-7-arrow)"/>' +
       '<textPath href="#devot-mermaid-7-sym"/><g id="devot-mermaid-70"/></svg>'
     const copies = [importSvg(markup), importSvg(markup)]
     const [one, two] = copies.map((c) => c.svg.getAttribute('id')!)
     expect(one).not.toBe(two)
     expect(one).not.toBe('devot-mermaid-7')
+    const idsOf = (svg: Element) => Array.from(svg.querySelectorAll('[id]'), (el) => el.id)
+    const shared = idsOf(copies[0]!.svg).filter((id) => idsOf(copies[1]!.svg).includes(id))
+    expect(shared).toEqual(['devot-mermaid-70'])
     for (const { svg, css } of copies) {
       const own = svg.getAttribute('id')!
       const ids = new Set([own, ...Array.from(svg.querySelectorAll('[id]'), (el) => el.id)])
