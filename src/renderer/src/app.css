@@ -955,10 +955,9 @@ button {
   gap: var(--space-1);
 }
 
-/* At rest a header shows its title, and the chevron of a folded section so its state shows. */
 .section-header:not(:hover, :focus-within)
   .section-tools
-  > :not(.section-toggle[aria-expanded='false']) {
+  > :not(.section-tool-persistent, .section-toggle[aria-expanded='false']) {
   opacity: 0;
 }
 
