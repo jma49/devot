@@ -368,40 +368,6 @@ export async function restorePurchases(): Promise<LicenceSnapshot> {
   return next ?? snapshot
 }
 
-export type RefundRequest = 'requested' | 'cancelled'
-
-/**
- * Request a Refund: Apple's own sheet for the Devot Pro purchase Rust holds. Apple decides later,
- * and a refund arrives as a revoked transaction, by `licence-changed`. Rejects with a code.
- */
-export async function requestRefund(): Promise<RefundRequest> {
-  return (await invoke<unknown>('store_refund')) === 'requested' ? 'requested' : 'cancelled'
-}
-
-/** The Mac licence key of the Devot Pro purchase this Apple account holds. */
-export interface MacKey {
-  readonly key: string
-  readonly id: string
-}
-
-const MAC_KEY = /^devot1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
-
-/**
- * Get a Mac License Key: Rust sends the purchase's signed transaction to the licence Worker and
- * answers with its key, which this device never adds. Rejects with a code.
- */
-export async function getMacKey(): Promise<MacKey> {
-  const value = await invoke<unknown>('store_mac_key')
-  const { key, id } = (typeof value === 'object' && value !== null ? value : {}) as Record<
-    string,
-    unknown
-  >
-  if (typeof key !== 'string' || !MAC_KEY.test(key) || !isLicenceId(id)) {
-    throw new Error('E_APP_STORE_EXCHANGE_FAILED')
-  }
-  return { key, id }
-}
-
 /** The link that offers `key` to Devot on a Mac, as the licence mail writes it (licence/src/mail.ts). */
 export const licenceLink = (key: string): string => `devot://licence?key=${encodeURIComponent(key)}`
 
