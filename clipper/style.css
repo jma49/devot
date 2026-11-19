@@ -1,0 +1,22 @@
+body {
+  background: Canvas;
+  color: CanvasText;
+  font: menu;
+  margin: 16px;
+  min-width: 280px;
+}
+main {
+  max-width: 420px;
+}
+label,
+input,
+select,
+button {
+  display: block;
+  margin-block: 8px;
+}
+input,
+select {
+  box-sizing: border-box;
+  width: 100%;
+}

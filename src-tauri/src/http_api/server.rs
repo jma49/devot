@@ -701,6 +701,25 @@ fn read_until(
     Ok(())
 }
 
+fn extension_origin(origin: &str) -> bool {
+    if let Some(id) = origin.strip_prefix("chrome-extension://") {
+        return id.len() == 32 && id.bytes().all(|c| (b'a'..=b'p').contains(&c));
+    }
+    let id = origin
+        .strip_prefix("moz-extension://")
+        .or_else(|| origin.strip_prefix("safari-web-extension://"));
+    id.is_some_and(|id| {
+        id.len() == 36
+            && id.bytes().enumerate().all(|(i, c)| {
+                if matches!(i, 8 | 13 | 18 | 23) {
+                    c == b'-'
+                } else {
+                    c.is_ascii_hexdigit()
+                }
+            })
+    })
+}
+
 fn host_allowed(host: Option<&str>, port: u16) -> bool {
     host.is_some_and(|host| {
         host == format!("127.0.0.1:{port}")
@@ -829,13 +848,13 @@ fn handle(
     if !host_ok {
         return Err(Refusal::new(403, "E_HTTP_HOST_REFUSED"));
     }
-    // Browsers name the page a request comes from; nothing else needs to.
-    if head.has("origin") {
+    let extension = head.one("origin")?.is_some_and(extension_origin);
+    if head.has("origin") && !extension {
         return Err(Refusal::new(403, "E_HTTP_ORIGIN_REFUSED"));
     }
     // Browsers always send these and no page script can set them; Node's fetch sends only
     // Sec-Fetch-Mode, so that one alone is no sign of a browser.
-    if head.has("sec-fetch-site") || head.has("sec-fetch-dest") {
+    if !extension && (head.has("sec-fetch-site") || head.has("sec-fetch-dest")) {
         return Err(Refusal::new(403, "E_HTTP_BROWSER_REFUSED"));
     }
     let (holder, scope) = gate.admit(head.one("authorization")?)?;

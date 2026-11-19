@@ -82,7 +82,7 @@ Devot needs macOS 15 or later, on Apple Silicon or Intel. Releases named `_aarch
 - Full-text search with a query syntax (notebook, tag, status, pinned, title or body, and exclusions), and saved searches in the sidebar.
 - `[[` note links with a link index; each note lists the notes that link to it.
 - `devot://` links open a note from other apps.
-- Capture links fill Quick Capture from Shortcuts, a launcher or a browser bookmarklet (below).
+- The browser clipper saves articles or selections with images; capture links fill Quick Capture from Shortcuts or a launcher (below).
 - A command palette for every command, and keyboard shortcuts you can change.
 
 **Look**
@@ -147,11 +147,14 @@ Devot needs macOS 15 or later, on Apple Silicon or Intel. Releases named `_aarch
 Every field is optional and percent-encoded, and `url` must be an http or https address.
 
 - **Shortcuts:** an Open URLs action with `devot://capture?text=` followed by the Shortcut Input, URL-encoded.
-- **A web clipper bookmarklet:** save this as a bookmark, then click it on any page to capture its title, the selected text and its address.
-
-  ```text
-  javascript:location.href='devot://capture?title='+encodeURIComponent(document.title)+'&text='+encodeURIComponent(getSelection())+'&url='+encodeURIComponent(location.href)
-  ```
+- **Launchers:** open a capture link with URL-encoded title, text and source URL.
+- **Browser clipper:** run `pnpm install` and `pnpm clipper:build`.
+  In Chrome, enable Developer mode at `chrome://extensions` and Load unpacked **clipper/dist/chrome**.
+  In Firefox, open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on and select **clipper/dist/firefox/manifest.json** (temporary installs last until Firefox closes; persistent installs require signing).
+  Enable Devot's local HTTP API in Settings, create a read/write token, and enable Allow AI Access for the destination notebook.
+  Open the extension's Clipper settings, enter the port (default `27484`) and token, then open an article and choose Clip article or select content and choose Clip selection.
+  The popup lets you edit the title and choose an accessible notebook; images remain remote links.
+  The token is stored locally in the browser profile, not synced.
 
 ## Markdown mirror
 

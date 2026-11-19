@@ -11,6 +11,8 @@ Docs are written one sentence per line, so a change touches only the sentences i
 
 ## Specs
 
+- [Web clipper](specs/web-clipper.md): the Chrome and Firefox extension, extraction, local API access and build outputs.
+
 - [Data model](specs/data-model.md): notes as Yjs documents, metadata merged by HLC, notebooks, tags and names, schema and migrations, the app data folder, saving and quitting, note windows, several main windows, merging, revision history and the activity heatmap.
 - [Markdown dialect](specs/markdown-dialect.md): the syntax Devot reads and writes, note links and the link index, attachments and images, purging, and the editor's commands, formatting, slash menu, code blocks and tables.
 - [Import and export](specs/import-and-export.md): importing Markdown and HTML files and folders; exporting notes and notebooks as Markdown, HTML and PDF, and printing.

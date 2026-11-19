@@ -281,6 +281,12 @@ fn refuses_any_request_a_browser_sends() {
         format!("Origin: http://localhost:{port}"),
         "Origin: null".to_string(),
         "Origin:".to_string(),
+        "Origin: http://evil.example".to_string(),
+        "Origin: chrome-extension://".to_string(),
+        "Origin: chrome-extension://odd_id".to_string(),
+        "Origin: chrome-extension://x.evil.com".to_string(),
+        "Origin: chrome-extension://abcdefghijklmnopabcdefghijklmnop/".to_string(),
+        "Origin: moz-extension://not-a-uuid".to_string(),
     ] {
         for method in ["GET", "OPTIONS"] {
             let response = request(&api, method, "/v1/notebooks", &[&auth, &origin], None);
@@ -301,6 +307,37 @@ fn refuses_any_request_a_browser_sends() {
         );
     }
     assert_eq!(api.core.reached(), 0);
+}
+
+#[test]
+fn accepts_extension_origins_but_still_requires_a_token() {
+    let api = start(Scope::ReadWrite);
+    let auth = bearer(&api);
+    for origin in [
+        "chrome-extension://abcdefghijklmnopabcdefghijklmnop",
+        "moz-extension://12345678-1234-4abc-8def-123456789abc",
+        "safari-web-extension://12345678-1234-4ABC-8DEF-123456789ABC",
+    ] {
+        let origin = format!("Origin: {origin}");
+        let response = request(
+            &api,
+            "GET",
+            "/v1/notebooks",
+            &[
+                &auth,
+                &origin,
+                "Sec-Fetch-Site: none",
+                "Sec-Fetch-Dest: empty",
+            ],
+            None,
+        );
+        assert_eq!(response.status, 200, "{origin}");
+        assert_no_cors(&response);
+        let refused = request(&api, "GET", "/v1/notebooks", &[&origin], None);
+        assert_eq!(refused.status, 401);
+        assert_no_cors(&refused);
+    }
+    assert_eq!(api.core.reached(), 3);
 }
 
 #[test]

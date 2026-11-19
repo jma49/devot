@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Devot</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <h1 data-i18n="options"></h1>
+      <form id="settings">
+        <label for="port" data-i18n="port"></label
+        ><input id="port" type="number" min="1" max="65535" required />
+        <label for="token" data-i18n="token"></label
+        ><input id="token" type="password" autocomplete="off" required />
+        <button id="save" data-i18n="save" disabled></button>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

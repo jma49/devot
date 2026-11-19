@@ -6,6 +6,8 @@ It draws on Apple's [Human Interface Guidelines: Motion](https://developer.apple
 
 ## Should it move?
 
+The browser clipper uses native browser controls and immediate status text, with no custom motion.
+
 Decide in this order; the first match wins.
 
 1. **It follows the pointer or the keyboard directly** (a pane being resized, a drag image, typing): no motion. It is already moving with the hand.
