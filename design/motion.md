@@ -20,6 +20,8 @@ Native menus and other system-drawn things keep the system's motion.
 
 ## Which motion
 
+The Vim Mode switch uses the existing two-state control feedback; switching editor modes and Vim keyboard commands apply immediately without motion because they follow the keyboard.
+
 | What happens                                       | Motion                  | Duration                                         | Curve                                            |
 | -------------------------------------------------- | ----------------------- | ------------------------------------------------ | ------------------------------------------------ |
 | Hover, selection, focus: colour                    | fade                    | `hover`, or `quick` on sidebar and Settings rows | `out`, `quick`                                   |

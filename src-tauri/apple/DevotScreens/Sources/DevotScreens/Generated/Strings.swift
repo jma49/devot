@@ -7126,6 +7126,14 @@ public enum L10n {
     text("editorSettings.lineNumbers", "Line Numbers")
   }
 
+  public static func editorSettingsVimMode() -> String {
+    text("editorSettings.vimMode", "Vim Mode")
+  }
+
+  public static func editorSettingsVimModeHint() -> String {
+    text("editorSettings.vimModeHint", "Use Vim keybindings. Press i to insert text and Escape to return to normal mode.")
+  }
+
   public static func editorSettingsLineNumbersHint() -> String {
     text("editorSettings.lineNumbersHint", "")
   }

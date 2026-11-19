@@ -1,5 +1,11 @@
 # Editor settings
 
+Vim Mode is a device-local boolean preference, off by default, available in Editing settings on desktop and iPhone.
+Its CodeMirror compartment installs Vim keybindings at highest precedence and reconfigures the open view without replacing its document or undo history.
+Vim is built-in rather than a plugin because the plugin sandbox cannot reach the editor's key handling.
+The Vim module loads its keybinding library only when enabled, leaving its compartment empty until loading completes and discarding any answer after the setting is disabled or the view is destroyed.
+Normal mode uses Vim commands, i enters insert mode, and Escape returns to normal mode; disabling Vim Mode restores ordinary typing immediately.
+
 Part of the [architecture overview](../architecture.md).
 
 - **What:** Settings > Editing and Settings > Preview (the Settings window has a 200 px navigation column, `size.settings-nav-width`, under a capsule search field, with a row and a coloured tile per pane: General, Editing, Preview, Appearance, Keyboard, Mirror, Sync, AI, License, Integrations, Plugins and Usage; Back and Forward share one capsule in its toolbar; each pane's sections have a 13 px semibold title above a card, an optional footnote under it, and each setting a label, a grey description and its capsule control on the right).

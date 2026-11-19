@@ -10371,6 +10371,40 @@
         }
       }
     },
+    "editorSettings.vimMode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vim Mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vim 模式"
+          }
+        }
+      }
+    },
+    "editorSettings.vimModeHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Vim keybindings. Press i to insert text and Escape to return to normal mode."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Vim 键位。按 i 插入文本，按 Escape 返回普通模式。"
+          }
+        }
+      }
+    },
     "editorSettings.weight.normal" : {
       "extractionState" : "manual",
       "localizations" : {

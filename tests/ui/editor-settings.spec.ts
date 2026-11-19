@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
+import { mkdir } from 'node:fs/promises'
+import { changeEditorSettingsElsewhere, expect, test, openApp, openSettings } from './fixtures'
 
 // Rust sends `devot://editor-settings-changed` to every window; the page re-sends it as
 // `devot:editor-settings-changed`, which these tests send to stand in for a change from the Settings window.
@@ -405,4 +406,52 @@ test('the line numbers sit on the pane itself unless lines do not wrap', async (
   await expect(page.locator('.cm-gutters')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await changed(page, { lineNumbers: true, lineWrapping: 'off' })
   await expect(page.locator('.cm-gutters')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+test('Vim settings enable normal and insert modes and reconfigure the live editor', async ({
+  page,
+}) => {
+  await openSettings(page, 'Editing')
+  const toggle = page.getByRole('switch', { name: 'Vim Mode', exact: true })
+  await expect(toggle).not.toBeChecked()
+  await toggle.click()
+  await expect(toggle).toBeChecked()
+  await expect.poll(() => page.evaluate(() => window.devotEditorSettings?.['vimMode'])).toBe(true)
+  const shots = process.env['DEVOT_VIM_SHOTS']
+  if (shots) {
+    await mkdir(shots, { recursive: true })
+    await page.screenshot({ path: `${shots}/settings-vim-on.png` })
+  }
+  const stored = await page.evaluate(() => window.devotEditorSettings)
+  await page.addInitScript((settings) => {
+    window.devotEditorSettings = settings
+  }, stored)
+  await openApp(page)
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Title' }).fill('Vim keyboard editing')
+  await expect(page.locator('.cm-scroller')).toHaveClass(/cm-vimMode/)
+  const noteBody = page.getByRole('textbox', { name: 'Note body' })
+  await noteBody.click()
+  await page.keyboard.press('i')
+  await page.keyboard.type('First line to delete\nKeep this line\nVim commands edit this note')
+  await page.keyboard.press('Escape')
+  await page.keyboard.type('gg')
+  await expect(page.locator('.cm-fat-cursor').first()).toBeVisible()
+  if (shots) await page.screenshot({ path: `${shots}/vim-normal-mode.png` })
+  await page.keyboard.press('x')
+  await expect(noteBody).toContainText('irst line to delete')
+  await page.keyboard.type('dd')
+  await expect(noteBody).not.toContainText('line to delete')
+  await page.keyboard.press('i')
+  await page.keyboard.type('Edited with Vim: ')
+  await page.keyboard.press('Escape')
+  await expect(noteBody).toContainText('Edited with Vim: Keep this line')
+  if (shots) await page.screenshot({ path: `${shots}/vim-after-edit.png` })
+  await page.locator('.cm-editor').evaluate((el) => {
+    el.dataset['vimProbe'] = 'same'
+  })
+  await changeEditorSettingsElsewhere(page, { vimMode: false })
+  await expect(page.locator('.cm-fat-cursor')).toHaveCount(0)
+  await page.keyboard.type('xi')
+  await expect(noteBody).toContainText('xi')
+  await expect(page.locator('.cm-editor')).toHaveAttribute('data-vim-probe', 'same')
 })

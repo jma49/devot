@@ -53,6 +53,7 @@ enum SettingsIndex {
     Entry(pane: "appearance", label: "appearanceSettings.animations", only: nil),
     Entry(pane: "editing", label: "editorSettings.toolbar", only: nil),
     Entry(pane: "editing", label: "editorSettings.lineNumbers", only: nil),
+    Entry(pane: "editing", label: "editorSettings.vimMode", only: nil),
     Entry(pane: "editing", label: "editorSettings.highlightActiveLine", only: nil),
     Entry(pane: "editing", label: "editorSettings.lineWrapping", only: nil),
     Entry(pane: "editing", label: "editorSettings.inlineImages", only: nil),
