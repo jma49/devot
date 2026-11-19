@@ -292,9 +292,10 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
           try {
             for (const file of files) {
               try {
-                const note = await host.convertImport(action.plugin, action.id, file)
-                await c.capture(note.title, note.markdown, w.importBook())
-                made += 1
+                const converted = await host.convertImport(action.plugin, action.id, file)
+                const report = await c.importConverted(file.name, converted, w.importBook())
+                made += report.notes
+                for (const problem of report.problems) fail(action.plugin, new Error(problem.code))
               } catch (error) {
                 fail(action.plugin, error)
                 // A plugin that hangs or stopped would cost every remaining file its own wait.

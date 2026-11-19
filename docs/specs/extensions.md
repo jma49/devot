@@ -9,7 +9,7 @@ Part of the [architecture overview](../architecture.md).
 - **Third-party plugins** (ADR 0005, `PLUGIN_API_VERSION` 1) contribute commands, menu items, keymaps, preview renderers and import and export formats, each with a permission the user approves on install.
   No permission reaches the network, other notes, storage or Tauri.
   - **Package:** a folder with `devot-plugin.json` (ID, name, version, API version, optional `minAppVersion`, main script, permissions, contributions), or a `.zip` of one, at most 256 files and 20 MiB.
-  - **Versions** (ADR 0020): API versions only add, and Devot runs every one from `PLUGIN_API_OLDEST` to `PLUGIN_API_VERSION` (1 and 2 now); a permission records the version that added it.
+  - **Versions** (ADR 0020): API versions only add, and Devot runs every one from `PLUGIN_API_OLDEST` to `PLUGIN_API_VERSION` (1 through 3 now); a permission records the version that added it.
     A package for a newer API (`E_PLUGIN_API_TOO_NEW`) or a newer Devot than this one (`minAppVersion`, `E_PLUGIN_APP_TOO_OLD`) is refused before the approval sheet, and Settings says it needs a newer Devot; listing leaves out a plugin the app became too old for.
     Rust reads it whole and checks it (`src-tauri/src/plugins/`), the page checks the manifest again (`src/core/plugins/manifest.ts`); both run `tests/fixtures/plugins/manifests.json`.
   - **Install:** Settings > Plugins > Install from Folder or Install from Archive picks a package in a native panel; the sheet lists what it asks for, and Install approves it all (Cancel, which has the keyboard, installs nothing).
@@ -38,6 +38,7 @@ Part of the [architecture overview](../architecture.md).
     The plugin's own files carry `Access-Control-Allow-Origin: *`, so its opaque-origin page can load them as modules and fonts, which are cross-origin requests that WebKit otherwise refuses; Devot's pages and scripts on the scheme do not.
     The main window's policy only gains `devot-plugin:` in `frame-src`.
   - **Protocol** (`src/core/plugins/protocol.ts`, version 1): the main window hands each frame a `MessagePort` and binds it to that plugin (`src/renderer/src/plugins/host.ts`).
+    The newest plugin API is 3; API 1 and 2 plugins still run, but API 3 import result fields and manifest limits require a manifest declaring API 3.
     Plugins call `note.read`, `note.replace` (the text read and the new text; refused when the note changed since), `ui.show` and `ui.hide`, and from API version 2 `storage.get`, `storage.set`, `storage.delete`, `storage.keys`, `settings.get`, `notes.list`, `notes.search`, `notes.get`, `notebooks.list`, `note.selection` and `note.insert`; the host calls `command.run`, `preview.render`, `import.convert` and `export.convert`, and sends the events `ui.hidden`, `settings.changed` and `note.opened`.
     Every call is checked for its shape, a known method, its permission and, for the note and panel calls, that one of the plugin's commands is running or its panel is open; refusals and failures are answered and logged as codes with the plugin's ID.
     At most 64 calls wait per plugin; a plugin answers within 5 s (a drawing), 30 s (a conversion) or 60 s (a command).
@@ -52,5 +53,15 @@ Part of the [architecture overview](../architecture.md).
   - **UI:** a plugin shows its frame only from one of its commands (`ui.show`), in a sheet titled with its name, with Close; the frames stay in that sheet while it is closed, so showing one never reloads it.
     Closing tells the plugin (`ui.hidden`).
   - **Plugin kit** (ADR 0024): `plugin-kit/` holds the API's types and the `devot-plugin` command (`new`, `validate`, `pack`), bundled from the app's manifest rules (`pnpm plugin-kit:build`); its tests in `tests/plugin-kit/` keep it in step with the runtime and the package limits.
+  - **Rich imports** (API 3): `import.convert` returns one converted note or an array of up to 5,000; an array imports into a notebook named after the file, while a single note keeps the previous destination behaviour.
+    A converted note has a title and exactly one of `markdown` or `html`, optional tag names, nonnegative integer millisecond `createdAt` and `updatedAt`, attachments `{name, mime, data}` with base64 bytes, and diagnostic codes in `diagnostics`.
+    The host validates the complete answer before writing, caps each body or HTML input at 32 MiB, each note's tags and attachments at 1,000, and the answer's text and base64 at 140 MiB together.
+    Attachments use zero-based URLs `attachment:0`, `attachment:1` in images; the host decodes and checks their bytes, stores supported raster images up to 10 MiB with the note, and rewrites image URLs to the stored IDs.
+    Unsupported or invalid attachments are skipped and listed by code in the import report, never logged with content; other plugin diagnostics must also be codes.
+    HTML goes through the host's sanitized `htmlToMarkdown`, never directly into the note or the app's DOM.
+    Tags are applied through the tag service and explicit dates through `setDates` after the body and tags, clamping Updated to Created when needed and using the current time for a missing date.
+    The host reuses the core import pipeline's per-note progress, cancellation boundaries, error reporting and cleanup.
+    An import format may declare `maxFileBytes` from 1 byte through 100 MiB in its API 3 manifest; Rust enforces it, defaulting to 5 MiB for formats without one.
+    The first-party `.enex` export files converter lives in `plugins/enex/`, not in the core's import kinds; `pnpm plugin-enex:build` bundles its XML parser and conversion logic into its sandbox script.
   - **Tests:** `tests/ui/plugins-sandbox.spec.ts` (a hostile plugin cannot reach Tauri, the main window, another plugin, the network or a note without permission), `tests/ui/plugins.spec.ts` (each contribution point), `tests/ui/plugin-settings.spec.ts`, `tests/ui-csp/csp.spec.ts` (a plugin under the production policy), `src/renderer/src/plugins/host.test.ts`, `src/core/plugins/protocol.test.ts`, `tests/core/plugin-*.test.ts`, and Rust's `plugins` tests (packages, install, serving, menus).
     The UI tests serve the same pages from `src-tauri/plugin-frame/` (`tests/ui/plugins.ts`).

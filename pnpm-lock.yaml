@@ -210,9 +210,6 @@ importers:
       '@lezer/markdown':
         specifier: 1.8.1
         version: 1.8.1(patch_hash=c08c70ccee75a4629d2f3b19ff3bea0b1015cac47b8c3c1349f6ca6520eb1d48)
-      '@noble/hashes':
-        specifier: 1.8.0
-        version: 1.8.0
       '@plantuml/core':
         specifier: 1.2026.9
         version: 1.2026.9
@@ -222,9 +219,6 @@ importers:
       '@tauri-apps/api':
         specifier: 2.12.2
         version: 2.12.2
-      character-entities:
-        specifier: 2.0.2
-        version: 2.0.2
       comlink:
         specifier: 4.4.2
         version: 4.4.2
@@ -300,9 +294,6 @@ importers:
       remark-rehype:
         specifier: 11.1.2
         version: 11.1.2
-      saxes:
-        specifier: 6.0.0
-        version: 6.0.0
       temml:
         specifier: 0.14.0
         version: 0.14.0
@@ -319,6 +310,9 @@ importers:
         specifier: 13.6.33
         version: 13.6.33
     devDependencies:
+      '@noble/hashes':
+        specifier: 1.8.0
+        version: 1.8.0
       '@playwright/test':
         specifier: 1.64.0
         version: 1.64.0
@@ -352,6 +346,9 @@ importers:
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3
+      character-entities:
+        specifier: 2.0.2
+        version: 2.0.2
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -373,6 +370,9 @@ importers:
       oxlint:
         specifier: 1.87.0
         version: 1.87.0
+      saxes:
+        specifier: 6.0.0
+        version: 6.0.0
       typescript:
         specifier: 7.0.2
         version: 7.0.2

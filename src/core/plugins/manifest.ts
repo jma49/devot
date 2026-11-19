@@ -4,7 +4,8 @@ import { isRecord } from '../isRecord'
 import { trimWhitespace } from '../text'
 
 /** The newest plugin API this Devot speaks; a later one is additive, so a plugin written for an older one still runs. */
-export const PLUGIN_API_VERSION = 2
+export const PLUGIN_API_VERSION = 3
+export const MAX_IMPORT_FILE_BYTES = 100 * 1024 * 1024
 /** The oldest plugin API still run (ADR 0020: one is kept at least 12 months after the next ships). */
 export const PLUGIN_API_OLDEST = 1
 
@@ -87,7 +88,7 @@ export interface PluginContributions {
   slashMenu: { command: string }[]
   keymaps: { command: string; key: string }[]
   previewRenderers: PluginRenderer[]
-  importFormats: { id: string; title: string; extensions: string[] }[]
+  importFormats: { id: string; title: string; extensions: string[]; maxFileBytes?: number }[]
   exportFormats: { id: string; title: string; extension: string }[]
   settings: PluginSetting[]
   themes: PluginTheme[]
@@ -399,7 +400,22 @@ function contributions(
     }
     const out = list(extensions, LIMITS.extensions).map(extension)
     unique(out, (x) => x)
-    return { id: contributionId(e['id']), title: title(e['title']), extensions: out }
+    const max = e['maxFileBytes']
+    if (
+      max !== undefined &&
+      (api < 3 ||
+        typeof max !== 'number' ||
+        !Number.isSafeInteger(max) ||
+        max < 1 ||
+        max > MAX_IMPORT_FILE_BYTES)
+    )
+      return fail('E_PLUGIN_CONTRIBUTION_INVALID')
+    return {
+      id: contributionId(e['id']),
+      title: title(e['title']),
+      extensions: out,
+      ...(max === undefined ? {} : { maxFileBytes: max as number }),
+    }
   })
   unique(importFormats, (x) => x.id)
   const exportFormats = list(c['exportFormats'], LIMITS.others).map((raw) => {

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { runInNewContext } from 'node:vm'
 import { afterEach, expect, it } from 'vitest'
 import {
   createBookService,
@@ -7,18 +8,37 @@ import {
   createIdGenerator,
   createNoteService,
   createTagService,
-  importMarkdown,
   type ImportOptions,
-  type ImportScan,
 } from '../../src/core'
+import { importConverted } from '../../src/core/plugins/import'
+import { parseManifest } from '../../src/core/plugins/manifest'
+import { checkResult, type Converted } from '../../src/core/plugins/protocol'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
 const opened: SqliteAdapter[] = []
 afterEach(() => opened.splice(0).forEach((db) => db.close()))
 const sample = readFileSync(new URL('../fixtures/sample.enex', import.meta.url), 'utf8')
+let convert: (file: { name: string; text: string }) => Converted[]
+runInNewContext(readFileSync('plugins/enex/main.js', 'utf8'), {
+  devot: {
+    importer: {
+      handle: (id: string, handler: typeof convert) => {
+        if (id !== 'enex') throw new Error('E_TEST_IMPORT_FORMAT')
+        convert = handler
+      },
+    },
+  },
+  Uint8Array,
+  TextEncoder,
+  atob,
+  Date,
+})
 
-async function run(text: string, extra: Partial<ImportOptions> = {}) {
+async function run(
+  text: string,
+  extra: Partial<ImportOptions> & { failTags?: boolean; converted?: Converted | Converted[] } = {},
+) {
   const storage = openSqliteAdapter(join(tempDir('enex-'), 'db.sqlite'))
   opened.push(storage)
   const clock = createClock('test')
@@ -27,28 +47,19 @@ async function run(text: string, extra: Partial<ImportOptions> = {}) {
   const books = createBookService({ storage, clock, newId })
   const tags = createTagService({ storage, clock, newId })
   const destination = await books.create('Destination', null)
-  const scan: ImportScan = {
-    id: 1,
-    name: 'Archive',
-    kind: 'enex',
-    files: [{ path: 'Archive.enex', bytes: text.length }],
-    images: [],
-    skipped: [],
-  }
-  const report = await importMarkdown({
+  if (extra.failTags)
+    storage.db.exec(
+      "CREATE TRIGGER refuse_import_tags BEFORE INSERT ON note_tags BEGIN SELECT RAISE(ABORT, 'E_TEST_TAG'); END",
+    )
+  const report = await importConverted({
     notes,
     books,
     tags,
     newId,
     files: storage,
     destination,
-    scan,
-    source: {
-      read: async () => text,
-      attach: async () => {
-        throw new Error('E_TEST_UNEXPECTED')
-      },
-    },
+    name: 'Archive.enex',
+    converted: extra.converted ?? convert({ name: 'Archive.enex', text }),
     ...extra,
   })
   return { storage, notes, books, tags, report, destination }
@@ -61,7 +72,7 @@ it('imports ENML, dates, tags and resources into a notebook under the destinatio
   expect(report.books).toBe(1)
   expect(report.attachments).toBe(1)
   expect(report.problems.map((p) => p.code)).toEqual(
-    expect.arrayContaining(['E_IMPORT_ENEX_RESOURCE_UNSUPPORTED', 'E_IMPORT_ENEX_ENCRYPTED']),
+    expect.arrayContaining(['E_IMPORT_ATTACHMENT_UNSUPPORTED', 'E_IMPORT_ENCRYPTED']),
   )
   const book = (await books.list()).find((b) => b.name === 'Archive')!
   expect(book.parentId).toBe(destination)
@@ -71,7 +82,7 @@ it('imports ENML, dates, tags and resources into a notebook under the destinatio
   expect(first.bodyMd).toContain('**bold**')
   expect(first.bodyMd).toContain('[link](https://example.com)')
   expect(first.bodyMd).toContain('- [x] Done')
-  expect(first.bodyMd).toContain('- [ ] Next')
+  expect(first.bodyMd).toMatch(/[-*] \[ \] Next/)
   expect(first.bodyMd).not.toContain('secret')
   expect(first.bodyMd).not.toContain('# Research')
   expect(first.bodyMd).toMatch(/!\[.*\]\(devot:\/\/file\//)
@@ -100,11 +111,9 @@ it('imports ENML, dates, tags and resources into a notebook under the destinatio
 })
 
 it('reports malformed XML as a file error without partial notes or notebooks', async () => {
-  const { report, books } = await run(sample.replace('</en-export>', '<note>'))
-  expect(report.notes).toBe(0)
-  expect(report.books).toBe(0)
-  expect(report.problems).toEqual([{ path: 'Archive.enex', code: 'E_IMPORT_ENEX_XML' }])
-  expect((await books.list()).map((b) => b.name)).toEqual(['Destination'])
+  await expect(run(sample.replace('</en-export>', '<note>'))).rejects.toThrow('E_IMPORT_ENEX_XML')
+  expect((await opened[0]!.listBooks()).map((b) => b.name)).toEqual(['Destination'])
+  expect(opened[0]!.db.prepare('SELECT count(*) AS n FROM notes').get()).toEqual({ n: 0 })
 })
 
 it('imports no notes from an empty export or a stopped import', async () => {
@@ -132,7 +141,7 @@ it('reports bad resources without losing the note and falls back from invalid da
   )
   expect(report.notes).toBe(3)
   expect(report.attachments).toBe(0)
-  expect(report.problems.map((p) => p.code)).toContain('E_IMPORT_ENEX_RESOURCE_INVALID')
+  expect(report.problems.map((p) => p.code)).toContain('E_IMPORT_ATTACHMENT_INVALID')
   const first = await storage.getNote(Object.values(report.noteIds)[0]!)
   expect(first?.createdAt).toBeGreaterThanOrEqual(before)
   expect(first?.updatedAt).toBe(first?.createdAt)
@@ -140,10 +149,10 @@ it('reports bad resources without losing the note and falls back from invalid da
 
 it('cleans up a failed note and its stored attachments and removes its unused notebook', async () => {
   const text = sample.slice(0, sample.indexOf('  <note><title>Undated')) + '</en-export>'
-  const { report, storage } = await run(text.replace('<tag>work</tag>', '<tag>bad&#10;tag</tag>'))
+  const { report, storage } = await run(text, { failTags: true })
   expect(report.notes).toBe(0)
   expect(report.books).toBe(0)
-  expect(report.problems.map((p) => p.code)).toContain('E_TAG_NAME_INVALID')
+  expect(report.problems.map((p) => p.code)).toContain('E_TEST_TAG')
   expect(storage.db.prepare('SELECT count(*) AS n FROM files').get()).toEqual({ n: 0 })
   expect(
     storage.db.prepare('SELECT count(*) AS n FROM notes WHERE purged_at IS NULL').get(),
@@ -171,40 +180,34 @@ it('stops between notes and reports note progress', async () => {
 })
 
 it('does not resolve external entities or expose their contents', async () => {
-  const { report } = await run(
-    '<!DOCTYPE en-export [<!ENTITY external SYSTEM "file:///etc/passwd">]><en-export><note><title>&external;</title></note></en-export>',
-  )
-  expect(report.notes).toBe(0)
-  expect(report.problems).toEqual([{ path: 'Archive.enex', code: 'E_IMPORT_ENEX_XML' }])
+  await expect(
+    run(
+      '<!DOCTYPE en-export [<!ENTITY external SYSTEM "file:///etc/passwd">]><en-export><note><title>&external;</title></note></en-export>',
+    ),
+  ).rejects.toThrow('E_IMPORT_ENEX_XML')
 })
 
-it('imports multiple exports with distinct notebooks, including identical filenames', async () => {
-  const { report, books } = await run(sample, {
-    scan: {
-      id: 1,
-      name: 'Exports',
-      kind: 'enex',
-      files: [
-        { path: 'one/Archive.enex', bytes: 1 },
-        { path: 'two/Archive.enex', bytes: 1 },
-      ],
-      images: [],
-      skipped: [],
-    },
+it('ships a valid API 3 plugin and converts the fixture independently of the host', () => {
+  const manifest = parseManifest(JSON.parse(readFileSync('plugins/enex/devot-plugin.json', 'utf8')))
+  expect(manifest.apiVersion).toBe(3)
+  expect(manifest.permissions).toEqual(['import'])
+  expect(manifest.contributes.importFormats[0]?.maxFileBytes).toBe(100 * 1024 * 1024)
+  const notes = convert({ name: 'Archive.enex', text: sample })
+  expect(checkResult('import.convert', notes, 3)).toHaveLength(3)
+  expect(notes[0]).toMatchObject({
+    title: 'Research & plans',
+    tags: ['work', 'research & ideas'],
+    createdAt: Date.UTC(2023, 10, 5, 12),
+    updatedAt: Date.UTC(2023, 10, 6, 13),
   })
-  expect(report.notes).toBe(6)
-  expect(report.books).toBe(2)
-  expect((await books.list()).map((b) => b.name).sort()).toEqual([
-    'Archive',
-    'Archive (2)',
-    'Destination',
-  ])
+  expect(notes[0]?.html).toContain('attachment:0')
+  expect(notes[0]?.attachments?.map((a) => a.name)).toEqual(['board.png', 'paper.pdf'])
 })
 
-it('keeps valid notes when another note has malformed ENML', async () => {
-  const { report } = await run(sample.replace('<en-note>Last</en-note>', '<en-note>Last'))
-  expect(report.notes).toBe(2)
-  expect(report.problems).toContainEqual({ path: 'Archive/3.md', code: 'E_IMPORT_ENEX_XML' })
+it('refuses malformed ENML before writing any notes', async () => {
+  await expect(run(sample.replace('<en-note>Last</en-note>', '<en-note>Last'))).rejects.toThrow(
+    'E_IMPORT_ENEX_XML',
+  )
 })
 
 it('converts tasks already in lists and XHTML entities without rewriting ordinary marker-like text', async () => {
@@ -228,4 +231,35 @@ it('refuses images above the existing attachment size limit', async () => {
   expect(report.notes).toBe(1)
   expect(report.attachments).toBe(0)
   expect(report.problems).toEqual([{ path: 'Archive/1.md', code: 'E_FILE_SIZE_INVALID' }])
+})
+
+it('keeps legacy single-note Markdown imports in the destination without a notebook', async () => {
+  const { report, storage, destination } = await run('', {
+    converted: { title: 'Legacy', markdown: '**Body**' },
+  })
+  expect(report.notes).toBe(1)
+  expect(report.books).toBe(0)
+  const note = await storage.getNote(Object.values(report.noteIds)[0]!)
+  expect(note).toMatchObject({ title: 'Legacy', bodyMd: '**Body**', bookId: destination })
+})
+
+it('applies generic metadata and Markdown attachment URLs, clamping dates in the host', async () => {
+  const attachment = convert({ name: 'a.enex', text: sample })[0]!.attachments![0]!
+  const { report, storage, tags } = await run('', {
+    converted: [
+      {
+        title: 'Generic',
+        markdown: '![image](attachment:0)',
+        tags: ['host'],
+        createdAt: 100,
+        updatedAt: 0,
+        attachments: [attachment],
+      },
+    ],
+  })
+  const note = await storage.getNote(Object.values(report.noteIds)[0]!)
+  expect(note).toMatchObject({ createdAt: 100, updatedAt: 100 })
+  expect(note?.bodyMd).toContain('devot://file/')
+  expect(note?.bodyMd).not.toContain('attachment:')
+  expect((await tags.list()).map((t) => t.name)).toEqual(['host'])
 })

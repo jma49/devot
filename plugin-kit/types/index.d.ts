@@ -1,4 +1,4 @@
-// The `devot` global a plugin's script runs with (ADR 0005), for plugin API version 2.
+// The `devot` global a plugin's script runs with (ADR 0005), for plugin API version 3.
 // Every promise rejects with an Error whose `code` names the refusal, such as E_PLUGIN_PERMISSION_DENIED.
 
 export type JsonValue =
@@ -13,6 +13,16 @@ export interface DevotNote {
   title: string
   markdown: string
 }
+
+/** API 3: attachment URLs are `attachment:0`, `attachment:1`, in array order. */
+export type DevotConvertedNote = {
+  title: string
+  tags?: string[]
+  createdAt?: number
+  updatedAt?: number
+  attachments?: { name: string; mime: string; data: string }[]
+  diagnostics?: string[]
+} & ({ markdown: string; html?: never } | { html: string; markdown?: never })
 
 export interface DevotSelection {
   /** UTF-16 offsets in the note's Markdown; equal at the caret. */
@@ -107,7 +117,15 @@ export interface DevotApi {
     edit(id: string, edit: (source: string) => string | null | Promise<string | null>): void
   }
   readonly importer: {
-    handle(id: string, convert: (file: DevotFile) => DevotNote | Promise<DevotNote>): void
+    handle(
+      id: string,
+      convert: (
+        file: DevotFile,
+      ) =>
+        | DevotConvertedNote
+        | DevotConvertedNote[]
+        | Promise<DevotConvertedNote | DevotConvertedNote[]>,
+    ): void
   }
   readonly exporter: {
     handle(id: string, convert: (note: DevotNote) => string | Promise<string>): void
@@ -208,7 +226,7 @@ export interface DevotManifest {
       /** Only with `output: 'svg'`: the drawing offers Edit, which calls `devot.preview.edit`. */
       editable?: boolean
     }[]
-    importFormats?: { id: string; title: string; extensions: string[] }[]
+    importFormats?: { id: string; title: string; extensions: string[]; maxFileBytes?: number }[]
     exportFormats?: { id: string; title: string; extension: string }[]
     settings?: DevotSetting[]
     /** Needs `themes` (API 2): colors drawn over the theme chosen for that appearance in Settings > Appearance. */

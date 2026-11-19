@@ -456,6 +456,28 @@ const coreApi = {
       }),
     )
   },
+  importConverted: (
+    name: string,
+    converted: import('../../core/plugins').Converted | import('../../core/plugins').Converted[],
+    destination: string | null,
+  ) => {
+    const ids = newId
+    if (!ids) throw new Error('E_CORE_NOT_READY')
+    const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
+    return imports.run((stopped) =>
+      import('../../core/plugins/import').then(({ importConverted }) =>
+        importConverted({
+          ...parts,
+          newId: ids,
+          files: mirrorStorage,
+          name,
+          converted,
+          destination,
+          stopped,
+        }),
+      ),
+    )
+  },
   holdImport: () => imports.hold(),
   resumeImport: () => imports.resume(),
   stopImport: () => imports.stop(),

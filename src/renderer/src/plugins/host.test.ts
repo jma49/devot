@@ -328,6 +328,20 @@ describe('the plugin host', () => {
     expect(await host.convertExport('com.a', 'f', { title: 'T', markdown: 'x' })).toBe('* x')
   })
 
+  it('gates multi-note import answers on the calling manifest API version', async () => {
+    const notes = [{ title: 'First', html: '<p>Body</p>', tags: ['tag'] }]
+    const fake = fakePlugin(() => notes)
+    const { host } = setup({ 'com.a': fake })
+    const installed = plugin('com.a', ['import'])
+    host.load([installed])
+    await expect(host.convertImport('com.a', 'f', { name: 'x', text: '' })).rejects.toThrow(
+      'E_PLUGIN_RESULT_INVALID',
+    )
+    installed.manifest.apiVersion = 3
+    host.load([installed])
+    expect(await host.convertImport('com.a', 'f', { name: 'x', text: '' })).toEqual(notes)
+  })
+
   it('keeps a plugin active while it edits a block, and ends the edit when its panel closes', async () => {
     let answer: ((value: unknown) => void) | undefined
     const fake = fakePlugin((method) =>

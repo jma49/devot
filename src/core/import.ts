@@ -32,9 +32,8 @@ import {
   type FrontMatterMeta,
 } from './frontMatter'
 import { htmlToMarkdown, type HtmlImage } from './htmlImport'
-import { expandEnex } from './importEnex'
 import { bearTags } from './importBear'
-import { importLayout } from './importLayout'
+import { importLayout, type ImportLayout } from './importLayout'
 import { folderOf, isHtmlFile } from './importTree'
 import { MAX_BOOK_NAME_CHARS, type BookDraft, type BookService } from './books'
 import { errorCode } from './errors'
@@ -71,7 +70,7 @@ export {
   type FrontMatterMeta,
 } from './frontMatter'
 
-export type ImportKind = 'folder' | 'folders' | 'files' | 'enex'
+export type ImportKind = 'folder' | 'folders' | 'files'
 
 export interface ImportItem {
   path: string
@@ -119,6 +118,7 @@ export interface ImportReport {
 }
 
 export interface ImportOptions {
+  layout?: ImportLayout
   notes: NoteService
   books: BookService
   tags: TagService
@@ -662,7 +662,6 @@ function bookName(name: string): string {
 }
 
 export async function importMarkdown(options: ImportOptions): Promise<ImportReport> {
-  if (options.scan.kind === 'enex') options = await expandEnex(options)
   const { notes, books, tags, newId, scan, source, onProgress, stopped, files: store } = options
   const prepare = options.prepare ?? preparerHere(newId)
   const destination = options.destination ?? null
@@ -673,7 +672,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   const drafts: BookDraft[] = []
   const draftPaths: string[] = []
   const draftIndex = new Map<string, number>()
-  const layout = importLayout(scan.kind, scan.files)
+  const layout = options.layout ?? importLayout(scan.kind, scan.files)
   const plan = (path: string) => {
     if (path === '' || draftIndex.has(path)) return
     const parent = folderOf(path)
