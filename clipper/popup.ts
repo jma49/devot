@@ -6,6 +6,10 @@ import { extension as chrome } from './platform'
 
 localize()
 const title = field<HTMLInputElement>('title')
+let titleEdited = false
+title.addEventListener('input', () => {
+  titleEdited = true
+})
 const notebook = field<HTMLSelectElement>('notebook')
 const buttons = [...document.querySelectorAll<HTMLButtonElement>('button[data-mode]')]
 let busy = false
@@ -44,7 +48,7 @@ async function clip(mode: Mode): Promise<void> {
     await send({
       kind: 'save',
       note: {
-        title: title.value.trim() || result.title,
+        title: (titleEdited && title.value.trim()) || result.title,
         markdown: result.markdown,
         notebook: notebook.value,
       },
