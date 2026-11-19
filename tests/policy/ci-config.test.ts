@@ -148,6 +148,56 @@ it('every cargo step of the CI rust job is a step of pnpm rust:check', () => {
   expect(scripts['rust:check']).toContain('cargo deny check')
 })
 
+it('the Apple compile checks restore complete locked crates before compiling offline', () => {
+  const ios = job('ios-check')
+  const steps = (
+    parse(workflow) as {
+      jobs: Record<
+        string,
+        {
+          steps: {
+            id?: string
+            uses?: string
+            if?: string
+            run?: string
+            with?: Record<string, string>
+          }[]
+        }
+      >
+    }
+  ).jobs['ios-check']!.steps
+  const restore = steps.findIndex((step) => step.id === 'cargo-deps')
+  const fetch = steps.findIndex((step) => step.run === 'cargo fetch --locked')
+  const save = steps.findIndex((step) => step.uses?.startsWith('actions/cache/save@'))
+  const compile = steps.findIndex((step) => step.run?.startsWith('cargo clippy'))
+  expect(restore).toBeGreaterThan(
+    steps.findIndex((step) => step.uses?.startsWith('Swatinem/rust-cache@')),
+  )
+  expect(steps[restore]).toMatchObject({
+    uses: 'actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9',
+    with: {
+      path: '~/.cargo/registry/index/\n~/.cargo/registry/cache/\n',
+      key: "cargo-deps-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}",
+    },
+  })
+  expect(fetch).toBeGreaterThan(restore)
+  expect(save).toBeGreaterThan(fetch)
+  expect(compile).toBeGreaterThan(save)
+  expect(steps[fetch]!.if).toBe("steps.cargo-deps.outputs.cache-hit != 'true'")
+  expect(steps[save]).toMatchObject({
+    if: "steps.cargo-deps.outputs.cache-hit != 'true'",
+    with: {
+      path: steps[restore]!.with!.path,
+      key: '${{ steps.cargo-deps.outputs.cache-primary-key }}',
+    },
+  })
+  expect(commands(ios).filter((command) => /^cargo (clippy|test|build)\b/.test(command))).toEqual([
+    'cargo clippy --all-targets --frozen -- -D warnings',
+    'cargo clippy --lib --target aarch64-apple-ios-sim --frozen -- -D warnings',
+    'cargo test --lib input_accessory --frozen',
+  ])
+})
+
 it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () => {
   // No other job builds the Mac's or the phone's `cfg` branches, and they need Apple's SDK.
   const ios = job('ios-check')
@@ -163,15 +213,15 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
   for (const name of startTogether) {
     expect({ name, needs: parsed[name]!.needs }).toEqual({ name, needs: 'changes' })
   }
-  expect(commands(ios)).toContain('cargo clippy --all-targets -- -D warnings')
+  expect(commands(ios)).toContain('cargo clippy --all-targets --frozen -- -D warnings')
   expect(ios).toContain("needs.changes.outputs.rust != 'false'")
   expect(ios).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(commands(ios)).toContain('rustup toolchain install')
   expect(read('src-tauri/rust-toolchain.toml')).toMatch(/^targets = \[.*"aarch64-apple-ios-sim"/m)
   expect(commands(ios)).toContain(
-    'cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings',
+    'cargo clippy --lib --target aarch64-apple-ios-sim --frozen -- -D warnings',
   )
-  expect(commands(ios)).toContain('cargo test --lib input_accessory')
+  expect(commands(ios)).toContain('cargo test --lib input_accessory --frozen')
   expect(commands(job('iphone-build')).some((c) => /^cargo (clippy|test)/.test(c))).toBe(false)
   const gate = job('rust')
   expect(parsed['rust']!.needs).toEqual([
@@ -379,6 +429,12 @@ it('hands the app and the test runner to the shards as one small, short-lived ar
   expect(script).toContain('xcodebuild test-without-building -xctestrun "$xctestrun"')
   // A one-off stall reruns the test once; a test that fails twice still fails the job.
   expect(script).toContain('-retry-tests-on-failure -test-iterations 2')
+  // XCTest's accessibility audit stops after a fixed 15 s unless test timeouts are on; then it has the
+  // test's allowance, and both runs, the retry too, give it that (#985).
+  expect(script).toContain(
+    'timeouts="-test-timeouts-enabled YES -default-test-execution-time-allowance 600"',
+  )
+  expect(script.match(/xcodebuild test-without-building .* \$timeouts \\$/gm)).toHaveLength(2)
   expect(read('scripts/ci/devot-screens-tests.sh')).toContain(
     '-retry-tests-on-failure -test-iterations 2',
   )

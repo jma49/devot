@@ -1,4 +1,4 @@
-// Next edit suggestions: the text near the caret goes to the active provider and what comes back is shown as ghost text.
+// Next edit suggestions: the text near the caret goes to the suggestion model, or the active provider, and what comes back is shown as ghost text.
 // Nothing here writes a note; the editor inserts a suggestion only when the user accepts it.
 
 import {
@@ -67,6 +67,7 @@ export function suggestInput(context: SuggestContext): AiGenerateInput {
     ],
     maxTokens: SUGGEST_MAX_TOKENS,
     timeoutSecs: SUGGEST_TIMEOUT_SECS,
+    purpose: 'suggest',
   }
 }
 
@@ -95,18 +96,25 @@ export function cleanSuggestion(
   return text.length > SUGGEST_MAX_CHARS ? text.slice(0, SUGGEST_MAX_CHARS) : text
 }
 
-/** Whether the active provider can answer: a stored key and model, or a ready local CLI. */
+/**
+ * Whether the provider that answers can: a stored key and model, or a ready local CLI.
+ * For a suggestion that is the suggestion model's provider when Settings names one, else the active one.
+ */
 export function providerReady(
   settings: AiSettingsView,
+  purpose: 'main' | 'suggest' = 'main',
 ): 'ready' | 'E_AI_KEY_MISSING' | 'E_AI_MODEL_MISSING' | 'E_AI_CLI_MISSING' | 'E_AI_AUTH_FAILED' {
-  if (isCliProvider(settings.active)) {
-    const cli = settings.cli?.[settings.active]
+  const suggest = purpose === 'suggest' ? settings.suggestModel : null
+  const id = suggest?.provider ?? settings.active
+  if (isCliProvider(id)) {
+    const cli = settings.cli?.[id]
     if (!cli || cli.state === 'notInstalled') return 'E_AI_CLI_MISSING'
     return cli.state === 'ready' ? 'ready' : 'E_AI_AUTH_FAILED'
   }
-  const active = settings[settings.active]
-  if (active.key !== 'set') return 'E_AI_KEY_MISSING'
-  return active.model === '' ? 'E_AI_MODEL_MISSING' : 'ready'
+  const provider = settings[id]
+  if (provider.key !== 'set') return 'E_AI_KEY_MISSING'
+  const model = suggest?.model || provider.model
+  return model === '' ? 'E_AI_MODEL_MISSING' : 'ready'
 }
 
 export interface SuggesterDeps {
@@ -118,6 +126,11 @@ export interface SuggesterDeps {
   settings(): Promise<AiSettingsView>
   /** Without AI in the licence a pause asks nothing, and a key press says a licence is needed. */
   entitlements?: Entitlements
+  /**
+   * Hears why a pause asked nothing although Suggest When I Pause is on (a code, never note text), and `undefined`
+   * once a pause's request is sent, so a log can say each new reason once.
+   */
+  pauseRefused?(code: string | undefined): void
 }
 
 export interface Suggester {
@@ -125,7 +138,7 @@ export interface Suggester {
    * Resolves with the text to show, or null when there is none, when the request was left unsent or when a later
    * `suggest` or `cancel` made it stale. Rejects with a code when the user asked (`key`) and AI is not available:
    * E_LICENCE_REQUIRED, E_AI_ACCESS_DENIED, E_AI_KEY_MISSING, E_AI_MODEL_MISSING, E_AI_CONTEXT_EMPTY or the provider's. An `idle` request
-   * that is not allowed resolves with null, silently.
+   * resolves with null when the setting is off, and when it is not allowed, with the code to `pauseRefused`.
    */
   suggest(noteId: string, context: SuggestContext, trigger: SuggestTrigger): Promise<string | null>
   /** Makes the answer to a request in flight stale; a new request waits for it to finish before it is sent. */
@@ -145,10 +158,14 @@ export function createSuggester(deps: SuggesterDeps): Suggester {
       const stale = () => mine !== generation
       const refuse = (code: string): null => {
         if (trigger === 'key') throw new Error(code)
+        deps.pauseRefused?.(code)
         return null
       }
       await previous
       if (stale()) return null
+      // A pause with the setting off is no request at all, so it is never a refusal.
+      let settings = trigger === 'idle' ? await deps.settings() : undefined
+      if (stale() || (settings && !settings.suggestOnIdle)) return null
       if (deps.entitlements && !deps.entitlements.has('aiProviders')) {
         return refuse('E_LICENCE_REQUIRED')
       }
@@ -157,10 +174,9 @@ export function createSuggester(deps: SuggesterDeps): Suggester {
       if (bookId === null || !allowedBookIds(await deps.listBooks()).has(bookId)) {
         return stale() ? null : refuse('E_AI_ACCESS_DENIED')
       }
-      const settings = await deps.settings()
+      settings ??= await deps.settings()
       if (stale()) return null
-      if (trigger === 'idle' && !settings.suggestOnIdle) return null
-      const ready = providerReady(settings)
+      const ready = providerReady(settings, 'suggest')
       if (ready !== 'ready') return refuse(ready)
       let input: AiGenerateInput
       try {
@@ -168,6 +184,7 @@ export function createSuggester(deps: SuggesterDeps): Suggester {
       } catch (e) {
         return refuse(e instanceof Error ? e.message : 'E_AI_CONTEXT_EMPTY')
       }
+      if (trigger === 'idle') deps.pauseRefused?.(undefined)
       const sending = deps.generator.generate(input, {
         by: 'user',
         books: [bookId],

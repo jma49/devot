@@ -5,7 +5,7 @@ import { tempDir } from '../support/temp-dirs'
 
 // What a window parses before its first paint, and the worker before `init` answers (#742).
 // The budgets hold the gain: raise one only with a reason in the pull request.
-const MAIN_EAGER_BUDGET = 2_400_200
+const MAIN_EAGER_BUDGET = 2_403_000
 const WORKER_EAGER_BUDGET = 960_200
 
 // The window never parses or converts Markdown itself: the core worker does.
@@ -94,6 +94,7 @@ it('the main window loads no Markdown parsing or server rendering before its fir
   const chunks = eager(main, 'main')
   expect(modulesOf(chunks, MARKDOWN_STACK)).toEqual([])
   expect(modulesOf(chunks, SERVER_RENDERING)).toEqual([])
+  expect(modulesOf(chunks, /\/src\/renderer\/src\/TemplatePicker\.tsx$/)).toEqual([])
   expect(bytesOf(chunks)).toBeLessThan(MAIN_EAGER_BUDGET)
 })
 

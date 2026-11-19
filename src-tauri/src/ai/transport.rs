@@ -29,17 +29,14 @@ fn agent(timeout: Duration) -> ureq::Agent {
         .into()
 }
 
-/// Call it from a blocking task, never the main thread.
-pub fn post(request: &WireRequest, timeout: Duration) -> Result<Answer, &'static str> {
-    let agent = agent(timeout);
-    let mut call = agent.post(&request.url).header("User-Agent", USER_AGENT);
-    for (name, value) in &request.headers {
-        call = call.header(*name, value.as_str());
-    }
-    let mut response = call.send(&request.body[..]).map_err(|e| match e {
+fn send_failed(e: ureq::Error) -> &'static str {
+    match e {
         ureq::Error::Timeout(_) => "E_AI_TIMEOUT",
         _ => "E_AI_NETWORK_FAILED",
-    })?;
+    }
+}
+
+fn read_answer(mut response: ureq::http::Response<ureq::Body>) -> Result<Answer, &'static str> {
     let status = response.status().as_u16();
     let limit = u64::try_from(MAX_RESPONSE_BYTES)
         .unwrap_or(u64::MAX)
@@ -50,17 +47,31 @@ pub fn post(request: &WireRequest, timeout: Duration) -> Result<Answer, &'static
         .as_reader()
         .take(limit)
         .read_to_end(&mut body)
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::TimedOut {
-                "E_AI_TIMEOUT"
-            } else {
-                "E_AI_NETWORK_FAILED"
-            }
-        })?;
+        .map_err(|e| read_failed(&e))?;
     if body.len() > MAX_RESPONSE_BYTES {
         return Err("E_AI_RESPONSE_TOO_LARGE");
     }
     Ok(Answer { status, body })
+}
+
+/// Call it from a blocking task, never the main thread.
+pub fn post(request: &WireRequest, timeout: Duration) -> Result<Answer, &'static str> {
+    let agent = agent(timeout);
+    let mut call = agent.post(&request.url).header("User-Agent", USER_AGENT);
+    for (name, value) in &request.headers {
+        call = call.header(*name, value.as_str());
+    }
+    read_answer(call.send(&request.body[..]).map_err(send_failed)?)
+}
+
+/// As `post`, for a request with no body. Call it from a blocking task, never the main thread.
+pub fn get(request: &WireRequest, timeout: Duration) -> Result<Answer, &'static str> {
+    let agent = agent(timeout);
+    let mut call = agent.get(&request.url).header("User-Agent", USER_AGENT);
+    for (name, value) in &request.headers {
+        call = call.header(*name, value.as_str());
+    }
+    read_answer(call.call().map_err(send_failed)?)
 }
 
 /// One server-sent event line is never longer than this; a longer one is a broken stream.
@@ -102,10 +113,7 @@ pub fn post_stream(
     for (name, value) in &request.headers {
         call = call.header(*name, value.as_str());
     }
-    let mut response = call.send(&request.body[..]).map_err(|e| match e {
-        ureq::Error::Timeout(_) => "E_AI_TIMEOUT",
-        _ => "E_AI_NETWORK_FAILED",
-    })?;
+    let mut response = call.send(&request.body[..]).map_err(send_failed)?;
     let status = response.status().as_u16();
     let limit = u64::try_from(MAX_RESPONSE_BYTES)
         .unwrap_or(u64::MAX)

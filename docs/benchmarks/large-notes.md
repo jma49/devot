@@ -20,9 +20,91 @@ Consequently this is not yet an end-to-end encrypted sync benchmark.
 
 ## Machine
 
-The committed `large-notes.json` is the schema v32 run on a Linux cloud VM: Intel Xeon, 8 cores, 31 GB, Linux 6.8 (AWS), Node 24.22, load average 0.33 at the start (its `machine` field).
+The committed `large-notes.json` is one run on a Linux cloud VM: Intel Xeon, 8 cores, 31 GB, Linux 6.8 (AWS), Node 24.22, load average 0.53 at the start (its `machine` field).
 Numbers are not comparable across machines; compare runs only on the same quiet machine.
-Its `commit` ends in `+dirty` because the migration was measured before committing it.
+Its `commit` ends in `+dirty` because it was taken before the benchmark itself was committed.
+
+## Top bottleneck
+
+The unprofiled full run in `large-notes.json` makes deferred search catch-up the slowest measured path at both 1 MB and 5 MB.
+To reproduce the separate profile run:
+
+```sh
+DEVOT_LARGE_PROFILE=<dir>/large-search node scripts/bench/large-notes.ts --quick --out <dir>/large-notes-profile.json
+```
+
+This writes one inspector CPU profile around each 5 MB catch-up search, ten profiles in quick mode.
+The profile files are `<dir>/large-search-{0,1,2,3,4}-{edit-save,paste-save}.cpuprofile`.
+Aggregate time-delta-weighted samples total 4,097 ms: `catchUpSearchIndex` / `sqliteTransaction` account for 86.77% inclusive, `catchUpNote` for 60.02% inclusive, and the entire `searchNotes` call for 88.88%.
+Inspector `post` overhead accounts for 10.64%; excluding it puts the catch-up transaction at approximately 97.1% of the remaining sampled time.
+SQLite native frames have no JavaScript function name; their parent stacks identify the transaction and statement calls, not SQLite's internal tokenization functions.
+Do not interpret these samples as a breakdown of SQLite tokenization versus B-tree work.
+
+Reachability is explicit: the benchmark calls `notes.search('planning')` immediately after applying an editor update and flushing it.
+`src/core/notes/search.ts` passes the parsed query to `storage.searchNotes`; the adapter's `search` sees an indexable term and calls `catchUpSearchIndex`.
+`tests/support/sqlite-adapter.ts` runs `CATCH_UP_SQL` in an immediate transaction, deleting the old complete title/body from the trigram FTS index, inserting the new complete title/body and clearing its stale marker.
+The production Rust store has matching `CATCH_UP_SQL` in `src-tauri/src/storage/search.rs`.
+As a disconfirming check against excerpt generation or query execution being the main cost, the identical warm query is measured after catch-up: its full-run p95 is 3.266 ms at 1 MB and 11.141 ms at 5 MB, versus 101.474 ms and 509.688 ms for catch-up.
+The profile agrees: `bodyOf` and `foldText` each account for only about 0.75% self time.
+
+A separate test-store experiment timed each `CATCH_UP_SQL` statement inside the immediate transaction over twenty runs after two warmups, changing one line per run in the same `sampleNote` fixtures.
+Save/setup and correctness assertions were outside the timed transaction.
+Values below are milliseconds, p50 / p95.
+
+| Operation                                           |   Current, 1 MB |     Current, 5 MB |
+| --------------------------------------------------- | --------------: | ----------------: |
+| FTS5 `'delete'` of the old text from `search_stale` | 20.953 / 21.340 | 108.859 / 118.098 |
+| Insert the new title/body into FTS5                 | 26.585 / 28.375 | 153.345 / 165.816 |
+| Delete the `search_stale` row                       |   0.060 / 0.077 |     1.852 / 6.491 |
+| Transaction time outside the three statements       |  7.913 / 30.477 |   40.599 / 84.990 |
+| Complete catch-up transaction                       | 56.208 / 77.204 | 318.985 / 365.081 |
+
+Deleting the old entry accounts for approximately 44% of the sum of median statement times at 1 MB and 41% at 5 MB, not half the complete transaction time.
+The installed SQLite source corroborates re-tokenization: `sqlite3Fts5StorageDelete` calls `fts5StorageDeleteFromIndex`, whose indexed-column loop invokes `sqlite3Fts5Tokenize` with `FTS5_TOKENIZE_DOCUMENT`.
+Transaction time outside statements includes begin/commit, deferred FTS work and disk synchronization; those components were not measured separately, and independent percentiles do not add up.
+
+## Candidate fix (not in this PR)
+
+A throwaway migration on temporary test-store databases replaced the external-content trigram table with `content='', contentless_delete=1`, changed catch-up to `DELETE FROM notes_fts WHERE rowid=@rowid` followed by the existing insert and stale-marker deletion, and made stale-update triggers keep only the rowid.
+The prototype is not committed; no store change or product migration is included in this PR.
+The prototype's twenty-run measurements use the same fixtures and timing method as the statement breakdown above.
+
+| Operation                                     | Contentless-delete, 1 MB p50 / p95 | Contentless-delete, 5 MB p50 / p95 |
+| --------------------------------------------- | ---------------------------------: | ---------------------------------: |
+| Delete the old FTS entry by rowid             |                      0.021 / 0.025 |                      0.028 / 0.047 |
+| Insert the new title/body                     |                    26.092 / 26.554 |                  131.194 / 141.914 |
+| Delete the `search_stale` row                 |                      0.007 / 0.008 |                      0.009 / 0.013 |
+| Transaction time outside the three statements |                    19.446 / 21.166 |                  118.076 / 124.437 |
+
+| Complete catch-up | Current p50 / p95 | Prototype p50 / p95 | Reduction p50 / p95 |
+| ----------------- | ----------------: | ------------------: | ------------------: |
+| 1 MB              |   56.208 / 77.204 |     45.516 / 47.492 |       19.0% / 38.5% |
+| 5 MB              | 318.985 / 365.081 |   250.657 / 258.021 |       21.4% / 29.3% |
+
+The old-text deletion becomes negligible, but increased time completing the transaction prevents an equivalent reduction in total catch-up time.
+For 10,000 short one-line `libraryBody` notes, after FTS optimization, vacuum and WAL truncation, FTS shadow-table size was 4,255,744 bytes with external content and 4,284,416 bytes with contentless-delete: an increase of 28,672 bytes (0.67%), entirely in `notes_fts_docsize`.
+This clean-index measurement excludes accumulated deletion tombstones and pending stale-body snapshots.
+
+The installed better-sqlite3 13.0.3 reports SQLite 3.53.4 at runtime.
+`src-tauri/Cargo.toml:42` enables rusqlite's `bundled`, `backup`, `functions` and `hooks` features; the lockfile pins rusqlite 0.41.1 and libsqlite3-sys 0.39.1, whose bundled SQLite is 3.54.1.
+An isolated Rust probe compiled with those exact versions and features reported SQLite 3.54.1 and successfully created, inserted into and deleted from a contentless-delete trigram table; the full Tauri app was not built for this check.
+Both stores support `contentless_delete=1`, introduced in SQLite 3.43.
+
+No production search or excerpt query reads title/body values from `notes_fts`, and no FTS `snippet()` or `highlight()` usage was found.
+The Rust searches use matching rowids at `src-tauri/src/storage/search.rs:376,395,444` and BM25 at `:492`; excerpts read `notes.body_md` at `:669`.
+The adapter mirrors those rowid/BM25 queries at `tests/support/sqlite-adapter.ts:103,113,422,452` and reads bodies from `notes` at `:803,1103,1208`.
+Attachment handover uses matching FTS rowids but reads the body from `notes` (`src-tauri/src/storage/purge.rs:17–20`, adapter `:514–518`).
+The prototype checked new/removed term visibility and excerpts after every catch-up, and the top five BM25 rowids and scores matched exactly between schemas for the 10,000-note library query.
+
+A real migration is cross-store work: replace both stores' catch-up deletion SQL and the stale-text/deletion triggers from `src-tauri/migrations/0029_search_catch_up.sql`, populate the replacement index from `notes`, and preserve freshness across upgrades and concurrent writers.
+The repair path at `src-tauri/src/storage/search.rs:584` also needs replacement: its FTS `'rebuild'` command was verified to fail with `'rebuild' may not be used with a contentless fts5 table`.
+Purge and FTS `secure-delete` need dedicated cross-store correctness and forensic-removal validation before adopting deletion tombstones; accepting the configuration command alone does not establish equivalent guarantees.
+These migration and security implications make contentless-delete a follow-up, not part of this benchmark PR.
+
+Another candidate is to process the existing stale-index queue after idle saves, coalescing while typing and retaining synchronous catch-up when a query needs freshness.
+If caught up before a query, the observed warm timings suggest an upper bound of 97–98% less foreground search latency, but this moves work rather than reducing indexing CPU and is not an implemented or measured fix.
+
+The unscaled sync-push budget also fails at the unchanged base on a slower Linux container; set `DEVOT_BUDGET_SCALE` for that environment.
 
 ## Contentless-delete before and after
 
@@ -126,85 +208,3 @@ Tests verify vocabulary, MATCH and database bytes through the deferred sync path
 Blank-draft compaction is retained for correctness: zero current token counts do not prove that old deletion tombstones are absent.
 With sync batching and unconditional compaction, the same benchmark measured never-typed draft discard at **1.010 / 2.355 ms p50 / p95**, versus **0.783 / 2.218 ms** on reviewed commit `7cb8d072`.
 These optimized-seed timings are not a bound on full-index compaction in a fragmented library.
-
-## Top bottleneck
-
-The original external-content full run made deferred search catch-up the slowest measured path at both 1 MB and 5 MB.
-To reproduce the separate profile run:
-
-```sh
-DEVOT_LARGE_PROFILE=<dir>/large-search node scripts/bench/large-notes.ts --quick --out <dir>/large-notes-profile.json
-```
-
-This writes one inspector CPU profile around each 5 MB catch-up search, ten profiles in quick mode.
-The profile files are `<dir>/large-search-{0,1,2,3,4}-{edit-save,paste-save}.cpuprofile`.
-Aggregate time-delta-weighted samples total 4,097 ms: `catchUpSearchIndex` / `sqliteTransaction` account for 86.77% inclusive, `catchUpNote` for 60.02% inclusive, and the entire `searchNotes` call for 88.88%.
-Inspector `post` overhead accounts for 10.64%; excluding it puts the catch-up transaction at approximately 97.1% of the remaining sampled time.
-SQLite native frames have no JavaScript function name; their parent stacks identify the transaction and statement calls, not SQLite's internal tokenization functions.
-Do not interpret these samples as a breakdown of SQLite tokenization versus B-tree work.
-
-Reachability is explicit: the benchmark calls `notes.search('planning')` immediately after applying an editor update and flushing it.
-`src/core/notes/search.ts` passes the parsed query to `storage.searchNotes`; the adapter's `search` sees an indexable term and calls `catchUpSearchIndex`.
-Before schema v32, `tests/support/sqlite-adapter.ts` ran `CATCH_UP_SQL` in an immediate transaction, deleting the old complete title/body from the trigram FTS index, inserting the new complete title/body and clearing its stale marker.
-The production Rust store has matching `CATCH_UP_SQL` in `src-tauri/src/storage/search.rs`.
-As a disconfirming check against excerpt generation or query execution being the main cost, the identical warm query is measured after catch-up: its full-run p95 is 3.266 ms at 1 MB and 11.141 ms at 5 MB, versus 101.474 ms and 509.688 ms for catch-up.
-The profile agrees: `bodyOf` and `foldText` each account for only about 0.75% self time.
-
-A separate test-store experiment timed each `CATCH_UP_SQL` statement inside the immediate transaction over twenty runs after two warmups, changing one line per run in the same `sampleNote` fixtures.
-Save/setup and correctness assertions were outside the timed transaction.
-Values below are milliseconds, p50 / p95.
-
-| Operation                                           |   Current, 1 MB |     Current, 5 MB |
-| --------------------------------------------------- | --------------: | ----------------: |
-| FTS5 `'delete'` of the old text from `search_stale` | 20.953 / 21.340 | 108.859 / 118.098 |
-| Insert the new title/body into FTS5                 | 26.585 / 28.375 | 153.345 / 165.816 |
-| Delete the `search_stale` row                       |   0.060 / 0.077 |     1.852 / 6.491 |
-| Transaction time outside the three statements       |  7.913 / 30.477 |   40.599 / 84.990 |
-| Complete catch-up transaction                       | 56.208 / 77.204 | 318.985 / 365.081 |
-
-Deleting the old entry accounts for approximately 44% of the sum of median statement times at 1 MB and 41% at 5 MB, not half the complete transaction time.
-The installed SQLite source corroborates re-tokenization: `sqlite3Fts5StorageDelete` calls `fts5StorageDeleteFromIndex`, whose indexed-column loop invokes `sqlite3Fts5Tokenize` with `FTS5_TOKENIZE_DOCUMENT`.
-Transaction time outside statements includes begin/commit, deferred FTS work and disk synchronization; those components were not measured separately, and independent percentiles do not add up.
-
-## Original candidate prototype
-
-A throwaway migration on temporary test-store databases replaced the external-content trigram table with `content='', contentless_delete=1`, changed catch-up to `DELETE FROM notes_fts WHERE rowid=@rowid` followed by the existing insert and stale-marker deletion, and made stale-update triggers keep only the rowid.
-The throwaway prototype is not committed; schema v32 implements the migration separately from the benchmark-only PR #1048.
-The prototype's twenty-run measurements use the same fixtures and timing method as the statement breakdown above.
-
-| Operation                                     | Contentless-delete, 1 MB p50 / p95 | Contentless-delete, 5 MB p50 / p95 |
-| --------------------------------------------- | ---------------------------------: | ---------------------------------: |
-| Delete the old FTS entry by rowid             |                      0.021 / 0.025 |                      0.028 / 0.047 |
-| Insert the new title/body                     |                    26.092 / 26.554 |                  131.194 / 141.914 |
-| Delete the `search_stale` row                 |                      0.007 / 0.008 |                      0.009 / 0.013 |
-| Transaction time outside the three statements |                    19.446 / 21.166 |                  118.076 / 124.437 |
-
-| Complete catch-up | Current p50 / p95 | Prototype p50 / p95 | Reduction p50 / p95 |
-| ----------------- | ----------------: | ------------------: | ------------------: |
-| 1 MB              |   56.208 / 77.204 |     45.516 / 47.492 |       19.0% / 38.5% |
-| 5 MB              | 318.985 / 365.081 |   250.657 / 258.021 |       21.4% / 29.3% |
-
-The old-text deletion becomes negligible, but increased time completing the transaction prevents an equivalent reduction in total catch-up time.
-For 10,000 short one-line `libraryBody` notes, after FTS optimization, vacuum and WAL truncation, FTS shadow-table size was 4,255,744 bytes with external content and 4,284,416 bytes with contentless-delete: an increase of 28,672 bytes (0.67%), entirely in `notes_fts_docsize`.
-This clean-index measurement excludes accumulated deletion tombstones and pending stale-body snapshots.
-
-The installed better-sqlite3 13.0.3 reports SQLite 3.53.4 at runtime.
-`src-tauri/Cargo.toml:42` enables rusqlite's `bundled`, `backup`, `functions` and `hooks` features; the lockfile pins rusqlite 0.41.1 and libsqlite3-sys 0.39.1, whose bundled SQLite is 3.54.1.
-An isolated Rust probe compiled with those exact versions and features reported SQLite 3.54.1 and successfully created, inserted into and deleted from a contentless-delete trigram table; the full Tauri app was not built for this check.
-Both stores support `contentless_delete=1`, introduced in SQLite 3.43.
-
-No production search or excerpt query reads title/body values from `notes_fts`, and no FTS `snippet()` or `highlight()` usage was found.
-The Rust searches use matching rowids at `src-tauri/src/storage/search.rs:376,395,444` and BM25 at `:492`; excerpts read `notes.body_md` at `:669`.
-The adapter mirrors those rowid/BM25 queries at `tests/support/sqlite-adapter.ts:103,113,422,452` and reads bodies from `notes` at `:803,1103,1208`.
-Attachment handover uses matching FTS rowids but reads the body from `notes` (`src-tauri/src/storage/purge.rs:17–20`, adapter `:514–518`).
-The prototype checked new/removed term visibility and excerpts after every catch-up, and the top five BM25 rowids and scores matched exactly between schemas for the 10,000-note library query.
-
-A real migration is cross-store work: replace both stores' catch-up deletion SQL and the stale-text/deletion triggers from `src-tauri/migrations/0029_search_catch_up.sql`, populate the replacement index from `notes`, and preserve freshness across upgrades and concurrent writers.
-The repair path at `src-tauri/src/storage/search.rs:584` also needs replacement: its FTS `'rebuild'` command was verified to fail with `'rebuild' may not be used with a contentless fts5 table`.
-Purge and FTS `secure-delete` need dedicated cross-store correctness and forensic-removal validation before adopting deletion tombstones; accepting the configuration command alone does not establish equivalent guarantees.
-These migration and security implications kept contentless-delete out of the benchmark-only PR #1048; schema v32 handles them in its stacked follow-up.
-
-Another candidate is to process the existing stale-index queue after idle saves, coalescing while typing and retaining synchronous catch-up when a query needs freshness.
-If caught up before a query, the observed warm timings suggest an upper bound of 97–98% less foreground search latency, but this moves work rather than reducing indexing CPU and is not an implemented or measured fix.
-
-The unscaled sync-push budget also fails at the unchanged base on a slower Linux container; set `DEVOT_BUDGET_SCALE` for that environment.

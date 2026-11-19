@@ -3,6 +3,7 @@
 use serde::Deserialize;
 use serde_json::json;
 
+use super::catalog::{CatalogModel, parse_anthropic};
 use super::provider::{
     Completion, Partial, Prepared, Provider, Role, Stop, Usage, WireRequest, join_url,
 };
@@ -80,7 +81,14 @@ impl Provider for Anthropic {
         Some("claude-sonnet-5-5")
     }
 
-    fn build(&self, endpoint: &str, model: &str, key: &str, request: &Prepared) -> WireRequest {
+    fn build(
+        &self,
+        endpoint: &str,
+        model: &str,
+        key: &str,
+        reasoning: Option<&str>,
+        request: &Prepared,
+    ) -> WireRequest {
         let messages: Vec<_> = request
             .messages
             .iter()
@@ -103,6 +111,9 @@ impl Provider for Anthropic {
         if request.stream {
             body["stream"] = json!(true);
         }
+        if let Some(effort) = reasoning {
+            body["output_config"] = json!({ "effort": effort });
+        }
         WireRequest {
             url: join_url(endpoint, "v1/messages"),
             headers: vec![
@@ -112,6 +123,21 @@ impl Provider for Anthropic {
             ],
             body: body.to_string().into_bytes(),
         }
+    }
+
+    fn models_request(&self, endpoint: &str, key: &str) -> WireRequest {
+        WireRequest {
+            url: join_url(endpoint, "v1/models?limit=1000"),
+            headers: vec![
+                ("x-api-key", key.to_string()),
+                ("anthropic-version", VERSION.to_string()),
+            ],
+            body: Vec::new(),
+        }
+    }
+
+    fn parse_models(&self, body: &[u8]) -> Result<Vec<CatalogModel>, &'static str> {
+        parse_anthropic(body)
     }
 
     fn parse(&self, body: &[u8]) -> Result<Completion, &'static str> {

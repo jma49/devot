@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-19T11:36:30.888Z",
-  "commit": "bf53e90da754f22b78a8b0aaff1e755d65c705a7+dirty",
+  "generatedAt": "2026-11-19T09:41:24.030Z",
+  "commit": "d8f015accf175e4cc823d98e692df5c69d34a42a+dirty",
   "quick": false,
   "machine": {
     "cpu": "Intel(R) Xeon(R) Processor",
@@ -8,7 +8,7 @@
     "memoryGB": 31.3,
     "os": "6.8.0-1060-aws x64",
     "node": "v24.22.3",
-    "loadAverageAtStart": 0.33
+    "loadAverageAtStart": 0.53
   },
   "limitations": [
     "Core/storage wall time only: no editor rendering or Rust IPC scheduling.",
@@ -24,51 +24,51 @@
       "paths": {
         "open-cold": {
           "n": 30,
-          "p50": 0.387,
-          "p95": 0.729,
-          "max": 0.996
+          "p50": 0.384,
+          "p95": 0.704,
+          "max": 0.723
         },
         "edit-save": {
           "n": 30,
-          "p50": 2.846,
-          "p95": 5.832,
-          "max": 5.994
+          "p50": 2.784,
+          "p95": 7.454,
+          "max": 9.371
         },
         "search-catchup": {
           "n": 60,
-          "p50": 6.934,
-          "p95": 10.137,
-          "max": 10.53
+          "p50": 10.049,
+          "p95": 13.331,
+          "max": 15.835
         },
         "search-warm": {
           "n": 60,
-          "p50": 0.468,
-          "p95": 0.672,
-          "max": 2.274
+          "p50": 0.494,
+          "p95": 0.678,
+          "max": 2.672
         },
         "sync-push-client": {
           "n": 60,
-          "p50": 4.958,
-          "p95": 6.305,
-          "max": 7.905
+          "p50": 4.338,
+          "p95": 7.004,
+          "max": 18.2
         },
         "paste-save": {
           "n": 30,
-          "p50": 2.607,
-          "p95": 4.934,
-          "max": 5.253
+          "p50": 2.638,
+          "p95": 5.906,
+          "max": 8.745
         },
         "relay-upload-local": {
           "n": 30,
-          "p50": 2.656,
-          "p95": 4.336,
-          "max": 4.921
+          "p50": 2.36,
+          "p95": 5.589,
+          "max": 9.957
         },
         "relay-download-local": {
           "n": 30,
-          "p50": 1.319,
-          "p95": 2.212,
-          "max": 2.283
+          "p50": 2.179,
+          "p95": 2.885,
+          "max": 3.001
         }
       }
     },
@@ -78,51 +78,51 @@
       "paths": {
         "open-cold": {
           "n": 30,
-          "p50": 2.381,
-          "p95": 3.763,
-          "max": 4.554
+          "p50": 2.644,
+          "p95": 3.587,
+          "max": 4.263
         },
         "edit-save": {
           "n": 30,
-          "p50": 20.703,
-          "p95": 28.022,
-          "max": 29.646
+          "p50": 24.183,
+          "p95": 40.913,
+          "max": 43.351
         },
         "search-catchup": {
           "n": 60,
-          "p50": 50.15,
-          "p95": 54.153,
-          "max": 61.297
+          "p50": 77.979,
+          "p95": 101.474,
+          "max": 123.389
         },
         "search-warm": {
           "n": 60,
-          "p50": 1.863,
-          "p95": 2.117,
-          "max": 4.726
+          "p50": 1.995,
+          "p95": 3.266,
+          "max": 6.071
         },
         "sync-push-client": {
           "n": 60,
-          "p50": 22.317,
-          "p95": 27.845,
-          "max": 30.244
+          "p50": 22.378,
+          "p95": 28.901,
+          "max": 39.386
         },
         "paste-save": {
           "n": 30,
-          "p50": 17.384,
-          "p95": 23.375,
-          "max": 24.261
+          "p50": 21.371,
+          "p95": 28.288,
+          "max": 32.648
         },
         "relay-upload-local": {
           "n": 30,
-          "p50": 6.861,
-          "p95": 16.933,
-          "max": 37.781
+          "p50": 7.268,
+          "p95": 15.897,
+          "max": 17.94
         },
         "relay-download-local": {
           "n": 30,
-          "p50": 7.118,
-          "p95": 11.156,
-          "max": 11.299
+          "p50": 6.646,
+          "p95": 10.793,
+          "max": 10.958
         }
       }
     },
@@ -132,53 +132,239 @@
       "paths": {
         "open-cold": {
           "n": 30,
-          "p50": 16.081,
-          "p95": 19.82,
-          "max": 20.828
+          "p50": 16.872,
+          "p95": 20.689,
+          "max": 20.752
         },
         "edit-save": {
           "n": 30,
-          "p50": 100.722,
-          "p95": 111.638,
-          "max": 113.633
+          "p50": 103.747,
+          "p95": 120.332,
+          "max": 129.984
         },
         "search-catchup": {
           "n": 60,
-          "p50": 284.428,
-          "p95": 309.602,
-          "max": 317.406
+          "p50": 426.749,
+          "p95": 509.688,
+          "max": 788.555
         },
         "search-warm": {
           "n": 60,
-          "p50": 8.378,
-          "p95": 9.474,
-          "max": 16.375
+          "p50": 8.712,
+          "p95": 11.141,
+          "max": 21.798
         },
         "sync-push-client": {
           "n": 60,
-          "p50": 101.712,
-          "p95": 119.497,
-          "max": 175.736
+          "p50": 101.776,
+          "p95": 128.699,
+          "max": 184.097
         },
         "paste-save": {
           "n": 30,
-          "p50": 109.359,
-          "p95": 122.191,
-          "max": 135.725
+          "p50": 120.697,
+          "p95": 130.452,
+          "max": 156.666
         },
         "relay-upload-local": {
           "n": 30,
-          "p50": 25.723,
-          "p95": 44.235,
-          "max": 51.751
+          "p50": 25.86,
+          "p95": 44.733,
+          "max": 57.207
         },
         "relay-download-local": {
           "n": 30,
-          "p50": 31.089,
-          "p95": 38.33,
-          "max": 39.457
+          "p50": 33.811,
+          "p95": 48.858,
+          "max": 71.756
         }
       }
     }
-  ]
+  ],
+  "contentlessDelete": {
+    "after": {
+      "generatedAt": "2026-11-19T11:36:30.888Z",
+      "commit": "bf53e90da754f22b78a8b0aaff1e755d65c705a7+dirty",
+      "quick": false,
+      "machine": {
+        "cpu": "Intel(R) Xeon(R) Processor",
+        "cores": 8,
+        "memoryGB": 31.3,
+        "os": "6.8.0-1060-aws x64",
+        "node": "v24.22.3",
+        "loadAverageAtStart": 0.33
+      },
+      "limitations": [
+        "Core/storage wall time only: no editor rendering or Rust IPC scheduling.",
+        "Sync includes real engine encode and base64/JSON IPC copies; Rust AES-256-GCM encryption is NOT included.",
+        "Relay uses the real Worker/SQLite Durable Object in Miniflare over loopback WebSocket, including framing/copies/network; payload is unencrypted but identical in size except cipher overhead.",
+        "One untimed warmup per size; cold means a fresh service cache, not cold OS/SQLite pages. Each run appends a line and ~10 KB then resets outside timing; search and push have two samples per run.",
+        "The injected sync-engine clock advances one minute per run, avoiding its repeated-push circuit breaker; measurements always use real performance.now()."
+      ],
+      "results": [
+        {
+          "bytes": 100000,
+          "actualBytes": 102944,
+          "paths": {
+            "open-cold": {
+              "n": 30,
+              "p50": 0.387,
+              "p95": 0.729,
+              "max": 0.996
+            },
+            "edit-save": {
+              "n": 30,
+              "p50": 2.846,
+              "p95": 5.832,
+              "max": 5.994
+            },
+            "search-catchup": {
+              "n": 60,
+              "p50": 6.934,
+              "p95": 10.137,
+              "max": 10.53
+            },
+            "search-warm": {
+              "n": 60,
+              "p50": 0.468,
+              "p95": 0.672,
+              "max": 2.274
+            },
+            "sync-push-client": {
+              "n": 60,
+              "p50": 4.958,
+              "p95": 6.305,
+              "max": 7.905
+            },
+            "paste-save": {
+              "n": 30,
+              "p50": 2.607,
+              "p95": 4.934,
+              "max": 5.253
+            },
+            "relay-upload-local": {
+              "n": 30,
+              "p50": 2.656,
+              "p95": 4.336,
+              "max": 4.921
+            },
+            "relay-download-local": {
+              "n": 30,
+              "p50": 1.319,
+              "p95": 2.212,
+              "max": 2.283
+            }
+          }
+        },
+        {
+          "bytes": 1000000,
+          "actualBytes": 1024200,
+          "paths": {
+            "open-cold": {
+              "n": 30,
+              "p50": 2.381,
+              "p95": 3.763,
+              "max": 4.554
+            },
+            "edit-save": {
+              "n": 30,
+              "p50": 20.703,
+              "p95": 28.022,
+              "max": 29.646
+            },
+            "search-catchup": {
+              "n": 60,
+              "p50": 50.15,
+              "p95": 54.153,
+              "max": 61.297
+            },
+            "search-warm": {
+              "n": 60,
+              "p50": 1.863,
+              "p95": 2.117,
+              "max": 4.726
+            },
+            "sync-push-client": {
+              "n": 60,
+              "p50": 22.317,
+              "p95": 27.845,
+              "max": 30.244
+            },
+            "paste-save": {
+              "n": 30,
+              "p50": 17.384,
+              "p95": 23.375,
+              "max": 24.261
+            },
+            "relay-upload-local": {
+              "n": 30,
+              "p50": 6.861,
+              "p95": 16.933,
+              "max": 37.781
+            },
+            "relay-download-local": {
+              "n": 30,
+              "p50": 7.118,
+              "p95": 11.156,
+              "max": 11.299
+            }
+          }
+        },
+        {
+          "bytes": 5000000,
+          "actualBytes": 5149729,
+          "paths": {
+            "open-cold": {
+              "n": 30,
+              "p50": 16.081,
+              "p95": 19.82,
+              "max": 20.828
+            },
+            "edit-save": {
+              "n": 30,
+              "p50": 100.722,
+              "p95": 111.638,
+              "max": 113.633
+            },
+            "search-catchup": {
+              "n": 60,
+              "p50": 284.428,
+              "p95": 309.602,
+              "max": 317.406
+            },
+            "search-warm": {
+              "n": 60,
+              "p50": 8.378,
+              "p95": 9.474,
+              "max": 16.375
+            },
+            "sync-push-client": {
+              "n": 60,
+              "p50": 101.712,
+              "p95": 119.497,
+              "max": 175.736
+            },
+            "paste-save": {
+              "n": 30,
+              "p50": 109.359,
+              "p95": 122.191,
+              "max": 135.725
+            },
+            "relay-upload-local": {
+              "n": 30,
+              "p50": 25.723,
+              "p95": 44.235,
+              "max": 51.751
+            },
+            "relay-download-local": {
+              "n": 30,
+              "p50": 31.089,
+              "p95": 38.33,
+              "max": 39.457
+            }
+          }
+        }
+      ]
+    }
+  }
 }

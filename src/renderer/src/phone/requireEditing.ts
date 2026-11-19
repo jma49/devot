@@ -139,8 +139,6 @@ export function requireEditing(intent: WriteIntent, run: () => void): void {
   showSurface(intent, run)
 }
 
-export const useRequireEditing = (): typeof requireEditing => requireEditing
-
 /** Forgets what was asked for: the user went elsewhere, so nothing is written behind their back. */
 export function dropIntent(): void {
   pending = null
