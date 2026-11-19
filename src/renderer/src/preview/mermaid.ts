@@ -154,9 +154,10 @@ function cachedMermaid(source: string, context: IslandContext): boolean {
   return drawn.has((key) => key.startsWith(prefix))
 }
 
-export function hasCachedMermaid(markdown: string, context: IslandContext): boolean {
-  const source = firstMermaid(markdown)
-  return source !== undefined && cachedMermaid(source, context)
+export function hasCachedMermaid(source: string, context: IslandContext): boolean {
+  return drawn.has(
+    drawingKey(source, context.appearance, shownPalette(context.appearance), context.width),
+  )
 }
 
 type Answer =
@@ -444,6 +445,7 @@ export const mermaidIsland: PreviewIsland = {
   kind: 'mermaid',
   apiVersion: PREVIEW_API_VERSION,
   followsWidth,
+  cached: hasCachedMermaid,
   render,
 }
 

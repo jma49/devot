@@ -392,6 +392,34 @@ describe('createIslandMounter', () => {
       mounter.dispose()
     })
 
+    it.each([400, 800])(
+      'checks the first rendered embedded diagram at its current width %s',
+      (width) => {
+        const { island, requests } = testIsland()
+        const elements = [islandElement('embedded'), islandElement('outer')]
+        for (const el of elements) {
+          const get = el.getAttribute
+          el.getAttribute = (name) =>
+            name === 'data-devot-island' ? 'mermaid' : get.call(el, name)
+          Object.defineProperty(el, 'clientWidth', { value: width + 19 })
+        }
+        const cached = vi.fn<NonNullable<PreviewIsland['cached']>>(
+          (source, context) => source === 'outer' || context.width === 400,
+        )
+        const mounter = mounterFor(
+          { ...island, kind: 'mermaid', followsWidth: () => true, cached },
+          scroller(),
+        )
+        mounter.mount(hostOf(elements), { appearance: 'light', eagerFirstMermaid: 'cached' })
+        expect(cached).toHaveBeenCalledExactlyOnceWith(
+          'embedded',
+          expect.objectContaining({ width }),
+        )
+        expect(requests.map((request) => request.source)).toEqual(width === 400 ? ['embedded'] : [])
+        mounter.dispose()
+      },
+    )
+
     it('draws only the islands within a screen of the view, above or below it, the rest once scrolled near', () => {
       const { island, requests } = testIsland()
       const view = scroller()

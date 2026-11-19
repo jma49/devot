@@ -10,7 +10,7 @@ export const ISLAND_ATTRIBUTE = 'data-devot-island'
 
 export interface IslandContext {
   appearance: Appearance
-  eagerFirstMermaid?: boolean
+  eagerFirstMermaid?: boolean | 'cached'
   /** The theme on screen, when the appearance alone does not settle an island's colours. */
   theme?: string
   /** Aborted once a newer render for the same element starts, or the element goes. */
@@ -40,6 +40,7 @@ export interface PreviewIsland {
   followsWidth?(source: string): boolean
   /** Changes when drawings of the same source may differ, so each is drawn again at its next mount. */
   revision?(context: IslandContext): string
+  cached?(source: string, context: IslandContext): boolean
   render(source: string, context: IslandContext): Promise<IslandContent>
 }
 
@@ -339,7 +340,7 @@ export function createIslandMounter(
     let firstMermaid = true
     for (const el of host.querySelectorAll(`[${ISLAND_ATTRIBUTE}]`)) {
       const kind = el.getAttribute(ISLAND_ATTRIBUTE) ?? ''
-      const eager = kind === 'mermaid' && firstMermaid && context.eagerFirstMermaid === true
+      const first = kind === 'mermaid' && firstMermaid
       if (kind === 'mermaid') firstMermaid = false
       const source = el.getAttribute('data-island-source') ?? ''
       const island = registry.get(kind)
@@ -347,6 +348,11 @@ export function createIslandMounter(
       const follows = island?.followsWidth?.(source) === true
       // A pane that is hidden has no width: what is drawn stays until it is shown.
       const width = follows ? (drawingWidth(el.clientWidth) ?? known?.width) : undefined
+      const eager =
+        first &&
+        (context.eagerFirstMermaid === true ||
+          (context.eagerFirstMermaid === 'cached' &&
+            island?.cached?.(source, { ...context, width }) === true))
       const revision = island?.revision?.(context) ?? ''
       const key = `${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${revision}\n${source}`
       // A failure that may pass waits out its backoff; a source that changed

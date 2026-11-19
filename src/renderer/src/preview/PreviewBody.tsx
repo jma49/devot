@@ -60,7 +60,7 @@ import { CodeCopyButtons, pieceCodeBlocks } from './CodeCopy'
 import { afterPaint } from './afterPaint'
 import { createOpening } from './opening'
 import { latestOnly } from './latest'
-import { hasCachedMermaid, warmMermaid } from './mermaid'
+import { warmMermaid } from './mermaid'
 import {
   previewScrollPane,
   shiftScroll,
@@ -236,9 +236,10 @@ export function Preview({
     const el = host.current
     if (!el) return
     const long = shown.current.length > LONG_NOTE_CHARACTERS
-    const eager = long && hasCachedMermaid(shown.current, islandContext.current)
-    mounter.mount(el, { ...islandContext.current, eagerFirstMermaid: eager }, () =>
-      scroll.current?.changed(),
+    mounter.mount(
+      el,
+      { ...islandContext.current, eagerFirstMermaid: long ? 'cached' : false },
+      () => scroll.current?.changed(),
     )
     const blocks = pieceCodeBlocks(pieces.current)
     opening.clear('commit')
