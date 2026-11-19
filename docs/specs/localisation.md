@@ -20,6 +20,7 @@ Part of the [architecture overview](../architecture.md).
   A sentence is never built from pieces in code: each variant (with or without a count, a key or a scope) is its own catalog entry.
   No message has a `{code}` slot or names an error code; the code goes to the log ([quality](quality.md)).
 - The iPhone's native screens read the same catalog: `pnpm i18n:apple` (`scripts/i18n/apple.ts`) writes `Generated/Strings.swift` and `Generated/Localizable.xcstrings` under `src-tauri/apple/DevotScreens/Sources/DevotScreens/`, both committed, and `pnpm i18n:apple:check` fails CI when they are stale.
+  The browser-only `clipper.` area is excluded from all Apple outputs; the Rust generator already reads only the separate `native.` area.
   Each key is one static function of `enum L10n`, named in camel case (`phone.tab.notes` is `L10n.phoneTabNotes()`), that takes the message's placeholders as labelled `String` arguments in the order they appear.
   The text is the iPhone's wording where it has its own (`src/renderer/src/i18n/phone.ts`), which may use only the message's own placeholders.
   `L10n` looks the key up in the string catalog with the English as its fallback, then fills the placeholders in one pass as `format` does; the catalog keeps `{name}` placeholders as they are, so a translation is written as on the page.
