@@ -30,7 +30,9 @@ import {
 } from './panes'
 import { PluginsSection } from './PluginsSection'
 import { PreviewSection } from './PreviewSection'
-import { searchSettings } from './search'
+import { searchSettings, type SettingsResult } from './search'
+import { focusSetting, searchKey } from './searchNavigation'
+import { isImeKey } from '../ime'
 import { SyncSection } from './SyncSection'
 import { UsageSection } from './UsageSection'
 import { ToolbarEnd } from './toolbar'
@@ -73,6 +75,8 @@ export function SettingsWindow() {
   const [back, setBack] = useState<PaneId[]>([])
   const [forward, setForward] = useState<PaneId[]>([])
   const [query, setQuery] = useState('')
+  const [resultIndex, setResultIndex] = useState(0)
+  const [target, setTarget] = useState<SettingsResult | null>(null)
   const [scrolled, setScrolled] = useState(false)
   const [toolbarEnd, setToolbarEnd] = useState<HTMLDivElement | null>(null)
   const body = useRef<HTMLDivElement>(null)
@@ -116,6 +120,17 @@ export function SettingsWindow() {
     setScrolled((body.current?.scrollTop ?? 0) > 0)
   }, [pane])
 
+  useLayoutEffect(() => {
+    if (!target) return
+    if (body.current) {
+      if (target.paneLabel) focusSetting(body.current, t(target.label))
+      else {
+        body.current.tabIndex = -1
+        body.current.focus({ preventScroll: true })
+      }
+    }
+  }, [target])
+
   const latestShow = useRef(show)
   useInsertionEffect(() => {
     latestShow.current = show
@@ -157,6 +172,7 @@ export function SettingsWindow() {
   const searching = query.trim() !== ''
 
   const onNavKey = (event: KeyboardEvent<HTMLElement>) => {
+    if (searching || isImeKey(event.nativeEvent)) return
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
     if (!(event.target instanceof HTMLElement) || !event.target.closest('.settings-nav-row')) return
     const next = paneAfterKey(pane, event.key)
@@ -166,16 +182,30 @@ export function SettingsWindow() {
     tabs.current.get(next)?.focus()
   }
 
-  const onSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      setQuery('')
-      return
-    }
-    if (event.key !== 'Enter' || results.length === 0) return
-    event.preventDefault()
-    show(results[0]!.pane)
+  const openResult = (result: SettingsResult) => {
+    show(result.pane)
+    setTarget(result)
     setQuery('')
+    setResultIndex(0)
+  }
+
+  const onSearchKey = (event: KeyboardEvent<HTMLElement>) => {
+    const action = searchKey(event.nativeEvent, resultIndex, results.length)
+    if (!action) return
+    event.preventDefault()
+    if (action.type === 'clear') {
+      setQuery('')
+      setResultIndex(0)
+    } else if (action.type === 'open') openResult(results[action.index]!)
+    else {
+      setResultIndex(action.index)
+      if (event.currentTarget !== event.target || event.target instanceof HTMLButtonElement) {
+        document.getElementById(`settings-result-${action.index}`)?.focus()
+      }
+      document
+        .getElementById(`settings-result-${action.index}`)
+        ?.scrollIntoView({ block: 'nearest' })
+    }
   }
 
   const Section = SECTIONS[pane]
@@ -196,28 +226,40 @@ export function SettingsWindow() {
             aria-label={t('settings.search')}
             placeholder={t('settings.search')}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            aria-controls={searching ? 'settings-results' : undefined}
+            aria-activedescendant={
+              searching && results.length ? `settings-result-${resultIndex}` : undefined
+            }
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setResultIndex(0)
+            }}
             onKeyDown={onSearchKey}
           />
         </div>
         {searching ? (
-          <div className="settings-results" role="listbox" aria-label={t('settings.results')}>
+          <div
+            id="settings-results"
+            className="settings-results"
+            role="listbox"
+            aria-label={t('settings.results')}
+            onKeyDown={onSearchKey}
+          >
             {results.length === 0 ? (
               <p className="settings-no-results">{t('settings.noResults')}</p>
             ) : (
-              results.map((result) => {
+              results.map((result, index) => {
                 const tile = PANE_TILES[result.pane]
                 return (
                   <button
                     key={`${result.pane}:${result.label}`}
                     type="button"
+                    id={`settings-result-${index}`}
                     role="option"
-                    aria-selected={false}
+                    aria-selected={index === resultIndex}
+                    onFocus={() => setResultIndex(index)}
                     className="settings-nav-row settings-result"
-                    onClick={() => {
-                      show(result.pane)
-                      setQuery('')
-                    }}
+                    onClick={() => openResult(result)}
                   >
                     <span
                       className="settings-nav-tile"
@@ -303,7 +345,9 @@ export function SettingsWindow() {
               <Icon name="settings.forward" size="sm" weight="semibold" />
             </button>
           </div>
-          <h1 className="settings-title">{t(PANE_TABS[pane].label)}</h1>
+          <h1 id="settings-pane-title" className="settings-title">
+            {t(PANE_TABS[pane].label)}
+          </h1>
           <div ref={setToolbarEnd} className="settings-toolbar-end" />
         </header>
         <div
@@ -311,7 +355,7 @@ export function SettingsWindow() {
           id={PANEL_ID}
           className="settings-pane"
           role="tabpanel"
-          aria-labelledby={tabId(pane)}
+          aria-labelledby="settings-pane-title"
           onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
         >
           <div key={pane} className="settings-pane-body">

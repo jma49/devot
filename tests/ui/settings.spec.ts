@@ -1181,6 +1181,59 @@ test('Integrations says how to create a notebook when there is none', async ({ p
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
+test('search keys highlight results rather than changing categories', async ({ page }) => {
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  await field.fill('transparency')
+  const options = page.getByRole('listbox').getByRole('option')
+  await expect(options.first()).toHaveAttribute('aria-selected', 'true')
+  await field.press('ArrowDown')
+  await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
+  await expect(field).toBeFocused()
+  await options.nth(1).focus()
+  await page.keyboard.press('ArrowUp')
+  await expect(options.first()).toBeFocused()
+  await expect(page.getByRole('tabpanel', { name: 'General' })).toBeVisible()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('slider', { name: 'Material Transparency' })).toBeFocused()
+})
+
+test('settings search leaves Enter and Escape to the input method', async ({ page }) => {
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  await field.fill('transparency')
+  for (const key of ['Enter', 'Escape']) {
+    await field.dispatchEvent('keydown', { key, isComposing: true })
+    await expect(field).toHaveValue('transparency')
+    await field.dispatchEvent('keydown', { key, keyCode: 229 })
+    await expect(field).toHaveValue('transparency')
+  }
+  await expect(page.getByRole('tabpanel', { name: 'General' })).toBeVisible()
+  await field.press('Escape')
+  await expect(field).toHaveValue('')
+  await field.fill('no-setting-matches-this')
+  await field.press('ArrowDown')
+  await field.press('Enter')
+  await expect(page.getByRole('tabpanel', { name: 'General' })).toBeVisible()
+})
+
+test('search scrolls to and focuses a setting, also within the current pane', async ({ page }) => {
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  for (let visit = 0; visit < 2; visit++) {
+    await field.fill('trailing whitespace')
+    await page.getByRole('listbox').getByRole('option').click()
+    const control = page.getByRole('switch', { name: 'Highlight Trailing Whitespace' })
+    await expect(control).toBeFocused()
+    await expect(control).toBeInViewport()
+    await expect
+      .poll(() => page.locator('.settings-pane').evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(0)
+    await page.locator('.settings-pane').evaluate((el) => el.scrollTo(0, 0))
+  }
+})
+
 test('search finds a setting and shows its pane', async ({ page }) => {
   await page.goto('/settings.html')
   const field = page.getByRole('searchbox', { name: 'Search Settings' })
