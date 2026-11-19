@@ -105,6 +105,7 @@ export function useAuthorshipNotice({
   agentWrites,
   shown: { shownWrites, markShownSeen, markWriteSeen, forgetShownWrite, reloadAgentWrites },
   editorRef,
+  editorHandle,
   restoreRef,
   setChangeNotice,
 }: {
@@ -120,6 +121,8 @@ export function useAuthorshipNotice({
   agentWrites: AgentWrites
   shown: ReturnType<typeof useShownWrites>
   editorRef: RefObject<EditorHandle | null>
+  /** `editorRef`'s handle as state: a new replica for the same note replaces it. */
+  editorHandle: EditorHandle | null
   restoreRef: RefObject<ApplyRestore | null>
   setChangeNotice: Dispatch<SetStateAction<string | undefined>>
 }) {
@@ -146,14 +149,13 @@ export function useAuthorshipNotice({
     setOffer(NO_OFFER)
   const watching = offer.kind === 'offered' ? offer.token : undefined
   useEffect(() => {
-    const editor = editorRef.current
-    if (watching === undefined || !editor) return
+    if (watching === undefined || !editorHandle) return
     // Any change since the Undo ends the offer; the review no longer puts Preview back over the owner's typing.
-    return editor.changed(() => {
+    return editorHandle.changed(() => {
       reviewSwitch.current = undefined
       setOffer((now) => (now.kind === 'offered' && now.token === watching ? NO_OFFER : now))
     })
-  }, [watching, editorRef])
+  }, [watching, editorHandle])
   useEffect(() => {
     // The review stays open to offer Restore after its last change, so Preview waits for it.
     if (offerHere) return

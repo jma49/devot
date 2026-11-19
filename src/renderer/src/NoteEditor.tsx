@@ -206,6 +206,8 @@ interface Props {
   onFind?: (target: FindTarget | null) => void
   showAlertMenu: ShowAlertMenu
   handleRef?: RefObject<EditorHandle | null>
+  /** Hears the handle `handleRef` holds as it is published and withdrawn. */
+  onHandle?: (handle: EditorHandle | null) => void
   onScrollPane?: (pane: ScrollPane | null) => void
   onOpenImage?: (image: ViewedImage) => void
   showImageMenu?: ShowImageMenu
@@ -253,6 +255,7 @@ export function NoteEditor({
   onFind,
   showAlertMenu,
   handleRef,
+  onHandle,
   onScrollPane,
   onOpenImage,
   showImageMenu,
@@ -532,6 +535,7 @@ export function NoteEditor({
     const unpublish = () => {
       if (restoreRef) restoreRef.current = null
       if (handleRef) handleRef.current = null
+      onHandle?.(null)
       findHandle.current?.(null)
       scrollHandle.current?.(null)
     }
@@ -541,6 +545,7 @@ export function NoteEditor({
       if (!view || !scroller) return
       if (restoreRef) restoreRef.current = s.applyStep
       if (handleRef) handleRef.current = s.handle
+      onHandle?.(s.handle)
       findHandle.current?.(editorFindTarget(view))
       scrollHandle.current?.(editorScrollPane(view, scroller))
     }
@@ -790,7 +795,7 @@ export function NoteEditor({
       }
       unpublish()
     }
-  }, [core, noteId, restoreRef, handleRef])
+  }, [core, noteId, restoreRef, handleRef, onHandle])
 
   return <div className="editor" data-devot-part="editor-body" ref={host} hidden={hidden} />
 }

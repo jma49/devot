@@ -112,6 +112,7 @@ export function App() {
   const modes = useMode(lastState)
   const { mode, setMode } = modes
   const editorRef = useRef<EditorHandle | null>(null)
+  const [editorHandle, setEditorHandle] = useState<EditorHandle | null>(null)
   const panesRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const focusRequest = useFocusRequest({ editorRef, titleRef, selected })
@@ -402,6 +403,7 @@ export function App() {
     agentWrites,
     shown,
     editorRef,
+    editorHandle,
     restoreRef,
     setChangeNotice,
   })
@@ -700,6 +702,7 @@ export function App() {
         tagInputRef={tagInputRef}
         panesRef={panesRef}
         editorRef={editorRef}
+        setEditorHandle={setEditorHandle}
         restoreRef={restoreRef}
         openText={openText}
         countsShown={countsShown}
