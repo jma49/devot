@@ -61,6 +61,7 @@ const NOTES: &[&str] = &[
     "note_link_graph",
     "semantic_search",
     "semantic_status",
+    "notes_purge",
 ];
 
 /// Revisions, activity, agent writes and usage.

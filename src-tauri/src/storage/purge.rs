@@ -1,4 +1,4 @@
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use super::agent_writes::AGENT_WRITES_PURGE_SQL;
 use super::search::{catch_up, catch_up_note};
@@ -35,16 +35,31 @@ impl Store {
     /// cannot destroy a live note in one call. A purge another device made (`sync_purge`) is not
     /// limited, as that device checked it.
     pub fn purge_note(&mut self, id: &str, at: i64, hlc: &str) -> Result<()> {
-        let live: bool = self.conn.query_row(
-            "SELECT EXISTS (SELECT 1 FROM notes WHERE id = ?1 AND purged_at IS NULL
-               AND deleted_at IS NULL AND (title <> '' OR body_md <> ''))",
-            [id],
-            |row| row.get(0),
-        )?;
-        if live {
-            return Err(StorageError::Refused("E_NOTE_NOT_TRASHED"));
+        self.purge_notes(&[id.to_owned()], at, hlc)
+    }
+
+    /// Purges every ID in one transaction, compacting deleted FTS postings once.
+    pub fn purge_notes(&mut self, ids: &[String], at: i64, hlc: &str) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
         }
-        self.purge(id, at, hlc, true)
+        let tx = self.conn.transaction()?;
+        let mut changed = false;
+        for id in ids {
+            let live: bool = tx.query_row(
+                "SELECT EXISTS (SELECT 1 FROM notes WHERE id = ?1 AND purged_at IS NULL
+               AND deleted_at IS NULL AND (title <> '' OR body_md <> ''))",
+                [id],
+                |row| row.get(0),
+            )?;
+            if live {
+                return Err(StorageError::Refused("E_NOTE_NOT_TRASHED"));
+            }
+            changed = purge_rows(&tx, id, at, hlc, true)? || changed;
+        }
+        compact_purged(&tx, changed)?;
+        tx.commit()?;
+        Ok(())
     }
 
     /// Tests that purge a note they wrote: trashed first, as the app does.
@@ -62,46 +77,60 @@ impl Store {
     /// are, because that device's file records (a new owner or a tombstone) decide the attachments.
     pub(super) fn purge(&mut self, id: &str, at: i64, hlc: &str, here: bool) -> Result<()> {
         let tx = self.conn.transaction()?;
-        let rowid: Option<i64> = tx
-            .query_row(
-                "SELECT rowid FROM notes WHERE id = ?1 AND purged_at IS NULL",
-                [id],
-                |row| row.get(0),
-            )
-            .optional()?;
-        tx.execute(SEARCH_SECURE_DELETE_SQL, [1])?;
-        tx.execute(
-            "UPDATE notes SET title = '', title_hlc = MAX(title_hlc, ?3), body_md = '', ydoc = x'',
-               deleted_at = COALESCE(deleted_at, ?2),
-               deleted_hlc = MAX(COALESCE(deleted_hlc, ''), ?3), purged_at = ?2
-             WHERE id = ?1 AND purged_at IS NULL",
-            params![id, at, hlc],
-        )?;
-        if let Some(rowid) = rowid {
-            catch_up_note(&tx, rowid)?;
-            tx.execute("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')", [])?;
-        }
-        tx.execute(SEARCH_SECURE_DELETE_SQL, [0])?;
-        tx.execute("DELETE FROM note_tags WHERE note_id = ?1", [id])?;
-        tx.execute(super::drawings::NOTE_DRAWINGS_DROP_SQL, [id])?;
-        if here {
-            // HAND_OVER_FILES_SQL finds the heirs through the index.
-            catch_up(&tx, None)?;
-            tx.execute(
-                HAND_OVER_FILES_SQL,
-                rusqlite::named_params! { "@id": id, "@hlc": hlc },
-            )?;
-            tx.execute("DELETE FROM files WHERE note_id = ?1", [id])?;
-        }
-        tx.execute("DELETE FROM links WHERE source_id = ?1", [id])?;
-        tx.execute(
-            AGENT_WRITES_PURGE_SQL,
-            rusqlite::named_params! { "@noteId": id },
-        )?;
-        if here {
-            tx.execute("DELETE FROM revisions WHERE note_id = ?1", [id])?;
-        }
+        let changed = purge_rows(&tx, id, at, hlc, here)?;
+        compact_purged(&tx, changed)?;
         tx.commit()?;
         Ok(())
     }
+}
+
+fn compact_purged(conn: &Connection, changed: bool) -> Result<()> {
+    if changed {
+        conn.execute(SEARCH_SECURE_DELETE_SQL, [1])?;
+        conn.execute("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')", [])?;
+        conn.execute(SEARCH_SECURE_DELETE_SQL, [0])?;
+    }
+    Ok(())
+}
+
+fn purge_rows(tx: &Connection, id: &str, at: i64, hlc: &str, here: bool) -> Result<bool> {
+    let rowid: Option<i64> = tx
+        .query_row(
+            "SELECT rowid FROM notes WHERE id = ?1 AND purged_at IS NULL",
+            [id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    tx.execute(SEARCH_SECURE_DELETE_SQL, [1])?;
+    tx.execute(
+        "UPDATE notes SET title = '', title_hlc = MAX(title_hlc, ?3), body_md = '', ydoc = x'',
+               deleted_at = COALESCE(deleted_at, ?2),
+               deleted_hlc = MAX(COALESCE(deleted_hlc, ''), ?3), purged_at = ?2
+             WHERE id = ?1 AND purged_at IS NULL",
+        params![id, at, hlc],
+    )?;
+    if let Some(rowid) = rowid {
+        catch_up_note(tx, rowid)?;
+    }
+    tx.execute(SEARCH_SECURE_DELETE_SQL, [0])?;
+    tx.execute("DELETE FROM note_tags WHERE note_id = ?1", [id])?;
+    tx.execute(super::drawings::NOTE_DRAWINGS_DROP_SQL, [id])?;
+    if here {
+        // HAND_OVER_FILES_SQL finds the heirs through the index.
+        catch_up(tx, None)?;
+        tx.execute(
+            HAND_OVER_FILES_SQL,
+            rusqlite::named_params! { "@id": id, "@hlc": hlc },
+        )?;
+        tx.execute("DELETE FROM files WHERE note_id = ?1", [id])?;
+    }
+    tx.execute("DELETE FROM links WHERE source_id = ?1", [id])?;
+    tx.execute(
+        AGENT_WRITES_PURGE_SQL,
+        rusqlite::named_params! { "@noteId": id },
+    )?;
+    if here {
+        tx.execute("DELETE FROM revisions WHERE note_id = ?1", [id])?;
+    }
+    Ok(rowid.is_some())
 }

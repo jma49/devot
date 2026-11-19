@@ -1101,29 +1101,36 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   // Bodies are read for the notes returned only, never for every match.
   const bodyOf = (id: string) => bodyMd.get(id)?.body_md ?? ''
 
-  const purgeWith = (id: string, at: number, hlc: string, here: boolean) =>
+  const purgeRows = (id: string, at: number, hlc: string, here: boolean) => {
+    if (here && liveWithText.get(id)) throw new Error('E_NOTE_NOT_TRASHED')
+    const rowid = rowidOf.get(id)?.rowid
+    searchSecureDelete.run(1n)
+    purge.run({ id, at, hlc })
+    if (rowid !== undefined) catchUpNote(rowid)
+    searchSecureDelete.run(0n)
+    dropLinks.run(id)
+    if (here) {
+      catchUp()
+      handOverFiles.run({ id, hlc })
+      dropFiles.run(id)
+    }
+    dropNoteLinks.run(id)
+    dropDrawings.run({ noteId: id })
+    dropAgentWrites.run({ noteId: id })
+    if (here) dropRevisions.run(id)
+    return rowid !== undefined
+  }
+
+  const purgeWith = (ids: readonly string[], at: number, hlc: string, here: boolean) =>
     db
       .transaction(() => {
-        const rowid = rowidOf.get(id)?.rowid
-        searchSecureDelete.run(1n)
-        purge.run({ id, at, hlc })
-        if (rowid !== undefined) {
-          catchUpNote(rowid)
+        let changed = false
+        for (const id of ids) changed = purgeRows(id, at, hlc, here) || changed
+        if (changed) {
+          searchSecureDelete.run(1n)
           db.prepare("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')").run()
+          searchSecureDelete.run(0n)
         }
-        searchSecureDelete.run(0n)
-        dropLinks.run(id)
-        // Attachments another note still shows pass to it; the rest go. A purge from sync leaves
-        // them: the other device's file records decide, and its heir's link may not be here yet.
-        if (here) {
-          catchUp()
-          handOverFiles.run({ id, hlc })
-          dropFiles.run(id)
-        }
-        dropNoteLinks.run(id)
-        dropDrawings.run({ noteId: id })
-        dropAgentWrites.run({ noteId: id })
-        if (here) dropRevisions.run(id)
       })
       .immediate()
 
@@ -1261,8 +1268,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     },
     listTrash: async () => trash.all(),
     async purgeNote(id, at, hlc) {
-      if (liveWithText.get(id)) throw new Error('E_NOTE_NOT_TRASHED')
-      purgeWith(id, at, hlc, true)
+      purgeWith([id], at, hlc, true)
+    },
+    async purgeNotes(ids, at, hlc) {
+      if (ids.length > 0) purgeWith(ids, at, hlc, true)
     },
     async syncPending(after, limit) {
       return syncPending.all({ after, limit })
@@ -1323,7 +1332,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       syncReset.run()
     },
     async syncPurge(id, at, hlc) {
-      purgeWith(id, at, hlc, false)
+      purgeWith([id], at, hlc, false)
     },
     async putRevision(revision) {
       putRevision.run({

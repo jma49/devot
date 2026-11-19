@@ -272,6 +272,8 @@ export interface StorageAdapter {
   listTrash(): Promise<TrashedNote[]>
   /** Final: no later write restores it. An attachment another non-purged note still shows passes to that note, a live one before one in the Trash, then the smallest ID. */
   purgeNote(id: string, at: number, hlc: string): Promise<void>
+  /** As purgeNote, atomically for every ID, compacting the search index once. */
+  purgeNotes(ids: readonly string[], at: number, hlc: string): Promise<void>
   /** A compare-and-set on the body: written only while the stored body is at `note.bodyVersion`, then moved to the next version. Otherwise refused with E_NOTE_BODY_STALE; the writer merges the stored body (Yjs) and writes again. Metadata merges per field (newer HLC wins). Records outside the limits are refused (checkNote in noteLimits.ts). A purged note is left alone. */
   putNote(note: NoteRecord): Promise<void>
   /** putNote for a note whose body and Yjs state are the ones stored at `note.bodyVersion`: the fields alone are written, merged and compared as putNote does, and the version moves on (another process reads a moved version as a write to take in). The body, its state and its links stay as stored. E_NOTE_NOT_FOUND for a note storage does not have. */

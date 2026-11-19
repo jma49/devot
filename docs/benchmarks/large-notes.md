@@ -80,6 +80,33 @@ Index sizes sum FTS shadow-table pages through `dbstat`, with optimized indexes 
 
 These are clean-index sizes, not a bound on tombstones accumulated between merges or on peak migration disk/WAL space.
 
+### Purge cost
+
+`DEVOT_FTS_PURGE_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-purge-cost.bench.test.ts --silent=false` measures 20 fresh file-backed stores per case after two warmups, WAL and synchronous FULL.
+Every sample copies a closed, fully indexed and optimized seed database outside timing; fixture setup, database opening, cloning and correctness checks are excluded.
+The libraries contain 10,000 deterministic short `libraryBody` notes, or one `sampleNote(5_000_000)` plus one retained typical note.
+The large-note case purges the 5 MB note itself.
+There are no attachments or pending index changes in these fixtures; purge cost with a stale backlog or attachments is not measured here.
+Timing includes the real note service's `purge` or `emptyTrash` call, including storage transactions and, for Empty Trash, listing the 100 trashed notes.
+The benchmark is opt-in and uses the identical fixture and service path on base `bf53e90d`, initial contentless-delete commit `a0c6f70e`, and the batched implementation.
+
+Milliseconds, **p50 / p95**:
+
+| Case                              | Base external-content | Initial contentless-delete | Batched contentless-delete |
+| --------------------------------- | --------------------: | -------------------------: | -------------------------: |
+| One note in a 10,000-note library |         2.783 / 3.780 |            65.844 / 96.947 |            53.155 / 57.732 |
+| Purge the 5 MB note               |     198.613 / 257.232 |            75.137 / 90.566 |            54.951 / 58.472 |
+| Empty Trash: 100 of 10,000 notes  |     177.947 / 287.230 |        4497.734 / 5476.375 |          134.566 / 137.964 |
+
+The original `emptyTrash` loop called `purgeNote` 100 times, so the initial contentless-delete implementation optimized 100 times in separate transactions.
+Empty Trash now sends its IDs through the wire to `notes_purge`, which purges in one transaction and runs FTS5 `optimize` once at the end, matching the TypeScript adapter.
+The batch shares one timestamp and HLC, preserves attachment handover and revision deletion, refuses live non-empty notes, and rolls back every purge on any failure.
+Per-note notifications are sent only after commit; a failed batch sends none.
+Rust and TypeScript tests cover empty batches, missing and duplicate IDs, refusals, database-error rollback, retained matches, vocabulary removal and byte scans including older indexed versions.
+Batching removes the multi-second Empty Trash regression and brings its measured p95 below 250 ms and below the base.
+Single-note purge in a 10,000-note library still costs about 19 times the base p50 because it must compact the index to remove tombstones; batching cannot amortize a singleton, though its measured p95 is below 60 ms.
+The byte-removal guarantee is retained rather than replacing compaction with a bounded merge that might leave deleted postings behind.
+
 ## Top bottleneck
 
 The original external-content full run made deferred search catch-up the slowest measured path at both 1 MB and 5 MB.

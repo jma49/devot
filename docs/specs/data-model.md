@@ -120,6 +120,7 @@ Part of the [architecture overview](../architecture.md).
   Both need a process that was already open during the upgrade, since an older build refuses to open a file with a newer schema.
   Contentless rowid deletes leave tombstones even with FTS5 `secure-delete` enabled, so a purge also runs FTS5 `optimize` to compact away deleted postings before committing.
   This can compact the whole index and makes a purge more expensive; normal saves and catch-up do not compact it.
+  Empty Trash purges its IDs in one transaction and compacts once at the end; every tombstone in that batch shares its timestamp and clock, and a refusal or failure rolls back the whole batch.
   Rebuild Search Index uses `'delete-all'` followed by insertion from every `notes` row, empties `search_stale`, and checks internal FTS integrity and the indexed row count in the same cancellable transaction.
 - Markdown export (see Export and print) writes notes and notebooks as Markdown files that import back as they were.
 
@@ -234,7 +235,7 @@ Part of the [architecture overview](../architecture.md).
   A write reported while a notebook change or a batch reloads the lists waits for the last such reload to finish and then dates its note, as the reloaded rows may have been read before it (`src/renderer/src/app/useLibraryLists.ts`).
   A note trashed or purged is relayed as `gone` (`purged` when it was deleted for good), so its note window turns read-only and says why; a note put back from the Trash is relayed as `back`, and its note window turns editable again.
   A note window's note is live, trashed or purged (`nextLife` in `src/renderer/src/noteWindow/noteLife.ts`): only `gone` and `back` move it, and a purge is final.
-  Empty Trash relays each note as soon as it is purged, so a purge that fails later in the run still leaves the windows of the notes before it told.
+  Empty Trash relays each purged note after its batch commits; a failed batch changes nothing and relays nothing.
   A save changes a few notes in their places, so only those move in the sorted lists, and the sidebar's counts are taken again only when a note's notebook, status, tags or pin changed (`src/renderer/src/app/useListedNotes.ts`); a large library is not sorted again for each save.
   `tests/core/note-windows.property.test.ts` types into one note in two windows at random, with deliveries late and reordered and saves at any time, and checks that both windows and the stored note end with every edit either made; `tests/core/lineage.test.ts` checks that two windows' edits keep the note's lineage.
 - **The note relay** (`src-tauri/src/note_relay.rs`, `note_relay_send`): the page hands Rust what its core sends (Yjs data stays the base64 the worker coded, never decoded), and Rust checks it (a note ID, base64 within a Yjs state's limit, a title within the title limit, an HLC) and passes it to the windows that may show the note: every main window, and the note's own window; each page listens on its own window only.

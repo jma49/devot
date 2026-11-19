@@ -3719,6 +3719,122 @@ fn a_purged_note_leaves_no_text_in_the_file() {
 }
 
 #[test]
+fn batch_purge_rolls_back_on_live_notes_and_database_errors() {
+    let (_dir, mut store) = temp_store();
+    store
+        .put_note(&in_trash(note("a", "Orchard", 10), 20), &[])
+        .unwrap();
+    store.put_note(&note("b", "Snapshot", 10), &[]).unwrap();
+    assert!(matches!(
+        store.purge_notes(&["a".into(), "b".into()], 30, "0000000000000030-0000-a"),
+        Err(StorageError::Refused("E_NOTE_NOT_TRASHED"))
+    ));
+    assert_eq!(store.list_trash().unwrap().len(), 1);
+    let body: String = store
+        .conn
+        .query_row("SELECT body_md FROM notes WHERE id = 'a'", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(body, "# Orchard\n");
+    store
+        .put_note(&in_trash(based_on(1, note("b", "Snapshot", 21)), 22), &[])
+        .unwrap();
+    store.conn.execute_batch("CREATE TRIGGER refuse_purge BEFORE UPDATE OF purged_at ON notes WHEN new.id = 'b' BEGIN SELECT RAISE(ABORT, 'E_TEST_PURGE'); END").unwrap();
+    assert!(
+        store
+            .purge_notes(&["a".into(), "b".into()], 30, "0000000000000030-0000-a")
+            .is_err()
+    );
+    assert_eq!(store.list_trash().unwrap().len(), 2);
+    store
+        .conn
+        .execute_batch("DROP TRIGGER refuse_purge")
+        .unwrap();
+    store
+        .purge_notes(
+            &["missing".into(), "a".into(), "a".into(), "b".into()],
+            30,
+            "0000000000000030-0000-a",
+        )
+        .unwrap();
+    assert!(store.list_trash().unwrap().is_empty());
+    store
+        .purge_notes(&[], 31, "0000000000000031-0000-a")
+        .unwrap();
+}
+
+#[test]
+fn batch_purge_removes_deleted_versions_and_trigrams_from_the_file() {
+    let (dir, mut store) = temp_store();
+    let secret = "qxjzvwkpfyb";
+    for id in ["a", "b"] {
+        let mut gone = note(id, "Gone", 10);
+        gone.body_md = secret.repeat(400);
+        gone.ydoc = secret.repeat(400).into_bytes();
+        store.put_note(&gone, &[]).unwrap();
+    }
+    store.put_note(&note("kept", "Orchard", 10), &[]).unwrap();
+    assert_eq!(store.search_notes(&words(&[secret]), 10).unwrap().len(), 2);
+    store
+        .conn
+        .execute("UPDATE notes SET body_md = 'snapshot' WHERE id = 'a'", [])
+        .unwrap();
+    assert_eq!(store.search_notes(&words(&[secret]), 10).unwrap().len(), 1);
+    store
+        .conn
+        .execute(
+            "UPDATE notes SET deleted_at = 20 WHERE id IN ('a', 'b')",
+            [],
+        )
+        .unwrap();
+    store
+        .purge_notes(&["a".into(), "b".into()], 30, "0000000000000030-0000-a")
+        .unwrap();
+    assert!(
+        store
+            .search_notes(&words(&[secret]), 10)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        store.search_notes(&words(&["orchard"]), 10).unwrap().len(),
+        1
+    );
+    store
+        .conn
+        .execute_batch(
+            "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+        )
+        .unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        let count: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM purge_vocab WHERE term = ?1",
+                [std::str::from_utf8(trigram).unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+    let secure: i64 = store
+        .conn
+        .query_row(
+            "SELECT v FROM notes_fts_config WHERE k = 'secure-delete'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(secure, 0);
+    drop(store);
+    let bytes = std::fs::read(dir.path().join("devot.sqlite")).unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        assert!(!bytes.windows(3).any(|window| window == trigram));
+    }
+}
+
+#[test]
 fn migration_24_leaves_old_versions_without_a_word_count() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");

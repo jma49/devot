@@ -142,6 +142,7 @@ pub fn run() {
             commands::notes::note_link_graph,
             commands::notes::notes_trash_list,
             commands::notes::note_purge,
+            commands::notes::notes_purge,
             commands::revisions::revision_put,
             commands::revisions::revisions_list,
             commands::revisions::revision_get,
