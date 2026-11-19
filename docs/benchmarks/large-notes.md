@@ -69,16 +69,22 @@ Rust and TypeScript tests check MATCH, `fts5vocab` and raw database bytes after 
 
 ### Migration cost
 
-`DEVOT_FTS_MIGRATION_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-contentless-migration.bench.test.ts --silent=false` measures five fresh file-backed v31 stores per fixture, WAL and synchronous FULL, including migration commit but excluding fixture setup and post-migration optimization/vacuum.
-The 10,000 typical notes use the deterministic short `libraryBody` fixtures; the large note uses `sampleNote(5_000_000)` (5,149,729 bytes).
+`DEVOT_FTS_MIGRATION_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-contentless-migration.bench.test.ts --silent=false` measures five fresh file-backed v31 stores per fixture, WAL and synchronous FULL, including the v32 rebuild, v33 history bookkeeping and commit but excluding fixture setup and post-migration optimization/vacuum.
+The typical notes use deterministic short `libraryBody` fixtures; the large note uses `sampleNote(5_000_000)` (5,149,729 bytes).
 Index sizes sum FTS shadow-table pages through `dbstat`, with optimized indexes before and after and vacuum after; all five runs returned identical sizes.
 
-| Library              | Migration p50 / p95 (ms) | Before index bytes | After index bytes |       Difference |
-| -------------------- | -----------------------: | -----------------: | ----------------: | ---------------: |
-| 10,000 typical notes |          63.271 / 83.434 |          4,165,632 |         4,177,920 | +12,288 (+0.30%) |
-| One 5 MB note        |        164.205 / 166.853 |          9,482,240 |         9,482,240 |                0 |
+| Library              | Migration p50 / p95 (ms) | Sampled peak RSS delta p50 / p95 (KiB) | Before index bytes | After index bytes |       Difference |
+| -------------------- | -----------------------: | -------------------------------------: | -----------------: | ----------------: | ---------------: |
+| 1,000 typical notes  |            6.240 / 7.535 |                                  0 / 0 |            438,272 |           438,272 |                0 |
+| 10,000 typical notes |          66.666 / 74.508 |                             640 / 1152 |          4,165,632 |         4,177,920 | +12,288 (+0.30%) |
+| One 5 MB note        |        179.735 / 187.616 |                             128 / 5248 |          9,482,240 |         9,482,240 |                0 |
 
 These are clean-index sizes, not a bound on tombstones accumulated between merges or on peak migration disk/WAL space.
+An already-running worker thread samples whole-process RSS every 1 ms while the main thread executes synchronous SQLite; delta is relative to RSS immediately before migration, includes a final sample, and excludes worker startup.
+This is sampled resident growth, not SQLite allocation high-water or total app memory; zero means existing resident pages sufficed, not zero allocations, and sub-millisecond peaks can be missed.
+The 10,000-note p95 stays well below one second, so rebuilding stays inside the migration.
+The normal first-launch main window is built only after migration: `tauri.conf.json:18` disables automatic window creation, `lib.rs:498` opens the store before `lib.rs:653` builds the window, and `storage/db.rs:187–197` waits for `Store::open` to finish before returning.
+`storage/open.rs:141–143` runs migrations and pending purge recovery before that return; `main_windows.rs:286` constructs the window afterward, with no migration progress window in this path.
 
 ### Purge cost
 
