@@ -55,6 +55,7 @@ import { previewFindTarget } from './find'
 import { createIslandMounter } from './islands'
 import { islands } from './islandRegistry'
 import { CodeCopyButtons, pieceCodeBlocks } from './CodeCopy'
+import { afterPaint } from './afterPaint'
 import { latestOnly } from './latest'
 import { warmMermaid } from './mermaid'
 import {
@@ -247,6 +248,8 @@ export function Preview({
     createIslandMounter(islands, { scroller: (body) => body.parentElement, shift: shiftScroll }),
   )
   const [codes, setCodes] = useState<HTMLElement[]>([])
+  const codePaint = useRef<(() => void) | undefined>(undefined)
+  useEffect(() => () => codePaint.current?.(), [])
   const buildTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const render = useRef<(input: RenderInput) => void>(undefined)
@@ -284,7 +287,14 @@ export function Preview({
       scroll.current?.changed(),
     )
     const blocks = pieceCodeBlocks(pieces.current)
-    setCodes((now) => (sameList(now, blocks) ? now : blocks))
+    codePaint.current?.()
+    codePaint.current = undefined
+    if (hasPending(pieces.current) || awaitingFull.current) return
+    codePaint.current = afterPaint(() => {
+      codePaint.current = undefined
+      if (blocks.some((block) => !host.current?.contains(block))) return
+      setCodes((now) => (sameList(now, blocks) ? now : blocks))
+    })
   }, [mounter])
   // A big note is built in slices after its first pieces (see `buildPending`); what reads the
   // whole preview (find, select all, copy, a jump to a heading) has the rest built first.

@@ -561,7 +561,7 @@ export function buildPending(
 }
 
 /** Source characters built at once from the first piece left to build: more than a screen. */
-export const FIRST_CHARACTERS = 6000
+export const FIRST_CHARACTERS = 20_000
 
 /** Builds the pieces that start within `FIRST_CHARACTERS` of the first one waiting. */
 export function buildFirstPieces(host: Element, pieces: readonly ShownPiece[]): number {

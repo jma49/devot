@@ -149,6 +149,53 @@ const firstRender = async (renders: Promise<unknown>[]) => {
 }
 
 describe('Preview', () => {
+  it('adds copy controls only after a paint opportunity and drops a replaced list', async () => {
+    const frames = new Map<number, FrameRequestCallback>()
+    let key = 0
+    const request = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((run) => {
+      frames.set(++key, run)
+      return key
+    })
+    const cancel = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation((id) => {
+      frames.delete(id)
+    })
+    const frame = async () => {
+      const callbacks = [...frames.values()]
+      frames.clear()
+      await act(async () => {
+        for (const callback of callbacks) callback(0)
+      })
+    }
+    try {
+      const { core, renders } = fakeCore()
+      const { body, render } = show(core, '```js\nconst old = 1\n```', 'old-controls')
+      await firstRender(renders)
+      expect(body().querySelector('.code-copy')).toBeNull()
+      await frame()
+      expect(body().querySelector('.code-copy')).toBeNull()
+      render('No code here.', 'new-controls')
+      await act(async () => {
+        for (let i = 0; i < 40; i++) await Promise.resolve()
+      })
+      await frame()
+      await frame()
+      expect(body().textContent).toBe('No code here.')
+      expect(body().querySelector('.code-copy')).toBeNull()
+      render('```js\nconst fresh = 2\n```', 'fresh-controls')
+      await act(async () => {
+        for (let i = 0; i < 40; i++) await Promise.resolve()
+      })
+      await frame()
+      await frame()
+      expect(body().querySelectorAll('.code-copy')).toHaveLength(1)
+    } finally {
+      act(() => root?.unmount())
+      root = undefined
+      request.mockRestore()
+      cancel.mockRestore()
+    }
+  })
+
   it('shows a long note head before asking for its full render, which reuses the head keys', async () => {
     const markdown = note(40_000, 'head')
     const renderer = createPieceRenderer()
@@ -364,14 +411,13 @@ describe('Preview', () => {
     expect(body().querySelectorAll('h2')).toHaveLength(before)
   }, 60_000)
 
-  it('adds copy buttons to what is built while the build goes on', async () => {
+  it('leaves copy controls until the whole preview has been built and can paint', async () => {
     const { core, renders } = fakeCore()
     const markdown = note(100_000, 'big')
     const sections = markdown.split('## ').length - 1
     const { body } = show(core, markdown, 'n1')
     await firstRender(renders)
     const first = body().querySelectorAll('.code-copy').length
-    // A second passes between slices, so each slice is due to add what it built.
     const real = performance.now.bind(performance)
     let skew = 0
     const now = vi.spyOn(performance, 'now').mockImplementation(() => real() + skew)
@@ -387,7 +433,9 @@ describe('Preview', () => {
     } finally {
       now.mockRestore()
     }
-    expect(grewMidway).toBe(true)
+    expect(grewMidway).toBe(false)
+    await settle()
+    expect(body().querySelectorAll('.code-copy')).toHaveLength(sections)
   }, 60_000)
 
   it('shows text split off near the end of what is built in the task of the edit', async () => {

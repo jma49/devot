@@ -73,10 +73,11 @@ Part of the [architecture overview](../architecture.md).
   Eight thousand characters cover several rich blocks and the first diagram in the benchmark without paying for all later transforms; a safe Markdown piece may extend past the budget.
   The existing `latestOnly` queue coalesces pending text; request generations, note and text checks drop replaced answers and teardown answers, and typing in the same note still asks only for a full render.
   Fenced notes still await their kept-drawing languages before either render, so a kept plugin drawing never flashes as code.
-- A render builds on the page at once the pieces it changed up to `FIRST_CHARACTERS` (6,000 characters of source) past the last piece already built, and leaves the rest waiting (`patchPieces` with `defer`, `buildPending` in `src/renderer/src/preview/dom.ts`); the preview builds them in order in tasks of about 8 ms after it.
+- A render builds on the page at once the pieces it changed up to `FIRST_CHARACTERS` (20,000 characters of source) past the last piece already built, and leaves the rest waiting (`patchPieces` with `defer`, `buildPending` in `src/renderer/src/preview/dom.ts`); the preview builds them in order in tasks of about 8 ms after it.
   Pieces still waiting are always the last ones, so what is built reads as the note does.
   What needs more of the note builds it first: a scroll-sync or outline jump to a line builds up to that line and a screen past it (nothing when that much is built), a restored scroll position builds until the preview is tall enough, and find, select all (the menu item or Cmd+A), copy and a link to a heading build all of it.
-  Diagrams and copy buttons are added for what is built at once, every 250 ms while the build goes on, and when it ends.
+  Diagrams are added for what is built at once, every 250 ms while the build goes on, and when it ends.
+  Copy buttons are committed after the full preview's DOM has had a paint opportunity, with a one-second fallback when a hidden window paints no frames; replacement work and teardown cancel the pending commit.
   `tests/renderer/preview-open.bench.test.ts` holds what that task builds from growing with the note.
   Another note opened in the preview replaces what the last one showed instead of being patched over it, and the worker is asked for all its pieces; the preview reads the note's id with its text when a render starts, so a text that arrives after the switch is not patched over the note before.
 - Typing in Split view renders no React component: the preview follows the editor's text store itself (`textStore.ts`) and reads the text only when a render starts, so renders a newer one replaces never read it.

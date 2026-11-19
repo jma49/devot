@@ -26,7 +26,7 @@ const el = (
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
-it('builds only the first screen budget synchronously', async () => {
+it('leaves the tail pending after the synchronous first batch', async () => {
   const host = document.createElement('div')
   const shown = patchPieces(
     host,
@@ -35,7 +35,7 @@ it('builds only the first screen budget synchronously', async () => {
     { defer: true },
   )
   buildFirstPieces(host, shown)
-  expect(FIRST_CHARACTERS).toBe(6000)
+  expect(FIRST_CHARACTERS).toBe(20_000)
   expect(
     shown.filter((piece) => !piece.pending).every((piece) => piece.offset < FIRST_CHARACTERS),
   ).toBe(true)
