@@ -185,7 +185,7 @@ test('an empty line shows the slash hint, an empty note the template chip', asyn
 test('in a narrow Split pane the empty note hint wraps downward and stays whole', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 900, height: 700 })
+  await page.setViewportSize({ width: 760, height: 700 })
   await newNote(page, '')
   await page
     .getByRole('group', { name: 'View mode' })
@@ -194,6 +194,7 @@ test('in a narrow Split pane the empty note hint wraps downward and stays whole'
   const hint = page.locator('.cm-empty-hint')
   await expect(hint).toBeVisible()
   await expect(hint.locator('span')).toHaveText('Just start typing, or')
+  await expect(hint).toHaveAttribute('data-wrapped', 'true')
   const box = await hint.boundingBox()
   const line = await page.locator('.cm-line').first().boundingBox()
   expect(box!.y).toBeGreaterThanOrEqual(line!.y - 1)
