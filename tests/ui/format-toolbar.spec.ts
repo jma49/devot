@@ -639,16 +639,19 @@ test('a narrow editor wraps the toolbar onto more rows between its groups, every
 
   // The bar still sits beside the selection, its notch on the selection's start.
   await expectBesideSelection(page)
+  const bar = page.locator('.cm-format-toolbar')
   await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const el = document.querySelector('.cm-tooltip.cm-format-toolbar')
-        const sel = document.querySelector('.cm-selectionBackground')?.getBoundingClientRect()
-        if (!el || !sel) return Number.POSITIVE_INFINITY
-        const notch = Number.parseFloat(getComputedStyle(el).getPropertyValue('--float-notch-x'))
-        return Math.abs(el.getBoundingClientRect().x + notch - sel.x)
-      }),
-    )
+    .poll(async () => {
+      const [placed, sel] = await Promise.all([
+        bar.evaluate((el) => ({
+          left: el.getBoundingClientRect().x,
+          notch: Number.parseFloat(window.getComputedStyle(el).getPropertyValue('--float-notch-x')),
+        })),
+        page.locator('.cm-selectionBackground').first().boundingBox(),
+      ])
+      if (!sel || Number.isNaN(placed.notch)) return Number.POSITIVE_INFINITY
+      return Math.abs(placed.left + placed.notch - sel.x)
+    })
     .toBeLessThan(2)
 })
 
