@@ -37,12 +37,10 @@ function inlineImageReferences(text: string): string {
     if (node.type === 'imageReference') {
       const definition = definitions.get(node.identifier)
       if (definition)
-        replacement = toMarkdown({
-          type: 'image',
-          alt: node.alt,
-          url: definition.url,
-          title: definition.title,
-        }).trimEnd()
+        replacement = toMarkdown(
+          { type: 'image', alt: node.alt, url: definition.url, title: definition.title },
+          { unsafe: [{ character: '|' }] },
+        ).trimEnd()
     } else if (
       node.type === 'definition' &&
       images.has(node.identifier) &&
