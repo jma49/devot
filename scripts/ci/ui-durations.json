@@ -86,6 +86,7 @@
   "tests/ui/note-info.spec.ts": 29201,
   "tests/ui/note-list-header.spec.ts": 20634,
   "tests/ui/note-list-pane.spec.ts": 27940,
+  "tests/ui/note-making.spec.ts": 11400,
   "tests/ui/note-menu.spec.ts": 122415,
   "tests/ui/note-rows.spec.ts": 37254,
   "tests/ui/note-switch.spec.ts": 39561,

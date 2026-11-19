@@ -176,10 +176,15 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
   The first-attempt rate falling, or an issue's count rising, is the signal to fix a flake before it costs a release.
 - A flaky test is fixed at its cause, and the pull request that fixes it closes its issue; no test is skipped, disabled or quarantined to make a run green.
 - The causes found so far, and the rule each left:
+  - A crates.io DNS failure during clippy failed the Mac and iPhone compile job (#1008); it restores the registry index and crate archives by lockfile, fetches locked dependencies on a cache miss, and compiles and tests with `--frozen` so those steps never need the network.
+  - The Split render-cost test counted every media query in the window, including toolbar icons and the narrow-window check on a save, against the number of keys (#973).
+    One save made 40 queries without rendering a copy button; the test now counts the preview and copy-button renders directly and covers saves between keys as well as continuous typing.
   - A check made before the page settled: a test waits for the state it asserts (`expect.poll`, `toHave…`), never reads it once right after an action.
   - A spec that changes `localStorage` on the live page races the app's own writes; what a spec needs on every load goes in an init script (`tests/ui/fixtures.ts`).
   - A screens test that read the page's requests once after a fixed run-loop turn missed them on a loaded runner; it waits for them (`settle(until:)`).
   - The iPhone UI tests' waits were sized on an idle simulator, and the `xcode-27` runner's load stays in the hundreds; every wait goes through `waitLimit` (`src-tauri/apple/DevotUITests/Tests/Waits.swift`), which CI multiplies by `DEVOT_UI_WAIT_SCALE` (3), and a policy test refuses a bare number.
+  - XCTest's accessibility audit stops after a fixed 15 s, which no wait scale stretches, so on the loaded runner the tab bar's audit failed with `Audit failed to complete in time` (#985).
+    With test timeouts on, the audit has the test's time allowance instead: `scripts/ci/iphone-ui-tests.sh` runs both its xcodebuild runs with `-test-timeouts-enabled YES` and XCTest's default allowance, 10 minutes a test.
   - A product time limit (a parse budget) that a slow machine reaches is measured with `expectWithinBudget`, which allows for the hosted runner, instead of being asserted as if it never ran out.
   - A time check's budget is written for a developer's Mac; a machine that is slower without being overloaded (a cloud container, where the load stays under the core count) sets `DEVOT_BUDGET_SCALE`, which stretches every budget by up to the hosted runner's factor (`tests/support/budget.ts`).
   - A test that runs out of time is not stopped: it keeps writing to what it shares with the next test, which then fails on state the first one is still changing (a rate limit's count); a test with many signed requests gets a time limit a loaded runner stays under.
