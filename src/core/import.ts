@@ -15,6 +15,7 @@
 //   title, else to a library note of that title (case and diacritics aside, a folder prefix only choosing between notes of the same name), and `![[image.png]]`
 //   an attachment of the import folder's image of that name. A link not found stays as written and is counted. Code and links' own text are left alone.
 // - Everything else is kept as-is.
+// - Obsidian vaults are recognised from scan metadata: properties stay, images follow the vault's attachment settings, and canvases become Markdown notes.
 // - Line breaks become LF: the editor counts a CRLF as one character and the Yjs text as two, so a CR would make every later edit land in the wrong place.
 // - A file that fails part-way leaves no note behind (nor notebooks made only for it): it is listed as not imported.
 // - Nothing is written before `importMarkdown` runs. Bodies reach the note as Yjs operations (`NoteService.setBody`), never by writing the snapshot.

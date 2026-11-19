@@ -78,20 +78,19 @@ fn read_vault(root: &Root) -> Option<Vault> {
         serde_json::from_slice(&data).ok()
     };
     if let Some(value) = read() {
-        if let Some(path) = value.get("attachmentFolderPath").and_then(|v| v.as_str()) {
-            if path.len() <= MAX_PATH_BYTES
-                && !path.chars().any(char::is_control)
-                && !path
-                    .split('/')
-                    .any(|p| p == ".." || (p.starts_with('.') && p != "."))
-            {
-                vault.attachment_folder_path = path.to_owned();
-            }
+        if let Some(path) = value.get("attachmentFolderPath").and_then(|v| v.as_str())
+            && path.len() <= MAX_PATH_BYTES
+            && !path.chars().any(char::is_control)
+            && !path
+                .split('/')
+                .any(|p| p == ".." || (p.starts_with('.') && p != "."))
+        {
+            vault.attachment_folder_path = path.to_owned();
         }
-        if let Some(format) = value.get("newLinkFormat").and_then(|v| v.as_str()) {
-            if ["shortest", "relative", "absolute"].contains(&format) {
-                vault.new_link_format = format.to_owned();
-            }
+        if let Some(format) = value.get("newLinkFormat").and_then(|v| v.as_str())
+            && ["shortest", "relative", "absolute"].contains(&format)
+        {
+            vault.new_link_format = format.to_owned();
         }
         if let Some(links) = value.get("useMarkdownLinks").and_then(|v| v.as_bool()) {
             vault.use_markdown_links = links;
