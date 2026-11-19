@@ -1096,16 +1096,16 @@ function noteFinder(imported: ImportedNote[], kind: ImportKind, notes: NoteServi
 
 function nearest(named: ImportedNote[], from: string, target: WikiTarget, kind: ImportKind) {
   const written = titleKey(target.path)
+  const pathKey = (path: string) =>
+    titleKey(/\.canvas$/i.test(path) ? path : path.replace(/\.[^./]+$/, ''))
   if (written.startsWith('/')) {
-    const root = rootOf(kind, from)
+    const root = kind === 'files' ? folderOf(from) : rootOf(kind, from)
     const path = titleKey(`${root}${written}`.replace(/^\//, ''))
-    return named.find((note) => titleKey(note.path.replace(/\.md$/i, '')) === path)
+    return named.find((note) => pathKey(note.path) === path)
   }
   const inFolder = target.path.includes('/')
     ? named.filter((note) => {
-        const key = titleKey(
-          /\.canvas$/i.test(note.path) ? note.path : note.path.replace(/\.[^./]+$/, ''),
-        )
+        const key = pathKey(note.path)
         return key === written || key.endsWith(`/${written}`)
       })
     : []
