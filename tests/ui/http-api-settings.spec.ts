@@ -10,15 +10,22 @@ const SECOND = 'dvt_second000000000000000000000000000000000000'
 
 async function fakeRust(
   page: Page,
-  options: { problem?: string; token?: string; holdFirstSet?: boolean } = {},
+  options: {
+    problem?: string
+    token?: string
+    holdFirstSet?: boolean
+    rejectOrigins?: boolean
+    extensionOrigins?: string[]
+  } = {},
 ) {
   await page.addInitScript(
-    ([first, second, problem, initialToken, holdFirstSet]) => {
+    ([first, second, problem, initialToken, holdFirstSet, rejectOrigins, initialOrigins]) => {
       const w = window
       const state: Record<string, any> = {
         enabled: false,
         port: 27484,
         scope: 'read',
+        extensionOrigins: initialOrigins,
         listening: null,
         problem: null,
         token: initialToken ?? 'unset',
@@ -33,13 +40,19 @@ async function fakeRust(
       w.devotReleaseHttpApi = () => release?.()
       w.devotIpcMocks = {
         http_api_get: () => view(),
-        http_api_set: async (args: { enabled: boolean; port: number }) => {
+        http_api_set: async (args: {
+          enabled: boolean
+          port: number
+          extensionOrigins: string[]
+        }) => {
           if (held && firstSet) {
             firstSet = false
             await held
           }
+          if (rejectOrigins && args.extensionOrigins.length) throw 'E_HTTP_API_ORIGINS_INVALID'
           state['enabled'] = args.enabled
           state['port'] = args.port
+          state['extensionOrigins'] = args.extensionOrigins
           if (args.enabled && secret === null) {
             secret = tokens.shift() ?? null
             state['token'] = 'set'
@@ -66,6 +79,8 @@ async function fakeRust(
       options.problem ?? null,
       options.token ?? null,
       options.holdFirstSet ?? false,
+      options.rejectOrigins ?? false,
+      options.extensionOrigins ?? [],
     ] as const,
   )
 }
@@ -91,7 +106,9 @@ test('is off by default and turns on at the port shown, making a token', async (
   )
   await toggle.check()
   await expect(api).toContainText('Listening on 127.0.0.1:27484.')
-  expect(await calls(page, 'http_api_set')).toEqual([{ enabled: true, port: 27484 }])
+  expect(await calls(page, 'http_api_set')).toEqual([
+    { enabled: true, port: 27484, extensionOrigins: [] },
+  ])
   // The token is not read until it is asked for.
   expect(await calls(page, 'http_api_token_reveal')).toEqual([])
   await api.getByRole('button', { name: 'Show' }).click()
@@ -113,8 +130,8 @@ test('changes the port once typing pauses', async ({ page }) => {
   await port.blur()
   await expect(port).toHaveValue('40123')
   expect(await calls(page, 'http_api_set')).toEqual([
-    { enabled: true, port: 27484 },
-    { enabled: true, port: 40123 },
+    { enabled: true, port: 27484, extensionOrigins: [] },
+    { enabled: true, port: 40123, extensionOrigins: [] },
   ])
 })
 
@@ -142,14 +159,16 @@ test('the switch and the port are saved in turn, each with the other’s change'
   await port.fill('40123')
   // Its typing pause passes while the first save is still out.
   await page.waitForTimeout(600)
-  expect(await calls(page, 'http_api_set')).toEqual([{ enabled: true, port: 27484 }])
+  expect(await calls(page, 'http_api_set')).toEqual([
+    { enabled: true, port: 27484, extensionOrigins: [] },
+  ])
 
   await page.evaluate(() => window.devotReleaseHttpApi())
   await expect(api).toContainText('Listening on 127.0.0.1:40123.')
   // The second save carries the port and the switch that was turned on, not a stale `enabled`.
   expect(await calls(page, 'http_api_set')).toEqual([
-    { enabled: true, port: 27484 },
-    { enabled: true, port: 40123 },
+    { enabled: true, port: 27484, extensionOrigins: [] },
+    { enabled: true, port: 40123, extensionOrigins: [] },
   ])
 })
 
@@ -184,4 +203,80 @@ test('says a failure without its code', async ({ page }) => {
   const api = section(page)
   await api.getByRole('button', { name: 'Show' }).click()
   await expect(api.getByRole('alert')).toHaveText('The token could not be read or made.')
+})
+
+const ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop'
+
+test('adds and removes browser extension origins, with no registration by default', async ({
+  page,
+}) => {
+  await fakeRust(page)
+  await openSettings(page, 'Integrations')
+  const api = section(page)
+  await expect(api).toContainText('No browser extensions registered.')
+  const add = api.getByRole('button', { name: 'Add extension' })
+  await expect(add).toBeDisabled()
+  await api.getByRole('textbox', { name: 'Extension origin' }).fill(` ${ORIGIN} `)
+  await add.click()
+  const remove = api.getByRole('button', { name: `Remove ${ORIGIN}`, exact: true })
+  await expect(remove).toBeEnabled()
+  expect(await calls(page, 'http_api_set')).toEqual([
+    { enabled: false, port: 27484, extensionOrigins: [ORIGIN] },
+  ])
+  await api.getByRole('textbox', { name: 'Extension origin' }).fill(ORIGIN)
+  await expect(add).toBeDisabled()
+  await remove.click()
+  await expect(remove).toHaveCount(0)
+  await expect(add).toBeEnabled()
+  expect(await calls(page, 'http_api_set')).toEqual([
+    { enabled: false, port: 27484, extensionOrigins: [ORIGIN] },
+    { enabled: false, port: 27484, extensionOrigins: [] },
+  ])
+})
+
+test('shows origin validation failures and restores the registered list', async ({ page }) => {
+  await fakeRust(page, { rejectOrigins: true })
+  await openSettings(page, 'Integrations')
+  const api = section(page)
+  await api.getByRole('textbox', { name: 'Extension origin' }).fill('https://example.com')
+  await api.getByRole('button', { name: 'Add extension' }).click()
+  await expect(api.getByRole('alert')).toHaveText(
+    'Enter up to eight extension origins, without a trailing slash, path or port.',
+  )
+  await expect(api).toContainText('No browser extensions registered.')
+  await expect(api.getByRole('listitem')).toHaveCount(0)
+})
+
+test('caps the registered list at eight entries', async ({ page }) => {
+  const origins = Array.from(
+    { length: 8 },
+    (_, i) => `chrome-extension://${String.fromCharCode(97 + i).repeat(32)}`,
+  )
+  await fakeRust(page, { extensionOrigins: origins })
+  await openSettings(page, 'Integrations')
+  const api = section(page)
+  await api.getByRole('textbox', { name: 'Extension origin' }).fill(ORIGIN)
+  const add = api.getByRole('button', { name: 'Add extension' })
+  await expect(add).toBeDisabled()
+  await api.getByRole('button', { name: `Remove ${origins[0]}`, exact: true }).click()
+  await expect(add).toBeEnabled()
+})
+
+test('queues origin registration with a pending toggle and port edit', async ({ page }) => {
+  await fakeRust(page, { holdFirstSet: true })
+  await openSettings(page, 'Integrations')
+  const api = section(page)
+  await api.getByRole('switch', { name: 'Allow Local HTTP API' }).click()
+  await expect.poll(async () => (await calls(page, 'http_api_set')).length).toBe(1)
+  await api.getByRole('textbox', { name: 'Extension origin' }).fill(ORIGIN)
+  await api.getByRole('button', { name: 'Add extension' }).click()
+  await api.getByRole('spinbutton', { name: 'Port' }).fill('40123')
+  await page.waitForTimeout(600)
+  await page.evaluate(() => window.devotReleaseHttpApi())
+  await expect(api.getByRole('button', { name: `Remove ${ORIGIN}`, exact: true })).toBeEnabled()
+  await expect(api).toContainText('Listening on 127.0.0.1:40123.')
+  expect(await calls(page, 'http_api_set')).toEqual([
+    { enabled: true, port: 27484, extensionOrigins: [] },
+    { enabled: true, port: 40123, extensionOrigins: [ORIGIN] },
+  ])
 })

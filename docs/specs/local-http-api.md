@@ -9,13 +9,16 @@ The MCP bridge reaches the same routes and guards on a Unix socket of its own, w
 Every request passes these guards before anything reaches the notes:
 
 - **Where it listens:** `127.0.0.1` only, on the port in Settings (27484 by default; 1024 to 65535), never on another interface.
-  The settings are `<app data>/http-api.json` (`enabled`, `port`, `scope`): on this device only, never synced, never in backups.
+  The settings are `<app data>/http-api.json` (`enabled`, `port`, `scope`, `extensionOrigins`): on this device only, never synced, never in backups.
+  Browser extensions in Settings accepts up to eight origins, defaulting to none; Rust rejects invalid additions with `E_HTTP_API_ORIGINS_INVALID`.
+  Reading settings drops invalid entries, removes duplicates and keeps the first eight valid origins.
   A port another program holds leaves it on but not listening, and Settings says why (`E_HTTP_API_PORT_IN_USE`); the next change, or the next launch, tries again.
   It starts at launch when on (off the launch's thread, since it reads the keychain) and stops when turned off; a request already being answered finishes.
 - **Reading a request:** HTTP/1.1 (or 1.0), one request a connection (`Connection: close`), read by hand to small limits: a head of at most 16 KiB and 64 headers (`E_HTTP_HEADERS_TOO_LARGE`, 431), the whole request within 10 s (`E_HTTP_TIMEOUT`, 408), at most 8 connections at once (`E_HTTP_API_BUSY`, 503).
   A header that must be single and comes twice is refused (`E_HTTP_BAD_REQUEST`).
 - **DNS rebinding and browsers:** the `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` (`E_HTTP_HOST_REFUSED`, 403).
-  An `Origin` is refused (`E_HTTP_ORIGIN_REFUSED`) unless it is exactly `chrome-extension://` followed by a 32-character ID of lowercase letters a–p, or `moz-extension://` or `safari-web-extension://` followed by a UUID (hexadecimal groups of 8-4-4-4-12 characters).
+  An `Origin` is refused (`E_HTTP_ORIGIN_REFUSED`) unless it exactly matches a registered origin in the live settings, read for each request so removal takes effect without restarting the listener.
+  Registered origins must be `chrome-extension://` followed by a 32-character ID of lowercase letters a–p, or `moz-extension://` or `safari-web-extension://` followed by a UUID (hexadecimal groups of 8-4-4-4-12 characters).
   No path, port, user information or suffix is accepted.
   These extension origins bypass the `Sec-Fetch-Site` and `Sec-Fetch-Dest` guard; every other request carrying either header is refused (`E_HTTP_BROWSER_REFUSED`).
   Page scripts cannot forge extension origins; extension host permissions bypass CORS, while token, scope and rate checks still apply.

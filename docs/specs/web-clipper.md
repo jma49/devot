@@ -8,6 +8,9 @@ The optional patterns cover all HTTP(S) hosts because an article can embed image
 The popup edits the title and lists notebooks from `GET /v1/notebooks`; saving uses `POST /v1/notes` with `{ title, markdown, notebook }` and a Bearer token.
 The background owns network requests, with a 20-second timeout and no content or token logging; API requests refuse redirects.
 The options page stores the port (default `27484`) and token in `chrome.storage.local`, never sync storage.
+It also displays its own extension origin without a trailing slash, with a Copy origin button.
+Copy that origin into Devot Settings > Integrations > Local HTTP API > Browser extensions and choose Add extension before clipping.
+No extension is registered by default; up to eight can be registered, and removal takes effect on the next request without restarting Devot.
 An empty or inaccessible notebook list disables clipping.
 The app must be running with its HTTP API enabled, a read/write token and Allow AI Access on the destination notebook.
 
@@ -29,11 +32,12 @@ Failed downloads, denied host access, unsupported images, oversized images and r
 If the final PATCH fails, the popup reports the error; the initial note and any uploaded files remain, as other multi-step API writes do.
 The extension checks the API's 1 MiB UTF-8 Markdown limit before sending and reports a localized error for oversize clips.
 API error codes are translated where known, with a generic localized fallback and no note content in errors.
+An origin refusal is displayed as exactly `E_HTTP_ORIGIN_REFUSED`, so a missing registration is distinguishable from a connection or token error.
 
 Run `pnpm clipper:build` to bundle all scripts locally with esbuild; there is no remote code or inline script.
 Chrome loads **clipper/dist/chrome** as an unpacked extension.
 Firefox loads **clipper/dist/firefox/manifest.json** through temporary add-on debugging, or a signed package for persistent installation.
 Firefox uses an event background script because its Manifest V3 implementation does not support background service workers.
 The build copies the WebExtension English and Simplified Chinese catalogs into both outputs.
-The local API accepts validated extension origins without adding any CORS headers; all existing authentication and access checks remain.
+The local API accepts only syntactically valid, exactly registered extension origins without adding any CORS headers; all existing authentication and access checks remain.
 Tests in `tests/clipper/` cover extraction and the client through a real HTTP server, and Rust socket tests cover the origin guard.

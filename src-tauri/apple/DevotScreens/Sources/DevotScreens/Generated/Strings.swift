@@ -4458,6 +4458,38 @@ public enum L10n {
     text("httpApi.port", "Port")
   }
 
+  public static func httpApiExtensions() -> String {
+    text("httpApi.extensions", "Browser extensions")
+  }
+
+  public static func httpApiExtensionsHint() -> String {
+    text("httpApi.extensionsHint", "Only registered extensions may use this API. Copy the origin from the clipper settings. Changes apply immediately.")
+  }
+
+  public static func httpApiNoExtensions() -> String {
+    text("httpApi.noExtensions", "No browser extensions registered.")
+  }
+
+  public static func httpApiExtensionOrigin() -> String {
+    text("httpApi.extensionOrigin", "Extension origin")
+  }
+
+  public static func httpApiAddExtension() -> String {
+    text("httpApi.addExtension", "Add extension")
+  }
+
+  public static func httpApiRemoveExtension() -> String {
+    text("httpApi.removeExtension", "Remove")
+  }
+
+  public static func httpApiRemoveOrigin(origin p0: String) -> String {
+    fill(text("httpApi.removeOrigin", "Remove {origin}"), ["origin": p0])
+  }
+
+  public static func httpApiOriginsInvalid() -> String {
+    text("httpApi.originsInvalid", "Enter up to eight extension origins, without a trailing slash, path or port.")
+  }
+
   public static func httpApiPortHint() -> String {
     text("httpApi.portHint", "Devot listens on this port while the API is on.")
   }

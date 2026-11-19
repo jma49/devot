@@ -208,6 +208,7 @@ export async function mockTauri(page: Page): Promise<void> {
               enabled: false,
               port: 27484,
               scope: 'read',
+              extensionOrigins: [],
               listening: null,
               problem: null,
               token: 'unset',

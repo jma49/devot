@@ -7,20 +7,23 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::token::Scope;
+use super::{server::extension_origin, token::Scope};
 use crate::settings_file::{Codes, SettingsFile};
 
 pub const FILE: &str = "http-api.json";
 pub const DEFAULT_PORT: u16 = 27_484;
+pub const MAX_EXTENSION_ORIGINS: usize = 8;
 /// Below are the ports only root may listen on.
 pub const MIN_PORT: u16 = 1024;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct HttpApiSettings {
     pub enabled: bool,
     pub port: u16,
     pub scope: Scope,
+    #[serde(default)]
+    pub extension_origins: Vec<String>,
 }
 
 impl Default for HttpApiSettings {
@@ -29,6 +32,7 @@ impl Default for HttpApiSettings {
             enabled: false,
             port: DEFAULT_PORT,
             scope: Scope::Read,
+            extension_origins: Vec::new(),
         }
     }
 }
@@ -60,6 +64,19 @@ impl HttpApiSettings {
             .and_then(|s| serde_json::from_value(s.clone()).ok())
         {
             settings.scope = scope;
+        }
+        if let Some(origins) = value.get("extensionOrigins").and_then(Value::as_array) {
+            for origin in origins
+                .iter()
+                .filter_map(Value::as_str)
+                .filter(|s| extension_origin(s))
+            {
+                if !settings.extension_origins.iter().any(|s| s == origin)
+                    && settings.extension_origins.len() < MAX_EXTENSION_ORIGINS
+                {
+                    settings.extension_origins.push(origin.to_string());
+                }
+            }
         }
         settings
     }
@@ -99,6 +116,14 @@ impl SettingsStore {
     /// never replaces what it holds.
     pub fn set(&self, settings: HttpApiSettings) -> Result<HttpApiSettings, &'static str> {
         check_port(settings.port)?;
+        if settings.extension_origins.len() > MAX_EXTENSION_ORIGINS
+            || settings
+                .extension_origins
+                .iter()
+                .any(|s| !extension_origin(s))
+        {
+            return Err("E_HTTP_API_ORIGINS_INVALID");
+        }
         let _writing = self
             .write
             .lock()
@@ -114,11 +139,79 @@ impl SettingsStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     fn store() -> (tempfile::TempDir, SettingsStore) {
         let dir = tempfile::tempdir().unwrap();
         let store = SettingsStore::new(&dir.path().join(FILE));
         (dir, store)
+    }
+
+    #[test]
+    fn extension_origins_default_to_empty() {
+        let (_dir, store) = store();
+        assert_eq!(
+            serde_json::to_value(store.get()).unwrap()["extensionOrigins"],
+            serde_json::json!([])
+        );
+    }
+
+    #[test]
+    fn stores_origins_and_refuses_bad_or_excess_entries_without_writing() {
+        let (dir, store) = store();
+        let origin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+        let wanted = HttpApiSettings {
+            extension_origins: vec![origin.into()],
+            ..HttpApiSettings::default()
+        };
+        store.set(wanted.clone()).unwrap();
+        assert_eq!(store.get(), wanted);
+        assert_eq!(SettingsStore::new(&dir.path().join(FILE)).get(), wanted);
+        for origins in [
+            vec!["https://example.com".into()],
+            vec![format!("{origin}/")],
+            vec![origin.into(); MAX_EXTENSION_ORIGINS + 1],
+        ] {
+            assert_eq!(
+                store.set(HttpApiSettings {
+                    extension_origins: origins,
+                    ..wanted.clone()
+                }),
+                Err("E_HTTP_API_ORIGINS_INVALID")
+            );
+            assert_eq!(store.get(), wanted);
+        }
+    }
+
+    #[test]
+    fn reading_drops_bad_origins_and_keeps_valid_entries_up_to_the_cap() {
+        let (dir, store) = store();
+        let origins: Vec<String> = ('a'..='p')
+            .map(|c| format!("chrome-extension://{}", c.to_string().repeat(32)))
+            .collect();
+        let mut entries = vec![
+            json!(null),
+            json!(3),
+            json!("null"),
+            json!("https://example.com"),
+            json!(format!("{}/", origins[0])),
+        ];
+        entries.extend(origins.iter().map(|s| json!(s)));
+        std::fs::write(
+            dir.path().join(FILE),
+            json!({"extensionOrigins": entries}).to_string(),
+        )
+        .unwrap();
+        assert_eq!(
+            store.get().extension_origins,
+            origins[..MAX_EXTENSION_ORIGINS]
+        );
+        std::fs::write(
+            dir.path().join(FILE),
+            json!({"extensionOrigins": "invalid"}).to_string(),
+        )
+        .unwrap();
+        assert!(store.get().extension_origins.is_empty());
     }
 
     #[test]
@@ -129,7 +222,8 @@ mod tests {
             HttpApiSettings {
                 enabled: false,
                 port: DEFAULT_PORT,
-                scope: Scope::Read
+                scope: Scope::Read,
+                ..HttpApiSettings::default()
             }
         );
     }
@@ -141,8 +235,9 @@ mod tests {
             enabled: true,
             port: 40_000,
             scope: Scope::ReadWrite,
+            ..HttpApiSettings::default()
         };
-        assert_eq!(store.set(wanted), Ok(wanted));
+        assert_eq!(store.set(wanted.clone()), Ok(wanted.clone()));
         assert_eq!(store.get(), wanted);
     }
 
@@ -172,7 +267,8 @@ mod tests {
             HttpApiSettings {
                 enabled: false,
                 port: DEFAULT_PORT,
-                scope: Scope::ReadWrite
+                scope: Scope::ReadWrite,
+                ..HttpApiSettings::default()
             }
         );
         std::fs::write(dir.path().join(FILE), b"{ nope").unwrap();

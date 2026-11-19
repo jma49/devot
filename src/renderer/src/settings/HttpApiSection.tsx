@@ -31,19 +31,32 @@ export function HttpApiSection() {
   const [shown, setShown] = useState<string>()
   const [failure, setFailure] = useState<{ message: MessageKey; code: string }>()
   const [announcement, setAnnouncement] = useState('')
-  // The switch and the port each send the whole pair, so building it from a stale view (or letting
-  // two saves race) would undo the other.
-  const pair = useQueuedChoices<{ enabled: boolean; port: number }>(
+  const [originDraft, setOriginDraft] = useState('')
+  const [originPending, setOriginPending] = useState<string[] | null>(null)
+  const pair = useQueuedChoices<Pick<HttpApiView, 'enabled' | 'port' | 'extensionOrigins'>>(
     async (sent) => {
-      const next = await saveHttpApi(sent.enabled, sent.port)
-      setView(next)
-      setFailure(undefined)
-      return { enabled: next.enabled, port: next.port }
+      try {
+        const next = await saveHttpApi(sent.enabled, sent.port, sent.extensionOrigins)
+        setView(next)
+        setFailure(undefined)
+        return next
+      } finally {
+        setOriginPending((current) =>
+          current &&
+          current.length === sent.extensionOrigins.length &&
+          current.every((origin, i) => origin === sent.extensionOrigins[i])
+            ? null
+            : current,
+        )
+      }
     },
     (e: unknown) => {
       setAnnouncement('')
       setFailure({
-        message: 'httpApi.saveFailed',
+        message:
+          errorCode(e) === 'E_HTTP_API_ORIGINS_INVALID'
+            ? 'httpApi.originsInvalid'
+            : 'httpApi.saveFailed',
         code: logFailure(errorCode(e), 'W_HTTP_API_SETTINGS_FAILED'),
       })
     },
@@ -54,7 +67,7 @@ export function HttpApiSection() {
     const take = pair.reading()
     loadHttpApi().then(
       (loaded) => {
-        if (!live || !take({ enabled: loaded.enabled, port: loaded.port })) return
+        if (!live || !take(loaded)) return
         setView(loaded)
       },
       (e: unknown) => {
@@ -89,6 +102,11 @@ export function HttpApiSection() {
     )
 
   const change = pair.change
+  const changeOrigins = (extensionOrigins: string[]) => {
+    setOriginPending(extensionOrigins)
+    change({ extensionOrigins })
+  }
+  const origins = originPending ?? view?.extensionOrigins ?? []
 
   const port = useTypedNumber({
     stored: view?.port ?? HTTP_API_MIN_PORT,
@@ -185,6 +203,65 @@ export function HttpApiSection() {
               onChange={(e) => port.type(e.currentTarget.value)}
               onBlur={port.leave}
             />
+          </Setting>
+          <Setting label="httpApi.extensions" description={t('httpApi.extensionsHint')} stacked>
+            <ul className="http-api-origins" aria-label={t('httpApi.extensions')}>
+              {origins.map((origin) => (
+                <li key={origin}>
+                  <code>{origin}</code>
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={originPending !== null}
+                    aria-label={format(t('httpApi.removeOrigin'), { origin })}
+                    onClick={() => changeOrigins(origins.filter((item) => item !== origin))}
+                  >
+                    {t('httpApi.removeExtension')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {origins.length === 0 ? (
+              <p className="settings-note">{t('httpApi.noExtensions')}</p>
+            ) : null}
+            <form
+              className="http-api-origin-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                const origin = originDraft.trim()
+                if (
+                  !origin ||
+                  origins.includes(origin) ||
+                  origins.length >= 8 ||
+                  originPending !== null
+                )
+                  return
+                changeOrigins([...origins, origin])
+                setOriginDraft('')
+              }}
+            >
+              <input
+                type="text"
+                className="settings-number settings-text"
+                value={originDraft}
+                spellCheck={false}
+                autoComplete="off"
+                aria-label={t('httpApi.extensionOrigin')}
+                onChange={(event) => setOriginDraft(event.currentTarget.value)}
+              />
+              <button
+                type="submit"
+                className="button"
+                disabled={
+                  !originDraft.trim() ||
+                  origins.includes(originDraft.trim()) ||
+                  origins.length >= 8 ||
+                  originPending !== null
+                }
+              >
+                {t('httpApi.addExtension')}
+              </button>
+            </form>
           </Setting>
           <Setting
             label="httpApi.access"

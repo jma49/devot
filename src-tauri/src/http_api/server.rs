@@ -107,6 +107,7 @@ pub enum Holder {
 /// one for each so a busy script cannot lock an AI tool out. A new token takes effect at once,
 /// without a restart.
 pub struct Gate {
+    settings: Option<Arc<super::settings::SettingsStore>>,
     access: RwLock<Option<Access>>,
     mcp_access: RwLock<Option<Access>>,
     rate: Mutex<Bucket>,
@@ -119,6 +120,7 @@ pub struct Gate {
 impl Gate {
     pub fn new(limits: Limits) -> Self {
         Self {
+            settings: None,
             access: RwLock::new(None),
             mcp_access: RwLock::new(None),
             rate: Mutex::new(Bucket::full(limits.burst)),
@@ -133,6 +135,11 @@ impl Gate {
         if let Ok(mut access) = self.access.write() {
             *access = Some(Access { token, scope });
         }
+    }
+
+    pub fn with_settings(mut self, settings: Arc<super::settings::SettingsStore>) -> Self {
+        self.settings = Some(settings);
+        self
     }
 
     pub fn close(&self) {
@@ -701,7 +708,7 @@ fn read_until(
     Ok(())
 }
 
-fn extension_origin(origin: &str) -> bool {
+pub(super) fn extension_origin(origin: &str) -> bool {
     if let Some(id) = origin.strip_prefix("chrome-extension://") {
         return id.len() == 32 && id.bytes().all(|c| (b'a'..=b'p').contains(&c));
     }
@@ -848,7 +855,16 @@ fn handle(
     if !host_ok {
         return Err(Refusal::new(403, "E_HTTP_HOST_REFUSED"));
     }
-    let extension = head.one("origin")?.is_some_and(extension_origin);
+    let extension = head.one("origin")?.is_some_and(|origin| {
+        extension_origin(origin)
+            && gate.settings.as_ref().is_some_and(|settings| {
+                settings
+                    .get()
+                    .extension_origins
+                    .iter()
+                    .any(|registered| registered == origin)
+            })
+    });
     if head.has("origin") && !extension {
         return Err(Refusal::new(403, "E_HTTP_ORIGIN_REFUSED"));
     }

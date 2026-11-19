@@ -10,6 +10,7 @@ export interface HttpApiView {
   enabled: boolean
   port: number
   scope: HttpApiScope
+  extensionOrigins: string[]
   /** The port it listens on, while it does. */
   listening: number | null
   /** Why it is on but not listening. */
@@ -28,15 +29,24 @@ const isPort = (value: unknown): value is number =>
 
 function asHttpApiView(value: unknown): HttpApiView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { enabled, port, scope, listening, problem, token } = value as Record<string, unknown>
+  const { enabled, port, scope, extensionOrigins, listening, problem, token } = value as Record<
+    string,
+    unknown
+  >
   if (typeof enabled !== 'boolean' || !isPort(port) || !SCOPES.includes(scope)) return undefined
   if (listening !== null && !isPort(listening)) return undefined
   if (problem !== null && typeof problem !== 'string') return undefined
   if (!TOKEN_STATES.includes(token)) return undefined
+  if (
+    !Array.isArray(extensionOrigins) ||
+    !extensionOrigins.every((origin) => typeof origin === 'string')
+  )
+    return undefined
   return {
     enabled,
     port,
     scope: scope as HttpApiScope,
+    extensionOrigins,
     listening,
     problem,
     token: token as HttpApiTokenState,
@@ -51,8 +61,8 @@ async function view(command: string, args?: Record<string, unknown>): Promise<Ht
 
 export const loadHttpApi = () => view('http_api_get')
 
-export const saveHttpApi = (enabled: boolean, port: number) =>
-  view('http_api_set', { enabled, port })
+export const saveHttpApi = (enabled: boolean, port: number, extensionOrigins: string[]) =>
+  view('http_api_set', { enabled, port, extensionOrigins })
 
 /** A new token of `scope`; the one before stops working. */
 export const newHttpApiToken = (scope: HttpApiScope) => view('http_api_token_rotate', { scope })

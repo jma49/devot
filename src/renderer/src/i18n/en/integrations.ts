@@ -91,6 +91,16 @@ export const messages = {
   'httpApi.enabledHint': 'Listens on 127.0.0.1 only. Off by default.',
   'httpApi.noKeychain': 'Needs the keychain, which this build of Devot cannot use.',
   'httpApi.port': 'Port',
+  'httpApi.extensions': 'Browser extensions',
+  'httpApi.extensionsHint':
+    'Only registered extensions may use this API. Copy the origin from the clipper settings. Changes apply immediately.',
+  'httpApi.noExtensions': 'No browser extensions registered.',
+  'httpApi.extensionOrigin': 'Extension origin',
+  'httpApi.addExtension': 'Add extension',
+  'httpApi.removeExtension': 'Remove',
+  'httpApi.removeOrigin': 'Remove {origin}',
+  'httpApi.originsInvalid':
+    'Enter up to eight extension origins, without a trailing slash, path or port.',
   'httpApi.portHint': 'Devot listens on this port while the API is on.',
   'httpApi.listening': 'Listening on 127.0.0.1:{port}.',
   'httpApi.notListening': 'Not listening. Try another port.',

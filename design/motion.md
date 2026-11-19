@@ -7,6 +7,7 @@ It draws on Apple's [Human Interface Guidelines: Motion](https://developer.apple
 ## Should it move?
 
 The browser clipper uses native browser controls and immediate status text, with no custom motion.
+Adding or removing a registered browser extension in Settings replaces the list immediately with no animation; copying its origin in the clipper options replaces the status text immediately.
 
 Decide in this order; the first match wins.
 

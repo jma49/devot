@@ -13720,6 +13720,23 @@
         }
       }
     },
+    "httpApi.addExtension" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add extension"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加扩展"
+          }
+        }
+      }
+    },
     "httpApi.copyFailed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13822,6 +13839,57 @@
         }
       }
     },
+    "httpApi.extensionOrigin" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extension origin"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扩展来源地址"
+          }
+        }
+      }
+    },
+    "httpApi.extensions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser extensions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览器扩展"
+          }
+        }
+      }
+    },
+    "httpApi.extensionsHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only registered extensions may use this API. Copy the origin from the clipper settings. Changes apply immediately."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有已注册的扩展可以使用此 API。请从剪藏设置中拷贝来源地址。更改会立即生效。"
+          }
+        }
+      }
+    },
     "httpApi.hideToken" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13890,6 +13958,23 @@
         }
       }
     },
+    "httpApi.noExtensions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No browser extensions registered."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未注册浏览器扩展。"
+          }
+        }
+      }
+    },
     "httpApi.noKeychain" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13920,6 +14005,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有在监听。请换一个端口。"
+          }
+        }
+      }
+    },
+    "httpApi.originsInvalid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter up to eight extension origins, without a trailing slash, path or port."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最多输入八个扩展来源地址，不能包含末尾斜杠、路径或端口。"
           }
         }
       }
@@ -13988,6 +14090,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "读写"
+          }
+        }
+      }
+    },
+    "httpApi.removeExtension" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除"
+          }
+        }
+      }
+    },
+    "httpApi.removeOrigin" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove {origin}"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除 {origin}"
           }
         }
       }

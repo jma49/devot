@@ -12,6 +12,14 @@
   "working": { "message": "Clipping…" },
   "saved": { "message": "Saved to Devot." },
   "settingsSaved": { "message": "Settings saved." },
+  "extensionOrigin": { "message": "Extension origin" },
+  "copyOrigin": { "message": "Copy origin" },
+  "originCopied": { "message": "Extension origin copied." },
+  "registerOrigin": {
+    "message": "Add this origin in Devot Settings > Integrations > Local HTTP API > Browser extensions."
+  },
+  "E_CLIP_COPY": { "message": "Could not copy. Select and copy the origin manually." },
+  "E_HTTP_ORIGIN_REFUSED": { "message": "E_HTTP_ORIGIN_REFUSED" },
   "imageAccess": { "message": "Enable offline images (optional website access)" },
   "imagesEnabled": {
     "message": "Offline images enabled. Supported images will be saved with each clip."

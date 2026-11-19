@@ -15,6 +15,14 @@
   "working": { "message": "正在剪藏…" },
   "saved": { "message": "已保存到 Devot。" },
   "settingsSaved": { "message": "设置已保存。" },
+  "extensionOrigin": { "message": "扩展来源地址" },
+  "copyOrigin": { "message": "拷贝来源地址" },
+  "originCopied": { "message": "已拷贝扩展来源地址。" },
+  "registerOrigin": {
+    "message": "请在 Devot 设置 > 集成 > 本地 HTTP API > 浏览器扩展中添加此来源地址。"
+  },
+  "E_CLIP_COPY": { "message": "无法拷贝。请手动选择并拷贝来源地址。" },
+  "E_HTTP_ORIGIN_REFUSED": { "message": "E_HTTP_ORIGIN_REFUSED" },
   "E_NOTE_BODY_TOO_LARGE": { "message": "剪藏内容超过 1 MB Markdown 限制。请选择更小的部分。" },
   "E_CLIP_EMPTY": { "message": "未找到文章或所选内容。请先选择内容。" },
   "E_CLIP_URL": { "message": "请打开 HTTP 或 HTTPS 文章。" },

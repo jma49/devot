@@ -6,6 +6,14 @@ const port = field<HTMLInputElement>('port')
 const token = field<HTMLInputElement>('token')
 const save = field<HTMLButtonElement>('save')
 const images = field<HTMLButtonElement>('images')
+const origin = chrome.runtime.getURL('').replace(/\/$/, '')
+field<HTMLInputElement>('origin').value = origin
+field<HTMLButtonElement>('copy-origin').addEventListener('click', () => {
+  void navigator.clipboard.writeText(origin).then(
+    () => status('originCopied'),
+    () => status('E_CLIP_COPY'),
+  )
+})
 void chrome.permissions.contains({ origins: ['http://*/*', 'https://*/*'] }).then((granted) => {
   images.disabled = granted
 })
