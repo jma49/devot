@@ -14,11 +14,11 @@ import { useExternalChanges } from '../externalChanges'
 import { LICENCE_REQUIRED, LICENCE_UNREADABLE } from '../licence'
 import { saveEdits } from '../saveGuards'
 import { logNewProblems } from '../saving'
-import { welcomeContent } from '../welcome/content'
 import { listSeeded } from '../welcome/seed'
 import { createCoreGate } from './coreGate'
 import { reportingListWrites } from './screens/feed'
 import { externalChangesReported, noteWritesReported } from './screens/noteChanges'
+import { loadWelcome } from '../welcome/load'
 
 export interface PhoneData {
   readonly core: Core | null
@@ -155,7 +155,7 @@ export function usePhoneData(
         try {
           await listSeeded(
             () => load(core),
-            seeds ? () => core.seedWelcome(welcomeContent()) : undefined,
+            seeds ? () => loadWelcome().then((content) => core.seedWelcome(content)) : undefined,
           )
         } finally {
           gate.open(core)
