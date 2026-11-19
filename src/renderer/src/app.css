@@ -1230,7 +1230,7 @@ button {
   font: inherit;
   font-size: var(--font-size-footnote);
   column-gap: var(--size-sidebar-footer-gap);
-  height: var(--size-sidebar-footer);
+  min-height: var(--size-sidebar-footer);
   padding-inline: calc(var(--size-sidebar-row-padding) - var(--size-capsule-edge))
     var(--size-sidebar-footer-end-sm);
   border: var(--size-capsule-edge) solid var(--color-line-glass-edge);
@@ -1270,9 +1270,8 @@ button {
   flex: 1;
   text-align: start;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .footer-panel {

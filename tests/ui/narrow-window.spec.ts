@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test, openApp } from './fixtures'
+import { zhHans } from '../../src/renderer/src/i18n/zh-Hans'
 
 /** size.pane-min-width */
 const PANE_MIN = 240
@@ -114,6 +115,42 @@ for (const width of [760, 800, 900]) {
     await expect(page.locator('.cm-line')).toHaveText('> alpha beta gamma delta')
   })
 }
+
+test.describe('Simplified Chinese', () => {
+  test.use({ locale: 'zh-Hans' })
+
+  test('the minimum-width sidebar shows the whole backup and mirror status in Split', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 760, height: 700 })
+    await page.addInitScript(() => {
+      window.devotIpcMocks = { backups_list: { backups: [], lastError: null } }
+    })
+    await openApp(page)
+    await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hans')
+    await page.getByRole('button', { name: zhHans['noteList.newNote'], exact: true }).click()
+    await expect(page.getByRole('textbox', { name: zhHans['note.titleLabel'] })).toHaveValue('')
+    await page.getByRole('textbox', { name: zhHans['note.bodyLabel'] }).click()
+    await page.keyboard.insertText('Split note')
+    await page.getByRole('button', { name: zhHans['mode.split'], exact: true }).click()
+
+    const editor = page.locator('[data-devot-part=editor-body]')
+    const preview = page.getByRole('article', { name: zhHans['preview.label'] })
+    await expect(preview).toHaveText('Split note')
+    const split = await Promise.all([box(editor), box(preview)])
+    await page.getByRole('button', { name: zhHans['command.showSidebar'] }).click()
+    const overlay = page.getByRole('navigation', { name: zhHans['sidebar.label'] })
+    await overlay.getByRole('separator', { name: zhHans['sidebar.resize'] }).press('Home')
+    await expect.poll(async () => (await box(overlay)).width).toBe(170)
+
+    const status = overlay.locator('.footer-saved')
+    await expect(status).toHaveText(
+      `${zhHans['sidebar.notBackedUp']} · ${zhHans['sidebar.mirrorOffShort']}`,
+    )
+    await expect.poll(() => status.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    expect(await Promise.all([box(editor), box(preview)])).toEqual(split)
+  })
+})
 
 test('the sidebar shows at 1000 px, gives way below it, and comes back on request', async ({
   page,
