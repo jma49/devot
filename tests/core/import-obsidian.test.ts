@@ -66,6 +66,24 @@ async function run(
 }
 
 describe('Obsidian vault import', () => {
+  it('stores the canvas attachment image bytes behind its rewritten file URI', async () => {
+    const { db, report, note } = await run()
+    const canvas = await note('Projects/Board.canvas')
+    const match = /!\[[^\]]*\]\(devot:\/\/file\/([^)]+)\)/.exec(canvas.bodyMd)
+    expect(match).not.toBeNull()
+    const file = db.db
+      .prepare('SELECT note_id, name, data FROM files WHERE id = ?')
+      .get(match![1]) as {
+      note_id: string
+      name: string
+      data: Buffer
+    }
+    expect(file.note_id).toBe(report.noteIds['Projects/Board.canvas'])
+    expect(file.name).toBe('only-settings.png')
+    expect(file.data).toEqual(readFileSync(join(fixture, 'Attachments/only-settings.png')))
+    expect(canvas.bodyMd).not.toContain('![[/')
+  })
+
   it('keeps vault and TextBundle layouts and conventions separate in mixed picked roots', async () => {
     const { db, scan, note, report } = await run(
       {
