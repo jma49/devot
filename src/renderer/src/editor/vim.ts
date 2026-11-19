@@ -1,5 +1,8 @@
-import { Compartment, Prec, type Extension } from '@codemirror/state'
+import { Compartment, Facet, Prec, type Extension } from '@codemirror/state'
 import { EditorView, ViewPlugin } from '@codemirror/view'
+
+export type VimEditingMode = 'normal' | 'insert' | 'visual' | null
+export const vimModeReport = Facet.define<(mode: VimEditingMode) => void>()
 
 const vimTheme = EditorView.theme({
   '&.cm-editor .cm-fat-cursor': {
@@ -18,8 +21,26 @@ const vimTheme = EditorView.theme({
 })
 
 const loadVim = async (): Promise<Extension> => {
-  const { vim } = await import('@replit/codemirror-vim')
-  return vim()
+  const { vim, getCM } = await import('@replit/codemirror-vim')
+  return [
+    vim(),
+    ViewPlugin.define((view) => {
+      const cm = getCM(view)!
+      const report = () => {
+        const state = cm.state.vim
+        const mode = state?.insertMode ? 'insert' : state?.visualMode ? 'visual' : 'normal'
+        for (const listener of view.state.facet(vimModeReport)) listener(mode)
+      }
+      cm.on('vim-mode-change', report)
+      report()
+      return {
+        destroy: () => {
+          cm.off('vim-mode-change', report)
+          for (const listener of view.state.facet(vimModeReport)) listener(null)
+        },
+      }
+    }),
+  ]
 }
 
 export function vimMode(load: () => Promise<Extension> = loadVim): Extension {

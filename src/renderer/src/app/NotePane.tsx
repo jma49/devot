@@ -436,6 +436,7 @@ export function NotePane({
               initialPlace={takeEditorPlace(selected)}
               onPlace={editorPlaced}
               onCounts={countsShown ? editorCounts.set : undefined}
+              onVimMode={editorCounts.setVimMode}
               onCaretLine={caretLine.set}
               onNewFromSelection={
                 inTrash || !editing ? undefined : () => void noteFromSelection(selected)

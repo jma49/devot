@@ -25,6 +25,7 @@ import { authorshipUndo } from './authorshipUndo'
 import { reviewPreview } from './reviewPreview'
 import { editorCompletions } from './completions'
 import { countsReporter, type EditorCounts } from './counts'
+import { vimModeReport, type VimEditingMode } from './vim'
 import { editorMenu } from './editorMenu'
 import { trackExtract } from './extract'
 import { editorFind } from './find'
@@ -207,6 +208,7 @@ export interface NoteEditorRefs {
   }>
   locked: RefObject<EditorLock>
   countsReport: RefObject<((counts: EditorCounts) => void) | undefined>
+  vimModeReport?: RefObject<((mode: VimEditingMode) => void) | undefined>
   caretLineReport: RefObject<((line: number) => void) | undefined>
 }
 
@@ -335,6 +337,7 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
       (markdown) => core.noteCounts(markdown),
       (markdown) => tallyNote(core, markdown),
     ),
+    vimModeReport.of((mode) => refs.vimModeReport?.current?.(mode)),
     EditorView.updateListener.of((update) => {
       if (!update.selectionSet && !update.docChanged) return
       if (update.docChanged && place.top) {

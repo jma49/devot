@@ -2222,6 +2222,18 @@ public enum L10n {
     text("counts.words", "Words")
   }
 
+  public static func countsVimNormal() -> String {
+    text("counts.vimNormal", "NORMAL")
+  }
+
+  public static func countsVimInsert() -> String {
+    text("counts.vimInsert", "INSERT")
+  }
+
+  public static func countsVimVisual() -> String {
+    text("counts.vimVisual", "VISUAL")
+  }
+
   public static func countsCharacters() -> String {
     text("counts.characters", "Characters")
   }

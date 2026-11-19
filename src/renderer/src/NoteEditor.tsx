@@ -50,6 +50,7 @@ import {
 import { shadowContainer } from './editor/shadowFrame'
 import { reconfigureSetup } from './editor/settings'
 import { recount, type EditorCounts } from './editor/counts'
+import type { VimEditingMode } from './editor/vim'
 import { setToolbarFocus } from './editor/toolbarState'
 import { releaseParsedNote } from './editor/markdown'
 import { keepUndo, noteState } from './editor/undo'
@@ -224,6 +225,7 @@ interface Props {
   onPlace?: (noteId: string, place: EditorPlace) => void
   /** Words and characters of the note and the selection, once typing pauses; nothing is counted without it. */
   onCounts?: ((counts: EditorCounts) => void) | undefined
+  onVimMode?: ((mode: VimEditingMode) => void) | undefined
   /** The line the caret is on, when it moves to another or the note changes under it. */
   onCaretLine?: ((line: number) => void) | undefined
   onNewFromSelection?: (() => void) | undefined
@@ -269,6 +271,7 @@ export function NoteEditor({
   initialPlace,
   onPlace,
   onCounts,
+  onVimMode,
   onCaretLine,
   onNewFromSelection,
   onAiEdit,
@@ -306,6 +309,7 @@ export function NoteEditor({
   const placeAsked = useRef(initialPlace)
   const placeReport = useRef(onPlace)
   const countsReport = useRef(onCounts)
+  const vimModeReport = useRef(onVimMode)
   const caretLineReport = useRef(onCaretLine)
   const fromSelection = useRef(onNewFromSelection)
   const aiEdit = useRef(onAiEdit)
@@ -412,6 +416,7 @@ export function NoteEditor({
     placeAsked.current = initialPlace
     placeReport.current = onPlace
     countsReport.current = onCounts
+    vimModeReport.current = onVimMode
     caretLineReport.current = onCaretLine
     focusOnOpen.current = autoFocus
     focusOnlyIfFree.current = autoFocusIfFree
@@ -574,6 +579,7 @@ export function NoteEditor({
       imageHandlers,
       locked,
       countsReport,
+      vimModeReport,
       caretLineReport,
     }
     const show = (state: Uint8Array, handedOver = false) => {

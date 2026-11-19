@@ -5,6 +5,7 @@ Its CodeMirror compartment installs Vim keybindings at highest precedence and re
 Vim is built-in rather than a plugin because the plugin sandbox cannot reach the editor's key handling.
 The Vim module loads its keybinding library only when enabled, leaving its compartment empty until loading completes and discarding any answer after the setting is disabled or the view is destroyed.
 Normal mode uses Vim commands, i enters insert mode, and Escape returns to normal mode; disabling Vim Mode restores ordinary typing immediately.
+The counts footer names the current Vim mode as NORMAL, INSERT or VISUAL, updating immediately as the keyboard changes mode and clearing when Vim is disabled.
 
 Part of the [architecture overview](../architecture.md).
 
