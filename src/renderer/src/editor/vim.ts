@@ -26,6 +26,35 @@ const loadVim = async (): Promise<Extension> => {
     vim(),
     ViewPlugin.define((view) => {
       const cm = getCM(view)!
+      const scroller = view.dom.closest<HTMLElement>('.editor-scroll')
+      const { getScrollInfo, scrollTo } = cm
+      if (scroller) {
+        // Vim's local coordinates start at the content, inside the note viewport's padding.
+        const origin = () => {
+          const content = view.contentDOM.getBoundingClientRect()
+          const box = scroller.getBoundingClientRect()
+          return {
+            left: content.left - box.left + scroller.scrollLeft,
+            top: content.top - box.top + scroller.scrollTop,
+          }
+        }
+        cm.getScrollInfo = () => {
+          const offset = origin()
+          return {
+            left: scroller.scrollLeft - offset.left,
+            top: scroller.scrollTop - offset.top,
+            height: scroller.scrollHeight,
+            width: scroller.scrollWidth,
+            clientHeight: scroller.clientHeight,
+            clientWidth: scroller.clientWidth,
+          }
+        }
+        cm.scrollTo = (x, y) => {
+          const offset = origin()
+          if (x != null) scroller.scrollLeft = x + offset.left
+          if (y != null) scroller.scrollTop = y + offset.top
+        }
+      }
       const report = () => {
         const state = cm.state.vim
         const mode = state?.insertMode ? 'insert' : state?.visualMode ? 'visual' : 'normal'
@@ -35,6 +64,8 @@ const loadVim = async (): Promise<Extension> => {
       report()
       return {
         destroy: () => {
+          cm.getScrollInfo = getScrollInfo
+          cm.scrollTo = scrollTo
           cm.off('vim-mode-change', report)
           for (const listener of view.state.facet(vimModeReport)) listener(null)
         },
