@@ -86,6 +86,7 @@ export function NotePane({
   tagInputRef,
   panesRef,
   editorRef,
+  setEditorHandle,
   restoreRef,
   openText,
   countsShown,
@@ -137,6 +138,7 @@ export function NotePane({
   tagInputRef: RefObject<HTMLInputElement | null>
   panesRef: RefObject<HTMLDivElement | null>
   editorRef: RefObject<EditorHandle | null>
+  setEditorHandle: Dispatch<SetStateAction<EditorHandle | null>>
   restoreRef: RefObject<ApplyRestore | null>
   openText: ReturnType<typeof textStore>
   countsShown: boolean
@@ -428,6 +430,7 @@ export function NotePane({
               onScrollPane={setEditorPane}
               showAlertMenu={showAlertMenu}
               handleRef={editorRef}
+              onHandle={setEditorHandle}
               onOpenImage={setViewing}
               showImageMenu={showImageMenu}
               initialPlace={takeEditorPlace(selected)}
