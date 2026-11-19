@@ -84,14 +84,52 @@ test('opening another note renders only the rows whose selection changed', async
 
 // With 10,000 notes a keystroke is handled and painted within BUDGET_MS (median) and renders no row. BUDGET_MS is for a
 // developer's Mac and stretches on CI (tests/support/budget.ts); the render counts are exact everywhere.
+// Each key is timed from its keydown to its frame, so the next key waits for that frame: keys pressed back to back
+// all waited for the same late frame, and one slow frame then set the median (#1014). Typing starts once no frame
+// has run over the budget for QUIET_MS, after the note's open and the list's caption have done their work.
 const NOTES = 10_000
 const KEYS = 'abcdefghijklmnopqrst'
 const BUDGET_MS = 30
+const QUIET_MS = 1000
+
+const keyMedian = (times: readonly number[]) =>
+  [...times].sort((a, b) => a - b)[Math.floor(times.length / 2)]!
+
+function noteKeyTimes(label: string, times: readonly number[]) {
+  test.info().annotations.push({
+    type: 'keystroke ms',
+    description: `${label}: median ${keyMedian(times).toFixed(1)}; ${times.map((t) => t.toFixed(0)).join(' ')}`,
+  })
+}
+
+/** From now on, when a frame came more than `longFrameMs` after the one before. */
+function watchFrames(page: Page, longFrameMs: number) {
+  return page.evaluate((longMs) => {
+    const w = window
+    w.devotLongFrameAt = w.performance.now()
+    let last = w.devotLongFrameAt
+    const frame = (now: number) => {
+      if (now - last > longMs) w.devotLongFrameAt = now
+      last = now
+      w.requestAnimationFrame(frame)
+    }
+    w.requestAnimationFrame(frame)
+  }, longFrameMs)
+}
+
+async function untilQuiet(page: Page) {
+  await expect
+    .poll(() => page.evaluate(() => window.performance.now() - window.devotLongFrameAt), {
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(QUIET_MS)
+}
 
 test('with 10,000 notes a keystroke stays within its budget and renders no row', async ({
   page,
 }) => {
   test.setTimeout(240_000)
+  const budget = BUDGET_MS * budgetScale(process.env)
   await countRenders(page, WATCHED)
   await seedNotes(page, NOTES)
   await expect(caption(page)).toHaveText('10,000 notes', { timeout: 60_000 })
@@ -109,20 +147,37 @@ test('with 10,000 notes a keystroke stays within its budget and renders no row',
       true,
     )
   })
-  await resetRenderCounts(page)
 
+  // DIAGNOSTIC (#1014, removed before merge): the old measurement, keys back to back right after the open.
   for (const key of KEYS) await page.keyboard.press(key)
-  await expect(body(page)).toContainText(KEYS)
   await expect.poll(() => page.evaluate(() => window.devotKeyMs.length)).toBe(KEYS.length)
-  await expect(excerpt(page, 'Note 1')).toContainText(KEYS)
+  noteKeyTimes('back to back after open', await page.evaluate(() => window.devotKeyMs))
+
+  await watchFrames(page, budget)
+  await untilQuiet(page)
+  // DIAGNOSTIC (#1014, removed before merge): keys back to back once the page is quiet.
+  await page.evaluate(() => (window.devotKeyMs = []))
+  for (const key of KEYS) await page.keyboard.press(key)
+  await expect.poll(() => page.evaluate(() => window.devotKeyMs.length)).toBe(KEYS.length)
+  noteKeyTimes('back to back when quiet', await page.evaluate(() => window.devotKeyMs))
+  await untilQuiet(page)
+
+  await page.evaluate(() => (window.devotKeyMs = []))
+  await resetRenderCounts(page)
+  for (const [typed, key] of [...KEYS].entries()) {
+    await page.keyboard.press(key)
+    await page.waitForFunction((count) => window.devotKeyMs.length > count, typed)
+  }
+  await expect(body(page)).toContainText(KEYS.repeat(3))
+  await expect.poll(() => page.evaluate(() => window.devotNoteWrites)).toBeGreaterThan(0)
+  await expect(excerpt(page, 'Note 1')).toContainText(KEYS.repeat(3))
 
   const { renders, writes } = await renderCounts(page)
-  expect(writes).toBeGreaterThan(0)
   expect(renders['NoteRow']).toBeLessThanOrEqual(2 * writes)
   expect(renders['Sidebar']).toBe(0)
   const times = await page.evaluate(() => window.devotKeyMs)
-  const median = [...times].sort((a, b) => a - b)[Math.floor(times.length / 2)]!
-  const budget = BUDGET_MS * budgetScale(process.env)
+  noteKeyTimes('each after the last one’s frame', times)
+  const median = keyMedian(times)
   // A local machine running several suites at once cannot hold a budget; CI always enforces it.
   const overloaded = !process.env['CI'] && loadavg()[0]! > cpus().length
   test.skip(median >= budget && overloaded, `machine overloaded (${median.toFixed(1)} ms)`)
