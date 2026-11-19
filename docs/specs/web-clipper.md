@@ -39,5 +39,6 @@ Chrome loads **clipper/dist/chrome** as an unpacked extension.
 Firefox loads **clipper/dist/firefox/manifest.json** through temporary add-on debugging, or a signed package for persistent installation.
 Firefox uses an event background script because its Manifest V3 implementation does not support background service workers.
 The app's English and Simplified Chinese `clipper.` catalogs are the sole string source; the build generates WebExtension `en` and `zh_CN` messages in both outputs, stripping the prefix from each key.
+The catalog indexes export the browser-only area separately, not in the app's runtime catalogs, so neither the main window nor the core worker loads extension strings at startup.
 The local API accepts only syntactically valid, exactly registered extension origins without adding any CORS headers; all existing authentication and access checks remain.
 Tests in `tests/clipper/` cover extraction and the client through a real HTTP server, and Rust socket tests cover the origin guard.

@@ -13,6 +13,7 @@ const MARKDOWN_STACK =
   /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:unified|remark-[^/]+|micromark[^/]*|mdast-util-[^/]+|hast-util-from-html|hast-util-to-mdast|parse5|yaml)\/|\/src\/core\/(?:import|htmlImport|templates|frontMatter)\.ts$/
 const SERVER_RENDERING =
   /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?react-dom\/(?:server|cjs\/react-dom-server)/
+const BROWSER_ONLY = /\/src\/renderer\/src\/i18n\/(?:en|zh-Hans)\/clipper\.ts$/
 const WORKER_LAZY =
   /\/src\/core\/(?:sync\/engine|mirror|import|htmlImport|export|htmlExport|ai)\.ts$/
 
@@ -94,12 +95,14 @@ it('the main window loads no Markdown parsing or server rendering before its fir
   const chunks = eager(main, 'main')
   expect(modulesOf(chunks, MARKDOWN_STACK)).toEqual([])
   expect(modulesOf(chunks, SERVER_RENDERING)).toEqual([])
+  expect(modulesOf(chunks, BROWSER_ONLY)).toEqual([])
   expect(bytesOf(chunks)).toBeLessThan(MAIN_EAGER_BUDGET)
 })
 
 it('the core worker loads sync, the mirror, import, export and AI only when they are used', () => {
   const chunks = eager(worker, 'core.worker')
   expect(modulesOf(chunks, WORKER_LAZY)).toEqual([])
+  expect(modulesOf(chunks, BROWSER_ONLY)).toEqual([])
   expect(bytesOf(chunks)).toBeLessThan(WORKER_EAGER_BUDGET)
   // The lazy parts are still built, so the check above has something to check.
   expect(modulesOf([...worker.values()], WORKER_LAZY).length).toBeGreaterThan(0)

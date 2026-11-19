@@ -4,8 +4,8 @@ import { join, resolve } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import { expect, it } from 'vitest'
 import { tempDir } from '../support/temp-dirs'
-import { en } from '../../src/renderer/src/i18n/en'
-import { zhHans } from '../../src/renderer/src/i18n/zh-Hans'
+import { clipper as en } from '../../src/renderer/src/i18n/en'
+import { clipper as zhHans } from '../../src/renderer/src/i18n/zh-Hans'
 
 it('builds both locales from the app catalogs and starts both backgrounds without a DOM', () => {
   const root = tempDir('devot-clipper-build-')
@@ -15,8 +15,8 @@ it('builds both locales from the app catalogs and starts both backgrounds withou
   })
   for (const browser of ['chrome', 'firefox']) {
     for (const [locale, catalog] of [
-      ['en', en],
-      ['zh_CN', zhHans],
+      ['en', en.messages],
+      ['zh_CN', zhHans.messages],
     ] as const) {
       const expected = Object.fromEntries(
         Object.entries(catalog)
@@ -29,7 +29,7 @@ it('builds both locales from the app catalogs and starts both backgrounds withou
       )
       expect(generated).toEqual(expected)
       expect(Object.keys(generated).sort()).toEqual(
-        Object.keys(en)
+        Object.keys(en.messages)
           .filter((key) => key.startsWith('clipper.'))
           .map((key) => key.slice('clipper.'.length))
           .sort(),
