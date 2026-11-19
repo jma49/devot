@@ -334,7 +334,7 @@ pub fn take(db_path: &Path, dir: &Path, now: i64, kind: Kind) -> Result<BackupIn
 }
 
 enum Taken {
-    /// The source or its copy is damaged.
+    /// The source cannot produce a checked snapshot.
     CheckFailed,
     Failed(&'static str),
 }
@@ -1309,6 +1309,68 @@ mod tests {
         assert!(state.contains(&("since".into(), "live-cursor".into())));
         assert!(state.contains(&("searchCompactionPending".into(), "1".into())));
         assert!(!state.iter().any(|(key, _)| key == RESTORED_AT));
+        assert!(block_on(db.call(|store| store.integrity_ok())).unwrap());
+    }
+
+    #[test]
+    fn a_restore_over_an_invalid_fts_format_keeps_a_raw_copy_and_restores_the_backup() {
+        use tauri::async_runtime::block_on;
+        let (_dir, backups, db) = app_data();
+        block_on(db.write(storage::Write::Bookkeeping, |store| {
+            store.sync_set_state("since", "backup-cursor")
+        }))
+        .unwrap();
+        let taken = backups.back_up(NOW).unwrap();
+        block_on(db.write(storage::Write::Bookkeeping, |store| {
+            store.sync_set_state("searchCompactionPending", "1")
+        }))
+        .unwrap();
+        let probe = rusqlite::Connection::open(&backups.db_path).unwrap();
+        probe
+            .execute(
+                "UPDATE notes_fts_config SET v = 999 WHERE k = 'version'",
+                [],
+            )
+            .unwrap();
+        let error = probe
+            .execute(
+                "INSERT INTO notes_fts (notes_fts, rank) VALUES ('secure-delete', 1)",
+                [],
+            )
+            .unwrap_err();
+        assert_eq!(
+            error.sqlite_error().unwrap().extended_code,
+            rusqlite::ffi::SQLITE_ERROR
+        );
+        drop(probe);
+        assert_eq!(backups.back_up(NOW + HOUR), Err("E_BACKUP_SNAPSHOT_FAILED"));
+        let damaged = std::fs::read(&backups.db_path).unwrap();
+        let wal = std::fs::read(format!("{}-wal", backups.db_path.display())).unwrap();
+
+        block_on(backups.restore(&db, &taken.id, NOW + 2 * HOUR)).unwrap();
+
+        let copy = list(&backups.dir).remove(0);
+        assert_eq!((copy.kind, copy.verified), (Kind::RawSafety, false));
+        assert_eq!(std::fs::read(backups.dir.join(&copy.id)).unwrap(), damaged);
+        assert_eq!(
+            std::fs::read(backups.dir.join(format!("{}-wal", copy.id))).unwrap(),
+            wal
+        );
+        let state = block_on(db.call(|store| store.sync_state())).unwrap();
+        assert!(state.contains(&("since".into(), "backup-cursor".into())));
+        assert!(state.contains(&(RESTORED_AT.into(), (NOW + 2 * HOUR).to_string())));
+        assert!(
+            !state
+                .iter()
+                .any(|(key, _)| key == "searchCompactionPending")
+        );
+        let restored = rusqlite::Connection::open(&backups.db_path).unwrap();
+        restored
+            .execute(
+                "INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')",
+                [],
+            )
+            .unwrap();
         assert!(block_on(db.call(|store| store.integrity_ok())).unwrap());
     }
 

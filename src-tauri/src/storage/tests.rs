@@ -3053,32 +3053,32 @@ fn a_failed_pending_compaction_prevents_a_snapshot_and_keeps_the_marker() {
         super::snapshot(&dir.path().join("devot.sqlite"), &backup)
             .unwrap_err()
             .code(),
-        "E_STORAGE_SQLITE"
+        "E_STORAGE_SNAPSHOT_CHECK_FAILED"
     );
     assert!(super::purge::sync_purges_pending(&store.conn).unwrap());
     assert!(!backup.exists());
 }
 
 #[test]
-fn snapshot_compaction_only_classifies_real_corruption_as_damage() {
+fn snapshot_compaction_preserves_only_locks_and_interrupts() {
     use rusqlite::ffi;
     let error =
         |code| StorageError::Sqlite(rusqlite::Error::SqliteFailure(ffi::Error::new(code), None));
-    for code in [ffi::SQLITE_CORRUPT, ffi::SQLITE_NOTADB] {
-        assert!(matches!(
-            super::open::snapshot_compaction_error(error(code)),
-            StorageError::SnapshotCheckFailed
-        ));
-    }
     for code in [
-        ffi::SQLITE_BUSY,
-        ffi::SQLITE_LOCKED,
+        ffi::SQLITE_CORRUPT,
+        ffi::SQLITE_NOTADB,
         ffi::SQLITE_FULL,
         ffi::SQLITE_IOERR,
         ffi::SQLITE_READONLY,
         ffi::SQLITE_CONSTRAINT,
         ffi::SQLITE_ERROR,
     ] {
+        assert!(matches!(
+            super::open::snapshot_compaction_error(error(code)),
+            StorageError::SnapshotCheckFailed
+        ));
+    }
+    for code in [ffi::SQLITE_BUSY, ffi::SQLITE_LOCKED, ffi::SQLITE_INTERRUPT] {
         let StorageError::Sqlite(rusqlite::Error::SqliteFailure(actual, _)) =
             super::open::snapshot_compaction_error(error(code))
         else {
@@ -3088,7 +3088,7 @@ fn snapshot_compaction_only_classifies_real_corruption_as_damage() {
     }
     assert!(matches!(
         super::open::snapshot_compaction_error(StorageError::Refused("E_TEST")),
-        StorageError::Refused("E_TEST")
+        StorageError::SnapshotCheckFailed
     ));
 }
 

@@ -152,12 +152,16 @@ pub(super) fn snapshot_compaction_error(error: StorageError) -> StorageError {
         StorageError::Sqlite(error)
             if matches!(
                 error.sqlite_error_code(),
-                Some(rusqlite::ErrorCode::DatabaseCorrupt | rusqlite::ErrorCode::NotADatabase)
+                Some(
+                    rusqlite::ErrorCode::DatabaseBusy
+                        | rusqlite::ErrorCode::DatabaseLocked
+                        | rusqlite::ErrorCode::OperationInterrupted
+                )
             ) =>
         {
-            StorageError::SnapshotCheckFailed
+            StorageError::Sqlite(error)
         }
-        error => error,
+        _ => StorageError::SnapshotCheckFailed,
     }
 }
 
