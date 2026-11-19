@@ -4,6 +4,7 @@ How fast Devot is, measured before anything is optimised. Two scripts, both run 
 
 - `pnpm bench` measures the renderer in Playwright's WebKit and writes `results.json`.
 - `pnpm bench:app` measures a built Devot.app (launch time and memory) and writes `app-results.json`. It needs a Mac with Accessibility permission for the terminal.
+- `pnpm bench:large` measures large-note storage, search, sync encoding and local relay paths; see [the method, results and bottleneck investigation](large-notes.md). It imports `tests/support/*` and `tests/relay/client.ts`, so a refactor of those helpers must keep it running.
 
 ## Method
 
@@ -31,6 +32,12 @@ Split-note opens report separate `editor`, `firstHeading`, `firstDiagram` and `p
 The first-diagram mark requires an actual SVG in a nonempty Mermaid target without scrolling; it does not infer readiness from an empty set of nearby diagrams.
 The older `mermaid` mark still measures all diagrams near the viewport after the last line arrives and is not a substitute for first-diagram paint.
 The first open and fresh unseen note each have one sample; the warm series has 14 samples in a full run, with medians and p90s for every mark.
+
+`pnpm bench --search-only --out <file>` measures the desktop search UI with 10,000 notes and writes a separate report (`search-results.json` by default).
+It times the final keystroke to the paint that first shows the one correct row, after the previous prefix showed that row and a distractor.
+It interleaves an indexed-length body term and a two-character body term, with one warm-up and 40 measured samples each, and reports P95 as well as the usual statistics.
+It also types the same indexed word at two cadences and counts full-text worker calls per word and per second of active typing, alongside their round-trip P95.
+It uses the same in-memory store as the other renderer measurements, not native IPC or SQLite.
 
 What the web harness cannot say: the real app's startup and memory (see below), the SQLite store (notes are in `localStorage` here, so a save at the end of typing costs more than in the app), and the display's refresh rate. WebKit in Playwright draws at 60 Hz, so frame times cluster at 17 ms.
 

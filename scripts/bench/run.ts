@@ -2,12 +2,12 @@
 // It builds the UI the way the UI tests do (production build, notes in the
 // in-memory storage, Tauri's IPC mocked), serves it under the production
 // CSP, drives it in Playwright's WebKit and writes docs/benchmarks/results.json.
-// usage: node scripts/bench/run.ts [--quick] [--out <file>]
-import { devices, webkit, type Browser, type Page } from '@playwright/test'
+// usage: node scripts/bench/run.ts [--quick] [--search-only] [--out <file>]
+import { devices, webkit, type Browser, type Locator, type Page } from '@playwright/test'
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
-import { arch, cpus, loadavg, release, totalmem } from 'node:os'
+import { arch, cpus, loadavg, platform, release, totalmem } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { mockTauri } from '../../tests/ui/fixtures.ts'
 import { analyzeBundle } from './bundle.ts'
@@ -22,16 +22,19 @@ import {
   diagramCount,
 } from './fixtures.ts'
 import { installBench } from './page.ts'
-import { round, summarize } from './stats.ts'
+import { percentile, round, summarize } from './stats.ts'
 
 const ROOT = join(import.meta.dirname, '../..')
 const UI_DIR = 'dist-bench'
 const APP_DIR = 'dist-bench-app'
 const args = process.argv.slice(2)
 const quick = args.includes('--quick')
+const searchOnly = args.includes('--search-only')
 const out = args.includes('--out')
   ? args[args.indexOf('--out') + 1]!
-  : 'docs/benchmarks/results.json'
+  : searchOnly
+    ? 'docs/benchmarks/search-results.json'
+    : 'docs/benchmarks/results.json'
 
 const RUNS = quick
   ? { ready: 3, open: 3, keys: 6, cycles: 2, scroll: 1 }
@@ -185,6 +188,146 @@ async function seed(page: Page, data: Library): Promise<void> {
 type Win = any
 
 const noteList = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
+
+async function typingSearchLoad(page: Page, field: Locator, runs: number) {
+  const word = 'quasar'
+  await page.evaluate(() => {
+    const w = globalThis as Win
+    const post = Worker.prototype.postMessage
+    Worker.prototype.postMessage = function (this: Worker, ...parameters) {
+      const message = parameters[0] as { type?: string; path?: string[]; id?: string }
+      const trace = w.devotSearchTrace
+      if (trace && message?.type === 'APPLY' && message.path?.join('.') === 'search') {
+        const call = { start: performance.now(), end: 0 }
+        trace.calls.push(call)
+        const receive = (e: MessageEvent<{ id?: string }>) => {
+          if (e.data?.id !== message.id) return
+          call.end = performance.now()
+          this.removeEventListener('message', receive)
+        }
+        this.addEventListener('message', receive)
+      }
+      Reflect.apply(post, this, parameters)
+    }
+  })
+  const results = []
+  for (const delay of [25, 60]) {
+    const roundTrips: number[] = []
+    let during = 0
+    let typingTime = 0
+    for (let run = 0; run < runs; run += 1) {
+      await field.fill('')
+      await field.evaluate((input, length) => {
+        const trace = { keys: [] as number[], calls: [] as { start: number; end: number }[] }
+        ;(globalThis as Win).devotSearchTrace = trace
+        const mark = () => {
+          trace.keys.push(performance.now())
+          if (trace.keys.length === length) input.removeEventListener('keydown', mark)
+        }
+        input.addEventListener('keydown', mark)
+      }, word.length)
+      await field.pressSequentially(word, { delay })
+      await page.waitForFunction(() => {
+        const rows = document.querySelectorAll('[aria-label=Notes] .row-title')
+        return rows.length === 1 && rows[0]?.textContent === 'Indexed match'
+      })
+      const trace: { keys: number[]; calls: { start: number; end: number }[] } =
+        await page.evaluate(() => (globalThis as Win).devotSearchTrace)
+      if (trace.keys.length !== word.length || !trace.calls.length) {
+        throw new Error('Missing keypress or search RPC in typing trace')
+      }
+      const last = trace.keys.at(-1)!
+      typingTime += last - trace.keys[0]!
+      during += trace.calls.filter(({ start }) => start < last).length
+      for (const { start, end } of trace.calls) {
+        if (end < start) throw new Error('Unfinished search RPC after the final result')
+        roundTrips.push(end - start)
+      }
+    }
+    results.push({
+      delayMs: delay,
+      words: runs,
+      queriesPerWord: round(roundTrips.length / runs, 2),
+      queriesPerSecondWhileTyping: round((during * 1000) / typingTime, 2),
+      searchRpcP95Ms: round(percentile(roundTrips, 0.95)),
+    })
+  }
+  return results
+}
+
+async function searchResults(browser: Browser, base: string) {
+  const page = await openPage(browser, base)
+  const count = 10_000
+  const runs = quick ? 3 : 40
+  const scenarios = [
+    { name: 'indexed', prefix: 'body:quasa', key: 'r', title: 'Indexed match', body: 'quasar' },
+    { name: 'short', prefix: 'body:z', key: 'x', title: 'Short match', body: 'zx' },
+  ]
+  await seed(
+    page,
+    library(count - 4, [
+      ...scenarios,
+      { title: 'indexed prefix only', body: 'quasag' },
+      { title: 'short prefix only', body: 'zv' },
+    ]),
+  )
+  const field = page.getByRole('searchbox', { name: 'Search notes' })
+  const measure = async ({ name, prefix, key, title }: (typeof scenarios)[number]) => {
+    await field.fill(prefix)
+    await noteList(page).getByText(`${name} prefix only`, { exact: true }).waitFor()
+    await field.evaluate((input, expected) => {
+      const w = globalThis as Win
+      w.devotSearchPaint = new Promise<number>((settle) => {
+        input.addEventListener(
+          'keydown',
+          () => {
+            const t0 = w.performance.now()
+            const b = w.devotBench
+            void b
+              .when(
+                () => {
+                  const rows = w.document.querySelectorAll('[aria-label=Notes] .row-title')
+                  return rows.length === 1 && rows[0].textContent === expected
+                },
+                t0,
+                5_000,
+              )
+              .then(async (ms: number) => {
+                if (ms >= 0) await b.painted()
+                settle(ms < 0 ? ms : w.performance.now() - t0)
+              })
+          },
+          { capture: true, once: true },
+        )
+      })
+    }, title)
+    await field.press(key)
+    const ms: number = await page.evaluate(() => (globalThis as Win).devotSearchPaint)
+    if (ms < 0) throw new Error(`No correct result for ${prefix}${key}`)
+    return ms
+  }
+  try {
+    const samples = scenarios.map(() => [] as number[])
+    for (let run = 0; run <= runs; run += 1) {
+      for (const [i, scenario] of scenarios.entries()) {
+        const ms = await measure(scenario)
+        if (run > 0) samples[i]!.push(ms)
+      }
+    }
+    return {
+      notes: count,
+      keyToCorrectResultMs: Object.fromEntries(
+        scenarios.map(({ name }, i) => {
+          const times = samples[i]!
+          return [name, { ...summarize(times), p95: round(percentile(times, 0.95)) }]
+        }),
+      ),
+      typingLoad: await typingSearchLoad(page, field, quick ? 3 : 20),
+    }
+  } finally {
+    await page.context().close()
+  }
+}
 
 async function startup(browser: Browser, base: string, data: Library) {
   const page = await openPage(browser, base)
@@ -429,12 +572,15 @@ async function lists(browser: Browser, base: string, count: number) {
 
 function machine(browser: Browser) {
   const cpu = cpus()
+  const mac = platform() === 'darwin'
   return {
-    model: sh('sysctl', ['-n', 'hw.model']),
-    cpu: sh('sysctl', ['-n', 'machdep.cpu.brand_string']),
+    model: mac ? sh('sysctl', ['-n', 'hw.model']) : platform(),
+    cpu: mac ? sh('sysctl', ['-n', 'machdep.cpu.brand_string']) : cpu[0]?.model,
     cores: cpu.length,
     memoryGB: Math.round(totalmem() / 2 ** 30),
-    os: `macOS ${sh('sw_vers', ['-productVersion'])} (Darwin ${release()}, ${arch()})`,
+    os: mac
+      ? `macOS ${sh('sw_vers', ['-productVersion'])} (Darwin ${release()}, ${arch()})`
+      : `${platform()} ${release()} (${arch()})`,
     node: process.version,
     webkit: browser.version(),
     loadAverageAtStart: round(loadavg()[0]!, 2),
@@ -451,7 +597,7 @@ process.on('exit', cleanup)
 
 async function main() {
   const env = { DEVOT_SENTRY_DSN: '' }
-  log('building the UI (with the in-memory storage) and the app bundle')
+  log(`building the UI (with the in-memory storage)${searchOnly ? '' : ' and the app bundle'}`)
   sh(
     'pnpm',
     [
@@ -467,12 +613,13 @@ async function main() {
     ],
     env,
   )
-  sh(
-    'pnpm',
-    ['vite', 'build', '--outDir', `../../${APP_DIR}`, '--emptyOutDir', '--logLevel', 'error'],
-    env,
-  )
-  const bundle = analyzeBundle(join(ROOT, APP_DIR))
+  if (!searchOnly) {
+    sh(
+      'pnpm',
+      ['vite', 'build', '--outDir', `../../${APP_DIR}`, '--emptyOutDir', '--logLevel', 'error'],
+      env,
+    )
+  }
 
   const port = await freePort()
   server = spawn('node', ['scripts/serve-csp.ts', UI_DIR, String(port)], {
@@ -498,8 +645,13 @@ async function main() {
       commit: `${sh('git', ['rev-parse', '--short', 'HEAD'])}${sh('git', ['status', '--porcelain']) ? '+dirty' : ''}`,
       quick,
       machine: machine(browser),
-      bundle,
     }
+    if (searchOnly) {
+      log('search at 10,000 notes')
+      results['search'] = await searchResults(browser, base)
+      return writeResults(results)
+    }
+    results['bundle'] = analyzeBundle(join(ROOT, APP_DIR))
     log('startup')
     const starts: Record<string, unknown> = {}
     for (const count of LIBRARIES)
@@ -519,12 +671,16 @@ async function main() {
     for (const count of LIBRARIES) lib[`${count}Notes`] = await lists(browser, base, count)
     results['list'] = lib
 
-    mkdirSync(dirname(resolve(ROOT, out)), { recursive: true })
-    writeFileSync(resolve(ROOT, out), `${JSON.stringify(results, null, 2)}\n`)
-    log(`wrote ${out}`)
+    writeResults(results)
   } finally {
     await browser.close()
   }
+}
+
+function writeResults(results: Record<string, unknown>) {
+  mkdirSync(dirname(resolve(ROOT, out)), { recursive: true })
+  writeFileSync(resolve(ROOT, out), `${JSON.stringify(results, null, 2)}\n`)
+  log(`wrote ${out}`)
 }
 
 await main().catch((error) => {

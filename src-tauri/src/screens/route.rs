@@ -141,6 +141,7 @@ mod tests {
         assert_eq!(route(&refused), Some(Route::Licence { prefill: None }));
         let import = Link::Import {
             scan: crate::import::Scan {
+                vault: None,
                 id: 1,
                 name: String::new(),
                 kind: crate::import::Kind::Files,

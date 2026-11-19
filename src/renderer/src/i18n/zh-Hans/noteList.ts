@@ -141,6 +141,7 @@ export const messages: Record<keyof typeof en, string> = {
   'noteList.empty.templates': '还没有模板',
   'noteList.empty.createTip': '用“新建笔记”按钮新建一篇笔记。',
   'noteList.empty.searchTip': '试试其他词，或搜索所有笔记。',
+  'noteList.empty.searchAllTip': '试试其他词。',
   'noteList.empty.templatesTip': '用“新建模板”按钮新建一个。',
   'noteList.empty.readOnly': '添加许可证之前笔记为只读。',
   'noteList.empty.templatesReadOnly': '添加许可证之前模板为只读。',

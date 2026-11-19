@@ -449,9 +449,6 @@ export const mermaidIsland: PreviewIsland = {
   render,
 }
 
-export const mermaidMarkup = (source: string): Promise<string | null> =>
-  diagramMarkup('mermaid', source)
-
 export const plantumlIsland: PreviewIsland = {
   kind: 'plantuml',
   apiVersion: PREVIEW_API_VERSION,
