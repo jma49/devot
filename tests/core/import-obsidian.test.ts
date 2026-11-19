@@ -26,6 +26,7 @@ async function run(
   images?: string[],
   attachmentFolderPath = 'Attachments',
   conventions?: boolean,
+  scanOverrides: Partial<ImportScan> = {},
 ) {
   const db = openSqliteAdapter(join(tempDir('devot-obsidian-'), 'db.sqlite'))
   opened.push(db)
@@ -40,6 +41,7 @@ async function run(
     files: paths.filter((p) => /\.(md|canvas)$/.test(p)).map((path) => ({ path, bytes: 1 })),
     images: (images ?? paths.filter((p) => p.endsWith('.png'))).map((path) => ({ path, bytes: 1 })),
     skipped: [],
+    ...scanOverrides,
   }
   const attached: string[] = []
   const report = await importMarkdown({
@@ -63,6 +65,30 @@ async function run(
 }
 
 describe('Obsidian vault import', () => {
+  it('rewrites inline and reference Markdown canvas links with Markdown links enabled', async () => {
+    const { report, note } = await run(
+      {
+        'Work/Start.md':
+          '[Board](Board.canvas) [Reference][board]\n\n[board]: Board.canvas\n\n[Missing](Missing.canvas) [Remote](https://example.com/Board.canvas)',
+        'Work/Board.canvas': '{"nodes":[],"edges":[]}',
+      },
+      [],
+      '',
+      undefined,
+      {
+        vault: [
+          { root: '', attachmentFolderPath: '', newLinkFormat: 'relative', useMarkdownLinks: true },
+        ],
+      },
+    )
+    const body = (await note('Work/Start.md')).bodyMd
+    const uri = noteUri(report.noteIds['Work/Board.canvas']!)
+    expect(body).toContain(`[Board](${uri})`)
+    expect(body).toContain(`[board]: ${uri}`)
+    expect(body).toContain('[Missing](Missing.canvas)')
+    expect(body).toContain('[Remote](https://example.com/Board.canvas)')
+  })
+
   it('resolves canvas file nodes from the vault root despite nearby duplicates', async () => {
     const { report, note, attached } = await run(
       {

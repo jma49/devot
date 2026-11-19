@@ -556,7 +556,7 @@ export function unlocatedImages(markdown: string): string[] {
   return imagesOf(parseMarkdown(markdown), markdown).unlocated
 }
 
-const MARKDOWN_FILE = /\.(?:md|markdown)(?:[?#].*)?$/i
+const MARKDOWN_FILE = /\.(?:md|markdown|canvas)(?:[?#].*)?$/i
 
 /** Links (inline or by reference) whose destination names a Markdown file in the folder; a link whose destination cannot be found in the text is left out. */
 function fileLinksOf(tree: Root, markdown: string): ImageLink[] {
