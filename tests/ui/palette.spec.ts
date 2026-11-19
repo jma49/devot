@@ -640,3 +640,18 @@ test('body matches appear under Matching Content with highlights and Shift+Enter
   await expect(body(page)).toBeVisible()
   await expect(page.getByRole('article', { name: 'Preview' })).toBeVisible()
 })
+
+test('a body match keeps its short title whole beside a long excerpt', async ({ page }) => {
+  await createNote(page, 'The Long Way Home')
+  await body(page).click()
+  await page.keyboard.insertText(
+    'A homing pigeon carries field notes across the valley, past the river and over the hills, until the loft comes into view again at dusk.',
+  )
+
+  await search(page, 'pigeon')
+  const title = group(page, 'Matching Content')
+    .getByRole('option')
+    .locator('.palette-content-title')
+  await expect(title).toHaveText('The Long Way Home')
+  expect(await title.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0)
+})
