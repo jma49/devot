@@ -56,7 +56,6 @@ import {
   type FindCount,
 } from './screens/editor'
 import type { EditorMode, EditorNoteFacts, EditorPicker } from './screens/message'
-import { NOTE_PAGE_SCROLLS } from './screens/pageScroll'
 
 type Sheet = 'notebook' | 'status' | 'tags' | null
 
@@ -283,7 +282,7 @@ export function PhoneNote(props: {
   useLayoutEffect(() => {
     const element = screen.current?.querySelector<HTMLElement>('.phone-note-scroll')
     if (!native || !noteShown || !element) return
-    const scroller = NOTE_PAGE_SCROLLS ? window : element
+    const scroller = window
     // Each screen Swift pushes opens its note at the top, the note shown last too.
     if (scrolledTurn.current !== native.turn) scroller.scrollTo(0, 0)
     scrolledTurn.current = native.turn
