@@ -3326,6 +3326,10 @@ public enum L10n {
     text("import.conventions", "Read tags from front matter and #tags, and turn callouts into alerts")
   }
 
+  public static func importObsidianVault() -> String {
+    text("import.obsidianVault", "This folder is read as an Obsidian vault.")
+  }
+
   public static func importUnresolvedLinksOne(count p0: String) -> String {
     fill(text("import.unresolvedLinksOne", "{count} wiki link matched no note or image and was kept as text."), ["count": p0])
   }
@@ -5788,6 +5792,10 @@ public enum L10n {
 
   public static func noteListEmptySearchTip() -> String {
     text("noteList.empty.searchTip", "Try other words, or search all notes.")
+  }
+
+  public static func noteListEmptySearchAllTip() -> String {
+    text("noteList.empty.searchAllTip", "Try other words.")
   }
 
   public static func noteListEmptyTemplatesTip() -> String {

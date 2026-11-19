@@ -256,7 +256,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
             </button>
             <button
               type="button"
-              className="tool tool-small"
+              className="tool tool-small section-tool-persistent"
               aria-label={t('book.new')}
               title={t('book.new')}
               onClick={() => props.onCreateBook?.(ws?.book.id ?? null)}

@@ -32,6 +32,7 @@ import {
 import { useHeadlines, type HeadlineLoader } from './headlines'
 import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
+import { ListEmptyContent } from './ListEmptyContent'
 import { usePaneResize } from './paneResize'
 import { LIST_PANE } from './paneWidth'
 import { entryOffsets, jumpIndex, spacerHeight, windowRuns } from './listWindow'
@@ -94,6 +95,7 @@ interface Props {
   /** Looks up each row's activity strip; without it rows show none (Settings can hide them). */
   activity?: HeadlineLoader<StripDay[]> | undefined
   empty?: ListEmptyKind | undefined
+  onSearchAll?: (() => void) | undefined
   /** Whether notes can be made and changed; an empty list says it is read-only when they cannot. */
   editing?: boolean
   /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
@@ -809,7 +811,11 @@ export const NoteList = memo(function NoteList(props: Props) {
           return out
         })}
         {entries.length === 0 && props.empty ? (
-          <EmptyList kind={props.empty} editing={props.editing} />
+          <ListEmptyContent
+            as="li"
+            text={listEmpty(props.empty, props.editing, !!props.onSearchAll)}
+            onSearchAll={props.onSearchAll}
+          />
         ) : null}
       </ul>
       {props.capped ? (
@@ -824,13 +830,3 @@ export const NoteList = memo(function NoteList(props: Props) {
     </section>
   )
 })
-
-function EmptyList({ kind, editing }: { kind: ListEmptyKind; editing?: boolean | undefined }) {
-  const { message, tip } = listEmpty(kind, editing)
-  return (
-    <li className="list-empty" role="presentation">
-      <span className="list-empty-message">{t(message)}</span>
-      {tip ? <span className="list-empty-tip">{t(tip)}</span> : null}
-    </li>
-  )
-}

@@ -1,11 +1,15 @@
+import { lazy, Suspense } from 'react'
 import type { BookNode } from '../../../core/books'
 import { BackupsDialog } from '../BackupsDialog'
 import type { Core } from '../core-client'
-import { ImportDialog } from '../ImportDialog'
 import { RestoreSyncChoice } from '../RestoreSyncChoice'
 import type { useSheets } from '../sheets'
 import type { Selection } from '../Sidebar'
 import type { SyncSnapshot } from '../sync'
+
+const ImportDialog = lazy(() =>
+  import('../ImportDialog').then((module) => ({ default: module.ImportDialog })),
+)
 
 /** Import, Backups, and the choice a restore leaves for sync: the sheets that act on the whole library. */
 export function LibraryDialogs({
@@ -29,14 +33,16 @@ export function LibraryDialogs({
   return (
     <>
       {importJob ? (
-        <ImportDialog
-          key={importKey}
-          job={importJob}
-          tree={tree}
-          initialDestination={library.kind === 'book' ? library.id : null}
-          onImport={startImport}
-          onClose={closeImport}
-        />
+        <Suspense fallback={null}>
+          <ImportDialog
+            key={importKey}
+            job={importJob}
+            tree={tree}
+            initialDestination={library.kind === 'book' ? library.id : null}
+            onImport={startImport}
+            onClose={closeImport}
+          />
+        </Suspense>
       ) : null}
       {backupsOpen ? (
         <BackupsDialog onRestore={restore} onClose={closeBackups} readOnly={!editing} />

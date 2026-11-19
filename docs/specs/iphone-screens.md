@@ -440,7 +440,6 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 - The margin takes only the part of that bottom still inside the visual viewport, which CodeMirror counts as the visible area and WebKit may already end above the keyboard (`coveredInView` in `editor/settings.ts`): counting the keyboard twice scrolled the caret's line under the navigation bar on the first key typed (#885).
 - Only a keyboard raised for the note's own responders (the web view, the find field, New Note's hidden field) moves the bars and the insets; one raised for a sheet over the note does not, while a keyboard going down always does.
 - The tracker keeps the keyboard's last frame for the whole app, so a screen shown again, or given the web view, starts from where the keyboard is now rather than where it was when the screen was covered, and sends `editor.insets` for it.
-- `NOTE_PAGE_SCROLLS` in `pageScroll.ts` is the switch back to the editor's own scroller, kept until document scrolling is confirmed on every supported iOS.
 - Note ids are checked as every note id is (`E_SCREENS_NOTE_ID_INVALID`), the title as a note title, and the mode against the two modes (`E_SCREENS_ARGS_INVALID`).
 
 ### The web view never changes size

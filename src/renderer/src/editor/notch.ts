@@ -33,8 +33,8 @@ const half = NOTCH_WIDTH / 2
 const inset = `${(half / NOTCH_HEIGHT) * EDGE}px`
 const edge = 'var(--color-line-glass-edge)'
 const tint = 'var(--glass-tint)'
-// The bar's sheen is longer than the bar is tall; every bar is `size.float-toolbar-height` tall.
-const sheenPastBar = `var(--glass-sheen) 0 calc(${EDGE}px - var(--size-float-toolbar-height)) / 100% var(--size-glass-sheen) no-repeat`
+// The bar's sheen is longer than the bar is tall; a bar is `size.float-toolbar-height` tall for each of its rows (`--float-rows`, one unless set).
+const sheenPastBar = `var(--glass-sheen) 0 calc(${EDGE}px - var(--float-rows, 1) * var(--size-float-toolbar-height)) / 100% var(--size-glass-sheen) no-repeat`
 
 /** The edge band's outline, pointing down (the surface above its anchor) and up. */
 export const NOTCH_EDGE_CLIP = {

@@ -62,9 +62,9 @@ describe('notch geometry', () => {
   })
 
   it('carries on the bar sheen where it has not faded out by the bottom edge', () => {
-    // The fill's top lies half a pixel above the bar's bottom edge; the sheen starts at the bar's top.
+    // The fill's top lies half a pixel above the bar's bottom edge; the sheen starts at the bar's top, a row's height up for each row.
     expect(rule('.cm-tooltip-above > .cm-float-notch::after').background).toBe(
-      'var(--glass-sheen) 0 calc(0.5px - var(--size-float-toolbar-height)) / 100% var(--size-glass-sheen) no-repeat, var(--glass-tint)',
+      'var(--glass-sheen) 0 calc(0.5px - var(--float-rows, 1) * var(--size-float-toolbar-height)) / 100% var(--size-glass-sheen) no-repeat, var(--glass-tint)',
     )
   })
 

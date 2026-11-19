@@ -12,7 +12,7 @@ import { closeGate } from '../requireEditing'
 import type { PhoneStore } from '../usePhoneData'
 import { NO_FIND_COUNT, type NativeEditor } from './editor'
 import type { ScreensNotice } from './message'
-import { NOTE_PAGE_SCROLLS, pageScrolls, setFootInset } from './pageScroll'
+import { pageScrolls, setFootInset } from './pageScroll'
 import type { PreparedNotes } from './prepared'
 
 /** Runs `then` once the frame after the next has started, when the last change has been painted. */
@@ -143,7 +143,7 @@ export function EditorHost(props: {
   }, [asking, visible, shown, loadedId, shownMode])
 
   useLayoutEffect(() => {
-    if (!NOTE_PAGE_SCROLLS || !visible) return
+    if (!visible) return
     pageScrolls(true)
     return () => pageScrolls(false)
   }, [visible])

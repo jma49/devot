@@ -138,6 +138,22 @@ function mount(
 }
 
 describe('SearchField filter pills and autocomplete', () => {
+  it('submits a query on plain Return only when neither suggestions nor the IME take it', () => {
+    const onSubmit = vi.fn<() => boolean>().mockReturnValue(true)
+    const ui = mount('', { books: BOOKS, onSubmit })
+    ui.setValue('in:we')
+    ui.press('Enter')
+    expect(ui.pills()).toHaveLength(1)
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    ui.setValue('ab')
+    ui.press('Enter', { shiftKey: true })
+    ui.press('Enter', { isComposing: true })
+    expect(onSubmit).not.toHaveBeenCalled()
+    ui.press('Enter')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
   it('compiles and works without optional books or tags props', () => {
     const ui = mount('')
     ui.setValue('is:')

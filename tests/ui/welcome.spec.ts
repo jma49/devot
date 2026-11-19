@@ -15,6 +15,17 @@ test('a new library starts with the welcome note and the Markdown example', asyn
   await expect(page.getByText('The Long Way Home').first()).toBeVisible()
 })
 
+test('New Notebook is visible before hovering over the sidebar', async ({ page }) => {
+  await page.getByText('Welcome to Devot').first().hover()
+  const create = page.getByRole('button', { name: 'New Notebook' })
+  const search = page.getByRole('button', { name: 'Search Notebooks' })
+  await expect(create).toBeVisible()
+  await expect(create).toHaveCSS('opacity', '1')
+  await expect(search).toHaveCSS('opacity', '0')
+  await page.getByText('Notebooks', { exact: true }).hover()
+  await expect(search).toHaveCSS('opacity', '1')
+})
+
 test('the example shows a code block with its title and language mark', async ({ page }) => {
   await page.getByText('The Long Way Home').first().click()
   await page

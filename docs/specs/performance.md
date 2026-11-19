@@ -118,6 +118,7 @@ Part of the [architecture overview](../architecture.md).
   - Kept on purpose, each bounded by a count: the undo history of the last 10 notes left ([Data model](data-model.md)), the core's last 8 notes, the last 64 diagram drawings, and Write mode's last 200 rendered blocks (`trees`), 1,000 block heights (`heights`) and 500 inline drawings (`drawnInline`).
 - `tests/scripts/startup-chunks.build.test.ts` holds what a window parses before its first paint and what the core worker parses before `init` answers, each under a byte budget.
   The main page loads no Markdown parser and no server renderer, as the core worker parses and converts Markdown.
+  The import sheet and its folder layout and tree load only when an import opens.
   The core worker loads sync, the Markdown mirror, import, export and the AI service on their first use.
   A stop, or a later start, made while sync's code loads wins, and starts made while the mirror's code loads make one mirror (`lazyStart.ts`).
   Once the window is idle, warm-up renders a short sample with only the code languages, math and emoji that the open note and the first 20 listed notes use, so the next note opened from the list opens warm without a fixed set of grammars kept in memory.

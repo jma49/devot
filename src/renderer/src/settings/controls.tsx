@@ -54,6 +54,7 @@ export function SettingsSection({
   return (
     <section
       className="settings-block"
+      data-setting={title}
       {...(titleHidden ? { 'aria-label': t(title) } : { 'aria-labelledby': id })}
     >
       {titleHidden ? null : (
@@ -102,7 +103,7 @@ export function Setting({
   children: ReactNode
 }) {
   return (
-    <div className={stacked ? 'setting setting-stacked' : 'setting'}>
+    <div className={stacked ? 'setting setting-stacked' : 'setting'} data-setting={label}>
       <div className="setting-text">
         {htmlFor === undefined ? (
           <span className="setting-label">{t(label)}</span>
@@ -143,7 +144,7 @@ export function SettingToggle({
   const id = useId()
   const text = values ? format(t(note ?? description), values) : t(note ?? description)
   return (
-    <div className="setting setting-toggle">
+    <div className="setting setting-toggle" data-setting={label}>
       <div className="setting-text">
         <label id={`${id}-label`} className="setting-label" htmlFor={`${id}-box`}>
           {t(label)}

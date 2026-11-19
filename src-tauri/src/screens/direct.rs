@@ -52,7 +52,7 @@ pub struct On {
 #[derive(Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Providers {
-    pub settings: AiSettings,
+    pub settings: Box<AiSettings>,
 }
 
 #[derive(Clone, PartialEq, Deserialize)]
@@ -319,7 +319,7 @@ pub async fn run(services: &Services, op: Op) -> Result<Value, &'static str> {
         Op::CrashReportsGet(Empty {}) => value(Ok(crate::crash::crash_reports_now())),
         Op::CrashReportsSet(On { on }) => value(crate::crash::crash_reports_set_inner(on)),
         Op::AiGet(Empty {}) => value(ai::ai_settings_get_inner(ai).await),
-        Op::AiSet(Providers { settings }) => value(ai::ai_settings_set_inner(ai, settings).await),
+        Op::AiSet(Providers { settings }) => value(ai::ai_settings_set_inner(ai, *settings).await),
         Op::AiKeySet(ProviderKey { provider, key }) => {
             value(ai::ai_key_set_inner(ai, provider, key).await)
         }
