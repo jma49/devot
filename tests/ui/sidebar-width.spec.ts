@@ -77,6 +77,26 @@ test('a hidden sidebar has no edge to grab', async ({ page }) => {
   await expect(handle(page)).toBeHidden()
 })
 
+test('a saved wide sidebar resizes from its displayed narrow overlay width', async ({ page }) => {
+  await handle(page).focus()
+  await page.keyboard.press('End')
+  await expect.poll(() => width(page)).toBe(500)
+  await page.setViewportSize({ width: 800, height: 800 })
+  await page.getByRole('button', { name: 'Show Sidebar', exact: true }).click()
+  await expect.poll(() => width(page)).toBe(204)
+
+  await handle(page).click()
+  await page.setViewportSize({ width: 1400, height: 800 })
+  await expect.poll(() => width(page)).toBe(500)
+  await page.setViewportSize({ width: 800, height: 800 })
+  await page.getByRole('button', { name: 'Show Sidebar', exact: true }).click()
+  await dragEdge(page, -20)
+  await expect.poll(() => width(page)).toBe(184)
+  await handle(page).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(() => width(page)).toBe(194)
+})
+
 test('in a narrow window the note list shrinks first, then the sidebar is clamped', async ({
   page,
 }) => {
