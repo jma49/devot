@@ -51,6 +51,23 @@ export function usePanes({
   if (!narrow && narrowRequest !== 'none') setNarrowRequest('none')
   const sidebarOff = narrow ? narrowRequest !== 'shown' : sidebarHidden
   const sidebarShown = !focus && !sidebarOff
+  useEffect(() => {
+    if (!narrow || !sidebarShown) return
+    const dismiss = (event: Event) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest('.window > .list, .window > .content')
+      ) {
+        setNarrowRequest('none')
+      }
+    }
+    document.addEventListener('pointerdown', dismiss)
+    document.addEventListener('focusin', dismiss)
+    return () => {
+      document.removeEventListener('pointerdown', dismiss)
+      document.removeEventListener('focusin', dismiss)
+    }
+  }, [narrow, sidebarShown])
   // Hide/show fades and slides the panes (paneMotion.ts): positions are measured before the change renders and played back after layout.
   // Panes are inert from the first frame of a hide, so the keyboard leaves them as it did when they vanished at once.
   const [panesSeen, setPanesSeen] = useState({ focus, sidebarOff })
@@ -86,7 +103,10 @@ export function usePanes({
       if (hadKeyboard) requestFocus({ kind: 'area', area: 'list' })
       return
     }
-    if (document.activeElement?.closest('.sidebar-toggle')) {
+    if (
+      document.activeElement?.closest('.sidebar-toggle') ||
+      (narrow && areaOf(document.activeElement) === 'list')
+    ) {
       requestFocus({ kind: 'area', area: 'sidebar' })
     }
     if (focus) {

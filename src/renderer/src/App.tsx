@@ -610,6 +610,7 @@ export function App() {
     setConfirm,
   })
   const librarySidebar = useLibrarySidebar({
+    hideSidebar: narrow ? toggleSidebar : undefined,
     core,
     editing,
     lists,

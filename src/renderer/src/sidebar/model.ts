@@ -72,6 +72,7 @@ export function subtree(tree: BookNode[], id: string): Set<string> {
 }
 
 export interface SidebarProps {
+  onHide?: (() => void) | undefined
   total: number
   tree: BookNode[]
   counts: ReadonlyMap<string, number>

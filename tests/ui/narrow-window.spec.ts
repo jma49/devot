@@ -28,6 +28,30 @@ async function openNote(page: Page, width: number, text: string) {
 }
 
 for (const width of [760, 800, 900]) {
+  test(`showing the sidebar keeps Split and More inside a ${width} px window`, async ({ page }) => {
+    await openNote(page, width, 'alpha beta gamma delta')
+    await mode(page, 'Split').click()
+    await showSidebar(page).click()
+    await expect(sidebar(page)).toBeVisible()
+
+    const editor = page.locator('[data-devot-part=editor-body]')
+    const preview = page.getByRole('article', { name: 'Preview' })
+    const more = page.locator('.editor-toolbar').getByRole('button', { name: 'More', exact: true })
+    for (const pane of [editor, preview, more]) {
+      await expect
+        .poll(async () => {
+          const b = await box(pane)
+          return b.x >= 0 && b.x + b.width <= width
+        })
+        .toBe(true)
+    }
+    expect((await box(editor)).width).toBeGreaterThanOrEqual(PANE_MIN)
+    expect((await box(preview)).width).toBeGreaterThanOrEqual(PANE_MIN)
+    await more.click()
+    await expect(sidebar(page)).toBeHidden()
+    await expect(mode(page, 'Split')).toHaveAttribute('aria-pressed', 'true')
+  })
+
   test(`the editor toolbar and the split panes fit a ${width} px window`, async ({ page }) => {
     await openNote(page, width, 'alpha beta gamma delta')
     await mode(page, 'Split').click()
@@ -165,6 +189,33 @@ test('Cmd+/ shows the sidebar in a narrow window, which then fits without scroll
   ).toBeLessThanOrEqual(800)
   await page.keyboard.press('Meta+Slash')
   await expect(sidebar(page)).toBeHidden()
+})
+
+test('opening the narrow sidebar moves an already focused list row into the sidebar', async ({
+  page,
+}) => {
+  await openNote(page, 800, 'note')
+  const row = page.getByRole('listbox', { name: 'Notes' }).getByRole('option').first()
+  await row.focus()
+  await expect(row).toBeFocused()
+  await page.keyboard.press('Meta+Slash')
+  await expect(sidebar(page)).toBeVisible()
+  await expect(sidebar(page).locator('[data-sidebar-row][tabindex="0"]')).toBeFocused()
+  await page.keyboard.press('Meta+Slash')
+  await expect(sidebar(page)).toBeHidden()
+  await expect(row).toBeFocused()
+})
+
+test('keyboard focus dismisses the narrow sidebar before it can cover a list control', async ({
+  page,
+}) => {
+  await openNote(page, 800, 'note')
+  await showSidebar(page).click()
+  await expect(sidebar(page)).toBeVisible()
+  const newNote = page.getByRole('button', { name: 'New Note', exact: true })
+  await newNote.focus()
+  await expect(sidebar(page)).toBeHidden()
+  await expect(newNote).toBeFocused()
 })
 
 test('showing the sidebar in a narrow window keeps a sidebar hidden in a wide one hidden', async ({
