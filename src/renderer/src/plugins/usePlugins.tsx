@@ -44,7 +44,6 @@ import {
   editableRenderers,
   rendererSpecs,
   slashCommands,
-  stopsImport,
   type PluginAction,
 } from './contributions'
 import { frameConnector, showFrame } from './frames'
@@ -55,6 +54,7 @@ import { keptDrawingsChanged } from '../preview/keptDrawings'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
 import { ImportDetails } from './ImportDetails'
+import { importBatch } from './importBatch'
 
 export interface PluginWindow {
   /** The note open in the editor. */
@@ -296,34 +296,20 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
           const files = await pickImportFiles(action.plugin, action.id)
           if (!files) return
           setNotification(undefined)
-          let made = 0
-          const problems: ImportProblem[] = []
-          let importError: unknown
-          try {
-            for (const file of files) {
-              try {
-                const converted = await host.convertImport(action.plugin, action.id, file)
-                const report = await c.importConverted(file.name, converted, w.importBook())
-                made += report.notes
-                for (const problem of report.problems) {
-                  if (report.noteIds[problem.path] && problem.code !== 'E_IMPORT_INCOMPLETE') {
-                    problems.push(problem)
-                    logFailure(problem.code, 'W_PLUGIN_IMPORT_SKIPPED')
-                  } else importError = new Error(problem.code)
-                }
-              } catch (error) {
-                importError = error
-                // A plugin that hangs or stopped would cost every remaining file its own wait.
-                if (stopsImport(error)) break
-              }
-            }
-          } finally {
-            if (made > 0) w.imported()
-            if (importError || (made === 0 && files.length > 0))
-              fail(action.plugin, importError ?? new Error('E_IMPORT_FAILED'))
-            else if (made > 0 && problems.length > 0)
-              setNotification({ kind: 'import', notes: made, problems })
-          }
+          const {
+            made,
+            problems,
+            error: importError,
+          } = await importBatch(files, async (file) => {
+            const converted = await host.convertImport(action.plugin, action.id, file)
+            return c.importConverted(file.name, converted, w.importBook())
+          })
+          for (const problem of problems) logFailure(problem.code, 'W_PLUGIN_IMPORT_SKIPPED')
+          if (made > 0) w.imported()
+          if (importError || (made === 0 && files.length > 0))
+            fail(action.plugin, importError ?? new Error('E_IMPORT_FAILED'))
+          else if (made > 0 && problems.length > 0)
+            setNotification({ kind: 'import', notes: made, problems })
         } else {
           const open = w.openNote()
           if (!c || !open) return
