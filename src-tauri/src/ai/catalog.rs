@@ -58,13 +58,41 @@ pub fn claude_tier(id: &str) -> Option<Tier> {
     }
 }
 
+/// Unicode's format characters (Cf) and line and paragraph separators (Zl, Zp): invisible, or able to make a name read as another.
+fn is_format(c: char) -> bool {
+    matches!(
+        c,
+        '\u{00ad}'
+            | '\u{0600}'..='\u{0605}'
+            | '\u{061c}'
+            | '\u{06dd}'
+            | '\u{070f}'
+            | '\u{0890}'..='\u{0891}'
+            | '\u{08e2}'
+            | '\u{180e}'
+            | '\u{200b}'..='\u{200f}'
+            | '\u{2028}'..='\u{202e}'
+            | '\u{2060}'..='\u{2064}'
+            | '\u{2066}'..='\u{206f}'
+            | '\u{feff}'
+            | '\u{fff9}'..='\u{fffb}'
+            | '\u{110bd}'
+            | '\u{110cd}'
+            | '\u{13430}'..='\u{1343f}'
+            | '\u{1bca0}'..='\u{1bca3}'
+            | '\u{1d173}'..='\u{1d17a}'
+            | '\u{e0001}'
+            | '\u{e0020}'..='\u{e007f}'
+    )
+}
+
 fn clean_name(name: Option<&str>, id: &str) -> String {
     let name: String = name
         .map(str::trim)
         .filter(|n| !n.is_empty())
         .unwrap_or(id)
         .chars()
-        .filter(|c| !c.is_control())
+        .filter(|&c| !c.is_control() && !is_format(c))
         .take(MAX_NAME_CHARS)
         .collect();
     if name.is_empty() {
@@ -104,35 +132,15 @@ pub fn claude_code() -> Vec<CatalogModel> {
         id: id.to_string(),
         name: name.to_string(),
         tier: claude_tier(id),
-        reasoning: levels(CLAUDE_EFFORTS),
+        // Haiku takes no effort level.
+        reasoning: if id == "haiku" {
+            Vec::new()
+        } else {
+            levels(CLAUDE_EFFORTS)
+        },
         default_reasoning: None,
     })
     .collect()
-}
-
-#[cfg(any(desktop, test))]
-#[derive(serde::Deserialize)]
-struct CodexCatalog {
-    models: Vec<CodexModel>,
-}
-
-#[cfg(any(desktop, test))]
-#[derive(serde::Deserialize)]
-struct CodexModel {
-    slug: String,
-    display_name: Option<String>,
-    description: Option<String>,
-    visibility: Option<String>,
-    priority: Option<i64>,
-    default_reasoning_level: Option<String>,
-    #[serde(default)]
-    supported_reasoning_levels: Vec<CodexLevel>,
-}
-
-#[cfg(any(desktop, test))]
-#[derive(serde::Deserialize)]
-struct CodexLevel {
-    effort: String,
 }
 
 #[cfg(any(desktop, test))]
@@ -150,50 +158,69 @@ fn codex_tier(description: Option<&str>) -> Option<Tier> {
 
 #[cfg(any(desktop, test))]
 /// `codex debug models`: the models Codex lists (`visibility: "list"`), in its order (`priority`, lowest first).
+/// Each entry is read on its own, so one with a field of the wrong shape is left out and the rest are kept.
 pub fn parse_codex(stdout: &[u8]) -> Result<Vec<CatalogModel>, &'static str> {
-    let catalog: CodexCatalog =
-        serde_json::from_slice(stdout).map_err(|_| "E_AI_RESPONSE_INVALID")?;
-    let mut listed: Vec<CodexModel> = catalog
-        .models
-        .into_iter()
-        .filter(|m| m.visibility.as_deref() == Some("list") && valid_id(&m.slug))
+    let items = array_at(stdout, "models")?;
+    let text = |item: &Value, key: &str| item.get(key).and_then(Value::as_str).map(str::to_string);
+    let mut listed: Vec<(i64, CatalogModel)> = items
+        .iter()
+        .filter_map(|item| {
+            let id = item.get("slug")?.as_str()?;
+            if item.get("visibility")?.as_str()? != "list" || !valid_id(id) {
+                return None;
+            }
+            let priority = match item.get("priority") {
+                None | Some(Value::Null) => i64::MAX,
+                Some(p) => p.as_i64()?,
+            };
+            let reasoning = match item.get("supported_reasoning_levels") {
+                None | Some(Value::Null) => Vec::new(),
+                Some(Value::Array(levels_given)) => levels(
+                    levels_given
+                        .iter()
+                        .filter_map(|l| l.get("effort").and_then(Value::as_str)),
+                ),
+                Some(_) => return None,
+            };
+            let default_reasoning =
+                clean_reasoning(text(item, "default_reasoning_level").as_deref())
+                    .ok()
+                    .flatten()
+                    .filter(|d| reasoning.contains(d));
+            Some((
+                priority,
+                CatalogModel {
+                    id: id.to_string(),
+                    name: clean_name(text(item, "display_name").as_deref(), id),
+                    tier: codex_tier(text(item, "description").as_deref()),
+                    reasoning,
+                    default_reasoning,
+                },
+            ))
+        })
         .collect();
-    listed.sort_by_key(|m| m.priority.unwrap_or(i64::MAX));
+    listed.sort_by_key(|(priority, _)| *priority);
     Ok(listed
         .into_iter()
+        .map(|(_, model)| model)
         .take(MAX_MODELS)
-        .map(|m| {
-            let reasoning = levels(
-                m.supported_reasoning_levels
-                    .iter()
-                    .map(|l| l.effort.as_str()),
-            );
-            let default_reasoning = clean_reasoning(m.default_reasoning_level.as_deref())
-                .ok()
-                .flatten()
-                .filter(|d| reasoning.contains(d));
-            CatalogModel {
-                name: clean_name(m.display_name.as_deref(), &m.slug),
-                tier: codex_tier(m.description.as_deref()),
-                id: m.slug,
-                reasoning,
-                default_reasoning,
-            }
-        })
         .collect())
 }
 
-fn data(body: &[u8]) -> Result<Vec<Value>, &'static str> {
+fn array_at(body: &[u8], key: &str) -> Result<Vec<Value>, &'static str> {
     let value: Value = serde_json::from_slice(body).map_err(|_| "E_AI_RESPONSE_INVALID")?;
-    match value.get("data") {
-        Some(Value::Array(items)) => Ok(items.clone()),
+    match value {
+        Value::Object(mut fields) => match fields.remove(key) {
+            Some(Value::Array(items)) => Ok(items),
+            _ => Err("E_AI_RESPONSE_INVALID"),
+        },
         _ => Err("E_AI_RESPONSE_INVALID"),
     }
 }
 
 /// The Anthropic Models API (`GET /v1/models`): newest first, with the effort levels each model's `capabilities` mark supported.
 pub fn parse_anthropic(body: &[u8]) -> Result<Vec<CatalogModel>, &'static str> {
-    Ok(data(body)?
+    Ok(array_at(body, "data")?
         .iter()
         .filter_map(|item| {
             let id = item.get("id")?.as_str()?;
@@ -229,7 +256,7 @@ pub fn parse_anthropic(body: &[u8]) -> Result<Vec<CatalogModel>, &'static str> {
 
 /// An OpenAI-compatible `GET /models`: IDs only, in the server's order.
 pub fn parse_openai(body: &[u8]) -> Result<Vec<CatalogModel>, &'static str> {
-    Ok(data(body)?
+    Ok(array_at(body, "data")?
         .iter()
         .filter_map(|item| {
             let id = item.get("id")?.as_str()?;
@@ -277,6 +304,43 @@ mod tests {
         assert_eq!(models[2].name, "gpt-c");
         assert_eq!(models[2].tier, None);
         assert_eq!(parse_codex(b"not json"), Err("E_AI_RESPONSE_INVALID"));
+        assert_eq!(
+            parse_codex(b"{\"models\": 1}"),
+            Err("E_AI_RESPONSE_INVALID")
+        );
+    }
+
+    #[test]
+    fn a_codex_entry_of_the_wrong_shape_is_left_out_and_the_rest_kept() {
+        let stdout = json!({"models": [
+            {"slug": "gpt-ok", "visibility": "list", "priority": 1, "display_name": null,
+             "description": null, "default_reasoning_level": null, "supported_reasoning_levels": null},
+            {"slug": "gpt-bad-priority", "visibility": "list", "priority": "first"},
+            {"slug": "gpt-bad-levels", "visibility": "list", "supported_reasoning_levels": "low"},
+            {"slug": null, "visibility": "list"},
+            {"slug": "gpt-no-visibility"},
+            "not an object",
+            {"slug": "gpt-named", "visibility": "list", "priority": 2, "display_name": 7,
+             "supported_reasoning_levels": [{"effort": 3}, {"effort": "low"}, null]}
+        ]})
+        .to_string();
+        let models = parse_codex(stdout.as_bytes()).unwrap();
+        let ids: Vec<_> = models.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(ids, ["gpt-ok", "gpt-named"]);
+        assert_eq!(models[0].name, "gpt-ok");
+        assert!(models[0].reasoning.is_empty());
+        assert_eq!(models[1].name, "gpt-named");
+        assert_eq!(models[1].reasoning, ["low"]);
+    }
+
+    #[test]
+    fn a_name_loses_invisible_and_direction_characters() {
+        assert_eq!(
+            clean_name(Some("Op\u{202e}us\u{200b} 9\u{2028}\u{feff}\u{e0041}"), "x"),
+            "Opus 9"
+        );
+        assert_eq!(clean_name(Some("\u{200d}\u{2029}"), "model-id"), "model-id");
+        assert_eq!(clean_name(Some("Caf\u{e9}"), "x"), "Caf\u{e9}");
     }
 
     #[test]
@@ -319,11 +383,18 @@ mod tests {
     }
 
     #[test]
-    fn claude_code_offers_its_aliases_with_every_effort_level() {
+    fn claude_code_offers_its_aliases_with_every_effort_level_but_haiku_none() {
         let models = claude_code();
         let ids: Vec<_> = models.iter().map(|m| m.id.as_str()).collect();
         assert_eq!(ids, ["opus", "sonnet", "haiku", "fable"]);
-        assert!(models.iter().all(|m| m.reasoning == CLAUDE_EFFORTS));
+        for model in &models {
+            let expected: &[&str] = if model.id == "haiku" {
+                &[]
+            } else {
+                &CLAUDE_EFFORTS
+            };
+            assert_eq!(model.reasoning, expected, "{}", model.id);
+        }
         assert_eq!(models[0].tier, Some(Tier::Best));
         assert_eq!(models[2].tier, Some(Tier::Fast));
     }
