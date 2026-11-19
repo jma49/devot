@@ -1,7 +1,8 @@
 import { useEffect, useId, useState } from 'react'
 import { errorCode } from '../backups'
 import { writeClipboardText } from '../clipboard'
-import { format, t, type MessageKey } from '../i18n'
+import { format, registerMessages, t, type MessageKey } from '../i18n'
+import { messages as browserExtensions } from '../i18n/en/browserExtensions'
 import { Select, Setting, SettingsSection, SettingToggle } from './controls'
 import {
   curlExample,
@@ -17,6 +18,8 @@ import {
 import { useQueuedChoices } from './queuedChoices'
 import { useTypedNumber } from './typedNumber'
 import { failureText, logFailure } from '../failure'
+
+registerMessages(browserExtensions)
 
 const SCOPES: readonly { id: HttpApiScope; label: MessageKey }[] = [
   { id: 'read', label: 'httpApi.read' },
@@ -55,7 +58,7 @@ export function HttpApiSection() {
       setFailure({
         message:
           errorCode(e) === 'E_HTTP_API_ORIGINS_INVALID'
-            ? 'httpApi.originsInvalid'
+            ? 'browserExtensions.invalid'
             : 'httpApi.saveFailed',
         code: logFailure(errorCode(e), 'W_HTTP_API_SETTINGS_FAILED'),
       })
@@ -204,8 +207,12 @@ export function HttpApiSection() {
               onBlur={port.leave}
             />
           </Setting>
-          <Setting label="httpApi.extensions" description={t('httpApi.extensionsHint')} stacked>
-            <ul className="http-api-origins" aria-label={t('httpApi.extensions')}>
+          <Setting
+            label="browserExtensions.title"
+            description={t('browserExtensions.hint')}
+            stacked
+          >
+            <ul className="http-api-origins" aria-label={t('browserExtensions.title')}>
               {origins.map((origin) => (
                 <li key={origin}>
                   <code>{origin}</code>
@@ -213,16 +220,16 @@ export function HttpApiSection() {
                     type="button"
                     className="button"
                     disabled={originPending !== null}
-                    aria-label={format(t('httpApi.removeOrigin'), { origin })}
+                    aria-label={format(t('browserExtensions.removeOrigin'), { origin })}
                     onClick={() => changeOrigins(origins.filter((item) => item !== origin))}
                   >
-                    {t('httpApi.removeExtension')}
+                    {t('browserExtensions.remove')}
                   </button>
                 </li>
               ))}
             </ul>
             {origins.length === 0 ? (
-              <p className="settings-note">{t('httpApi.noExtensions')}</p>
+              <p className="settings-note">{t('browserExtensions.empty')}</p>
             ) : null}
             <form
               className="http-api-origin-form"
@@ -246,7 +253,7 @@ export function HttpApiSection() {
                 value={originDraft}
                 spellCheck={false}
                 autoComplete="off"
-                aria-label={t('httpApi.extensionOrigin')}
+                aria-label={t('browserExtensions.origin')}
                 onChange={(event) => setOriginDraft(event.currentTarget.value)}
               />
               <button
@@ -259,7 +266,7 @@ export function HttpApiSection() {
                   originPending !== null
                 }
               >
-                {t('httpApi.addExtension')}
+                {t('browserExtensions.add')}
               </button>
             </form>
           </Setting>

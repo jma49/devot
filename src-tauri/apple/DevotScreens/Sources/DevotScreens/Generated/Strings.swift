@@ -690,6 +690,38 @@ public enum L10n {
     fill(text("change.bookNameInvalid", "A notebook name is one line of at most {max} characters."), ["max": p0])
   }
 
+  public static func browserExtensionsTitle() -> String {
+    text("browserExtensions.title", "Browser extensions")
+  }
+
+  public static func browserExtensionsHint() -> String {
+    text("browserExtensions.hint", "Only registered extensions may use this API. Copy the origin from the clipper settings. Changes apply immediately.")
+  }
+
+  public static func browserExtensionsEmpty() -> String {
+    text("browserExtensions.empty", "No browser extensions registered.")
+  }
+
+  public static func browserExtensionsOrigin() -> String {
+    text("browserExtensions.origin", "Extension origin")
+  }
+
+  public static func browserExtensionsAdd() -> String {
+    text("browserExtensions.add", "Add extension")
+  }
+
+  public static func browserExtensionsRemove() -> String {
+    text("browserExtensions.remove", "Remove")
+  }
+
+  public static func browserExtensionsRemoveOrigin(origin p0: String) -> String {
+    fill(text("browserExtensions.removeOrigin", "Remove {origin}"), ["origin": p0])
+  }
+
+  public static func browserExtensionsInvalid() -> String {
+    text("browserExtensions.invalid", "Enter up to eight extension origins, without a trailing slash, path or port.")
+  }
+
   public static func commandSelectAllNotes() -> String {
     text("command.selectAllNotes", "Select All Notes")
   }
@@ -4456,38 +4488,6 @@ public enum L10n {
 
   public static func httpApiPort() -> String {
     text("httpApi.port", "Port")
-  }
-
-  public static func httpApiExtensions() -> String {
-    text("httpApi.extensions", "Browser extensions")
-  }
-
-  public static func httpApiExtensionsHint() -> String {
-    text("httpApi.extensionsHint", "Only registered extensions may use this API. Copy the origin from the clipper settings. Changes apply immediately.")
-  }
-
-  public static func httpApiNoExtensions() -> String {
-    text("httpApi.noExtensions", "No browser extensions registered.")
-  }
-
-  public static func httpApiExtensionOrigin() -> String {
-    text("httpApi.extensionOrigin", "Extension origin")
-  }
-
-  public static func httpApiAddExtension() -> String {
-    text("httpApi.addExtension", "Add extension")
-  }
-
-  public static func httpApiRemoveExtension() -> String {
-    text("httpApi.removeExtension", "Remove")
-  }
-
-  public static func httpApiRemoveOrigin(origin p0: String) -> String {
-    fill(text("httpApi.removeOrigin", "Remove {origin}"), ["origin": p0])
-  }
-
-  public static func httpApiOriginsInvalid() -> String {
-    text("httpApi.originsInvalid", "Enter up to eight extension origins, without a trailing slash, path or port.")
   }
 
   public static func httpApiPortHint() -> String {
