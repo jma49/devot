@@ -55,6 +55,21 @@ const here = (): ImportPreparer & { asked: string[] } => {
 }
 
 describe('preparing imported files off the core worker', () => {
+  it('passes vault property preservation to the worker and its fallback', async () => {
+    const worker = new FakeWorker()
+    const local = here()
+    const file = vi.spyOn(local, 'file')
+    const prepare = preparerOffThread(
+      () => worker,
+      local,
+      () => {},
+    )
+    const result = prepare.file('---\ntags: [work]\n---', 'a.md', false, true, true)
+    expect(worker.sent[0]).toMatchObject({ keepProperties: true, conventions: true })
+    worker.emit('error')
+    await result
+    expect(file).toHaveBeenCalledWith('---\ntags: [work]\n---', 'a.md', false, true, true)
+  })
   it('sends each call to one worker and answers each by its own reply, in any order', async () => {
     const worker = new FakeWorker()
     const spawn = vi.fn<() => ImportWorker>(() => worker)

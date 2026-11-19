@@ -270,6 +270,7 @@ title: Daily Report {{date}}
   'import.imagesOther': '{count} images were added as attachments.',
   'import.wikiLinks': 'Convert [[wiki links]] to note links and images',
   'import.conventions': 'Read tags from front matter and #tags, and turn callouts into alerts',
+  'import.obsidianVault': 'This folder is read as an Obsidian vault.',
   'import.unresolvedLinksOne': '{count} wiki link matched no note or image and was kept as text.',
   'import.unresolvedLinksOther':
     '{count} wiki links matched no note or image and were kept as text.',

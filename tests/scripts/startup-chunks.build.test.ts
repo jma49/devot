@@ -15,6 +15,7 @@ const SERVER_RENDERING =
   /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?react-dom\/(?:server|cjs\/react-dom-server)/
 const WORKER_LAZY =
   /\/src\/core\/(?:sync\/engine|mirror|import|htmlImport|export|htmlExport|ai)\.ts$/
+const IMPORT_UI = /\/src\/(?:core\/import(?:Tree|Layout)\.ts|renderer\/src\/ImportDialog\.tsx)$/
 
 interface Chunk {
   name: string
@@ -94,6 +95,8 @@ it('the main window loads no Markdown parsing or server rendering before its fir
   const chunks = eager(main, 'main')
   expect(modulesOf(chunks, MARKDOWN_STACK)).toEqual([])
   expect(modulesOf(chunks, SERVER_RENDERING)).toEqual([])
+  expect(modulesOf(chunks, IMPORT_UI)).toEqual([])
+  expect(modulesOf([...main.values()], IMPORT_UI).length).toBeGreaterThan(0)
   expect(modulesOf(chunks, /\/src\/renderer\/src\/TemplatePicker\.tsx$/)).toEqual([])
   expect(bytesOf(chunks)).toBeLessThan(MAIN_EAGER_BUDGET)
 })
