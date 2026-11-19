@@ -58,6 +58,7 @@ Part of the [architecture overview](../architecture.md).
     The host validates the complete answer before writing, caps each body or HTML input at 32 MiB, each note's tags and attachments at 1,000, and the answer's text and base64 at 140 MiB together.
     Attachments use zero-based URLs `attachment:0`, `attachment:1` in images; the host decodes and checks their bytes, stores supported raster images up to 10 MiB with the note, and rewrites image URLs to the stored IDs.
     Unsupported or invalid attachments are skipped and listed by code in the import report, never logged with content; other plugin diagnostics must also be codes.
+    An import that creates notes with only per-note diagnostics shows the imported-note and skipped-item counts, while converter errors or failures to create notes retain the failure notice.
     HTML goes through the host's sanitized `htmlToMarkdown`, never directly into the note or the app's DOM.
     Tags are applied through the tag service and explicit dates through `setDates` after the body and tags, clamping Updated to Created when needed and using the current time for a missing date.
     The host reuses the core import pipeline's per-note progress, cancellation boundaries, error reporting and cleanup.

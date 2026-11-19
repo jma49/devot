@@ -18,6 +18,8 @@ Motion never carries meaning alone: the final state must say everything without 
 
 Native menus and other system-drawn things keep the system's motion.
 
+Plugin import completion and skipped-item counts replace the notice text at once (rule 2), without movement.
+
 ## Which motion
 
 | What happens                                       | Motion                  | Duration                                         | Curve                                            |

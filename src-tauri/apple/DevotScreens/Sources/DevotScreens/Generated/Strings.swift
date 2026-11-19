@@ -4814,6 +4814,10 @@ public enum L10n {
     fill(text("plugins.failed", "{name} could not finish."), ["name": p0])
   }
 
+  public static func pluginsImportedWithSkips(notes p0: String, skipped p1: String) -> String {
+    fill(text("plugins.importedWithSkips", "Imported {notes} notes; {skipped} items skipped."), ["notes": p0, "skipped": p1])
+  }
+
   public static func pluginsTrialEnded() -> String {
     text("plugins.trialEnded", "Your Devot trial has ended, so a plugin cannot change notes. Add a license in Settings > License.")
   }

@@ -72,6 +72,9 @@ test('imports .enex export files through the sandboxed plugin with metadata and 
       page.evaluate(() => JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]').length),
     )
     .toBe(3)
+  const notice = page.locator('[data-devot-plugin-notice]')
+  await expect(notice).toHaveText('Imported 3 notes; 2 items skipped.Dismiss')
+  await expect(notice).not.toContainText('could not finish')
   if (process.env['DEVOT_ENEX_SCREENSHOTS'])
     await page.screenshot({ path: '/home/ubuntu/screens/enex-result.png', animations: 'disabled' })
   await archive.click()
@@ -130,4 +133,19 @@ test('imports .enex export files through the sandboxed plugin with metadata and 
         .map((call) => call.args),
     ),
   ).toEqual([{ plugin: manifest.id, format: 'enex' }])
+})
+
+test('an empty .enex export reports that nothing was imported', async ({ page }) => {
+  await servePlugins(page, [{ manifest, main }])
+  await page.addInitScript(() => {
+    window.devotIpcMocks = {
+      ...window.devotIpcMocks,
+      plugin_import_pick: () => [{ name: 'Empty.enex', text: '<en-export/>' }],
+    }
+  })
+  await openApp(page)
+  await pluginFrame(page, manifest.id)
+  await pickPluginMenu(page, { kind: 'import', plugin: manifest.id, id: 'enex' })
+  await expect(page.locator('[data-devot-plugin-notice]')).toContainText('could not finish.')
+  await expect(page.getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(0)
 })

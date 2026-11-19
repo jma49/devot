@@ -27337,6 +27337,23 @@
         }
       }
     },
+    "plugins.importedWithSkips" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported {notes} notes; {skipped} items skipped."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已导入 {notes} 篇笔记；跳过了 {skipped} 项。"
+          }
+        }
+      }
+    },
     "plugins.install" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -183,5 +183,6 @@ export const messages: Record<keyof typeof en, string> = {
   'plugins.exportAs': '将笔记导出为 {title}…',
   'plugins.panelClose': '关闭',
   'plugins.failed': '{name} 没能完成。',
+  'plugins.importedWithSkips': '已导入 {notes} 篇笔记；跳过了 {skipped} 项。',
   'plugins.trialEnded': 'Devot 试用期已结束，插件无法修改笔记。请在“设置 > 许可证”中添加许可证。',
 }

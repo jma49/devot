@@ -98,7 +98,10 @@ const isAction = (value: unknown): value is PluginAction => {
 export function usePlugins(core: Core | undefined, app: PluginWindow) {
   const [plugins, setPlugins] = useState<readonly InstalledPlugin[]>([])
   const [panel, setPanel] = useState<{ plugin: string; height: number } | null>(null)
-  const [failure, setFailure] = useState<{ name: string; code: string }>()
+  const [notification, setNotification] = useState<
+    | { kind: 'failure'; name: string; code: string }
+    | { kind: 'import'; notes: number; skipped: number }
+  >()
   const frames = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
   const latest = useRef({ core, app, plugins })
@@ -183,7 +186,8 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   )
   const fail = useCallback(
     (plugin: string, error: unknown) =>
-      setFailure({
+      setNotification({
+        kind: 'failure',
         name: nameOf(plugin),
         code: logFailure(errorCode(error, 'E_PLUGIN_FAILED'), 'W_PLUGIN_FAILED'),
       }),
@@ -288,22 +292,34 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
           if (!c) return
           const files = await pickImportFiles(action.plugin, action.id)
           if (!files) return
+          setNotification(undefined)
           let made = 0
+          let skipped = 0
+          let importError: unknown
           try {
             for (const file of files) {
               try {
                 const converted = await host.convertImport(action.plugin, action.id, file)
                 const report = await c.importConverted(file.name, converted, w.importBook())
                 made += report.notes
-                for (const problem of report.problems) fail(action.plugin, new Error(problem.code))
+                for (const problem of report.problems) {
+                  if (report.noteIds[problem.path] && problem.code !== 'E_IMPORT_INCOMPLETE') {
+                    skipped++
+                    logFailure(problem.code, 'W_PLUGIN_IMPORT_SKIPPED')
+                  } else importError = new Error(problem.code)
+                }
               } catch (error) {
-                fail(action.plugin, error)
+                importError = error
                 // A plugin that hangs or stopped would cost every remaining file its own wait.
                 if (stopsImport(error)) break
               }
             }
           } finally {
             if (made > 0) w.imported()
+            if (importError || (made === 0 && files.length > 0))
+              fail(action.plugin, importError ?? new Error('E_IMPORT_FAILED'))
+            else if (made > 0 && skipped > 0)
+              setNotification({ kind: 'import', notes: made, skipped })
           }
         } else {
           const open = w.openNote()
@@ -399,27 +415,33 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     </dialog>
   )
 
+  const failure = notification?.kind === 'failure' ? notification : undefined
   const licenceRefused = failure?.code === LICENCE_REQUIRED
-  const notice: ReactNode = failure ? (
+  const notice: ReactNode = notification ? (
     <div role="alert" className="notice" data-devot-part="notice" data-devot-plugin-notice>
       <span className="notice-text">
-        {licenceRefused
-          ? t('plugins.trialEnded')
-          : failureText('plugins.failed', failure.code, { name: failure.name })}
+        {notification.kind === 'import'
+          ? format(t('plugins.importedWithSkips'), {
+              notes: String(notification.notes),
+              skipped: String(notification.skipped),
+            })
+          : licenceRefused
+            ? t('plugins.trialEnded')
+            : failureText('plugins.failed', notification.code, { name: notification.name })}
       </span>
       {licenceRefused ? (
         <button
           type="button"
           className="button"
           onClick={() => {
-            setFailure(undefined)
+            setNotification(undefined)
             openLicenceSettings()
           }}
         >
           {t('licenceSettings.add')}
         </button>
       ) : null}
-      <button type="button" className="button" onClick={() => setFailure(undefined)}>
+      <button type="button" className="button" onClick={() => setNotification(undefined)}>
         {t('notice.dismiss')}
       </button>
     </div>
