@@ -237,9 +237,9 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
   const imageChooser = images.choose
   return [
     ONLY_WHILE_FOCUSED,
-    editorSetup(settings),
     // No keymap acts on the keys an input method composes with.
     imeKeys(),
+    editorSetup(settings),
     editorTheme,
     selectionEdges,
     // Operators in code keep one style each, so code fonts form ligatures.
