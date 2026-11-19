@@ -60,6 +60,7 @@ Part of the [architecture overview](../architecture.md).
     Unsupported or invalid attachments are skipped and listed by code in the import report, never logged with content; other plugin diagnostics must also be codes.
     An import that creates notes with only per-note diagnostics shows the imported-note and skipped-item counts, while converter errors or failures to create notes retain the failure notice.
     Show Skipped opens the import results sheet with each item's name, translated reason and a button to open its note; reports carry attachment names and note IDs and titles for display only, while logs retain codes and IDs only.
+    The core worker dispatches converted imports through the same lazy import boundary as Markdown imports, keeping conversion and protocol validation out of startup chunks.
     HTML goes through the host's sanitized `htmlToMarkdown`, never directly into the note or the app's DOM.
     Tags are applied through the tag service and explicit dates through `setDates` after the body and tags, clamping Updated to Created when needed and using the current time for a missing date.
     The host reuses the core import pipeline's per-note progress, cancellation boundaries, error reporting and cleanup.

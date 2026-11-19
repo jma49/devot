@@ -176,6 +176,17 @@ const requiredTemplates = () => {
   return templates
 }
 
+const importParts = () => {
+  if (!newId) throw new Error('E_CORE_NOT_READY')
+  return {
+    notes: required(),
+    books: requiredBooks(),
+    tags: requiredTags(),
+    newId,
+    files: mirrorStorage,
+  }
+}
+
 const coreApi = {
   /**
    * Starts the core on `remote`, the page's storage: Yjs states are coded here, off the UI thread (wire.ts), and a wrapper tells the Markdown mirror of every write. Unsaved notes are sent to the page as a SaveProblemsMessage each time that list changes, and what the core relays to the other windows and takes in from them as a RelayOut.
@@ -422,14 +433,7 @@ const coreApi = {
     onProgress: (done: number, total: number) => void,
     { wikiLinks, conventions }: ImportChoices = DEFAULT_CHOICES,
   ) => {
-    const ids = newId
-    if (!ids) throw new Error('E_CORE_NOT_READY')
-    const parts = {
-      notes: required(),
-      books: requiredBooks(),
-      tags: requiredTags(),
-    }
-    const files = mirrorStorage
+    const parts = importParts()
     return imports.run((stopped) =>
       loadImport().then(([{ importMarkdown, preparerHere }, { preparerOffThread }]) => {
         const prepare = preparerOffThread(
@@ -437,15 +441,13 @@ const coreApi = {
             new Worker(new URL('./import.worker.ts', import.meta.url), {
               type: 'module',
             }),
-          preparerHere(ids),
+          preparerHere(parts.newId),
           () => console.warn('W_IMPORT_WORKER_FAILED'),
         )
         return importMarkdown({
           ...parts,
-          newId: ids,
           scan,
           source,
-          files,
           destination,
           onProgress,
           stopped,
@@ -456,26 +458,10 @@ const coreApi = {
       }),
     )
   },
-  importConverted: (
-    name: string,
-    converted: import('../../core/plugins').Converted | import('../../core/plugins').Converted[],
-    destination: string | null,
-  ) => {
-    const ids = newId
-    if (!ids) throw new Error('E_CORE_NOT_READY')
-    const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
+  importConverted: (...args: import('./importWorker').ConvertedImportArgs) => {
+    const parts = importParts()
     return imports.run((stopped) =>
-      import('../../core/plugins/import').then(({ importConverted }) =>
-        importConverted({
-          ...parts,
-          newId: ids,
-          files: mirrorStorage,
-          name,
-          converted,
-          destination,
-          stopped,
-        }),
-      ),
+      loadImport().then(([, { convertedImport }]) => convertedImport(parts, stopped, args)),
     )
   },
   holdImport: () => imports.hold(),

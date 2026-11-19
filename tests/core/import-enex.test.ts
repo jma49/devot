@@ -11,6 +11,7 @@ import {
   type ImportOptions,
 } from '../../src/core'
 import { importConverted } from '../../src/core/plugins/import'
+import { convertedImport } from '../../src/renderer/src/importWorker'
 import { imageLinks } from '../../src/core/import'
 import { parseManifest } from '../../src/core/plugins/manifest'
 import { checkResult, type Converted } from '../../src/core/plugins/protocol'
@@ -39,6 +40,7 @@ runInNewContext(readFileSync('plugins/enex/main.js', 'utf8'), {
 async function run(
   text: string,
   extra: Partial<ImportOptions> & { failTags?: boolean; converted?: Converted | Converted[] } = {},
+  importer = importConverted,
 ) {
   const storage = openSqliteAdapter(join(tempDir('enex-'), 'db.sqlite'))
   opened.push(storage)
@@ -52,7 +54,7 @@ async function run(
     storage.db.exec(
       "CREATE TRIGGER refuse_import_tags BEFORE INSERT ON note_tags BEGIN SELECT RAISE(ABORT, 'E_TEST_TAG'); END",
     )
-  const report = await importConverted({
+  const report = await importer({
     notes,
     books,
     tags,
@@ -65,6 +67,32 @@ async function run(
   })
   return { storage, notes, books, tags, report, destination }
 }
+
+it.each([
+  { name: 'normal', text: sample, extra: {}, notes: 3, codes: ['E_IMPORT_ATTACHMENT_UNSUPPORTED'] },
+  { name: 'empty', text: '<en-export/>', extra: {}, notes: 0, codes: [] },
+  {
+    name: 'stopped',
+    text: sample,
+    extra: { stopped: () => true },
+    notes: 0,
+    codes: ['E_IMPORT_STOPPED'],
+  },
+  { name: 'failed', text: sample, extra: { failTags: true }, notes: 1, codes: ['E_TEST_TAG'] },
+])(
+  'routes a $name converted import through the lazy worker adapter',
+  async ({ text, extra, notes, codes }) => {
+    const { report } = await run(text, extra, (options) =>
+      convertedImport(options, options.stopped ?? (() => false), [
+        options.name,
+        options.converted,
+        options.destination ?? null,
+      ]),
+    )
+    expect(report.notes).toBe(notes)
+    expect(report.problems.map((problem) => problem.code)).toEqual(expect.arrayContaining(codes))
+  },
+)
 
 it('imports ENML, dates, tags and resources into a notebook under the destination', async () => {
   const before = Date.now()

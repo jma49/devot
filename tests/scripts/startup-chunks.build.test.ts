@@ -14,7 +14,7 @@ const MARKDOWN_STACK =
 const SERVER_RENDERING =
   /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?react-dom\/(?:server|cjs\/react-dom-server)/
 const WORKER_LAZY =
-  /\/src\/core\/(?:sync\/engine|mirror|import|htmlImport|export|htmlExport|ai)\.ts$/
+  /\/src\/(?:core\/(?:sync\/engine|mirror|import|htmlImport|export|htmlExport|ai|plugins\/(?:import|protocol))|renderer\/src\/importWorker)\.ts$/
 
 interface Chunk {
   name: string
