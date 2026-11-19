@@ -213,10 +213,7 @@ test('rows answer the pointer, and the selected row and a drop target keep their
   const hover = await fill('--color-fill-row-selected-inactive')
   const clear = 'rgba(0, 0, 0, 0)'
   const home = row(page, 'Home')
-  // Set-up leaves the pointer where it last clicked, and the rows it added may have slid under it.
-  const viewport = page.viewportSize()
-  if (!viewport) throw new Error('E_TEST_NO_VIEWPORT')
-  await page.mouse.move(viewport.width - 1, viewport.height - 1)
+  await source(page, 'Trash').hover()
   await expect(home).toHaveCSS('background-color', clear)
   await home.hover()
   await expect(home).toHaveCSS('background-color', hover)

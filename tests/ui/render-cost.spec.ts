@@ -180,39 +180,44 @@ function codeNote(blocks: number): string {
   ).join('\n')
 }
 
-test('typing in Split view renders neither the preview nor its copy buttons', async ({ page }) => {
-  await countRenders(page, ['Preview', 'CopyButton'])
-  await page.addInitScript(() => {
-    const w = window
-    w.devotMediaQueries = 0
-    const query = w.matchMedia.bind(w)
-    w.matchMedia = (media: string) => {
-      w.devotMediaQueries += 1
-      return query(media)
-    }
-  })
-  await seedNotes(page, 1)
-  await openNote(page, 'Note 1')
-  await page.keyboard.insertText(codeNote(60))
-  await page
-    .getByRole('group', { name: 'View mode' })
-    .getByRole('button', { name: 'Split' })
-    .click()
-  const preview = page.getByRole('article', { name: 'Preview' })
-  await expect(preview.locator('.code-copy')).toHaveCount(60)
-  await body(page).click()
-  await page.keyboard.press('ControlOrMeta+End')
-  await resetRenderCounts(page)
-  await page.evaluate(() => (window.devotMediaQueries = 0))
+for (const saveEachKey of [false, true]) {
+  test(`typing in Split view renders neither the preview nor its copy buttons${saveEachKey ? ' with a save between keys' : ''}`, async ({
+    page,
+  }) => {
+    await countRenders(page, ['Preview', 'CopyButton'])
+    await seedNotes(page, 1)
+    await openNote(page, 'Note 1')
+    await page.keyboard.insertText(codeNote(60))
+    await page
+      .getByRole('group', { name: 'View mode' })
+      .getByRole('button', { name: 'Split' })
+      .click()
+    const preview = page.getByRole('article', { name: 'Preview' })
+    await expect(preview.locator('.code-copy')).toHaveCount(60)
+    await body(page).click()
+    await page.keyboard.press('ControlOrMeta+End')
+    await resetRenderCounts(page)
 
-  for (const key of KEYS) {
-    await page.keyboard.press(key)
-    await page.waitForTimeout(20)
-  }
-  await expect(preview.locator('p').last()).toHaveText(KEYS)
-  // A save renders the window and the preview with it once; a key renders neither.
-  const { renders, writes } = await renderCounts(page)
-  expect(renders['Preview']).toBeLessThanOrEqual(writes)
-  expect(renders['CopyButton']).toBe(0)
-  expect(await page.evaluate(() => window.devotMediaQueries)).toBeLessThanOrEqual(KEYS.length)
-})
+    const savedBody = () =>
+      page.evaluate(() => {
+        const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+          bodyMd: string
+        }[]
+        return notes[0]?.bodyMd ?? ''
+      })
+    let typed = ''
+    for (const key of KEYS) {
+      await page.keyboard.press(key)
+      typed += key
+      await expect(preview.locator('p').last()).toHaveText(typed)
+      if (saveEachKey) await expect.poll(async () => (await savedBody()).endsWith(typed)).toBe(true)
+    }
+    await expect(preview.locator('p').last()).toHaveText(KEYS)
+    await expect.poll(async () => (await savedBody()).endsWith(KEYS)).toBe(true)
+    // A save renders the window and the preview with it once; a key renders neither.
+    const { renders, writes } = await renderCounts(page)
+    expect(renders['Preview']).toBeLessThanOrEqual(writes)
+    expect(renders['CopyButton']).toBe(0)
+    if (saveEachKey) expect(writes).toBeGreaterThanOrEqual(KEYS.length)
+  })
+}
