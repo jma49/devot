@@ -11,6 +11,7 @@ import {
   type ImportOptions,
 } from '../../src/core'
 import { importConverted } from '../../src/core/plugins/import'
+import { imageLinks } from '../../src/core/import'
 import { parseManifest } from '../../src/core/plugins/manifest'
 import { checkResult, type Converted } from '../../src/core/plugins/protocol'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
@@ -298,6 +299,29 @@ it('removes rejected reference images and unused definitions, preserving ordinar
   expect(note?.bodyMd).toContain('[Keep][good]')
   expect(note?.bodyMd).toContain('[good]: https://example.com')
 })
+
+it.each([
+  ['https://example.com/image.png', 'attachment:1', 'https://example.com/image.png'],
+  ['attachment:0', 'attachment:1', 'devot://file/'],
+  ['attachment:1', 'https://example.com/image.png', null],
+])(
+  'resolves duplicate image definitions using the first URL: %s',
+  async (first, second, expected) => {
+    const image = convert({ name: 'a.enex', text: sample })[0]!.attachments![0]!
+    const { report, storage } = await run('', {
+      converted: {
+        title: 'Duplicates',
+        markdown: `![image][same]\n\n[same]: ${first}\n[same]: ${second}`,
+        attachments: [image, { name: 'paper.pdf', mime: 'application/pdf', data: btoa('PDF') }],
+      },
+    })
+    const note = await storage.getNote(Object.values(report.noteIds)[0]!)
+    const urls = imageLinks(note!.bodyMd).map((link) =>
+      link.url.startsWith('devot://file/') ? 'devot://file/' : link.url,
+    )
+    expect(urls).toEqual(expected ? [expected] : [])
+  },
+)
 
 it('keeps legacy single-note Markdown imports in the destination without a notebook', async () => {
   const { report, storage, destination } = await run('', {

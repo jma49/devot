@@ -4,7 +4,8 @@ import { htmlToMarkdown } from '../htmlImport'
 import { replaceRanges } from '../text'
 import { errorCode } from '../errors'
 import { parseMarkdown } from '../frontMatter'
-import type { Nodes } from 'mdast'
+import type { Definition, Nodes } from 'mdast'
+import { toMarkdown } from 'mdast-util-to-markdown'
 import type { Nodes as HtmlNodes } from 'hast'
 import { fromHtml } from 'hast-util-from-html'
 import { toHtml } from 'hast-util-to-html'
@@ -13,6 +14,47 @@ import { checkResult, type Converted } from './protocol'
 type PluginImportOptions = Omit<ImportOptions, 'scan' | 'source' | 'prepare'> & {
   name: string
   converted: Converted | Converted[]
+}
+
+function inlineImageReferences(text: string): string {
+  const tree = parseMarkdown(text)
+  const definitions = new Map<string, Definition>()
+  const images = new Set<string>()
+  const links = new Set<string>()
+  const walk = (node: Nodes, visit: (node: Nodes) => void) => {
+    visit(node)
+    if ('children' in node) node.children.forEach((child) => walk(child, visit))
+  }
+  walk(tree, (node) => {
+    if (node.type === 'definition' && !definitions.has(node.identifier))
+      definitions.set(node.identifier, node)
+    if (node.type === 'imageReference') images.add(node.identifier)
+    if (node.type === 'linkReference') links.add(node.identifier)
+  })
+  const changes: { start: number; end: number; text: string }[] = []
+  walk(tree, (node) => {
+    let replacement: string | undefined
+    if (node.type === 'imageReference') {
+      const definition = definitions.get(node.identifier)
+      if (definition)
+        replacement = toMarkdown({
+          type: 'image',
+          alt: node.alt,
+          url: definition.url,
+          title: definition.title,
+        }).trimEnd()
+    } else if (
+      node.type === 'definition' &&
+      images.has(node.identifier) &&
+      !links.has(node.identifier)
+    )
+      replacement = ''
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    if (replacement !== undefined && start !== undefined && end !== undefined)
+      changes.push({ start, end, text: replacement })
+  })
+  return replaceRanges(text, changes)
 }
 
 function prepare(note: Converted, options: PluginImportOptions): PreparedImport {
@@ -62,6 +104,7 @@ function prepare(note: Converted, options: PluginImportOptions): PreparedImport 
     embedded.push(...converted.images)
     diagnostics.push(...converted.dropped.map(() => ({ code: 'E_IMPORT_HTML_CONTENT_DROPPED' })))
   }
+  text = inlineImageReferences(text)
   const links = imageLinks(text)
   const missing = new Set<string>()
   text = replaceRanges(
@@ -85,27 +128,14 @@ function prepare(note: Converted, options: PluginImportOptions): PreparedImport 
     }),
   )
   const omitted: { start: number; end: number; text: string }[] = []
-  const tree = parseMarkdown(text)
-  const definitions = new Map<string, string>()
-  const linked = new Set<string>()
-  const references = (node: Nodes) => {
-    if (node.type === 'definition') definitions.set(node.identifier, node.url)
-    if (node.type === 'linkReference') linked.add(node.identifier)
-    if ('children' in node) node.children.forEach(references)
-  }
-  if (missing.size) references(tree)
   const omit = (node: Nodes) => {
-    const rejected =
-      (node.type === 'image' && missing.has(node.url)) ||
-      (node.type === 'imageReference' && missing.has(definitions.get(node.identifier) ?? '')) ||
-      (node.type === 'definition' && missing.has(node.url) && !linked.has(node.identifier))
-    if (rejected && node.position) {
+    if (node.type === 'image' && missing.has(node.url) && node.position) {
       const { start, end } = node.position
       if (start.offset !== undefined && end.offset !== undefined)
         omitted.push({ start: start.offset, end: end.offset, text: '' })
     } else if ('children' in node) node.children.forEach(omit)
   }
-  if (missing.size) omit(tree)
+  if (missing.size) omit(parseMarkdown(text))
   text = replaceRanges(text, omitted)
   const now = Date.now()
   const createdAt = note.createdAt ?? now
