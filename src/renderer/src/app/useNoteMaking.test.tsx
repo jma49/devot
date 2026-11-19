@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act } from 'react'
 import type { NoteSummary } from '../../../core'
 import type { Core } from '../core-client'
 import { takeEarlyKeys } from '../editor/earlyKeys'
@@ -49,6 +50,11 @@ function newNoteOver({
   const core = {
     flush: () => Promise.resolve(),
     create,
+    createTemplate: create,
+    applyTemplate: create,
+    openTodaysNote: async () => ({ id: await create(), created: true, bookId: null }),
+    duplicate: create,
+    saveTemplate: create,
   } as unknown as Core
   const select = vi.fn<(id: string) => Promise<boolean>>(async (id) => {
     events.push(`select ${id}`)
@@ -87,7 +93,7 @@ function newNoteOver({
     loadHeadlines: undefined,
   } as unknown as Parameters<typeof useNoteMaking>[0]
   const hook = renderHook(useNoteMaking, { props })
-  return { events, create: () => hook.current.create() }
+  return { events, hook, create: () => hook.current.create() }
 }
 
 describe('New Note', () => {
@@ -99,7 +105,7 @@ describe('New Note', () => {
     expect(events).toEqual(['pause'])
     finish('new')
     await creating
-    expect(events).toEqual(['pause', 'select new'])
+    expect(events).toEqual(['pause', 'select new', 'end'])
     takeEarlyKeys('new')
   })
 
@@ -128,4 +134,60 @@ describe('New Note', () => {
     expect(events).toEqual(['pause', 'select new', 'end'])
     takeEarlyKeys('new')
   })
+})
+
+describe('create sessions', () => {
+  it('releases the session on teardown and ignores a late create reply', async () => {
+    let finish!: (id: string) => void
+    const pending = new Promise<string>((resolve) => (finish = resolve))
+    const { hook, events } = newNoteOver({ create: () => pending })
+    let creating: Promise<unknown> | undefined
+    act(() => {
+      creating = hook.current.create()
+    })
+    hook.unmount()
+    await act(async () => {
+      finish('new')
+      await creating
+    })
+    expect(events).toEqual(['pause', 'end'])
+    expect(takeEarlyKeys('new')).toEqual([])
+  })
+
+  it('clears the pause when creation returns no note', async () => {
+    const { hook } = newNoteOver({ create: async () => undefined as unknown as string })
+    await act(async () => {
+      await hook.current.create()
+    })
+    expect(hook.current.making).toBe(false)
+  })
+  const paths = ['create', 'pickBuiltIn', 'openToday', 'duplicate', 'editBuiltInCopy'] as const
+  for (const path of paths) {
+    it(`${path} pauses the pane and keeps early keys for the new note`, async () => {
+      let finish!: (id: string) => void
+      const pending = new Promise<string>((resolve) => (finish = resolve))
+      const { hook } = newNoteOver({ create: () => pending })
+      let creating: Promise<unknown> | undefined
+      act(() => {
+        creating = hook.current[path]('starter:planning')
+      })
+      expect(hook.current).toHaveProperty('making', true)
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', cancelable: true }))
+      await act(async () => {
+        finish('new')
+        await creating
+      })
+      expect(hook.current).toHaveProperty('making', false)
+      expect(takeEarlyKeys('new')).toEqual([{ key: 'x', shift: false }])
+    })
+
+    it(`${path} clears the pane pause on failure`, async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const { hook } = newNoteOver({ create: () => Promise.reject(new Error('E_DB_LOCKED')) })
+      await act(async () => {
+        await hook.current[path]('starter:planning')
+      })
+      expect(hook.current).toHaveProperty('making', false)
+    })
+  }
 })
