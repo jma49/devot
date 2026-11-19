@@ -334,6 +334,7 @@ describe('Tauri command permissions', () => {
       'allow-sync-state-put',
       'allow-sync-reset',
       'allow-sync-note-purge',
+      'allow-sync-purges-compact',
     ]) {
       expect(windowsWith(run)).toEqual(['main'])
     }

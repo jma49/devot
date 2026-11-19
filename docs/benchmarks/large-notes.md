@@ -107,6 +107,16 @@ Batching removes the multi-second Empty Trash regression and brings its measured
 Single-note purge in a 10,000-note library still costs about 19 times the base p50 because it must compact the index to remove tombstones; batching cannot amortize a singleton, though its measured p95 is below 60 ms.
 The byte-removal guarantee is retained rather than replacing compaction with a bounded merge that might leave deleted postings behind.
 
+### Incoming sync purges
+
+`DEVOT_PURGE_REVIEW_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-purge-review.bench.test.ts --silent=false` measures 20 pulls after two warmups against copies of an optimized 10,000-note file-backed library, using WAL and synchronous FULL.
+Each pull receives 100 encoded tombstones through the real sync engine, including decoding, preserving merge revisions and storage commits; fixture setup, opening the database and connecting are outside timing.
+On reviewed commit `7cb8d072`, each synced purge optimized separately: **4942.812 / 5117.352 ms p50 / p95**.
+Deferring optimization until the end of the pull reduces this to **372.637 / 475.248 ms**, a 92.5% / 90.7% reduction.
+The remaining time includes per-record transactions and merge-version writes, not just FTS maintenance.
+Synced purges now persist a compaction-pending marker atomically with the deletion; a `finally` completes compaction after every pull, including failures, and opening the store recovers a marker left by a crash.
+Tests verify vocabulary, MATCH and database bytes through the deferred sync path, recovery after reopening and compaction failures; the two-device engine tests retain sync's existing local merge revision while removing the purged index terms.
+
 ## Top bottleneck
 
 The original external-content full run made deferred search catch-up the slowest measured path at both 1 MB and 5 MB.

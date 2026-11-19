@@ -121,6 +121,7 @@ Part of the [architecture overview](../architecture.md).
   Contentless rowid deletes leave tombstones even with FTS5 `secure-delete` enabled, so a purge also runs FTS5 `optimize` to compact away deleted postings before committing.
   This can compact the whole index and makes a purge more expensive; normal saves and catch-up do not compact it.
   Empty Trash purges its IDs in one transaction and compacts once at the end; every tombstone in that batch shares its timestamp and clock, and a refusal or failure rolls back the whole batch.
+  Synced purges persist a `searchCompactionPending` marker in their transaction and defer compaction until the pull ends, including a failed pull; opening the store completes any compaction a crash left pending.
   Rebuild Search Index uses `'delete-all'` followed by insertion from every `notes` row, empties `search_stale`, and checks internal FTS integrity and the indexed row count in the same cancellable transaction.
 - Markdown export (see Export and print) writes notes and notebooks as Markdown files that import back as they were.
 

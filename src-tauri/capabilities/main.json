@@ -59,6 +59,7 @@
     "allow-sync-state-put",
     "allow-sync-reset",
     "allow-sync-note-purge",
+    "allow-sync-purges-compact",
     "allow-sync-file-data",
     "allow-sync-file-put",
     "allow-sync-file-delete",

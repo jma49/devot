@@ -497,7 +497,9 @@ const tauriSync: WireSync = {
   syncState: () => invoke<Record<string, string>>('sync_state_get'),
   syncSetState: (key, value) => invoke('sync_state_put', { key, value }),
   syncReset: () => invoke('sync_reset'),
-  syncPurge: (id, at, hlc) => invoke('sync_note_purge', { id, at, hlc }),
+  syncPurge: (id, at, hlc, deferCompaction) =>
+    invoke('sync_note_purge', { id, at, hlc, deferCompaction }),
+  syncCompactPurges: () => invoke('sync_purges_compact'),
   syncFileData: (id) => invoke<string | null>('sync_file_data', { id }),
   syncFilePut: (file, data) => invoke('sync_file_put', { file, data }),
   syncFileDelete: (id) => invoke('sync_file_delete', { id }),

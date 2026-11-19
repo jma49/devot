@@ -3765,6 +3765,98 @@ fn batch_purge_rolls_back_on_live_notes_and_database_errors() {
 }
 
 #[test]
+fn synced_purges_compact_together_and_recover_after_reopen() {
+    for reopen in [false, true] {
+        let (dir, mut store) = temp_store();
+        let secret = "qxjzvwkpfyb";
+        for id in ["a", "b"] {
+            let mut row = note(id, "Gone", 10);
+            row.body_md = secret.repeat(400);
+            store.put_note(&row, &[]).unwrap();
+        }
+        store.put_note(&note("kept", "Orchard", 10), &[]).unwrap();
+        store.catch_up_search_index(None).unwrap();
+        for id in ["a", "b"] {
+            store
+                .sync_purge_deferred(id, 30, "0000000000000030-0000-remote")
+                .unwrap();
+        }
+        assert_eq!(
+            store
+                .sync_state()
+                .unwrap()
+                .iter()
+                .find_map(
+                    |(key, value)| (key == "searchCompactionPending").then_some(value.as_str())
+                ),
+            Some("1")
+        );
+        if reopen {
+            drop(store);
+            store = Store::open(&dir.path().join("devot.sqlite")).unwrap();
+        } else {
+            store.conn.execute_batch("CREATE TRIGGER refuse_compaction BEFORE DELETE ON sync_state WHEN old.key = 'searchCompactionPending' BEGIN SELECT RAISE(ABORT, 'E_TEST_COMPACT'); END").unwrap();
+            assert!(store.compact_sync_purges().is_err());
+            assert!(
+                store
+                    .sync_state()
+                    .unwrap()
+                    .iter()
+                    .any(|(key, _)| key == "searchCompactionPending")
+            );
+            store
+                .conn
+                .execute_batch("DROP TRIGGER refuse_compaction")
+                .unwrap();
+            store.compact_sync_purges().unwrap();
+        }
+        assert!(
+            !store
+                .sync_state()
+                .unwrap()
+                .iter()
+                .any(|(key, _)| key == "searchCompactionPending")
+        );
+        store.compact_sync_purges().unwrap();
+        store
+            .conn
+            .execute_batch(
+                "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+            )
+            .unwrap();
+        let matches: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM notes_fts WHERE notes_fts MATCH ?1",
+                [secret],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(matches, 0);
+        for trigram in secret.as_bytes().windows(3) {
+            let count: i64 = store
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM purge_vocab WHERE term = ?1",
+                    [std::str::from_utf8(trigram).unwrap()],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 0);
+        }
+        assert_eq!(
+            store.search_notes(&words(&["orchard"]), 10).unwrap().len(),
+            1
+        );
+        drop(store);
+        let bytes = std::fs::read(dir.path().join("devot.sqlite")).unwrap();
+        for trigram in secret.as_bytes().windows(3) {
+            assert!(!bytes.windows(3).any(|w| w == trigram));
+        }
+    }
+}
+
+#[test]
 fn batch_purge_removes_deleted_versions_and_trigrams_from_the_file() {
     let (dir, mut store) = temp_store();
     let secret = "qxjzvwkpfyb";

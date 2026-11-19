@@ -50,7 +50,8 @@ function wireOf(store: SqliteAdapter): WireSync {
     syncState: () => store.syncState(),
     syncSetState: (key, value) => store.syncSetState(key, value),
     syncReset: () => store.syncReset(),
-    syncPurge: (id, at, hlc) => store.syncPurge(id, at, hlc),
+    syncPurge: (id, at, hlc, deferCompaction) => store.syncPurge(id, at, hlc, deferCompaction),
+    syncCompactPurges: () => store.syncCompactPurges(),
     syncFileDelete: (id) => store.syncFileDelete(id),
     async syncRead(ids) {
       const rows = await store.syncRead(ids)

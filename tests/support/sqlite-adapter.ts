@@ -704,6 +704,7 @@ export interface SqliteAdapter extends StorageAdapter, AiStorage, SyncStore {
 }
 
 export interface OpenOptions {
+  trace?: (sql: string) => void
   /**
    * Brings an older schema up to date (the default). Without it, a database
    * whose schema is not exactly this build's is refused, and a missing file
@@ -730,7 +731,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const migrate = open.migrate ?? true
   let db: Database.Database
   try {
-    db = new Database(path, { fileMustExist: !migrate })
+    db = new Database(path, {
+      fileMustExist: !migrate,
+      verbose: open.trace ? (message) => open.trace?.(String(message)) : undefined,
+    })
   } catch (error) {
     throw new Error(openFailureCode(error, path, migrate), { cause: error })
   }
@@ -1121,15 +1125,34 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     return rowid !== undefined
   }
 
-  const purgeWith = (ids: readonly string[], at: number, hlc: string, here: boolean) =>
+  const compactPurged = () => {
+    searchSecureDelete.run(1n)
+    db.prepare("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')").run()
+    searchSecureDelete.run(0n)
+    db.prepare("DELETE FROM sync_state WHERE key = 'searchCompactionPending'").run()
+  }
+  const compactSyncPurges = () => {
+    if (db.prepare("SELECT 1 FROM sync_state WHERE key = 'searchCompactionPending'").get()) {
+      db.transaction(compactPurged).immediate()
+    }
+  }
+  compactSyncPurges()
+
+  const purgeWith = (
+    ids: readonly string[],
+    at: number,
+    hlc: string,
+    here: boolean,
+    deferCompaction = false,
+  ) =>
     db
       .transaction(() => {
         let changed = false
         for (const id of ids) changed = purgeRows(id, at, hlc, here) || changed
         if (changed) {
-          searchSecureDelete.run(1n)
-          db.prepare("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')").run()
-          searchSecureDelete.run(0n)
+          if (deferCompaction) {
+            syncSetState.run({ key: 'searchCompactionPending', value: '1' })
+          } else compactPurged()
         }
       })
       .immediate()
@@ -1331,9 +1354,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     async syncReset() {
       syncReset.run()
     },
-    async syncPurge(id, at, hlc) {
-      purgeWith([id], at, hlc, false)
+    async syncPurge(id, at, hlc, deferCompaction = false) {
+      purgeWith([id], at, hlc, false, deferCompaction)
     },
+    syncCompactPurges: async () => compactSyncPurges(),
     async putRevision(revision) {
       putRevision.run({
         ...revision,

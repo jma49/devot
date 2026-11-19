@@ -218,6 +218,7 @@ pub fn run() {
             commands::sync::sync_state_put,
             commands::sync::sync_reset,
             commands::sync::sync_note_purge,
+            commands::sync::sync_purges_compact,
             commands::sync::sync_file_data,
             commands::sync::sync_file_put,
             commands::sync::sync_file_delete,

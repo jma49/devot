@@ -75,11 +75,36 @@ impl Store {
 
     /// `here` is false for a purge another device made: its revisions and attachments stay as they
     /// are, because that device's file records (a new owner or a tombstone) decide the attachments.
-    pub(super) fn purge(&mut self, id: &str, at: i64, hlc: &str, here: bool) -> Result<()> {
+    pub(super) fn purge(
+        &mut self,
+        id: &str,
+        at: i64,
+        hlc: &str,
+        here: bool,
+        defer_compaction: bool,
+    ) -> Result<()> {
         let tx = self.conn.transaction()?;
         let changed = purge_rows(&tx, id, at, hlc, here)?;
-        compact_purged(&tx, changed)?;
+        if changed && defer_compaction {
+            tx.execute("INSERT INTO sync_state (key, value) VALUES ('searchCompactionPending', '1') ON CONFLICT(key) DO UPDATE SET value = '1'", [])?;
+        } else {
+            compact_purged(&tx, changed)?;
+        }
         tx.commit()?;
+        Ok(())
+    }
+
+    pub fn compact_sync_purges(&mut self) -> Result<()> {
+        let pending: bool = self.conn.query_row(
+            "SELECT EXISTS (SELECT 1 FROM sync_state WHERE key = 'searchCompactionPending')",
+            [],
+            |row| row.get(0),
+        )?;
+        if pending {
+            let tx = self.conn.transaction()?;
+            compact_purged(&tx, true)?;
+            tx.commit()?;
+        }
         Ok(())
     }
 }
@@ -89,6 +114,10 @@ fn compact_purged(conn: &Connection, changed: bool) -> Result<()> {
         conn.execute(SEARCH_SECURE_DELETE_SQL, [1])?;
         conn.execute("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')", [])?;
         conn.execute(SEARCH_SECURE_DELETE_SQL, [0])?;
+        conn.execute(
+            "DELETE FROM sync_state WHERE key = 'searchCompactionPending'",
+            [],
+        )?;
     }
     Ok(())
 }

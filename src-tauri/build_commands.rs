@@ -214,6 +214,7 @@ const SYNC: &[&str] = &[
     "sync_file_data",
     "sync_file_put",
     "sync_file_delete",
+    "sync_purges_compact",
 ];
 
 /// AI providers, AI access, MCP and the local HTTP API.

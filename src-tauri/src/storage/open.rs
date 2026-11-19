@@ -138,6 +138,7 @@ impl Store {
         conn.set_transaction_behavior(TransactionBehavior::Immediate);
         let mut store = Self { conn };
         store.migrate()?;
+        store.compact_sync_purges()?;
         Ok(store)
     }
 

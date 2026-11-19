@@ -299,9 +299,23 @@ pub async fn sync_note_purge(
     id: String,
     at: i64,
     hlc: String,
+    defer_compaction: Option<bool>,
 ) -> Result<(), String> {
     validate_purge(&id, at, &hlc).map_err(String::from)?;
-    db.write(Write::Content, move |store| store.sync_purge(&id, at, &hlc))
+    db.write(Write::Content, move |store| {
+        if defer_compaction.unwrap_or(false) {
+            store.sync_purge_deferred(&id, at, &hlc)
+        } else {
+            store.sync_purge(&id, at, &hlc)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_purges_compact(db: State<'_, Db>) -> Result<(), String> {
+    db.write(Write::Content, |store| store.compact_sync_purges())
         .await
         .map_err(|e| e.to_string())
 }
