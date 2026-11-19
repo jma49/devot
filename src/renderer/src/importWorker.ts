@@ -11,6 +11,7 @@ export type ImportRequest =
       path: string
       withImages: boolean
       conventions: boolean
+      keepProperties?: boolean
     }
   | { id: number; kind: 'links'; text: string }
 
@@ -90,9 +91,17 @@ export function preparerOffThread(
   }
 
   return {
-    file: (raw, path, withImages, conventions) =>
-      call({ kind: 'file', raw, path, withImages, conventions }, () =>
-        here.file(raw, path, withImages, conventions),
+    file: (raw, path, withImages, conventions, keepProperties) =>
+      call(
+        {
+          kind: 'file',
+          raw,
+          path,
+          withImages,
+          conventions,
+          ...(keepProperties === undefined ? {} : { keepProperties }),
+        },
+        () => here.file(raw, path, withImages, conventions, keepProperties),
       ),
     links: (text) => call({ kind: 'links', text }, () => here.links(text)),
     close: stop,

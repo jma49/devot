@@ -36,6 +36,7 @@ Native menus and other system-drawn things keep the system's motion.
 
 A diagram redrawn for a new pane width (a gantt chart) has no motion: it follows the pane, and the new drawing replaces the old one once the pane has settled.
 A diagram in the preview drawn as it comes within a screen of the view has no motion either: it takes its reserved place at once, and one drawn above the view keeps the view where it was.
+The import sheet's vault recognition line and initial conventions selection appear with the scan result, without additional motion.
 
 ## Springiness
 

@@ -1,12 +1,6 @@
-// How an import names its notebooks and notes and where it puts each note, for folders other apps export in a shape of their own.
-// - Notion's Markdown export names every page and folder with its page ID (`Plan 1a2b…32 hex.md`, `Plan 1a2b…/`): the ID is left out of notebook names and
-//   titles, and a page with subpages goes into the notebook its subpages' folder becomes.
-// - A TextBundle (`Note.textbundle/text.md` with its images in `assets/`, as Bear exports) is one note, in the folder the bundle is in.
-// Any other folder is imported as it is laid out. The layout is read from the paths alone, so the import sheet shows the same tree the import makes.
+import type { ImportItem, ImportKind, ImportScan } from './import'
 
-import type { ImportItem, ImportKind } from './import'
-
-export type ImportSourceApp = 'notion' | 'bear' | null
+export type ImportSourceApp = 'notion' | 'bear' | 'obsidian' | null
 
 export interface ImportLayout {
   app: ImportSourceApp
@@ -35,9 +29,13 @@ export function sourceAppOf(paths: readonly string[]): ImportSourceApp {
   return named * 2 >= paths.length ? 'notion' : null
 }
 
-export function importLayout(kind: ImportKind, files: readonly ImportItem[]): ImportLayout {
+export function importLayout(
+  kind: ImportKind,
+  files: readonly ImportItem[],
+  vault?: ImportScan['vault'],
+): ImportLayout {
   const plain = (path: string) => (kind === 'files' ? '' : folderOf(path))
-  const app = sourceAppOf(files.map((file) => file.path))
+  const app = vault?.length ? 'obsidian' : sourceAppOf(files.map((file) => file.path))
   if (app === 'bear') {
     const inBundle = (path: string) => BUNDLE_TEXT.test(path)
     return {
