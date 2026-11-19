@@ -221,7 +221,7 @@ describe('create sessions', () => {
   })
 
   it.each(['duplicate', 'editBuiltInCopy'] as const)(
-    '%s preserves Preview and asks the new note to take the keyboard',
+    '%s preserves Preview and its keyboard intent',
     async (path) => {
       const { hook, setMode, select, events } = newNoteOver({
         create: async () => 'new',
@@ -231,7 +231,9 @@ describe('create sessions', () => {
         await hook.current[path]('source')
       })
       expect(setMode).not.toHaveBeenCalled()
-      expect(select).toHaveBeenCalledExactlyOnceWith('new', { keyboard: true })
+      expect(select.mock.calls).toEqual([
+        path === 'duplicate' ? ['new'] : ['new', { keyboard: true }],
+      ])
       expect(events).toEqual(['pause', 'select new'])
       takeEarlyKeys('new')
     },
@@ -263,7 +265,7 @@ describe('create sessions', () => {
   })
   const paths = ['create', 'pickBuiltIn', 'openToday', 'duplicate', 'editBuiltInCopy'] as const
   for (const path of paths) {
-    it(`${path} pauses the pane and keeps early keys for the new note`, async () => {
+    it(`${path} pauses the pane with its own early-key policy`, async () => {
       let finish!: (id: string) => void
       const pending = new Promise<string>((resolve) => (finish = resolve))
       const { hook } = newNoteOver({ create: () => pending })
@@ -278,7 +280,7 @@ describe('create sessions', () => {
         await creating
       })
       expect(hook.current).toHaveProperty('making', false)
-      expect(takeEarlyKeys('new')).toEqual([{ key: 'x', shift: false }])
+      expect(takeEarlyKeys('new')).toEqual(path === 'duplicate' ? [] : [{ key: 'x', shift: false }])
     })
 
     it(`${path} clears the pane pause on failure`, async () => {

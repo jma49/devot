@@ -82,6 +82,11 @@ test('a failed create releases the pane before giving the title its keyboard bac
   await title.press('Meta+KeyN')
   const pane = page.locator('main.content')
   await expect(pane).toHaveAttribute('inert', '')
+  await page.evaluate(async () => {
+    for (let frame = 0; frame < 3; frame += 1) {
+      await new Promise((done) => requestAnimationFrame(done))
+    }
+  })
   await page.keyboard.type('q')
   await releaseLateReplies(page)
   await expect(pane).not.toHaveAttribute('inert')

@@ -108,9 +108,7 @@ export function useNoteMaking({
     if (!made) return
     const latest = searchState.latestSearch.current
     if (latest.query.trim()) {
-      const { found } = await c
-        .search(latest.query, latest.scope)
-        .catch(() => ({ found: [], capped: false }))
+      const { found } = await c.search(latest.query, latest.scope).catch(() => ({ found: [] }))
       if (found.some((n) => n.id === id)) return
     } else {
       const view: ListView = inTrash
@@ -143,14 +141,16 @@ export function useNoteMaking({
       previewMode = () => editorMode.current,
       onFailure = reportCreateFailure,
       onEmpty,
+      collectKeys = true,
     }: {
       previewMode?: () => typeof mode | undefined
       onFailure?: (e: unknown) => void
       onEmpty?: () => void
+      collectKeys?: boolean
     } = {},
   ) => {
     if (!core || activeMaking.current) return
-    const early = startEarlyKeys()
+    const early = collectKeys ? startEarlyKeys() : undefined
     const shownEditor = editorRef.current
     const endPause = shownEditor?.pauseForNewNote()
     let outcome: 'pending' | 'opened' | 'reopened' = 'pending'
@@ -160,10 +160,9 @@ export function useNoteMaking({
       activeMaking.current = undefined
       if (!teardown) flushSync(() => setMaking(false))
       if (outcome !== 'opened') endPause?.()
-      if (outcome === 'pending') early.fail()
-      if (outcome === 'reopened' && shownEditor && editorRef.current === shownEditor) {
-        const typed = takeEarlyKeys(shownEditor.noteId)
-        if (typed.length) shownEditor.type(typed)
+      if (outcome === 'pending') early?.fail()
+      if (early && outcome === 'reopened' && shownEditor && editorRef.current === shownEditor) {
+        shownEditor.type(takeEarlyKeys(shownEditor.noteId))
         if (keyboardIsFree()) shownEditor.focus()
       }
     }
@@ -175,14 +174,14 @@ export function useNoteMaking({
       const id = await make(core)
       if (!isCurrent()) return
       if (!id) return onEmpty?.()
-      early.claim(id)
+      early?.claim(id)
       const listed = await refresh(core)
       if (!isCurrent()) return
       await showMade(core, id, listed)
       if (!isCurrent()) return
       const nextMode = previewMode()
       if (mode === 'preview' && nextMode) setMode(nextMode)
-      if (await select(id, { keyboard: true })) {
+      if (await (collectKeys ? select(id, { keyboard: true }) : select(id))) {
         outcome = shownEditor?.noteId === id ? 'reopened' : 'opened'
       }
     } catch (e) {
@@ -311,6 +310,7 @@ export function useNoteMaking({
         return copy
       },
       {
+        collectKeys: false,
         previewMode: () => undefined,
         onFailure: (e) => {
           const code = errorCode(e)
