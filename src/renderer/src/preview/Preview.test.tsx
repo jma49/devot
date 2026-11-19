@@ -165,9 +165,9 @@ describe('Preview', () => {
   it('selects and natively copies the note without a hovered note card', async () => {
     const id = '0192a6f0-0000-7000-8000-000000000001'
     const { core, renders } = fakeCore()
-    core.linkTargets = vi
-      .fn<Core['linkTargets']>()
-      .mockResolvedValue({ [id]: { title: 'Other title' } })
+    core.linkTargets = vi.fn<Core['linkTargets']>().mockResolvedValue({
+      [id]: { title: 'Other title', status: 'none', tasks: { done: 0, total: 0 }, tags: [] },
+    })
     core.excerpts = vi.fn<Core['excerpts']>().mockResolvedValue({ [id]: 'Other excerpt' })
     const { body } = show(
       core,
