@@ -90,6 +90,7 @@ Every agent write (devot-mcp, the local HTTP API, an accepted Edit with AI propo
 - **Logs** carry codes, note IDs, write IDs and kinds. They never carry a client name (text another program chose), body text or `removed` text:
   - `I_AUTHORSHIP_WRITE <noteId> <writeId> <kind>`;
   - `I_AUTHORSHIP_UNDONE <noteId> <count>`;
+  - `I_AUTHORSHIP_RESTORED <noteId> <count>`;
   - `I_AUTHORSHIP_CLEARED <noteId>`;
   - `W_AUTHORSHIP_RECORD_INVALID <noteId> <writeId>`.
 - **Errors** are codes too.

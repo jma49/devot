@@ -662,6 +662,10 @@ public enum L10n {
     text("change.failed", "The change could not be made.")
   }
 
+  public static func changeRestoreStale() -> String {
+    text("change.restoreStale", "The note changed since the Undo, so those edits cannot be restored.")
+  }
+
   public static func changeTagNameTaken() -> String {
     text("change.tagNameTaken", "Another tag already has that name.")
   }
@@ -3948,6 +3952,22 @@ public enum L10n {
 
   public static func authorshipUndoGroup(count p0: String) -> String {
     fill(text("authorship.undoGroup", "Undo {count} Edits"), ["count": p0])
+  }
+
+  public static func authorshipUndoGroupOthers(count p0: String, others p1: String) -> String {
+    fill(text("authorship.undoGroupOthers", "Undo {count} Edits ({others})"), ["count": p0, "others": p1])
+  }
+
+  public static func authorshipUndoGroupBy(count p0: String, writer p1: String) -> String {
+    fill(text("authorship.undoGroupBy", "{count} by {writer}"), ["count": p0, "writer": p1])
+  }
+
+  public static func authorshipRestore(count p0: String) -> String {
+    fill(text("authorship.restore", "Restore {count} Edits"), ["count": p0])
+  }
+
+  public static func authorshipUndid(count p0: String) -> String {
+    fill(text("authorship.undid", "Undid {count} edits."), ["count": p0])
   }
 
   public static func authorshipDone() -> String {

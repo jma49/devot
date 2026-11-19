@@ -23,6 +23,22 @@ import { followReviewSwitch, type ReviewSwitch } from './reviewSwitch'
 
 type AgentWrites = ReturnType<typeof useAgentWrites>
 
+/**
+ * Restore after an Undo of several writes: offered while the note is unchanged since, and restoring until the
+ * core answers; `token` is the core's for that Undo.
+ */
+type RestoreOffer =
+  | { kind: 'none' }
+  | {
+      kind: 'offered' | 'restoring'
+      noteId: string
+      token: string
+      writes: readonly string[]
+      writeId: string
+    }
+
+const NO_OFFER: RestoreOffer = { kind: 'none' }
+
 /** The agent writes the open note's notice shows, marked seen once it no longer shows them. */
 export function useShownWrites(core: Core | undefined, agentWrites: AgentWrites) {
   const shownWrites = useRef<{ noteId: string; ids: Set<string> } | undefined>(undefined)
@@ -55,7 +71,10 @@ export function useShownWrites(core: Core | undefined, agentWrites: AgentWrites)
     (noteId: string, writeId: string): Promise<string | undefined> => {
       if (!core) return Promise.resolve('E_CORE_NOT_READY')
       const next = seenQueue.current.then(async () => {
-        const failed = await markSeen(core, reloadAgentWrites, { noteId, ids: new Set([writeId]) })
+        const failed = await markSeen(core, reloadAgentWrites, {
+          noteId,
+          ids: new Set([writeId]),
+        })
         if (failed === undefined) forgetShownWrite(noteId, writeId)
         return failed
       })
@@ -64,7 +83,13 @@ export function useShownWrites(core: Core | undefined, agentWrites: AgentWrites)
     },
     [core, reloadAgentWrites, forgetShownWrite],
   )
-  return { shownWrites, markShownSeen, markWriteSeen, forgetShownWrite, reloadAgentWrites }
+  return {
+    shownWrites,
+    markShownSeen,
+    markWriteSeen,
+    forgetShownWrite,
+    reloadAgentWrites,
+  }
 }
 
 export function useAuthorshipNotice({
@@ -115,7 +140,23 @@ export function useAuthorshipNotice({
     shownWrites.current ??= { noteId: noticeNote, ids: new Set() }
     for (const row of openUnseen) shownWrites.current.ids.add(row.writeId)
   }, [noticeNote, openUnseen, markShownSeen, shownWrites])
+  const [offer, setOffer] = useState<RestoreOffer>(NO_OFFER)
+  const offerHere = offer.kind !== 'none' && offer.noteId === noticeNote ? offer : undefined
+  if (offer.kind !== 'none' && (offer.noteId !== noticeNote || mode === 'preview'))
+    setOffer(NO_OFFER)
+  const watching = offer.kind === 'offered' ? offer.token : undefined
   useEffect(() => {
+    const editor = editorRef.current
+    if (watching === undefined || !editor) return
+    // Any change since the Undo ends the offer; the review no longer puts Preview back over the owner's typing.
+    return editor.changed(() => {
+      reviewSwitch.current = undefined
+      setOffer((now) => (now.kind === 'offered' && now.token === watching ? NO_OFFER : now))
+    })
+  }, [watching, editorRef])
+  useEffect(() => {
+    // The review stays open to offer Restore after its last change, so Preview waits for it.
+    if (offerHere) return
     const { next, toPreview } = followReviewSwitch(reviewSwitch.current, {
       noteId: noticeNote,
       unseen: openUnseen.length,
@@ -123,7 +164,7 @@ export function useAuthorshipNotice({
     })
     reviewSwitch.current = next
     if (toPreview) setMode('preview')
-  }, [noticeNote, openUnseen.length, mode, setMode])
+  }, [noticeNote, openUnseen.length, mode, setMode, offerHere])
   useEffect(() => {
     const seen = () => void markShownSeen()
     window.addEventListener('pagehide', seen)
@@ -144,20 +185,56 @@ export function useAuthorshipNotice({
       setChangeNotice(errorCode(e))
     }
   }
-  const undoSingleWrite = async (noteId: string, writeId: string): Promise<boolean> => {
+  const undoSingleWrite = async (
+    noteId: string,
+    writeId: string,
+  ): Promise<boolean | 'restorable'> => {
     if (!core || !editing) return false
+    // The core forgets its Restore at every Undo, so the notice does too.
+    setOffer(NO_OFFER)
     try {
       const undone = await core.undoAgentWrite(noteId, writeId)
       forgetShownWrite(noteId, writeId)
-      if (editorRef.current?.noteId === noteId) restoreRef.current?.(undone.update)
+      const here = editorRef.current?.noteId === noteId
+      if (here) restoreRef.current?.(undone.update)
       if (undone.dropped > 0) setUndoDropped(true)
+      const restorable = here && undone.restore !== undefined
+      if (undone.restore && restorable) {
+        setOffer({
+          kind: 'offered',
+          noteId,
+          token: undone.restore.token,
+          writes: undone.restore.writes,
+          writeId,
+        })
+      }
       await saveEdits(core)
       reloadAgentWrites()
-      return true
+      return restorable ? 'restorable' : true
     } catch (e) {
       console.warn('W_AUTHORSHIP_UNDO_FAILED', noteId, errorCode(e))
       setChangeNotice(errorCode(e))
       return false
+    }
+  }
+  /** Restore: puts back the writes the offered Undo took out, unseen; false when the core refused or failed. */
+  const restoreUndone = async (): Promise<boolean> => {
+    const asked = offer
+    if (!core || !editing || asked.kind !== 'offered') return false
+    setOffer({ ...asked, kind: 'restoring' })
+    try {
+      const restored = await core.restoreAgentWrites(asked.noteId, asked.token)
+      if (editorRef.current?.noteId === asked.noteId) restoreRef.current?.(restored.update)
+      await saveEdits(core)
+      // The notice reads the writes' unseen rows as soon as Restore answers.
+      await reloadAgentWrites()
+      return true
+    } catch (e) {
+      console.warn('W_AUTHORSHIP_RESTORE_FAILED', asked.noteId, errorCode(e))
+      setChangeNotice(errorCode(e))
+      return false
+    } finally {
+      setOffer((now) => (now.kind !== 'none' && now.token === asked.token ? NO_OFFER : now))
     }
   }
   const keepWrite = async (noteId: string, writeId: string): Promise<boolean> => {
@@ -172,6 +249,7 @@ export function useAuthorshipNotice({
     setMode(next)
   }
   const endReviewMode = (noteId: string) => {
+    setOffer(NO_OFFER)
     const switched = reviewSwitch.current
     reviewSwitch.current = undefined
     if (switched && switched.noteId === noteId && mode === switched.switchedTo) {
@@ -195,7 +273,7 @@ export function useAuthorshipNotice({
     }
   }
   const authorshipNotice =
-    noticeNote !== undefined && openUnseen.length > 0 ? (
+    noticeNote !== undefined && (openUnseen.length > 0 || offerHere) ? (
       <AuthorshipNotice
         key={noticeNote}
         unseen={openUnseen}
@@ -207,6 +285,8 @@ export function useAuthorshipNotice({
         onEndReview={() => endReviewMode(noticeNote)}
         onKeepWrite={(writeId) => keepWrite(noticeNote, writeId)}
         onUndoWrite={(writeId) => undoSingleWrite(noticeNote, writeId)}
+        restore={offerHere}
+        onRestore={restoreUndone}
         onUndoAll={(writer) => undoAgent(noticeNote, writer)}
         onDismiss={markShownSeen}
       />
