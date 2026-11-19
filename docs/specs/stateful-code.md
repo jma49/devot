@@ -31,6 +31,7 @@ Examples: the sync engine's connection and pass (#798), the date picker's open a
 A handler or a value that reads a render's state and is kept in a ref for what outlives the render (a listener, a timer, the answer to a request) is a copy of that state, so it is replaced at commit, in an insertion effect, as `useStable` does (`src/renderer/src/stable.ts`).
 Replaced in a passive effect, it is still the one before for as long as the paint takes, and an event in between acts on what is no longer shown (#893: the sidebar's menu item and the window's keys).
 A policy test refuses a `latest` ref set in a passive effect (`tests/policy/latest-handler.test.ts`).
+The other way round, a request made in an event for a later render to carry out is state, not a ref: React runs a pending passive effect of an earlier render before the next render, and that effect would take a request in a ref while what it needs is not shown yet (#1017: the window's focus request, `src/renderer/src/app/focusRequest.ts`).
 
 ## Answers carry who asked
 

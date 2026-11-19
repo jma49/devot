@@ -49,6 +49,72 @@ describe('useFocusRequest', () => {
     expect(field.selectionStart).toBe('Groceries'.length)
   })
 
+  it('leaves a request to the render that carries it, not to an earlier render whose effect runs late', () => {
+    const titleRef = { current: null as HTMLInputElement | null }
+    const hook = renderHook(focusing, {
+      props: { editorRef: noEditor, titleRef, selected: 'n1' },
+    })
+    // The effect of a render from before the request: React runs a pending one before the next render.
+    const earlier = hook.current.moveFocus
+    const field = titleField('Gamma')
+    act(() => {
+      hook.current.requestFocus({ kind: 'title', id: 'n1' })
+      earlier()
+      titleRef.current = field
+    })
+    expect(document.activeElement).toBe(field)
+  })
+
+  it('does a request once, not again on a later render', () => {
+    const field = titleField('Groceries')
+    const props = { editorRef: noEditor, titleRef: { current: field }, selected: 'n1' }
+    const hook = renderHook(focusing, { props })
+    act(() => hook.current.requestFocus({ kind: 'title', id: 'n1' }))
+    field.blur()
+    hook.rerender({ ...props })
+    expect(document.activeElement).not.toBe(field)
+  })
+
+  it('acts on the latest of two quick requests only', () => {
+    const titleRef = { current: null as HTMLInputElement | null }
+    const hook = renderHook(focusing, {
+      props: { editorRef: noEditor, titleRef, selected: 'n1' },
+    })
+    const field = titleField('Gamma')
+    act(() => {
+      hook.current.requestFocus({ kind: 'body', id: 'n1' })
+      const superseded = hook.current.moveFocus
+      hook.current.requestFocus({ kind: 'title', id: 'n1' })
+      superseded()
+      titleRef.current = field
+    })
+    expect(document.activeElement).toBe(field)
+  })
+
+  it('drops a title request its render could not carry out, so a later title does not take the keyboard', () => {
+    const titleRef = { current: null as HTMLInputElement | null }
+    const props = { editorRef: noEditor, titleRef, selected: 'n1' }
+    const hook = renderHook(focusing, { props })
+    act(() => hook.current.requestFocus({ kind: 'title', id: 'n1' }))
+    titleRef.current = titleField('Late')
+    hook.rerender({ ...props })
+    expect(document.activeElement).not.toBe(titleRef.current)
+  })
+
+  it('leaves an area request to its own render, not to an earlier render whose effect runs late', () => {
+    const { sidebar, row } = inertSidebarRow()
+    const hook = renderHook(focusing, {
+      props: { editorRef: noEditor, titleRef: { current: null }, selected: undefined },
+    })
+    const earlier = hook.current.moveFocus
+    act(() => {
+      hook.current.requestFocus({ kind: 'area', area: 'sidebar' })
+      earlier()
+      sidebar.inert = false
+    })
+    expect(document.activeElement).toBe(row)
+  })
+
   it('drops a request for a note another one replaced meanwhile', () => {
     const field = titleField('Other')
     const props = { editorRef: noEditor, titleRef: { current: field }, selected: 'n2' }
