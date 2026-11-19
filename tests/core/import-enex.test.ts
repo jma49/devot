@@ -220,6 +220,16 @@ it('ships a valid API 3 plugin and converts the fixture independently of the hos
   expect(notes[0]?.attachments?.map((a) => a.name)).toEqual(['board.png', 'paper.pdf'])
 })
 
+it('bounds long resource filenames while preserving their extension', async () => {
+  const name = 'a'.repeat(230) + '.png'
+  const { report, storage } = await run(sample.replace('board.png', name))
+  expect(report.notes).toBe(3)
+  expect(report.attachments).toBe(1)
+  expect(storage.db.prepare('SELECT name FROM files').get()).toEqual({
+    name: 'a'.repeat(196) + '.png',
+  })
+})
+
 it('refuses malformed ENML before writing any notes', async () => {
   await expect(run(sample.replace('<en-note>Last</en-note>', '<en-note>Last'))).rejects.toThrow(
     'E_IMPORT_ENEX_XML',

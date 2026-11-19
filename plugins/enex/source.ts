@@ -56,6 +56,14 @@ function date(source: string): number | undefined {
   return Number.isSafeInteger(at) && at >= 0 && new Date(at).toISOString() === iso ? at : undefined
 }
 
+function resourceName(name: string): string {
+  const chars = [...name]
+  if (chars.length <= 200) return name
+  const dot = chars.lastIndexOf('.')
+  const extension = dot > 0 && chars.length - dot < 200 ? chars.slice(dot) : []
+  return chars.slice(0, 200 - extension.length).join('') + extension.join('')
+}
+
 function convertNote(note: XmlNode): DevotConvertedNote {
   const attachments: NonNullable<DevotConvertedNote['attachments']> = []
   const diagnostics: string[] = []
@@ -72,7 +80,7 @@ function convertNote(note: XmlNode): DevotConvertedNote {
       const mime = value(resource, 'mime') || 'application/octet-stream'
       const name = (attrs && value(attrs, 'file-name')) || `resource-${attachments.length + 1}`
       resources.set(hash, attachments.length)
-      attachments.push({ name, mime, data })
+      attachments.push({ name: resourceName(name), mime, data })
     } catch (error) {
       diagnostics.push(
         error instanceof Error && error.message === 'E_FILE_SIZE_INVALID'

@@ -279,8 +279,8 @@
       at = 8,
       Xe = 9,
       Ge = 10,
-      We = 11,
-      je = 12,
+      je = 11,
+      We = 12,
       b = 13,
       X = 14,
       ot = 15,
@@ -321,8 +321,8 @@
       Kt = 34,
       H = 38,
       Zt = 39,
-      W = 45,
-      j = 47,
+      j = 45,
+      W = 47,
       cs = 59,
       T = 60,
       y = 61,
@@ -331,7 +331,7 @@
       Yt = 91,
       R = 93,
       Gt = 133,
-      Wt = 8232,
+      jt = 8232,
       z = (e) => e === Kt || e === Zt,
       Jt = [Kt, Zt],
       hs = [...Jt, Yt, d],
@@ -376,7 +376,7 @@
     var gs = (e) => Be.test(e),
       ms = (e) => qe.test(e),
       S = 0,
-      jt = 1,
+      Wt = 1,
       pt = 2
     L.EVENTS = [
       'xmldecl',
@@ -604,7 +604,7 @@
           if (((this.prevI = s), (this.i = s + 1), s >= t.length)) return u
           let r = t.charCodeAt(s)
           if ((this.column++, r < 55296)) {
-            if ((r > 31 && r < 127) || (r > 159 && r !== Wt) || r === ft) return r
+            if ((r > 31 && r < 127) || (r > 159 && r !== jt) || r === ft) return r
             switch (r) {
               case D:
                 return (this.line++, (this.column = 0), (this.positionAtNewLine = this.position), D)
@@ -613,7 +613,7 @@
                 ;(o === D || o === Gt) && (this.i = s + 2)
               }
               case Gt:
-              case Wt:
+              case jt:
                 return (this.line++, (this.column = 0), (this.positionAtNewLine = this.position), C)
               default:
                 return (this.fail('disallowed character.'), r)
@@ -746,7 +746,7 @@
               ;((this.state = $e), (this.openWakaBang = ''))
               break
             case g:
-              this.state = We
+              this.state = je
               break
             default:
               this.state = F
@@ -759,11 +759,11 @@
             s !== '-' && ((this.state = s === '--' ? at : F), (this.openWakaBang = '')))
         }
         sDTDComment() {
-          this.captureToChar(W) && ((this.text += '-'), (this.state = Xe))
+          this.captureToChar(j) && ((this.text += '-'), (this.state = Xe))
         }
         sDTDCommentEnding() {
           let t = this.getCodeNorm()
-          ;((this.text += String.fromCodePoint(t)), (this.state = t === W ? Ge : at))
+          ;((this.text += String.fromCodePoint(t)), (this.state = t === j ? Ge : at))
         }
         sDTDCommentEnded() {
           let t = this.getCodeNorm()
@@ -771,7 +771,7 @@
             t === d ? (this.state = F) : (this.fail('malformed comment.'), (this.state = at)))
         }
         sDTDPI() {
-          this.captureToChar(g) && ((this.text += '?'), (this.state = je))
+          this.captureToChar(g) && ((this.text += '?'), (this.state = We))
         }
         sDTDPIEnding() {
           let t = this.getCodeNorm()
@@ -812,7 +812,7 @@
           if (B(t)) ((this.state = is), this.unget(), (this.xmlDeclPossible = !1))
           else
             switch (t) {
-              case j:
+              case W:
                 ;((this.state = ns), (this.xmlDeclPossible = !1))
                 break
               case Xt:
@@ -855,12 +855,12 @@
           }
         }
         sComment() {
-          this.captureToChar(W) && (this.state = Qe)
+          this.captureToChar(j) && (this.state = Qe)
         }
         sCommentEnding() {
           var t
           let s = this.getCodeNorm()
-          s === W
+          s === j
             ? ((this.state = Ke),
               (t = this.commentHandler) === null || t === void 0 || t.call(this, this.text),
               (this.text = ''))
@@ -1086,7 +1086,7 @@
             case d:
               this.openTag()
               break
-            case j:
+            case W:
               this.state = ht
               break
             default:
@@ -1105,7 +1105,7 @@
               ? (this.unget(), (this.state = ut))
               : t === d
                 ? this.openTag()
-                : t === j
+                : t === W
                   ? (this.state = ht)
                   : this.fail('disallowed character in attribute name.'))
         }
@@ -1183,7 +1183,7 @@
             ? (this.state = M)
             : t === d
               ? this.openTag()
-              : t === j
+              : t === W
                 ? (this.state = ht)
                 : B(t)
                   ? (this.fail('no whitespace between attributes.'),
@@ -1252,9 +1252,9 @@
               case R:
                 switch (s) {
                   case S:
-                    s = jt
+                    s = Wt
                     break
-                  case jt:
+                  case Wt:
                     s = pt
                     break
                   case pt:
@@ -3851,6 +3851,13 @@
     return Number.isSafeInteger(r) && r >= 0 && new Date(r).toISOString() === s ? r : void 0
   }
   function Ns(e) {
+    let t = [...e]
+    if (t.length <= 200) return e
+    let s = t.lastIndexOf('.'),
+      r = s > 0 && t.length - s < 200 ? t.slice(s) : []
+    return t.slice(0, 200 - r.length).join('') + r.join('')
+  }
+  function _s(e) {
     let t = [],
       s = [],
       r = new Map(),
@@ -3864,7 +3871,7 @@
           V = I(f, 'resource-attributes')[0],
           ue = v(f, 'mime') || 'application/octet-stream',
           fe = (V && v(V, 'file-name')) || `resource-${t.length + 1}`
-        ;(r.set(N, t.length), t.push({ name: fe, mime: ue, data: A }))
+        ;(r.set(N, t.length), t.push({ name: Ns(fe), mime: ue, data: A }))
       } catch (A) {
         s.push(
           A instanceof Error && A.message === 'E_FILE_SIZE_INVALID'
@@ -3926,10 +3933,10 @@
       diagnostics: s,
     }
   }
-  function _s(e) {
+  function Ss(e) {
     let t = he(e.text)
     if (t.name !== 'en-export') throw new Error('E_IMPORT_ENEX_XML')
-    return I(t, 'note').map(Ns)
+    return I(t, 'note').map(_s)
   }
-  devot.importer.handle('enex', _s)
+  devot.importer.handle('enex', Ss)
 })()
