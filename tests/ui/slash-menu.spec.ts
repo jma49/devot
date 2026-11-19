@@ -194,6 +194,8 @@ test('in a narrow Split pane the empty note hint wraps downward and stays whole'
   const hint = page.locator('.cm-empty-hint')
   await expect(hint).toBeVisible()
   await expect(hint.locator('span')).toHaveText('Just start typing, or')
+  // The pane can split before CodeMirror's layout measurement releases the single-line height.
+  await expect(hint).toHaveAttribute('data-wrapped', 'true')
   const box = await hint.boundingBox()
   const line = await page.locator('.cm-line').first().boundingBox()
   expect(box!.y).toBeGreaterThanOrEqual(line!.y - 1)
