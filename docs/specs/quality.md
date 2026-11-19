@@ -217,6 +217,8 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
     The page stays at its top until its first line is typed or the reader moves it.
   - Return on a row of a selection asked for the Title field in a ref, and React ran a passive effect of an earlier window render before the render that closed the summary: that effect took the request while no Title field was shown and dropped it, so the field never took the keyboard (#1017).
     The request is state, so only the render that carries it acts on it.
+  - The sync bench held the time of every pass while typing in a 2 MB note, over the keys typed, to half a millisecond a key, and four pushes of the whole note set it: on main it read 1.3 to 2.2 ms against a 2.5 ms limit, and on two pull request runs a slow pass took it to 2.55 and 3.9 ms (#1037).
+    Each pass now counts at the fastest time of its kind, pushing or not, which work added to every push or pass still raises; the push count and bytes stay checked as before.
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 
 ## Workflow
