@@ -84,9 +84,8 @@ test('opening another note renders only the rows whose selection changed', async
 
 // With 10,000 notes a keystroke is handled and painted within BUDGET_MS (median) and renders no row. BUDGET_MS is for a
 // developer's Mac and stretches on CI (tests/support/budget.ts); the render counts are exact everywhere.
-// Each key is timed from its keydown to its frame, so the next key waits for that frame: keys pressed back to back
-// all waited for the same late frame, and one slow frame then set the median (#1014). Typing starts once no frame
-// has run over the budget for QUIET_MS, after the note's open and the list's caption have done their work.
+// Each key waits for its own frame: keys pressed back to back all counted one late frame. Typing starts once no
+// frame has run over the budget for QUIET_MS.
 const NOTES = 10_000
 const KEYS = 'abcdefghijklmnopqrst'
 const BUDGET_MS = 30
@@ -121,6 +120,7 @@ async function untilQuiet(page: Page) {
   await expect
     .poll(() => page.evaluate(() => window.performance.now() - window.devotLongFrameAt), {
       timeout: 60_000,
+      message: `the page never went ${QUIET_MS} ms without a frame over budget`,
     })
     .toBeGreaterThan(QUIET_MS)
 }
