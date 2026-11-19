@@ -579,3 +579,200 @@ describe('reparsing an edit in a long note', () => {
     expect(deepest).toBeLessThanOrEqual(2)
   })
 })
+
+// Each case is the smallest edit found for one way an incremental reparse used to keep a block whose start or end
+// the edit changed (patches/@lezer__markdown@1.8.1.patch). The filler keeps the unchanged text before the edit long
+// enough for the old tree to be reused at all.
+describe('reparsing gives the tree a whole parse gives', () => {
+  const FILLER = 'Filler paragraph.\n\n'.repeat(12)
+
+  function nodesOf(tree: Tree): string[] {
+    const nodes: string[] = []
+    const cursor = tree.cursor()
+    do nodes.push(`${cursor.name}:${cursor.from}-${cursor.to}`)
+    while (cursor.next())
+    return nodes
+  }
+
+  function firstDifference(tree: Tree, doc: string): string | undefined {
+    const reused = nodesOf(tree)
+    const whole = nodesOf(noteParser.parse(doc))
+    const at = whole.findIndex((node, i) => reused[i] !== node)
+    if (at >= 0) return `${reused[at]} instead of ${whole[at]}`
+    if (reused.length > whole.length) return `${reused[whole.length]} beyond the end`
+    return undefined
+  }
+
+  type Edit = { at: number; deleted: number; insert: string }
+
+  function edit(doc: string, fragments: readonly TreeFragment[], { at, deleted, insert }: Edit) {
+    return {
+      doc: doc.slice(0, at) + insert + doc.slice(at + deleted),
+      fragments: TreeFragment.applyChanges(fragments, [
+        { fromA: at, toA: at + deleted, fromB: at, toB: at + insert.length },
+      ]),
+    }
+  }
+
+  // Parses as an editor with a time budget does: up to `stop`, then leaves the rest for a later parse.
+  function parseUpTo(doc: string, fragments: readonly TreeFragment[], stop: number) {
+    const parse = noteParser.startParse(doc, fragments)
+    parse.stopAt(stop)
+    let tree: Tree | null = null
+    while (!tree) tree = parse.advance()
+    return tree
+  }
+
+  it.each([
+    {
+      name: 'an indent taken off the first line',
+      before: '    abc\n\npara one\n\n' + FILLER,
+      change: { at: 0, deleted: 2, insert: '' },
+    },
+    {
+      name: 'a tab taken off the first line',
+      before: '\tm\n-\n\n' + FILLER,
+      change: { at: 0, deleted: 1, insert: '' },
+    },
+    {
+      name: 'a line break that moves a list item line to a new start',
+      before: FILLER + '- a\n\n      code\n\n  after\n\n  more\n',
+      change: { at: FILLER.length + 6, deleted: 0, insert: ' \n' },
+    },
+    {
+      name: 'a table delimiter row broken two lines below a paragraph',
+      before: FILLER + 'para\n| a | b |\n-|-\n',
+      change: { at: FILLER.length + 18, deleted: 0, insert: 's' },
+    },
+    {
+      name: 'a table delimiter row broken below a paragraph with a line break',
+      before: FILLER + 'para   \n| a | b |\n-|-\n',
+      change: { at: FILLER.length + 21, deleted: 0, insert: 's' },
+    },
+    {
+      name: 'a line added above a list item that starts with a blank line',
+      before: FILLER + '-\n  k\n\n  e\n',
+      change: { at: FILLER.length, deleted: 0, insert: '\n' },
+    },
+  ])('reparses $name as a whole parse does', ({ before, change }) => {
+    const { doc, fragments } = edit(before, TreeFragment.addTree(noteParser.parse(before)), change)
+    expect(firstDifference(noteParser.parse(doc, fragments), doc)).toBeUndefined()
+  })
+
+  // A parse that stops early keeps the old tree's fragment that ends at the first edit, and applying the second edit
+  // marks that fragment as if a whole parse ended there.
+  it.each([
+    { name: 'a setext underline', tail: 'para\n\n', at: 5, insert: '===' },
+    { name: 'a lazy quote line', tail: '> quote\n\n', at: 8, insert: 'lazy' },
+  ])(
+    'reparses $name typed below a block after a parse that stopped above it',
+    ({ tail, at, insert }) => {
+      let doc = FILLER + FILLER + tail + FILLER
+      let fragments = TreeFragment.addTree(noteParser.parse(doc))
+      ;({ doc, fragments } = edit(doc, fragments, {
+        at: 2 * FILLER.length + at,
+        deleted: 0,
+        insert,
+      }))
+      fragments = TreeFragment.addTree(parseUpTo(doc, fragments, 10), fragments, true)
+      ;({ doc, fragments } = edit(doc, fragments, {
+        at: FILLER.length + 1,
+        deleted: 0,
+        insert: 'w',
+      }))
+      expect(firstDifference(noteParser.parse(doc, fragments), doc)).toBeUndefined()
+    },
+  )
+
+  it('gives the tree a whole parse gives after random edits at line starts and ends', () => {
+    const constructs = [
+      'Plain paragraph with *em* and `code`.\n\n',
+      '> quote line\nlazy continuation\n\n',
+      '> a\n> > nested\n>\n> - item in quote\n\n',
+      'Setext heading\n===\n\n',
+      'Para before dash\n---\n\n',
+      'para   \n| a | b |\n| - | - |\n\n',
+      '[ref]: /url "title"\n\n',
+      '[ref2]:\n/url\n\n',
+      '[ref3]: /u\nnot a title\n\n',
+      '<div>\nhtml block\n\n',
+      '<!-- comment\n\nstill comment\n-->\n\n',
+      '<script>\nlet x = 1\n\n</script>\n\n',
+      '<pre>\nx\n\n</pre>\n\n',
+      '```js\nconst a = 1\n\nconst b = 2\n```\n\n',
+      '~~~\ntilde\n~~~\n\n',
+      '    indented code\n\n    more code\n\n',
+      '- a\n- b\n\n  continued\n- c\n\n',
+      '1. one\n2. two\n   - nested\n\n',
+      '-\n\n  blank first\n\n',
+      '-\n  para after blank\n\n  more\n\n',
+      '- a\n\n      code in item\n\n',
+      '- [ ] task\n- [x] done\n\n',
+      '| a | b |\n| - | - |\n| 1 | 2 |\n\n',
+      'a | b\n--|--\n1 | 2\nlazy row\n\n',
+      '> | a | b |\n> | - | - |\n\n',
+      '# ATX heading\n\n',
+      '#\ttab heading\n\n',
+      '***\n\n',
+      '\n',
+      'no blank after para\n',
+    ]
+    const snippets = [
+      '\n',
+      '\n\n',
+      '```',
+      '~~~',
+      '> ',
+      '- ',
+      '1. ',
+      '    ',
+      '  ',
+      '\t',
+      '---',
+      '===',
+      '|',
+      '-|-',
+      '<div>',
+      '<!--',
+      '-->',
+      '</script>',
+      '</pre>',
+      '[ref]: /x',
+      '# ',
+      'w',
+      ' \n',
+    ]
+    let seed = 7919
+    const random = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
+    const pick = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)]!
+    const wrong: string[] = []
+    for (let note = 0; note < 24; note++) {
+      let doc = Array.from({ length: 40 }, () => pick(constructs)).join('')
+      let fragments = TreeFragment.addTree(noteParser.parse(doc))
+      for (let step = 0; step < 120; step++) {
+        const lineStarts = [0, ...Array.from(doc.matchAll(/\n/g), (match) => match.index + 1)]
+        const lineStart = pick(lineStarts)
+        const at = random() < 0.5 ? lineStart : Math.max(lineStart, doc.indexOf('\n', lineStart))
+        const kind = random()
+        const deleted = kind < 0.5 ? 0 : Math.min(doc.length - at, 1 + Math.floor(random() * 4))
+        const insert =
+          kind < 0.5 ? pick(snippets) : kind < 0.8 ? '' : pick(snippets) + pick(constructs)
+        ;({ doc, fragments } = edit(doc, fragments, { at, deleted, insert }))
+        const tree =
+          random() < 0.5
+            ? noteParser.parse(doc, fragments)
+            : parseUpTo(doc, fragments, Math.floor(random() * doc.length))
+        if (tree.length < doc.length) {
+          fragments = TreeFragment.addTree(tree, fragments, true)
+          continue
+        }
+        const difference = firstDifference(tree, doc)
+        if (difference) {
+          wrong.push(`note ${note} step ${step}: ${difference}`)
+          fragments = TreeFragment.addTree(noteParser.parse(doc))
+        } else fragments = TreeFragment.addTree(tree, fragments)
+      }
+    }
+    expect(wrong).toEqual([])
+  })
+})

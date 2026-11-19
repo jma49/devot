@@ -1,10 +1,88 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 4a361b0d03d5ed263f09e3eeebbbc2f1b6375ec8..a22db9b1dc955de25438665cf723316105627c73 100644
+index 4a361b0..e27ccd1 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
-@@ -1920,13 +1920,16 @@ class FragmentCursor {
+@@ -823,7 +823,12 @@ class BlockContext {
+         this.stoppedAt = pos;
+     }
+     reuseFragment(start) {
+-        if (!this.fragments.moveTo(this.absoluteLineStart + start, this.absoluteLineStart) ||
++        // A list item that starts with a blank line ends at the next
++        // blank line while its marker is its only child. A block taken
++        // here would join it before that line is read, where a parsed
++        // one joins it after.
++        if (this.block.blankFirstLine && this.block.children.length == 1 ||
++            !this.fragments.moveTo(this.absoluteLineStart + start, this.absoluteLineStart) ||
+             !this.fragments.matches(this.block.hash))
+             return false;
+         let taken = this.fragments.takeNodes(this);
+@@ -1008,7 +1013,10 @@ class BlockContext {
+     finish() {
+         while (this.stack.length > 1)
+             this.finishContext();
+-        return this.addGaps(this.block.toTree(this.parser.nodeSet, this.lineStart));
++        let tree = this.addGaps(this.block.toTree(this.parser.nodeSet, this.lineStart));
++        if (this.atEnd)
++            completeTrees.add(tree);
++        return tree;
+     }
+     addGaps(tree) {
+         return this.ranges.length > 1 ?
+@@ -1863,6 +1871,8 @@ function injectMarks(elements, marks) {
+ }
+ // These are blocks that can span blank lines, and should thus only be
+ // reused if their next sibling is also being reused.
++// Trees of parses that reached the end of their input.
++const completeTrees = new WeakSet;
+ const NotLast = [Type.CodeBlock, Type.ListItem, Type.OrderedList, Type.BulletList];
+ class FragmentCursor {
+     constructor(fragments, input) {
+@@ -1887,13 +1897,26 @@ class FragmentCursor {
+     moveTo(pos, lineStart) {
+         while (this.fragment && this.fragment.to <= pos)
+             this.nextFragment();
+-        if (!this.fragment || this.fragment.from > (pos ? pos - 1 : 0))
++        // The line must start where it did in the old tree: the
++        // fragment covers the line break before it, or keeps the
++        // document's start in place.
++        if (!this.fragment || (lineStart ? this.fragment.from >= lineStart : this.fragment.from > 0 || this.fragment.offset))
+             return false;
+         if (this.fragmentEnd < 0) {
+-            let end = this.fragment.to;
+-            while (end > 0 && this.input.read(end - 1, end) != "\n")
++            // Where a block ends can depend on the two lines after it
++            // (a table's delimiter row ends a paragraph above its header),
++            // so taken blocks end before the fragment's last two whole
++            // lines, unless the fragment ends the input and a parse that
++            // reached it. `openEnd` can't tell: `applyChanges` drops it
++            // from a fragment it moves.
++            let end = this.fragment.to, tree = this.fragment.tree;
++            let lines = end == this.input.length && end + this.fragment.offset == tree.length && completeTrees.has(tree) ? 1 : 3;
++            for (; lines > 0 && end > 0; lines--) {
+                 end--;
+-            this.fragmentEnd = end ? end - 1 : 0;
++                while (end > 0 && this.input.read(end, end + 1) != "\n")
++                    end--;
++            }
++            this.fragmentEnd = end;
+         }
+         let c = this.cursor;
+         if (!c) {
+@@ -1906,7 +1929,7 @@ class FragmentCursor {
+                 return false;
+         for (;;) {
+             if (c.from >= rPos)
+-                return this.fragment.from <= lineStart;
++                return true;
+             if (!c.childAfter(rPos))
+                 return false;
+         }
+@@ -1918,15 +1941,18 @@ class FragmentCursor {
+         return tree && tree.prop(common.NodeProp.contextHash) == hash;
+     }
      takeNodes(cx) {
-         let cur = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
+-        let cur = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
++        let cur = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd;
          let start = cx.absoluteLineStart, end = start, blockI = cx.block.children.length;
 -        // Don't reuse anonymous nodes bigger than ¼ of the current
 -        // block's size, to avoid creating lopsided trees.
@@ -23,7 +101,7 @@ index 4a361b0d03d5ed263f09e3eeebbbc2f1b6375ec8..a22db9b1dc955de25438665cf7233161
                  if (cur.type.isAnonymous && cur.firstChild())
                      continue;
                  break;
-@@ -1972,6 +1975,25 @@ class FragmentCursor {
+@@ -1972,6 +1998,25 @@ class FragmentCursor {
          return end - start;
      }
  }
@@ -50,12 +128,90 @@ index 4a361b0d03d5ed263f09e3eeebbbc2f1b6375ec8..a22db9b1dc955de25438665cf7233161
      while (tree.type.isAnonymous) {
          let last = tree.children[tree.children.length - 1];
 diff --git a/dist/index.js b/dist/index.js
-index bcaae772b1e92dd3f279b5c0b6607a3df0a2b20a..d2503a3d74e044b475d10898e23771efe5a79c1b 100644
+index bcaae77..1d5c4bf 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -1918,13 +1918,16 @@ class FragmentCursor {
+@@ -821,7 +821,12 @@ class BlockContext {
+         this.stoppedAt = pos;
+     }
+     reuseFragment(start) {
+-        if (!this.fragments.moveTo(this.absoluteLineStart + start, this.absoluteLineStart) ||
++        // A list item that starts with a blank line ends at the next
++        // blank line while its marker is its only child. A block taken
++        // here would join it before that line is read, where a parsed
++        // one joins it after.
++        if (this.block.blankFirstLine && this.block.children.length == 1 ||
++            !this.fragments.moveTo(this.absoluteLineStart + start, this.absoluteLineStart) ||
+             !this.fragments.matches(this.block.hash))
+             return false;
+         let taken = this.fragments.takeNodes(this);
+@@ -1006,7 +1011,10 @@ class BlockContext {
+     finish() {
+         while (this.stack.length > 1)
+             this.finishContext();
+-        return this.addGaps(this.block.toTree(this.parser.nodeSet, this.lineStart));
++        let tree = this.addGaps(this.block.toTree(this.parser.nodeSet, this.lineStart));
++        if (this.atEnd)
++            completeTrees.add(tree);
++        return tree;
+     }
+     addGaps(tree) {
+         return this.ranges.length > 1 ?
+@@ -1861,6 +1869,8 @@ function injectMarks(elements, marks) {
+ }
+ // These are blocks that can span blank lines, and should thus only be
+ // reused if their next sibling is also being reused.
++// Trees of parses that reached the end of their input.
++const completeTrees = new WeakSet;
+ const NotLast = [Type.CodeBlock, Type.ListItem, Type.OrderedList, Type.BulletList];
+ class FragmentCursor {
+     constructor(fragments, input) {
+@@ -1885,13 +1895,26 @@ class FragmentCursor {
+     moveTo(pos, lineStart) {
+         while (this.fragment && this.fragment.to <= pos)
+             this.nextFragment();
+-        if (!this.fragment || this.fragment.from > (pos ? pos - 1 : 0))
++        // The line must start where it did in the old tree: the
++        // fragment covers the line break before it, or keeps the
++        // document's start in place.
++        if (!this.fragment || (lineStart ? this.fragment.from >= lineStart : this.fragment.from > 0 || this.fragment.offset))
+             return false;
+         if (this.fragmentEnd < 0) {
+-            let end = this.fragment.to;
+-            while (end > 0 && this.input.read(end - 1, end) != "\n")
++            // Where a block ends can depend on the two lines after it
++            // (a table's delimiter row ends a paragraph above its header),
++            // so taken blocks end before the fragment's last two whole
++            // lines, unless the fragment ends the input and a parse that
++            // reached it. `openEnd` can't tell: `applyChanges` drops it
++            // from a fragment it moves.
++            let end = this.fragment.to, tree = this.fragment.tree;
++            let lines = end == this.input.length && end + this.fragment.offset == tree.length && completeTrees.has(tree) ? 1 : 3;
++            for (; lines > 0 && end > 0; lines--) {
+                 end--;
+-            this.fragmentEnd = end ? end - 1 : 0;
++                while (end > 0 && this.input.read(end, end + 1) != "\n")
++                    end--;
++            }
++            this.fragmentEnd = end;
+         }
+         let c = this.cursor;
+         if (!c) {
+@@ -1904,7 +1927,7 @@ class FragmentCursor {
+                 return false;
+         for (;;) {
+             if (c.from >= rPos)
+-                return this.fragment.from <= lineStart;
++                return true;
+             if (!c.childAfter(rPos))
+                 return false;
+         }
+@@ -1916,15 +1939,18 @@ class FragmentCursor {
+         return tree && tree.prop(NodeProp.contextHash) == hash;
+     }
      takeNodes(cx) {
-         let cur = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
+-        let cur = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
++        let cur = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd;
          let start = cx.absoluteLineStart, end = start, blockI = cx.block.children.length;
 -        // Don't reuse anonymous nodes bigger than ¼ of the current
 -        // block's size, to avoid creating lopsided trees.
@@ -74,7 +230,7 @@ index bcaae772b1e92dd3f279b5c0b6607a3df0a2b20a..d2503a3d74e044b475d10898e23771ef
                  if (cur.type.isAnonymous && cur.firstChild())
                      continue;
                  break;
-@@ -1970,6 +1973,25 @@ class FragmentCursor {
+@@ -1970,6 +1996,25 @@ class FragmentCursor {
          return end - start;
      }
  }
