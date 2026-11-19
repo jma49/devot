@@ -84,7 +84,7 @@ An already-running worker thread samples whole-process RSS every 1 ms while the 
 This is sampled resident growth, not SQLite allocation high-water or total app memory; zero means existing resident pages sufficed, not zero allocations, and sub-millisecond peaks can be missed.
 The 10,000-note p95 stays well below one second, so rebuilding stays inside the migration.
 The normal first-launch main window is built only after migration: `tauri.conf.json:18` disables automatic window creation, `lib.rs:498` opens the store before `lib.rs:653` builds the window, and `storage/db.rs:187–197` waits for `Store::open` to finish before returning.
-`storage/open.rs:141–143` runs migrations and pending purge recovery before that return; `main_windows.rs:286` constructs the window afterward, with no migration progress window in this path.
+`storage/open.rs:168–169` runs migrations and pending purge recovery before that return; `main_windows.rs:286` constructs the window afterward, with no migration progress window in this path.
 
 ### Purge cost
 

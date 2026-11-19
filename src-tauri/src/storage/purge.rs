@@ -95,18 +95,21 @@ impl Store {
     }
 
     pub fn compact_sync_purges(&mut self) -> Result<()> {
-        let pending: bool = self.conn.query_row(
-            "SELECT EXISTS (SELECT 1 FROM sync_state WHERE key = 'searchCompactionPending')",
-            [],
-            |row| row.get(0),
-        )?;
-        if pending {
+        if sync_purges_pending(&self.conn)? {
             let tx = self.conn.transaction()?;
             compact_purged(&tx, true)?;
             tx.commit()?;
         }
         Ok(())
     }
+}
+
+pub(super) fn sync_purges_pending(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sync_state WHERE key = 'searchCompactionPending')",
+        [],
+        |row| row.get(0),
+    )?)
 }
 
 fn compact_purged(conn: &Connection, changed: bool) -> Result<()> {

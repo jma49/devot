@@ -2,6 +2,7 @@ use rusqlite::backup::{Backup, StepResult};
 use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 use std::path::Path;
 
+use super::purge::sync_purges_pending;
 use super::search::register_fold;
 use super::{Result, StorageError, Store};
 
@@ -101,9 +102,36 @@ pub(super) fn open_read_only(path: &Path) -> Result<Connection> {
 }
 
 pub fn snapshot(db_path: &Path, dest: &Path) -> Result<()> {
-    let source = open_read_only(db_path)?;
-    let mut copy = Connection::open(dest)?;
-    copy_pages(&source, &mut copy, COPY_PATIENCE)?;
+    let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
+    conn.pragma_update(None, "secure_delete", "ON")?;
+    let has_sync_state: bool = conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'sync_state')",
+        [],
+        |row| row.get(0),
+    )?;
+    let mut source = Store { conn };
+    let started = std::time::Instant::now();
+    let copy = loop {
+        if has_sync_state {
+            source.compact_sync_purges()?;
+        }
+        // Pin a clean read snapshot: a purge committed after compaction must not slip into the copy.
+        let tx = source.conn.transaction()?;
+        if has_sync_state && sync_purges_pending(&tx)? {
+            if started.elapsed() >= COPY_PATIENCE {
+                return Err(StorageError::Sqlite(rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),
+                    None,
+                )));
+            }
+            continue;
+        }
+        let mut copy = Connection::open(dest)?;
+        copy_pages(&tx, &mut copy, COPY_PATIENCE)?;
+        tx.commit()?;
+        break copy;
+    };
     // The copy inherits WAL mode; a rollback journal keeps it one file, so
     // reading it later leaves no -wal or -shm beside it.
     copy.pragma_update(None, "journal_mode", "DELETE")?;

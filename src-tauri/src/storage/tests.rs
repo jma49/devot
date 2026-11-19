@@ -3000,6 +3000,60 @@ fn a_snapshot_of_a_missing_database_fails() {
     assert!(!dir.path().join("s.sqlite").exists());
 }
 
+#[test]
+fn a_snapshot_compacts_committed_sync_purges_before_copying() {
+    let (dir, mut store) = temp_store();
+    let secret = "qxjzvwkpfyb";
+    let mut doomed = note("doomed", "", 10);
+    doomed.body_md = secret.repeat(400);
+    store.put_note(&doomed, &[]).unwrap();
+    store.put_note(&note("kept", "Retained", 10), &[]).unwrap();
+    store.catch_up_search_index(None).unwrap();
+    store
+        .sync_purge_deferred("doomed", 20, "0000000000000020-0000-remote")
+        .unwrap();
+    assert!(super::purge::sync_purges_pending(&store.conn).unwrap());
+    let backup = dir.path().join("snapshot.sqlite");
+    super::snapshot(&dir.path().join("devot.sqlite"), &backup).unwrap();
+    assert!(!super::purge::sync_purges_pending(&store.conn).unwrap());
+    let copy = open_read_only(&backup).unwrap();
+    assert_eq!(
+        copy.query_row("SELECT title FROM notes WHERE id = 'kept'", [], |row| {
+            row.get::<_, String>(0)
+        })
+        .unwrap(),
+        "Retained"
+    );
+    drop(copy);
+    let bytes = std::fs::read(&backup).unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        assert!(!bytes.windows(3).any(|window| window == trigram));
+    }
+}
+
+#[test]
+fn a_failed_pending_compaction_prevents_a_snapshot_and_keeps_the_marker() {
+    let (dir, mut store) = temp_store();
+    store
+        .put_note(&note("doomed", "Confidential", 10), &[])
+        .unwrap();
+    store.catch_up_search_index(None).unwrap();
+    store
+        .sync_purge_deferred("doomed", 20, "0000000000000020-0000-remote")
+        .unwrap();
+    store
+        .conn
+        .execute_batch(
+            "CREATE TRIGGER refuse_compaction BEFORE DELETE ON sync_state
+        WHEN old.key = 'searchCompactionPending' BEGIN SELECT RAISE(ABORT, 'E_TEST'); END",
+        )
+        .unwrap();
+    let backup = dir.path().join("snapshot.sqlite");
+    assert!(super::snapshot(&dir.path().join("devot.sqlite"), &backup).is_err());
+    assert!(super::purge::sync_purges_pending(&store.conn).unwrap());
+    assert!(!backup.exists());
+}
+
 /// Child half of the crash-safety test: writes notes until killed and
 /// reports each one only after its transaction committed.
 #[test]
