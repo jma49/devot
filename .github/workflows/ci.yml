@@ -410,10 +410,27 @@ jobs:
         with:
           workspaces: src-tauri
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings
+      # A crates.io DNS failure during clippy failed this job (#1008); compile from locked, cached crates.
+      - id: cargo-deps
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+          key: cargo-deps-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+      - if: steps.cargo-deps.outputs.cache-hit != 'true'
+        run: cargo fetch --locked
+      - if: steps.cargo-deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+          key: ${{ steps.cargo-deps.outputs.cache-primary-key }}
+      - run: cargo clippy --all-targets --frozen -- -D warnings
+      - run: cargo clippy --lib --target aarch64-apple-ios-sim --frozen -- -D warnings
       # The input bar's Objective-C runtime tests run only on an Apple host.
-      - run: cargo test --lib input_accessory
+      - run: cargo test --lib input_accessory --frozen
 
   # The oldest macOS the app runs on, on the other architecture it ships for: the native
   # main-thread tests check that every guard falls back there (docs/specs/native-look.md, Older

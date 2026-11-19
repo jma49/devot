@@ -17,6 +17,7 @@
 import { useEffect, useInsertionEffect, useRef } from 'react'
 import { sheetOpen } from './commands/dispatch'
 import { areaOf, areaTargets, type Area } from './areas'
+import { earlyKeysWaiting } from './editor/earlyKeys'
 
 interface Last {
   element: Element
@@ -119,7 +120,7 @@ export function useFocusRescue(editor: () => { focus: () => void } | null): void
       frame = 0
       const hidden = changed
       changed = false
-      if (sheetOpen()) return
+      if (sheetOpen() || earlyKeysWaiting()) return
       const wasInSheet = inSheet
       inSheet = false
       const active = document.activeElement

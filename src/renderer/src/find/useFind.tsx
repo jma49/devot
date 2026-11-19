@@ -119,14 +119,14 @@ export function useFind({ mode, noteOpen, editing, editor, preview }: Input): {
             ? 'preview'
             : 'editor'
     const nextTarget = next === 'editor' ? editor : preview
-    if (!nextTarget) return
+    if (!nextTarget && next !== 'preview') return
     // A selection the user made becomes the query; a match find selected
     // (the bar's current match, or the one left selected when it closed)
     // does not.
     const selected =
       step || inBar || (open && next === pane && status.current !== null)
         ? ''
-        : nextTarget.selectedText()
+        : (nextTarget?.selectedText() ?? '')
     if (selected && !matchesWhole(selected, options))
       setQuery(regexp ? escapeRegExp(selected) : selected)
     pendingStep.current = step

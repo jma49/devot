@@ -62,7 +62,7 @@ Docs are written one sentence per line, so a change touches only the sentences i
   Windows and Linux are out of scope for now; platform code stays isolated (`src-tauri/src/native/`) so they remain possible.
 - Layout: three panes (sidebar, note list, editor and preview), keyboard-driven.
   In a narrow window (the minimum is 760 px) the list shrinks to `size.list-min-width` before the editor, which keeps `size.pane-min-width` for each split pane; below `size.sidebar-collapse-width` (1000 px) the sidebar is hidden until Show Sidebar (or Cmd+/) asks for it, a request that lasts until the window crosses that width again and is not stored.
-  A split pane's selection toolbar stays on one row and scrolls sideways when the pane is narrower.
+  A pane narrower than the selection toolbar's one row gets the toolbar on more rows, wrapped between its button groups, never scrolled sideways (`design/layout.md`, Floating bars).
 - Workspaces: Open as Workspace (the notebook menu, or Cmd+Return on a notebook in the palette) makes one notebook the whole sidebar: a title (Go Up a Level, the notebook's icon and name, the notebooks above it, each opening as the workspace; its menu renames, changes the icon or copies the ID), All Notes (the notebook with its sub-notebooks), its sub-notebooks, and Status and Tags counted over its notes only, listing only the tags they have.
   Pinned, Templates and the Trash are hidden, and the tag menu has no Delete Tag there.
   Go Up a Level (Backspace on a row that is neither a notebook nor a tag, where Backspace deletes; Cmd+Up on any row) opens the parent notebook as the workspace, or leaves workspaces at the top level; Leave Workspace in the palette leaves at once.
