@@ -4,8 +4,10 @@
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  asAiCatalogs,
   asAiGenerated,
   asAiSettingsView,
+  asAiTried,
   createAiGenerator,
   createBookService,
   createClock,
@@ -237,6 +239,7 @@ describe('the settings Rust reports', () => {
     defaultEndpoint: 'https://api.openai.com/v1',
     defaultModel: '',
     key,
+    reasoning: null,
   })
 
   it('reads a snapshot and refuses anything else', () => {
@@ -245,6 +248,7 @@ describe('the settings Rust reports', () => {
       suggestOnIdle: false,
       anthropic: provider('set'),
       openai: provider('unset'),
+      suggestModel: null,
     }
     expect(asAiSettingsView(view)).toEqual(view)
     expect(asAiSettingsView({ ...view, suggestOnIdle: true })?.suggestOnIdle).toBe(true)
@@ -264,8 +268,8 @@ describe('the settings Rust reports', () => {
       ...view,
       active: 'claudeCli',
       cli: {
-        claudeCli: { state: 'ready', model: 'sonnet' },
-        codexCli: { state: 'notInstalled', model: '' },
+        claudeCli: { state: 'ready', model: 'sonnet', reasoning: 'max' },
+        codexCli: { state: 'notInstalled', model: '', reasoning: null },
       },
     }
     expect(asAiSettingsView(withCli)).toEqual(withCli)
@@ -280,5 +284,105 @@ describe('the settings Rust reports', () => {
     ).toBeUndefined()
     expect(asAiGenerated({ ...GENERATED, provider: 'claudeCli' })?.provider).toBe('claudeCli')
     expect(asAiGenerated({ ...GENERATED, provider: 'codexCli' })?.provider).toBe('codexCli')
+  })
+
+  it('reads each reasoning level and the suggestion model, and a snapshot from before them', () => {
+    const view = {
+      active: 'anthropic',
+      suggestOnIdle: true,
+      anthropic: { ...provider('set'), reasoning: 'high' },
+      openai: provider('unset'),
+      suggestModel: { provider: 'codexCli', model: '', reasoning: 'xhigh' },
+    }
+    expect(asAiSettingsView(view)).toEqual(view)
+
+    const strip = (entry: Record<string, unknown>) => {
+      const { reasoning: _, ...rest } = entry
+      return rest
+    }
+    const older = {
+      active: 'anthropic',
+      anthropic: strip(provider('set')),
+      openai: strip(provider('unset')),
+    }
+    const read = asAiSettingsView(older)
+    expect([read?.anthropic.reasoning, read?.openai.reasoning, read?.suggestModel]).toEqual([
+      null,
+      null,
+      null,
+    ])
+
+    const odd = asAiSettingsView({
+      ...view,
+      anthropic: { ...provider('set'), reasoning: 'HIGH; rm' },
+      suggestModel: { provider: 'nobody', model: 'x', reasoning: null },
+    })
+    expect([odd?.anthropic.reasoning, odd?.suggestModel]).toEqual([null, null])
+  })
+})
+
+describe('the model lists Rust reports', () => {
+  const opus = {
+    id: 'claude-opus-5-5',
+    name: 'Claude Opus 5.5',
+    tier: 'best',
+    reasoning: ['low', 'high', 'max'],
+    defaultReasoning: null,
+  }
+
+  it('reads each provider list, and a failed one as its code', () => {
+    const catalogs = {
+      anthropic: { state: 'ready', models: [opus], defaultModel: 'claude-sonnet-5-5' },
+      openai: { state: 'failed', code: 'E_AI_KEY_MISSING' },
+      codexCli: {
+        state: 'ready',
+        models: [
+          {
+            id: 'gpt-a',
+            name: 'GPT A',
+            tier: 'fast',
+            reasoning: ['low', 'medium'],
+            defaultReasoning: 'medium',
+          },
+        ],
+        defaultModel: null,
+      },
+    }
+    expect(asAiCatalogs(catalogs)).toEqual(catalogs)
+    expect(asAiCatalogs({ ...catalogs, openai: { state: 'failed', code: 'boom' } })).toBeUndefined()
+    expect(asAiCatalogs({ ...catalogs, anthropic: undefined })).toBeUndefined()
+    expect(asAiCatalogs({ ...catalogs, claudeCli: { state: 'maybe' } })).toBeUndefined()
+    expect(asAiCatalogs(null)).toBeUndefined()
+  })
+
+  it('drops what a model entry gets wrong instead of the whole list', () => {
+    const read = asAiCatalogs({
+      anthropic: {
+        state: 'ready',
+        models: [
+          { ...opus, tier: 'great', reasoning: ['low', 'LOUD', 7], defaultReasoning: 'max' },
+          { id: '', name: 'Nameless' },
+          { id: 'claude-x', name: '' },
+        ],
+        defaultModel: '',
+      },
+      openai: { state: 'ready', models: [] },
+    })
+    expect(read?.anthropic).toEqual({
+      state: 'ready',
+      models: [
+        { ...opus, tier: null, reasoning: ['low'], defaultReasoning: null },
+        { id: 'claude-x', name: 'claude-x', tier: null, reasoning: [], defaultReasoning: null },
+      ],
+      defaultModel: null,
+    })
+    expect(read?.openai).toEqual({ state: 'ready', models: [], defaultModel: null })
+  })
+
+  it('reads a Try It answer', () => {
+    const tried = { provider: 'anthropic', model: 'claude-opus-5-5', elapsedMs: 2100 }
+    expect(asAiTried(tried)).toEqual(tried)
+    expect(asAiTried({ ...tried, elapsedMs: -1 })).toBeUndefined()
+    expect(asAiTried({ ...tried, provider: 'other' })).toBeUndefined()
   })
 })

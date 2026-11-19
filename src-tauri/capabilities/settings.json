@@ -48,6 +48,8 @@
     "allow-ai-settings-set",
     "allow-ai-key-set",
     "allow-ai-key-clear",
+    "allow-ai-models",
+    "allow-ai-try",
     "allow-ai-cli-refresh",
     "allow-http-api-get",
     "allow-http-api-set",

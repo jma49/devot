@@ -13,16 +13,81 @@ use crate::settings_file::{Codes, SettingsFile};
 pub const FILE: &str = "ai-settings.json";
 const MAX_ENDPOINT_LEN: usize = 2048;
 
+/// A field a caller may leave out: left out, `set` keeps what is stored, so the iPhone's Settings,
+/// which never sends the desktop's fields, does not wipe them; `null` clears it.
+#[derive(Debug, Clone)]
+pub struct Omittable<T> {
+    pub value: Option<T>,
+    sent: bool,
+}
+
+impl<T> Default for Omittable<T> {
+    fn default() -> Self {
+        Self {
+            value: None,
+            sent: false,
+        }
+    }
+}
+
+impl<T: Clone> Omittable<T> {
+    pub fn new(value: Option<T>) -> Self {
+        Self { value, sent: true }
+    }
+
+    pub fn is_none(&self) -> bool {
+        self.value.is_none()
+    }
+
+    pub fn get(&self) -> Option<&T> {
+        self.value.as_ref()
+    }
+
+    fn keep_unsent(&mut self, stored: &Self) {
+        if !self.sent {
+            self.value.clone_from(&stored.value);
+        }
+    }
+}
+
+impl<T: PartialEq> PartialEq for Omittable<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl<T: Eq> Eq for Omittable<T> {}
+
+impl<T: Serialize> Serialize for Omittable<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.value.serialize(serializer)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for Omittable<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Self {
+            value: Option::<T>::deserialize(deserializer)?,
+            sent: true,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderSettings {
     pub endpoint: String,
     pub model: String,
+    /// The provider's own default when absent.
+    #[serde(default, skip_serializing_if = "Omittable::is_none")]
+    pub reasoning: Omittable<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct CliProviderSettings {
     pub model: String,
+    #[serde(skip_serializing_if = "Omittable::is_none")]
+    pub reasoning: Omittable<String>,
     /// Tracks whether an external payload explicitly supplied this object (`false` preserves stored
     /// desktop CLI models when iOS omits desktop-only fields).
     #[serde(skip)]
@@ -31,7 +96,7 @@ pub struct CliProviderSettings {
 
 impl PartialEq for CliProviderSettings {
     fn eq(&self, other: &Self) -> bool {
-        self.model == other.model
+        self.model == other.model && self.reasoning == other.reasoning
     }
 }
 
@@ -42,6 +107,8 @@ impl Eq for CliProviderSettings {}
 struct WireCliSettings {
     #[serde(default)]
     model: String,
+    #[serde(default)]
+    reasoning: Omittable<String>,
 }
 
 impl<'de> Deserialize<'de> for CliProviderSettings {
@@ -49,9 +116,21 @@ impl<'de> Deserialize<'de> for CliProviderSettings {
         let wire = WireCliSettings::deserialize(deserializer)?;
         Ok(Self {
             model: wire.model,
+            reasoning: wire.reasoning,
             provided: true,
         })
     }
+}
+
+/// The model next edit suggestions use instead of the main one; an empty `model` is that provider's Model setting.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SuggestModel {
+    pub provider: ProviderId,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub reasoning: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,6 +146,13 @@ pub struct AiSettings {
     pub claude_cli: CliProviderSettings,
     #[serde(default, rename = "codexCli")]
     pub codex_cli: CliProviderSettings,
+    /// Absent: suggestions use the Model setting.
+    #[serde(
+        default,
+        rename = "suggestModel",
+        skip_serializing_if = "Omittable::is_none"
+    )]
+    pub suggest_model: Omittable<SuggestModel>,
 }
 
 pub struct StoredSettings {
@@ -80,11 +166,13 @@ fn default_for(id: ProviderId) -> ProviderSettings {
         return ProviderSettings {
             endpoint: String::new(),
             model: String::new(),
+            reasoning: Omittable::default(),
         };
     };
     ProviderSettings {
         endpoint: p.default_endpoint().to_string(),
         model: p.default_model().unwrap_or_default().to_string(),
+        reasoning: Omittable::default(),
     }
 }
 
@@ -97,6 +185,7 @@ impl Default for AiSettings {
             openai: default_for(ProviderId::Openai),
             claude_cli: CliProviderSettings::default(),
             codex_cli: CliProviderSettings::default(),
+            suggest_model: Omittable::default(),
         }
     }
 }
@@ -126,6 +215,29 @@ impl AiSettings {
         }
     }
 
+    /// The reasoning level the user chose for `id`; None leaves it to the provider.
+    pub fn reasoning(&self, id: ProviderId) -> Option<&str> {
+        self.reasoning_field(id).get().map(String::as_str)
+    }
+
+    fn reasoning_field(&self, id: ProviderId) -> &Omittable<String> {
+        match id {
+            ProviderId::Anthropic => &self.anthropic.reasoning,
+            ProviderId::Openai => &self.openai.reasoning,
+            ProviderId::ClaudeCli => &self.claude_cli.reasoning,
+            ProviderId::CodexCli => &self.codex_cli.reasoning,
+        }
+    }
+
+    fn reasoning_mut(&mut self, id: ProviderId) -> &mut Omittable<String> {
+        match id {
+            ProviderId::Anthropic => &mut self.anthropic.reasoning,
+            ProviderId::Openai => &mut self.openai.reasoning,
+            ProviderId::ClaudeCli => &mut self.claude_cli.reasoning,
+            ProviderId::CodexCli => &mut self.codex_cli.reasoning,
+        }
+    }
+
     pub fn validated(mut self) -> Result<Self, &'static str> {
         for id in ProviderId::HTTP {
             let Some(p) = provider(id) else { continue };
@@ -144,6 +256,14 @@ impl AiSettings {
         }
         self.claude_cli.model = clean_model(&self.claude_cli.model)?;
         self.codex_cli.model = clean_model(&self.codex_cli.model)?;
+        for id in ProviderId::ALL {
+            let reasoning = self.reasoning_mut(id);
+            reasoning.value = clean_reasoning(reasoning.value.as_deref())?;
+        }
+        if let Some(suggest) = self.suggest_model.value.as_mut() {
+            suggest.model = clean_model(&suggest.model)?;
+            suggest.reasoning = clean_reasoning(suggest.reasoning.as_deref())?;
+        }
         Ok(self)
     }
 
@@ -175,6 +295,7 @@ impl AiSettings {
             {
                 entry.model = model;
             }
+            entry.reasoning = Omittable::new(stored_reasoning(stored));
         }
         for (key, target) in [
             ("claudeCli", &mut settings.claude_cli),
@@ -189,13 +310,30 @@ impl AiSettings {
                 {
                     target.model = model;
                 }
+                target.reasoning = Omittable::new(stored_reasoning(Some(stored)));
             }
+        }
+        if let Some(suggest) = value
+            .get("suggestModel")
+            .and_then(|v| serde_json::from_value::<SuggestModel>(v.clone()).ok())
+            .filter(|s| clean_model(&s.model).is_ok())
+            .and_then(|mut s| {
+                s.reasoning = clean_reasoning(s.reasoning.as_deref()).ok()?;
+                Some(s)
+            })
+        {
+            settings.suggest_model = Omittable::new(Some(suggest));
         }
         StoredSettings {
             settings,
             explicit_active,
         }
     }
+}
+
+fn stored_reasoning(stored: Option<&Value>) -> Option<String> {
+    let text = stored?.get("reasoning")?.as_str()?;
+    clean_reasoning(Some(text)).ok().flatten()
 }
 
 fn loopback(url: &Url) -> bool {
@@ -250,6 +388,20 @@ pub fn clean_model(model: &str) -> Result<String, &'static str> {
     Ok(model.to_string())
 }
 
+pub const MAX_REASONING_CHARS: usize = 16;
+
+/// A reasoning level as the providers name them (`low`, `xhigh`); empty means the provider's default.
+/// Lowercase letters only, so it is safe as a CLI argument and inside a `-c key="value"` override.
+pub fn clean_reasoning(reasoning: Option<&str>) -> Result<Option<String>, &'static str> {
+    let Some(reasoning) = reasoning.map(str::trim).filter(|r| !r.is_empty()) else {
+        return Ok(None);
+    };
+    if reasoning.len() > MAX_REASONING_CHARS || !reasoning.chars().all(|c| c.is_ascii_lowercase()) {
+        return Err("E_AI_REASONING_INVALID");
+    }
+    Ok(Some(reasoning.to_string()))
+}
+
 const CODES: Codes = Codes {
     unreadable: "W_AI_SETTINGS_UNREADABLE",
     copy_failed: "W_AI_SETTINGS_COPY_FAILED",
@@ -299,11 +451,24 @@ impl SettingsStore {
             return Err("E_AI_SETTINGS_READ_FAILED");
         };
         if !settings.claude_cli.provided && settings.claude_cli.model.is_empty() {
-            settings.claude_cli.model = existing.settings.claude_cli.model;
+            settings
+                .claude_cli
+                .model
+                .clone_from(&existing.settings.claude_cli.model);
         }
         if !settings.codex_cli.provided && settings.codex_cli.model.is_empty() {
-            settings.codex_cli.model = existing.settings.codex_cli.model;
+            settings
+                .codex_cli
+                .model
+                .clone_from(&existing.settings.codex_cli.model);
         }
+        for id in ProviderId::ALL {
+            let stored = existing.settings.reasoning_field(id);
+            settings.reasoning_mut(id).keep_unsent(stored);
+        }
+        settings
+            .suggest_model
+            .keep_unsent(&existing.settings.suggest_model);
         self.file.write(&settings)?;
         Ok(settings)
     }
@@ -524,5 +689,123 @@ mod tests {
         let after_clear = store.set(cleared_payload).unwrap();
         assert_eq!(after_clear.claude_cli.model, "");
         assert_eq!(after_clear.codex_cli.model, "");
+    }
+
+    const IOS_PAYLOAD: &str = r#"{
+        "active": "anthropic",
+        "suggestOnIdle": false,
+        "anthropic": {"endpoint": "https://api.anthropic.com", "model": "claude-sonnet-5-5"},
+        "openai": {"endpoint": "https://api.openai.com/v1", "model": ""}
+    }"#;
+
+    #[test]
+    fn reasoning_and_the_suggestion_model_survive_a_payload_that_leaves_them_out() {
+        let (_dir, store) = store();
+        let mut settings = store.get();
+        settings.anthropic.reasoning = Omittable::new(Some("high".into()));
+        settings.codex_cli.reasoning = Omittable::new(Some(" xhigh ".into()));
+        settings.suggest_model = Omittable::new(Some(SuggestModel {
+            provider: ProviderId::CodexCli,
+            model: "gpt-6.2-astra".into(),
+            reasoning: Some("low".into()),
+        }));
+        let saved = store.set(settings).unwrap();
+        assert_eq!(saved.reasoning(ProviderId::CodexCli), Some("xhigh"));
+
+        let ios: AiSettings = serde_json::from_str(IOS_PAYLOAD).unwrap();
+        let after = store.set(ios).unwrap();
+        assert_eq!(after.reasoning(ProviderId::Anthropic), Some("high"));
+        assert_eq!(after.reasoning(ProviderId::CodexCli), Some("xhigh"));
+        assert_eq!(
+            after.suggest_model.get().map(|s| s.model.as_str()),
+            Some("gpt-6.2-astra")
+        );
+        assert_eq!(store.get(), after);
+    }
+
+    #[test]
+    fn null_clears_reasoning_and_the_suggestion_model() {
+        let (_dir, store) = store();
+        let mut settings = store.get();
+        settings.openai.reasoning = Omittable::new(Some("medium".into()));
+        settings.suggest_model = Omittable::new(Some(SuggestModel {
+            provider: ProviderId::Anthropic,
+            model: String::new(),
+            reasoning: None,
+        }));
+        store.set(settings).unwrap();
+        let cleared: AiSettings = serde_json::from_str(
+            r#"{
+                "active": "anthropic",
+                "anthropic": {"endpoint": "", "model": ""},
+                "openai": {"endpoint": "", "model": "", "reasoning": null},
+                "suggestModel": null
+            }"#,
+        )
+        .unwrap();
+        let after = store.set(cleared).unwrap();
+        assert_eq!(after.reasoning(ProviderId::Openai), None);
+        assert!(after.suggest_model.is_none());
+    }
+
+    #[test]
+    fn a_reasoning_level_is_lowercase_letters_only() {
+        let (_dir, store) = store();
+        let before = store.get();
+        for bad in [
+            "--max",
+            "high;rm",
+            "High",
+            "x\"y",
+            "abcdefghijklmnopq",
+            "lo w",
+        ] {
+            let mut settings = before.clone();
+            settings.claude_cli.reasoning = Omittable::new(Some(bad.into()));
+            assert_eq!(
+                store.set(settings).unwrap_err(),
+                "E_AI_REASONING_INVALID",
+                "{bad}"
+            );
+            let mut settings = before.clone();
+            settings.suggest_model = Omittable::new(Some(SuggestModel {
+                provider: ProviderId::ClaudeCli,
+                model: "haiku".into(),
+                reasoning: Some(bad.into()),
+            }));
+            assert_eq!(
+                store.set(settings).unwrap_err(),
+                "E_AI_REASONING_INVALID",
+                "{bad}"
+            );
+        }
+        let mut settings = before.clone();
+        settings.suggest_model = Omittable::new(Some(SuggestModel {
+            provider: ProviderId::ClaudeCli,
+            model: "-p".into(),
+            reasoning: None,
+        }));
+        assert_eq!(store.set(settings).unwrap_err(), "E_AI_MODEL_INVALID");
+        let mut empty = before.clone();
+        empty.anthropic.reasoning = Omittable::new(Some("  ".into()));
+        assert_eq!(
+            store.set(empty).unwrap().reasoning(ProviderId::Anthropic),
+            None
+        );
+        assert_eq!(store.get(), before);
+    }
+
+    #[test]
+    fn a_damaged_reasoning_or_suggestion_model_in_the_file_is_left_out() {
+        let (dir, store) = store();
+        std::fs::write(
+            dir.path().join(FILE),
+            r#"{"anthropic":{"reasoning":"--bad"},"codexCli":{"reasoning":"low"},"suggestModel":{"provider":"openai","model":"two words"}}"#,
+        )
+        .unwrap();
+        let settings = store.get();
+        assert_eq!(settings.reasoning(ProviderId::Anthropic), None);
+        assert_eq!(settings.reasoning(ProviderId::CodexCli), Some("low"));
+        assert!(settings.suggest_model.is_none());
     }
 }

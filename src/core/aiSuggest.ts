@@ -1,4 +1,4 @@
-// Next edit suggestions: the text near the caret goes to the active provider and what comes back is shown as ghost text.
+// Next edit suggestions: the text near the caret goes to the suggestion model, or the active provider, and what comes back is shown as ghost text.
 // Nothing here writes a note; the editor inserts a suggestion only when the user accepts it.
 
 import {
@@ -67,6 +67,7 @@ export function suggestInput(context: SuggestContext): AiGenerateInput {
     ],
     maxTokens: SUGGEST_MAX_TOKENS,
     timeoutSecs: SUGGEST_TIMEOUT_SECS,
+    purpose: 'suggest',
   }
 }
 
@@ -95,18 +96,25 @@ export function cleanSuggestion(
   return text.length > SUGGEST_MAX_CHARS ? text.slice(0, SUGGEST_MAX_CHARS) : text
 }
 
-/** Whether the active provider can answer: a stored key and model, or a ready local CLI. */
+/**
+ * Whether the provider that answers can: a stored key and model, or a ready local CLI.
+ * For a suggestion that is the suggestion model's provider when Settings names one, else the active one.
+ */
 export function providerReady(
   settings: AiSettingsView,
+  purpose: 'main' | 'suggest' = 'main',
 ): 'ready' | 'E_AI_KEY_MISSING' | 'E_AI_MODEL_MISSING' | 'E_AI_CLI_MISSING' | 'E_AI_AUTH_FAILED' {
-  if (isCliProvider(settings.active)) {
-    const cli = settings.cli?.[settings.active]
+  const suggest = purpose === 'suggest' ? settings.suggestModel : null
+  const id = suggest?.provider ?? settings.active
+  if (isCliProvider(id)) {
+    const cli = settings.cli?.[id]
     if (!cli || cli.state === 'notInstalled') return 'E_AI_CLI_MISSING'
     return cli.state === 'ready' ? 'ready' : 'E_AI_AUTH_FAILED'
   }
-  const active = settings[settings.active]
-  if (active.key !== 'set') return 'E_AI_KEY_MISSING'
-  return active.model === '' ? 'E_AI_MODEL_MISSING' : 'ready'
+  const provider = settings[id]
+  if (provider.key !== 'set') return 'E_AI_KEY_MISSING'
+  const model = suggest?.model || provider.model
+  return model === '' ? 'E_AI_MODEL_MISSING' : 'ready'
 }
 
 export interface SuggesterDeps {
@@ -160,7 +168,7 @@ export function createSuggester(deps: SuggesterDeps): Suggester {
       const settings = await deps.settings()
       if (stale()) return null
       if (trigger === 'idle' && !settings.suggestOnIdle) return null
-      const ready = providerReady(settings)
+      const ready = providerReady(settings, 'suggest')
       if (ready !== 'ready') return refuse(ready)
       let input: AiGenerateInput
       try {

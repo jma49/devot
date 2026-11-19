@@ -27,6 +27,8 @@ export interface AiGenerateInput {
   maxTokens?: number
   /** Gives up sooner than Rust's own limit (never later). */
   timeoutSecs?: number
+  /** `suggest` goes to the suggestion model when Settings names one and no `provider` is given. */
+  purpose?: 'main' | 'suggest'
 }
 
 export type AiStop = 'end' | 'maxTokens' | 'other'
@@ -140,6 +142,8 @@ export interface AiProviderView {
   defaultEndpoint: string
   defaultModel: string
   key: AiKeyState
+  /** Null leaves the reasoning level to the provider. */
+  reasoning: string | null
 }
 
 export type AiCliState = 'ready' | 'signedOut' | 'notInstalled'
@@ -147,6 +151,7 @@ export type AiCliState = 'ready' | 'signedOut' | 'notInstalled'
 export interface AiCliProviderView {
   state: AiCliState
   model: string
+  reasoning: string | null
 }
 
 export interface AiCliViews {
@@ -156,6 +161,15 @@ export interface AiCliViews {
 
 export interface AiCliSettings {
   model: string
+  /** Left out, Rust keeps the stored level. */
+  reasoning?: string | null
+}
+
+/** The model next edit suggestions use; an empty `model` is that provider's Model setting. */
+export interface AiSuggestModel {
+  provider: AiProviderId
+  model: string
+  reasoning: string | null
 }
 
 export interface AiSettingsView {
@@ -165,23 +179,41 @@ export interface AiSettingsView {
   anthropic: AiProviderView
   openai: AiProviderView
   cli?: AiCliViews
+  /** Null: suggestions use the Model setting. */
+  suggestModel: AiSuggestModel | null
 }
 
-/** What Settings changes: the key goes in through its own command. */
+/** What Settings changes: the key goes in through its own command, and a field left out keeps its stored value. */
 export type AiSettingsChange = Pick<AiSettingsView, 'active' | 'suggestOnIdle'> &
-  Record<AiApiProviderId, Pick<AiProviderView, 'endpoint' | 'model'>> &
-  Partial<Record<AiCliProviderId, AiCliSettings>>
+  Record<
+    AiApiProviderId,
+    Pick<AiProviderView, 'endpoint' | 'model'> & { reasoning?: string | null }
+  > &
+  Partial<Record<AiCliProviderId, AiCliSettings>> & { suggestModel?: AiSuggestModel | null }
+
+/** Lowercase letters, as Rust checks them (`E_AI_REASONING_INVALID`). */
+const REASONING = /^[a-z]{1,16}$/
+
+const asReasoning = (value: unknown): string | null =>
+  typeof value === 'string' && REASONING.test(value) ? value : null
+
+function asSuggestModel(value: unknown): AiSuggestModel | null {
+  if (typeof value !== 'object' || value === null) return null
+  const { provider, model, reasoning } = value as Record<string, unknown>
+  if (!isProvider(provider) || typeof model !== 'string') return null
+  return { provider, model, reasoning: asReasoning(reasoning) }
+}
 
 function asCliProviderView(value: unknown): AiCliProviderView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { state, model } = value as Record<string, unknown>
+  const { state, model, reasoning } = value as Record<string, unknown>
   if (
     (state !== 'ready' && state !== 'signedOut' && state !== 'notInstalled') ||
     typeof model !== 'string'
   ) {
     return undefined
   }
-  return { state, model }
+  return { state, model, reasoning: asReasoning(reasoning) }
 }
 
 function asCliViews(value: unknown): AiCliViews | undefined {
@@ -195,7 +227,10 @@ function asCliViews(value: unknown): AiCliViews | undefined {
 
 function asProviderView(value: unknown): AiProviderView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { endpoint, model, defaultEndpoint, defaultModel, key } = value as Record<string, unknown>
+  const { endpoint, model, defaultEndpoint, defaultModel, key, reasoning } = value as Record<
+    string,
+    unknown
+  >
   if (
     typeof endpoint !== 'string' ||
     typeof model !== 'string' ||
@@ -205,25 +240,115 @@ function asProviderView(value: unknown): AiProviderView | undefined {
   ) {
     return undefined
   }
-  return { endpoint, model, defaultEndpoint, defaultModel, key }
+  return { endpoint, model, defaultEndpoint, defaultModel, key, reasoning: asReasoning(reasoning) }
 }
 
 export function asAiSettingsView(value: unknown): AiSettingsView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { active, suggestOnIdle, anthropic, openai, cli } = value as Record<string, unknown>
+  const { active, suggestOnIdle, anthropic, openai, cli, suggestModel } = value as Record<
+    string,
+    unknown
+  >
   const a = asProviderView(anthropic)
   const o = asProviderView(openai)
   if (!isProvider(active) || !a || !o) return undefined
-  if (cli !== undefined) {
-    const parsedCli = asCliViews(cli)
-    if (!parsedCli) return undefined
-    return {
-      active,
-      suggestOnIdle: suggestOnIdle === true,
-      anthropic: a,
-      openai: o,
-      cli: parsedCli,
-    }
+  const view: AiSettingsView = {
+    active,
+    suggestOnIdle: suggestOnIdle === true,
+    anthropic: a,
+    openai: o,
+    suggestModel: asSuggestModel(suggestModel),
   }
-  return { active, suggestOnIdle: suggestOnIdle === true, anthropic: a, openai: o }
+  if (cli === undefined) return view
+  const parsedCli = asCliViews(cli)
+  return parsedCli ? { ...view, cli: parsedCli } : undefined
+}
+
+export type AiTier = 'fast' | 'best'
+
+/** One model in a provider's list (the `ai_models` command). */
+export interface AiCatalogModel {
+  id: string
+  name: string
+  tier: AiTier | null
+  /** Lowest first; empty when the provider does not say. */
+  reasoning: readonly string[]
+  /** The level the model uses when none is chosen, when the provider says. */
+  defaultReasoning: string | null
+}
+
+/** A provider's models, or the code it failed with; one provider failing leaves the others. */
+export type AiCatalog =
+  | {
+      state: 'ready'
+      models: readonly AiCatalogModel[]
+      /** The model used when Settings names none; null leaves it to the tool. */
+      defaultModel: string | null
+    }
+  | { state: 'failed'; code: string }
+
+export type AiCatalogs = Record<AiApiProviderId, AiCatalog> &
+  Partial<Record<AiCliProviderId, AiCatalog>>
+
+/** A Try It answer (the `ai_try` command). */
+export interface AiTried {
+  provider: AiProviderId
+  model: string
+  elapsedMs: number
+}
+
+const CODE = /^[EW]_[A-Z0-9_]+$/
+
+function asCatalogModel(value: unknown): AiCatalogModel | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { id, name, tier, reasoning, defaultReasoning } = value as Record<string, unknown>
+  if (typeof id !== 'string' || id === '' || typeof name !== 'string') return undefined
+  const levels = Array.isArray(reasoning)
+    ? reasoning.filter((level): level is string => asReasoning(level) !== null)
+    : []
+  const fallback = asReasoning(defaultReasoning)
+  return {
+    id,
+    name: name === '' ? id : name,
+    tier: tier === 'fast' || tier === 'best' ? tier : null,
+    reasoning: levels,
+    defaultReasoning: fallback !== null && levels.includes(fallback) ? fallback : null,
+  }
+}
+
+function asCatalog(value: unknown): AiCatalog | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { state, models, defaultModel, code } = value as Record<string, unknown>
+  if (state === 'failed') {
+    return typeof code === 'string' && CODE.test(code) ? { state, code } : undefined
+  }
+  if (state !== 'ready' || !Array.isArray(models)) return undefined
+  return {
+    state,
+    models: models.map(asCatalogModel).filter((m): m is AiCatalogModel => m !== undefined),
+    defaultModel: typeof defaultModel === 'string' && defaultModel !== '' ? defaultModel : null,
+  }
+}
+
+export function asAiCatalogs(value: unknown): AiCatalogs | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const fields = value as Record<string, unknown>
+  const anthropic = asCatalog(fields.anthropic)
+  const openai = asCatalog(fields.openai)
+  if (!anthropic || !openai) return undefined
+  const catalogs: AiCatalogs = { anthropic, openai }
+  for (const id of AI_CLI_PROVIDERS) {
+    if (fields[id] === undefined || fields[id] === null) continue
+    const catalog = asCatalog(fields[id])
+    if (!catalog) return undefined
+    catalogs[id] = catalog
+  }
+  return catalogs
+}
+
+export function asAiTried(value: unknown): AiTried | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { provider, model, elapsedMs } = value as Record<string, unknown>
+  if (!isProvider(provider) || typeof model !== 'string' || !isCount(elapsedMs)) return undefined
+  return { provider, model, elapsedMs }
 }

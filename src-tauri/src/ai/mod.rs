@@ -1,6 +1,7 @@
 //! Rust holds the keys and makes the request, so the web view never sees a key; the caller decides whether content may be sent (src/core/aiProvider.ts).
 
 mod anthropic;
+pub mod catalog;
 #[cfg(any(desktop, test))]
 pub(crate) mod cli;
 pub mod keychain;
@@ -10,9 +11,9 @@ pub mod settings;
 mod transport;
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::ipc::Channel;
@@ -23,14 +24,21 @@ pub use cli::CliState;
 
 use crate::licence::Gate;
 use crate::task;
+use catalog::{Catalog, CatalogModel};
 use keychain::KeyStore;
 use provider::{
-    Completion, GenerateRequest, Generated, Partial, Prepared, ProviderId, check_request, provider,
-    status_error,
+    Completion, GenerateRequest, Generated, Message, Partial, Prepared, ProviderId, Purpose, Role,
+    check_request, provider, status_error,
 };
-use settings::{AiSettings, SettingsStore, StoredSettings};
+use settings::{AiSettings, SettingsStore, StoredSettings, SuggestModel};
 
 const FAILED: &str = "E_AI_FAILED";
+/// A model list that takes longer than this is not worth waiting for in Settings.
+const CATALOG_TIMEOUT: Duration = Duration::from_secs(15);
+/// Try It's whole prompt: it carries no note text.
+const TRY_PROMPT: &str = "Reply with the word OK.";
+const TRY_MAX_TOKENS: u32 = 1024;
+const TRY_TIMEOUT_SECS: u32 = 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +57,7 @@ pub struct ProviderView {
     pub default_endpoint: &'static str,
     pub default_model: &'static str,
     pub key: KeyState,
+    pub reasoning: Option<String>,
 }
 
 #[cfg(any(desktop, test))]
@@ -57,6 +66,7 @@ pub struct ProviderView {
 pub struct CliProviderView {
     pub state: CliState,
     pub model: String,
+    pub reasoning: Option<String>,
 }
 
 #[cfg(any(desktop, test))]
@@ -78,6 +88,48 @@ pub struct Snapshot {
     #[cfg(any(desktop, test))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cli: Option<CliViews>,
+    /// Absent: next edit suggestions use the Model setting.
+    pub suggest_model: Option<SuggestModel>,
+}
+
+/// Each provider's models; a provider that could not list them carries its own failure code.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Catalogs {
+    pub anthropic: Catalog,
+    pub openai: Catalog,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claude_cli: Option<Catalog>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codex_cli: Option<Catalog>,
+}
+
+/// A Try It answer: how long the provider took to reply.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tried {
+    pub provider: ProviderId,
+    pub model: String,
+    pub elapsed_ms: u64,
+}
+
+/// The settings a catalog was fetched under; a cached list is good only while they still hold.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CatalogSource {
+    endpoint: String,
+    epoch: u64,
+}
+
+struct CachedCatalog {
+    source: CatalogSource,
+    models: Vec<CatalogModel>,
+}
+
+/// The provider, model and reasoning a request goes to; `model` None is the provider's Model setting, and empty its default.
+struct Choice {
+    id: ProviderId,
+    model: Option<String>,
+    reasoning: Option<String>,
 }
 
 pub struct Ai {
@@ -86,6 +138,9 @@ pub struct Ai {
     licence: Gate,
     timeout: Duration,
     streams: Mutex<Streams>,
+    catalogs: Mutex<HashMap<ProviderId, CachedCatalog>>,
+    /// Bumped when a key or the command-line tools change, so no catalog fetched before is served after.
+    catalog_epoch: AtomicU64,
     #[cfg(any(desktop, test))]
     cli: Option<Arc<dyn cli::CliBackend>>,
     #[cfg(any(desktop, test))]
@@ -187,6 +242,8 @@ impl Ai {
             licence,
             timeout: transport::TIMEOUT,
             streams: Mutex::new(Streams::default()),
+            catalogs: Mutex::new(HashMap::new()),
+            catalog_epoch: AtomicU64::new(0),
             #[cfg(any(desktop, test))]
             cli: None,
             #[cfg(any(desktop, test))]
@@ -246,6 +303,7 @@ impl Ai {
             if let Ok(mut guard) = self.cli_states.lock() {
                 *guard = Some(probed);
             }
+            self.forget_catalogs();
         }
         self.snapshot()
     }
@@ -291,6 +349,7 @@ impl Ai {
                     .and_then(|impl_| impl_.default_model())
                     .unwrap_or_default(),
                 key: self.key_state(id),
+                reasoning: settings.reasoning(id).map(str::to_string),
             }
         };
         let anthropic = view(ProviderId::Anthropic);
@@ -300,10 +359,14 @@ impl Ai {
             claude_cli: CliProviderView {
                 state: states.claude_cli,
                 model: settings.claude_cli.model.clone(),
+                reasoning: settings
+                    .reasoning(ProviderId::ClaudeCli)
+                    .map(str::to_string),
             },
             codex_cli: CliProviderView {
                 state: states.codex_cli,
                 model: settings.codex_cli.model.clone(),
+                reasoning: settings.reasoning(ProviderId::CodexCli).map(str::to_string),
             },
         });
         Snapshot {
@@ -313,6 +376,7 @@ impl Ai {
             openai: view(ProviderId::Openai),
             #[cfg(any(desktop, test))]
             cli,
+            suggest_model: settings.suggest_model.get().cloned(),
         }
     }
 
@@ -320,7 +384,12 @@ impl Ai {
     pub fn set_settings(&self, settings: AiSettings) -> Result<Snapshot, &'static str> {
         let settings = settings.validated()?;
         #[cfg(not(desktop))]
-        if settings.active.is_cli() {
+        if settings.active.is_cli()
+            || settings
+                .suggest_model
+                .get()
+                .is_some_and(|suggest| suggest.provider.is_cli())
+        {
             return Err("E_AI_PROVIDER_UNAVAILABLE");
         }
         let before = self.settings.get();
@@ -335,6 +404,7 @@ impl Ai {
             }
         }
         self.settings.set(settings)?;
+        self.forget_catalogs();
         Ok(self.snapshot())
     }
 
@@ -343,6 +413,7 @@ impl Ai {
             return Err("E_AI_REQUEST_INVALID");
         }
         self.keys.set(id, keychain::clean_key(key)?)?;
+        self.forget_catalogs();
         Ok(self.snapshot())
     }
 
@@ -351,12 +422,21 @@ impl Ai {
             return Err("E_AI_REQUEST_INVALID");
         }
         self.keys.clear(id)?;
+        self.forget_catalogs();
         Ok(self.snapshot())
     }
 
     /// Every AI request, from any feature and to any provider, is sent here or by `stream` and nowhere else.
     pub fn generate(&self, request: &GenerateRequest) -> Result<Generated, &'static str> {
-        let (prepared, call) = self.prepare(request, false)?;
+        self.generate_with(request, None)
+    }
+
+    fn generate_with(
+        &self,
+        request: &GenerateRequest,
+        pick: Option<Choice>,
+    ) -> Result<Generated, &'static str> {
+        let (prepared, call) = self.prepare(request, false, pick)?;
         match call {
             PreparedCall::Http(call) => {
                 let _ = prepared;
@@ -384,9 +464,20 @@ impl Ai {
             PreparedCall::Cli {
                 id,
                 model,
+                reasoning,
                 timeout,
                 backend,
-            } => match backend.run(id, &model, &prepared, timeout, &|| false, &mut |_| true) {
+            } => match backend.run(
+                id,
+                cli::CliChoice {
+                    model: &model,
+                    reasoning: reasoning.as_deref(),
+                },
+                &prepared,
+                timeout,
+                &|| false,
+                &mut |_| true,
+            ) {
                 Ok(done) => {
                     log::info!("I_AI_GENERATED provider={}", id.as_str());
                     Ok(Generated {
@@ -440,7 +531,7 @@ impl Ai {
                 .as_ref()
                 .is_some_and(|guard| guard.flag.load(Ordering::SeqCst))
         };
-        let (prepared, call) = self.prepare(request, true)?;
+        let (prepared, call) = self.prepare(request, true, None)?;
         if is_cancelled() {
             return Err("E_AI_CANCELLED");
         }
@@ -484,9 +575,20 @@ impl Ai {
             PreparedCall::Cli {
                 id,
                 model,
+                reasoning,
                 timeout,
                 backend,
-            } => match backend.run(id, &model, &prepared, timeout, &is_cancelled, &mut on_text) {
+            } => match backend.run(
+                id,
+                cli::CliChoice {
+                    model: &model,
+                    reasoning: reasoning.as_deref(),
+                },
+                &prepared,
+                timeout,
+                &is_cancelled,
+                &mut on_text,
+            ) {
                 Ok(done) => {
                     log::info!("I_AI_STREAMED provider={}", id.as_str());
                     Ok(Generated {
@@ -520,18 +622,41 @@ impl Ai {
         guard.cancelled_early.len()
     }
 
+    /// Where a request goes: the provider it names, else the suggestion model for a suggestion, else the active provider.
+    fn choose(&self, request: &GenerateRequest, stored: &StoredSettings) -> Choice {
+        let settings = &stored.settings;
+        let stored_choice = |id: ProviderId| Choice {
+            id,
+            model: None,
+            reasoning: settings.reasoning(id).map(str::to_string),
+        };
+        if let Some(id) = request.provider {
+            return stored_choice(id);
+        }
+        if request.purpose == Purpose::Suggest
+            && let Some(suggest) = settings.suggest_model.get()
+        {
+            return Choice {
+                id: suggest.provider,
+                model: (!suggest.model.is_empty()).then(|| suggest.model.clone()),
+                reasoning: suggest.reasoning.clone(),
+            };
+        }
+        stored_choice(self.effective_active(stored, self.key_state(ProviderId::Anthropic)))
+    }
+
     fn prepare<'a>(
         &self,
         request: &'a GenerateRequest,
         stream: bool,
+        pick: Option<Choice>,
     ) -> Result<(Prepared<'a>, PreparedCall), &'static str> {
         self.licence.require()?;
         let mut prepared = check_request(request)?;
         prepared.stream = stream;
         let stored = self.settings.get_stored();
-        let id = request.provider.unwrap_or_else(|| {
-            self.effective_active(&stored, self.key_state(ProviderId::Anthropic))
-        });
+        let choice = pick.unwrap_or_else(|| self.choose(request, &stored));
+        let id = choice.id;
         let timeout = request.timeout_secs.map_or(self.timeout, |s| {
             self.timeout.min(Duration::from_secs(s.into()))
         });
@@ -555,12 +680,15 @@ impl Ai {
                     );
                     return Err("E_AI_PROVIDER_UNAVAILABLE");
                 };
-                let model = stored.settings.cli_model(id).to_string();
+                let model = choice
+                    .model
+                    .unwrap_or_else(|| stored.settings.cli_model(id).to_string());
                 return Ok((
                     prepared,
                     PreparedCall::Cli {
                         id,
                         model,
+                        reasoning: choice.reasoning,
                         timeout,
                         backend,
                     },
@@ -569,13 +697,20 @@ impl Ai {
         }
         let implementation = provider(id).ok_or("E_AI_PROVIDER_UNAVAILABLE")?;
         let entry = stored.settings.of(id).ok_or("E_AI_PROVIDER_UNAVAILABLE")?;
-        let model = if entry.model.is_empty() {
+        let named = choice.model.as_deref().unwrap_or(&entry.model);
+        let model = if named.is_empty() {
             implementation.default_model().ok_or("E_AI_MODEL_MISSING")?
         } else {
-            entry.model.as_str()
+            named
         };
         let key = self.keys.get(id)?.ok_or("E_AI_KEY_MISSING")?;
-        let wire = implementation.build(&entry.endpoint, model, &key, &prepared);
+        let wire = implementation.build(
+            &entry.endpoint,
+            model,
+            &key,
+            choice.reasoning.as_deref(),
+            &prepared,
+        );
         Ok((
             prepared,
             PreparedCall::Http(Call {
@@ -587,6 +722,160 @@ impl Ai {
             }),
         ))
     }
+
+    /// Sends Try It's fixed prompt to `id` with this model and reasoning, and times the answer.
+    pub fn try_model(
+        &self,
+        id: ProviderId,
+        model: &str,
+        reasoning: Option<&str>,
+    ) -> Result<Tried, &'static str> {
+        let model = settings::clean_model(model)?;
+        let reasoning = settings::clean_reasoning(reasoning)?;
+        let request = GenerateRequest {
+            provider: Some(id),
+            system: None,
+            messages: vec![Message {
+                role: Role::User,
+                content: TRY_PROMPT.to_string(),
+            }],
+            max_tokens: Some(TRY_MAX_TOKENS),
+            timeout_secs: Some(TRY_TIMEOUT_SECS),
+            purpose: Purpose::Main,
+        };
+        let started = Instant::now();
+        let generated = self.generate_with(
+            &request,
+            Some(Choice {
+                id,
+                model: Some(model),
+                reasoning,
+            }),
+        )?;
+        let elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        log::info!("I_AI_TRIED provider={} ms={elapsed_ms}", id.as_str());
+        Ok(Tried {
+            provider: id,
+            model: generated.model,
+            elapsed_ms,
+        })
+    }
+
+    fn forget_catalogs(&self) {
+        self.catalog_epoch.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// Each provider's models, from the cache unless `refresh`; a provider that fails does not fail the others.
+    pub fn models(&self, refresh: bool) -> Catalogs {
+        let settings = self.settings.get();
+        let epoch = self.catalog_epoch.load(Ordering::SeqCst);
+        std::thread::scope(|scope| {
+            let fetch = |id: ProviderId| {
+                let settings = &settings;
+                scope.spawn(move || self.catalog(id, settings, epoch, refresh))
+            };
+            let anthropic = fetch(ProviderId::Anthropic);
+            let openai = fetch(ProviderId::Openai);
+            #[cfg(any(desktop, test))]
+            let (claude_cli, codex_cli) = if self.cli.is_some() {
+                (
+                    Some(fetch(ProviderId::ClaudeCli)),
+                    Some(fetch(ProviderId::CodexCli)),
+                )
+            } else {
+                (None, None)
+            };
+            let joined = |handle: std::thread::ScopedJoinHandle<'_, Catalog>| {
+                handle.join().unwrap_or(Catalog::Failed { code: FAILED })
+            };
+            Catalogs {
+                anthropic: joined(anthropic),
+                openai: joined(openai),
+                #[cfg(any(desktop, test))]
+                claude_cli: claude_cli.map(joined),
+                #[cfg(any(desktop, test))]
+                codex_cli: codex_cli.map(joined),
+                #[cfg(not(any(desktop, test)))]
+                claude_cli: None,
+                #[cfg(not(any(desktop, test)))]
+                codex_cli: None,
+            }
+        })
+    }
+
+    fn catalog(&self, id: ProviderId, settings: &AiSettings, epoch: u64, refresh: bool) -> Catalog {
+        let source = CatalogSource {
+            endpoint: settings
+                .of(id)
+                .map_or_else(String::new, |entry| entry.endpoint.clone()),
+            epoch,
+        };
+        let default_model = provider(id).and_then(|p| p.default_model());
+        if !refresh {
+            let cache = self.catalogs.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(hit) = cache.get(&id).filter(|hit| hit.source == source) {
+                return Catalog::Ready {
+                    models: hit.models.clone(),
+                    default_model,
+                };
+            }
+        }
+        match self.fetch_models(id, settings) {
+            Ok(models) => {
+                log::info!(
+                    "I_AI_MODELS provider={} count={}",
+                    id.as_str(),
+                    models.len()
+                );
+                let mut cache = self.catalogs.lock().unwrap_or_else(|e| e.into_inner());
+                cache.insert(
+                    id,
+                    CachedCatalog {
+                        source,
+                        models: models.clone(),
+                    },
+                );
+                Catalog::Ready {
+                    models,
+                    default_model,
+                }
+            }
+            Err(code) => {
+                log::warn!("W_AI_MODELS_FAILED provider={} code={code}", id.as_str());
+                Catalog::Failed { code }
+            }
+        }
+    }
+
+    fn fetch_models(
+        &self,
+        id: ProviderId,
+        settings: &AiSettings,
+    ) -> Result<Vec<CatalogModel>, &'static str> {
+        if id.is_cli() {
+            #[cfg(any(desktop, test))]
+            {
+                let backend = self.cli.as_ref().ok_or("E_AI_PROVIDER_UNAVAILABLE")?;
+                return backend.models(id);
+            }
+            #[cfg(not(any(desktop, test)))]
+            return Err("E_AI_PROVIDER_UNAVAILABLE");
+        }
+        let implementation = provider(id).ok_or("E_AI_PROVIDER_UNAVAILABLE")?;
+        let entry = settings.of(id).ok_or("E_AI_PROVIDER_UNAVAILABLE")?;
+        let key = self.keys.get(id)?.ok_or("E_AI_KEY_MISSING")?;
+        let wire = implementation.models_request(&entry.endpoint, &key);
+        let answer = transport::get(&wire, self.timeout.min(CATALOG_TIMEOUT))?;
+        if !(200..300).contains(&answer.status) {
+            log::warn!(
+                "W_AI_HTTP provider={} status={}",
+                id.as_str(),
+                answer.status
+            );
+            return Err(status_error(answer.status));
+        }
+        implementation.parse_models(&answer.body)
+    }
 }
 
 enum PreparedCall {
@@ -595,6 +884,7 @@ enum PreparedCall {
     Cli {
         id: ProviderId,
         model: String,
+        reasoning: Option<String>,
         timeout: Duration,
         backend: Arc<dyn cli::CliBackend>,
     },
@@ -739,6 +1029,26 @@ pub async fn ai_key_clear(
     provider: ProviderId,
 ) -> Result<Snapshot, String> {
     Ok(ai_key_clear_inner(&ai, provider).await?)
+}
+
+/// Each provider's models for the model picker; `refresh` fetches them again instead of using the last lists.
+#[tauri::command]
+pub async fn ai_models(ai: State<'_, Arc<Ai>>, refresh: bool) -> Result<Catalogs, String> {
+    task::blocking_with(&ai, FAILED, move |ai| Ok(ai.models(refresh))).await
+}
+
+/// Try It: a fixed prompt with no note text, sent to one provider and model.
+#[tauri::command]
+pub async fn ai_try(
+    ai: State<'_, Arc<Ai>>,
+    provider: ProviderId,
+    model: String,
+    reasoning: Option<String>,
+) -> Result<Tried, String> {
+    task::blocking_with(&ai, FAILED, move |ai| {
+        ai.try_model(provider, &model, reasoning.as_deref())
+    })
+    .await
 }
 
 #[cfg(desktop)]

@@ -3,6 +3,7 @@
 use serde::Deserialize;
 use serde_json::json;
 
+use super::catalog::{CatalogModel, parse_openai};
 use super::provider::{
     Completion, Partial, Prepared, Provider, Role, Stop, Usage, WireRequest, join_url,
 };
@@ -64,7 +65,14 @@ impl Provider for OpenAi {
         None
     }
 
-    fn build(&self, endpoint: &str, model: &str, key: &str, request: &Prepared) -> WireRequest {
+    fn build(
+        &self,
+        endpoint: &str,
+        model: &str,
+        key: &str,
+        reasoning: Option<&str>,
+        request: &Prepared,
+    ) -> WireRequest {
         let system = request
             .system
             .map(|s| json!({ "role": "system", "content": s }));
@@ -86,6 +94,9 @@ impl Provider for OpenAi {
         if request.stream {
             body["stream"] = json!(true);
         }
+        if let Some(effort) = reasoning {
+            body["reasoning_effort"] = json!(effort);
+        }
         WireRequest {
             url: join_url(endpoint, "chat/completions"),
             headers: vec![
@@ -94,6 +105,18 @@ impl Provider for OpenAi {
             ],
             body: body.to_string().into_bytes(),
         }
+    }
+
+    fn models_request(&self, endpoint: &str, key: &str) -> WireRequest {
+        WireRequest {
+            url: join_url(endpoint, "models"),
+            headers: vec![("authorization", format!("Bearer {key}"))],
+            body: Vec::new(),
+        }
+    }
+
+    fn parse_models(&self, body: &[u8]) -> Result<Vec<CatalogModel>, &'static str> {
+        parse_openai(body)
     }
 
     fn parse(&self, body: &[u8]) -> Result<Completion, &'static str> {
