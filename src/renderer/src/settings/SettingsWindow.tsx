@@ -31,7 +31,7 @@ import {
 import { PluginsSection } from './PluginsSection'
 import { PreviewSection } from './PreviewSection'
 import { searchSettings, type SettingsResult } from './search'
-import { focusSetting, searchKey } from './searchNavigation'
+import { searchKey, waitForSetting } from './searchNavigation'
 import { isImeKey } from '../ime'
 import { SyncSection } from './SyncSection'
 import { UsageSection } from './UsageSection'
@@ -76,7 +76,8 @@ export function SettingsWindow() {
   const [forward, setForward] = useState<PaneId[]>([])
   const [query, setQuery] = useState('')
   const [resultIndex, setResultIndex] = useState(0)
-  const [target, setTarget] = useState<SettingsResult | null>(null)
+  const [target, setTarget] = useState<{ result: SettingsResult; request: number } | null>(null)
+  const targetRequest = useRef(0)
   const [scrolled, setScrolled] = useState(false)
   const [toolbarEnd, setToolbarEnd] = useState<HTMLDivElement | null>(null)
   const body = useRef<HTMLDivElement>(null)
@@ -85,6 +86,7 @@ export function SettingsWindow() {
 
   /** Shows `next`; a pane change records the one left behind for Back. */
   const show = (next: PaneId, record = true) => {
+    setTarget(null)
     if (next === pane) return
     scrolls.current.set(pane, body.current?.scrollTop ?? 0)
     if (record) {
@@ -96,6 +98,7 @@ export function SettingsWindow() {
   }
 
   const goBack = () => {
+    setTarget(null)
     const previous = back.at(-1)
     if (previous === undefined) return
     scrolls.current.set(pane, body.current?.scrollTop ?? 0)
@@ -106,6 +109,7 @@ export function SettingsWindow() {
   }
 
   const goForward = () => {
+    setTarget(null)
     const next = forward[0]
     if (next === undefined) return
     scrolls.current.set(pane, body.current?.scrollTop ?? 0)
@@ -121,14 +125,12 @@ export function SettingsWindow() {
   }, [pane])
 
   useLayoutEffect(() => {
-    if (!target) return
-    if (body.current) {
-      if (target.paneLabel) focusSetting(body.current, t(target.label))
-      else {
-        body.current.tabIndex = -1
-        body.current.focus({ preventScroll: true })
-      }
-    }
+    if (!target || !body.current) return
+    return waitForSetting(
+      body.current,
+      target.result.paneLabel ? t(target.result.label) : undefined,
+      () => setTarget((current) => (current === target ? null : current)),
+    )
   }, [target])
 
   const latestShow = useRef(show)
@@ -184,7 +186,7 @@ export function SettingsWindow() {
 
   const openResult = (result: SettingsResult) => {
     show(result.pane)
-    setTarget(result)
+    setTarget({ result, request: ++targetRequest.current })
     setQuery('')
     setResultIndex(0)
   }
@@ -194,6 +196,7 @@ export function SettingsWindow() {
     if (!action) return
     event.preventDefault()
     if (action.type === 'clear') {
+      setTarget(null)
       setQuery('')
       setResultIndex(0)
     } else if (action.type === 'open') openResult(results[action.index]!)
@@ -231,6 +234,7 @@ export function SettingsWindow() {
               searching && results.length ? `settings-result-${resultIndex}` : undefined
             }
             onChange={(e) => {
+              setTarget(null)
               setQuery(e.target.value)
               setResultIndex(0)
             }}

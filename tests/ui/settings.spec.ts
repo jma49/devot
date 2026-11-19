@@ -1199,15 +1199,71 @@ test('search keys highlight results rather than changing categories', async ({ p
   await expect(page.getByRole('slider', { name: 'Material Transparency' })).toBeFocused()
 })
 
+test('search waits for an async setting and cancels targeting when the query changes', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.devotIpcMocks = {
+      http_api_get: () =>
+        new Promise((resolve) => {
+          window.addEventListener(
+            'release-http-api',
+            () =>
+              resolve({
+                enabled: false,
+                port: 27484,
+                scope: 'read',
+                listening: null,
+                problem: null,
+                token: 'unset',
+              }),
+            { once: true },
+          )
+        }),
+    }
+  })
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  await field.fill('port')
+  await page.getByRole('listbox').getByRole('option', { name: /^Port/ }).click()
+  await expect.poll(() => calls(page, 'http_api_get').then((items) => items.length)).toBe(1)
+  await expect(page.locator('.settings-pane')).toBeFocused()
+  await page.evaluate(() => window.dispatchEvent(new Event('release-http-api')))
+  const port = page.getByRole('spinbutton', { name: 'Port', exact: true })
+  await expect(port).toBeFocused()
+  await expect(port).toBeInViewport()
+  await field.fill('port')
+  await page.getByRole('listbox').getByRole('option', { name: /^Port/ }).press('Enter')
+  await expect(port).toBeFocused()
+  await field.focus()
+  await expect(page.locator('.settings-pane')).not.toHaveAttribute('tabindex')
+  await tab(page, 'General').click()
+  await field.fill('port')
+  await page.getByRole('listbox').getByRole('option', { name: /^Port/ }).press('Enter')
+  await expect.poll(() => calls(page, 'http_api_get').then((items) => items.length)).toBe(2)
+  await field.fill('different query')
+  await page.evaluate(() => window.dispatchEvent(new Event('release-http-api')))
+  await expect(port).toBeVisible()
+  await expect(field).toBeFocused()
+})
+
 test('settings search leaves Enter and Escape to the input method', async ({ page }) => {
   await page.goto('/settings.html?pane=general')
   const field = page.getByRole('searchbox', { name: 'Search Settings' })
   await field.fill('transparency')
+  const options = page.getByRole('listbox').getByRole('option')
+  await field.press('ArrowDown')
   for (const key of ['Enter', 'Escape']) {
     await field.dispatchEvent('keydown', { key, isComposing: true })
     await expect(field).toHaveValue('transparency')
     await field.dispatchEvent('keydown', { key, keyCode: 229 })
     await expect(field).toHaveValue('transparency')
+  }
+  for (const key of ['ArrowUp', 'ArrowDown']) {
+    await field.dispatchEvent('keydown', { key, isComposing: true })
+    await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
+    await field.dispatchEvent('keydown', { key, keyCode: 229 })
+    await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
   }
   await expect(page.getByRole('tabpanel', { name: 'General' })).toBeVisible()
   await field.press('Escape')

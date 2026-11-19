@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest'
-import { focusSetting, searchKey } from './searchNavigation'
+import { focusSetting, searchKey, waitForSetting } from './searchNavigation'
 
 describe('settings search navigation', () => {
   it('moves within results and opens the highlighted result', () => {
@@ -43,6 +43,52 @@ describe('settings search navigation', () => {
     row.scrollIntoView = vi.fn<HTMLElement['scrollIntoView']>()
     expect(focusSetting(body, 'Unavailable')).toBe(true)
     expect(document.activeElement).toBe(row)
+    row.blur()
+    expect(row.hasAttribute('tabindex')).toBe(false)
     body.remove()
+  })
+
+  it('retries a pending setting when its async row appears and can cancel the request', async () => {
+    const body = document.createElement('div')
+    body.scrollIntoView = vi.fn<HTMLElement['scrollIntoView']>()
+    document.body.append(body)
+    const done = vi.fn<() => void>()
+    const cancel = waitForSetting(body, 'Port', done)
+    await Promise.resolve()
+    expect(document.activeElement).toBe(body)
+    const row = document.createElement('div')
+    row.className = 'setting'
+    row.innerHTML = '<label>Port</label><input>'
+    row.scrollIntoView = vi.fn<HTMLElement['scrollIntoView']>()
+    body.append(row)
+    await vi.waitFor(() => expect(document.activeElement).toBe(row.querySelector('input')))
+    expect(done).toHaveBeenCalledOnce()
+    cancel()
+    const cancelled = vi.fn<() => void>()
+    const stop = waitForSetting(body, 'Other', cancelled)
+    stop()
+    await Promise.resolve()
+    expect(cancelled).not.toHaveBeenCalled()
+    body.remove()
+  })
+
+  it('expires a missing target and stops observing on cancellation', async () => {
+    vi.useFakeTimers()
+    const body = document.createElement('div')
+    document.body.append(body)
+    const done = vi.fn<() => void>()
+    const cancel = waitForSetting(body, 'Missing', done)
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(done).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+    cancel()
+    const cancelled = vi.fn<() => void>()
+    const stop = waitForSetting(body, 'Missing', cancelled)
+    stop()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(cancelled).not.toHaveBeenCalled()
+    body.remove()
+    vi.useRealTimers()
   })
 })

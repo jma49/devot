@@ -24,9 +24,42 @@ export function focusSetting(body: HTMLElement, label: string): boolean {
     'input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href], [tabindex="0"]',
   )
   if (control) control.focus({ preventScroll: true })
-  else {
-    target.tabIndex = -1
-    target.focus({ preventScroll: true })
-  }
+  else focusTemporarily(target)
   return true
+}
+
+export function focusTemporarily(target: HTMLElement) {
+  const temporary = !target.hasAttribute('tabindex')
+  if (temporary) {
+    target.tabIndex = -1
+    target.addEventListener('blur', () => target.removeAttribute('tabindex'), { once: true })
+  }
+  target.focus({ preventScroll: true })
+}
+
+export function waitForSetting(body: HTMLElement, label: string | undefined, done: () => void) {
+  let live = true
+  const stop = () => {
+    live = false
+    observer.disconnect()
+    window.clearTimeout(timeout)
+  }
+  const tryFocus = () => {
+    if (!live) return
+    if (label !== undefined && !focusSetting(body, label)) {
+      focusTemporarily(body)
+      return
+    }
+    if (label === undefined) focusTemporarily(body)
+    stop()
+    done()
+  }
+  const observer = new MutationObserver(tryFocus)
+  observer.observe(body, { childList: true, subtree: true, characterData: true })
+  const timeout = window.setTimeout(() => {
+    stop()
+    done()
+  }, 5000)
+  queueMicrotask(tryFocus)
+  return stop
 }
