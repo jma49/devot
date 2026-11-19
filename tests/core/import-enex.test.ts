@@ -323,21 +323,31 @@ it.each([
   },
 )
 
-it('preserves an HTML table image whose alt text contains a pipe', async () => {
-  const attachment = convert({ name: 'a.enex', text: sample })[0]!.attachments![0]!
-  const { report, storage } = await run('', {
-    converted: {
-      title: 'Table image',
-      html: '<table><tr><th>Image</th><th>Text</th></tr><tr><td><img src="attachment:0" alt="left | right"></td><td>Keep</td></tr></table>',
-      attachments: [attachment],
-    },
-  })
-  const note = await storage.getNote(Object.values(report.noteIds)[0]!)
-  expect(imageLinks(note!.bodyMd)).toHaveLength(1)
-  expect(note?.bodyMd).toContain('![left \\| right]')
-  expect(note?.bodyMd).toContain('devot://file/')
-  expect(note?.bodyMd).toContain('Keep')
-})
+it.each(['HTML', 'Markdown'])(
+  'preserves a %s table image whose alt text contains a pipe',
+  async (format) => {
+    const attachment = convert({ name: 'a.enex', text: sample })[0]!.attachments![0]!
+    const { report, storage } = await run('', {
+      converted: {
+        title: 'Table image',
+        ...(format === 'HTML'
+          ? {
+              html: '<table><tr><th>Image</th><th>Text</th></tr><tr><td><img src="attachment:0" alt="left | right"></td><td>Keep</td></tr></table>',
+            }
+          : {
+              markdown:
+                '| Image | Text |\n| --- | --- |\n| ![left \\| right][image] | Keep |\n\n[image]: attachment:0',
+            }),
+        attachments: [attachment],
+      },
+    })
+    const note = await storage.getNote(Object.values(report.noteIds)[0]!)
+    expect(imageLinks(note!.bodyMd)).toHaveLength(1)
+    expect(note?.bodyMd).toContain('![left \\| right]')
+    expect(note?.bodyMd).toContain('devot://file/')
+    expect(note?.bodyMd).toContain('Keep')
+  },
+)
 
 it('keeps legacy single-note Markdown imports in the destination without a notebook', async () => {
   const { report, storage, destination } = await run('', {
