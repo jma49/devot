@@ -14,7 +14,7 @@ it('loads the preview surface on demand and keeps forwarding note changes and em
   const host = document.createElement('div')
   const root = createRoot(host)
   const core = {} as Core
-  const onOpenNote = vi.fn()
+  const onOpenNote = vi.fn<(id: string) => void>()
   try {
     await act(async () => {
       root.render(<Preview core={core} markdown="first" onOpenNote={onOpenNote} />)

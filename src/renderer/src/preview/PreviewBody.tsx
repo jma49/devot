@@ -60,7 +60,7 @@ import { CodeCopyButtons, pieceCodeBlocks } from './CodeCopy'
 import { afterPaint } from './afterPaint'
 import { createOpening } from './opening'
 import { latestOnly } from './latest'
-import { warmMermaid } from './mermaid'
+import { hasCachedMermaid, warmMermaid } from './mermaid'
 import {
   previewScrollPane,
   shiftScroll,
@@ -235,7 +235,9 @@ export function Preview({
   const afterBuild = useCallback(() => {
     const el = host.current
     if (!el) return
-    mounter.mount(el, { ...islandContext.current, eagerFirstMermaid: true }, () =>
+    const long = shown.current.length > LONG_NOTE_CHARACTERS
+    const eager = long && hasCachedMermaid(shown.current, islandContext.current)
+    mounter.mount(el, { ...islandContext.current, eagerFirstMermaid: eager }, () =>
       scroll.current?.changed(),
     )
     const blocks = pieceCodeBlocks(pieces.current)
@@ -246,6 +248,16 @@ export function Preview({
       afterPaint(() => {
         opening.clear('commit')
         if (blocks.some((block) => !host.current?.contains(block))) return
+        const release =
+          opening.initial && long ? warmMermaid(shown.current, islandContext.current) : undefined
+        if (release) opening.warm(release)
+        try {
+          mounter.mount(el, { ...islandContext.current, eagerFirstMermaid: true }, () =>
+            scroll.current?.changed(),
+          )
+        } finally {
+          if (release) opening.release(release)
+        }
         setCodes((now) => (sameList(now, blocks) ? now : blocks))
       }),
     )
@@ -421,19 +433,15 @@ export function Preview({
         input,
         ticket,
         ofNote,
-        warming,
       }: {
         input: RenderInput
         ticket: ReturnType<typeof opening.begin>['request']
         ofNote: string | undefined
-        warming: boolean
       }) => {
         if (!opening.current(ticket)) return undefined
         const source = input.read()
         const valid = () =>
           opening.current(ticket) && ofNote === noteNow.current && source === input.read()
-        const release = warming ? warmMermaid(source, islandContext.current) : undefined
-        if (release) opening.warm(release)
         const ask = async () => {
           const kept =
             ofNote && hasFence(source)
@@ -442,7 +450,7 @@ export function Preview({
               : undefined
           if (!valid()) return undefined
           const languages = keptLanguages(kept ?? [])
-          const next = await renderLivePreview(
+          const rendered = renderLivePreview(
             source,
             {
               labels: previewLabels(),
@@ -455,16 +463,13 @@ export function Preview({
             `${ofNote ?? ''} ${linksChanged.current}`,
             input.head ? HEAD_CHARACTERS : undefined,
           )
+          const next = await rendered
           return valid() ? { next, input, source, ofNote, ticket } : undefined
         }
-        return ask()
-          .catch((error: unknown) => {
-            if (valid()) throw error
-            return undefined
-          })
-          .finally(() => {
-            if (release) opening.release(release)
-          })
+        return ask().catch((error: unknown) => {
+          if (valid()) throw error
+          return undefined
+        })
       },
       (answer) => {
         if (!answer || !host.current) return
@@ -506,18 +511,7 @@ export function Preview({
         }
         keepRestoring()
         if (hasPending(pieces.current)) buildLater()
-        if (next.partial) {
-          const frame = requestAnimationFrame(() => {
-            opening.clear('advance')
-            const timer = setTimeout(() => {
-              opening.clear('advance')
-              if (opening.current(ticket) && ofNote === noteNow.current && source === input.read())
-                run({ ...input, head: false })
-            }, 0)
-            opening.set('advance', () => clearTimeout(timer))
-          })
-          opening.set('advance', () => cancelAnimationFrame(frame))
-        }
+        if (next.partial) run({ ...input, head: false })
       },
       () => {
         opening.reset(noteNow.current, true)
@@ -535,7 +529,6 @@ export function Preview({
         },
         ticket: next.request,
         ofNote,
-        warming: next.opening,
       })
     }
     render.current = run

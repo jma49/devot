@@ -1,5 +1,5 @@
 type Cancel = () => void
-type WorkKind = 'build' | 'commit' | 'advance'
+type WorkKind = 'build' | 'commit'
 type Work = Record<WorkKind, Cancel | undefined> & {
   selection: Promise<boolean> | undefined
   warming: readonly Cancel[]
@@ -8,6 +8,7 @@ type Work = Record<WorkKind, Cancel | undefined> & {
 interface Request {
   note: string | undefined
   source: string
+  initial: boolean
 }
 
 interface Waiting extends Request {
@@ -23,7 +24,6 @@ type Opening = { request: Request; work: Work } & (
 const emptyWork = (): Work => ({
   build: undefined,
   commit: undefined,
-  advance: undefined,
   selection: undefined,
   warming: [],
 })
@@ -39,7 +39,7 @@ function waitingFor(request: Request): Waiting {
 export function createOpening(longCharacters: number) {
   let state: Opening = {
     phase: 'idle',
-    request: { note: undefined, source: '' },
+    request: { note: undefined, source: '', initial: false },
     work: emptyWork(),
   }
   const change = (next: Opening, reset = false, ready = false) => {
@@ -48,7 +48,6 @@ export function createOpening(longCharacters: number) {
     if (reset) {
       before.work.build?.()
       before.work.commit?.()
-      before.work.advance?.()
       for (const release of before.work.warming) release()
     }
     if (before.phase === 'head' && (next.phase !== 'head' || next.waiting !== before.waiting))
@@ -69,6 +68,9 @@ export function createOpening(longCharacters: number) {
     get selection() {
       return state.work.selection
     },
+    get initial() {
+      return state.request.initial
+    },
     has: (kind: WorkKind) => state.work[kind] !== undefined,
     clear,
     set: (kind: WorkKind, cancel: Cancel) => {
@@ -84,7 +86,11 @@ export function createOpening(longCharacters: number) {
     },
     reset: (note?: string, failed = false) =>
       change(
-        { phase: failed ? 'failed' : 'idle', request: { note, source: '' }, work: emptyWork() },
+        {
+          phase: failed ? 'failed' : 'idle',
+          request: { note, source: '', initial: false },
+          work: emptyWork(),
+        },
         true,
       ),
     current: (request: Request) => state.request === request,
@@ -93,17 +99,19 @@ export function createOpening(longCharacters: number) {
         source.length > 0 &&
         (state.request.note !== note || state.phase === 'idle' || state.phase === 'failed')
       const head = askedHead ?? (opening && source.length > longCharacters)
-      const request = { note, source }
       const continuing =
         askedHead === false &&
         state.phase === 'head' &&
         state.request.note === note &&
         state.request.source === source
+      const request = { note, source, initial: opening || continuing }
       if (continuing && state.phase === 'head') {
-        clear('advance')
         change({ ...state, request })
       } else {
-        const phase = source.length === 0 && state.phase === 'idle' ? 'idle' : 'full'
+        const phase =
+          source.length === 0 && (state.phase === 'idle' || state.phase === 'failed')
+            ? 'idle'
+            : 'full'
         change(
           head
             ? { phase: 'head', request, work: emptyWork(), waiting: waitingFor(request) }
@@ -111,7 +119,7 @@ export function createOpening(longCharacters: number) {
           true,
         )
       }
-      return { request, opening, head }
+      return { request, opening, head, continuing }
     },
     shown: (partial: boolean) => {
       if (partial) {

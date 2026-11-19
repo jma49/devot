@@ -1,14 +1,20 @@
 // @vitest-environment happy-dom
 // @vitest-environment-options {"settings":{"enableIframePageLoading":true,"disableIframePageLoading":false}}
 import { afterEach, expect, it, vi } from 'vitest'
-import { warmMermaid } from './mermaid'
+import { hasCachedMermaid, warmMermaid } from './mermaid'
 import { READY } from './mermaid-protocol'
 import { FRAME_IDLE_MS } from './frameLifetime'
+
+const cache = vi.hoisted(() => ({
+  has: vi.fn<(predicate: (key: string) => boolean) => boolean>(() => false),
+}))
+vi.mock('./kept', () => ({ keptAnswers: () => cache }))
 
 afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  cache.has.mockReturnValue(false)
   document.body.replaceChildren()
 })
 
@@ -47,6 +53,15 @@ it.each(['', 'A plain note', '```ts\n```mermaid\nflowchart LR\n```\n```'])(
   'does not warm for a note without a Mermaid fence: %s',
   (markdown) => {
     warmMermaid(markdown, { appearance: 'light' })()
+    expect(hasCachedMermaid(markdown, { appearance: 'light' })).toBe(false)
     expect(document.querySelector('iframe')).toBeNull()
   },
 )
+
+it('recognizes a cached first Mermaid and never creates a frame to warm it', () => {
+  cache.has.mockReturnValue(true)
+  const markdown = '```mermaid\nflowchart LR\nA-->B\n```'
+  expect(hasCachedMermaid(markdown, { appearance: 'light' })).toBe(true)
+  warmMermaid(markdown, { appearance: 'light' })()
+  expect(document.querySelector('iframe')).toBeNull()
+})

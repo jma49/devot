@@ -381,6 +381,8 @@ describe('createIslandMounter', () => {
       }
       const mounter = mounterFor({ ...island, kind: 'mermaid' }, scroller())
       const host = hostOf(elements)
+      mounter.mount(host, { appearance: 'light' })
+      expect(requests).toHaveLength(0)
       mounter.mount(host, { appearance: 'light', eagerFirstMermaid: true })
       expect(requests.map((request) => request.source)).toEqual(['first'])
       mounter.mount(host, { appearance: 'light', eagerFirstMermaid: true })

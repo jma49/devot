@@ -68,11 +68,11 @@ Part of the [architecture overview](../architecture.md).
   The pieces renderer and the task and line counts read one shared cut (`shareSplitter`), and the cut compares the pieces it keeps as slices, which V8 compares as memory.
   Each edit still does a little work for every piece (keys, cache lookups, heading ids, the list it sends back), so its cost is far smaller but still grows with the count of pieces: on a loaded machine, about 5 ms at 250 KB, 8 ms at 1 MB, 9 ms at 2 MB and 15 ms at 5 MB, against 5, 9, 12 and 47 ms before the shared cut.
   The same benchmark holds an edit in the middle of a 2 MB note's live preview under 25 ms and of a 5 MB note under 30 ms in the core.
-- Opening a different note longer than 32,000 source characters first asks the worker for pieces starting within 8,000 characters, then asks for the full preview after the head has had a frame to paint.
+- Opening a different note longer than 32,000 source characters first asks the worker for pieces starting within 8,000 characters, then immediately queues the full preview while the head paints.
   The head uses the whole note's link and footnote definitions, caches its rendered pieces and returns an explicit partial marker; the full answer reuses those pieces and adds the trailing footnote section.
   Eight thousand characters cover several rich blocks and the first diagram in the benchmark without paying for all later transforms; a safe Markdown piece may extend past the budget.
   The existing `latestOnly` queue coalesces pending text; request generations, note and text checks drop replaced answers and teardown answers, and typing in the same note still asks only for a full render.
-  An empty editor body while a note loads does not consume its opening; the first nonempty body selects head rendering and diagram warm-up.
+  An empty editor body while a note loads does not consume its opening; the first nonempty body selects head rendering.
   Switching note ids resets opening detection even for a blank note, so returning to the previous long note opens its head again.
   Fenced notes still await their kept-drawing languages before either render, so a kept plugin drawing never flashes as code.
 - A render builds on the page at once the pieces it changed up to `FIRST_CHARACTERS` (20,000 characters of source) past the last piece already built, and leaves the rest waiting (`patchPieces` with `defer`, `buildPending` in `src/renderer/src/preview/dom.ts`); the preview builds them in order in tasks of about 8 ms after it.
@@ -82,8 +82,9 @@ Part of the [architecture overview](../architecture.md).
   While only the head has arrived, find and selection await successful full completion before reading the DOM; replaced or failed requests cancel those actions, and Copy following a deferred Select All waits for that selection.
   Deferred Copy starts a clipboard write during the copy gesture with promised HTML and plain-text representations of the completed selection, offering HTML first to preserve formatting and links in rich paste targets.
   If that write is refused, the completed preview remains selected for a second native Copy; once the full worker answer exists, Copy builds pending DOM synchronously and uses native copying without the clipboard API.
-  The preview opening lifecycle is one `idle | head | full | failed` union, owning its request identity, full-answer waiter, deferred selection and cancellable build, commit, warm-up and continuation work.
+  The preview opening lifecycle is one `idle | head | full | failed` union, owning its request identity, full-answer waiter, deferred selection and cancellable build, commit and warm-up work.
   Note switches, failure and teardown reset that lifecycle together and reject any unfinished completion.
+  The preview surface loads on demand, keeping its rendering lifecycle out of the main window's startup bundle; note-info labels remain available without loading that surface.
   Diagrams are added for what is built at once, every 250 ms while the build goes on, and when it ends.
   Copy buttons are committed after the full preview's DOM has had a paint opportunity, with a one-second fallback when a hidden window paints no frames; replacement work and teardown cancel the pending commit.
   `tests/renderer/preview-open.bench.test.ts` holds what that task builds from growing with the note.
@@ -130,7 +131,8 @@ Part of the [architecture overview](../architecture.md).
   - The diagram frame, which holds the diagram libraries, is removed 30 s after no diagram is shown and no drawing is asked for (`preview/frameLifetime.ts`); drawings kept on the page come back without it.
     Write mode lets go of a diagram that scrolls out of view, so reading past a note's diagrams for 30 s also removes the frame; scrolling back to one the page no longer keeps (or after a resize or a theme change) loads the libraries again, which takes seconds.
     The frame loads each diagram engine only when a diagram needs it, so the first Mermaid diagram parses the frame and Mermaid (about 5.2 MB) instead of every engine at once (9.3 MB); `tests/scripts/mermaid-frame.build.test.ts` keeps a size budget.
-    Opening a note whose first Mermaid source and theme are not cached warms its frame and engine while the worker renders, with a hold released on completion or teardown.
+    A long note's cached first Mermaid can draw with the head, but a cache miss and a short note's eager first diagram wait until the full content has had a paint opportunity.
+    An uncached long-note opening warms the engine just before that deferred eager draw, with its hold released after the draw is queued.
     The first Mermaid placeholder in the preview draws even beyond the lazy margin once built; all later diagrams still wait until near the viewport, and a hidden pane draws none.
   - Kept on purpose, each bounded by a count: the undo history of the last 10 notes left ([Data model](data-model.md)), the core's last 8 notes, the last 64 diagram drawings, and Write mode's last 200 rendered blocks (`trees`), 1,000 block heights (`heights`) and 500 inline drawings (`drawnInline`).
 - `tests/scripts/startup-chunks.build.test.ts` holds what a window parses before its first paint and what the core worker parses before `init` answers, each under a byte budget.

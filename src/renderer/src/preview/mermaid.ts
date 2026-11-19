@@ -138,8 +138,7 @@ function firstMermaid(markdown: string): string | undefined {
 export function warmMermaid(markdown: string, context: IslandContext): () => void {
   const source = firstMermaid(markdown)
   if (source === undefined) return () => {}
-  const prefix = drawingKey(source, context.appearance, shownPalette(context.appearance))
-  if (drawn.has((key) => key.startsWith(prefix))) return () => {}
+  if (cachedMermaid(source, context)) return () => {}
   const release = holdFrame()
   void rendererPort().then(
     (target) => {
@@ -148,6 +147,16 @@ export function warmMermaid(markdown: string, context: IslandContext): () => voi
     () => console.warn('W_DIAGRAM_WARM_FAILED'),
   )
   return release
+}
+
+function cachedMermaid(source: string, context: IslandContext): boolean {
+  const prefix = drawingKey(source, context.appearance, shownPalette(context.appearance))
+  return drawn.has((key) => key.startsWith(prefix))
+}
+
+export function hasCachedMermaid(markdown: string, context: IslandContext): boolean {
+  const source = firstMermaid(markdown)
+  return source !== undefined && cachedMermaid(source, context)
 }
 
 type Answer =

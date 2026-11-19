@@ -180,6 +180,14 @@ describe('Preview', () => {
 
   it('treats the first nonempty editor body as the opening', async () => {
     const { core } = fakeCore()
+    const renderer = createPieceRenderer()
+    const live = createLivePreviewRenderer({
+      renderPieces: renderer,
+      renderHead: renderer.head,
+      linkTargets: async () => ({}),
+      onTargetsFailed: () => undefined,
+    })
+    core.renderLivePreview = vi.fn<Core['renderLivePreview']>().mockImplementation(live)
     const asked = vi.spyOn(core, 'renderLivePreview')
     const { type } = follow(core, '', 'loading-body')
     await settle()
@@ -329,16 +337,21 @@ describe('Preview', () => {
 
   it('builds a received full answer and selects it synchronously for native Copy', async () => {
     const markdown = `${note(40_000, 'native-copy')}\n\nTAIL_NEEDLE`
-    const pieces = await createPieceRenderer()(markdown, { labels, loadedEmbeds: [] })
+    const renderer = createPieceRenderer()
+    const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    const pieces = await renderer(markdown, { labels, loadedEmbeds: [] })
+    let finish!: (answer: RenderAnswer) => void
+    const full = new Promise<RenderAnswer>((resolve) => {
+      finish = resolve
+    })
     const { core } = fakeCore()
     core.renderLivePreview = vi
       .fn<Core['renderLivePreview']>()
-      .mockResolvedValue({ pieces, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+      .mockResolvedValueOnce({ ...head, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValueOnce(full)
     const write = vi.spyOn(navigator.clipboard, 'write')
-    const { body } = show(core, markdown, 'native-copy')
-    await act(async () => {
-      for (let i = 0; i < 40; i++) await Promise.resolve()
-    })
+    const { body, handles } = show(core, markdown, 'native-copy')
+    await settle()
     expect(body().textContent).not.toContain('TAIL_NEEDLE')
     const pane = body().closest('.preview')!
     act(() => {
@@ -347,9 +360,14 @@ describe('Preview', () => {
       )
     })
     const copy = new Event('copy', { bubbles: true, cancelable: true })
-    act(() => {
+    let copied = false
+    handles.pane!.onLayout?.(() => {
+      if (copied) return
+      copied = true
       pane.dispatchEvent(copy)
     })
+    await act(async () => finish({ pieces, lines: 10000, links: [], tasks: { done: 0, total: 0 } }))
+    expect(copied).toBe(true)
     expect(copy.defaultPrevented).toBe(false)
     expect(write).not.toHaveBeenCalled()
     expect(window.getSelection()?.toString()).toContain('TAIL_NEEDLE')
@@ -562,19 +580,40 @@ describe('Preview', () => {
     60_000,
   )
 
-  it('warms Mermaid while fenced-note metadata is still loading', async () => {
+  it('does not warm Mermaid ahead of a short preview', async () => {
+    vi.mocked(warmMermaid).mockClear()
+    const { core, renders } = fakeCore()
+    show(core, '# Short\n\n```mermaid\nflowchart LR\nA-->B\n```', 'short-diagram')
+    await firstRender(renders)
+    expect(warmMermaid).not.toHaveBeenCalled()
+  })
+
+  it('waits for the full long-note preview to paint before warming an uncached Mermaid', async () => {
     vi.mocked(warmMermaid).mockClear()
     const release = vi.fn<() => void>()
-    vi.mocked(warmMermaid).mockReturnValueOnce(release)
     const { core } = fakeCore()
-    vi.spyOn(core, 'noteDrawings').mockReturnValue(new Promise(() => {}))
-    const render = vi.spyOn(core, 'renderLivePreview')
-    show(core, '# Diagram\n\n```mermaid\nflowchart LR\nA-->B\n```', 'warming')
-    await act(async () => {
-      await Promise.resolve()
+    const markdown = `${note(40_000, 'warming')}\n\n\`\`\`mermaid\nflowchart LR\nA-->B\n\`\`\``
+    const head = await createPieceRenderer().head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    let finish!: (answer: RenderAnswer) => void
+    const full = new Promise<RenderAnswer>((resolve) => {
+      finish = resolve
     })
+    const render = vi
+      .spyOn(core, 'renderLivePreview')
+      .mockResolvedValueOnce({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValue(full)
+    vi.mocked(warmMermaid).mockImplementationOnce(() => {
+      expect(render.mock.calls.map((call) => call[4])).toEqual([8000, undefined])
+      return release
+    })
+    show(core, markdown, 'warming')
+    await settle()
+    expect(warmMermaid).not.toHaveBeenCalled()
+    const pieces = await createPieceRenderer()(markdown, { labels, loadedEmbeds: [] })
+    await act(async () => finish({ pieces, lines: 1000, links: [], tasks: { done: 0, total: 0 } }))
+    await settle()
     expect(warmMermaid).toHaveBeenCalledOnce()
-    expect(render).not.toHaveBeenCalled()
+    expect(render).toHaveBeenCalledTimes(2)
     act(() => {
       root?.unmount()
       root = undefined

@@ -351,7 +351,10 @@ export function createIslandMounter(
       const key = `${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${revision}\n${source}`
       // A failure that may pass waits out its backoff; a source that changed
       // starts over at once.
-      if (known?.key === key && (!known.retry || known.retryAt > Date.now())) continue
+      if (known?.key === key && (!known.retry || known.retryAt > Date.now())) {
+        if (eager) startWaiting(el)
+        continue
+      }
       if (!island) continue
       const slot: Slot = known ?? { key, sizeKey: '', retry: false, attempts: 0, retryAt: 0 }
       slot.width = width
