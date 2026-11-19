@@ -22,6 +22,7 @@
   "tests/ui/crash.spec.ts": 8855,
   "tests/ui/deep-links.spec.ts": 48515,
   "tests/ui/drag-links.spec.ts": 31180,
+  "tests/ui/empty-search-all.spec.ts": 10300,
   "tests/ui/editor-code-blocks.spec.ts": 13304,
   "tests/ui/editor-commands.spec.ts": 50350,
   "tests/ui/editor-menu.spec.ts": 83426,

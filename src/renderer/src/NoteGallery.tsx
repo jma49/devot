@@ -37,6 +37,7 @@ import { displayTitle, useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, t } from './i18n'
 import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
+import { ListEmptyContent } from './ListEmptyContent'
 import { ListHeader } from './ListHeader'
 import {
   keyTarget,
@@ -91,6 +92,7 @@ interface Props {
   /** Whether cards drag (to the sidebar's notebooks, tags, statuses and Trash). */
   draggable: boolean
   empty?: ListEmptyKind | undefined
+  onSearchAll?: (() => void) | undefined
   editing?: boolean
   /** More matched than the cards shown (a capped search). */
   capped?: boolean | undefined
@@ -176,7 +178,9 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
   const dates = useEditorSetting('listDates')
   const { width, edge } = usePaneResize(BOARD_PANE, props.fittedWidth)
   const emptyText =
-    props.empty && notes.length === 0 ? listEmpty(props.empty, props.editing) : undefined
+    props.empty && notes.length === 0
+      ? listEmpty(props.empty, props.editing, !!props.onSearchAll)
+      : undefined
 
   const scroller = useRef<HTMLDivElement>(null)
   useRowMotion(() => list.current, 'data-note-id', order, props.view, 'grow')
@@ -489,8 +493,7 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
       />
       {emptyText ? (
         <div className="list-empty">
-          <span className="list-empty-message">{t(emptyText.message)}</span>
-          {emptyText.tip ? <span className="list-empty-tip">{t(emptyText.tip)}</span> : null}
+          <ListEmptyContent text={emptyText} onSearchAll={props.onSearchAll} />
         </div>
       ) : (
         <div ref={scroller} className="gallery-scroll" onScroll={measure}>

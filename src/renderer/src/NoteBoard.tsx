@@ -40,6 +40,7 @@ import { currentLocale, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { setBoardDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
+import { ListEmptyContent } from './ListEmptyContent'
 import { ListHeader } from './ListHeader'
 import {
   keyTarget,
@@ -646,8 +647,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       />
       {emptyText ? (
         <div className="list-empty">
-          <span className="list-empty-message">{t(emptyText.message)}</span>
-          {emptyText.tip ? <span className="list-empty-tip">{t(emptyText.tip)}</span> : null}
+          <ListEmptyContent text={emptyText} />
         </div>
       ) : (
         <div className="board-columns">
