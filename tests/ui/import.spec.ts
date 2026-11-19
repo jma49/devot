@@ -117,6 +117,47 @@ const calls = (page: Page, cmd: string) =>
 const scanning = (page: Page, id = 7, name = 'Vault') =>
   send(page, 'devot:import-scanning', { id, name, kind: 'folder' })
 
+test('vault metadata enables conventions and identifies the source without preventing opt-out', async ({
+  page,
+}) => {
+  await open(page)
+  await scanning(page)
+  await send(page, 'devot:import-ready', {
+    ...SCAN,
+    vault: [
+      {
+        root: '',
+        attachmentFolderPath: 'Attachments',
+        newLinkFormat: 'shortest',
+        useMarkdownLinks: false,
+      },
+    ],
+  })
+  await button(page, 'Continue').click()
+  await expect(dialog(page)).toContainText('This folder is read as an Obsidian vault.')
+  const conventions = dialog(page).getByRole('checkbox', {
+    name: 'Read tags from front matter and #tags, and turn callouts into alerts',
+  })
+  await expect(conventions).toBeChecked()
+  await conventions.uncheck()
+  await button(page, 'Back').click()
+  await button(page, 'Continue').click()
+  await expect(conventions).not.toBeChecked()
+})
+
+test('ordinary folders keep conventions off', async ({ page }) => {
+  await open(page)
+  await scanning(page)
+  await send(page, 'devot:import-ready', SCAN)
+  await button(page, 'Continue').click()
+  await expect(
+    dialog(page).getByRole('checkbox', {
+      name: 'Read tags from front matter and #tags, and turn callouts into alerts',
+    }),
+  ).not.toBeChecked()
+  await expect(dialog(page)).not.toContainText('This folder is read as an Obsidian vault.')
+})
+
 test('scans, shows what it found and where it goes, and writes nothing before Import', async ({
   page,
 }) => {

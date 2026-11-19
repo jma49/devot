@@ -312,9 +312,11 @@ export function ImportDialog(props: {
   )
   const [query, setQuery] = useState('')
   const [wikiLinks, setWikiLinks] = useState(true)
-  const [conventions, setConventions] = useState(false)
+  const [chosenConventions, setConventions] = useState<boolean | null>(null)
+  const conventions = chosenConventions ?? !!job.scan?.vault?.length
   const options = (
     <>
+      {job.scan?.vault?.length ? <p className="sheet-detail">{t('import.obsidianVault')}</p> : null}
       <ImportOption label="import.wikiLinks" on={wikiLinks} onChange={setWikiLinks} />
       <ImportOption label="import.conventions" on={conventions} onChange={setConventions} />
     </>

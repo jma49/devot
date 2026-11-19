@@ -46,7 +46,8 @@
     "i18n:apple": "node scripts/i18n/apple.ts && node scripts/i18n/rust.ts",
     "i18n:apple:check": "node scripts/i18n/apple.ts --check && node scripts/i18n/rust.ts --check",
     "bench": "node scripts/bench/run.ts",
-    "bench:app": "bash scripts/bench/app.sh"
+    "bench:app": "bash scripts/bench/app.sh",
+    "bench:large": "node scripts/bench/large-notes.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",

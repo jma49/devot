@@ -15233,6 +15233,23 @@
         }
       }
     },
+    "import.obsidianVault" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This folder is read as an Obsidian vault."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件夹将作为 Obsidian 仓库读取。"
+          }
+        }
+      }
+    },
     "import.problems" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -21145,6 +21162,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有匹配的笔记"
+          }
+        }
+      }
+    },
+    "noteList.empty.searchAllTip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try other words."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "试试其他词。"
           }
         }
       }

@@ -36,6 +36,69 @@ const MAX_PATH_BYTES: usize = 4096;
 const MAX_NAME_CHARS: usize = 200;
 const PROGRESS_EVERY: Duration = Duration::from_millis(100);
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Vault {
+    pub root: String,
+    pub attachment_folder_path: String,
+    pub new_link_format: String,
+    pub use_markdown_links: bool,
+}
+
+impl Default for Vault {
+    fn default() -> Self {
+        Self {
+            root: String::new(),
+            attachment_folder_path: String::new(),
+            new_link_format: "shortest".to_owned(),
+            use_markdown_links: false,
+        }
+    }
+}
+
+fn read_vault(root: &Root) -> Option<Vault> {
+    let dir = crate::atomic_file::Folder::open_resolved(&root.path)
+        .ok()?
+        .folder(".obsidian")
+        .ok()?;
+    let mut vault = Vault {
+        root: root.prefix.clone(),
+        ..Vault::default()
+    };
+    let read = || -> Option<serde_json::Value> {
+        let file = dir.read_file("app.json").ok()?;
+        if file.metadata().ok()?.len() > 65_536 {
+            return None;
+        }
+        let mut data = Vec::new();
+        file.take(65_537).read_to_end(&mut data).ok()?;
+        if data.len() > 65_536 {
+            return None;
+        }
+        serde_json::from_slice(&data).ok()
+    };
+    if let Some(value) = read() {
+        if let Some(path) = value.get("attachmentFolderPath").and_then(|v| v.as_str())
+            && path.len() <= MAX_PATH_BYTES
+            && !path.chars().any(char::is_control)
+            && !path
+                .split('/')
+                .any(|p| p == ".." || (p.starts_with('.') && p != "."))
+        {
+            vault.attachment_folder_path = path.to_owned();
+        }
+        if let Some(format) = value.get("newLinkFormat").and_then(|v| v.as_str())
+            && ["shortest", "relative", "absolute"].contains(&format)
+        {
+            vault.new_link_format = format.to_owned();
+        }
+        if let Some(links) = value.get("useMarkdownLinks").and_then(|v| v.as_bool()) {
+            vault.use_markdown_links = links;
+        }
+    }
+    Some(vault)
+}
+
 pub const SCANNING_EVENT: &str = "devot://import-scanning";
 pub const PROGRESS_EVENT: &str = "devot://import-progress";
 pub const READY_EVENT: &str = "devot://import-ready";
@@ -69,6 +132,7 @@ pub struct Root {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
+    pub vault: Option<Vec<Vault>>,
     pub roots: Vec<Root>,
     pub name: String,
     pub kind: Kind,
@@ -79,6 +143,8 @@ pub struct Found {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Scan {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vault: Option<Vec<Vault>>,
     pub id: u64,
     pub name: String,
     pub kind: Kind,
@@ -245,6 +311,7 @@ pub fn scan_folders(
 
 #[derive(Default)]
 struct Lists {
+    vault: Vec<Vault>,
     files: Vec<Item>,
     images: Vec<Item>,
     skipped: Vec<Problem>,
@@ -265,6 +332,7 @@ impl Lists {
         self.images.sort_by(|a, b| a.path.cmp(&b.path));
         self.skipped.sort_by(|a, b| a.path.cmp(&b.path));
         Found {
+            vault: (!self.vault.is_empty()).then_some(self.vault),
             roots,
             name,
             kind,
@@ -281,6 +349,11 @@ fn walk(
     watch: &Watch<'_>,
     lists: &mut Lists,
 ) -> Result<(), &'static str> {
+    let vault = read_vault(root);
+    let is_vault = vault.is_some();
+    if let Some(vault) = vault {
+        lists.vault.push(vault);
+    }
     let mut stack = vec![(root.path.clone(), root.prefix.clone(), 0usize)];
     while let Some((dir, rel, depth)) = stack.pop() {
         if watch.cancelled.load(Ordering::Relaxed) {
@@ -348,7 +421,9 @@ fn walk(
                 } else {
                     stack.push((entry.path(), child, depth + 1));
                 }
-            } else if kind.is_file() && (is_markdown(name) || image) {
+            } else if kind.is_file()
+                && (is_markdown(name) || image || (is_vault && has_extension(name, &["canvas"])))
+            {
                 match entry.metadata() {
                     Ok(meta) if meta.len() > MAX_NOTE_BYTES => lists.skipped.push(Problem {
                         path: child,
@@ -664,6 +739,7 @@ impl Imports {
         self.sessions.lock().ok()?.insert(id, session);
         drop(pending);
         Some(Scan {
+            vault: found.vault,
             id,
             name: found.name,
             kind: found.kind,
@@ -687,6 +763,7 @@ impl Imports {
         let (id, _) = self.begin(window);
         // A session just begun is never cancelled: the fallback is not used.
         self.ready(id, found, destination).unwrap_or_else(|| Scan {
+            vault: None,
             id,
             name: String::new(),
             kind: Kind::Files,
@@ -1045,6 +1122,61 @@ fn scan_in_background(
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn vault_settings_and_canvas_are_scoped_to_each_picked_root() {
+        let vault = tempfile::tempdir().unwrap();
+        let plain = tempfile::tempdir().unwrap();
+        write(vault.path(), ".obsidian/app.json", br#"{"attachmentFolderPath":"Attachments","newLinkFormat":"shortest","useMarkdownLinks":true}"#);
+        write(vault.path(), ".obsidian/secret.md", b"hidden");
+        write(vault.path(), "Board.canvas", b"{}");
+        write(plain.path(), "Board.canvas", b"{}");
+        let found = Watch::idle(|watch| {
+            scan_folders(
+                &[vault.path().to_owned(), plain.path().to_owned()],
+                Limits::DEFAULT,
+                watch,
+            )
+        })
+        .unwrap();
+        assert_eq!(found.files.len(), 1);
+        let settings = &found.vault.as_ref().unwrap()[0];
+        assert_eq!(settings.attachment_folder_path, "Attachments");
+        assert_eq!(settings.new_link_format, "shortest");
+        assert!(settings.use_markdown_links);
+        assert!(!settings.root.is_empty());
+    }
+
+    #[test]
+    fn malformed_and_oversized_vault_settings_use_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        for data in [b"bad json".to_vec(), vec![b' '; 65_537], br#"{"attachmentFolderPath":"../escape","newLinkFormat":"bad","useMarkdownLinks":"yes"}"#.to_vec()] {
+            write(dir.path(), ".obsidian/app.json", &data);
+            let found = scan(dir.path()).unwrap();
+            assert_eq!(found.vault.unwrap()[0], Vault::default());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn vault_settings_never_follow_links() {
+        let dir = tempfile::tempdir().unwrap();
+        write(
+            dir.path(),
+            "settings.json",
+            br#"{"attachmentFolderPath":"private"}"#,
+        );
+        fs::create_dir(dir.path().join(".obsidian")).unwrap();
+        std::os::unix::fs::symlink(
+            dir.path().join("settings.json"),
+            dir.path().join(".obsidian/app.json"),
+        )
+        .unwrap();
+        assert_eq!(
+            scan(dir.path()).unwrap().vault.unwrap()[0],
+            Vault::default()
+        );
+    }
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
 

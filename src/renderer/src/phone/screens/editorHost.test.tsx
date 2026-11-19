@@ -281,13 +281,14 @@ describe('the editor host under the native screens', () => {
   it('opens the note at its top on each show, even the note shown last', async () => {
     const id = await shell.notes.create('Plans', null)
     await start()
+    expect(document.documentElement.hasAttribute('data-page-scrolls')).toBe(false)
     await swift('editor.show', { noteId: id })
-    // The shown note scrolls the page itself (pageScroll.ts).
     expect(document.documentElement.hasAttribute('data-page-scrolls')).toBe(true)
     const scrollTo = vi.spyOn(window, 'scrollTo')
     await swift('editor.hide')
     expect(document.documentElement.hasAttribute('data-page-scrolls')).toBe(false)
     await swift('editor.show', { noteId: id })
+    expect(document.documentElement.hasAttribute('data-page-scrolls')).toBe(true)
     expect(scrollTo).toHaveBeenCalledWith(0, 0)
   })
 

@@ -1181,6 +1181,116 @@ test('Integrations says how to create a notebook when there is none', async ({ p
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
+test('search keys highlight results rather than changing categories', async ({ page }) => {
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  await field.fill('transparency')
+  const options = page.getByRole('listbox').getByRole('option')
+  await expect(options.first()).toHaveAttribute('aria-selected', 'true')
+  await field.press('ArrowDown')
+  await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
+  await expect(field).toBeFocused()
+  await options.nth(1).focus()
+  await page.keyboard.press('ArrowUp')
+  await expect(options.first()).toBeFocused()
+  await expect(page.getByRole('tabpanel', { name: 'General' })).toBeVisible()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('slider', { name: 'Material Transparency' })).toBeFocused()
+})
+
+test('search waits for an async setting and cancels targeting when the query changes', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.devotIpcMocks = {
+      http_api_get: () =>
+        new Promise((resolve) => {
+          window.addEventListener(
+            'release-http-api',
+            () =>
+              resolve({
+                enabled: false,
+                port: 27484,
+                scope: 'read',
+                extensionOrigins: [],
+                listening: null,
+                problem: null,
+                token: 'unset',
+              }),
+            { once: true },
+          )
+        }),
+    }
+  })
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  await field.fill('port')
+  await page.getByRole('listbox').getByRole('option', { name: /^Port/ }).click()
+  await expect.poll(() => calls(page, 'http_api_get').then((items) => items.length)).toBe(1)
+  await expect(page.locator('.settings-pane')).toBeFocused()
+  await page.evaluate(() => window.dispatchEvent(new Event('release-http-api')))
+  const port = page.getByRole('spinbutton', { name: 'Port', exact: true })
+  await expect(port).toBeFocused()
+  await expect(port).toBeInViewport()
+  await field.fill('port')
+  await page.getByRole('listbox').getByRole('option', { name: /^Port/ }).press('Enter')
+  await expect(port).toBeFocused()
+  await field.focus()
+  await expect(page.locator('.settings-pane')).not.toHaveAttribute('tabindex')
+  await tab(page, 'General').click()
+  await field.fill('port')
+  await page.getByRole('listbox').getByRole('option', { name: /^Port/ }).press('Enter')
+  await expect.poll(() => calls(page, 'http_api_get').then((items) => items.length)).toBe(2)
+  await field.fill('different query')
+  await page.evaluate(() => window.dispatchEvent(new Event('release-http-api')))
+  await expect(port).toBeVisible()
+  await expect(field).toBeFocused()
+})
+
+test('settings search leaves Enter and Escape to the input method', async ({ page }) => {
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  await field.fill('transparency')
+  const options = page.getByRole('listbox').getByRole('option')
+  await field.press('ArrowDown')
+  for (const key of ['Enter', 'Escape']) {
+    await field.dispatchEvent('keydown', { key, isComposing: true })
+    await expect(field).toHaveValue('transparency')
+    await field.dispatchEvent('keydown', { key, keyCode: 229 })
+    await expect(field).toHaveValue('transparency')
+  }
+  for (const key of ['ArrowUp', 'ArrowDown']) {
+    await field.dispatchEvent('keydown', { key, isComposing: true })
+    await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
+    await field.dispatchEvent('keydown', { key, keyCode: 229 })
+    await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
+  }
+  await expect(page.getByRole('tabpanel', { name: 'General' })).toBeVisible()
+  await field.press('Escape')
+  await expect(field).toHaveValue('')
+  await field.fill('no-setting-matches-this')
+  await field.press('ArrowDown')
+  await field.press('Enter')
+  await expect(page.getByRole('tabpanel', { name: 'General' })).toBeVisible()
+})
+
+test('search scrolls to and focuses a setting, also within the current pane', async ({ page }) => {
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  for (let visit = 0; visit < 2; visit++) {
+    await field.fill('trailing whitespace')
+    await page.getByRole('listbox').getByRole('option').click()
+    const control = page.getByRole('switch', { name: 'Highlight Trailing Whitespace' })
+    await expect(control).toBeFocused()
+    await expect(control).toBeInViewport()
+    await expect
+      .poll(() => page.locator('.settings-pane').evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(0)
+    await page.locator('.settings-pane').evaluate((el) => el.scrollTo(0, 0))
+  }
+})
+
 test('search finds a setting and shows its pane', async ({ page }) => {
   await page.goto('/settings.html')
   const field = page.getByRole('searchbox', { name: 'Search Settings' })
@@ -1190,6 +1300,16 @@ test('search finds a setting and shows its pane', async ({ page }) => {
   await field.press('Enter')
   await expect(page.getByRole('tabpanel', { name: 'Appearance' })).toBeVisible()
   await expect(field).toHaveValue('')
+})
+
+test('search focuses Icon Style by the radiogroup accessible name', async ({ page }) => {
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  await field.fill('icon style')
+  await field.press('Enter')
+  const group = page.getByRole('radiogroup', { name: 'Icon style', exact: true })
+  await expect(group.getByRole('radio').first()).toBeFocused()
+  await expect(group).toBeInViewport()
 })
 
 test('Back and Forward walk the panes visited', async ({ page }) => {

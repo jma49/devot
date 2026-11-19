@@ -782,3 +782,20 @@ test('Note Info shows the notebook’s Allow AI Access, and turns it off and on'
   await expect(access).toHaveAttribute('aria-checked', 'true')
   await expect.poll(stored).toBe(true)
 })
+
+test('an empty search in Unseen Changes offers Search All Notes, which finds notes no agent changed', async ({
+  page,
+}) => {
+  await seed(page, [PLAN_NOTE, { id: THIRD, title: 'Third', owner: 'Third text.\n', edits: [] }])
+  await sidebar(page)
+    .getByRole('button', { name: /^Unseen Changes/ })
+    .click()
+  await expect(noteRows(page)).toHaveCount(1)
+
+  const search = page.getByRole('searchbox', { name: 'Search notes' })
+  await search.fill('Third')
+  const searchAll = page.locator('.list-empty').getByRole('button', { name: 'Search All Notes' })
+  await searchAll.click()
+  await expect(search).toHaveValue('Third')
+  await expect(noteRows(page)).toHaveText([/^Third/])
+})
