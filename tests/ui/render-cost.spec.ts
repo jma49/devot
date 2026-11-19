@@ -147,36 +147,23 @@ test('with 10,000 notes a keystroke stays within its budget and renders no row',
       true,
     )
   })
-
-  // DIAGNOSTIC (#1014, removed before merge): the old measurement, keys back to back right after the open.
-  for (const key of KEYS) await page.keyboard.press(key)
-  await expect.poll(() => page.evaluate(() => window.devotKeyMs.length)).toBe(KEYS.length)
-  noteKeyTimes('back to back after open', await page.evaluate(() => window.devotKeyMs))
-
   await watchFrames(page, budget)
   await untilQuiet(page)
-  // DIAGNOSTIC (#1014, removed before merge): keys back to back once the page is quiet.
-  await page.evaluate(() => (window.devotKeyMs = []))
-  for (const key of KEYS) await page.keyboard.press(key)
-  await expect.poll(() => page.evaluate(() => window.devotKeyMs.length)).toBe(KEYS.length)
-  noteKeyTimes('back to back when quiet', await page.evaluate(() => window.devotKeyMs))
-  await untilQuiet(page)
-
-  await page.evaluate(() => (window.devotKeyMs = []))
   await resetRenderCounts(page)
+
   for (const [typed, key] of [...KEYS].entries()) {
     await page.keyboard.press(key)
     await page.waitForFunction((count) => window.devotKeyMs.length > count, typed)
   }
-  await expect(body(page)).toContainText(KEYS.repeat(3))
-  await expect.poll(() => page.evaluate(() => window.devotNoteWrites)).toBeGreaterThan(0)
-  await expect(excerpt(page, 'Note 1')).toContainText(KEYS.repeat(3))
+  await expect(body(page)).toContainText(KEYS)
+  await expect(excerpt(page, 'Note 1')).toContainText(KEYS)
 
   const { renders, writes } = await renderCounts(page)
+  expect(writes).toBeGreaterThan(0)
   expect(renders['NoteRow']).toBeLessThanOrEqual(2 * writes)
   expect(renders['Sidebar']).toBe(0)
   const times = await page.evaluate(() => window.devotKeyMs)
-  noteKeyTimes('each after the last one’s frame', times)
+  noteKeyTimes('each key after the last one’s frame', times)
   const median = keyMedian(times)
   // A local machine running several suites at once cannot hold a budget; CI always enforces it.
   const overloaded = !process.env['CI'] && loadavg()[0]! > cpus().length
