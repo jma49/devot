@@ -286,7 +286,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const args = process.argv.slice(2)
   if (
     args.some((arg, i) => arg !== '--quick' && arg !== '--out' && args[i - 1] !== '--out') ||
-    (args.includes('--out') && !args[args.indexOf('--out') + 1])
+    (args.includes('--out') && !args[args.indexOf('--out') + 1]?.match(/^[^-]/))
   )
     throw new Error('E_BENCH_ARGUMENTS')
   const run = spawnSync(
