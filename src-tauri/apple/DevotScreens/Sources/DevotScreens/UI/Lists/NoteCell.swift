@@ -27,6 +27,7 @@ final class NoteCell: UICollectionViewListCell {
     struct Row {
         let note: NoteRow
         let excerpt: String?
+        var headline: String? = nil
         let tag: LibraryTag?
         let now: Date
         let reduceMotion: Bool
@@ -41,7 +42,7 @@ final class NoteCell: UICollectionViewListCell {
         mark.image = UIImage(systemName: status.symbol)
         mark.tintColor = Self.color(status)
         var content = UIListContentConfiguration.subtitleCell()
-        content.text = Self.title(note, excerpt: row.excerpt)
+        content.text = Self.title(note, headline: row.headline)
         content.textProperties.font = UIFont.preferredFont(forTextStyle: .body)
         content.textProperties.color = Tokens.Color.phoneText
         let large = traitCollection.preferredContentSizeCategory.isAccessibilityCategory
@@ -97,9 +98,10 @@ final class NoteCell: UICollectionViewListCell {
         mark.transform = .identity
     }
 
-    static func title(_ note: NoteRow, excerpt: String?) -> String {
+    /// The excerpt leaves out an untitled note's first line, so that line, its headline, names it.
+    static func title(_ note: NoteRow, headline: String?) -> String {
         if !note.title.isEmpty { return note.title }
-        let first = excerpt?.split(separator: "\n").first.map(String.init) ?? ""
+        let first = headline ?? ""
         return first.isEmpty ? L10n.noteUntitled() : first
     }
 

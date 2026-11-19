@@ -2185,6 +2185,17 @@ button {
 .inspector-info {
   position: relative;
 }
+/* The inspector is narrower than the card: a date, a property or AI access takes the line under its label. */
+.inspector-info
+  :is(.note-info-dates .note-info-row, .note-info-property, .note-info-row[data-info='aiAccess']) {
+  grid-template-columns: var(--size-icon-menu) minmax(0, 1fr);
+  row-gap: var(--space-1);
+}
+.inspector-info
+  :is(.note-info-dates .note-info-row, .note-info-property, .note-info-row[data-info='aiAccess'])
+  .note-info-value {
+  grid-column: 2 / -1;
+}
 .inspector-history .history-body {
   display: flex;
   flex-direction: column;
@@ -7224,7 +7235,7 @@ button.note-info-row:focus-visible {
 }
 
 .palette-content-title {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   max-width: 42%;
   overflow: hidden;
   text-overflow: ellipsis;

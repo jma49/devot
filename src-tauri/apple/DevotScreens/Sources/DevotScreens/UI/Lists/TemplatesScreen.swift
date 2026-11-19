@@ -40,7 +40,7 @@ final class TemplatePicker: UIViewController, UICollectionViewDelegate {
             cell.paintAsCard()
             var content = cell.defaultContentConfiguration()
             let note = self?.source.row(id)
-            content.text = note.map { NoteCell.title($0, excerpt: self?.context.excerpts.excerpt($0)) }
+            content.text = note.map { NoteCell.title($0, headline: self?.context.excerpts.headline($0)) }
             content.image = UIImage(systemName: "doc.text")
             cell.contentConfiguration = content
         }

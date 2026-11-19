@@ -5,14 +5,16 @@ import UIKit
 final class NotePreviewController: UIViewController {
     private let note: NoteRow
     private let excerpt: String?
+    private let headline: String?
     private let notebook: String?
     private let tags: [String]
     private let width: CGFloat
 
-    init(note: NoteRow, excerpt: String?, library: LibraryContents?, width: CGFloat) {
+    init(note: NoteRow, excerpt: String?, headline: String?, library: LibraryContents?, width: CGFloat) {
         self.note = note
         self.width = width
         self.excerpt = excerpt
+        self.headline = headline
         notebook = library?.books.first { $0.id == note.bookId }?.name
         let names = Dictionary((library?.tags ?? []).map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
         tags = note.tagIds.compactMap { names[$0] }
@@ -24,7 +26,7 @@ final class NotePreviewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Tokens.Color.phoneBackground
-        let title = label(NoteCell.title(note, excerpt: excerpt), .title3, Tokens.Color.phoneText, lines: 2)
+        let title = label(NoteCell.title(note, headline: headline), .title3, Tokens.Color.phoneText, lines: 2)
         title.font = UIFontMetrics(forTextStyle: .title3).scaledFont(
             for: .systemFont(ofSize: UIFont.preferredFont(forTextStyle: .title3).pointSize, weight: .semibold))
         let body = label(excerpt ?? "", .body, Tokens.Color.phoneTextSecondary, lines: 6)

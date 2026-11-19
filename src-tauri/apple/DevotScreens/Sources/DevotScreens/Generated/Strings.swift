@@ -2734,6 +2734,10 @@ public enum L10n {
     text("editor.emptyNoteHint", "Just start typing, or")
   }
 
+  public static func editorStartTyping() -> String {
+    text("editor.startTyping", "Just start typing")
+  }
+
   public static func editorChooseTemplate() -> String {
     text("editor.chooseTemplate", "Choose a template")
   }
