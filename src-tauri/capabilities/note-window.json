@@ -28,7 +28,6 @@
     "allow-note-put",
     "allow-note-put-meta",
     "allow-note-purge",
-    "allow-notes-purge",
     "allow-tags-list",
     "allow-tag-put",
     "allow-note-tag-put",
