@@ -9,7 +9,7 @@ import type { Core } from '../core-client'
 import type { FindTarget } from '../find/target'
 import { patchPieces, UI_ATTRIBUTE } from './dom'
 import { textStore } from '../textStore'
-import { Preview } from './Preview'
+import { Preview } from './PreviewBody'
 import type { ScrollPane } from './scrollSync'
 import { warmMermaid } from './mermaid'
 
