@@ -56,11 +56,45 @@ Every request passes these guards before anything reaches the notes:
 | `DELETE /v1/notes/<id>`                                                               | `notes.trash` (write; never purges)     | `{ id, title, trashed: true }`                                                  |
 
 Times are ISO strings; a notebook is named by ID or exact name.
-File uploads carry standard padded base64 in `data` and the image MIME type in `type`; both Rust and the core validate the decoded bytes with the same raster-image checks as pasted attachments, and refuse a mismatched type, SVG, invalid names and empty files.
-The 2 MiB JSON request limit also applies to file uploads, including base64 overhead, even though the attachment store itself accepts files up to 10 MiB.
-The core first checks AI visibility with `ai.read`, so an absent, trashed or inaccessible note returns `E_NOTE_NOT_FOUND` without writing a file.
-It then assigns a file ID and writes through the main window's existing `storage.putFile` path into the `files` table; this route does not change the note body, so the caller must PATCH in the returned URL.
-The note and notebook calls are what the MCP tools make (see AI): the bridge reaches the same listener with a token of its own; file upload has no MCP tool.
+
+**File uploads**
+
+`POST /v1/notes/<id>/files` is a general attachment route for any live note the token can write, including existing notes; it is not restricted to notes created by the clipper or by the same client.
+It requires a read/write token (`E_HTTP_READ_ONLY`, 403, otherwise) and the same licence permission as other writes (`E_LICENCE_REQUIRED`, 403).
+The JSON object has exactly three required string fields: `name`, `type` and `data`.
+`name` is 1 to 200 Unicode characters with no control characters; `data` is canonical, standard padded base64, not a data URL or base64url.
+Accepted MIME types are `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif` and `image/heic`; the declared `type` must match the type detected from the decoded bytes, using the same checks as pasted attachments in both Rust and the core.
+SVG and other file types are refused.
+The decoded attachment must be nonempty and at most 10 MiB, but this HTTP route's entire JSON body is capped at 2 MiB, including base64's four-for-three expansion, field names, MIME type and filename.
+Thus the effective decoded HTTP upload limit is less than 1.5 MiB, depending on JSON overhead; a 10 MiB attachment cannot be sent through this route.
+The ordinary per-token rate limit applies across uploads and every other request: a burst of 30, refilling at 10 per second (`E_HTTP_RATE_LIMITED`, 429, with `Retry-After`).
+The note must be filed directly in a live notebook with Allow AI Access enabled; the setting is not inherited from a parent notebook.
+For a well-formed upload, an unknown, trashed, unfiled or AI-inaccessible note returns `E_NOTE_NOT_FOUND` (404) without storing a file.
+The core checks this through `ai.read`, assigns a new file ID and writes through the main window's existing `storage.putFile` path into the `files` table.
+Success is 201 `{ "id": "<file-id>", "url": "devot://file/<file-id>" }`.
+The file belongs to that note; uploading does not change its Markdown, so a caller that wants an inline image must separately PATCH the returned URL into the body.
+An upload and that PATCH are not atomic: if the PATCH fails, the stored attachment remains.
+
+| Error                   | Status | Meaning                                                      |
+| ----------------------- | ------ | ------------------------------------------------------------ |
+| `E_HTTP_BODY_INVALID`   | 400    | Missing, extra or incorrectly typed JSON fields.             |
+| `E_FILE_BODY_INVALID`   | 400    | Noncanonical or invalid standard base64.                     |
+| `E_FILE_NAME_INVALID`   | 400    | Empty, overlong or control-containing name.                  |
+| `E_FILE_SIZE_INVALID`   | 400    | Empty decoded file or decoded size over 10 MiB.              |
+| `E_FILE_TYPE_REFUSED`   | 400    | Unsupported bytes or declared MIME type does not match.      |
+| `E_HTTP_BODY_TOO_LARGE` | 413    | Complete JSON body exceeds 2 MiB, including base64 overhead. |
+| `E_HTTP_READ_ONLY`      | 403    | Token does not grant writes.                                 |
+| `E_LICENCE_REQUIRED`    | 403    | Licence does not permit writes.                              |
+| `E_NOTE_NOT_FOUND`      | 404    | Note does not exist or is not visible to AI.                 |
+| `E_HTTP_RATE_LIMITED`   | 429    | Shared token rate limit exceeded.                            |
+
+The authentication, host, origin, JSON transport, storage and main-window availability errors documented above and below apply unchanged.
+
+**MCP mapping**
+
+The note and notebook calls correspond to the nine tools in `src-tauri/mcp/tools.json` (see [AI](ai.md)); the bridge reaches the same listener with its own token.
+HTTP-only exclusion: `notes.files.create` (`POST /v1/notes/<id>/files`) intentionally has no MCP tool; binary attachment transfer is available to HTTP clients, while the current MCP tool schemas expose note and notebook operations only.
+The shared routing contract includes the upload route in `tests/support/http-api-calls.json`, and `tests/core/mcp-tools.test.ts` accounts for every HTTP operation as either a tool mapping or this explicit exclusion.
 
 - **Through the core:** Rust writes and reads no notes itself.
   A checked call goes to the main window as an event (`devot://http-api`, `{ id, op, note, args }`) and Rust waits up to 15 s for the answer (`http_api_done`, main window only: the JSON, or a code; anything else becomes `E_HTTP_API_FAILED`).

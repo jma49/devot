@@ -6,6 +6,8 @@ Part of the [architecture overview](../architecture.md).
   It stops in `main` before anything of the app starts: no data folder is opened, no database, no window, no Dock icon.
   It holds no note: each tool call is one request of the local HTTP API (or two, when an empty answer may mean no notebook allows AI), so the running app's core is the only write path.
   Tools: `list_notebooks` (in the sidebar's order), `search_notes` (full text, the app's query rules, a snippet per hit), `read_note` (Markdown snapshot and metadata), `list_tags` (the tags on visible notes, with counts), `create_note` (title, Markdown, a notebook by ID or exact name), `update_note`, `append_to_note`, `trash_note` and `create_notebook` (see Writes).
+  HTTP-only exclusion: `notes.files.create` (`POST /v1/notes/<id>/files`) is the general attachment-upload route, not an MCP tool; the current MCP schemas expose note and notebook operations, not binary attachment transfer.
+  The [Local HTTP API](local-http-api.md) specifies its limits, access rules and errors; `tests/core/mcp-tools.test.ts` accounts for this exclusion alongside the tool mappings.
   Their titles, schemas and read-only and destructive annotations are `src-tauri/mcp/tools.json`, which Rust compiles in and checks arguments against, leaving out properties it does not name (`E_MCP_ARGS_INVALID` names the path and never a value); `tests/core/mcp-tools.test.ts` holds its limits to the core's.
   MCP is JSON-RPC, one message a line (`protocol.rs`), protocol versions 2024-10-07 to 2025-11-25.
   Tool calls run one at a time while `ping` is answered; a call that `notifications/cancelled` names while it still waits never runs and gets no answer, and one already running finishes.
