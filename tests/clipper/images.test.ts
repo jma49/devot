@@ -31,3 +31,13 @@ it('does not upload anything for an empty image list', async () => {
     }),
   ).toBe('Plain text')
 })
+
+it.each([
+  '| Photo |\n| --- |\n| ![East\\|West](https://example.org/photo.png "A title") |',
+  "![Nested [label] and \\] escaped](<https://example.org/photo.png> 'A title')",
+  '![Photo](\n  https://example.org/photo.png\n  "A \\"quoted\\" title"\n)',
+])('replaces only the image destination bytes in %s', async (markdown) => {
+  expect(await storeImageLinks(markdown, async () => 'devot://file/local')).toBe(
+    markdown.replace('https://example.org/photo.png', 'devot://file/local'),
+  )
+})

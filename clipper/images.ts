@@ -1,5 +1,3 @@
-import type { Image, Nodes } from 'mdast'
-import { toMarkdown } from 'mdast-util-to-markdown'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 
@@ -7,12 +5,26 @@ export async function storeImageLinks(
   markdown: string,
   upload: (url: string) => Promise<string>,
 ): Promise<string> {
-  const images: Image[] = []
-  const walk = (node: Nodes): void => {
-    if (node.type === 'image' && /^https?:\/\//.test(node.url)) images.push(node)
-    if ('children' in node) for (const child of node.children) walk(child)
-  }
-  walk(unified().use(remarkParse).parse(markdown))
+  const images: { url: string; start: number; end: number }[] = []
+  unified()
+    .use(remarkParse)
+    .data('fromMarkdownExtensions', [
+      {
+        exit: {
+          resourceDestination(token) {
+            const node = this.stack.at(-1)
+            if (node?.type !== 'image' || !/^https?:\/\//.test(node.url)) return
+            const enclosed = markdown[token.start.offset] === '<'
+            images.push({
+              url: node.url,
+              start: token.start.offset + (enclosed ? 1 : 0),
+              end: token.end.offset - (enclosed ? 1 : 0),
+            })
+          },
+        },
+      },
+    ])
+    .parse(markdown)
   const stored = new Map<string, string>()
   for (const url of [...new Set(images.map((image) => image.url))].slice(0, 50)) {
     try {
@@ -23,15 +35,7 @@ export async function storeImageLinks(
   }
   for (const image of images.reverse()) {
     const url = stored.get(image.url)
-    const start = image.position?.start.offset
-    const end = image.position?.end.offset
-    if (!url || start === undefined || end === undefined) continue
-    image.url = url
-    const replacement = toMarkdown({
-      type: 'root',
-      children: [{ type: 'paragraph', children: [image] }],
-    }).trim()
-    markdown = markdown.slice(0, start) + replacement + markdown.slice(end)
+    if (url) markdown = markdown.slice(0, image.start) + url + markdown.slice(image.end)
   }
   return markdown
 }
