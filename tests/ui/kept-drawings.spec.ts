@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { expect, openApp, test } from './fixtures'
 
-// A plugin drawing kept with its note (ADR 0030), shown in a window without the plugin, as on the iPhone: rebuilt
+// A plugin drawing kept with its note (ADR 0030), shown in a window without the plugin, as on a phone: rebuilt
 // through the allowlist, and code again once the block changes. Rust is faked in the page; no plugin is installed.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -87,7 +87,7 @@ test('shows the block as code with a note once it no longer matches its drawing'
   await expect(preview.locator('.plugin-drawing')).toBeVisible()
   await page.keyboard.press('Meta+KeyE')
   await body(page).click()
-  await page.keyboard.press('Meta+KeyA')
+  await page.keyboard.press('ControlOrMeta+a')
   await page.keyboard.insertText('Before\n\n```dot\na -> c\n```\n')
   await page.keyboard.press('Meta+KeyE')
   await expect(preview.locator('pre code').getByText('a -> c')).toBeVisible()

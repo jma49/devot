@@ -42,12 +42,7 @@ import { createClock } from '../../core/hlc'
 import { createIdGenerator } from '../../core/ids'
 import { createNoteService } from '../../core/notes/service'
 import { observeWrites } from '../../core/observeWrites'
-import {
-  blockHash,
-  keepNoteDrawing,
-  noteDrawings,
-  type DrawingAppearance,
-} from '../../core/plugins/drawings'
+import type { DrawingAppearance } from '../../core/plugins/drawings'
 import {
   createPieceRenderer,
   createPreviewRegistry,
@@ -514,7 +509,7 @@ const coreApi = {
   noteDrawings: (noteId: string) => {
     const parts = coreParts
     if (!parts) throw new Error('E_CORE_NOT_READY')
-    return noteDrawings(parts.storage, noteId)
+    return parts.storage.getNoteDrawings(noteId).then((row) => row?.drawings ?? [])
   },
   /** Keeps the drawing the page rebuilt from a plugin's answer for a block of the note; answers whether the list changed. */
   keepPluginDrawing: (
@@ -530,10 +525,10 @@ const coreApi = {
     const parts = coreParts
     if (!parts) throw new Error('E_CORE_NOT_READY')
     const { content, ...kept } = drawing
-    return keepNoteDrawing(parts.storage, parts.clock, noteId, {
-      ...kept,
-      hash: blockHash(content),
-    })
+    // Lazy: keeping parses the note's Markdown, which the worker otherwise loads only to render.
+    return import('../../core/plugins/drawings').then(({ blockHash, keepNoteDrawing }) =>
+      keepNoteDrawing(parts.storage, parts.clock, noteId, { ...kept, hash: blockHash(content) }),
+    )
   },
   /** Plugins' preview renderers (ADR 0005); `render` asks the page, which asks the plugin. Pieces rendered before render again. */
   setPluginRenderers: (specs: PluginRendererSpec[], render: RenderPluginBlock) => {

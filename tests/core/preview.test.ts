@@ -590,6 +590,7 @@ describe('preview renderer extension point', () => {
       'devot.mermaid',
       'devot.plantuml',
       'devot.markmap',
+      'devot.kept-drawings',
       'devot.code',
       'devot.headingIds',
       'devot.swatches',
