@@ -9,6 +9,7 @@ import {
   createTagService,
   importMarkdown,
   importLayout,
+  importTree,
   noteUri,
   prepareImportFile,
   type ImportScan,
@@ -65,6 +66,50 @@ async function run(
 }
 
 describe('Obsidian vault import', () => {
+  it('keeps vault and TextBundle layouts and conventions separate in mixed picked roots', async () => {
+    const { db, scan, note, report } = await run(
+      {
+        'Vault/Plain.textbundle/text.md': 'Vault body',
+        'Bear/Loose.textbundle/text.md': 'Just text, #multi word tag#.',
+        'Vault/Board.canvas': JSON.stringify({
+          nodes: [{ id: 'n', type: 'file', file: 'Note.md', x: 0, y: 0, width: 10, height: 10 }],
+          edges: [],
+        }),
+        'Vault/Note.md': 'Root note',
+        'Bear/Note.md': 'Other root',
+      },
+      [],
+      '',
+      false,
+      {
+        kind: 'folders',
+        vault: [
+          {
+            root: 'Vault',
+            attachmentFolderPath: '',
+            newLinkFormat: 'shortest',
+            useMarkdownLinks: false,
+          },
+        ],
+      },
+    )
+    const bear = await note('Bear/Loose.textbundle/text.md')
+    expect((await note('Vault/Board.canvas')).bodyMd).toContain(
+      noteUri(report.noteIds['Vault/Note.md']!),
+    )
+    const vault = await note('Vault/Plain.textbundle/text.md')
+    expect.soft(bear.title).toBe('Loose')
+    const books = await db.listBooks()
+    expect.soft(books.find((b) => b.id === bear.bookId)?.name).toBe('Bear')
+    expect.soft(books.find((b) => b.id === vault.bookId)?.name).toBe('Plain.textbundle')
+    expect.soft((await db.listTags()).map((t) => t.name)).toEqual(['multi word tag'])
+    const tree = importTree(scan)
+    expect.soft(tree.folders.find((f) => f.name === 'Bear')?.folders).toEqual([])
+    expect
+      .soft(tree.folders.find((f) => f.name === 'Vault')?.folders[0]?.name)
+      .toBe('Plain.textbundle')
+  })
+
   it('rewrites inline and reference Markdown canvas links with Markdown links enabled', async () => {
     const { report, note } = await run(
       {

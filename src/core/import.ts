@@ -745,7 +745,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       const { meta } = prepared
       let { text, images } = prepared
       const title =
-        layout.app !== null && prepared.title === fileTitle(path)
+        layout.appOf(path) !== null && prepared.title === fileTitle(path)
           ? clip(oneLine(composed(layout.fileTitle(path))), MAX_TITLE_CHARS) || prepared.title
           : prepared.title
       id = await notes.create(title, folder(layout.noteFolder(path)))
@@ -847,7 +847,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       if (meta.status !== null && meta.status !== 'none') await notes.setStatus(noteId, meta.status)
       // Tags last: a tag made for a note that then failed would stay unused.
       for (const tag of meta.tags) await tags.addToNote(noteId, tag)
-      if (layout.app === 'bear') {
+      if (layout.appOf(path) === 'bear') {
         for (const tag of prepared.hashtags ?? []) {
           await tags.addToNote(noteId, tag).catch((error: unknown) => {
             found.push({ path, image: tag, code: errorCode(error, 'E_IMPORT_TAG_INVALID') })
@@ -1098,7 +1098,7 @@ function nearest(named: ImportedNote[], from: string, target: WikiTarget, kind: 
   const written = titleKey(target.path)
   if (written.startsWith('/')) {
     const root = rootOf(kind, from)
-    const path = `${root}${written}`.replace(/^\//, '')
+    const path = titleKey(`${root}${written}`.replace(/^\//, ''))
     return named.find((note) => titleKey(note.path.replace(/\.md$/i, '')) === path)
   }
   const inFolder = target.path.includes('/')
