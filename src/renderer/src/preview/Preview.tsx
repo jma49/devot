@@ -377,27 +377,6 @@ export function Preview({
       if (selectingAll.current === pending) selectingAll.current = undefined
     })
   }, [buildAll])
-  const reachLine = useCallback(
-    function reach(line: number): void | Promise<boolean> {
-      if (!awaitingFull.current && !hasPending(pieces.current)) return
-      const el = host.current
-      if (!el || el.querySelector(`[data-source-line="${line}"]`)) return
-      if (buildToLine(el, pieces.current, line) > 0) {
-        scroll.current?.built()
-        afterBuild()
-      }
-      if (el.querySelector(`[data-source-line="${line}"]`)) return
-      const waiting = awaitingFull.current
-      if (waiting) {
-        return waiting.done.then((ready) => {
-          if (!ready || waiting.note !== noteNow.current || waiting.source !== shown.current)
-            return false
-          return reach(line) ?? true
-        })
-      }
-    },
-    [afterBuild],
-  )
   /** Builds until the preview is `height` tall, in growing runs so layout is read few times. */
   const buildToHeight = useCallback(
     (scroller: HTMLElement, height: number) => {
@@ -417,6 +396,39 @@ export function Preview({
       afterBuild()
     },
     [afterBuild],
+  )
+  const reachLine = useCallback(
+    function reach(line: number): void | Promise<boolean> {
+      if (!awaitingFull.current && !hasPending(pieces.current)) return
+      const el = host.current
+      const scroller = pane.current
+      if (!el || !scroller) return
+      const target = () => el.querySelector(`[data-source-line="${line}"]`)
+      if (!target() && buildToLine(el, pieces.current, line) > 0) {
+        scroll.current?.built()
+        afterBuild()
+      }
+      const heading = target()
+      if (heading) {
+        const top =
+          heading.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top -
+          scroller.clientTop +
+          scroller.scrollTop
+        const height = top + scroller.clientHeight
+        buildToHeight(scroller, height)
+        if (scroller.scrollHeight >= height) return
+      }
+      const waiting = awaitingFull.current
+      if (waiting) {
+        return waiting.done.then((ready) => {
+          if (!ready || waiting.note !== noteNow.current || waiting.source !== shown.current)
+            return false
+          return reach(line) ?? true
+        })
+      }
+    },
+    [afterBuild, buildToHeight],
   )
   useEffect(() => () => clearTimeout(buildTimer.current), [])
 

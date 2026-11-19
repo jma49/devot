@@ -356,6 +356,42 @@ describe('Preview', () => {
     }
   })
 
+  it('waits for space below a heading near the end of the head before reaching it', async () => {
+    const markdown = note(100_000, 'heading-room')
+    const renderer = createPieceRenderer()
+    const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    let finish!: (answer: RenderAnswer) => void
+    const done = new Promise<RenderAnswer>((resolve) => {
+      finish = resolve
+    })
+    const { core } = fakeCore()
+    core.renderLivePreview = vi
+      .fn<Core['renderLivePreview']>()
+      .mockResolvedValueOnce({ ...head, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValueOnce(done)
+    const { body, handles } = show(core, markdown, 'heading-room')
+    await settle()
+    const scroller = body().closest<HTMLElement>('.preview')!
+    const headings = body().querySelectorAll('h2')
+    const heading = headings[headings.length - 1]!
+    const top = (headings.length - 1) * 100
+    vi.spyOn(heading, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, top, 100, 40))
+    vi.spyOn(scroller, 'clientHeight', 'get').mockReturnValue(300)
+    vi.spyOn(scroller, 'scrollHeight', 'get').mockImplementation(
+      () => body().querySelectorAll('h2').length * 100,
+    )
+    const reaching = handles.pane!.reach!(Number(heading.getAttribute('data-source-line')))
+    expect(reaching).toBeInstanceOf(Promise)
+    const pieces = await renderer(
+      markdown,
+      { labels, loadedEmbeds: [] },
+      head.pieces.map((piece) => piece.key),
+    )
+    await act(async () => finish({ pieces, lines: 10000, links: [], tasks: { done: 0, total: 0 } }))
+    await expect(reaching).resolves.toBe(true)
+    expect(scroller.scrollHeight >= top + scroller.clientHeight).toBe(true)
+  }, 60_000)
+
   it('shows a long note head before asking for its full render, which reuses the head keys', async () => {
     const markdown = note(40_000, 'head')
     const renderer = createPieceRenderer()
