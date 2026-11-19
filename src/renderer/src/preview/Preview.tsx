@@ -280,6 +280,7 @@ export function Preview({
   const shownLinks = useRef<readonly string[]>([])
   const linksChanged = useRef(0)
   useInsertionEffect(() => {
+    if (noteNow.current !== noteId) requestedNote.current = undefined
     noteNow.current = noteId
     if (noteId !== piecesOf.current) {
       clearTimeout(buildTimer.current)

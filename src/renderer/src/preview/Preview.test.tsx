@@ -197,6 +197,20 @@ describe('Preview', () => {
     ).toHaveLength(1)
   }, 60_000)
 
+  it('opens a long note with its head again after visiting a blank note', async () => {
+    const { core } = fakeCore()
+    const asked = vi.spyOn(core, 'renderLivePreview')
+    const markdown = note(40_000, 'return-from-blank')
+    const { render: update } = show(core, markdown, 'return-long')
+    await settle()
+    update('', 'blank-note')
+    await settle()
+    asked.mockClear()
+    update(markdown, 'return-long')
+    await settle()
+    expect(asked.mock.calls[0]?.[4]).toBe(8000)
+  }, 60_000)
+
   it.each(['ready', 'note', 'error'])(
     'handles Copy following head-only Select All: %s',
     async (change) => {
