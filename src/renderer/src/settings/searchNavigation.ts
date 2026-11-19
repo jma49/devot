@@ -62,8 +62,11 @@ export function waitForSetting(
 ) {
   let phase: 'initial' | 'waiting' | 'stopped' = 'initial'
   let focusing = false
+  const transition = (event: 'miss' | 'stop') => {
+    phase = event === 'stop' ? 'stopped' : phase === 'initial' ? 'waiting' : phase
+  }
   const stop = () => {
-    phase = 'stopped'
+    transition('stop')
     observer.disconnect()
     window.clearTimeout(timeout)
     window.removeEventListener('pointerdown', interacted, true)
@@ -85,7 +88,7 @@ export function waitForSetting(
     try {
       if (label !== undefined && !focusSetting(body, label, key)) {
         if (phase === 'initial') {
-          phase = 'waiting'
+          transition('miss')
           focusTemporarily(body)
         }
         return
