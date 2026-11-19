@@ -198,6 +198,8 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
   - A check that compared the median of eight keys in two 4 MB notes failed at 102 % of its limit: each key's time spread from 40 to 115 ms with collection pauses, in either note.
     It compares each note's fastest key, the key's own cost (#904).
   - Playwright's WebKit sometimes drops a scroll key, also the first one pressed in a focused preview (#913); the preview key specs press until the preview has moved (`pressUntilBeyond`), which still fails when the keys never scroll it.
+  - A history spec reloaded the page 9 ms after the note's save landed, before the core worker wrote the title event that follows it, and Revision History lacked "Renamed to" (#1034).
+    A spec that reloads to start a fresh session first waits for the revisions it later asserts to be stored.
   - On a loaded simulator XCTest heard that the app it had stopped was gone 111 s late, after the next test's launch had given up with "Failed to terminate" (#880, #895).
     The iPhone UI tests capture screenshots instead of a screen recording (`PreferredScreenCaptureFormat` in the `.xctestrun`), which halves a result bundle and takes the recording's load off the simulator.
   - A note list row gains its excerpt a moment after its note is written; a spec that measured the gap below it before then read 23 px for 2 (#923).

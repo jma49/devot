@@ -33,6 +33,21 @@ const savedBody = (page: Page, title: string) =>
     return notes.find((n) => n.title === t)?.bodyMd
   }, title)
 
+const storedTitleEvent = (page: Page, title: string) =>
+  page.evaluate((t) => {
+    const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+      id: string
+      title: string
+    }[]
+    const id = notes.find((n) => n.title === t)?.id
+    const revisions = JSON.parse(localStorage.getItem('devot.test.revisions') ?? '[]') as {
+      noteId: string
+      kind: string
+      value: string | null
+    }[]
+    return revisions.some((r) => r.noteId === id && r.kind === 'title' && r.value === t)
+  }, title)
+
 async function createNote(page: Page, title: string, text: string) {
   const before = await noteRows(page).count()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
@@ -42,6 +57,8 @@ async function createNote(page: Page, title: string, text: string) {
   await body(page).click()
   await page.keyboard.insertText(text)
   await expect.poll(() => savedBody(page, title)).toBe(text)
+  // The title's event is written after the save that stores the title; a reload before it lands loses it.
+  if (title) await expect.poll(() => storedTitleEvent(page, title)).toBe(true)
 }
 
 /** Fresh session, so the saved text is the version before the next edit. */
