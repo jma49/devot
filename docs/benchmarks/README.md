@@ -4,6 +4,7 @@ How fast Devot is, measured before anything is optimised. Two scripts, both run 
 
 - `pnpm bench` measures the renderer in Playwright's WebKit and writes `results.json`.
 - `pnpm bench:app` measures a built Devot.app (launch time and memory) and writes `app-results.json`. It needs a Mac with Accessibility permission for the terminal.
+- `pnpm bench:large` measures large-note storage, search, sync encoding and local relay paths; see [the method, results and bottleneck investigation](large-notes.md).
 
 ## Method
 
