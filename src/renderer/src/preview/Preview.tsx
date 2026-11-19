@@ -57,6 +57,7 @@ import { createIslandMounter } from './islands'
 import { islands } from './islandRegistry'
 import { CodeCopyButtons, pieceCodeBlocks } from './CodeCopy'
 import { afterPaint } from './afterPaint'
+import { createOpening } from './opening'
 import { latestOnly } from './latest'
 import { warmMermaid } from './mermaid'
 import {
@@ -249,9 +250,7 @@ export function Preview({
     createIslandMounter(islands, { scroller: (body) => body.parentElement, shift: shiftScroll }),
   )
   const [codes, setCodes] = useState<HTMLElement[]>([])
-  const codePaint = useRef<(() => void) | undefined>(undefined)
-  useEffect(() => () => codePaint.current?.(), [])
-  const buildTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const [opening] = useState(() => createOpening(LONG_NOTE_CHARACTERS))
 
   const render = useRef<(input: RenderInput) => void>(undefined)
   /** Renders the latest input again. */
@@ -259,17 +258,6 @@ export function Preview({
   const pieces = useRef<ShownPiece[]>([])
   /** The note the pieces on screen are of. */
   const piecesOf = useRef<string | undefined>(undefined)
-  const requestedNote = useRef<string | undefined>(undefined)
-  const awaitingFull = useRef<
-    | {
-        note: string | undefined
-        source: string
-        done: Promise<boolean>
-        finish: (ready: boolean) => void
-      }
-    | undefined
-  >(undefined)
-  const selectingAll = useRef<Promise<boolean> | undefined>(undefined)
   /** The Markdown the preview on screen was rendered from (images point into it). */
   const shown = useRef('')
   const findHandle = useRef(onFind)
@@ -281,14 +269,8 @@ export function Preview({
   const shownLinks = useRef<readonly string[]>([])
   const linksChanged = useRef(0)
   useInsertionEffect(() => {
-    if (noteNow.current !== noteId) requestedNote.current = undefined
+    if (noteNow.current !== noteId) opening.reset(noteId)
     noteNow.current = noteId
-    if (noteId !== piecesOf.current) {
-      clearTimeout(buildTimer.current)
-      buildTimer.current = undefined
-      codePaint.current?.()
-      codePaint.current = undefined
-    }
     findHandle.current = onFind
     scrollHandle.current = onScrollPane
     scrollAsked.current = initialScroll
@@ -301,22 +283,24 @@ export function Preview({
       scroll.current?.changed(),
     )
     const blocks = pieceCodeBlocks(pieces.current)
-    codePaint.current?.()
-    codePaint.current = undefined
-    if (hasPending(pieces.current) || awaitingFull.current) return
-    codePaint.current = afterPaint(() => {
-      codePaint.current = undefined
-      if (blocks.some((block) => !host.current?.contains(block))) return
-      setCodes((now) => (sameList(now, blocks) ? now : blocks))
-    })
-  }, [mounter])
+    opening.clear('commit')
+    if (hasPending(pieces.current) || opening.waiting) return
+    opening.set(
+      'commit',
+      afterPaint(() => {
+        opening.clear('commit')
+        if (blocks.some((block) => !host.current?.contains(block))) return
+        setCodes((now) => (sameList(now, blocks) ? now : blocks))
+      }),
+    )
+  }, [mounter, opening])
   // A big note is built in slices after its first pieces (see `buildPending`); what reads the
   // whole preview (find, select all, copy, a jump to a heading) has the rest built first.
   const buildLater = useCallback(() => {
-    if (buildTimer.current !== undefined) return
+    if (opening.has('build')) return
     let mountedAt = performance.now()
     const slice = () => {
-      buildTimer.current = undefined
+      opening.clear('build')
       const el = host.current
       if (!el) return
       const until = performance.now() + SLICE_MS
@@ -332,16 +316,18 @@ export function Preview({
           afterBuild()
           mountedAt = performance.now()
         }
-        buildTimer.current = setTimeout(slice, 0)
+        const timer = setTimeout(slice, 0)
+        opening.set('build', () => clearTimeout(timer))
         return
       }
       afterBuild()
     }
-    buildTimer.current = setTimeout(slice, 0)
-  }, [afterBuild])
+    const timer = setTimeout(slice, 0)
+    opening.set('build', () => clearTimeout(timer))
+  }, [afterBuild, opening])
   const buildAll = useCallback(
     function complete(): void | Promise<boolean> {
-      const waiting = awaitingFull.current
+      const waiting = opening.waiting
       if (waiting)
         return waiting.done.then((ready) => {
           if (!ready || waiting.note !== noteNow.current || waiting.source !== shown.current)
@@ -350,13 +336,12 @@ export function Preview({
         })
       const el = host.current
       if (!el || !hasPending(pieces.current)) return
-      clearTimeout(buildTimer.current)
-      buildTimer.current = undefined
+      opening.clear('build')
       buildPending(el, pieces.current, () => true)
       scroll.current?.built()
       afterBuild()
     },
-    [afterBuild],
+    [afterBuild, opening],
   )
   const selectAll = useCallback(() => {
     const note = noteNow.current
@@ -372,11 +357,11 @@ export function Preview({
       return
     }
     const pending = complete.then((ready) => ready && select())
-    selectingAll.current = pending
+    opening.select(pending)
     void pending.then(() => {
-      if (selectingAll.current === pending) selectingAll.current = undefined
+      if (opening.selection === pending) opening.select(undefined)
     })
-  }, [buildAll])
+  }, [buildAll, opening])
   /** Builds until the preview is `height` tall, in growing runs so layout is read few times. */
   const buildToHeight = useCallback(
     (scroller: HTMLElement, height: number) => {
@@ -399,7 +384,7 @@ export function Preview({
   )
   const reachLine = useCallback(
     function reach(line: number): void | Promise<boolean> {
-      if (!awaitingFull.current && !hasPending(pieces.current)) return
+      if (!opening.waiting && !hasPending(pieces.current)) return
       const el = host.current
       const scroller = pane.current
       if (!el || !scroller) return
@@ -419,7 +404,7 @@ export function Preview({
         buildToHeight(scroller, height)
         if (scroller.scrollHeight >= height) return
       }
-      const waiting = awaitingFull.current
+      const waiting = opening.waiting
       if (waiting) {
         return waiting.done.then((ready) => {
           if (!ready || waiting.note !== noteNow.current || waiting.source !== shown.current)
@@ -428,9 +413,9 @@ export function Preview({
         })
       }
     },
-    [afterBuild, buildToHeight],
+    [afterBuild, buildToHeight, opening],
   )
-  useEffect(() => () => clearTimeout(buildTimer.current), [])
+  useEffect(() => () => opening.reset(), [opening])
 
   // A restored scroll position (see `initialScroll`): asked for at the first
   // render with content, then applied again as the content grows (images,
@@ -475,41 +460,24 @@ export function Preview({
 
   useEffect(() => {
     const { renderLivePreview, noteDrawings } = core
-    let active = true
-    let generation = 0
-    let fullFrame: number | undefined
-    let fullTimer: ReturnType<typeof setTimeout> | undefined
-    const warming = new Set<() => void>()
-    const finishFull = (ready = false) => {
-      const waiting = awaitingFull.current
-      awaitingFull.current = undefined
-      waiting?.finish(ready)
-    }
-    const reset = () => {
-      finishFull()
-      if (fullFrame !== undefined) cancelAnimationFrame(fullFrame)
-      clearTimeout(fullTimer)
-      fullFrame = undefined
-      fullTimer = undefined
-    }
     const request = latestOnly(
       async ({
         input,
-        round,
+        ticket,
         ofNote,
-        opening,
+        warming,
       }: {
         input: RenderInput
-        round: number
+        ticket: ReturnType<typeof opening.begin>['request']
         ofNote: string | undefined
-        opening: boolean
+        warming: boolean
       }) => {
-        if (!active || round !== generation) return undefined
+        if (!opening.current(ticket)) return undefined
         const source = input.read()
         const valid = () =>
-          active && round === generation && ofNote === noteNow.current && source === input.read()
-        const release = opening ? warmMermaid(source, islandContext.current) : undefined
-        if (release) warming.add(release)
+          opening.current(ticket) && ofNote === noteNow.current && source === input.read()
+        const release = warming ? warmMermaid(source, islandContext.current) : undefined
+        if (release) opening.warm(release)
         const ask = async () => {
           const kept =
             ofNote && hasFence(source)
@@ -531,7 +499,7 @@ export function Preview({
             `${ofNote ?? ''} ${linksChanged.current}`,
             input.head ? HEAD_CHARACTERS : undefined,
           )
-          return valid() ? { next, input, source, ofNote, round } : undefined
+          return valid() ? { next, input, source, ofNote, ticket } : undefined
         }
         return ask()
           .catch((error: unknown) => {
@@ -539,27 +507,14 @@ export function Preview({
             return undefined
           })
           .finally(() => {
-            release?.()
-            if (release) warming.delete(release)
+            if (release) opening.release(release)
           })
       },
       (answer) => {
         if (!answer || !host.current) return
-        const { next, input, source, ofNote, round } = answer
-        if (
-          !active ||
-          generation !== round ||
-          ofNote !== noteNow.current ||
-          source !== input.read()
-        )
+        const { next, input, source, ofNote, ticket } = answer
+        if (!opening.current(ticket) || ofNote !== noteNow.current || source !== input.read())
           return
-        if (next.partial) {
-          let finish!: (ready: boolean) => void
-          const done = new Promise<boolean>((resolve) => {
-            finish = resolve
-          })
-          awaitingFull.current = { note: ofNote, source, done, finish }
-        }
         if (ofNote !== piecesOf.current) {
           // Another note shares nothing worth patching over with the one shown.
           host.current.replaceChildren()
@@ -578,7 +533,7 @@ export function Preview({
           return
         }
         shown.current = source
-        if (!next.partial) finishFull(true)
+        opening.shown(next.partial === true)
         shownLinks.current = next.links
         islandContext.current = { ...islandContext.current, noteId: ofNote }
         afterBuild()
@@ -596,56 +551,43 @@ export function Preview({
         keepRestoring()
         if (hasPending(pieces.current)) buildLater()
         if (next.partial) {
-          fullFrame = requestAnimationFrame(() => {
-            fullFrame = undefined
-            fullTimer = setTimeout(() => {
-              fullTimer = undefined
-              if (
-                active &&
-                generation === round &&
-                ofNote === noteNow.current &&
-                source === input.read()
-              )
+          const frame = requestAnimationFrame(() => {
+            opening.clear('advance')
+            const timer = setTimeout(() => {
+              opening.clear('advance')
+              if (opening.current(ticket) && ofNote === noteNow.current && source === input.read())
                 run({ ...input, head: false })
             }, 0)
+            opening.set('advance', () => clearTimeout(timer))
           })
+          opening.set('advance', () => cancelAnimationFrame(frame))
         }
       },
       () => {
-        reset()
-        requestedNote.current = undefined
-        clearTimeout(buildTimer.current)
-        buildTimer.current = undefined
+        opening.reset(noteNow.current, true)
         console.warn('W_PREVIEW_RENDER_FAILED')
       },
     )
     const run = (input: RenderInput) => {
       const ofNote = noteNow.current
       const source = input.read()
-      const opening = source.length > 0 && requestedNote.current !== ofNote
-      if (opening) requestedNote.current = ofNote
-      if (input.head !== false) reset()
-      generation += 1
+      const next = opening.begin(ofNote, source, input.head)
       request({
         input: {
           ...input,
-          head: input.head ?? (opening && source.length > LONG_NOTE_CHARACTERS),
+          head: next.head,
         },
-        round: generation,
+        ticket: next.request,
         ofNote,
-        opening,
+        warming: next.opening,
       })
     }
     render.current = run
     return () => {
-      active = false
-      reset()
-      for (const release of warming) release()
-      warming.clear()
-      requestedNote.current = undefined
+      opening.reset()
       render.current = undefined
     }
-  }, [core, afterBuild, buildLater, keepRestoring, stopRestoring])
+  }, [core, afterBuild, buildLater, keepRestoring, stopRestoring, opening])
   useEffect(() => {
     islandContext.current = { ...islandContext.current, appearance, theme }
     if (host.current)
@@ -846,11 +788,11 @@ export function Preview({
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
         onCopy={(event) => {
-          const pending = selectingAll.current
-          if (!awaitingFull.current) {
+          const pending = opening.selection
+          if (!opening.waiting) {
             buildAll()
             if (pending && pane.current) selectAllIn(pane.current, window.getSelection())
-            selectingAll.current = undefined
+            opening.select(undefined)
             return
           }
           if (!pending) {
