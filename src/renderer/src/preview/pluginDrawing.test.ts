@@ -47,6 +47,33 @@ describe('a drawing a plugin answers', () => {
     expect(negative!.getAttribute('radius')).toBe('0')
   })
 
+  it('keeps the size of a drop shadow within bounds', () => {
+    const { svg } = importPluginSvg(
+      drawing('<filter id="f"><feDropShadow dx="2" stdDeviation="9000 3" /></filter>'),
+    )
+    const shadow = svg.querySelector('feDropShadow')!
+    expect(shadow.getAttribute('stdDeviation')).toBe('32 3')
+    expect(shadow.getAttribute('dx')).toBe('2')
+  })
+
+  it('drops CSS filters, which no bound holds, and keeps the rest of the styling', () => {
+    const { svg, css } = importPluginSvg(
+      drawing(
+        '<style>.n{fill:#fff;filter:blur(9000px)}.m{-webkit-backdrop-filter:blur(9000px)}' +
+          '.o{fil\\74 er:blur(9000px);stroke:red}.p{filter/**/:blur(9000px)}</style>' +
+          '<rect style="fill: red; filter: blur(9000px); backdrop-filter: blur(9000px)" />' +
+          '<g filter="blur(9000px)" /><path filter="url(#f)" />',
+      ),
+    )
+    expect(css).toBe('.n{fill:#fff;}.m{}.o{stroke:red}.p{}')
+    const rect = svg.querySelector('rect') as SVGElement
+    expect(rect.style.getPropertyValue('fill')).toBe('red')
+    expect(rect.style.getPropertyValue('filter')).toBe('')
+    expect(rect.style.getPropertyValue('backdrop-filter')).toBe('')
+    expect(svg.querySelector('g')!.hasAttribute('filter')).toBe(false)
+    expect(svg.querySelector('path')!.getAttribute('filter')).toBe('url(#f)')
+  })
+
   it('refuses what is not SVG', () => {
     expect(() => importPluginSvg('<html><body>x</body></html>')).toThrow('E_PLUGIN_SVG')
     expect(() => importPluginSvg('<svg')).toThrow('E_PLUGIN_SVG')

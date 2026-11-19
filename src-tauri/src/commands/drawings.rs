@@ -3,6 +3,7 @@
 
 use std::collections::HashSet;
 
+use serde::Deserialize;
 use tauri::State;
 
 use super::notes::{valid_hlc, valid_note_id};
@@ -13,6 +14,46 @@ use crate::storage::{Db, KeptDrawing, NoteDrawings, Write};
 const MAX_DRAWING_BYTES: usize = 256 * 1024;
 const MAX_NOTE_DRAWINGS: usize = 32;
 const MAX_NOTE_DRAWINGS_BYTES: usize = 1024 * 1024;
+
+/// What a page writes, refused with a field this build would not keep: storage reads drawings leniently (a later
+/// build's fields are let go), but nothing here may drop part of a write.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DrawingWrite {
+    plugin_id: String,
+    language: String,
+    hash: String,
+    appearance: String,
+    svg: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NoteDrawingsWrite {
+    note_id: String,
+    drawings: Vec<DrawingWrite>,
+    hlc: String,
+}
+
+impl From<NoteDrawingsWrite> for NoteDrawings {
+    fn from(write: NoteDrawingsWrite) -> Self {
+        NoteDrawings {
+            note_id: write.note_id,
+            drawings: write
+                .drawings
+                .into_iter()
+                .map(|d| KeptDrawing {
+                    plugin_id: d.plugin_id,
+                    language: d.language,
+                    hash: d.hash,
+                    appearance: d.appearance,
+                    svg: d.svg,
+                })
+                .collect(),
+            hlc: write.hlc,
+        }
+    }
+}
 
 fn valid_drawing(drawing: &KeptDrawing) -> bool {
     is_id(&drawing.plugin_id)
@@ -63,7 +104,8 @@ pub async fn note_drawings_get(
 }
 
 #[tauri::command]
-pub async fn note_drawings_put(db: State<'_, Db>, record: NoteDrawings) -> Result<(), String> {
+pub async fn note_drawings_put(db: State<'_, Db>, record: NoteDrawingsWrite) -> Result<(), String> {
+    let record = NoteDrawings::from(record);
     validate(&record).map_err(String::from)?;
     db.write(Write::Content, move |store| {
         store.put_note_drawings(&record)
@@ -103,6 +145,19 @@ mod tests {
             ..drawing('a')
         };
         assert_eq!(validate(&record(vec![light, dark])), Ok(()));
+    }
+
+    #[test]
+    fn refuses_a_write_with_a_field_it_would_not_keep() {
+        let write = serde_json::to_value(record(vec![drawing('a')])).unwrap();
+        let taken = serde_json::from_value::<NoteDrawingsWrite>(write.clone()).unwrap();
+        assert_eq!(NoteDrawings::from(taken), record(vec![drawing('a')]));
+        let mut extra = write.clone();
+        extra["drawings"][0]["caption"] = "x".into();
+        assert!(serde_json::from_value::<NoteDrawingsWrite>(extra).is_err());
+        let mut outer = write;
+        outer["pinned"] = true.into();
+        assert!(serde_json::from_value::<NoteDrawingsWrite>(outer).is_err());
     }
 
     #[test]

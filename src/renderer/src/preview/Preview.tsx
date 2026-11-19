@@ -410,7 +410,7 @@ export function Preview({
             },
             ofNote === piecesOf.current ? pieces.current.map((piece) => piece.key) : [],
             // The chips' notes are asked for again when another note opens or one of them changes.
-            `${noteNow.current ?? ''} ${linksChanged.current}`,
+            `${ofNote ?? ''} ${linksChanged.current}`,
           )
           .then((next) => ({ next, input, source, ofNote }))
       },

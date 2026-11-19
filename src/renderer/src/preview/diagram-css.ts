@@ -73,16 +73,23 @@ function parse(css: string): Item[] {
   return block(false)
 }
 
-function print(items: Item[]): string {
+function print(items: Item[], drop: (text: string) => boolean): string {
   return items
     .map((item) => {
-      if (typeof item === 'string') return pointsElsewhere(item) ? '' : item
-      return pointsElsewhere(item.prelude) ? '' : `${item.prelude}{${print(item.body)}}`
+      if (typeof item === 'string') return drop(item) ? '' : item
+      return drop(item.prelude) ? '' : `${item.prelude}{${print(item.body, drop)}}`
     })
     .join('')
 }
 
-/** A stylesheet or declaration list without the declarations and rules that would fetch. */
-export function withoutRemoteCss(css: string): string {
-  return pointsElsewhere(css) ? print(parse(css)) : css
+const withoutComments = (text: string) => text.replace(/\/\*[\s\S]*?(?:\*\/|$)/g, '')
+
+/**
+ * A stylesheet or declaration list without the declarations and rules that would fetch, nor those `drops` finds in
+ * their text as CSS reads it (escapes decoded, comments left out).
+ */
+export function withoutRemoteCss(css: string, drops?: RegExp): string {
+  const drop = (text: string) =>
+    pointsElsewhere(text) || (drops !== undefined && drops.test(unescaped(withoutComments(text))))
+  return drop(css) ? print(parse(css), drop) : css
 }

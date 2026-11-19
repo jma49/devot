@@ -7,6 +7,7 @@ import {
   keptDrawingsChanged,
   keptDrawingsOf,
   keptDrawingsRevision,
+  KEPT_RETRY_MS,
   loadKeptDrawings,
   watchKeptDrawings,
 } from './keptDrawings'
@@ -76,7 +77,7 @@ describe('the kept drawings a window reads', () => {
       reads++ === 0 ? [kept('<svg>1</svg>')] : answers[reads - 2]!.promise,
     )
     await loadKeptDrawings(read, id)
-    const revision = keptDrawingsRevision()
+    const revision = keptDrawingsRevision(id)
 
     window.dispatchEvent(dbChanged())
     expect(read).toHaveBeenCalledTimes(2)
@@ -86,14 +87,14 @@ describe('the kept drawings a window reads', () => {
     await answers[0]!.promise
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(changed).not.toHaveBeenCalled()
-    expect(keptDrawingsRevision()).toBe(revision)
+    expect(keptDrawingsRevision(id)).toBe(revision)
 
     window.dispatchEvent(dbChanged())
     expect(keptDrawingsOf(id)).toEqual([kept('<svg>1</svg>')])
     answers[1]!.resolve([kept('<svg>2</svg>')])
     await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1))
     expect(keptDrawingsOf(id)).toEqual([kept('<svg>2</svg>')])
-    expect(keptDrawingsRevision()).not.toBe(revision)
+    expect(keptDrawingsRevision(id)).not.toBe(revision)
   })
 
   it('reads again only the notes a change names', async () => {
@@ -124,6 +125,66 @@ describe('the kept drawings a window reads', () => {
     first.resolve([kept('<svg>old</svg>')])
     expect(await loading).toEqual([kept('<svg>new</svg>')])
     expect(keptDrawingsOf(id)).toEqual([kept('<svg>new</svg>')])
+  })
+
+  it('reads a shown note whose read failed again after a short wait, then on the next change', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    stops.push(() => vi.useRealTimers())
+    const id = noteId()
+    const changed = vi.fn<() => void>()
+    stops.push(watchKeptDrawings(() => id, changed))
+    const read = vi
+      .fn<Read>()
+      .mockRejectedValueOnce(new Error('E_CORE_NOT_READY'))
+      .mockRejectedValueOnce(new Error('E_CORE_NOT_READY'))
+      .mockResolvedValueOnce([kept('<svg/>')])
+    expect(await loadKeptDrawings(read, id)).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(KEPT_RETRY_MS)
+    expect(read).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(KEPT_RETRY_MS * 4)
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(changed).not.toHaveBeenCalled()
+
+    window.dispatchEvent(dbChanged([id]))
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1))
+    expect(keptDrawingsOf(id)).toEqual([kept('<svg/>')])
+  })
+
+  it('takes a retried read that answers in time', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    stops.push(() => vi.useRealTimers())
+    const id = noteId()
+    const changed = vi.fn<() => void>()
+    stops.push(watchKeptDrawings(() => id, changed))
+    const read = vi
+      .fn<Read>()
+      .mockRejectedValueOnce(new Error('E_CORE_NOT_READY'))
+      .mockResolvedValueOnce([kept('<svg/>')])
+    expect(await loadKeptDrawings(read, id)).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(KEPT_RETRY_MS)
+    expect(changed).toHaveBeenCalledTimes(1)
+    expect(keptDrawingsOf(id)).toEqual([kept('<svg/>')])
+  })
+
+  it('moves on the revision only of the note whose list changed', async () => {
+    const [x, y] = [noteId(), noteId()]
+    for (const id of [x, y])
+      stops.push(
+        watchKeptDrawings(
+          () => id,
+          () => {},
+        ),
+      )
+    let svg = '<svg>1</svg>'
+    const read = vi.fn<Read>(async () => [kept(svg)])
+    await Promise.all([loadKeptDrawings(read, x), loadKeptDrawings(read, y)])
+    const [before, other] = [keptDrawingsRevision(x), keptDrawingsRevision(y)]
+    svg = '<svg>2</svg>'
+    window.dispatchEvent(dbChanged([x]))
+    await vi.waitFor(() => expect(keptDrawingsRevision(x)).not.toBe(before))
+    expect(keptDrawingsRevision(y)).toBe(other)
   })
 
   it('lets go of a note no window shows when it changes', async () => {

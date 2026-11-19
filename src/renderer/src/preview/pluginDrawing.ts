@@ -110,8 +110,13 @@ export function setPluginDrawer(
 // A blur or a morphology costs with its size squared on each paint; a drawing never needs more than these.
 const FILTER_SIZES: Readonly<Record<string, number>> = {
   'feGaussianBlur stdDeviation': 32,
+  'feDropShadow stdDeviation': 32,
   'feMorphology radius': 16,
 }
+/** A CSS filter's functions take any size, so a drawing's CSS has none; its SVG filters are bounded above. */
+const CSS_FILTER = /(?:^|[\s;{])(?:-[a-z]+-)?(?:backdrop-)?filter\s*:/i
+/** The `filter` attribute takes CSS filter functions too, so it may only name a filter of the drawing. */
+const FILTER_REFERENCE = /^\s*(?:none|url\(\s*(['"]?)#[^'"()\s]*\1\s*\))\s*$/i
 
 /** The sizes in `value`, each kept within 0 and `max`; null when one is not a number. */
 function filterSize(value: string, max: number): string | null {
@@ -132,18 +137,19 @@ export function importPluginSvg(markup: string): { svg: SVGSVGElement; css: stri
   const copy = (source: Element): Element | null => {
     if (source.namespaceURI !== SVG_NS || !ELEMENTS.has(source.localName)) return null
     if (source.localName === 'style') {
-      css.push(withoutRemoteCss(source.textContent ?? ''))
+      css.push(withoutRemoteCss(source.textContent ?? '', CSS_FILTER))
       return null
     }
     const el = document.createElementNS(SVG_NS, source.localName)
     for (const attr of Array.from(source.attributes)) {
       if (/^on/i.test(attr.localName)) continue
       if (attr.localName === 'style') {
-        ;(el as SVGElement).style.cssText = withoutRemoteCss(attr.value)
+        ;(el as SVGElement).style.cssText = withoutRemoteCss(attr.value, CSS_FILTER)
         continue
       }
       if (attr.localName === 'href' ? !attr.value.startsWith('#') : pointsElsewhere(attr.value))
         continue
+      if (attr.localName === 'filter' && !FILTER_REFERENCE.test(attr.value)) continue
       const max = FILTER_SIZES[`${source.localName} ${attr.localName}`]
       const value = max === undefined ? attr.value : filterSize(attr.value, max)
       if (value === null) continue
@@ -319,7 +325,7 @@ async function renderKept(
 export const keptDrawingIsland: PreviewIsland = {
   kind: KEPT_DRAWING_ISLAND,
   apiVersion: PREVIEW_API_VERSION,
-  revision: keptDrawingsRevision,
+  revision: (context) => keptDrawingsRevision(context.noteId),
   render: renderKept,
 }
 

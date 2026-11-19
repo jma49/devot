@@ -1,6 +1,7 @@
 // The plugin drawings the notes shown keep (ADR 0030), read through the core for a preview in a window without their
 // plugin. Another process or device may change them: on a DB_CHANGED event a note shown is read again while its list
-// stays shown, and its preview draws again only when the list changed.
+// stays shown, and its preview draws again only when the list changed. A shown note whose read failed is read again
+// once after KEPT_RETRY_MS, then on each DB_CHANGED that names it, until a read answers.
 import type { KeptDrawing } from '../../../core/plugins/drawings'
 import { DB_CHANGED, widened } from '../externalChanges'
 
@@ -18,16 +19,22 @@ interface Watcher {
 }
 
 const KEPT_NOTES = 16
-const kept = new Map<string, readonly KeptDrawing[]>()
+export const KEPT_RETRY_MS = 1000
+/** By note: its list, and a revision moved on each time the list a window shows changes. */
+const kept = new Map<string, { list: readonly KeptDrawing[]; revision: number }>()
 const reads = new Map<string, Read>()
+/** Shown notes whose last read failed, with the timer of their one retry while it waits. */
+const failed = new Map<string, ReturnType<typeof setTimeout> | undefined>()
 const watchers = new Set<Watcher>()
 let reader: ReadKeptDrawings | undefined
-let revision = 0
+let revisions = 0
 
-export const keptDrawingsRevision = (): string => String(revision)
+/** Moves on when the note's list changed, so its kept islands draw again and other notes' stay. */
+export const keptDrawingsRevision = (noteId?: string): string =>
+  String((noteId && kept.get(noteId)?.revision) ?? 0)
 
 export const keptDrawingsOf = (noteId: string): readonly KeptDrawing[] | undefined =>
-  kept.get(noteId)
+  kept.get(noteId)?.list
 
 const keyOf = (d: KeptDrawing) => `${d.pluginId}\n${d.language}\n${d.hash}\n${d.appearance}`
 
@@ -37,16 +44,30 @@ function sameList(a: readonly KeptDrawing[], b: readonly KeptDrawing[]): boolean
   return b.every((d) => svgs.get(keyOf(d)) === d.svg)
 }
 
+const isShown = (noteId: string) => [...watchers].some((w) => w.shown() === noteId)
+
 function take(noteId: string, list: readonly KeptDrawing[]): readonly KeptDrawing[] {
   const before = kept.get(noteId)
+  const retried = failed.has(noteId)
+  clearTimeout(failed.get(noteId))
+  failed.delete(noteId)
+  const changed = before ? !sameList(before.list, list) : retried
   kept.delete(noteId)
-  kept.set(noteId, list)
+  kept.set(noteId, { list, revision: changed || !before ? (revisions += 1) : before.revision })
   if (kept.size > KEPT_NOTES) kept.delete(kept.keys().next().value!)
-  if (before && !sameList(before, list)) {
-    revision += 1
-    for (const w of watchers) if (w.shown() === noteId) w.changed()
-  }
+  if (changed) for (const w of watchers) if (w.shown() === noteId) w.changed()
   return list
+}
+
+/** A shown note is read again once soon, then only on a change; one no window shows is not. */
+function readFailed(read: ReadKeptDrawings, noteId: string) {
+  if (!isShown(noteId)) return
+  const retry = () => {
+    failed.set(noteId, undefined)
+    if (isShown(noteId)) void readKept(read, noteId)
+    else failed.delete(noteId)
+  }
+  failed.set(noteId, failed.has(noteId) ? undefined : setTimeout(retry, KEPT_RETRY_MS))
 }
 
 function readKept(read: ReadKeptDrawings, noteId: string): Read['answer'] {
@@ -65,7 +86,8 @@ function readKept(read: ReadKeptDrawings, noteId: string): Read['answer'] {
       settled()
       // Not kept: the next render reads again.
       console.warn('W_KEPT_DRAWINGS_READ_FAILED')
-      return undefined
+      if (!entry.outdated) readFailed(read, noteId)
+      return entry.outdated ? readKept(read, noteId) : undefined
     },
   )
   reads.set(noteId, entry)
@@ -78,7 +100,7 @@ export function loadKeptDrawings(
   noteId: string,
 ): Promise<readonly KeptDrawing[] | undefined> {
   reader = read
-  const known = kept.get(noteId)
+  const known = kept.get(noteId)?.list
   return known ? Promise.resolve(known) : readKept(read, noteId)
 }
 
@@ -91,6 +113,11 @@ export function keptDrawingsChanged(notes?: ReadonlySet<string>): void {
     if (!touched(id)) continue
     if (reader && shown.has(id)) void readKept(reader, id)
     else kept.delete(id)
+  }
+  for (const [id, timer] of failed) {
+    if (!touched(id) || timer !== undefined) continue
+    if (reader && shown.has(id)) void readKept(reader, id)
+    else failed.delete(id)
   }
 }
 
@@ -127,6 +154,9 @@ export function watchKeptDrawings(
   watchers.add(watcher)
   return () => {
     watchers.delete(watcher)
-    if (watchers.size === 0) window.removeEventListener(DB_CHANGED, onDbChanged)
+    if (watchers.size > 0) return
+    window.removeEventListener(DB_CHANGED, onDbChanged)
+    for (const timer of failed.values()) clearTimeout(timer)
+    failed.clear()
   }
 }
