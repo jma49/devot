@@ -72,7 +72,7 @@ export function ListPane({
   const { editFromList, changeListSelection } = listProps
   const searchScope = results?.search.scope
   const onSearchAll =
-    searching && (searchScope?.bookId || searchScope?.filter) ? findEverywhere : undefined
+    searching && searchScope && (searchScope.bookId || activeFilter) ? findEverywhere : undefined
   const filterTag =
     activeFilter?.kind === 'tag' ? tags.find((tag) => tag.id === activeFilter.tagId) : undefined
   const shownBookIcon = libraryBook ? bookIcon(libraryBook) : undefined
