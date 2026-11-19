@@ -24,19 +24,23 @@ it.each([false, true])(
     const host = document.createElement('main')
     document.body.append(host)
     const root = createRoot(host)
-    let toggle!: () => void
+    const pressToggle = () => {
+      host
+        .querySelector('textarea')!
+        .dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'e', metaKey: true }))
+    }
     function App() {
       const [mode, setMode] = useState<Mode>('edit')
       const editorMode = useRef<Mode>('edit')
       const editorRef = useRef<EditorHandle | null>(null)
-      toggle = useModeSwitch({ mode, setMode, editorMode, editorRef })
-      return <textarea aria-label="Editor" />
+      const toggle = useModeSwitch({ mode, setMode, editorMode, editorRef })
+      return <textarea aria-label="Editor" onKeyDown={toggle} />
     }
     try {
       act(() => root.render(<App />))
       host.querySelector('textarea')!.focus()
-      act(() => toggle())
-      if (cancel) act(() => toggle())
+      act(pressToggle)
+      if (cancel) act(pressToggle)
       const pane = document.createElement('section')
       pane.className = 'preview'
       pane.tabIndex = 0
