@@ -97,7 +97,8 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
         let tag = note.tagIds.first.flatMap { first in context.library?.tags.first { $0.id == first } }
         cell.show(
             NoteCell.Row(
-                note: note, excerpt: context.excerpts.excerpt(note), tag: tag, now: now(),
+                note: note, excerpt: context.excerpts.excerpt(note), headline: context.excerpts.headline(note),
+                tag: tag, now: now(),
                 reduceMotion: context.reduceMotion()))
     }
 
@@ -264,7 +265,7 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
         case .note(let id)?:
             if collectionView.isEditing { return setBatchBar() }
             guard let note = source.row(id) else { return }
-            context.open(id, NoteCell.title(note, excerpt: context.excerpts.excerpt(note)))
+            context.open(id, NoteCell.title(note, headline: context.excerpts.headline(note)))
         case nil:
             break
         }
@@ -318,7 +319,8 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
             previewProvider: {
                 MainActor.assumeIsolated {
                     NotePreviewController(
-                        note: note, excerpt: context.excerpts.excerpt(note), library: context.library, width: width)
+                        note: note, excerpt: context.excerpts.excerpt(note), headline: context.excerpts.headline(note),
+                        library: context.library, width: width)
                 }
             },
             actionProvider: { [weak self] _ in
@@ -355,7 +357,7 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
         guard let id = configuration.identifier as? String, let note = source.row(id) else { return }
         animator.addCompletion { [weak self] in
             guard let self else { return }
-            context.open(id, NoteCell.title(note, excerpt: context.excerpts.excerpt(note)))
+            context.open(id, NoteCell.title(note, headline: context.excerpts.headline(note)))
         }
     }
 

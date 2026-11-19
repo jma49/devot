@@ -7,6 +7,7 @@ import type { ScreensHandlers } from './ops'
 /** What the native lists ask of the core (docs/specs/iphone-screens.md, Operations). */
 export interface ListsCore {
   readonly excerpts: (ids: string[]) => Promise<Record<string, string>>
+  readonly headlines: (ids: string[]) => Promise<Record<string, string>>
   readonly batch: (ids: string[], change: BatchChange) => Promise<BatchResult>
   readonly emptyTrash: () => Promise<number>
   readonly createTemplate: () => Promise<string>
@@ -26,9 +27,11 @@ export function listHandlers(
   now: () => number = Date.now,
 ): ScreensHandlers {
   return {
-    excerpts: async (args) => ({
-      excerpts: await (await started()).excerpts(strings(args['ids'])),
-    }),
+    excerpts: async (args) => {
+      const core = await started()
+      const ids = strings(args['ids'])
+      return { excerpts: await core.excerpts(ids), headlines: await core.headlines(ids) }
+    },
     'notes.batch': async (args) =>
       (await started()).batch(strings(args['ids']), args['change'] as BatchChange),
     'trash.empty': async () => ({ purged: await (await started()).emptyTrash() }),

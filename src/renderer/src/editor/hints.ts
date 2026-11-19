@@ -78,7 +78,6 @@ const emptyNote = ViewPlugin.fromClass(
       this.dom = document.createElement('div')
       this.dom.className = 'cm-empty-hint'
       const text = document.createElement('span')
-      text.textContent = t('editor.emptyNoteHint')
       const chip = document.createElement('button')
       chip.type = 'button'
       chip.className = 'cm-template-chip'
@@ -122,13 +121,20 @@ const emptyNote = ViewPlugin.fromClass(
           const box = view.dom.getBoundingClientRect()
           if (!at) return null
           const top = view.documentTop + line.top - box.top
-          return { top, left: at.left - box.left, height: line.height }
+          const [text, chip] = dom.children as unknown as [HTMLElement, HTMLElement]
+          const wrapped = !chip.hidden && chip.offsetTop > text.offsetTop + text.offsetHeight / 2
+          return { top, left: at.left - box.left, height: line.height, wrapped }
         },
         write: (pos) => {
           if (!pos) return
+          const was = dom.dataset.wrapped === 'true'
           dom.style.top = `${pos.top}px`
           dom.style.left = `${pos.left}px`
-          dom.style.height = `${pos.height}px`
+          // On one row the chip centres on the line; wrapped rows grow downward instead of above the note.
+          dom.style.height = pos.wrapped ? '' : `${pos.height}px`
+          dom.style.minHeight = `${pos.height}px`
+          dom.dataset.wrapped = String(pos.wrapped)
+          if (was !== pos.wrapped) this.place()
         },
       })
     }
@@ -139,6 +145,8 @@ const emptyNote = ViewPlugin.fromClass(
 )
 
 function chipShown(dom: HTMLElement, shown: boolean) {
+  const text = dom.querySelector('span')
+  if (text) text.textContent = t(shown ? 'editor.emptyNoteHint' : 'editor.startTyping')
   const chip = dom.querySelector('button')
   if (chip) chip.hidden = !shown
 }
@@ -167,6 +175,7 @@ const theme = EditorView.theme({
     pointerEvents: 'none',
     whiteSpace: 'nowrap',
   },
+  '.cm-empty-hint[data-wrapped="true"]': { alignContent: 'flex-start' },
   '.cm-empty-hint[hidden], .cm-template-chip[hidden]': { display: 'none' },
   '.cm-template-chip': {
     pointerEvents: 'auto',

@@ -1,8 +1,8 @@
 import Foundation
 
-/// The rows' excerpts, from the core through the page for the rows about to show
-/// (docs/specs/iphone-screens.md, Excerpt cache). An excerpt is kept for the body version it was
-/// read at, so an edited note's is read again and an unchanged one never is.
+/// The rows' excerpts and headlines, from the core through the page for the rows about to show
+/// (docs/specs/iphone-screens.md, Excerpt cache). Both are kept for the body version they were
+/// read at, so an edited note's are read again and an unchanged one's never are.
 @MainActor
 final class ExcerptCache {
     /// `MAX_EXCERPT_IDS` in src-tauri/src/screens/message.rs.
@@ -11,7 +11,16 @@ final class ExcerptCache {
     weak var bridge: (any SettingsBridge)?
     /// The notes whose excerpts just arrived.
     var onExcerpts: ([String]) -> Void = { _ in }
-    private let cache = NSCache<NSString, NSString>()
+    private final class Entry: NSObject {
+        let excerpt: String
+        let headline: String
+        init(excerpt: String, headline: String) {
+            self.excerpt = excerpt
+            self.headline = headline
+        }
+    }
+
+    private let cache = NSCache<NSString, Entry>()
     private var asking: Set<String> = []
 
     init(bridge: (any SettingsBridge)?) {
@@ -23,7 +32,12 @@ final class ExcerptCache {
 
     /// The excerpt, empty when the note has none, or nil until it has been read.
     func excerpt(_ row: NoteRow) -> String? {
-        cache.object(forKey: Self.key(row) as NSString) as String?
+        cache.object(forKey: Self.key(row) as NSString)?.excerpt
+    }
+
+    /// The body's first line, which names a note with no title, or nil until it has been read.
+    func headline(_ row: NoteRow) -> String? {
+        cache.object(forKey: Self.key(row) as NSString)?.headline
     }
 
     func want(_ rows: [NoteRow]) {
@@ -50,8 +64,10 @@ final class ExcerptCache {
             bridge?.log(.warn, "W_PHONE_EXCERPTS_FAILED code=\(code)")
             return
         }
+        let lines = value["headlines"]?.object ?? [:]
         for (row, key) in zip(rows, keys) {
-            cache.setObject((found[row.id]?.string ?? "") as NSString, forKey: key as NSString)
+            let entry = Entry(excerpt: found[row.id]?.string ?? "", headline: lines[row.id]?.string ?? "")
+            cache.setObject(entry, forKey: key as NSString)
         }
         onExcerpts(rows.map(\.id))
     }
