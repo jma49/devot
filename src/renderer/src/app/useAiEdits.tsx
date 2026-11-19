@@ -7,6 +7,7 @@ import { AiSuggestNotice } from '../AiSuggestNotice'
 import { AskNotesSheet } from '../AskNotesSheet'
 import { storage, type Core } from '../core-client'
 import type { AiEditStart } from '../editor/aiMenu'
+import { changeLogger } from '../failure'
 import { licenceEntitlements } from '../licence'
 import { loadAiSettings } from '../settings/aiProviders'
 
@@ -46,6 +47,7 @@ export function useAiEdits({
         listBooks: () => core.listBooks(),
         settings: loadAiSettings,
         entitlements: licenceEntitlements,
+        pauseRefused: changeLogger('W_AI_SUGGEST_REFUSED'),
       }),
     [core, aiGenerator],
   )

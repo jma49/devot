@@ -19,6 +19,7 @@ import { aiSuggestFailure } from '../aiEditView'
 import { licenceEntitlements, useEditing } from '../licence'
 import { loadAiSettings } from '../settings/aiProviders'
 import { useAlertMenu } from '../editor/alertMenu'
+import { changeLogger } from '../failure'
 import { noteDate } from '../format'
 import { format, currentLocale, t } from '../i18n'
 import { Icon } from '../icons/Icon'
@@ -313,6 +314,7 @@ export function PhoneNote(props: {
       listBooks: () => core.listBooks(),
       settings: loadAiSettings,
       entitlements: licenceEntitlements,
+      pauseRefused: changeLogger('W_AI_SUGGEST_REFUSED'),
     })
   }, [store.core])
 
