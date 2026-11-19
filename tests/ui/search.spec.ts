@@ -47,7 +47,7 @@ test('the search field never autocorrects queries', async ({ page }) => {
   await expect(search(page)).toHaveAttribute('spellcheck', 'false')
 })
 
-test('Return shows the correct result without waiting for the short-query debounce', async ({
+test('Return submits a pending query immediately and then focuses the results', async ({
   page,
 }) => {
   await createNote(page, 'Zebra')
@@ -61,6 +61,9 @@ test('Return shows the correct result without waiting for the short-query deboun
   await page.clock.runFor(32)
   await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveText([/^Zebra/])
+  await expect(field).toBeFocused()
+  await field.press('Enter')
+  await expect(noteRows(page).first()).toBeFocused()
 })
 
 test('results follow edits and the trash', async ({ page }) => {

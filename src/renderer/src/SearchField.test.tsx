@@ -139,7 +139,7 @@ function mount(
 
 describe('SearchField filter pills and autocomplete', () => {
   it('submits a query on plain Return only when neither suggestions nor the IME take it', () => {
-    const onSubmit = vi.fn<() => void>()
+    const onSubmit = vi.fn<() => boolean>().mockReturnValue(true)
     const ui = mount('', { books: BOOKS, onSubmit })
     ui.setValue('in:we')
     ui.press('Enter')

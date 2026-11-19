@@ -68,7 +68,7 @@ export const SearchField = forwardRef<
     value: string
     onChange: (query: string) => void
     onClear: () => void
-    onSubmit?: () => void
+    onSubmit?: () => boolean
     onOptions?: ((at: MenuPoint) => void) | undefined
     placeholder: string
     icon?: IconName
@@ -302,10 +302,9 @@ export const SearchField = forwardRef<
                 }
               }
             }
-            if (submit && onSubmit && value.trim()) {
+            if (submit && value.trim() && onSubmit?.()) {
               e.preventDefault()
               e.stopPropagation()
-              onSubmit()
               return
             }
             if (

@@ -44,6 +44,7 @@ A search for a word of three characters or more first re-indexes the notes saved
   Typing a search in the Trash shows All Notes.
 - **Desktop query delay:** typing waits 40 ms when a positive indexed text term drives the search and there are no short text terms or hashtag clauses; other queries wait 120 ms.
   Return runs a pending query immediately, except when it accepts a suggestion or belongs to an input method; preedit is not searched.
+  With no query waiting to run, Return moves focus to the list.
   Only answers to the current query and scope replace the results, and a superseded queued full-text query does not run.
 - **On the iPhone** (`docs/specs/iphone-screens.md`, Search): the Search tab searches every note, with the scopes All and Titles; Titles reads each plain word as a `title:` clause and leaves qualifiers, quotes and minus signs as typed.
   There is no This notebook scope: a notebook's row before a query fills the field with its `in:` clause instead.

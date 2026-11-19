@@ -59,9 +59,10 @@ export function useSearch(core: Core | undefined) {
     debounce.current = undefined
   }, [])
   const submitSearch = useCallback(() => {
-    if (debounce.current === undefined) return
+    if (debounce.current === undefined) return false
     cancelDebounce()
     rerunSearch()
+    return true
   }, [cancelDebounce, rerunSearch])
   useEffect(() => {
     if (!core) return
