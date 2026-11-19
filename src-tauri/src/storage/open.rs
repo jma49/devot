@@ -114,11 +114,15 @@ pub fn snapshot(db_path: &Path, dest: &Path) -> Result<()> {
     let started = std::time::Instant::now();
     let copy = loop {
         if has_sync_state {
-            source.compact_sync_purges()?;
+            source
+                .compact_sync_purges()
+                .map_err(|_| StorageError::SnapshotCheckFailed)?;
         }
         // Pin a clean read snapshot: a purge committed after compaction must not slip into the copy.
         let tx = source.conn.transaction()?;
-        if has_sync_state && sync_purges_pending(&tx)? {
+        if has_sync_state
+            && sync_purges_pending(&tx).map_err(|_| StorageError::SnapshotCheckFailed)?
+        {
             if started.elapsed() >= COPY_PATIENCE {
                 return Err(StorageError::Sqlite(rusqlite::Error::SqliteFailure(
                     rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),

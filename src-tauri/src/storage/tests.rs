@@ -3049,7 +3049,10 @@ fn a_failed_pending_compaction_prevents_a_snapshot_and_keeps_the_marker() {
         )
         .unwrap();
     let backup = dir.path().join("snapshot.sqlite");
-    assert!(super::snapshot(&dir.path().join("devot.sqlite"), &backup).is_err());
+    assert!(matches!(
+        super::snapshot(&dir.path().join("devot.sqlite"), &backup),
+        Err(StorageError::SnapshotCheckFailed)
+    ));
     assert!(super::purge::sync_purges_pending(&store.conn).unwrap());
     assert!(!backup.exists());
 }
