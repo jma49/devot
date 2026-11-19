@@ -30,6 +30,8 @@ interface Window {
   devotKeyMs: number[]
   devotKeys: { work: number; frame: number }[]
   devotLastUpdate: number
+  /** When a frame last came later than the spec's limit after the one before (render-cost.spec.ts). */
+  devotLongFrameAt: number
   devotMarker?: boolean
   devotMediaQueries: number
   devotMeasured: number

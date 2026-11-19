@@ -197,6 +197,8 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
     The page posts one message at a time.
   - A check that compared the median of eight keys in two 4 MB notes failed at 102 % of its limit: each key's time spread from 40 to 115 ms with collection pauses, in either note.
     It compares each note's fastest key, the key's own cost (#904).
+  - The 10,000-note keystroke check pressed its keys back to back and timed each to the next frame, so every key pressed before a late frame waited for that frame: on CI the times fell in runs such as 239, 217, 195 … 14 ms, and one slow frame set the median of all of them (163 ms of 150, #1014).
+    Each key now waits for its own frame before the next is pressed, typing starts once no frame has run over the budget for a second, and the key times go into the JSON report as a `keystroke ms` annotation.
   - Playwright's WebKit sometimes drops a scroll key, also the first one pressed in a focused preview (#913); the preview key specs press until the preview has moved (`pressUntilBeyond`), which still fails when the keys never scroll it.
   - A history spec reloaded the page 9 ms after the note's save landed, before the core worker wrote the title event that follows it, and Revision History lacked "Renamed to" (#1034).
     A spec that reloads to start a fresh session first waits for the revisions it later asserts to be stored.
