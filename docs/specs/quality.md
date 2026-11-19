@@ -232,6 +232,8 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
     A debug build launched with `-DevotWaitScale` stretches the toast by the tests' wait scale, as `waitLimit` stretches the tests' own waits.
   - A screens test waited a fixed half second for a still's fade to remove it, and a loaded runner ends the fade later (#979).
     It waits for the still to go (`settle(until:)`).
+  - A history bar test held the restore's answer 500 ms and clicked another note in that time; on a loaded runner the click came later, the answer had already given the editor the keyboard, and WebKit leaves the keyboard where it is when a row is clicked (#1020).
+    The test holds the answer until the other note is open (`holdLateReplies`), so it always checks the case it names.
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 
 ## Workflow
