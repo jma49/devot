@@ -73,6 +73,8 @@ export const PAUSED = [
   // Not offered as the body to type into until the next note is.
   EditorView.contentAttributes.of({ 'aria-hidden': 'true' }),
 ]
+// PAUSED while New Note makes the next note; its own compartment, so ending it never ends a switch's pause.
+export const makingSlot = new Compartment()
 // Notes are read-only once the trial is over without a licence: the text can be read, selected and
 // copied, and only what another replica sends (Yjs) still changes it.
 export const lockedSlot = new Compartment()
@@ -315,6 +317,7 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
     }),
     popupSpace(frame),
     pausedSlot.of([]),
+    makingSlot.of([]),
     lockedSlot.of(lockExtensions(refs.locked.current)),
     authorshipSlot.of(marksFor(settings.authorship, doc, noteId)),
     // Undo is CodeMirror's history alone: no Yjs undo manager.

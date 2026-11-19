@@ -13,6 +13,7 @@ import { insertCommand, type InsertId } from './insert'
 import { replayEarlyKeys, type EarlyKey } from './earlyKeys'
 import { setReviewPreview } from './reviewPreview'
 import { linkForNewNote, runEditCommand, type LinkAt } from './lineCommands'
+import { makingSlot, PAUSED } from './noteExtensions'
 import { pastePlain, pasteUrlAsIn, setImageSize } from './noteKeys'
 import { pluginInsert, pluginSelection } from './pluginText'
 import { TABLE_COMMANDS, inTable, type TableCommandId } from './tableCommands'
@@ -31,6 +32,8 @@ export interface EditorHandle {
   takeStep: (state: Uint8Array) => void
   focus: () => void
   focusStart: () => void
+  /** Takes no typing until the returned function ends it, or another note is shown: New Note's note is being made. */
+  pauseForNewNote: () => () => void
   /** Types `keys` at the caret as if they had been pressed there. */
   type: (keys: readonly EarlyKey[]) => void
   remeasure: () => void
@@ -93,6 +96,7 @@ export function editorHandle(
   takeStep: (state: Uint8Array) => void,
   isShown: () => boolean,
 ): EditorHandle {
+  let pausedBy: object | undefined
   return {
     noteId,
     vector: () => Y.encodeStateVector(doc),
@@ -102,6 +106,17 @@ export function editorHandle(
     focusStart: () => {
       ready.focus()
       ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
+    },
+    pauseForNewNote: () => {
+      const pause = {}
+      pausedBy = pause
+      if (isShown()) ready.dispatch({ effects: makingSlot.reconfigure(PAUSED) })
+      return () => {
+        // A later New Note's pause outlasts this one.
+        if (pausedBy !== pause) return
+        pausedBy = undefined
+        if (isShown()) ready.dispatch({ effects: makingSlot.reconfigure([]) })
+      }
     },
     type: (keys) => replayEarlyKeys(ready, keys),
     remeasure: () => ready.requestMeasure(),
