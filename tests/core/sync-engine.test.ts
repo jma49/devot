@@ -25,6 +25,7 @@ import { noteCounts } from '../../src/core/noteCounts'
 import {
   blockHash,
   keepNoteDrawing,
+  MAX_NOTE_DRAWINGS,
   noteDrawings,
   type KeptDrawing,
 } from '../../src/core/plugins/drawings'
@@ -70,6 +71,8 @@ interface DeviceOptions {
   transport?: Partial<RelayTransportOptions>
   /** The storage the engine writes through, in place of the device's own. */
   engineStorage?: (storage: SqliteAdapter) => StorageAdapter
+  /** The sync store the engine reads through, in place of the device's own. */
+  engineSync?: (storage: SqliteAdapter) => SyncEngineOptions['sync']
   /** Notes in a main window, whose core syncs, and a note window, each with a core of its own. */
   windows?: true
   engine?: Partial<SyncEngineOptions>
@@ -105,7 +108,7 @@ async function device(
   const startEngine = () => {
     const engine = createSyncEngine({
       storage: options.engineStorage?.(storage) ?? storage,
-      sync: storage,
+      sync: options.engineSync?.(storage) ?? storage,
       transport,
       clock,
       newId,
@@ -1243,6 +1246,110 @@ describe('kept plugin drawings through sync', () => {
     await settle(a, b)
     expect(await sameDrawings(a, b, id)).toEqual([])
     await sameNote(a, b, id)
+  })
+
+  /** Pulls on `on`, keeping `kept` right after the pull writes the note and before it writes the note's drawings. */
+  async function pullKeeping(on: Device, id: string, kept: KeptDrawing) {
+    await on.notes.flush()
+    const putNote = on.storage.putNote.bind(on.storage)
+    let armed = true
+    const spy = vi.spyOn(on.storage, 'putNote').mockImplementation(async (note) => {
+      await putNote(note)
+      if (!armed || note.id !== id) return
+      armed = false
+      expect(await keepNoteDrawing(on.storage, on.clock, id, kept, PLUGINS)).toBe(true)
+    })
+    await on.engine.syncNow()
+    spy.mockRestore()
+    expect(armed).toBe(false)
+    await on.notes.mergeStored()
+  }
+
+  const THREE = '```dot\na\n```\n\n```dot\nb\n```\n\n```dot\nc\n```\n'
+
+  it('keeps a drawing kept during a pull that merges a later list of its own', async () => {
+    const { a, b } = await pair({ a: drawsHere, b: drawsHere })
+    const id = await a.notes.create('Diagram')
+    await a.notes.setBody(id, THREE)
+    await settle(a, b)
+    await keepNoteDrawing(b.storage, b.clock, id, drawing('b'), PLUGINS)
+    await b.sync()
+    a.clock.receive((await b.storage.getNoteDrawings(id))!.hlc)
+    await keepNoteDrawing(a.storage, a.clock, id, drawing('a'), PLUGINS)
+    await pullKeeping(a, id, drawing('c'))
+    await settle(a, b)
+    expect(await sameDrawings(a, b, id)).toEqual(byHash([drawing('a'), drawing('b'), drawing('c')]))
+  })
+
+  it('pushes a drawing kept during a pull that brings a later list', async () => {
+    const { a, b } = await pair({ a: drawsHere, b: drawsHere })
+    const id = await a.notes.create('Diagram')
+    await a.notes.setBody(id, THREE)
+    await a.notes.flush()
+    await keepNoteDrawing(a.storage, a.clock, id, drawing('a'), PLUGINS)
+    await settle(a, b)
+    await keepNoteDrawing(b.storage, b.clock, id, drawing('b'), PLUGINS)
+    await b.sync()
+    await pullKeeping(a, id, drawing('c'))
+    await settle(a, b)
+    expect(await sameDrawings(a, b, id)).toEqual(byHash([drawing('a'), drawing('b'), drawing('c')]))
+  })
+
+  it('keeps the same drawings on both devices when their lists merged pass the caps', async () => {
+    const { a, b } = await pair({ a: drawsHere, b: drawsHere })
+    const id = await a.notes.create('Diagrams')
+    const blocks = Array.from({ length: MAX_NOTE_DRAWINGS + 8 }, (_, i) => `n${i}`)
+    await a.notes.setBody(id, blocks.map((n) => `\`\`\`dot\n${n}\n\`\`\`\n`).join('\n'))
+    await settle(a, b)
+    const half = blocks.length / 2
+    for (const n of blocks.slice(0, half)) {
+      await keepNoteDrawing(a.storage, a.clock, id, drawing(n), PLUGINS)
+    }
+    for (const n of blocks.slice(half)) {
+      await keepNoteDrawing(b.storage, b.clock, id, drawing(n), PLUGINS)
+    }
+    await settle(a, b)
+    await settle(b, a)
+    const kept = await sameDrawings(a, b, id)
+    expect(kept).toEqual(byHash(blocks.map(drawing)).slice(0, MAX_NOTE_DRAWINGS))
+    const pushes = a.transport.pushes + b.transport.pushes
+    await settle(a, b)
+    expect(a.transport.pushes + b.transport.pushes).toBe(pushes)
+  })
+
+  it('drops nothing on a push that only hands back what a pull left out', async () => {
+    const before = {
+      engineStorage: (storage: SqliteAdapter) =>
+        new Proxy(storage, {
+          get: (target, key, receiver) =>
+            key === 'getNoteDrawings'
+              ? () => Promise.resolve(null)
+              : key === 'putNoteDrawings'
+                ? () => Promise.resolve()
+                : Reflect.get(target, key, receiver),
+        }),
+      engineSync: (storage: SqliteAdapter) =>
+        new Proxy(storage, {
+          get: (target, key, receiver) =>
+            key === 'syncRead'
+              ? async (ids: readonly string[]) =>
+                  (await target.syncRead(ids)).map((row) =>
+                    row.note ? { ...row, note: { ...row.note, drawings: null } } : row,
+                  )
+              : Reflect.get(target, key, receiver),
+        }),
+    }
+    const { a, b } = await pair({ a: drawsHere, b: before })
+    const id = await a.notes.create('Diagram')
+    await a.notes.setBody(id, '```dot\na\n```\n')
+    await a.notes.flush()
+    await keepNoteDrawing(a.storage, a.clock, id, drawing('a'), PLUGINS)
+    await settle(a, b)
+    await b.notes.setBody(id, '```dot\na -> b\n```\n')
+    await settle(b, a)
+    await settle(a, b)
+    expect((await a.note(id))?.bodyMd).toBe('```dot\na -> b\n```\n')
+    expect(await noteDrawings(a.storage, id)).toEqual([drawing('a')])
   })
 
   it('drops the drawings of a note purged on another device', async () => {

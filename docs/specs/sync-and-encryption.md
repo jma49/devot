@@ -70,8 +70,10 @@ Part of the [architecture overview](../architecture.md).
 - **Client engine** (`src/core/sync/engine.ts`, in the main window's core worker, the iPhone app's one window included (`useSyncEngine`); docs/adr/0002-sync-latest-state-per-record.md, Client): the core builds and merges records, Rust seals them and holds the socket.
   A record is a note (with its tag memberships), a notebook or a tag under its own ID (`src/core/sync/records.ts`): `format byte || header length || JSON fields || Yjs state`.
   Allow AI Access is not in it (each device decides what AI tools may read), nor are revisions; an attachment travels as its own `file` record (#327).
-  A note's kept plugin drawings travel in its header, `drawings` with `drawingsHlc` (ADR 0030), and merge by key: a drawing of a block the merged body holds is kept from either side, one of a block it no longer holds only from the side with the higher clock, and within the caps the held ones and then the lower keys go first (`mergeDrawings`).
+  A note's kept plugin drawings travel in its header, `drawings` with `drawingsHlc` (ADR 0030), and merge by key: a drawing of a block the merged body holds is kept from either side, one of a block it no longer holds only from the side with the higher clock, and past the caps the drawings of blocks gone are dropped first, then within each group the higher keys (`mergeDrawings`).
   A merged list that differs from the stored one under the same clock is written under a new one and pushed.
+  A pull merges into the list as stored when it writes it, in the note's drawing turn (`mergeNoteDrawings`), and records as in step the list it wrote, so a drawing kept meanwhile is kept and pushed.
+  A push prunes drawings of blocks gone only for a change made on the device: one that only hands back what a pull merged (the note's `edits` unmoved since, kept in memory) prunes nothing.
   A drawing a build cannot read, or a field it does not know, is left out rather than the list, a header field that is no list is taken as none, and a note that never kept one leaves both out, so its bytes and fingerprint are as before.
   Each push of a note carries its whole list.
   A Devot from before them pushes an edited note without them; the next newer device to merge it holds the higher clock and pushes them back.

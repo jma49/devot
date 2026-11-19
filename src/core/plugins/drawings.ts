@@ -128,8 +128,9 @@ export interface DrawingsField {
 /**
  * Two devices' lists of one note, merged by key (ADR 0030): a drawing depends only on its key, so one of a block the
  * merged body holds is kept from either side. One of a block it no longer holds is kept only from the side with the
- * later clock, so a device's prune reaches the others. Within the caps, the drawings of held blocks go first, then
- * by key, so every device picks the same ones. `bodyMd` is read only when a side has drawings.
+ * later clock, so a device's prune reaches the others. Past the caps, the drawings of blocks gone are dropped first,
+ * then within each group the higher keys, so every device keeps the same ones. `bodyMd` is read only when a side has
+ * drawings.
  */
 export function mergeDrawings(
   local: DrawingsField,
@@ -259,6 +260,31 @@ export function keepNoteDrawing(
     if (!next) return false
     await storage.putNoteDrawings({ noteId, drawings: next, hlc: clock.tick() })
     return true
+  })
+}
+
+/**
+ * Merges a pulled list into the note's (`mergeDrawings`) against the row and body as they are in the note's turn, so a
+ * drawing kept since the pull read the note stays. A merge that holds the row's clock or an earlier one but differs from
+ * the row is written under a new clock, since storage keeps a list only under a newer one. Answers the list stored after.
+ */
+export function mergeNoteDrawings(
+  storage: StorageAdapter,
+  clock: Clock,
+  noteId: string,
+  remote: DrawingsField,
+): Promise<NoteDrawingsRecord | null> {
+  return inTurn(storage, noteId, async () => {
+    const row = await storage.getNoteDrawings(noteId)
+    if (remote.hlc === '') return row
+    const note = await storage.getNote(noteId, { trashed: true })
+    if (!note) return row
+    const merged = mergeDrawings(row ?? { drawings: [], hlc: '' }, remote, () => note.bodyMd)
+    const own = row !== null && row.hlc === merged.hlc
+    if (own && sameDrawings(row.drawings, merged.drawings)) return row
+    const next = { noteId, drawings: merged.drawings, hlc: own ? clock.tick() : merged.hlc }
+    await storage.putNoteDrawings(next)
+    return next
   })
 }
 
