@@ -2,8 +2,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import en from '../../clipper/_locales/en/messages.json'
-import zh from '../../clipper/_locales/zh_CN/messages.json'
+import { messages as en } from '../../src/renderer/src/i18n/en/clipper'
+import { messages as zh } from '../../src/renderer/src/i18n/zh-Hans/clipper'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -13,7 +13,7 @@ it.each([
   ['zh_CN', zh, 'notebooks'],
   ['zh_CN', zh, 'save'],
 ] as const)(
-  'shows the exact origin refusal code in %s (case %#)',
+  'shows the localized registration instruction in %s (case %#)',
   async (_locale, catalog, refused) => {
     vi.resetModules()
     document.body.innerHTML = readFileSync(
@@ -23,8 +23,7 @@ it.each([
     vi.stubGlobal('chrome', {
       permissions: { contains: async () => true },
       i18n: {
-        getMessage: (key: string) =>
-          (catalog as Record<string, { message: string }>)[key]?.message ?? '',
+        getMessage: (key: string) => (catalog as Record<string, string>)[`clipper.${key}`] ?? '',
         getUILanguage: () => 'en',
       },
       tabs: { query: async () => [{ id: 1, title: 'Article' }] },
@@ -41,7 +40,7 @@ it.each([
     await import('../../clipper/popup')
     await vi.waitFor(() =>
       expect(document.querySelector('#status')?.textContent).toBe(
-        refused === 'save' ? catalog.ready.message : 'E_HTTP_ORIGIN_REFUSED',
+        refused === 'save' ? catalog['clipper.ready'] : catalog['clipper.E_HTTP_ORIGIN_REFUSED'],
       ),
     )
     if (refused === 'save') {
@@ -49,8 +48,12 @@ it.each([
       button.click()
     }
     await vi.waitFor(() =>
-      expect(document.querySelector('#status')?.textContent).toBe('E_HTTP_ORIGIN_REFUSED'),
+      expect(document.querySelector('#status')?.textContent).toBe(
+        catalog['clipper.E_HTTP_ORIGIN_REFUSED'],
+      ),
     )
+    expect(document.querySelector('#status')?.textContent).not.toContain('E_HTTP_ORIGIN_REFUSED')
+    expect(document.querySelector('#status')?.textContent).toContain('Devot')
   },
 )
 

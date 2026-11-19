@@ -1,6 +1,8 @@
 import { build } from 'esbuild'
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
+import { messages as en } from '../src/renderer/src/i18n/en/clipper.ts'
+import { messages as zhHans } from '../src/renderer/src/i18n/zh-Hans/clipper.ts'
 
 const manifest = JSON.parse(await readFile(new URL('./manifest.json', import.meta.url), 'utf8'))
 for (const browser of ['chrome', 'firefox']) {
@@ -24,8 +26,19 @@ for (const browser of ['chrome', 'firefox']) {
     conditions: ['worker'],
     target: ['chrome120', 'firefox121'],
   })
-  for (const file of ['popup.html', 'options.html', 'style.css', '_locales'])
+  for (const file of ['popup.html', 'options.html', 'style.css'])
     await cp(new URL(`./${file}`, import.meta.url), new URL(file, outdir), { recursive: true })
+  for (const [locale, catalog] of [
+    ['en', en],
+    ['zh_CN', zhHans],
+  ] as const) {
+    const directory = new URL(`_locales/${locale}/`, outdir)
+    await mkdir(directory, { recursive: true })
+    const messages = Object.fromEntries(
+      Object.entries(catalog).map(([key, message]) => [key.slice('clipper.'.length), { message }]),
+    )
+    await writeFile(new URL('messages.json', directory), JSON.stringify(messages, null, 2) + '\n')
+  }
   const output =
     browser === 'firefox'
       ? {

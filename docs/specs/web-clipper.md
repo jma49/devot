@@ -32,12 +32,12 @@ Failed downloads, denied host access, unsupported images, oversized images and r
 If the final PATCH fails, the popup reports the error; the initial note and any uploaded files remain, as other multi-step API writes do.
 The extension checks the API's 1 MiB UTF-8 Markdown limit before sending and reports a localized error for oversize clips.
 API error codes are translated where known, with a generic localized fallback and no note content in errors.
-An origin refusal is displayed as exactly `E_HTTP_ORIGIN_REFUSED`, so a missing registration is distinguishable from a connection or token error.
+An origin refusal (`E_HTTP_ORIGIN_REFUSED`) shows a localized instruction to add the extension in Devot Settings under Local HTTP API > Browser extensions, rather than a generic failure or an error code.
 
 Run `pnpm clipper:build` to bundle all scripts locally with esbuild; there is no remote code or inline script.
 Chrome loads **clipper/dist/chrome** as an unpacked extension.
 Firefox loads **clipper/dist/firefox/manifest.json** through temporary add-on debugging, or a signed package for persistent installation.
 Firefox uses an event background script because its Manifest V3 implementation does not support background service workers.
-The build copies the WebExtension English and Simplified Chinese catalogs into both outputs.
+The app's English and Simplified Chinese `clipper.` catalogs are the sole string source; the build generates WebExtension `en` and `zh_CN` messages in both outputs, stripping the prefix from each key.
 The local API accepts only syntactically valid, exactly registered extension origins without adding any CORS headers; all existing authentication and access checks remain.
 Tests in `tests/clipper/` cover extraction and the client through a real HTTP server, and Rust socket tests cover the origin guard.
