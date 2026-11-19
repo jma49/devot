@@ -53,10 +53,20 @@ Part of the [architecture overview](../architecture.md).
   - **UI:** a plugin shows its frame only from one of its commands (`ui.show`), in a sheet titled with its name, with Close; the frames stay in that sheet while it is closed, so showing one never reloads it.
     Closing tells the plugin (`ui.hidden`).
   - **Plugin kit** (ADR 0024): `plugin-kit/` holds the API's types and the `devot-plugin` command (`new`, `validate`, `pack`), bundled from the app's manifest rules (`pnpm plugin-kit:build`); its tests in `tests/plugin-kit/` keep it in step with the runtime and the package limits.
-  - **Rich imports** (API 3): `import.convert` returns one converted note or an array of up to 5,000; an array imports into a notebook named after the file, while a single note keeps the previous destination behaviour.
-    A converted note has a title and exactly one of `markdown` or `html`, optional tag names, nonnegative integer millisecond `createdAt` and `updatedAt`, attachments `{name, mime, data}` with base64 bytes, and diagnostic codes in `diagnostics`.
-    The host validates the complete answer before writing, caps each body or HTML input at 32 MiB, each note's tags and attachments at 1,000, and the answer's text and base64 at 140 MiB together.
-    Attachments use zero-based URLs `attachment:0`, `attachment:1` in images; the host decodes and checks their bytes, stores supported raster images up to 10 MiB with the note, and rewrites image URLs to the stored IDs.
+  - **Rich imports** (API 3 protocol addition): any plugin with the `import` permission and an import format can return multiple notes, HTML, tags, dates, base64 attachments and diagnostics through `import.convert`, not just the first-party `.enex` converter.
+    This expands the result payload without changing the `devot: 1` message envelope (`PLUGIN_PROTOCOL_VERSION`); API 1 and 2 retain their single-note Markdown result and cannot return arrays or the new fields (ADR 0020).
+    An API 3 result is one converted note or an array of zero to 5,000 notes; an array imports into a notebook named after the file, while a single note keeps the previous destination behaviour.
+    A converted note has a well-formed Unicode `title` of at most 1,000 characters and exactly one well-formed Unicode `markdown` or `html` string of at most 32 MiB in UTF-8.
+    Optional `tags` holds at most 1,000 well-formed Unicode names per note, each nonempty after trimming, at most 100 Unicode characters, and without CR or LF.
+    Optional `createdAt` and `updatedAt` are nonnegative safe integers in epoch milliseconds (at most `Number.MAX_SAFE_INTEGER`, 9,007,199,254,740,991).
+    Optional `attachments` holds at most 1,000 entries per note, each `{name, mime, data}`.
+    Each attachment name is nonempty, well-formed Unicode, at most 200 Unicode characters and contains no Unicode control characters.
+    Each MIME string is at most 100 characters and matches `/^[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*$/` (no parameters).
+    Each `data` string is standard padded base64 without whitespace and at most 140 MiB of encoded text; the sum of all Markdown or HTML UTF-8 bytes and base64 text across the entire result is also at most 140 MiB.
+    Optional `diagnostics` holds at most 1,000 codes per note, each matching `/^[EWI]_[A-Z0-9_]{1,62}$/` (3 to 64 ASCII characters), never free-form content.
+    `src/core/plugins/protocol.ts` validates the complete result before any note is written and rejects an invalid shape or exceeded result limit with `E_PLUGIN_RESULT_INVALID`; `import.convert` has a 30-second response timeout.
+    Attachments use zero-based URLs `attachment:0`, `attachment:1` in images; the host decodes and checks their bytes, stores nonempty supported raster images up to 10 MiB decoded with the note, and rewrites image URLs to the stored IDs.
+    The host rejects encoded attachment data larger than `Math.ceil(10 * 1024 * 1024 / 3) * 4` before decoding and detects PNG, JPEG, GIF, WebP, AVIF and HEIC from the bytes, not the declared MIME type; SVG and arbitrary binary attachments are not supported.
     Unsupported or invalid attachments are skipped and listed by code in the import report, never logged with content; other plugin diagnostics must also be codes.
     An import that creates notes with only per-note diagnostics shows the imported-note and skipped-item counts, while converter errors or failures to create notes retain the failure notice.
     Show Skipped opens the import results sheet with each item's name, translated reason and a button to open its note; reports carry attachment names and note IDs and titles for display only, while logs retain codes and IDs only.
@@ -64,7 +74,10 @@ Part of the [architecture overview](../architecture.md).
     HTML goes through the host's sanitized `htmlToMarkdown`, never directly into the note or the app's DOM.
     Tags are applied through the tag service and explicit dates through `setDates` after the body and tags, clamping Updated to Created when needed and using the current time for a missing date.
     The host reuses the core import pipeline's per-note progress, cancellation boundaries, error reporting and cleanup.
-    An import format may declare `maxFileBytes` from 1 byte through 100 MiB in its API 3 manifest; Rust enforces it, defaulting to 5 MiB for formats without one.
+    An import format may declare integer `maxFileBytes` from 1 through 104,857,600 (100 MiB) in an API 3 manifest; absent means the existing 5,242,880-byte (5 MiB) default, and Rust enforces the selected format's limit before returning UTF-8 text.
+    API 1 and 2 manifests cannot declare `maxFileBytes`, and the native picker accepts at most 20 files per batch (`src-tauri/src/plugins/mod.rs`).
+    Import contributions are limited to 20 formats per manifest, each with a unique ID of at most 40 ASCII characters matching `/^[a-z0-9]+(?:-[a-z0-9]+)*$/`, a nonempty trimmed title of at most 60 Unicode characters without controls or line/paragraph separators, and 1 to 10 unique extensions matching `/^[a-z0-9]{1,10}$/` without a leading dot (`src/core/plugins/manifest.ts`, `src-tauri/src/plugins/manifest.rs`).
+    The manifest itself remains limited to 64 KiB; these import limits do not enlarge the plugin package limits.
     The first-party `.enex` export files converter lives in `plugins/enex/`, not in the core's import kinds; `pnpm plugin-enex:build` bundles its XML parser and conversion logic into its sandbox script.
   - **Tests:** `tests/ui/plugins-sandbox.spec.ts` (a hostile plugin cannot reach Tauri, the main window, another plugin, the network or a note without permission), `tests/ui/plugins.spec.ts` (each contribution point), `tests/ui/plugin-settings.spec.ts`, `tests/ui-csp/csp.spec.ts` (a plugin under the production policy), `src/renderer/src/plugins/host.test.ts`, `src/core/plugins/protocol.test.ts`, `tests/core/plugin-*.test.ts`, and Rust's `plugins` tests (packages, install, serving, menus).
     The UI tests serve the same pages from `src-tauri/plugin-frame/` (`tests/ui/plugins.ts`).
