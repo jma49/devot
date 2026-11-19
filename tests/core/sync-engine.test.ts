@@ -1169,25 +1169,79 @@ describe('kept plugin drawings through sync', () => {
     appearance: 'light',
     svg: `<svg xmlns="http://www.w3.org/2000/svg"><text>${content}</text></svg>`,
   })
+  const PLUGINS = new Set(['com.example.graphviz'])
+  const drawsHere = { engine: { drawingPlugins: () => PLUGINS } }
+  const byHash = (list: readonly KeptDrawing[]) =>
+    [...list].sort((x, y) => (x.hash < y.hash ? -1 : 1))
 
-  it('brings a drawing with its note, and drops it everywhere once the block is edited', async () => {
-    const { a, b } = await pair()
+  async function sameDrawings(a: Device, b: Device, id: string) {
+    const [x, y] = await Promise.all([noteDrawings(a.storage, id), noteDrawings(b.storage, id)])
+    expect(byHash(x)).toEqual(byHash(y))
+    return byHash(x)
+  }
+
+  it('brings a drawing with its note, without pushing it again', async () => {
+    const { a, b } = await pair({ a: drawsHere })
     const id = await a.notes.create('Diagram')
     await a.notes.setBody(id, '```dot\na\n```\n')
     await a.notes.flush()
-    expect(await keepNoteDrawing(a.storage, a.clock, id, drawing('a'))).toBe(true)
+    expect(await keepNoteDrawing(a.storage, a.clock, id, drawing('a'), PLUGINS)).toBe(true)
     await settle(a, b)
     expect(await noteDrawings(b.storage, id)).toEqual([drawing('a')])
     const pushes = a.transport.pushes + b.transport.pushes
     await settle(a, b)
     expect(a.transport.pushes + b.transport.pushes).toBe(pushes)
+  })
+
+  it('keeps both drawings two devices keep at once', async () => {
+    const { a, b } = await pair({ a: drawsHere, b: drawsHere })
+    const id = await a.notes.create('Diagram')
+    await a.notes.setBody(id, '```dot\na\n```\n\n```dot\nb\n```\n')
+    await settle(a, b)
+    await keepNoteDrawing(a.storage, a.clock, id, drawing('a'), PLUGINS)
+    await keepNoteDrawing(b.storage, b.clock, id, drawing('b'), PLUGINS)
+    await settle(a, b)
+    await settle(b, a)
+    expect(await sameDrawings(a, b, id)).toEqual(byHash([drawing('a'), drawing('b')]))
+    const pushes = a.transport.pushes + b.transport.pushes
+    await settle(a, b)
+    expect(a.transport.pushes + b.transport.pushes).toBe(pushes)
+  })
+
+  it('keeps the drawing one device keeps while another edits a block whose drawing it prunes', async () => {
+    const { a, b } = await pair({ a: drawsHere, b: drawsHere })
+    const id = await a.notes.create('Diagram')
+    await a.notes.setBody(id, '```dot\na\n```\n\n```dot\nb\n```\n')
+    await a.notes.flush()
+    await keepNoteDrawing(a.storage, a.clock, id, drawing('a'), PLUGINS)
+    await settle(a, b)
+    await keepNoteDrawing(a.storage, a.clock, id, drawing('b'), PLUGINS)
+    await b.notes.setBody(id, '```dot\na2\n```\n\n```dot\nb\n```\n')
+    await settle(b, a)
+    await settle(a, b)
+    const kept = await sameDrawings(a, b, id)
+    expect(kept).toContainEqual(drawing('b'))
+    await sameNote(a, b, id)
+  })
+
+  it('leaves a drawing on a device without its plugin after an edit there, until one with it pushes', async () => {
+    const { a, b } = await pair({ a: drawsHere })
+    const id = await a.notes.create('Diagram')
+    await a.notes.setBody(id, '```dot\na\n```\n')
+    await a.notes.flush()
+    await keepNoteDrawing(a.storage, a.clock, id, drawing('a'), PLUGINS)
+    await settle(a, b)
 
     await b.notes.setBody(id, '```dot\na -> b\n```\n')
     await settle(b, a)
     await settle(a, b)
     expect((await a.note(id))?.bodyMd).toBe('```dot\na -> b\n```\n')
-    expect(await noteDrawings(a.storage, id)).toEqual([])
-    expect(await a.storage.getNoteDrawings(id)).toEqual(await b.storage.getNoteDrawings(id))
+    expect(await noteDrawings(b.storage, id)).toEqual([drawing('a')])
+    expect(await sameDrawings(a, b, id)).toEqual([drawing('a')])
+
+    await a.notes.setTitle(id, 'Renamed')
+    await settle(a, b)
+    expect(await sameDrawings(a, b, id)).toEqual([])
     await sameNote(a, b, id)
   })
 
@@ -1196,7 +1250,7 @@ describe('kept plugin drawings through sync', () => {
     const id = await a.notes.create('Diagram')
     await a.notes.setBody(id, '```dot\na\n```\n')
     await a.notes.flush()
-    await keepNoteDrawing(a.storage, a.clock, id, drawing('a'))
+    await keepNoteDrawing(a.storage, a.clock, id, drawing('a'), PLUGINS)
     await settle(a, b)
     await a.notes.trash(id)
     await a.storage.purgeNote(id, Date.now(), a.clock.tick())

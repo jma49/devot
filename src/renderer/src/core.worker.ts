@@ -117,6 +117,8 @@ let previewRegistry = createPreviewRegistry({ builtins: true })
 let pluginRevision = 0
 let pluginNotesRevision = 0
 let pluginLanguages: readonly string[] = []
+/** The plugins that draw SVG in this window: only they prune their kept drawings (ADR 0030). */
+let drawingPlugins: ReadonlySet<string> = new Set()
 let pluginRender: RenderPluginBlock | undefined
 const noteSplitter = shareSplitter(createBlockSplitter(PIECE_LENGTH))
 const pieces = createPieceRenderer({
@@ -528,7 +530,13 @@ const coreApi = {
     const { content, ...kept } = drawing
     // Lazy: keeping parses the note's Markdown, which the worker otherwise loads only to render.
     return import('../../core/plugins/drawings').then(({ blockHash, keepNoteDrawing }) =>
-      keepNoteDrawing(parts.storage, parts.clock, noteId, { ...kept, hash: blockHash(content) }),
+      keepNoteDrawing(
+        parts.storage,
+        parts.clock,
+        noteId,
+        { ...kept, hash: blockHash(content) },
+        drawingPlugins,
+      ),
     )
   },
   /** Plugins' preview renderers (ADR 0005); `render` asks the page, which asks the plugin. Pieces rendered before render again. */
@@ -541,6 +549,9 @@ const coreApi = {
       plugins: { specs, render, linkTargets: (ids) => required().linkTargets(ids) },
     })
     pluginLanguages = specs.map((s) => s.language)
+    drawingPlugins = new Set(
+      specs.filter((s) => s.output === 'svg').map((s) => s.key.slice(0, s.key.indexOf('/'))),
+    )
     pluginRevision += 1
   },
   /** The notes plugins' blocks may show changed (ADR 0028): the pieces that may hold such a block render again, the rest stay. */
@@ -611,6 +622,7 @@ const coreApi = {
         ...parts,
         ...(build ? { build } : {}),
         via,
+        drawingPlugins: () => drawingPlugins,
         sync: fromWireSync(store),
         transport: fromWireTransport(transport, via),
         onStatus: (status) => void Promise.resolve(onStatus(status)).catch(() => undefined),

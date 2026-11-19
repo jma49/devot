@@ -17,12 +17,7 @@ import { useContextMenu, type MenuPoint } from '../contextMenu'
 import { copyText } from '../noteMenu'
 import { keyMatches } from '../commands/keys'
 import { onPluginRenderersChanged } from '../plugins/rendererRevision'
-import {
-  keptDrawingsOf,
-  keptLanguages,
-  loadKeptDrawings,
-  onKeptDrawingsChanged,
-} from './keptDrawings'
+import { keptDrawingsOf, keptLanguages, loadKeptDrawings, watchKeptDrawings } from './keptDrawings'
 import { lookUp, startSpeaking, stopSpeaking } from '../textServices'
 import {
   PREVIEW_MENU,
@@ -185,6 +180,9 @@ const sameList = (a: readonly HTMLElement[], b: readonly HTMLElement[]) =>
  * How long a restored scroll position is kept up while images and diagrams
  * load and the content grows to reach it.
  */
+/** Only a block in a fence can show a kept drawing (ADR 0030). */
+const hasFence = (markdown: string) => markdown.includes('```') || markdown.includes('~~~')
+
 const RESTORE_SCROLL_MS = 5000
 
 /** How long a task builds the pieces a render left for later, between other work. */
@@ -389,17 +387,16 @@ export function Preview({
 
   useEffect(() => {
     const run = latestOnly(
-      (input: RenderInput) => {
+      async (input: RenderInput) => {
         // Read with the text, so a text that arrives after a switch is not taken for the note before.
         const source = input.read()
         const ofNote = noteNow.current
-        // A note's kept drawings are read once, after its first render: only a note that keeps some renders again.
-        const kept = ofNote ? keptDrawingsOf(ofNote) : []
-        if (ofNote && !kept) {
-          void loadKeptDrawings((id) => core.noteDrawings(id), ofNote).then((drawings) => {
-            if (drawings.length > 0 && noteNow.current === ofNote) renderAgain.current()
-          })
-        }
+        // A note with a fence waits for its kept drawings the first time, so its blocks do not show as code first.
+        const kept =
+          ofNote && hasFence(source)
+            ? (keptDrawingsOf(ofNote) ??
+              (await loadKeptDrawings((id) => core.noteDrawings(id), ofNote)))
+            : undefined
         const languages = keptLanguages(kept ?? [])
         return core
           .renderLivePreview(
@@ -490,7 +487,14 @@ export function Preview({
   useInsertionEffect(() => {
     renderAgain.current = () => render.current?.(input.current)
   })
-  useEffect(() => onKeptDrawingsChanged(() => renderAgain.current()), [])
+  useEffect(
+    () =>
+      watchKeptDrawings(
+        () => noteNow.current,
+        () => renderAgain.current(),
+      ),
+    [],
+  )
   // Another window or process can change a note a chip shows.
   useEffect(() => {
     const changed = (event: Event) => {

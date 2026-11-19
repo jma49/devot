@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import { BODY, bodyText } from '../../src/core'
-import { blockHash, type KeptDrawing } from '../../src/core/plugins/drawings'
+import { blockHash, MAX_NOTE_DRAWINGS, type KeptDrawing } from '../../src/core/plugins/drawings'
 import { sha256Hex } from '../../src/core/sha256'
 import {
   bodyPrint,
@@ -253,16 +253,52 @@ describe('a note’s kept drawings', () => {
 
   it('read a list this build cannot take as none, and keep the note', () => {
     for (const patch of [
-      { drawings: [{ ...drawing('a'), svg: 7 }], drawingsHlc: hlc(4) },
       { drawings: [drawing('a')], drawingsHlc: 'yesterday' },
-      { drawings: 'lots' },
+      { drawings: 'lots', drawingsHlc: hlc(4) },
     ]) {
       const read = decodeRecord(ID, withHeader(note(), patch)) as NoteState
       expect(read).toMatchObject({ title: 'Plan', drawings: [], drawingsHlc: '' })
     }
   })
 
-  it('merge as one field, the newer clock winning', () => {
+  it('drop only a drawing this build cannot read, and the fields a later build adds', () => {
+    const read = decodeRecord(
+      ID,
+      withHeader(note(), {
+        drawings: [
+          { ...drawing('a'), svg: 7 },
+          { ...drawing('b'), width: 120 },
+          drawing('b'),
+          drawing('c'),
+        ],
+        drawingsHlc: hlc(4),
+      }),
+    ) as NoteState
+    expect(read).toMatchObject({ drawings: [drawing('b'), drawing('c')], drawingsHlc: hlc(4) })
+  })
+
+  const withBlocks = (...contents: string[]) =>
+    stateOf(textDoc(contents.map((c) => '```dot\n' + c + '\n```\n').join('\n')))
+
+  it('merge by key: the drawings of blocks the body holds come from both sides', () => {
+    const ydoc = withBlocks('a', 'b')
+    const mine = note({ ydoc, drawings: [drawing('b')], drawingsHlc: hlc(5) })
+    const theirs = note({ ydoc, drawings: [], drawingsHlc: hlc(6) })
+    const kept = note({ ydoc, drawings: [drawing('a')], drawingsHlc: hlc(4) })
+    expect(mergeNote(mine, theirs)).toMatchObject({
+      record: { drawings: [drawing('b')], drawingsHlc: hlc(6) },
+      localNews: true,
+    })
+    const both = mergeNote(mine, kept)
+    expect(both.record).toMatchObject({ drawingsHlc: hlc(5) })
+    expect(both.record.kind === 'note' && both.record.drawings).toEqual(
+      [drawing('a'), drawing('b')].sort((x, y) => (x.hash < y.hash ? -1 : 1)),
+    )
+    expect(both).toMatchObject({ localNews: true, remoteNews: true })
+    expect(mergeNote(kept, mine).record).toEqual(both.record)
+  })
+
+  it('merge the drawings of blocks gone from the body as one field, the newer clock winning', () => {
     const older = note({ drawings: [drawing('a')], drawingsHlc: hlc(4) })
     const newer = note({ drawings: [drawing('b')], drawingsHlc: hlc(5) })
     expect(mergeNote(older, newer)).toMatchObject({
@@ -276,7 +312,18 @@ describe('a note’s kept drawings', () => {
       remoteNews: false,
     })
     const emptied = note({ drawings: [], drawingsHlc: hlc(6) })
-    expect(mergeNote(newer, emptied).record.drawings).toEqual([])
+    expect(mergeNote(newer, emptied).record).toMatchObject({ drawings: [] })
+  })
+
+  it('keep the same drawings within the caps whichever side merges', () => {
+    const contents = Array.from({ length: MAX_NOTE_DRAWINGS + 4 }, (_, i) => `n${i}`)
+    const ydoc = withBlocks(...contents)
+    const half = (from: number, to: number) => contents.slice(from, to).map(drawing)
+    const mine = note({ ydoc, drawings: half(0, 20), drawingsHlc: hlc(5) })
+    const theirs = note({ ydoc, drawings: half(16, contents.length), drawingsHlc: hlc(6) })
+    const one = mergeNote(mine, theirs).record as NoteState
+    expect(one.drawings).toHaveLength(MAX_NOTE_DRAWINGS)
+    expect(mergeNote(theirs, mine).record).toMatchObject({ drawings: one.drawings })
   })
 
   it('come back to a store an older Devot pushed the note to without them', () => {

@@ -43,42 +43,119 @@ export const blockHash = (content: string): string => sha256Hex(content)
 const blockOf = (language: string, hash: string) => `${language}\n${hash}`
 const keyOf = (d: KeptDrawing) => `${d.pluginId}\n${d.language}\n${d.hash}\n${d.appearance}`
 
-function isDrawing(value: unknown): value is KeptDrawing {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+// Fields a later build adds are let go, so its drawings still read here (ADR 0030).
+function drawingOf(value: unknown): KeptDrawing | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
   const d = value as Record<string, unknown>
-  return (
-    Object.keys(d).length === 5 &&
-    isPluginId(d['pluginId']) &&
-    isPluginLanguage(d['language']) &&
-    typeof d['hash'] === 'string' &&
-    HASH.test(d['hash']) &&
-    (d['appearance'] === 'light' || d['appearance'] === 'dark') &&
-    typeof d['svg'] === 'string' &&
-    d['svg'].length > 0 &&
-    svgBytes(d['svg']) <= MAX_DRAWING_BYTES
-  )
+  const { pluginId, language, hash, appearance, svg } = d
+  const valid =
+    isPluginId(pluginId) &&
+    isPluginLanguage(language) &&
+    typeof hash === 'string' &&
+    HASH.test(hash) &&
+    (appearance === 'light' || appearance === 'dark') &&
+    typeof svg === 'string' &&
+    svg.length > 0 &&
+    svgBytes(svg) <= MAX_DRAWING_BYTES
+  return valid ? { pluginId, language, hash, appearance, svg } : null
 }
+
+const isDrawing = (value: unknown): value is KeptDrawing => drawingOf(value) !== null
 
 /** The list when it is one a note may keep (each drawing well formed, one per key, within the caps); null otherwise. */
 export function checkDrawings(value: unknown): KeptDrawing[] | null {
   if (!Array.isArray(value) || value.length > MAX_NOTE_DRAWINGS) return null
   const keys = new Set<string>()
+  const list: KeptDrawing[] = []
   let bytes = 0
-  for (const d of value) {
-    if (!isDrawing(d)) return null
-    const key = keyOf(d)
-    if (keys.has(key)) return null
-    keys.add(key)
+  for (const item of value) {
+    const d = drawingOf(item)
+    if (!d || keys.has(keyOf(d))) return null
+    keys.add(keyOf(d))
     bytes += svgBytes(d.svg)
+    list.push(d)
   }
-  if (bytes > MAX_NOTE_DRAWINGS_BYTES) return null
-  return value.map(({ pluginId, language, hash, appearance, svg }) => ({
-    pluginId,
-    language,
-    hash,
-    appearance,
-    svg,
-  }))
+  return bytes > MAX_NOTE_DRAWINGS_BYTES ? null : list
+}
+
+/**
+ * A synced list as this build can keep it: a drawing it cannot read or a second one of a key is dropped, not the
+ * list, and the ones past the caps are let go. Null when `value` is no list at all.
+ */
+export function readDrawings(value: unknown): KeptDrawing[] | null {
+  if (!Array.isArray(value)) return null
+  const keys = new Set<string>()
+  const list: KeptDrawing[] = []
+  for (const item of value) {
+    const d = drawingOf(item)
+    if (!d || keys.has(keyOf(d))) continue
+    keys.add(keyOf(d))
+    list.push(d)
+  }
+  return withinCaps(list)
+}
+
+function withinCaps(list: readonly KeptDrawing[]): KeptDrawing[] {
+  const kept: KeptDrawing[] = []
+  let bytes = 0
+  for (const d of list) {
+    const size = svgBytes(d.svg)
+    if (kept.length === MAX_NOTE_DRAWINGS || bytes + size > MAX_NOTE_DRAWINGS_BYTES) continue
+    kept.push(d)
+    bytes += size
+  }
+  return kept
+}
+
+const byKey = (a: KeptDrawing, b: KeptDrawing) => {
+  const x = keyOf(a)
+  const y = keyOf(b)
+  return x < y ? -1 : x > y ? 1 : 0
+}
+
+/** Whether two lists hold the same drawings, in any order. */
+export function sameDrawings(a: readonly KeptDrawing[], b: readonly KeptDrawing[]): boolean {
+  if (a.length !== b.length) return false
+  const svgs = new Map(a.map((d) => [keyOf(d), d.svg]))
+  return b.every((d) => svgs.get(keyOf(d)) === d.svg)
+}
+
+export interface DrawingsField {
+  drawings: readonly KeptDrawing[]
+  hlc: string
+}
+
+/**
+ * Two devices' lists of one note, merged by key (ADR 0030): a drawing depends only on its key, so one of a block the
+ * merged body holds is kept from either side. One of a block it no longer holds is kept only from the side with the
+ * later clock, so a device's prune reaches the others. Within the caps, the drawings of held blocks go first, then
+ * by key, so every device picks the same ones. `bodyMd` is read only when a side has drawings.
+ */
+export function mergeDrawings(
+  local: DrawingsField,
+  remote: DrawingsField,
+  bodyMd: () => string,
+): { drawings: KeptDrawing[]; hlc: string } {
+  const hlc = remote.hlc > local.hlc ? remote.hlc : local.hlc
+  if (local.drawings.length === 0 && remote.drawings.length === 0) return { drawings: [], hlc }
+  const blocks = drawingBlocks(bodyMd())
+  const held = (d: KeptDrawing) => blocks.has(blockOf(d.language, d.hash))
+  const sides = [local, remote].sort((a, b) => (a.hlc < b.hlc ? -1 : a.hlc > b.hlc ? 1 : 0))
+  const latest = sides[1]!.hlc
+  const chosen = new Map<string, { drawing: KeptDrawing; hlc: string }>()
+  for (const side of sides) {
+    for (const drawing of side.drawings) {
+      if (side.hlc !== latest && !held(drawing)) continue
+      const key = keyOf(drawing)
+      const had = chosen.get(key)
+      const wins =
+        !had || side.hlc > had.hlc || (side.hlc === had.hlc && drawing.svg > had.drawing.svg)
+      if (wins) chosen.set(key, { drawing, hlc: side.hlc })
+    }
+  }
+  const all = [...chosen.values()].map((c) => c.drawing).sort(byKey)
+  const kept = withinCaps([...all.filter(held), ...all.filter((d) => !held(d))])
+  return { drawings: kept.sort(byKey), hlc }
 }
 
 // The parse the preview gives a note's blocks, so a block's content is the text its island carries.
@@ -102,25 +179,31 @@ export function drawingBlocks(markdown: string): Set<string> {
   return blocks
 }
 
-/** The drawings whose blocks `blocks` (`drawingBlocks`) still holds. */
+/**
+ * The drawings without those of `plugins` whose blocks `blocks` (`drawingBlocks`) no longer holds. Only a device whose
+ * plugin draws prunes that plugin's drawings (ADR 0030); the others keep them.
+ */
 export function pruneDrawings(
   drawings: readonly KeptDrawing[],
   blocks: ReadonlySet<string>,
+  plugins: ReadonlySet<string>,
 ): KeptDrawing[] {
-  return drawings.filter((d) => blocks.has(blockOf(d.language, d.hash)))
+  return drawings.filter((d) => !plugins.has(d.pluginId) || blocks.has(blockOf(d.language, d.hash)))
 }
 
 /**
- * The list after keeping `drawing` for a block the note holds: the drawings of blocks gone are dropped, one with the
- * same key replaced. A drawing past the caps is not kept and the others stay. Null when nothing changes.
+ * The list after keeping `drawing` for a block the note holds: the drawings of `plugins` (with the drawing's own) of
+ * blocks gone are dropped, one with the same key replaced. A drawing past the caps is not kept and the others stay.
+ * Null when nothing changes.
  */
 export function keepDrawing(
   drawings: readonly KeptDrawing[],
   drawing: KeptDrawing,
   blocks: ReadonlySet<string>,
+  plugins: ReadonlySet<string>,
 ): KeptDrawing[] | null {
   const held = new Set(blocks).add(blockOf(drawing.language, drawing.hash))
-  const kept = pruneDrawings(drawings, held)
+  const kept = pruneDrawings(drawings, held, new Set(plugins).add(drawing.pluginId))
   const key = keyOf(drawing)
   const same = kept.find((d) => keyOf(d) === key)
   const others = kept.filter((d) => d !== same)
@@ -132,22 +215,6 @@ export function keepDrawing(
   if (fits && same?.svg !== drawing.svg) return next
   return kept.length === drawings.length ? null : kept
 }
-
-/** The drawing kept for a block in an appearance; one of `pluginId` first, when given. */
-export function findDrawing(
-  drawings: readonly KeptDrawing[],
-  block: { language: string; content: string; appearance: DrawingAppearance; pluginId?: string },
-): KeptDrawing | undefined {
-  const hash = blockHash(block.content)
-  const matches = drawings.filter(
-    (d) => d.language === block.language && d.hash === hash && d.appearance === block.appearance,
-  )
-  return matches.find((d) => d.pluginId === block.pluginId) ?? matches.at(-1)
-}
-
-/** The languages a note has drawings in, sorted, for the preview to make islands of. */
-export const drawingLanguages = (drawings: readonly KeptDrawing[]): string[] =>
-  [...new Set(drawings.map((d) => d.language))].sort()
 
 // One change to a note's drawings at a time, so two blocks drawn at once both stay.
 const turns = new WeakMap<StorageAdapter, Map<string, Promise<unknown>>>()
@@ -173,35 +240,44 @@ export async function noteDrawings(
   return (await storage.getNoteDrawings(noteId))?.drawings ?? []
 }
 
-/** Keeps a drawing for a live note (`keepDrawing`), under a new clock when the list changes. Answers whether it wrote. */
+/**
+ * Keeps a drawing for a live note (`keepDrawing`, `plugins` being the ones that draw here), under a new clock when
+ * the list changes. Answers whether it wrote.
+ */
 export function keepNoteDrawing(
   storage: StorageAdapter,
   clock: Clock,
   noteId: string,
   drawing: KeptDrawing,
+  plugins: ReadonlySet<string>,
 ): Promise<boolean> {
   return inTurn(storage, noteId, async () => {
     const note = await storage.getNote(noteId)
     if (!note) return false
     const row = await storage.getNoteDrawings(noteId)
-    const next = keepDrawing(row?.drawings ?? [], drawing, drawingBlocks(note.bodyMd))
+    const next = keepDrawing(row?.drawings ?? [], drawing, drawingBlocks(note.bodyMd), plugins)
     if (!next) return false
     await storage.putNoteDrawings({ noteId, drawings: next, hlc: clock.tick() })
     return true
   })
 }
 
-/** Drops the drawings of blocks `bodyMd` no longer holds, under a new clock; answers the list kept. */
+/**
+ * Drops the drawings of `plugins` (the ones that draw here) of blocks the note no longer holds, under a new clock;
+ * answers the list kept.
+ */
 export function pruneNoteDrawings(
   storage: StorageAdapter,
   clock: Clock,
   noteId: string,
-  bodyMd: string,
+  plugins: ReadonlySet<string>,
 ): Promise<NoteDrawingsRecord | null> {
   return inTurn(storage, noteId, async () => {
     const row = await storage.getNoteDrawings(noteId)
-    if (!row || row.drawings.length === 0) return row
-    const kept = pruneDrawings(row.drawings, drawingBlocks(bodyMd))
+    if (!row || !row.drawings.some((d) => plugins.has(d.pluginId))) return row
+    const note = await storage.getNote(noteId, { trashed: true })
+    if (!note) return row
+    const kept = pruneDrawings(row.drawings, drawingBlocks(note.bodyMd), plugins)
     if (kept.length === row.drawings.length) return row
     const next = { noteId, drawings: kept, hlc: clock.tick() }
     await storage.putNoteDrawings(next)

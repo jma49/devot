@@ -17,8 +17,9 @@ pub(super) const NOTE_DRAWINGS_DROP_SQL: &str = "DELETE FROM note_drawings WHERE
 const NOTE_DRAWINGS_LIVE_SQL: &str =
     "SELECT 1 AS live FROM notes WHERE id = @noteId AND purged_at IS NULL";
 
+/// A field a later build adds is let go, so its drawings still read here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct KeptDrawing {
     pub plugin_id: String,
     pub language: String,
@@ -37,7 +38,8 @@ pub struct NoteDrawings {
 }
 
 impl Store {
-    /// None for a note that never kept a drawing, and for a row this build cannot read.
+    /// None for a note that never kept a drawing, and for a row this build cannot read; a drawing in it this build
+    /// cannot read is left out, not the row.
     pub fn get_note_drawings(&self, note_id: &str) -> Result<Option<NoteDrawings>> {
         let row: Option<(String, String)> = self
             .conn
@@ -47,11 +49,14 @@ impl Store {
             })
             .optional()?;
         Ok(row.and_then(|(drawings, hlc)| {
-            serde_json::from_str(&drawings)
+            serde_json::from_str::<Vec<serde_json::Value>>(&drawings)
                 .ok()
-                .map(|drawings| NoteDrawings {
+                .map(|list| NoteDrawings {
                     note_id: note_id.to_owned(),
-                    drawings,
+                    drawings: list
+                        .into_iter()
+                        .filter_map(|d| serde_json::from_value(d).ok())
+                        .collect(),
                     hlc,
                 })
         }))
@@ -147,6 +152,24 @@ mod tests {
         let after = store.sync_read(&[NOTE.into()]).unwrap().remove(0);
         assert!(after.entry.unwrap().edits > before.edits);
         assert_eq!(after.note.unwrap().drawings, Some(first));
+    }
+
+    #[test]
+    fn reads_a_row_without_the_fields_and_drawings_it_cannot_take() {
+        let (_dir, mut store) = store();
+        store.put_note(&note(), &[]).unwrap();
+        let kept = drawings("0001728000000002-0000-mac", "<svg/>");
+        let mut later = serde_json::to_value(&kept.drawings[0]).unwrap();
+        later["width"] = 120.into();
+        let row = serde_json::json!([later, { "pluginId": "com.example.graphviz", "svg": 7 }]);
+        store
+            .conn
+            .execute(
+                "INSERT INTO note_drawings (note_id, drawings, hlc) VALUES (?1, ?2, ?3)",
+                rusqlite::params![NOTE, row.to_string(), kept.hlc],
+            )
+            .unwrap();
+        assert_eq!(store.get_note_drawings(NOTE).unwrap(), Some(kept));
     }
 
     #[test]

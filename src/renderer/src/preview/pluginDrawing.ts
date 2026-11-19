@@ -107,6 +107,22 @@ export function setPluginDrawer(
   setPluginEditor(draw ? edits : undefined)
 }
 
+// A blur or a morphology costs with its size squared on each paint; a drawing never needs more than these.
+const FILTER_SIZES: Readonly<Record<string, number>> = {
+  'feGaussianBlur stdDeviation': 32,
+  'feMorphology radius': 16,
+}
+
+/** The sizes in `value`, each kept within 0 and `max`; null when one is not a number. */
+function filterSize(value: string, max: number): string | null {
+  const sizes = value
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number)
+  if (sizes.length > 2 || sizes.some((n) => !Number.isFinite(n))) return null
+  return sizes.map((n) => Math.min(Math.max(n, 0), max)).join(' ')
+}
+
 /** Rebuilds a plugin's SVG from the elements and attributes it may have; throws `E_PLUGIN_SVG` when it is not SVG. */
 export function importPluginSvg(markup: string): { svg: SVGSVGElement; css: string } {
   const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml')
@@ -128,9 +144,12 @@ export function importPluginSvg(markup: string): { svg: SVGSVGElement; css: stri
       }
       if (attr.localName === 'href' ? !attr.value.startsWith('#') : pointsElsewhere(attr.value))
         continue
+      const max = FILTER_SIZES[`${source.localName} ${attr.localName}`]
+      const value = max === undefined ? attr.value : filterSize(attr.value, max)
+      if (value === null) continue
       if (attr.namespaceURI === XLINK_NS)
-        el.setAttributeNS(XLINK_NS, `xlink:${attr.localName}`, attr.value)
-      else if (attr.namespaceURI === null) el.setAttribute(attr.localName, attr.value)
+        el.setAttributeNS(XLINK_NS, `xlink:${attr.localName}`, value)
+      else if (attr.namespaceURI === null) el.setAttribute(attr.localName, value)
     }
     for (const child of Array.from(source.childNodes)) {
       if (child.nodeType === Node.TEXT_NODE)

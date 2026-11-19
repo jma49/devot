@@ -14,9 +14,9 @@
 // size and bytes, written once; the note it belongs to with the HLC of that link's last change; and
 // `purged`. A purged file is a tombstone: its ID and `purged`, nothing else.
 //
-// A note's kept plugin drawings (ADR 0030) are one more field, `drawings` with `drawingsHlc`. A note without any
-// leaves both out, so its bytes and its fingerprint stay as a Devot from before them makes; that Devot ignores them
-// and pushes a note it edits without them.
+// A note's kept plugin drawings (ADR 0030) are one more field, `drawings` with `drawingsHlc`, merged by key. A note
+// without any leaves both out, so its bytes and its fingerprint stay as a Devot from before them makes; that Devot
+// ignores them and pushes a note it edits without them.
 
 import * as Y from 'yjs'
 import { agentWriteRows } from '../authorship'
@@ -27,7 +27,12 @@ import { BODY, seedClient } from '../notes'
 import { sha256Hex } from '../sha256'
 import { NOTE_STATUSES, type NoteStatus } from '../storage'
 import { MAX_SORT_KEY_LENGTH } from '../order'
-import { checkDrawings, type KeptDrawing } from '../plugins/drawings'
+import {
+  mergeDrawings,
+  readDrawings as readDrawingList,
+  sameDrawings,
+  type KeptDrawing,
+} from '../plugins/drawings'
 
 export type SyncKind = 'note' | 'book' | 'tag' | 'file' | 'search'
 
@@ -256,7 +261,7 @@ function readDrawings(
   purged: boolean,
 ): Pick<NoteState, 'drawings' | 'drawingsHlc'> {
   const hlc = h['drawingsHlc']
-  const drawings = purged || !isHlc(hlc) ? null : checkDrawings(h['drawings'])
+  const drawings = purged || !isHlc(hlc) ? null : readDrawingList(h['drawings'])
   return drawings ? { drawings, drawingsHlc: hlc as string } : { drawings: [], drawingsHlc: '' }
 }
 
@@ -607,9 +612,10 @@ export function mergeNote(local: NoteState, remote: NoteState): MergedNote {
           updatedAt: Math.max(local.updatedAt, remote.updatedAt),
           datesHlc: local.datesHlc,
         }
-  const drawings = newer(
-    { value: local.drawings, hlc: local.drawingsHlc },
-    { value: remote.drawings, hlc: remote.drawingsHlc },
+  const drawings = mergeDrawings(
+    { drawings: local.drawings, hlc: local.drawingsHlc },
+    { drawings: remote.drawings, hlc: remote.drawingsHlc },
+    () => doc.getText(BODY).toString(),
   )
   const bodyHlc = later(local.bodyHlc, remote.bodyHlc)
   const edited = later(bodyHlc, title.hlc)
@@ -631,14 +637,16 @@ export function mergeNote(local: NoteState, remote: NoteState): MergedNote {
     deletedHlc: back ? edited : deleted.hlc,
     bodyHlc,
     tags: mergeTags(local.tags, remote.tags),
-    drawings: drawings.value,
+    drawings: drawings.drawings,
     drawingsHlc: drawings.hlc,
     ydoc: bodyRemoteNews ? Y.encodeStateAsUpdate(doc) : local.ydoc,
   }
   return {
     record,
-    localNews: bodyLocalNews || hlcsAhead(record, remote),
-    remoteNews: bodyRemoteNews || hlcsAhead(record, local),
+    localNews:
+      bodyLocalNews || hlcsAhead(record, remote) || !sameDrawings(record.drawings, remote.drawings),
+    remoteNews:
+      bodyRemoteNews || hlcsAhead(record, local) || !sameDrawings(record.drawings, local.drawings),
     bodyChanged: bodyRemoteNews && !localGivesWay,
     bothEdited: bodyLocalNews && bodyRemoteNews && !localGivesWay,
   }

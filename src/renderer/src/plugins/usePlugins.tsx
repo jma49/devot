@@ -261,7 +261,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
             svg,
           })
           .then(
-            (kept) => kept && keptDrawingsChanged(),
+            (kept) => kept && keptDrawingsChanged(new Set([noteId])),
             () => console.warn('W_PLUGIN_DRAWING_KEEP_FAILED'),
           )
       },

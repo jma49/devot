@@ -33,6 +33,20 @@ describe('a drawing a plugin answers', () => {
     expect(path.hasAttribute('filter')).toBe(false)
   })
 
+  it('keeps the size of a blur and a morphology within bounds', () => {
+    const { svg } = importPluginSvg(
+      drawing(
+        '<filter id="f"><feGaussianBlur stdDeviation="2 9000" /><feMorphology radius="1e9" />' +
+          '<feGaussianBlur stdDeviation="lots" /><feMorphology radius="-3" /></filter>',
+      ),
+    )
+    const [blur, morph, badBlur, negative] = [...svg.querySelectorAll('filter > *')]
+    expect(blur!.getAttribute('stdDeviation')).toBe('2 32')
+    expect(morph!.getAttribute('radius')).toBe('16')
+    expect(badBlur!.hasAttribute('stdDeviation')).toBe(false)
+    expect(negative!.getAttribute('radius')).toBe('0')
+  })
+
   it('refuses what is not SVG', () => {
     expect(() => importPluginSvg('<html><body>x</body></html>')).toThrow('E_PLUGIN_SVG')
     expect(() => importPluginSvg('<svg')).toThrow('E_PLUGIN_SVG')

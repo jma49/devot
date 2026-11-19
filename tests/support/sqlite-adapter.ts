@@ -11,7 +11,11 @@ import type { AgentWriteRow } from '../../src/core/authorship'
 import { checkUpload } from '../../src/core/files'
 import { noteLinks } from '../../src/core/links'
 import { checkNote, checkNoteMeta } from '../../src/core/noteLimits'
-import { checkDrawings, type NoteDrawingsRecord } from '../../src/core/plugins/drawings'
+import {
+  checkDrawings,
+  readDrawings,
+  type NoteDrawingsRecord,
+} from '../../src/core/plugins/drawings'
 import { isHlcText } from '../../src/core/hlc'
 import { isNotebookIcon } from '../../src/core/notebookIcons'
 import {
@@ -871,7 +875,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const drawingsNote = db.prepare<[{ noteId: string }], { live: number }>(DRAWINGS_SQL.live)
   const drawingsOf = (noteId: string): NoteDrawingsRecord | null => {
     const row = getDrawings.get({ noteId })
-    const drawings = row ? checkDrawings(JSON.parse(row.drawings)) : null
+    const drawings = row ? readDrawings(JSON.parse(row.drawings)) : null
     return row && drawings ? { noteId, drawings, hlc: row.hlc } : null
   }
   const syncNoteTags = db.prepare<

@@ -7,8 +7,6 @@ import {
   blockHash,
   checkDrawings,
   drawingBlocks,
-  drawingLanguages,
-  findDrawing,
   keepDrawing,
   keepNoteDrawing,
   MAX_DRAWING_BYTES,
@@ -17,11 +15,15 @@ import {
   noteDrawings,
   pruneDrawings,
   pruneNoteDrawings,
+  readDrawings,
   type KeptDrawing,
 } from '../../src/core/plugins/drawings'
 import { DRAWINGS_SQL, tempSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 
 const svg = (label: string) => `<svg xmlns="http://www.w3.org/2000/svg"><text>${label}</text></svg>`
+
+const PLUGINS = new Set(['com.example.graphviz'])
+const NONE = new Set<string>()
 
 const drawn = (content: string, over: Partial<KeptDrawing> = {}): KeptDrawing => ({
   pluginId: 'com.example.graphviz',
@@ -77,11 +79,11 @@ describe('the blocks a note holds', () => {
 describe('keeping a drawing', () => {
   it('adds it, replaces the one of the same key, and keeps light and dark apart', () => {
     const blocks = drawingBlocks('```dot\na\n```\n')
-    const light = keepDrawing([], drawn('a'), blocks)!
+    const light = keepDrawing([], drawn('a'), blocks, NONE)!
     expect(light).toEqual([drawn('a')])
-    const dark = keepDrawing(light, drawn('a', { appearance: 'dark' }), blocks)!
+    const dark = keepDrawing(light, drawn('a', { appearance: 'dark' }), blocks, NONE)!
     expect(dark.map((d) => d.appearance)).toEqual(['light', 'dark'])
-    const redrawn = keepDrawing(dark, drawn('a', { svg: svg('new') }), blocks)!
+    const redrawn = keepDrawing(dark, drawn('a', { svg: svg('new') }), blocks, NONE)!
     expect(redrawn.map((d) => [d.appearance, d.svg])).toEqual([
       ['dark', svg('a')],
       ['light', svg('new')],
@@ -90,60 +92,41 @@ describe('keeping a drawing', () => {
 
   it('changes nothing for the drawing it holds already', () => {
     const blocks = drawingBlocks('```dot\na\n```\n')
-    expect(keepDrawing([drawn('a')], drawn('a'), blocks)).toBeNull()
+    expect(keepDrawing([drawn('a')], drawn('a'), blocks, NONE)).toBeNull()
   })
 
-  it('drops the drawings of blocks the note no longer holds', () => {
-    const next = keepDrawing([drawn('old')], drawn('new'), drawingBlocks('```dot\nnew\n```\n'))
-    expect(next).toEqual([drawn('new')])
+  it('drops the drawings of blocks the note no longer holds, of the plugins that draw here only', () => {
+    const blocks = drawingBlocks('```dot\nnew\n```\n')
+    const other = drawn('old', { pluginId: 'org.other.dot' })
+    expect(keepDrawing([drawn('old'), other], drawn('new'), blocks, NONE)).toEqual([
+      other,
+      drawn('new'),
+    ])
+    expect(
+      keepDrawing([drawn('old'), other], drawn('new'), blocks, new Set(['org.other.dot'])),
+    ).toEqual([drawn('new')])
   })
 
   it('keeps a drawing of the block just drawn though the stored body does not hold it yet', () => {
-    expect(keepDrawing([], drawn('typed'), new Set())).toEqual([drawn('typed')])
+    expect(keepDrawing([], drawn('typed'), new Set(), NONE)).toEqual([drawn('typed')])
   })
 
   it('does not keep a drawing past its cap, nor one past the note’s, and the others stay', () => {
     const huge = drawn('a', { svg: `<svg>${'x'.repeat(MAX_DRAWING_BYTES)}</svg>` })
-    expect(keepDrawing([], huge, new Set())).toBeNull()
+    expect(keepDrawing([], huge, new Set(), NONE)).toBeNull()
     const many = Array.from({ length: MAX_NOTE_DRAWINGS }, (_, i) => drawn(`b${i}`))
     const blocks = new Set(many.map((d) => `dot\n${d.hash}`))
-    expect(keepDrawing(many, drawn('one more'), blocks)).toBeNull()
+    expect(keepDrawing(many, drawn('one more'), blocks, NONE)).toBeNull()
     const big = Array.from({ length: 4 }, (_, i) =>
       drawn(`c${i}`, { svg: `<svg>${'y'.repeat(MAX_DRAWING_BYTES - 20)}</svg>` }),
     )
     const bigBlocks = new Set(big.map((d) => `dot\n${d.hash}`))
-    expect(keepDrawing(big, drawn('fifth'), bigBlocks)).toBeNull()
+    expect(keepDrawing(big, drawn('fifth'), bigBlocks, NONE)).toBeNull()
   })
 
   it('still drops gone blocks when the new drawing does not fit', () => {
     const huge = drawn('a', { svg: `<svg>${'x'.repeat(MAX_DRAWING_BYTES)}</svg>` })
-    expect(keepDrawing([drawn('gone')], huge, new Set())).toEqual([])
-  })
-})
-
-describe('finding a kept drawing', () => {
-  it('matches the language, the content and the appearance, the plugin’s own first', () => {
-    const list = [
-      drawn('a'),
-      drawn('a', { pluginId: 'org.other.dot' }),
-      drawn('a', { appearance: 'dark' }),
-    ]
-    expect(
-      findDrawing(list, { language: 'dot', content: 'a', appearance: 'light' })?.pluginId,
-    ).toBe('org.other.dot')
-    expect(
-      findDrawing(list, {
-        language: 'dot',
-        content: 'a',
-        appearance: 'light',
-        pluginId: 'com.example.graphviz',
-      })?.pluginId,
-    ).toBe('com.example.graphviz')
-    expect(
-      findDrawing(list, { language: 'dot', content: 'a ', appearance: 'light' }),
-    ).toBeUndefined()
-    expect(findDrawing(list, { language: 'd2', content: 'a', appearance: 'light' })).toBeUndefined()
-    expect(drawingLanguages([...list, drawn('x', { language: 'd2' })])).toEqual(['d2', 'dot'])
+    expect(keepDrawing([drawn('gone')], huge, new Set(), NONE)).toEqual([])
   })
 })
 
@@ -155,7 +138,6 @@ describe('checking a list', () => {
       null,
       {},
       [drawn('a'), drawn('a')],
-      [{ ...drawn('a'), extra: 1 }],
       [drawn('a', { hash: 'A'.repeat(64) })],
       [drawn('a', { appearance: 'sepia' as 'light' })],
       [drawn('a', { pluginId: 'devot.core' })],
@@ -168,10 +150,24 @@ describe('checking a list', () => {
     }
   })
 
-  it('drops a removed drawing from what pruning keeps', () => {
-    expect(pruneDrawings([drawn('a'), drawn('b')], drawingBlocks('```dot\nb\n```\n'))).toEqual([
-      drawn('b'),
-    ])
+  it('lets go of the fields a later build adds', () => {
+    expect(checkDrawings([{ ...drawn('a'), width: 120 }])).toEqual([drawn('a')])
+  })
+
+  it('reads a synced list without the drawings it cannot take, and within the caps', () => {
+    expect(readDrawings('lots')).toBeNull()
+    expect(
+      readDrawings([{ ...drawn('a'), svg: 7 }, drawn('b'), drawn('b', { svg: svg('again') }), 3]),
+    ).toEqual([drawn('b')])
+    const many = Array.from({ length: MAX_NOTE_DRAWINGS + 2 }, (_, i) => drawn(`n${i}`))
+    expect(readDrawings(many)).toEqual(many.slice(0, MAX_NOTE_DRAWINGS))
+  })
+
+  it('prunes the drawings of removed blocks only for the plugins it is given', () => {
+    const list = [drawn('a'), drawn('b')]
+    const blocks = drawingBlocks('```dot\nb\n```\n')
+    expect(pruneDrawings(list, blocks, PLUGINS)).toEqual([drawn('b')])
+    expect(pruneDrawings(list, blocks, NONE)).toEqual(list)
   })
 })
 
@@ -192,31 +188,38 @@ describe('a note’s kept drawings in storage', () => {
   it('keeps two blocks drawn at once, each under a new clock', async () => {
     const { id, clock } = await noteWith('```dot\na\n```\n\n```dot\nb\n```\n')
     await Promise.all([
-      keepNoteDrawing(storage, clock, id, drawn('a')),
-      keepNoteDrawing(storage, clock, id, drawn('b')),
+      keepNoteDrawing(storage, clock, id, drawn('a'), NONE),
+      keepNoteDrawing(storage, clock, id, drawn('b'), NONE),
     ])
     expect((await noteDrawings(storage, id)).map((d) => d.svg).sort()).toEqual([svg('a'), svg('b')])
     const first = (await storage.getNoteDrawings(id))!.hlc
-    expect(await keepNoteDrawing(storage, clock, id, drawn('a'))).toBe(false)
+    expect(await keepNoteDrawing(storage, clock, id, drawn('a'), NONE)).toBe(false)
     expect((await storage.getNoteDrawings(id))!.hlc).toBe(first)
   })
 
-  it('prunes the drawings of a block edited away, keeping the row and its clock', async () => {
+  it('prunes the drawings of a block edited away, read from the note as it is now', async () => {
     const { id, clock, notes } = await noteWith('```dot\na\n```\n')
-    await keepNoteDrawing(storage, clock, id, drawn('a'))
-    const before = (await storage.getNoteDrawings(id))!.hlc
+    await keepNoteDrawing(storage, clock, id, drawn('a'), NONE)
+    const before = (await storage.getNoteDrawings(id))!
     await notes.setBody(id, '```dot\na2\n```\n')
     await notes.flush()
-    const pruned = await pruneNoteDrawings(storage, clock, id, (await storage.getNote(id))!.bodyMd)
+    expect(await pruneNoteDrawings(storage, clock, id, NONE)).toEqual(before)
+    const pruned = await pruneNoteDrawings(storage, clock, id, PLUGINS)
     expect(pruned?.drawings).toEqual([])
-    expect(pruned!.hlc > before).toBe(true)
+    expect(pruned!.hlc > before.hlc).toBe(true)
     expect(await storage.getNoteDrawings(id)).toEqual(pruned)
   })
 
   it('keeps nothing for a note it does not hold', async () => {
     const { clock } = await noteWith('x')
     expect(
-      await keepNoteDrawing(storage, clock, '0192a6f0-0000-7000-8000-00000000dead', drawn('a')),
+      await keepNoteDrawing(
+        storage,
+        clock,
+        '0192a6f0-0000-7000-8000-00000000dead',
+        drawn('a'),
+        NONE,
+      ),
     ).toBe(false)
   })
 
@@ -238,7 +241,7 @@ describe('a note’s kept drawings in storage', () => {
   it('marks the note pending for sync when its drawings change, and drops them with a purge', async () => {
     const { id, clock, notes } = await noteWith('```dot\na\n```\n')
     const [before] = await storage.syncRead([id])
-    await keepNoteDrawing(storage, clock, id, drawn('a'))
+    await keepNoteDrawing(storage, clock, id, drawn('a'), NONE)
     const [after] = await storage.syncRead([id])
     expect(after!.entry!.edits).toBeGreaterThan(before!.entry!.edits)
     expect(after!.note!.drawings?.drawings).toEqual([drawn('a')])

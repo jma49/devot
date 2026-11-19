@@ -15,9 +15,16 @@ The iPhone will not run plugin code: instead, the Mac keeps each drawing a plugi
 - A kept drawing is keyed by the plugin's ID, the fence language, the SHA-256 of the block's content as the preview reads it (the code block's text, without its last line feed) and the appearance (`light` or `dark`, kept apart).
 - The main window keeps a drawing when its plugin answers one that the page could rebuild; it keeps the rebuilt SVG serialized, with its stylesheet in one `style` element, never the plugin's answer as it came.
 - A drawing over 256 KiB (`MAX_DRAWING_BYTES`, its UTF-8 bytes) is not kept, and a note keeps at most 32 drawings and 1 MiB of them (`MAX_NOTE_DRAWINGS`, `MAX_NOTE_DRAWINGS_BYTES`); a drawing that would pass either is not kept, and the ones kept before stay.
-- Drawings of blocks the note no longer holds are dropped when a drawing is kept and before the note is pushed, each time under a new clock.
-- Uninstalling or turning off the plugin drops nothing: its drawings stay until their blocks change.
-- **Where they live:** in the note's own sync record, as two header fields beside its others, `drawings` (the list) and `drawingsHlc` (when it last changed), merged as one field: the higher clock wins.
+- Only a device whose plugin draws drops that plugin's drawings: when it keeps a drawing and when it pushes a change to the note, it drops the plugin's drawings of blocks the note no longer holds, under a new clock.
+  A device without the plugin (the iPhone, a Mac without it or with it off) never drops one, so a block edited there keeps the stale drawing, and with it the note that the drawing updates on a Mac, until a device with the plugin draws the block again or pushes a change to the note.
+  A device with the plugin that only pulls the edit pushes nothing and drops nothing.
+- Uninstalling or turning off the plugin drops nothing: its drawings stay until a device with the plugin drops them.
+- **Where they live:** in the note's own sync record, as two header fields beside its others, `drawings` (the list) and `drawingsHlc` (when it last changed).
+- **Merging:** two devices' lists merge by key, since a drawing depends only on its key.
+  A drawing of a block the merged body holds is kept from either side, so two devices drawing different blocks at once both keep theirs.
+  A drawing of a block the merged body no longer holds is kept only from the side with the higher clock, so a drop reaches the other devices and is not brought back by them.
+  Past the caps, the drawings of held blocks go first, then the lower keys, so every device keeps the same ones; the merged clock is the higher one, and a merged list that differs from the stored one under that same clock is written under a new clock and pushed.
+- A drawing a build cannot read, or a field it does not know, is left out of the list it reads rather than the whole list, so a later build can add fields to a drawing.
   Locally they are a row of their own, `note_drawings` (migration 0031), whose writes mark the note pending like a write of its tags.
   A separate record kind was weighed and refused: the note record is sealed in Rust on every path a note takes (the relay, iCloud, an upload after a new epoch or a move, a restored backup), so the drawings are encrypted wherever the note is, and no transport, quota rule or skip count has to learn a new kind.
   It also keeps a drawing in the same push as the block it was drawn from, so another device never holds one without the other for long.
@@ -38,3 +45,5 @@ The iPhone will not run plugin code: instead, the Mac keeps each drawing a plugi
   All devices are the owner's, so this quirk is documented rather than guarded.
 - A drawing that depends on more than its block, such as a query a plugin draws from other notes (ADR 0028), is as fresh as the last time the Mac showed it.
 - The note record grows by its drawings, within the 80 MiB a record may hold beside its 64 MiB of Yjs state.
+- Each push of a note carries its whole drawing list, up to 1 MiB, even when only its text changed.
+- A build that reads a drawing without a field a later build added pushes it back without that field.
