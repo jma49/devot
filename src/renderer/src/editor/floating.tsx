@@ -32,6 +32,14 @@ export { BAR_GAP, NOTCH_X }
 
 const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
 
+const BUTTON_SIZE = Number.parseFloat(sizes['size.float-button'])
+const BAR_END = Number.parseFloat(sizes['size.float-toolbar-end'])
+const ROW_HEIGHT = Number.parseFloat(sizes['size.float-toolbar-height'])
+/** The width of a separator between two groups of buttons: its hairline and the margin either side. */
+const SEPARATOR_WIDTH = 1 + 2 * Number.parseFloat(sizes['space.3'])
+
+export { BAR_END, BUTTON_SIZE, SEPARATOR_WIDTH }
+
 const TIP_ROOM = 64
 /** Space between a tooltip bubble and the editor's frame when it has to shift. */
 const TIP_EDGE = 4
@@ -63,6 +71,8 @@ interface ShownTip {
   below: boolean
   /** Where the bubble fits, in the bar's coordinates. */
   room: { left: number; right: number }
+  /** The button's row of a bar of several rows, in the bar's coordinates, and the bar's height. */
+  row: { top: number; bottom: number; height: number }
 }
 
 function popupSpace(view: EditorView): DOMRect {
@@ -88,11 +98,13 @@ export function useFloatTip(view: EditorView) {
       const b = button.getBoundingClientRect()
       const box = bar.getBoundingClientRect()
       const frame = popupSpace(view)
+      const index = Math.max(0, Math.round((b.top - box.top - BAR_END) / ROW_HEIGHT))
       setShown({
         tip,
         x: b.left + b.width / 2 - box.left,
         below: b.top - TIP_ROOM < frame.top,
         room: { left: frame.left - box.left, right: frame.right - box.left },
+        row: { top: index * ROW_HEIGHT, bottom: (index + 1) * ROW_HEIGHT, height: box.height },
       })
     }, SHOW_AFTER_MS)
   }
@@ -102,7 +114,7 @@ export function useFloatTip(view: EditorView) {
 
 const floatTipRef = closingRef('fade', 'cm-float-tip')
 
-function FloatTip({ tip, x, below, room }: ShownTip) {
+function FloatTip({ tip, x, below, room, row }: ShownTip) {
   const ref = useRef<HTMLDivElement>(null)
   // Both the closing fade (floatTipRef) and the width this measures.
   const setRef = useCallback((el: HTMLDivElement | null) => {
@@ -129,6 +141,13 @@ function FloatTip({ tip, x, below, room }: ShownTip) {
       style={{
         left: `${left}px`,
         ...(notch === null ? {} : { '--tip-notch': `${notch}px` }),
+        // Beside its own button's row in a bar of several rows, not the bar's far edge.
+        ...(!below && row.top > 0
+          ? { bottom: `calc(100% - ${row.top}px + var(--tooltip-gap))` }
+          : {}),
+        ...(below && row.bottom < row.height - 1
+          ? { top: `calc(${row.bottom}px + var(--tooltip-gap))` }
+          : {}),
       }}
     >
       <span className="cm-float-tip-title">{tip.title}</span>
@@ -169,8 +188,16 @@ export function FloatButton(props: FloatButtonProps) {
   )
 }
 
-export function FloatSeparator(): ReactNode {
-  return <span role="separator" aria-orientation="vertical" className="cm-float-separator" />
+/** Between two rows of a bar that wraps, a separator is the break: it stands across the bar, drawn as nothing. */
+export function FloatSeparator({ broken = false }: { broken?: boolean }): ReactNode {
+  return (
+    <span
+      role="separator"
+      aria-orientation={broken ? 'horizontal' : 'vertical'}
+      className="cm-float-separator"
+      data-break={broken ? '' : undefined}
+    />
+  )
 }
 
 /**

@@ -552,3 +552,152 @@ test('a toolbar button tooltip waits, then shows above its button; a focused but
   await expect(page.locator('.cm-content')).toBeFocused()
   expect((await lines(page))[11]).toContain('**note**')
 })
+
+const mode = (page: Page, name: 'Edit' | 'Split' | 'Preview') =>
+  page.getByRole('group', { name: 'View mode' }).getByRole('button', { name })
+
+/** Where each button of the toolbar sits, in reading order: its row (from the top) and its box. */
+async function buttonRows(page: Page) {
+  return toolbar(page).evaluate((el) => {
+    const bar = el.closest('.cm-format-toolbar')!
+    const boxes = [...el.querySelectorAll('button')].map((b) => ({
+      name: b.getAttribute('aria-label') ?? '',
+      box: b.getBoundingClientRect(),
+    }))
+    const tops = [...new Set(boxes.map((b) => Math.round(b.box.top)))].sort((a, b) => a - b)
+    const barBox = bar.getBoundingClientRect()
+    const buttons = el as HTMLElement
+    return {
+      buttons: boxes.map((b) => ({
+        name: b.name,
+        row: tops.indexOf(Math.round(b.box.top)),
+        left: b.box.left,
+        right: b.box.right,
+        top: b.box.top,
+        bottom: b.box.bottom,
+      })),
+      rows: tops.length,
+      bar: { left: barBox.left, right: barBox.right, top: barBox.top, height: barBox.height },
+      scrolls: buttons.scrollWidth > buttons.clientWidth || bar.scrollWidth > bar.clientWidth,
+      overflowX: getComputedStyle(el).overflowX,
+      wrapped: bar.hasAttribute('data-wrapped'),
+    }
+  })
+}
+
+const GROUP_STARTS = ['Heading', 'Inline Code', 'Bulleted List', 'Edit with AI']
+
+test('a narrow editor wraps the toolbar onto more rows between its groups, every button shown, no sideways scroll', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await newNote(page, manyLines)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await mode(page, 'Split').click()
+  await selectWord(page, 12, 'note')
+  const host = (await page.locator('[data-devot-part="editor-body"]').boundingBox())!
+  // The test needs an editor narrower than the bar's one row (14 buttons, 441 px).
+  expect(host.width).toBeLessThan(441)
+
+  await expect.poll(async () => (await buttonRows(page)).wrapped).toBe(true)
+  const laid = await buttonRows(page)
+  expect(laid.buttons).toHaveLength(14)
+  expect(laid.rows).toBeGreaterThan(1)
+  expect(laid.scrolls).toBe(false)
+  expect(laid.overflowX).toBe('visible')
+  // Each row is a whole number of groups: a row starts only at a group's first button.
+  for (const [i, b] of laid.buttons.entries()) {
+    const startsRow = i === 0 || laid.buttons[i - 1]!.row !== b.row
+    if (startsRow) expect(GROUP_STARTS).toContain(b.name)
+    else expect(b.row).toBe(laid.buttons[i - 1]!.row)
+    // Keyboard and reading order stay the order of the buttons in the document.
+    if (i > 0) {
+      const before = laid.buttons[i - 1]!
+      expect(b.row === before.row ? b.left > before.left : b.row === before.row + 1).toBe(true)
+    }
+  }
+  // Every button is whole inside the bar and the editor, so none is clipped.
+  for (const b of laid.buttons) {
+    expect(b.left).toBeGreaterThanOrEqual(laid.bar.left)
+    expect(b.right).toBeLessThanOrEqual(laid.bar.right)
+    expect(b.left).toBeGreaterThanOrEqual(host.x)
+    expect(b.right).toBeLessThanOrEqual(host.x + host.width)
+  }
+  expect(laid.bar.left).toBeGreaterThanOrEqual(host.x - 0.5)
+  expect(laid.bar.right).toBeLessThanOrEqual(host.x + host.width + 0.5)
+  // Rows are the floating bar's own height, with the same padding at every end.
+  expect(laid.bar.height).toBe(laid.rows * 38)
+  const first = laid.buttons[0]!
+  expect(first.left - laid.bar.left).toBeCloseTo(5, 1)
+  expect(first.top - laid.bar.top).toBeCloseTo(5, 1)
+  const rowsOf = (row: number) => laid.buttons.filter((b) => b.row === row)
+  const widest = Math.max(...Array.from({ length: laid.rows }, (_, r) => rowsOf(r).at(-1)!.right))
+  expect(laid.bar.right - widest).toBeCloseTo(5, 1)
+  // Rows are alike, not one long row and a stub.
+  const counts = Array.from({ length: laid.rows }, (_, r) => rowsOf(r).length)
+  expect(Math.max(...counts)).toBeLessThanOrEqual(8)
+
+  // The bar still sits beside the selection, its notch on the selection's start.
+  const bar = await expectBesideSelection(page)
+  const selected = (await page.locator('.cm-selectionBackground').first().boundingBox())!
+  const notch = await page
+    .locator('.cm-format-toolbar')
+    .evaluate((el) => Number.parseFloat(getComputedStyle(el).getPropertyValue('--float-notch-x')))
+  expect(Math.abs(bar.x + notch - selected.x)).toBeLessThan(2)
+})
+
+test('a tooltip of a button on the second row shows by its own row, inside the editor', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await newNote(page, manyLines)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await mode(page, 'Split').click()
+  await selectWord(page, 12, 'note')
+  await expect.poll(async () => (await buttonRows(page)).rows).toBeGreaterThan(1)
+  const ai = button(page, 'Edit with AI')
+  await ai.hover()
+  const tip = page.getByRole('tooltip')
+  await expect(tip).toBeVisible()
+  const [b, t, bar] = await Promise.all([
+    ai.boundingBox(),
+    tip.boundingBox(),
+    toolbar(page).boundingBox(),
+  ])
+  if (!b || !t || !bar) throw new Error('missing boxes')
+  const host = (await page.locator('[data-devot-part="editor-body"]').boundingBox())!
+  expect(t.x).toBeGreaterThanOrEqual(host.x + 3)
+  expect(t.x + t.width).toBeLessThanOrEqual(host.x + host.width - 3)
+  // Above its own row, over the row before it, never the bar's far edge.
+  await expect(tip).toHaveAttribute('data-side', 'above')
+  expect(t.y + t.height).toBeLessThanOrEqual(b.y - 5)
+  expect(t.y + t.height).toBeGreaterThan(bar.y)
+})
+
+test('the toolbar wraps again when the editor changes width, and is one row where it fits', async ({
+  page,
+}) => {
+  const hostWidth = async () =>
+    (await page.locator('[data-devot-part="editor-body"]').boundingBox())!.width
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await newNote(page, manyLines)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await mode(page, 'Split').click()
+  await selectWord(page, 12, 'note')
+  await expect.poll(async () => (await buttonRows(page)).wrapped).toBe(true)
+  expect(await hostWidth()).toBeLessThan(441)
+
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await expect.poll(hostWidth).toBeGreaterThanOrEqual(441)
+  await expect.poll(async () => (await buttonRows(page)).rows).toBe(1)
+  const wide = await buttonRows(page)
+  expect(wide.wrapped).toBe(false)
+  expect(wide.bar.height).toBe(38)
+  expect(wide.scrolls).toBe(false)
+
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await expect.poll(async () => (await buttonRows(page)).wrapped).toBe(true)
+  const narrow = await buttonRows(page)
+  expect(narrow.scrolls).toBe(false)
+  expect(narrow.bar.height).toBe(narrow.rows * 38)
+})

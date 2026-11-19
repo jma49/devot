@@ -25,18 +25,23 @@ import { registryKeys } from './registryKeys'
 import type { ShowAlertMenu } from './alertMenu'
 import type { ShowAiMenu } from './aiMenu'
 import {
+  BAR_END,
   BAR_GAP,
   barContent,
+  BUTTON_SIZE,
   FloatButton,
   FloatSeparator,
   floatTheme,
   NOTCH_X,
+  SEPARATOR_WIDTH,
   useFloatTip,
 } from './floating'
 import { formatCommand, formatState, selectionHasLink, type ToolbarFormat } from './formats'
 import { openLinkDialog } from './LinkDialog'
 import { TOOLBAR_GROUPS, toolbarTip } from './toolbarButtons'
 import { anchorRect, notchOffset } from './toolbarPlacement'
+import { breaksBefore, planRows } from './toolbarRows'
+import { popupBox } from './theme'
 import {
   barFocusIsFree,
   hideToolbar,
@@ -52,6 +57,8 @@ interface ToolbarProps {
   state: EditorState
   showAlertMenu: ShowAlertMenu
   showAiMenu: ShowAiMenu | undefined
+  /** The groups (counted from the second) that start a new row. */
+  breaks: ReadonlySet<number>
 }
 
 function headingFromToolbar(view: EditorView) {
@@ -98,7 +105,7 @@ function FormatToolbar(props: ToolbarProps) {
       >
         {TOOLBAR_GROUPS.map((group, n) => (
           <Fragment key={group[0]!.id}>
-            {n > 0 && <FloatSeparator />}
+            {n > 0 && <FloatSeparator broken={props.breaks.has(n)} />}
             {group.map((b) => (
               <FloatButton
                 key={b.id}
@@ -119,7 +126,7 @@ function FormatToolbar(props: ToolbarProps) {
         ))}
         {props.showAiMenu ? (
           <>
-            <FloatSeparator />
+            <FloatSeparator broken={props.breaks.has(TOOLBAR_GROUPS.length)} />
             <FloatButton
               label={t('aiEdit.button')}
               icon="format.ai"
@@ -157,6 +164,7 @@ function createToolbar(
   const dom = document.createElement('div')
   dom.className = 'cm-float-bar cm-format-toolbar'
   const root = createRoot(barContent(dom))
+  let breaks: ReadonlySet<number> = new Set()
   const render = (state: EditorState) =>
     root.render(
       <FormatToolbar
@@ -164,14 +172,35 @@ function createToolbar(
         state={state}
         showAlertMenu={showAlertMenu}
         showAiMenu={showAiMenu}
+        breaks={breaks}
       />,
     )
-  // Through the CSSOM (the production CSP allows no style attributes).
-  const fit = (width: number) => {
-    const max = `${Math.max(0, Math.floor(width))}px`
-    if (dom.style.maxWidth === max) return false
-    dom.style.maxWidth = max
-    return true
+  const groupWidths = [
+    ...TOOLBAR_GROUPS.map((group) => group.length * BUTTON_SIZE),
+    ...(showAiMenu ? [BUTTON_SIZE] : []),
+  ]
+  // Through the CSSOM (the production CSP allows no style attributes). The
+  // buttons wrap between groups, never past the editor's width, and the bar is
+  // as wide as its widest row; a bar that fits keeps one row at its own width.
+  let layout = ''
+  let rowsKey = ''
+  /** Whether the bar's size changed, and whether its rows did (the buttons then render again). */
+  const fit = (space: { left: number; right: number }) => {
+    const width = Math.max(0, Math.floor(space.right - space.left))
+    const plan = planRows(groupWidths, SEPARATOR_WIDTH, width - 2 * BAR_END)
+    const key = `${width} ${plan.rows.join()} ${plan.width}`
+    if (key === layout) return { resized: false, rewrapped: false }
+    layout = key
+    const rewrapped = plan.rows.join() !== rowsKey
+    rowsKey = plan.rows.join()
+    const wrapped = plan.rows.length > 1
+    breaks = breaksBefore(plan.rows)
+    dom.style.maxWidth = `${width}px`
+    dom.style.width = wrapped ? `${plan.width + 2 * BAR_END}px` : ''
+    dom.toggleAttribute('data-wrapped', wrapped)
+    if (wrapped) dom.style.setProperty('--float-rows', String(plan.rows.length))
+    else dom.style.removeProperty('--float-rows')
+    return { resized: true, rewrapped }
   }
   let anchorX = 0
   const aimNotch = () => {
@@ -183,12 +212,14 @@ function createToolbar(
     dom,
     // Rendered and sized before CodeMirror measures it, so it is placed by its real size.
     mount: () => {
-      fit(view.dom.getBoundingClientRect().width)
+      fit(popupBox(view))
       flushSync(() => render(view.state))
     },
     // The editor's width changed (a resized window): wrap again and place it anew.
     positioned: (space) => {
-      if (fit(space.right - space.left)) view.requestMeasure()
+      const { resized, rewrapped } = fit(space)
+      if (rewrapped) flushSync(() => render(view.state))
+      if (resized) view.requestMeasure()
       aimNotch()
     },
     update: (update) => {
@@ -263,16 +294,26 @@ const formatKeys = registryKeys(() => {
 const theme = EditorView.theme({
   '.cm-tooltip.cm-format-toolbar': {
     // Its own width, not what is left right of the selection; at most the
-    // editor's (set when placed). A narrower editor (a split pane) keeps the
-    // buttons on one row and scrolls them sideways.
+    // editor's (set when placed).
     width: 'max-content',
   },
-  '.cm-format-toolbar .cm-float-buttons': {
-    overflowX: 'auto',
-    scrollbarWidth: 'none',
+  // Too many buttons for one row: the rows are `size.float-toolbar-height` each,
+  // wrapped between groups, and a separator at a break stands across the bar as
+  // the line break. Its width is set when placed.
+  '.cm-tooltip.cm-float-bar.cm-format-toolbar[data-wrapped]': {
+    height: 'auto',
+    paddingBlock: '0',
   },
-  '.cm-format-toolbar .cm-float-buttons::-webkit-scrollbar': {
-    display: 'none',
+  '.cm-format-toolbar[data-wrapped] .cm-float-content': { display: 'block', width: '100%' },
+  '.cm-format-toolbar[data-wrapped] .cm-float-buttons': { flexWrap: 'wrap', width: '100%' },
+  '.cm-format-toolbar[data-wrapped] .cm-float-button': {
+    marginBlock: 'var(--size-float-toolbar-end)',
+  },
+  '.cm-format-toolbar .cm-float-separator[data-break]': {
+    flexBasis: '100%',
+    height: '0',
+    margin: '0',
+    border: '0',
   },
 })
 

@@ -1,4 +1,4 @@
-import { EditorView, tooltips } from '@codemirror/view'
+import { EditorView, tooltips, type Rect } from '@codemirror/view'
 import { BOX_PAD } from './boxes'
 
 /**
@@ -121,24 +121,28 @@ export const editorTheme = EditorView.theme({
 })
 
 /**
- * Popups live in the frame around the scroll box so scrolling does not clip them: one over the first lines may reach up over the title and meta line, and a popup with no room above a line opens below it. A further box that clips (the split view's sideways scroll) holds them in too.
+ * Popups live in the frame around the scroll box so scrolling does not clip them: one over the first lines may reach up over the title and meta line, and a popup with no room above a line opens below it. A further box that clips (the split view's sideways scroll) holds them in too, on every side.
  */
+export function popupBox(view: EditorView): Rect {
+  const root = view.dom.getRootNode()
+  const host = root instanceof ShadowRoot ? (root.host as HTMLElement) : view.dom
+  const box = host.getBoundingClientRect()
+  const pane = host.closest('[data-devot-part="editor"]')
+  const toolbar = pane?.querySelector('[data-devot-part="toolbar"]')
+  if (!pane || !toolbar) return box
+  let { left, right } = box
+  let top = toolbar.getBoundingClientRect().bottom
+  for (let el = host.parentElement; el && el !== pane; el = el.parentElement) {
+    const style = getComputedStyle(el)
+    const clip = el.getBoundingClientRect()
+    if (style.overflowY !== 'visible') top = Math.max(top, clip.top)
+    if (style.overflowX !== 'visible') {
+      left = Math.max(left, clip.left)
+      right = Math.min(right, clip.right)
+    }
+  }
+  return { left, right: Math.max(left, right), top: Math.min(top, box.top), bottom: box.bottom }
+}
+
 export const popupSpace = (frame: HTMLElement) =>
-  tooltips({
-    parent: frame,
-    tooltipSpace: (view) => {
-      const root = view.dom.getRootNode()
-      const host = root instanceof ShadowRoot ? (root.host as HTMLElement) : view.dom
-      const box = host.getBoundingClientRect()
-      const pane = host.closest('[data-devot-part="editor"]')
-      const toolbar = pane?.querySelector('[data-devot-part="toolbar"]')
-      if (!pane || !toolbar) return box
-      let top = toolbar.getBoundingClientRect().bottom
-      for (let el = host.parentElement; el && el !== pane; el = el.parentElement) {
-        if (getComputedStyle(el).overflowY !== 'visible') {
-          top = Math.max(top, el.getBoundingClientRect().top)
-        }
-      }
-      return { left: box.left, right: box.right, top: Math.min(top, box.top), bottom: box.bottom }
-    },
-  })
+  tooltips({ parent: frame, tooltipSpace: popupBox })
