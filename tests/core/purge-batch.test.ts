@@ -54,6 +54,32 @@ it('rolls back a batch that includes a live note and leaves secure-delete off', 
   expect(await s.listTrash()).toEqual([])
 })
 
+it('compacts cleared indexed notes even after another synced purge compacted while they were stale', async () => {
+  const s = tempSqliteAdapter('devot-cleared-purge-')
+  const secret = 'qxjzvwkpfyb'
+  s.db
+    .prepare(`INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at)
+    VALUES ('draft', '', '', ?, x'00', 1, 1), ('other', '', '', 'temporary', x'00', 1, 1)`)
+    .run(secret.repeat(400))
+  s.catchUpSearchIndex()
+  s.db.exec("UPDATE notes SET body_md = '' WHERE id = 'draft'")
+  await s.syncPurge('other', 2, '0000000000000002-0000-remote')
+  s.catchUpSearchIndex()
+  await s.purgeNote('draft', 3, '0000000000000003-0000-test')
+  s.db.exec("CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')")
+  expect(s.db.prepare('SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?').all(secret)).toEqual(
+    [],
+  )
+  s.db.pragma('wal_checkpoint(TRUNCATE)')
+  const bytes = readFileSync(s.db.name)
+  for (let i = 0; i < secret.length - 2; i++) {
+    expect(
+      s.db.prepare('SELECT term FROM purge_vocab WHERE term = ?').all(secret.slice(i, i + 3)),
+    ).toEqual([])
+    expect(bytes.includes(secret.slice(i, i + 3))).toBe(false)
+  }
+})
+
 async function largeTrash(count: number) {
   const sqlite = tempSqliteAdapter('devot-purge-chunks-')
   const newId = createIdGenerator()

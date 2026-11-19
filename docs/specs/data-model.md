@@ -123,8 +123,7 @@ Part of the [architecture overview](../architecture.md).
   Empty Trash purges at most 500 IDs per transaction and compacts once at the end of each batch; every tombstone in a batch shares its timestamp and clock, and a refusal or failure rolls back that batch.
   `notes_purge` refuses more than 500 IDs with `E_PURGE_TOO_MANY`; Empty Trash relays each committed batch before starting the next, so a later failure leaves earlier purges announced.
   Synced purges persist a `searchCompactionPending` marker in their transaction and defer compaction until the pull ends, including a failed pull; opening the store completes any compaction a crash left pending.
-  A purge skips compaction only when its `notes_fts_docsize` has no tokens and `search_postings_pending` (schema v33) holds no earlier indexed history for that row; an update marks that history from the index itself, so clearing and catching up a draft cannot hide old postings.
-  Compaction clears all indexed-history markers; upgrading v32 conservatively marks existing rows because they may already have deletion tombstones.
+  Blank drafts compact too: zero current token counts cannot establish that no old deletion tombstones remain.
   Rebuild Search Index uses `'delete-all'` followed by insertion from every `notes` row, empties `search_stale`, and checks internal FTS integrity and the indexed row count in the same cancellable transaction.
 - Markdown export (see Export and print) writes notes and notebooks as Markdown files that import back as they were.
 

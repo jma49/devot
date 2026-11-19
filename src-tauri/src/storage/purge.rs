@@ -118,7 +118,6 @@ fn compact_purged(conn: &Connection, changed: bool) -> Result<()> {
             "DELETE FROM sync_state WHERE key = 'searchCompactionPending'",
             [],
         )?;
-        conn.execute("DELETE FROM search_postings_pending", [])?;
     }
     Ok(())
 }
@@ -131,16 +130,6 @@ fn purge_rows(tx: &Connection, id: &str, at: i64, hlc: &str, here: bool) -> Resu
             |row| row.get(0),
         )
         .optional()?;
-    let postings: bool = if let Some(rowid) = rowid {
-        tx.query_row(
-            "SELECT EXISTS (SELECT 1 FROM notes_fts_docsize WHERE id = ?1 AND sz IS NOT x'0000')
-                 OR EXISTS (SELECT 1 FROM search_postings_pending WHERE rowid = ?1)",
-            [rowid],
-            |row| row.get(0),
-        )?
-    } else {
-        false
-    };
     tx.execute(SEARCH_SECURE_DELETE_SQL, [1])?;
     tx.execute(
         "UPDATE notes SET title = '', title_hlc = MAX(title_hlc, ?3), body_md = '', ydoc = x'',
@@ -172,5 +161,5 @@ fn purge_rows(tx: &Connection, id: &str, at: i64, hlc: &str, here: bool) -> Resu
     if here {
         tx.execute("DELETE FROM revisions WHERE note_id = ?1", [id])?;
     }
-    Ok(postings)
+    Ok(rowid.is_some())
 }

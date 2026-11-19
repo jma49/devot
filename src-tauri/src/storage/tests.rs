@@ -3765,77 +3765,48 @@ fn batch_purge_rolls_back_on_live_notes_and_database_errors() {
 }
 
 #[test]
-fn blank_draft_purge_compacts_only_when_it_has_indexed_history() {
-    for typed in [false, true] {
-        for caught_up in [false, true] {
-            let (dir, mut store) = temp_store();
-            let secret = "qxjzvwkpfyb";
-            store.put_note(&note("kept", "Orchard", 10), &[]).unwrap();
-            store.catch_up_search_index(None).unwrap();
-            let mut draft = note("draft", "", 10);
-            draft.body_md = if typed {
-                secret.repeat(400)
-            } else {
-                String::new()
-            };
-            store.put_note(&draft, &[]).unwrap();
-            if typed || caught_up {
-                store.catch_up_search_index(None).unwrap();
-            }
-            store
-                .conn
-                .execute("UPDATE notes SET title = 'Meadow' WHERE id = 'kept'", [])
-                .unwrap();
-            if typed {
-                store
-                    .conn
-                    .execute("UPDATE notes SET body_md = '' WHERE id = 'draft'", [])
-                    .unwrap();
-                if caught_up {
-                    store.catch_up_search_index(None).unwrap();
-                }
-            }
-            if caught_up {
-                let sz: Vec<u8> = store.conn.query_row("SELECT sz FROM notes_fts_docsize WHERE id = (SELECT rowid FROM notes WHERE id = 'draft')", [], |row| row.get(0)).unwrap();
-                assert_eq!(sz, [0, 0]);
-            }
-            store
-                .purge_note("draft", 30, "0000000000000030-0000-test")
-                .unwrap();
-            let kept_history: bool = store.conn.query_row("SELECT EXISTS (SELECT 1 FROM search_postings_pending WHERE rowid = (SELECT rowid FROM notes WHERE id = 'kept'))", [], |row| row.get(0)).unwrap();
-            assert_eq!(kept_history, !typed);
-            store
-                .conn
-                .execute_batch(
-                    "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
-                )
-                .unwrap();
-            let matches: i64 = store
-                .conn
-                .query_row(
-                    "SELECT count(*) FROM notes_fts WHERE notes_fts MATCH ?1",
-                    [secret],
-                    |row| row.get(0),
-                )
-                .unwrap();
-            assert_eq!(matches, 0);
-            for trigram in secret.as_bytes().windows(3) {
-                let count: i64 = store
-                    .conn
-                    .query_row(
-                        "SELECT count(*) FROM purge_vocab WHERE term = ?1",
-                        [std::str::from_utf8(trigram).unwrap()],
-                        |row| row.get(0),
-                    )
-                    .unwrap();
-                assert_eq!(count, 0);
-            }
-            drop(store);
-            let bytes = std::fs::read(dir.path().join("devot.sqlite")).unwrap();
-            for trigram in secret.as_bytes().windows(3) {
-                assert!(!bytes.windows(3).any(|w| w == trigram));
-            }
-        }
+fn purging_a_cleared_note_after_another_sync_compaction_removes_old_postings() {
+    let (dir, mut store) = temp_store();
+    let secret = "qxjzvwkpfyb";
+    let mut draft = note("draft", "", 10);
+    draft.body_md = secret.repeat(400);
+    store.put_note(&draft, &[]).unwrap();
+    store
+        .put_note(&note("other", "Temporary", 10), &[])
+        .unwrap();
+    store.catch_up_search_index(None).unwrap();
+    store
+        .conn
+        .execute("UPDATE notes SET body_md = '' WHERE id = 'draft'", [])
+        .unwrap();
+    store
+        .sync_purge("other", 20, "0000000000000020-0000-remote")
+        .unwrap();
+    store.catch_up_search_index(None).unwrap();
+    store
+        .purge_note("draft", 30, "0000000000000030-0000-test")
+        .unwrap();
+    store
+        .conn
+        .execute_batch(
+            "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+        )
+        .unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        let count: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM purge_vocab WHERE term = ?1",
+                [std::str::from_utf8(trigram).unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+    drop(store);
+    let bytes = std::fs::read(dir.path().join("devot.sqlite")).unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        assert!(!bytes.windows(3).any(|w| w == trigram));
     }
 }
 

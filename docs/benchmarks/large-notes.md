@@ -69,15 +69,15 @@ Rust and TypeScript tests check MATCH, `fts5vocab` and raw database bytes after 
 
 ### Migration cost
 
-`DEVOT_FTS_MIGRATION_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-contentless-migration.bench.test.ts --silent=false` measures five fresh file-backed v31 stores per fixture, WAL and synchronous FULL, including the v32 rebuild, v33 history bookkeeping and commit but excluding fixture setup and post-migration optimization/vacuum.
+`DEVOT_FTS_MIGRATION_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-contentless-migration.bench.test.ts --silent=false` measures five fresh file-backed v31 stores per fixture, WAL and synchronous FULL, including the v32 rebuild and commit but excluding fixture setup and post-migration optimization/vacuum.
 The typical notes use deterministic short `libraryBody` fixtures; the large note uses `sampleNote(5_000_000)` (5,149,729 bytes).
 Index sizes sum FTS shadow-table pages through `dbstat`, with optimized indexes before and after and vacuum after; all five runs returned identical sizes.
 
 | Library              | Migration p50 / p95 (ms) | Sampled peak RSS delta p50 / p95 (KiB) | Before index bytes | After index bytes |       Difference |
 | -------------------- | -----------------------: | -------------------------------------: | -----------------: | ----------------: | ---------------: |
-| 1,000 typical notes  |            6.240 / 7.535 |                                  0 / 0 |            438,272 |           438,272 |                0 |
-| 10,000 typical notes |          66.666 / 74.508 |                             640 / 1152 |          4,165,632 |         4,177,920 | +12,288 (+0.30%) |
-| One 5 MB note        |        179.735 / 187.616 |                             128 / 5248 |          9,482,240 |         9,482,240 |                0 |
+| 1,000 typical notes  |           7.297 / 11.578 |                                  0 / 0 |            438,272 |           438,272 |                0 |
+| 10,000 typical notes |          70.074 / 74.945 |                             768 / 1152 |          4,165,632 |         4,177,920 | +12,288 (+0.30%) |
+| One 5 MB note        |        178.222 / 186.973 |                             256 / 5376 |          9,482,240 |         9,482,240 |                0 |
 
 These are clean-index sizes, not a bound on tombstones accumulated between merges or on peak migration disk/WAL space.
 An already-running worker thread samples whole-process RSS every 1 ms while the main thread executes synchronous SQLite; delta is relative to RSS immediately before migration, includes a final sample, and excludes worker startup.
@@ -123,23 +123,9 @@ The remaining time includes per-record transactions and merge-version writes, no
 Synced purges now persist a compaction-pending marker atomically with the deletion; a `finally` completes compaction after every pull, including failures, and opening the store recovers a marker left by a crash.
 Tests verify vocabulary, MATCH and database bytes through the deferred sync path, recovery after reopening and compaction failures; the two-device engine tests retain sync's existing local merge revision while removing the purged index terms.
 
-### Blank-draft discard
-
-The same opt-in review benchmark discards a never-typed draft through the note service in each copied 10,000-note library.
-The draft is caught up before timing, so the test exercises an existing zero-token FTS row rather than inferring emptiness from current note text.
-Milliseconds, **p50 / p95**:
-
-| Case                        | Reviewed `7cb8d072` |     Sync batching | Sync batching and blank-draft check |
-| --------------------------- | ------------------: | ----------------: | ----------------------------------: |
-| Pull 100 incoming purges    | 4942.812 / 5117.352 | 372.637 / 475.248 |                   350.286 / 519.753 |
-| Discard a never-typed draft |       0.783 / 2.218 |     1.307 / 3.019 |                       0.703 / 1.058 |
-
-An already optimized seed makes the old blank-draft optimization cheap; timings alone do not demonstrate that it was skipped, so SQL tracing explicitly tests that no `optimize` command runs.
-The contentless table has `notes_fts_docsize`; its two zero token counts are encoded as `x'0000'`, with the contentless-delete origin stored in a separate column.
-A zero-token row alone is insufficient: a typed-then-cleared draft that was caught up again can still have old deletion tombstones.
-Schema v33 therefore remembers indexed history when a row becomes stale, reading the token counts from the index, and clears those markers only after compaction.
-Existing v32 rows are marked conservatively during upgrade because their earlier tombstones cannot be inferred from current docsize.
-Rust and TypeScript tests cover never-indexed and indexed blank drafts, cleared drafts both before and after catch-up, vocabulary and byte removal, and the v32 zero-token upgrade case.
+Blank-draft compaction is retained for correctness: zero current token counts do not prove that old deletion tombstones are absent.
+With sync batching and unconditional compaction, the same benchmark measured never-typed draft discard at **1.307 / 3.019 ms p50 / p95**, versus **0.783 / 2.218 ms** on reviewed commit `7cb8d072`.
+These optimized-seed timings are not a bound on full-index compaction in a fragmented library.
 
 ## Top bottleneck
 
