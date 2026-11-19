@@ -5,6 +5,9 @@ import { replaceRanges } from '../text'
 import { errorCode } from '../errors'
 import { parseMarkdown } from '../frontMatter'
 import type { Nodes } from 'mdast'
+import type { Nodes as HtmlNodes } from 'hast'
+import { fromHtml } from 'hast-util-from-html'
+import { toHtml } from 'hast-util-to-html'
 import { checkResult, type Converted } from './protocol'
 
 type PluginImportOptions = Omit<ImportOptions, 'scan' | 'source' | 'prepare'> & {
@@ -42,8 +45,19 @@ function prepare(note: Converted, options: PluginImportOptions): PreparedImport 
   let marker = 'https://devot.invalid/import/'
   if (note.html !== undefined) {
     while (note.html.includes(marker)) marker += 'x/'
-    const html = note.html.replace(/attachment:(\d+)/g, (_, index: string) => `${marker}${index}`)
-    const converted = htmlToMarkdown(html, options.newId)
+    const html = fromHtml(note.html)
+    const rewrite = (node: HtmlNodes) => {
+      if (node.type === 'element' && node.tagName === 'img') {
+        for (const key of ['src', 'dataSrc']) {
+          const value = node.properties[key]
+          if (typeof value === 'string' && /^attachment:\d+$/.test(value.trim()))
+            node.properties[key] = value.trim().replace('attachment:', marker)
+        }
+      }
+      if ('children' in node) node.children.forEach(rewrite)
+    }
+    rewrite(html)
+    const converted = htmlToMarkdown(toHtml(html), options.newId)
     text = converted.markdown
     embedded.push(...converted.images)
     diagnostics.push(...converted.dropped.map(() => ({ code: 'E_IMPORT_HTML_CONTENT_DROPPED' })))

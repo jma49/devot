@@ -256,6 +256,22 @@ it('refuses images above the existing attachment size limit', async () => {
   ])
 })
 
+it('rewrites only HTML image destinations, not attachment-like text or link URLs', async () => {
+  const attachment = convert({ name: 'a.enex', text: sample })[0]!.attachments![0]!
+  const { report, storage } = await run('', {
+    converted: {
+      title: 'Literal',
+      html: '<p>attachment:0</p><a href="https://example.com/attachment:0">Link</a><img src="attachment:0">',
+      attachments: [attachment],
+    },
+  })
+  const note = await storage.getNote(Object.values(report.noteIds)[0]!)
+  expect(note?.bodyMd).toContain('attachment:0')
+  expect(note?.bodyMd).toContain('[Link](https://example.com/attachment:0)')
+  expect(note?.bodyMd).toContain('devot://file/')
+  expect(note?.bodyMd).not.toContain('devot.invalid')
+})
+
 it('keeps legacy single-note Markdown imports in the destination without a notebook', async () => {
   const { report, storage, destination } = await run('', {
     converted: { title: 'Legacy', markdown: '**Body**' },
