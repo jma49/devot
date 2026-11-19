@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from 'react'
+import { act, type ComponentProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { createPieceRenderer, type PreviewOptions } from '../../../core'
@@ -9,9 +9,18 @@ import type { Core } from '../core-client'
 import type { FindTarget } from '../find/target'
 import { patchPieces, UI_ATTRIBUTE } from './dom'
 import { textStore } from '../textStore'
-import { Preview } from './PreviewBody'
+import { Preview as Body } from './PreviewBody'
+import { PreviewFrame } from './PreviewFrame'
 import type { ScrollPane } from './scrollSync'
 import { warmMermaid } from './mermaid'
+
+function Preview(props: ComponentProps<typeof Body>) {
+  return (
+    <PreviewFrame>
+      <Body {...props} />
+    </PreviewFrame>
+  )
+}
 
 vi.mock('./mermaid', async (original) => ({
   ...(await original<typeof import('./mermaid')>()),

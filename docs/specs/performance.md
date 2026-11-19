@@ -84,7 +84,8 @@ Part of the [architecture overview](../architecture.md).
   If that write is refused, the completed preview remains selected for a second native Copy; once the full worker answer exists, Copy builds pending DOM synchronously and uses native copying without the clipboard API.
   The preview opening lifecycle is one `idle | head | full | failed` union, owning its request identity, full-answer waiter, deferred selection and cancellable build, commit and warm-up work.
   Note switches, failure and teardown reset that lifecycle together and reject any unfinished completion.
-  The preview surface loads on demand, keeping its rendering lifecycle out of the main window's startup bundle; note-info labels remain available without loading that surface.
+  The preview's focusable frame mounts synchronously for mode motion, keyboard navigation and pane sizing; its rendering lifecycle loads on demand, outside the main window's startup bundle.
+  Note-info labels remain available without loading that lifecycle.
   Diagrams are added for what is built at once, every 250 ms while the build goes on, and when it ends.
   Copy buttons are committed after the full preview's DOM has had a paint opportunity, with a one-second fallback when a hidden window paints no frames; replacement work and teardown cancel the pending commit.
   `tests/renderer/preview-open.bench.test.ts` holds what that task builds from growing with the note.

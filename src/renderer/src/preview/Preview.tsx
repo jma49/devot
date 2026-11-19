@@ -1,18 +1,23 @@
 import { lazy, Suspense, type ComponentProps } from 'react'
 import type { LivePreview as Live, Preview as Body } from './PreviewBody'
+import { PreviewFrame } from './PreviewFrame'
 
 export { previewLabels, previewNote, type PreviewNoteFields } from './labels'
 
 const Surface = lazy(() => import('./PreviewBody').then((module) => ({ default: module.Preview })))
 
-export function Preview(props: ComponentProps<typeof Body>) {
+function PreviewSurface(props: ComponentProps<typeof Body>) {
   return (
-    <Suspense fallback={null}>
-      <Surface {...props} />
-    </Suspense>
+    <PreviewFrame>
+      <Suspense fallback={null}>
+        <Surface {...props} />
+      </Suspense>
+    </PreviewFrame>
   )
 }
 
+export { PreviewSurface as Preview }
+
 export function LivePreview(props: ComponentProps<typeof Live>) {
-  return <Preview {...props} />
+  return <PreviewSurface {...props} />
 }

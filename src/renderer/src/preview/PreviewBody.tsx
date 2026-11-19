@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useInsertionEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,7 @@ import {
 } from 'react'
 import type { RemoteImageWait } from '../../../core'
 import { previewLabels } from './labels'
+import { PreviewFrameContent } from './PreviewFrame'
 import { loadedAny, NOTES_LOADED } from '../externalChanges'
 import { fragmentId } from '../../../core/preview/headingIds'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
@@ -179,6 +181,12 @@ export function Preview({
 }: Props) {
   const text = useMemo(() => followed ?? fixedText(markdown ?? ''), [followed, markdown])
   const pane = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    pane.current = host.current?.closest<HTMLElement>('.preview') ?? null
+    return () => {
+      pane.current = null
+    }
+  }, [])
   const host = useRef<HTMLDivElement>(null)
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
   const loadRemoteImages = useEditorSetting('loadRemoteImages')
@@ -724,16 +732,8 @@ export function Preview({
 
   return (
     <>
-      <article
-        ref={pane}
-        className="preview"
-        data-devot-part="preview"
-        data-blocks-editable={blocksEditable ? '' : undefined}
-        aria-label={t('preview.label')}
-        // Focusable: a click puts find (Cmd+F) here in split mode, and the
-        // keyboard scrolls it (Control+Tab lands here when it is the editor
-        // area, see areas.ts).
-        tabIndex={0}
+      <PreviewFrameContent
+        blocksEditable={blocksEditable}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
@@ -802,7 +802,7 @@ export function Preview({
             </button>
           </div>
         ) : null}
-      </article>
+      </PreviewFrameContent>
       <CodeCopyButtons blocks={codes} />
       <NoteHover pane={pane} load={previewsFor(core)} />
     </>
