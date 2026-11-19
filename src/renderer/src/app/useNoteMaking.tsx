@@ -131,7 +131,15 @@ export function useNoteMaking({
 
   const makeAndOpen = async (
     make: (c: Core) => Promise<string | undefined>,
-    previewMode: () => typeof mode | undefined = () => editorMode.current,
+    {
+      previewMode = () => editorMode.current,
+      onFailure = (e) => setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED')),
+      onEmpty,
+    }: {
+      previewMode?: () => typeof mode | undefined
+      onFailure?: (e: unknown) => void
+      onEmpty?: () => void
+    } = {},
   ) => {
     if (!core || activeMaking.current) return
     const early = startEarlyKeys()
@@ -141,7 +149,7 @@ export function useNoteMaking({
       if (activeMaking.current !== end) return
       activeMaking.current = undefined
       if (!teardown) flushSync(() => setMaking(false))
-      endPause?.()
+      if (!opened) endPause?.()
       if (!opened) early.fail()
     }
     activeMaking.current = end
@@ -150,7 +158,8 @@ export function useNoteMaking({
       await saveEdits(core)
       if (activeMaking.current !== end) return
       const id = await make(core)
-      if (!id || activeMaking.current !== end) return
+      if (activeMaking.current !== end) return
+      if (!id) return onEmpty?.()
       early.claim(id)
       const listed = await refresh(core)
       if (activeMaking.current !== end) return
@@ -161,7 +170,7 @@ export function useNoteMaking({
       opened = await select(id, { keyboard: true })
     } catch (e) {
       if (activeMaking.current === end) {
-        setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
+        onFailure(e)
       }
     } finally {
       end()
@@ -179,13 +188,23 @@ export function useNoteMaking({
   const createFromTemplate = async (templateId: string) => {
     setPicking(undefined)
     if (!core || !editing) return
-    await makeAndOpen(async (c) => {
-      const id = await c.applyTemplate(templateId, Date.now(), newNoteBookId())
-      recentTemplates.use(templateId)
-      track('note.created', { from: 'template' })
-      await saveEdits(c)
-      return id
-    })
+    await makeAndOpen(
+      async (c) => {
+        const id = await c.applyTemplate(templateId, Date.now(), newNoteBookId())
+        if (!id) return undefined
+        recentTemplates.use(templateId)
+        track('note.created', { from: 'template' })
+        await saveEdits(c)
+        return id
+      },
+      {
+        onFailure: (e) => {
+          setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
+          console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
+        },
+        onEmpty: () => console.warn('W_TEMPLATE_APPLY_FAILED', templateId),
+      },
+    )
   }
 
   /** Finds or makes today's note (dailyNotes.ts) and opens it; one outside the workspace leaves it. */
@@ -202,7 +221,7 @@ export function useNoteMaking({
         }
         return opened.id
       },
-      () => (created ? 'edit' : undefined),
+      { previewMode: () => (created ? 'edit' : undefined) },
     )
   }
 
@@ -243,11 +262,18 @@ export function useNoteMaking({
 
   const editBuiltInCopy = async (id: string) => {
     if (!core || !editing) return
-    await makeAndOpen(async (c) => {
-      const copy = await c.saveTemplate(id, {})
-      setBuiltIn(undefined)
-      return copy
-    })
+    await makeAndOpen(
+      async (c) => {
+        const copy = await c.saveTemplate(id, {})
+        if (copy) setBuiltIn(undefined)
+        return copy
+      },
+      {
+        previewMode: () => undefined,
+        onFailure: () => console.warn('W_TEMPLATE_COPY_FAILED', id),
+        onEmpty: () => console.warn('W_TEMPLATE_COPY_FAILED', id),
+      },
+    )
   }
   const pickBuiltIn = (id: string) => {
     if (!editing) return
@@ -262,12 +288,23 @@ export function useNoteMaking({
 
   const duplicate = async (id: string) => {
     if (!core) return
-    await makeAndOpen(async (c) => {
-      const tagIds = [...notes, ...templates].find((n) => n.id === id)?.tagIds
-      const copy = await c.duplicate(id, t('note.copySuffix'), tagIds)
-      if (!templates.some((n) => n.id === id)) track('note.created', { from: 'duplicate' })
-      return copy
-    })
+    await makeAndOpen(
+      async (c) => {
+        const tagIds = [...notes, ...templates].find((n) => n.id === id)?.tagIds
+        const copy = await c.duplicate(id, t('note.copySuffix'), tagIds)
+        if (copy && !templates.some((n) => n.id === id))
+          track('note.created', { from: 'duplicate' })
+        return copy
+      },
+      {
+        previewMode: () => undefined,
+        onFailure: (e) => {
+          const code = errorCode(e)
+          console.warn('W_NOTE_DUPLICATE_FAILED', id, code)
+          setChangeNotice(code)
+        },
+      },
+    )
   }
 
   /** Targets for the `[[` popup: search results, or the first notes of the list for no query. Runs on every key, so it saves nothing and takes no more than the popup shows. */

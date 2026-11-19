@@ -31,10 +31,12 @@ function newNoteOver({
   create,
   opens = true,
   onEnd = () => {},
+  mode = 'edit',
 }: {
-  create: () => Promise<string>
+  create: () => Promise<string | undefined>
   opens?: boolean
   onEnd?: () => void
+  mode?: 'edit' | 'preview'
 }) {
   const events: string[] = []
   const handle = {
@@ -60,6 +62,8 @@ function newNoteOver({
     events.push(`select ${id}`)
     return opens
   })
+  const setMode = vi.fn<(mode: string) => void>()
+  const setChangeNotice = vi.fn<(notice: string | undefined) => void>()
   const props = {
     core,
     editing: true,
@@ -79,7 +83,7 @@ function newNoteOver({
       locales: [],
     },
     searchState: { latestSearch: { current: { query: '', scope: 'all' } } },
-    modes: { mode: 'edit', setMode: () => {}, editorMode: { current: 'edit' } },
+    modes: { mode, setMode, editorMode: { current: 'edit' } },
     showLibrary: () => {},
     select,
     selected: 'shown',
@@ -89,11 +93,11 @@ function newNoteOver({
     setTitle: () => {},
     opens: { current: 0 },
     editorRef: { current: handle },
-    setChangeNotice: () => {},
+    setChangeNotice,
     loadHeadlines: undefined,
   } as unknown as Parameters<typeof useNoteMaking>[0]
   const hook = renderHook(useNoteMaking, { props })
-  return { events, hook, create: () => hook.current.create() }
+  return { events, hook, select, setMode, setChangeNotice, create: () => hook.current.create() }
 }
 
 describe('New Note', () => {
@@ -101,11 +105,16 @@ describe('New Note', () => {
     let finish: (id: string) => void = () => {}
     const making = new Promise<string>((resolve) => (finish = resolve))
     const { events, create } = newNoteOver({ create: () => making })
-    const creating = create()
+    let creating: Promise<unknown>
+    act(() => {
+      creating = create()
+    })
     expect(events).toEqual(['pause'])
-    finish('new')
-    await creating
-    expect(events).toEqual(['pause', 'select new', 'end'])
+    await act(async () => {
+      finish('new')
+      await creating
+    })
+    expect(events).toEqual(['pause', 'select new'])
     takeEarlyKeys('new')
   })
 
@@ -119,7 +128,9 @@ describe('New Note', () => {
       create: () => Promise.reject(new Error('E_DB_LOCKED')),
       onEnd: () => focusAtEnd.push(document.activeElement),
     })
-    await create()
+    await act(async () => {
+      await create()
+    })
     expect(events).toEqual(['pause', 'end'])
     expect(focusAtEnd).toEqual([document.body])
     expect(document.activeElement).toBe(body)
@@ -130,13 +141,89 @@ describe('New Note', () => {
       create: () => Promise.resolve('new'),
       opens: false,
     })
-    await create()
+    await act(async () => {
+      await create()
+    })
     expect(events).toEqual(['pause', 'select new', 'end'])
     takeEarlyKeys('new')
   })
 })
 
 describe('create sessions', () => {
+  it('keeps duplicate failure codes and its notice', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { hook, setChangeNotice } = newNoteOver({
+      create: async () => {
+        throw new Error('E_DB_LOCKED')
+      },
+    })
+    await act(async () => {
+      await hook.current.duplicate('source')
+    })
+    expect(warn).toHaveBeenCalledWith('W_NOTE_DUPLICATE_FAILED', 'source', 'E_DB_LOCKED')
+    expect(setChangeNotice).toHaveBeenCalledExactlyOnceWith('E_DB_LOCKED')
+  })
+
+  it.each(['reject', 'empty'])(
+    'keeps a built-in copy failure silent apart from its warning (%s)',
+    async (result) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const { hook, setChangeNotice } = newNoteOver({
+        create: async () => {
+          if (result === 'reject') throw new Error('E_DB_LOCKED')
+          return undefined
+        },
+      })
+      await act(async () => {
+        await hook.current.editBuiltInCopy('starter:planning')
+      })
+      expect(warn).toHaveBeenCalledExactlyOnceWith('W_TEMPLATE_COPY_FAILED', 'starter:planning')
+      expect(setChangeNotice).not.toHaveBeenCalled()
+    },
+  )
+
+  it('warns when applying a template returns no id', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { hook, setChangeNotice } = newNoteOver({ create: async () => undefined })
+    await act(async () => {
+      await hook.current.pickBuiltIn('starter:planning')
+    })
+    expect(warn).toHaveBeenCalledExactlyOnceWith('W_TEMPLATE_APPLY_FAILED', 'starter:planning')
+    expect(setChangeNotice).not.toHaveBeenCalled()
+  })
+
+  it('keeps the template apply failure notice and both warning codes', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { hook, setChangeNotice } = newNoteOver({
+      create: async () => {
+        throw new Error('E_DB_LOCKED')
+      },
+    })
+    await act(async () => {
+      await hook.current.pickBuiltIn('starter:planning')
+    })
+    expect(warn).toHaveBeenCalledWith('W_NOTE_CREATE_FAILED', 'E_DB_LOCKED')
+    expect(warn).toHaveBeenCalledWith('W_TEMPLATE_APPLY_FAILED', 'starter:planning')
+    expect(setChangeNotice).toHaveBeenCalledExactlyOnceWith('E_DB_LOCKED')
+  })
+
+  it.each(['duplicate', 'editBuiltInCopy'] as const)(
+    '%s preserves Preview and asks the new note to take the keyboard',
+    async (path) => {
+      const { hook, setMode, select, events } = newNoteOver({
+        create: async () => 'new',
+        mode: 'preview',
+      })
+      await act(async () => {
+        await hook.current[path]('source')
+      })
+      expect(setMode).not.toHaveBeenCalled()
+      expect(select).toHaveBeenCalledExactlyOnceWith('new', { keyboard: true })
+      expect(events).toEqual(['pause', 'select new'])
+      takeEarlyKeys('new')
+    },
+  )
+
   it('releases the session on teardown and ignores a late create reply', async () => {
     let finish!: (id: string) => void
     const pending = new Promise<string>((resolve) => (finish = resolve))
