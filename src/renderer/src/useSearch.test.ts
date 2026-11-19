@@ -27,7 +27,9 @@ function fakeCore(answer = (query: string) => Promise.resolve([{ id: query } as 
   const search = vi.fn<(query: string) => Promise<{ found: NoteSummary[]; capped: boolean }>>(
     async (query: string) => ({ found: await answer(query), capped: false }),
   )
-  const searchByMeaning = vi.fn<Core['searchByMeaning']>(async () => [])
+  const searchByMeaning = vi.fn<(query: string, scope?: SearchScope) => Promise<NoteSummary[]>>(
+    async () => [],
+  )
   return { search, searchByMeaning, core: { search, searchByMeaning } as unknown as Core }
 }
 
