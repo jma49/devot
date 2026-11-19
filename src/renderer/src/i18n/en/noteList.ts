@@ -159,6 +159,7 @@ export const messages = {
   'noteList.empty.templates': 'No Templates Yet',
   'noteList.empty.createTip': 'Create a note with the New Note button.',
   'noteList.empty.searchTip': 'Try other words, or search all notes.',
+  'noteList.empty.searchAllTip': 'Try other words.',
   'noteList.empty.templatesTip': 'Create one with the New Template button.',
   'noteList.empty.readOnly': 'Notes are read-only until you add a license.',
   'noteList.empty.templatesReadOnly': 'Templates are read-only until you add a license.',

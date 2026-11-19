@@ -94,6 +94,7 @@ interface Props {
   /** Looks up each row's activity strip; without it rows show none (Settings can hide them). */
   activity?: HeadlineLoader<StripDay[]> | undefined
   empty?: ListEmptyKind | undefined
+  onSearchAll?: (() => void) | undefined
   /** Whether notes can be made and changed; an empty list says it is read-only when they cannot. */
   editing?: boolean
   /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
@@ -809,7 +810,7 @@ export const NoteList = memo(function NoteList(props: Props) {
           return out
         })}
         {entries.length === 0 && props.empty ? (
-          <EmptyList kind={props.empty} editing={props.editing} />
+          <EmptyList kind={props.empty} editing={props.editing} onSearchAll={props.onSearchAll} />
         ) : null}
       </ul>
       {props.capped ? (
@@ -825,12 +826,25 @@ export const NoteList = memo(function NoteList(props: Props) {
   )
 })
 
-function EmptyList({ kind, editing }: { kind: ListEmptyKind; editing?: boolean | undefined }) {
-  const { message, tip } = listEmpty(kind, editing)
+function EmptyList({
+  kind,
+  editing,
+  onSearchAll,
+}: {
+  kind: ListEmptyKind
+  editing?: boolean | undefined
+  onSearchAll?: (() => void) | undefined
+}) {
+  const { message, tip, action } = listEmpty(kind, editing, !!onSearchAll)
   return (
     <li className="list-empty" role="presentation">
       <span className="list-empty-message">{t(message)}</span>
       {tip ? <span className="list-empty-tip">{t(tip)}</span> : null}
+      {action ? (
+        <button type="button" className="button" onClick={onSearchAll}>
+          {t(action)}
+        </button>
+      ) : null}
     </li>
   )
 }

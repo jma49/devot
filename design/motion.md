@@ -47,6 +47,8 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 
 ## Rules
 
+The empty scoped search's Search All Notes button uses the standard button hover and press feedback; changing scope replaces the results in place without additional motion.
+
 - **One curve for movement.** Whatever moves, grows, unfolds or turns uses `motion.easing.move`: a critically damped spring drawn as a curve. It is already moving fast in its first frame, so the window answers at once; it settles softly and never overshoots. Ease-in-out (`motion.easing.standard`) is for opacity and colour only; hover and focus keep their own quick curves.
 - **Interruptible.** A change that comes while a move is under way carries on from where things are seen, at the speed they have: a slide adds to the one under way (`composite: 'add'`, measured without it by `drawnOffset`), and a fade turns back from how opaque it is. Nothing jumps or restarts from rest.
 - **Final state first.** The layout takes its new state at once; the motion plays from the old place to it on top (transforms), and is removed when it ends.

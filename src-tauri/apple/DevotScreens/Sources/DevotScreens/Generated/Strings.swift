@@ -5790,6 +5790,10 @@ public enum L10n {
     text("noteList.empty.searchTip", "Try other words, or search all notes.")
   }
 
+  public static func noteListEmptySearchAllTip() -> String {
+    text("noteList.empty.searchAllTip", "Try other words.")
+  }
+
   public static func noteListEmptyTemplatesTip() -> String {
     text("noteList.empty.templatesTip", "Create one with the New Template button.")
   }
