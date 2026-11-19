@@ -209,17 +209,17 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 
 The Notes and Library tabs' roots and every list they push are native (`DevotScreens/UI/Lists/`).
 
-| Message                                  | From  | Meaning                                                                                      |
-| ---------------------------------------- | ----- | -------------------------------------------------------------------------------------------- |
-| `excerpts { ids }`                       | Swift | at most 60 IDs; answers `{ excerpts: { id: text } }`, and a note with no excerpt is left out |
-| `notes.batch { ids, change }`            | Swift | one change to several notes; answers `{ changed, failed: [{ id, code }] }`                   |
-| `trash.empty`                            | Swift | purges the Trash; answers `{ purged }`                                                       |
-| `book.create`                            | Swift | makes a notebook named New Notebook at the top level; answers `{ id }`                       |
-| `template.create`                        | Swift | makes an empty template; answers `{ id }`, which Swift opens                                 |
-| `template.apply { templateId, bookId? }` | Swift | makes a note from a template; answers `{ id }`, which Swift opens                            |
-| `note.text { noteId }`                   | Swift | the note's title and Markdown, for the share sheet                                           |
-| `note.complete { noteId }`               | Swift | sets the status to completed; answers `{ undo }`, what `note.undoStatus` needs               |
-| `note.undoStatus { noteId, undo }`       | Swift | puts the status and the update time back, unless the note was written again since            |
+| Message                                  | From  | Meaning                                                                                                                                       |
+| ---------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `excerpts { ids }`                       | Swift | at most 60 IDs; answers `{ excerpts: { id: text }, headlines: { id: text } }`, and a note with no excerpt or headline is left out of that map |
+| `notes.batch { ids, change }`            | Swift | one change to several notes; answers `{ changed, failed: [{ id, code }] }`                                                                    |
+| `trash.empty`                            | Swift | purges the Trash; answers `{ purged }`                                                                                                        |
+| `book.create`                            | Swift | makes a notebook named New Notebook at the top level; answers `{ id }`                                                                        |
+| `template.create`                        | Swift | makes an empty template; answers `{ id }`, which Swift opens                                                                                  |
+| `template.apply { templateId, bookId? }` | Swift | makes a note from a template; answers `{ id }`, which Swift opens                                                                             |
+| `note.text { noteId }`                   | Swift | the note's title and Markdown, for the share sheet                                                                                            |
+| `note.complete { noteId }`               | Swift | sets the status to completed; answers `{ undo }`, what `note.undoStatus` needs                                                                |
+| `note.undoStatus { noteId, undo }`       | Swift | puts the status and the update time back, unless the note was written again since                                                             |
 
 - A `change` is one of `book { bookId }`, `status { status }`, `pinned { pinned }`, `putTag { tagId }`, `removeTag { tagId }`, `trash`, `restore` and `purge`.
 - `NoteListDataSource` is one list's feed: it reads the first page when its screen loads, and a list nobody has shown reads nothing.
@@ -228,6 +228,7 @@ The Notes and Library tabs' roots and every list they push are native (`DevotScr
   The list asks for the next page within 40 rows of its end.
   Sections are Pinned, Recent and Completed as `design/phone.md` describes, and Templates and Trash are one section.
 - `ExcerptCache` asks for the excerpts of the rows on screen and a screen ahead, at most 60 IDs a call, never one it holds or is asking for, and keeps them by note ID and body version, so an edit asks again.
+- The excerpt leaves out an untitled note's first line, so a row, its peek and a search hit name an untitled note by the headline that comes with it, as the Mac list does.
   A failed call is logged as `W_PHONE_EXCERPTS_FAILED code=…` and asked again when the rows next show.
 - `ListContext` holds what the lists share: the bridge, the gate, the excerpts and the Library's last read, which it reads again on a change once a screen has asked for it.
 - Every list write goes through the gate (`notes.batch`, `trash.empty`, `book.create`, `template.create`, `template.apply` are write intents); a swipe answers the system with whether it ran before the gate raises its sheet, and a context menu's write runs once the menu has gone.

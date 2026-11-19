@@ -30,6 +30,7 @@ function lists() {
   })
   const core: ListsCore = {
     excerpts: (ids) => notes.excerpts(ids),
+    headlines: (ids) => notes.headlines(ids),
     batch: (ids, change) => applyBatch({ notes, tags }, ids, change),
     emptyTrash: () => notes.emptyTrash(),
     createTemplate: () => templates.create(),
@@ -64,6 +65,17 @@ describe('the native lists operations', () => {
     await notes.setBody(id, 'Milk and bread for the week')
     expect(await run(handlers, 'excerpts', { ids: [id] })).toStrictEqual({
       excerpts: { [id]: expect.stringContaining('Milk and bread') },
+      headlines: { [id]: 'Milk and bread for the week' },
+    })
+  })
+
+  it("answers an untitled note's first line as its headline, apart from the excerpt after it", async () => {
+    const { notes, handlers } = lists()
+    const id = await notes.create('')
+    await notes.setBody(id, 'Trip plan\nBook the train and the hotel')
+    expect(await run(handlers, 'excerpts', { ids: [id] })).toStrictEqual({
+      excerpts: { [id]: 'Book the train and the hotel' },
+      headlines: { [id]: 'Trip plan' },
     })
   })
 
