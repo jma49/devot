@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createPieceRenderer, createPreviewRegistry } from '../../src/core/preview'
+import * as definitions from '../../src/core/preview/definitions'
 import { labels } from '../support/preview-html'
 
 const options = { labels, loadedEmbeds: [] }
@@ -9,6 +10,19 @@ const markdown =
   '[later]: https://example.com\n\n[^later]: A trailing definition.'
 
 describe('head preview pieces', () => {
+  it('parses each piece once across the head and its full answer', async () => {
+    const parse = vi.spyOn(definitions, 'parseSeeded')
+    try {
+      const render = createPieceRenderer({ pieceLength: 80 })
+      const head = await render.head(markdown, options, [], 160)
+      const calls = parse.mock.calls.length
+      expect(calls).toBeGreaterThan(head.pieces.length)
+      await render(markdown, options)
+      expect(parse).toHaveBeenCalledTimes(calls)
+    } finally {
+      parse.mockRestore()
+    }
+  })
   it('keeps full-document references, heading ids, numbering and keys in its prefix', async () => {
     const render = createPieceRenderer({ pieceLength: 80 })
     const head = await render.head(markdown, options, [], 160)
@@ -42,6 +56,43 @@ describe('head preview pieces', () => {
     for (const source of sources)
       expect(transformed.filter((text) => text === source)).toHaveLength(1)
   })
+
+  it.each(['edit', 'options', 'switch', 'close', 'failure'])(
+    'discards the prepared tail after %s',
+    async (change) => {
+      const registry = createPreviewRegistry({ builtins: true })
+      let fail = false
+      registry.register({
+        id: 'test.failure',
+        apiVersion: 1,
+        transform: () => {
+          if (fail) throw new Error('E_TEST_RENDER')
+        },
+      })
+      const render = createPieceRenderer({ pieceLength: 80, registry, capacity: 0 })
+      await render.head(markdown, options, [], 160)
+      let text = markdown
+      let changed = options
+      if (change === 'edit') text = markdown.replace('https://example.com', 'https://changed.test')
+      if (change === 'options') changed = { ...options, loadedEmbeds: ['changed'] }
+      if (change === 'switch') await render('Another note.', options)
+      if (change === 'close') render.forgetShown()
+      if (change === 'failure') {
+        fail = true
+        await expect(render(markdown, options)).rejects.toThrow('E_TEST_RENDER')
+        fail = false
+      }
+      const parse = vi.spyOn(definitions, 'parseSeeded')
+      try {
+        const actual = await render(text, changed)
+        expect(parse).toHaveBeenCalled()
+        const expected = await createPieceRenderer({ pieceLength: 80 })(text, changed)
+        expect(actual.map((piece) => piece.nodes)).toEqual(expected.map((piece) => piece.nodes))
+      } finally {
+        parse.mockRestore()
+      }
+    },
+  )
 
   it('returns a complete answer for empty and short documents', async () => {
     for (const text of ['', '# Short']) {

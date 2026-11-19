@@ -26,6 +26,28 @@ const el = (
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
+it('keeps the head pieces and their DOM when its full answer arrives', async () => {
+  const host = document.createElement('div')
+  const source = sampleNote(32_000)
+  const render = createPieceRenderer()
+  const options = { labels, loadedEmbeds: [] }
+  const head = await render.head(source, options, [], 8000)
+  const shown = patchPieces(host, [], head.pieces, { defer: true })
+  buildFirstPieces(host, shown)
+  const nodes = shown.flatMap((piece) => piece.nodes)
+  const full = await render(
+    source,
+    options,
+    shown.map((piece) => piece.key),
+  )
+  const patched = patchPieces(host, shown, full, { defer: true })
+  buildFirstPieces(host, patched)
+  expect(patched.slice(0, shown.length)).toEqual(shown)
+  for (const [i, piece] of shown.entries()) expect(patched[i]).toBe(piece)
+  expect(patched.slice(0, shown.length).flatMap((piece) => piece.nodes)).toEqual(nodes)
+  expect(nodes.every((node) => host.contains(node))).toBe(true)
+})
+
 it('leaves the tail pending after the synchronous first batch', async () => {
   const host = document.createElement('div')
   const shown = patchPieces(

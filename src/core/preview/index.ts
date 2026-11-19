@@ -502,7 +502,15 @@ export function createPieceRenderer({
     `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
   // The render before, whose keys the pieces it kept take again rather than building them from
   // their whole text.
-  let last: { blocks: Block[]; copies: number[]; keys: string[]; options: string } | undefined
+  let last:
+    | {
+        blocks: Block[]
+        copies: number[]
+        keys: string[]
+        options: string
+        prepared?: (Parsed | undefined)[]
+      }
+    | undefined
 
   // Drops the oldest pieces the note does not show right now, until the others fit. A piece it
   // shows is never dropped, or a note larger than the cache would render whole again on every
@@ -634,7 +642,8 @@ export function createPieceRenderer({
         notesKey(block.text) + (i === 0 ? firstKey : bodyKey),
       )
     })
-    if (showing) last = { blocks, copies, keys, options: optionsKey }
+    const current: NonNullable<typeof last> = { blocks, copies, keys, options: optionsKey }
+    if (showing) last = current
     const parserOf = (i: number) => (i === 0 ? processor : bodyProcessor)
 
     const found = keys.map((key) => {
@@ -661,6 +670,8 @@ export function createPieceRenderer({
     }
     const parsed = blocks.map((block, i) => {
       if (found[i]) return undefined
+      if (sameOptions && before?.blocks === blocks && before.prepared?.[i])
+        return before.prepared[i]
       const labels = labelsIn(block.text)
       return parse(
         i,
@@ -759,6 +770,8 @@ export function createPieceRenderer({
       if (showing) shown = opened === closings ? new Set(keys.slice(0, rendered.length)) : new Set()
       trim()
     }
+    if (showing && opened === closings && last === current && rendered.length < blocks.length)
+      current.prepared = parsed.map((tree, i) => (i < rendered.length ? undefined : tree))
 
     const have = new Set(known)
     const next = names ? createSlugger() : undefined
@@ -853,6 +866,7 @@ export function createPieceRenderer({
     forgetShown: () => {
       closings += 1
       shown = new Set()
+      if (last) delete last.prepared
       trim()
     },
     sample: (markdown: string, options: PreviewOptions) => render(markdown, options, [], false),
