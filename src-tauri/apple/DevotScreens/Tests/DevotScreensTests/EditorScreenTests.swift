@@ -311,8 +311,8 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertNotNil(one.snapshot, "another note's paint")
         one.ready(first)
         XCTAssertNil(one.snapshot)
-        settle(0.5)
-        XCTAssertNil(still.superview)
+        // The still fades before it goes, and a loaded runner ends the fade later than half a second (#979).
+        settle(until: { still.superview == nil })
     }
 
     func testAStillLeftBeforeTheWindowChangedSizeGivesWayToTheCover() throws {

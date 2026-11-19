@@ -225,11 +225,16 @@ final class SettingsTests: XCTestCase {
     }
 
     /// Drags the slider towards `value`, nudging it where the drag lands off: away from the ends a drag
-    /// lands within a step or two of its target, on either side.
+    /// lands within a step or two of its target, on either side. An end is dragged past. On a loaded
+    /// simulator the app can still be far behind the finger when it lifts, and the thumb stops where
+    /// the app had got to (#1031: a drag past -100 that the app had followed only to -60), so the
+    /// drag goes on from there as a person's second drag would.
     private func drag(_ slider: XCUIElement, to value: Int) {
+        // The slider runs from -100 to 100.
+        let end: CGFloat = abs(value) == 100 ? CGFloat(value.signum()) : 0
         var shown = settled(slider)
         for _ in 0..<3 where shown != value {
-            slide(slider, to: slider.normalizedSliderPosition + CGFloat(value - (shown ?? 0)) / 200)
+            slide(slider, to: slider.normalizedSliderPosition + CGFloat(value - (shown ?? 0)) / 200 + end * 0.2)
             shown = settled(slider)
         }
     }
@@ -254,7 +259,7 @@ final class SettingsTests: XCTestCase {
     func testGlassTransparencyIsKeptAcrossALaunch() {
         openAppearance()
         let slider = transparency()
-        slide(slider, to: -0.2)
+        drag(slider, to: -100)
         XCTAssertEqual(settled(slider), -100)
         launch()
         openAppearance()
@@ -264,10 +269,8 @@ final class SettingsTests: XCTestCase {
         // that lost it in CI. It closes only once it has drawn that value: `slide` returns while the
         // app is still moving the thumb, and a close then (the CI recording: the thumb held at -10)
         // ends the drag where the thumb had got to.
-        slide(kept, to: 1.2)
-        let reached = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", Self.signed(100)), object: kept)
-        XCTAssertEqual(XCTWaiter().wait(for: [reached], timeout: waitLimit(10)), .completed)
+        drag(kept, to: 100)
+        XCTAssertEqual(settled(kept), 100)
         launch()
         openAppearance()
         XCTAssertEqual(transparency().value as? String, Self.signed(100))

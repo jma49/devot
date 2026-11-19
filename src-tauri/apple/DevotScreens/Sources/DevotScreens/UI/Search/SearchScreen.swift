@@ -118,7 +118,9 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
 
     private func showResults() {
         hits = Dictionary((model.results?.hits ?? []).map { ($0.note.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let lacking = (model.results?.hits ?? []).filter { $0.excerpt == nil }.map(\.note)
+        let lacking = (model.results?.hits ?? []).filter { hit in
+            hit.excerpt == nil || (hit.note.title.isEmpty && context.excerpts.headline(hit.note) == nil)
+        }.map(\.note)
         if !lacking.isEmpty { context.excerpts.want(lacking) }
         apply()
     }
@@ -212,7 +214,8 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
     private func row(_ hit: SearchModel.Hit) -> NoteCell.Row {
         let tag = hit.note.tagIds.first.flatMap { id in library?.tags.first { $0.id == id } }
         return NoteCell.Row(
-            note: hit.note, excerpt: hit.excerpt ?? context.excerpts.excerpt(hit.note), tag: tag, now: Date(),
+            note: hit.note, excerpt: hit.excerpt ?? context.excerpts.excerpt(hit.note),
+            headline: context.excerpts.headline(hit.note), tag: tag, now: Date(),
             reduceMotion: context.reduceMotion())
     }
 
@@ -259,7 +262,7 @@ final class SearchScreen: ListScreen, UICollectionViewDelegate, UISearchResultsU
         guard let item = data.itemIdentifier(for: path) else { return }
         if case .note(let id) = item, let hit = hits[id] {
             recents.remember(model.results?.query ?? model.query)
-            context.open(id, NoteCell.title(hit.note, excerpt: hit.excerpt ?? context.excerpts.excerpt(hit.note)))
+            context.open(id, NoteCell.title(hit.note, headline: context.excerpts.headline(hit.note)))
             return
         }
         collectionView.deselectItem(at: path, animated: false)

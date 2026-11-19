@@ -181,3 +181,30 @@ test('edits the front matter beside the open note', async ({ page }) => {
   await expect(panel.locator('dd')).toContainText('Sam')
   await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText('owner: Sam')
 })
+
+test("the Info tab at the inspector's default width keeps labels, dates and badges whole", async ({
+  page,
+}) => {
+  await newNote(page, 'Plan', '---\ntitle: Other plan\ndescription: Short\n---\nBody')
+  await changeEditorSettingsElsewhere(page, { outline: true })
+  await page.getByRole('tab', { name: 'Info' }).click()
+  const panel = page.getByRole('tabpanel', { name: 'Info' })
+  const clipped = (selector: string) =>
+    panel
+      .locator(selector)
+      .evaluateAll((els) =>
+        els.filter((el) => el.scrollWidth > el.clientWidth + 0.5).map((el) => el.textContent),
+      )
+  await expect(panel.locator('.frontmatter-badge')).toHaveText(['Note: Plan'])
+  await expect(panel.locator('.note-info-property .note-info-label')).toHaveText([
+    'title',
+    'description',
+  ])
+  expect(await clipped('.frontmatter-badge')).toEqual([])
+  expect(await clipped('.note-info-property .note-info-label')).toEqual([])
+  const created = panel.locator('time[data-info="created"]')
+  const lines = await created.evaluate(
+    (el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight),
+  )
+  expect(Math.round(lines)).toBeLessThanOrEqual(2)
+})

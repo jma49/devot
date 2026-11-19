@@ -84,4 +84,7 @@ final class GlassStyleStore {
 public enum LaunchArgument {
     /// A UI test cannot switch the system's Reduce Transparency, so it launches with this instead.
     public static let reduceTransparency = "-DevotReduceTransparency"
+    /// A debug build stretches the times it gives the user to act by this factor, passed as
+    /// `-DevotWaitScale 3`, as the tests stretch their waits (Debug/WaitScale.swift).
+    public static let waitScale = "DevotWaitScale"
 }

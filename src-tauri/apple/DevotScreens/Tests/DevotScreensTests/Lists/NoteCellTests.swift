@@ -35,4 +35,14 @@ final class NoteCellTests: XCTestCase {
         XCTAssertEqual(height(""), waiting, accuracy: 0.5, "an empty note keeps its second line")
         XCTAssertEqual(height("First line"), waiting, accuracy: 0.5, "an excerpt fills the line it had")
     }
+
+    /// The excerpt starts after an untitled note's first line, so the row is named by that line, not by
+    /// the excerpt's first one.
+    func testAnUntitledNoteIsNamedByItsHeadline() {
+        let note = noteRow(3, updated: 0, title: "")
+        XCTAssertEqual(NoteCell.title(note, headline: "Trip plan"), "Trip plan")
+        XCTAssertEqual(NoteCell.title(note, headline: nil), L10n.noteUntitled())
+        XCTAssertEqual(NoteCell.title(note, headline: ""), L10n.noteUntitled())
+        XCTAssertEqual(NoteCell.title(noteRow(4, updated: 0, title: "Plans"), headline: "Trip plan"), "Plans")
+    }
 }

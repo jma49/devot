@@ -74,4 +74,19 @@ final class ExcerptCacheTests: XCTestCase {
         cache.want([row])
         XCTAssertEqual(bridge.ops, [Op.excerpts.rawValue])
     }
+
+    func testKeepsTheHeadlineThatNamesAnUntitledNote() {
+        let cache = cache()
+        let row = noteRow(1, updated: 1, title: "")
+        cache.want([row])
+        XCTAssertNil(cache.headline(row))
+        bridge.answer(
+            Op.excerpts.rawValue,
+            .ok(.object([
+                "excerpts": .object([row.id: .string("Book the train")]),
+                "headlines": .object([row.id: .string("Trip plan")]),
+            ])))
+        XCTAssertEqual(cache.excerpt(row), "Book the train")
+        XCTAssertEqual(cache.headline(row), "Trip plan")
+    }
 }

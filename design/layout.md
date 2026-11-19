@@ -134,6 +134,7 @@ A control or block in a note is filled or outlined, never both, and a dashed bor
 - **Card:** a glass popover `size.note-info-width` (320) wide, `space.3` under the summary and kept `size.popover-margin` inside the window; `radius.glass-popover` (18), inset `size.glass-popover-inset` (6), in the glass material (`color.surface.glass`, design/README.md) with the glass rim and the popover shadow.
 - **Keylines:** from the card's edge, 6 for row highlights, 16 for icons and captions, 42 for labels and 116 for values.
   A row is a grid of the 16 pt icon slot, the label column `size.note-info-label` (64) and the value, `space.5` apart, with `space.5` sides; a value that has no label (a backlink) starts on 42.
+  In the inspector's Info tab, narrower than the card, a date, a property and AI access put the value on the line under the label, starting on 42.
 - **Rows:** at least `size.note-info-row` (30) tall, highlighted in `radius.glass-menu-row` (12), concentric with the card.
   Labels are secondary, values primary; a date being set shows in `color.accent.text`.
 - **Sections:** Properties, Backlinks and Unlinked Mentions open under a caption row `size.note-info-caption` (24) tall in the one caption style (11, semibold, tertiary), with the count beside the title and the disclosure chevron at the row's right end, shown under the pointer or the keyboard.
