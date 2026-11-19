@@ -299,8 +299,8 @@ describe('the suggester', () => {
         suggestOnIdle: true,
         active: 'codexCli',
         cli: {
-          claudeCli: { state: 'ready', model: '' },
-          codexCli: { state: 'signedOut', model: '' },
+          claudeCli: { state: 'ready', model: '', reasoning: null },
+          codexCli: { state: 'signedOut', model: '', reasoning: null },
         },
       }),
     )
