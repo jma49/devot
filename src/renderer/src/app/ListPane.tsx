@@ -70,6 +70,9 @@ export function ListPane({
   const { sidebarToggle, filterField, layoutControl, openFromList, createFromList } = listProps
   const { runNoteAction, showNoteMenu, findInView, findEverywhere, findAgain } = listProps
   const { editFromList, changeListSelection } = listProps
+  const searchScope = results?.search.scope
+  const onSearchAll =
+    searching && searchScope && (searchScope.bookId || activeFilter) ? findEverywhere : undefined
   const filterTag =
     activeFilter?.kind === 'tag' ? tags.find((tag) => tag.id === activeFilter.tagId) : undefined
   const shownBookIcon = libraryBook ? bookIcon(libraryBook) : undefined
@@ -128,6 +131,7 @@ export function ListPane({
 
   return galleryShown ? (
     <NoteGallery
+      onSearchAll={onSearchAll}
       editing={editing}
       view={listView}
       title={
@@ -180,6 +184,7 @@ export function ListPane({
       highlight={highlight}
       onFind={findAgain}
       empty="search"
+      onSearchAll={onSearchAll}
       pinned={NO_NOTES}
       notes={shownResults}
       related={shownRelated}

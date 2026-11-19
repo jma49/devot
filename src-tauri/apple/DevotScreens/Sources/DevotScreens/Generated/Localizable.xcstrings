@@ -21013,6 +21013,23 @@
         }
       }
     },
+    "noteList.empty.searchAllTip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try other words."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "试试其他词。"
+          }
+        }
+      }
+    },
     "noteList.empty.searchTip" : {
       "extractionState" : "manual",
       "localizations" : {

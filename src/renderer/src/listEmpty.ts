@@ -26,7 +26,16 @@ const READ_ONLY_TIP: Partial<Record<ListEmptyKind, MessageKey>> = {
   templates: 'noteList.empty.templatesReadOnly',
 }
 
-export const listEmpty = (kind: ListEmptyKind, editing = true) => {
+export const listEmpty = (
+  kind: ListEmptyKind,
+  editing = true,
+  scopedSearch = false,
+): { message: MessageKey; tip?: MessageKey | undefined; action?: MessageKey } => {
+  if (kind === 'search') {
+    return scopedSearch
+      ? { ...TEXT.search, action: 'command.searchAll' }
+      : { message: TEXT.search.message, tip: 'noteList.empty.searchAllTip' }
+  }
   const text = TEXT[kind]
   if (editing || !READ_ONLY_TIP[kind]) return text
   return { message: text.message, tip: READ_ONLY_TIP[kind] }
