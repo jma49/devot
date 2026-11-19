@@ -43,6 +43,17 @@ describe('find while the preview registers', () => {
     expect(preview.clear).toHaveBeenCalledOnce()
   })
 
+  it('does not open before the editor registers', () => {
+    const hook = renderHook(
+      () => useFind({ mode: 'edit', noteOpen: true, editing: true, editor: null, preview: null }),
+      { props: undefined },
+    )
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', code: 'KeyF', metaKey: true }))
+    })
+    expect(hook.current.bar).toBeNull()
+  })
+
   it('does not open without a note', () => {
     const hook = renderHook(
       () =>
