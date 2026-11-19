@@ -92,6 +92,70 @@ test('opens a rich Split note with the first Mermaid drawn without scrolling and
   expect(await preview(page).evaluate((el) => el.scrollTop)).toBe(0)
 })
 
+test('Find keeps the first tail match visible as a long preview finishes laying out', async ({
+  page,
+}) => {
+  const markdown = sampleNote(100_000).replace(
+    'End of the sample.',
+    'End of the sample. Tailquartz.',
+  )
+  await page.evaluate(
+    ({ body, ydoc }) => {
+      const at = Date.now()
+      localStorage.setItem(
+        'devot.test.notes',
+        JSON.stringify([
+          {
+            id: '0192a6f0-0000-7000-8000-000000000001',
+            title: 'Tail Find',
+            titleHlc: '',
+            bodyMd: body,
+            ydoc,
+            bookId: null,
+            bookHlc: '',
+            status: 'none',
+            statusHlc: '',
+            pinned: false,
+            pinnedHlc: '',
+            createdAt: at,
+            updatedAt: at,
+            deletedAt: null,
+            deletedHlc: '',
+          },
+        ]),
+      )
+    },
+    { body: markdown, ydoc: bodyState(markdown) },
+  )
+  await reloadApp(page)
+  await page.getByRole('option').filter({ hasText: 'Tail Find' }).click()
+  await mode(page, 'Split').click()
+  await expect(preview(page).locator('h1').first()).toBeVisible()
+  await preview(page).focus()
+  await page.keyboard.press('Meta+f')
+  const find = page.getByRole('search', { name: 'Find in Note' })
+  await find.getByRole('textbox', { name: 'Find', exact: true }).fill('Tailquartz')
+  await expect(find.getByRole('status')).toHaveText('1 of 1')
+  await expect(preview(page).locator('[data-devot-island="mermaid"] svg').first()).toBeAttached()
+  await expect
+    .poll(() =>
+      preview(page).evaluate((root) => {
+        const range = [...(CSS.highlights.get('devot-find-current') ?? [])][0]
+        if (!(range instanceof Range)) return { visible: false, reason: 'no preview match' }
+        const match = range.getBoundingClientRect()
+        const pane = root.getBoundingClientRect()
+        return {
+          visible: match.top >= pane.top && match.bottom <= pane.bottom,
+          match: match.toJSON(),
+          pane: pane.toJSON(),
+          scroll: root.scrollTop,
+          max: root.scrollHeight - root.clientHeight,
+        }
+      }),
+    )
+    .toMatchObject({ visible: true })
+})
+
 test('updates the preview by patching only the nodes that changed', async ({ page }) => {
   await newNote(page, 'Patch', '# Stable heading\n\nFirst paragraph.')
   await mode(page, 'Split').click()

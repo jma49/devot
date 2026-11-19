@@ -218,6 +218,8 @@ export function previewFindTarget(
   let invalid = false
   let capped = false
   let current: number | null = null
+  let following = false
+  let revealFrame: number | undefined
   const listeners = new Set<(change: FindChange) => void>()
   const notify = () => {
     for (const listener of listeners) listener('status')
@@ -272,21 +274,38 @@ export function previewFindTarget(
       root.scrollTop += rect.top - box.top - box.height / 3
   }
 
+  const stopFollowing = () => {
+    following = false
+    if (revealFrame !== undefined) cancelAnimationFrame(revealFrame)
+    revealFrame = undefined
+  }
+  const revealAfterLayout = () => {
+    if (!following || revealFrame !== undefined) return
+    revealFrame = requestAnimationFrame(() => {
+      revealFrame = undefined
+      if (following) reveal()
+    })
+  }
+  const resize = new ResizeObserver(revealAfterLayout)
+  const intent = ['wheel', 'pointerdown', 'keydown'] as const
+
   const go = (index: number | null) => {
     current = ranges.length === 0 || index === null ? null : (index + ranges.length) % ranges.length
+    following = true
     paint()
     reveal()
     notify()
   }
 
   // The preview re-renders as the note changes: find again, keeping the
-  // current match's place in the list, without scrolling.
+  // current match's place in the list.
   const observer = new MutationObserver((records) => {
     reader.touched(records)
     if (!options) return
     collect(true)
     current = ranges.length === 0 ? null : Math.min(current ?? 0, ranges.length - 1)
     paint()
+    revealAfterLayout()
     notify()
   })
 
@@ -301,6 +320,9 @@ export function previewFindTarget(
         else {
           reader.forget()
           observer.observe(root, WATCHED)
+          resize.observe(root)
+          if (root.firstElementChild) resize.observe(root.firstElementChild)
+          for (const event of intent) root.addEventListener(event, stopFollowing, { passive: true })
         }
         options = next
         collect()
@@ -318,6 +340,9 @@ export function previewFindTarget(
     replaceAll() {},
     clear() {
       round += 1
+      stopFollowing()
+      resize.disconnect()
+      for (const event of intent) root.removeEventListener(event, stopFollowing)
       if (!options) return
       options = null
       observer.disconnect()
