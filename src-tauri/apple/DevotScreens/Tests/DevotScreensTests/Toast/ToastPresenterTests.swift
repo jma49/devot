@@ -189,6 +189,14 @@ final class ToastPresenterTests: XCTestCase {
         XCTAssertEqual(Tokens.Duration.phoneExit, 0.15)
     }
 
+    func testADebugBuildLaunchedWithTheTestsWaitScaleKeepsItThatMuchLonger() throws {
+        UserDefaults.standard.set(3, forKey: LaunchArgument.waitScale)
+        defer { UserDefaults.standard.removeObject(forKey: LaunchArgument.waitScale) }
+        presenter.offer(toast())
+        _ = try shown()
+        XCTAssertEqual(timers.live.map(\.delay), [12])
+    }
+
     func testItStaysWhileVoiceOverIsOnItAndKeepsWaiting() async throws {
         presenter.offer(toast())
         let view = try shown()

@@ -274,7 +274,17 @@ final class ToastPresenter: NSObject, UndoOffering, UIGestureRecognizerDelegate 
 
     private func restartTimer() {
         cancelTimer?()
-        cancelTimer = schedule(Tokens.Duration.phoneToast) { [weak self] in self?.expire() }
+        cancelTimer = schedule(Tokens.Duration.phoneToast * Self.waitScale) { [weak self] in self?.expire() }
+    }
+
+    /// A UI test on a loaded simulator spends longer than the toast lasts between seeing it and its
+    /// tap on Undo (#1019), so a debug build launched with the tests' scale keeps it as much longer.
+    private static var waitScale: TimeInterval {
+        #if DEBUG
+            WaitScale.launched
+        #else
+            1
+        #endif
     }
 
     private func expire() {

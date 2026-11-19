@@ -9,6 +9,8 @@ final class ListsTests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication(bundleIdentifier: "io.github.jma49.devot")
+        // The undo toast lasts 4 s, less than a loaded runner's steps from seeing it to its Undo (#1019).
+        app.launchArguments = ["-" + LaunchArgument.waitScale, "\(waitScale)"]
         app.launch(stoppedAfter: self)
         // A cold debug build starts slowly on a CI simulator.
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: waitLimit(120)))
