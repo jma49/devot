@@ -210,6 +210,9 @@ importers:
       '@lezer/markdown':
         specifier: 1.8.1
         version: 1.8.1(patch_hash=c08c70ccee75a4629d2f3b19ff3bea0b1015cac47b8c3c1349f6ca6520eb1d48)
+      '@noble/hashes':
+        specifier: 1.8.0
+        version: 1.8.0
       '@plantuml/core':
         specifier: 1.2026.9
         version: 1.2026.9
@@ -219,6 +222,9 @@ importers:
       '@tauri-apps/api':
         specifier: 2.12.2
         version: 2.12.2
+      character-entities:
+        specifier: 2.0.2
+        version: 2.0.2
       comlink:
         specifier: 4.4.2
         version: 4.4.2
@@ -294,6 +300,9 @@ importers:
       remark-rehype:
         specifier: 11.1.2
         version: 11.1.2
+      saxes:
+        specifier: 6.0.0
+        version: 6.0.0
       temml:
         specifier: 0.14.0
         version: 0.14.0
@@ -1020,6 +1029,10 @@ packages:
   '@mermaid-js/parser@2.0.1':
     resolution: {integrity: sha512-j37dj/h6p6pots1L7pLPPNuABEEu9WP4OYg9pW1g+nYG331j0+3canE9OagtYdytYvdSAMG+2fKU5cxep6LgjA==}
     engines: {node: '>=22.12.0'}
+
+  '@noble/hashes@1.8.0':
+    resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
+    engines: {node: ^14.21.3 || >=16}
 
   '@oxc-project/types@0.153.0':
     resolution: {integrity: sha512-jSNrRIyvPVLL5E1z/tS5zLAprosGz/FuI1PWwEOz59j3E4TTTzSpqKb/RDGqJhhW0QHYISGXxq582wGx6T11Tw==}
@@ -2848,6 +2861,10 @@ packages:
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
 
+  saxes@6.0.0:
+    resolution: {integrity: sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA==}
+    engines: {node: '>=v12.22.7'}
+
   scheduler@0.28.0:
     resolution: {integrity: sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==}
 
@@ -3130,6 +3147,9 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
+
+  xmlchars@2.2.0:
+    resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
 
   y-codemirror.next@0.3.6:
     resolution: {integrity: sha512-GnmVXhTe+UtoFbbaSdwhq6gdAQZdIY9az0Xj6HR2J4PO6Yw4w3xaaSssU+6T72WhXAI0wf9FbuY2s0Ms+WrexA==}
@@ -3793,6 +3813,8 @@ snapshots:
   '@mermaid-js/parser@2.0.1':
     dependencies:
       '@chevrotain/types': 13.2.0
+
+  '@noble/hashes@1.8.0': {}
 
   '@oxc-project/types@0.153.0': {}
 
@@ -5760,6 +5782,10 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
+  saxes@6.0.0:
+    dependencies:
+      xmlchars: 2.2.0
+
   scheduler@0.28.0: {}
 
   semver@7.8.5: {}
@@ -6023,6 +6049,8 @@ snapshots:
       - utf-8-validate
 
   ws@8.21.0: {}
+
+  xmlchars@2.2.0: {}
 
   y-codemirror.next@0.3.6(@codemirror/state@6.7.6)(@codemirror/view@6.43.14)(yjs@13.6.33):
     dependencies:

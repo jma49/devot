@@ -69,7 +69,19 @@ A cancelled panel sends nothing.
   A quit that is called off lets the import go on from the next file.
   Once the window has saved and goes on with the quit, the import ends there and lists the files it did not reach, and stays ended if another window calls the quit off after that.
   Closing a window File > New Window opened does the same with its own import.
-- Notes get the import time as their creation and update time.
+- Markdown and HTML notes get the import time as their creation and update time.
+
+### .enex export files
+
+The core import pipeline accepts one or more `.enex` export files with import kind `enex`; native picking and the import sheet's entry point are not yet connected.
+Each file becomes a notebook named after its filename without the extension, under the chosen destination; files with the same name get distinct notebook names.
+An empty export makes no notebook.
+XML is parsed in the worker without resolving external entities or loading the DOCTYPE; malformed XML is reported against the file before any of its notes or notebooks are made.
+Each note takes its title and tags from the export, and its ENML content is converted through the sanitized HTML-to-Markdown converter, including checked and unchecked tasks, without adding a title heading.
+Created and updated dates are read as UTC, applied after the body and tags, and fall back to the current time when missing or invalid; an updated date before the created date is clamped to it.
+Resources are matched to media references by the MD5 of their decoded bytes, with supported raster images stored as note-owned attachments under their exported filenames, subject to the existing 10 MB limit.
+Unreferenced supported images are appended to the note, while unsupported resources, invalid resources and encrypted sections are skipped and reported by code against that note.
+Destination, per-note progress, stopping between notes, failure cleanup and removal of unused notebooks use the existing import pipeline.
 
 ## Export and print
 

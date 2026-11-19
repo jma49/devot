@@ -37,7 +37,7 @@ export function sourceAppOf(paths: readonly string[]): ImportSourceApp {
 
 export function importLayout(kind: ImportKind, files: readonly ImportItem[]): ImportLayout {
   const plain = (path: string) => (kind === 'files' ? '' : folderOf(path))
-  const app = sourceAppOf(files.map((file) => file.path))
+  const app = kind === 'enex' ? null : sourceAppOf(files.map((file) => file.path))
   if (app === 'bear') {
     const inBundle = (path: string) => BUNDLE_TEXT.test(path)
     return {

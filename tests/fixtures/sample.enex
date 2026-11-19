@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export4.dtd">
+<en-export>
+  <note>
+    <title>Research &amp; plans</title>
+    <content><![CDATA[<?xml version="1.0"?><!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd"><en-note><div>A <b>bold</b> idea &amp; a <a href="https://example.com">link</a>.</div><div><en-todo checked="true"/>Done</div><div><en-todo checked="false"/>Next</div><en-media hash="91e42db1c66c0b276abf6234dc50b2eb" type="image/png"/><en-media hash="6446a98080f5e51ab7f0abc0e8eda635" type="application/pdf"/><en-crypt>secret</en-crypt></en-note>]]></content>
+    <created>20231105T120000Z</created><updated>20231106T130000Z</updated>
+    <tag>work</tag><tag>research &amp; ideas</tag>
+    <resource><data encoding="base64">iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=</data><mime>image/png</mime><resource-attributes><file-name>board.png</file-name></resource-attributes></resource>
+    <resource><data encoding="base64">JVBERi0xLjQK</data><mime>application/pdf</mime><resource-attributes><file-name>paper.pdf</file-name></resource-attributes></resource>
+  </note>
+  <note><title>Undated</title><content><![CDATA[<en-note><div>Plain &amp; simple.</div></en-note>]]></content><tag>work</tag></note>
+  <note><title>Earlier update</title><content><![CDATA[<en-note>Last</en-note>]]></content><created>20231105T120000Z</created><updated>20200101T000000Z</updated></note>
+</en-export>

@@ -32,6 +32,7 @@ import {
   type FrontMatterMeta,
 } from './frontMatter'
 import { htmlToMarkdown, type HtmlImage } from './htmlImport'
+import { expandEnex } from './importEnex'
 import { bearTags } from './importBear'
 import { importLayout } from './importLayout'
 import { folderOf, isHtmlFile } from './importTree'
@@ -70,7 +71,7 @@ export {
   type FrontMatterMeta,
 } from './frontMatter'
 
-export type ImportKind = 'folder' | 'folders' | 'files'
+export type ImportKind = 'folder' | 'folders' | 'files' | 'enex'
 
 export interface ImportItem {
   path: string
@@ -152,7 +153,9 @@ export interface PreparedImport {
   text: string
   images: ImageLinks
   /** An HTML file's embedded images, as attachments to store (none without IDs to give them). */
-  embedded: HtmlImage[]
+  embedded: (HtmlImage & { name?: string })[]
+  dates?: { createdAt: number; updatedAt: number }
+  diagnostics?: { code: string }[]
   dropped: string[]
   /** Tags written in the text as Bear writes them, used for a Bear export (importBear.ts). */
   hashtags?: string[]
@@ -659,6 +662,7 @@ function bookName(name: string): string {
 }
 
 export async function importMarkdown(options: ImportOptions): Promise<ImportReport> {
+  if (options.scan.kind === 'enex') options = await expandEnex(options)
   const { notes, books, tags, newId, scan, source, onProgress, stopped, files: store } = options
   const prepare = options.prepare ?? preparerHere(newId)
   const destination = options.destination ?? null
@@ -737,13 +741,18 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
           : prepared.title
       id = await notes.create(title, folder(layout.noteFolder(path)))
       const noteId = id
+      for (const diagnostic of prepared.diagnostics ?? []) found.push({ path, ...diagnostic })
       for (const dropped of prepared.dropped) {
         found.push({ path, image: dropped, code: 'E_IMPORT_HTML_CONTENT_DROPPED' })
       }
       if (store) {
         let refused = false
         for (const image of prepared.embedded) {
-          const file = { id: image.id, noteId, name: `image.${EXTENSIONS[image.mime] ?? 'png'}` }
+          const file = {
+            id: image.id,
+            noteId,
+            name: image.name ?? `image.${EXTENSIONS[image.mime] ?? 'png'}`,
+          }
           try {
             checkUpload(file, image.data)
             await store.putFile(file, image.data)
@@ -839,6 +848,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
           })
         }
       }
+      if (prepared.dates) await notes.setDates(noteId, prepared.dates)
       await notes.release(noteId)
       imported += 1
       noteIds[path] = noteId
