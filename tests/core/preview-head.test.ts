@@ -10,6 +10,41 @@ const markdown =
   '[later]: https://example.com\n\n[^later]: A trailing definition.'
 
 describe('head preview pieces', () => {
+  it('returns the full cached note instead of a head and another worker request', async () => {
+    const render = createPieceRenderer({ pieceLength: 80 })
+    const full = await render(markdown, options)
+    await render('Another note.', options)
+    const warm = await render.head(markdown, options, [], 160)
+    expect(warm.partial).toBe(false)
+    expect(warm.pieces).toEqual(full)
+  })
+
+  it('checks cross-piece definitions before considering a whole note cached', async () => {
+    const render = createPieceRenderer({ pieceLength: 1 })
+    const first = '[link]: https://first.test\n\n'
+    const second = '[link]: https://second.test\n\n'
+    const linked = '[Read][link].\n\n'
+    const source = first + second + linked
+    await render(source, options)
+    const changed = second + first + linked
+    const head = await render.head(changed, options, [], 1)
+    expect(head.partial).toBe(true)
+    const full = await render(changed, options)
+    expect(JSON.stringify(full)).toContain('https://second.test')
+  })
+
+  it('keeps the head budget when options changed or tail pieces were evicted', async () => {
+    for (const capacity of [0, 50_000]) {
+      const render = createPieceRenderer({ pieceLength: 80, capacity })
+      await render(markdown, options)
+      await render('Another note.', options)
+      const changed = capacity === 0 ? options : { ...options, loadedEmbeds: ['changed'] }
+      const head = await render.head(markdown, changed, [], 160)
+      expect(head.partial).toBe(true)
+      expect(head.pieces.every((piece) => piece.offset < 160)).toBe(true)
+    }
+  })
+
   it('parses each piece once across the head and its full answer', async () => {
     const parse = vi.spyOn(definitions, 'parseSeeded')
     try {

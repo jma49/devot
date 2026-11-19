@@ -72,6 +72,7 @@ Part of the [architecture overview](../architecture.md).
   The head uses the whole note's link and footnote definitions, caches its rendered pieces and returns an explicit partial marker; the full answer reuses those pieces and adds the trailing footnote section.
   Untransformed tail parses stay with that exact cut and options until its full render, so the tail is not parsed twice; another source, options, failed render or closing the preview discards them.
   Matching head keys preserve their pieces and DOM in the full answer rather than building the head again.
+  When every piece is already cached with its current cross-piece definitions, the worker returns the complete preview in that first answer, without a second request.
   Eight thousand characters cover several rich blocks and the first diagram in the benchmark without paying for all later transforms; a safe Markdown piece may extend past the budget.
   The existing `latestOnly` queue coalesces pending text; request generations, note and text checks drop replaced answers and teardown answers, and typing in the same note still asks only for a full render.
   An empty editor body while a note loads does not consume its opening; the first nonempty body selects head rendering.

@@ -749,6 +749,12 @@ export function createPieceRenderer({
       return was.length === now.length && now.every((label) => was.includes(label))
     }
 
+    if (
+      Number.isFinite(headCharacters) &&
+      found.every((entry, i) => entry && entry.context === contextOf(i, entry.labels).key)
+    )
+      headCharacters = Number.POSITIVE_INFINITY
+
     const rendered: Rendered[] = []
     try {
       for (const [i, block] of blocks.entries()) {
@@ -861,7 +867,7 @@ export function createPieceRenderer({
       if (!Number.isSafeInteger(characters) || characters <= 0)
         throw new Error('E_PREVIEW_HEAD_BUDGET')
       const pieces = await render(markdown, options, known, true, characters)
-      return { pieces, partial: split(markdown).blocks.some((block) => block.offset >= characters) }
+      return { pieces, partial: pieces.length < split(markdown).blocks.length }
     },
     forgetShown: () => {
       closings += 1
