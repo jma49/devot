@@ -41,6 +41,8 @@ function newNoteOver({
   const events: string[] = []
   const handle = {
     noteId: 'shown',
+    type: (keys: { key: string }[]) => events.push(`type ${keys.map(({ key }) => key).join('')}`),
+    focus: () => events.push('focus'),
     pauseForNewNote: () => {
       events.push('pause')
       return () => {
@@ -150,6 +152,17 @@ describe('New Note', () => {
 })
 
 describe('create sessions', () => {
+  it('ends the body pause and replays keys when the destination is already shown', async () => {
+    const { hook, events } = newNoteOver({ create: async () => 'shown' })
+    await act(async () => {
+      const opening = hook.current.openToday()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', cancelable: true }))
+      await opening
+    })
+    expect(events).toEqual(['pause', 'select shown', 'end', 'type q', 'focus'])
+    expect(hook.current.making).toBe(false)
+    expect(takeEarlyKeys('shown')).toEqual([])
+  })
   it('keeps duplicate failure codes and its notice', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { hook, setChangeNotice } = newNoteOver({

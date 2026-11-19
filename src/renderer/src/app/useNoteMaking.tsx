@@ -20,7 +20,8 @@ import { t } from '../i18n'
 import { MAX_LINK_NOTES } from '../linkCompletion'
 import { dropNote, linkedNoteCreate, linkedNoteDiscard } from '../linkedNotes'
 import { homeOf, viewLists, type ListView } from '../listUpdates'
-import { startEarlyKeys } from '../editor/earlyKeys'
+import { startEarlyKeys, takeEarlyKeys } from '../editor/earlyKeys'
+import { keyboardIsFree } from '../focus'
 import { notebookForNewNote } from '../notebookChoices'
 import { saveEdits } from '../saveGuards'
 import type { Selection } from '../Sidebar'
@@ -143,14 +144,20 @@ export function useNoteMaking({
   ) => {
     if (!core || activeMaking.current) return
     const early = startEarlyKeys()
-    const endPause = editorRef.current?.pauseForNewNote()
-    let opened = false
+    const shownEditor = editorRef.current
+    const endPause = shownEditor?.pauseForNewNote()
+    let outcome: 'pending' | 'opened' | 'reopened' = 'pending'
     const end = (teardown = false) => {
       if (activeMaking.current !== end) return
       activeMaking.current = undefined
       if (!teardown) flushSync(() => setMaking(false))
-      if (!opened) endPause?.()
-      if (!opened) early.fail()
+      if (outcome !== 'opened') endPause?.()
+      if (outcome === 'pending') early.fail()
+      if (outcome === 'reopened' && shownEditor && editorRef.current === shownEditor) {
+        const typed = takeEarlyKeys(shownEditor.noteId)
+        if (typed.length) shownEditor.type(typed)
+        if (keyboardIsFree()) shownEditor.focus()
+      }
     }
     activeMaking.current = end
     setMaking(true)
@@ -167,7 +174,9 @@ export function useNoteMaking({
       if (activeMaking.current !== end) return
       const nextMode = previewMode()
       if (mode === 'preview' && nextMode) setMode(nextMode)
-      opened = await select(id, { keyboard: true })
+      if (await select(id, { keyboard: true })) {
+        outcome = shownEditor?.noteId === id ? 'reopened' : 'opened'
+      }
     } catch (e) {
       if (activeMaking.current === end) {
         onFailure(e)

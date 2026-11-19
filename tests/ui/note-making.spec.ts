@@ -1,6 +1,30 @@
 import { expect, test, openApp, statusPicker, bookPicker } from './fixtures'
 import { failCoreCalls, holdLateReplies, releaseLateReplies, slowCore } from './slowCore'
 
+test('reopening the displayed daily note replays early keys and leaves its body editable', async ({
+  page,
+}) => {
+  await slowCore(page, ['openTodaysNote'])
+  await openApp(page)
+  await page.keyboard.press('Alt+Meta+KeyT')
+  const body = page.getByRole('textbox', { name: 'Note body' })
+  await expect(body).toBeEditable()
+  await body.click()
+  await page.keyboard.type('before')
+  await holdLateReplies(page)
+  await page.keyboard.press('Alt+Meta+KeyT')
+  const pane = page.locator('main.content')
+  await expect(pane).toHaveAttribute('inert', '')
+  await page.keyboard.type('during')
+  await releaseLateReplies(page)
+  await expect(pane).not.toHaveAttribute('inert')
+  await expect(body).toBeEditable()
+  await expect(body).toContainText('beforeduring')
+  await body.click()
+  await page.keyboard.type('after')
+  await expect(body).toContainText('beforeduringafter')
+})
+
 for (const fromTemplate of [false, true]) {
   test(`${fromTemplate ? 'template' : 'blank'} create protects the whole previous pane and keeps typed keys`, async ({
     page,
