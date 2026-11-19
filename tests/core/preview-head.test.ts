@@ -107,9 +107,8 @@ describe('head preview pieces', () => {
       const render = createPieceRenderer({ pieceLength: 80, registry, capacity: 0 })
       await render.head(markdown, options, [], 160)
       let text = markdown
-      let changed = options
+      const changed = change === 'options' ? { ...options, loadedEmbeds: ['changed'] } : options
       if (change === 'edit') text = markdown.replace('https://example.com', 'https://changed.test')
-      if (change === 'options') changed = { ...options, loadedEmbeds: ['changed'] }
       if (change === 'switch') await render('Another note.', options)
       if (change === 'close') render.forgetShown()
       if (change === 'failure') {
