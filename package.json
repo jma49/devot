@@ -58,7 +58,7 @@
     "@codemirror/view": "6.43.14",
     "@lezer/common": "1.5.3",
     "@lezer/highlight": "1.2.5",
-    "@lezer/markdown": "1.8.0",
+    "@lezer/markdown": "1.8.1",
     "@plantuml/core": "1.2026.9",
     "@sentry/browser": "11.6.0",
     "@tauri-apps/api": "2.12.2",

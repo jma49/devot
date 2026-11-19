@@ -1,0 +1,102 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 4a361b0d03d5ed263f09e3eeebbbc2f1b6375ec8..a22db9b1dc955de25438665cf723316105627c73 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -1920,13 +1920,16 @@ class FragmentCursor {
+     takeNodes(cx) {
+         let cur = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
+         let start = cx.absoluteLineStart, end = start, blockI = cx.block.children.length;
+-        // Don't reuse anonymous nodes bigger than ¼ of the current
+-        // block's size, to avoid creating lopsided trees.
+-        let maxAnonSize = (cx.lineStart - cx.block.from) >> 2;
++        // Don't reuse anonymous nodes bigger than ¼ of the block's
++        // content before them, or ones whose size balancing misjudges,
++        // to avoid creating lopsided trees. That content includes what
++        // this call took, so reuse from near the block's start takes
++        // ever larger nodes instead of every block.
++        let blockFrom = cx.block.from;
+         let prevEnd = end, prevI = blockI;
+         scan: for (;;) {
+             if (cur.to - off > Math.min(fragEnd, cx.to) ||
+-                cur.type.isAnonymous && cur.tree && (cur.to - cur.from > maxAnonSize || !canStopAfterLastChild(cur.tree))) {
++                cur.type.isAnonymous && cur.tree && (cur.to - cur.from > ((toRelative(cur.from - off, cx.ranges) - blockFrom) >> 2) || !balancedGroup(cur.tree) || !canStopAfterLastChild(cur.tree))) {
+                 if (cur.type.isAnonymous && cur.firstChild())
+                     continue;
+                 break;
+@@ -1972,6 +1975,25 @@ class FragmentCursor {
+         return end - start;
+     }
+ }
++const balancedGroups = new WeakMap;
++// Whether balancing judges this anonymous node's size well enough to
++// reuse it whole. A node with a block among its children counts as
++// one, which is close when its other children are groups of blocks,
++// as balancing makes them, but would hide a deeper subtree and let the
++// tree grow a level deeper with each edit.
++function balancedGroup(tree) {
++    let known = balancedGroups.get(tree);
++    if (known == null) {
++        let groups = tree.children.filter(isGroup);
++        known = groups.length == tree.children.length ? groups.every(balancedGroup)
++            : groups.every(group => !group.children.some(isGroup));
++        balancedGroups.set(tree, known);
++    }
++    return known;
++}
++function isGroup(node) {
++    return node instanceof Tree && node.type.isAnonymous;
++}
+ function canStopAfterLastChild(tree) {
+     while (tree.type.isAnonymous) {
+         let last = tree.children[tree.children.length - 1];
+diff --git a/dist/index.js b/dist/index.js
+index bcaae772b1e92dd3f279b5c0b6607a3df0a2b20a..d2503a3d74e044b475d10898e23771efe5a79c1b 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1918,13 +1918,16 @@ class FragmentCursor {
+     takeNodes(cx) {
+         let cur = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
+         let start = cx.absoluteLineStart, end = start, blockI = cx.block.children.length;
+-        // Don't reuse anonymous nodes bigger than ¼ of the current
+-        // block's size, to avoid creating lopsided trees.
+-        let maxAnonSize = (cx.lineStart - cx.block.from) >> 2;
++        // Don't reuse anonymous nodes bigger than ¼ of the block's
++        // content before them, or ones whose size balancing misjudges,
++        // to avoid creating lopsided trees. That content includes what
++        // this call took, so reuse from near the block's start takes
++        // ever larger nodes instead of every block.
++        let blockFrom = cx.block.from;
+         let prevEnd = end, prevI = blockI;
+         scan: for (;;) {
+             if (cur.to - off > Math.min(fragEnd, cx.to) ||
+-                cur.type.isAnonymous && cur.tree && (cur.to - cur.from > maxAnonSize || !canStopAfterLastChild(cur.tree))) {
++                cur.type.isAnonymous && cur.tree && (cur.to - cur.from > ((toRelative(cur.from - off, cx.ranges) - blockFrom) >> 2) || !balancedGroup(cur.tree) || !canStopAfterLastChild(cur.tree))) {
+                 if (cur.type.isAnonymous && cur.firstChild())
+                     continue;
+                 break;
+@@ -1970,6 +1973,25 @@ class FragmentCursor {
+         return end - start;
+     }
+ }
++const balancedGroups = new WeakMap;
++// Whether balancing judges this anonymous node's size well enough to
++// reuse it whole. A node with a block among its children counts as
++// one, which is close when its other children are groups of blocks,
++// as balancing makes them, but would hide a deeper subtree and let the
++// tree grow a level deeper with each edit.
++function balancedGroup(tree) {
++    let known = balancedGroups.get(tree);
++    if (known == null) {
++        let groups = tree.children.filter(isGroup);
++        known = groups.length == tree.children.length ? groups.every(balancedGroup)
++            : groups.every(group => !group.children.some(isGroup));
++        balancedGroups.set(tree, known);
++    }
++    return known;
++}
++function isGroup(node) {
++    return node instanceof Tree && node.type.isAnonymous;
++}
+ function canStopAfterLastChild(tree) {
+     while (tree.type.isAnonymous) {
+         let last = tree.children[tree.children.length - 1];

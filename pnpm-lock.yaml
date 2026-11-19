@@ -169,6 +169,7 @@ overrides:
   miniflare>sharp: ^0.35.5
 
 patchedDependencies:
+  '@lezer/markdown@1.8.1': 4df148f3f6261fe34768bc0e969f18443278949424cc019d097668f54b5cb69d
   hast-util-minify-whitespace@1.0.1: b9ea89b02adb67b4cc26bd8568b76e42c54a4aa725a6a86b6440fe5e237dfdc6
   vfile-location@5.0.3: acf2bbbc87b84d43862dcc7f5ef2f2dd84401c36f2253111c3c1af65452f7b76
 
@@ -207,8 +208,8 @@ importers:
         specifier: 1.2.5
         version: 1.2.5
       '@lezer/markdown':
-        specifier: 1.8.0
-        version: 1.8.0
+        specifier: 1.8.1
+        version: 1.8.1(patch_hash=4df148f3f6261fe34768bc0e969f18443278949424cc019d097668f54b5cb69d)
       '@plantuml/core':
         specifier: 1.2026.9
         version: 1.2026.9
@@ -992,8 +993,8 @@ packages:
   '@lezer/lr@1.4.11':
     resolution: {integrity: sha512-UwgZcl1R66H2hDzBrA7kWyYmX6s8p5TQ+e/t7CuvgCtBEPxbEPaHYHu+pJBvTvDotEJpuQkJjbXuHiw5Cixxgw==}
 
-  '@lezer/markdown@1.8.0':
-    resolution: {integrity: sha512-X6w3A2NpyhdtGqTWRJB8gR4QDXBaFMbTOs780ZdZ15KKCfBXOQTKcB3Vr+W6tqJHVlealt53tLmHRvOqPTQgYA==}
+  '@lezer/markdown@1.8.1':
+    resolution: {integrity: sha512-M5YmEcKWO4mJ45Y1hECwqyu8cLv25EiXOK554PVOvDOWOP0olwelHHQUWr9sjF+d1bENVhy0nfJ8E57XZUTiXg==}
 
   '@lezer/php@1.0.6':
     resolution: {integrity: sha512-QJ2xNXPmsm/Z3IpThq8fnJrEIVpxhsIoj6GZBW0JYEd/l9zxpJZW216X4fzqQY4vgpdGIumypvI4uQjd4tnYtw==}
@@ -3335,7 +3336,7 @@ snapshots:
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.14
       '@lezer/common': 1.5.3
-      '@lezer/markdown': 1.8.0
+      '@lezer/markdown': 1.8.1(patch_hash=4df148f3f6261fe34768bc0e969f18443278949424cc019d097668f54b5cb69d)
 
   '@codemirror/lang-php@6.0.2':
     dependencies:
@@ -3746,7 +3747,7 @@ snapshots:
     dependencies:
       '@lezer/common': 1.5.3
 
-  '@lezer/markdown@1.8.0':
+  '@lezer/markdown@1.8.1(patch_hash=4df148f3f6261fe34768bc0e969f18443278949424cc019d097668f54b5cb69d)':
     dependencies:
       '@lezer/common': 1.5.3
       '@lezer/highlight': 1.2.5

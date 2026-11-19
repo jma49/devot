@@ -206,6 +206,9 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
     It waits for the excerpt and reads both rows at once.
   - The end-against-top keystroke check compared trimmed means of two turns at each place, and on CI the work reached its 1.5 bound with the frames equal (#927, #929).
     It types each place four times and compares lower quartiles, which work that grows with the text raises and a busy runner does not.
+  - The same check then failed at 31 ms of work at the end against 20 ms at the top, with keys 120 ms apart; the trace held every end key at 27 ms or more and the top's quiet turns at 11 to 24 ms (#1033).
+    It was the app: the Markdown parser's incremental pass grew with the note, and CodeMirror cuts a parse at 20 ms only where the text left unparsed is below the view (docs/specs/performance.md).
+    The pass is patched to stay small, and the spec puts each place's key times into the JSON report as a `keystroke ms` annotation.
   - The screens tests waited 0.05 s for the app's start: Settings' glass request came after a note's `editor.show` on a loaded runner (#930), and a new note's cover was not up yet because the push had not reached the screen taking the web view (#933).
     They wait for the request and for the push.
   - A StoreKit test cleared a purchase, bought again and read the product's entitlement, and the cleared purchase was still listed for a moment: it waits for the entitlement of the new transaction.

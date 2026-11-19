@@ -83,6 +83,14 @@ const lowerQuartile = (values: number[]) => {
   return sorted[Math.floor(sorted.length / 4)] ?? 0
 }
 
+function noteKeyTimes(place: string, keys: Window['devotKeys']) {
+  const times = (part: 'work' | 'frame') => keys.map((k) => k[part].toFixed(0)).join(' ')
+  test.info().annotations.push({
+    type: 'keystroke ms',
+    description: `${place}: work ${times('work')}; frame ${times('frame')}`,
+  })
+}
+
 function watchUpdates(page: Page) {
   return body(page).evaluate((el) => {
     const view = (el as unknown as { cmTile: { view: ViewLike } }).cmTile.view
@@ -154,6 +162,7 @@ for (const mode of [
       work: lowerQuartile(typed[place].map((k) => k.work)),
       frame: lowerQuartile(typed[place].map((k) => k.frame)),
     })
+    for (const place of ['top', 'end'] as const) noteKeyTimes(place, typed[place])
     const top = cost('top')
     const end = cost('end')
     const shown = `work and frame: end ${end.work.toFixed(1)} / ${end.frame.toFixed(1)} ms, top ${top.work.toFixed(1)} / ${top.frame.toFixed(1)} ms`
