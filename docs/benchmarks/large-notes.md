@@ -18,33 +18,21 @@ The relay stores an unencrypted record of the same size except for cipher overhe
 It also excludes Rust IPC scheduling and all renderer work.
 Consequently this is not yet an end-to-end encrypted sync benchmark.
 
-## Environment installation
-
-The exact installation command was:
-
-```sh
-. /home/ubuntu/.nvm/nvm.sh && nvm install 24 && nvm alias default 24 && npm install -g pnpm@12.10.1 && pnpm install && pnpm exec lefthook install
-```
-
-This installed Node v24.22.3 and pnpm 12.10.1.
-Subsequent commands sourced `/home/ubuntu/.nvm/nvm.sh` to load the environment.
-
 ## Top bottleneck
 
 The unprofiled full run in `large-notes.json` makes deferred search catch-up the slowest measured path at both 1 MB and 5 MB.
 To reproduce the separate profile run:
 
 ```sh
-DEVOT_LARGE_PROFILE=/home/ubuntu/large-search node scripts/bench/large-notes.ts --quick --out /home/ubuntu/large-notes-profile.json
+DEVOT_LARGE_PROFILE=<dir>/large-search node scripts/bench/large-notes.ts --quick --out <dir>/large-notes-profile.json
 ```
 
 This writes one inspector CPU profile around each 5 MB catch-up search, ten profiles in quick mode.
-The evidence files for this run are `/home/ubuntu/large-search-{0,1,2,3,4}-{edit-save,paste-save}.cpuprofile`.
+The profile files are `<dir>/large-search-{0,1,2,3,4}-{edit-save,paste-save}.cpuprofile`.
 Aggregate time-delta-weighted samples total 4,097 ms: `catchUpSearchIndex` / `sqliteTransaction` account for 86.77% inclusive, `catchUpNote` for 60.02% inclusive, and the entire `searchNotes` call for 88.88%.
 Inspector `post` overhead accounts for 10.64%; excluding it puts the catch-up transaction at approximately 97.1% of the remaining sampled time.
 SQLite native frames have no JavaScript function name; their parent stacks identify the transaction and statement calls, not SQLite's internal tokenization functions.
 Do not interpret these samples as a breakdown of SQLite tokenization versus B-tree work.
-The profile run briefly overlapped existing test execution during its early smaller-note phases; the unprofiled full run was taken separately.
 
 Reachability is explicit: the benchmark calls `notes.search('planning')` immediately after applying an editor update and flushing it.
 `src/core/notes/search.ts` passes the parsed query to `storage.searchNotes`; the adapter's `search` sees an indexable term and calls `catchUpSearchIndex`.
@@ -72,7 +60,7 @@ Transaction time outside statements includes begin/commit, deferred FTS work and
 ## Candidate fix (not in this PR)
 
 A throwaway migration on temporary test-store databases replaced the external-content trigram table with `content='', contentless_delete=1`, changed catch-up to `DELETE FROM notes_fts WHERE rowid=@rowid` followed by the existing insert and stale-marker deletion, and made stale-update triggers keep only the rowid.
-No prototype, store change or product migration is included in this PR.
+The prototype is not committed; no store change or product migration is included in this PR.
 The prototype's twenty-run measurements use the same fixtures and timing method as the statement breakdown above.
 
 | Operation                                     | Contentless-delete, 1 MB p50 / p95 | Contentless-delete, 5 MB p50 / p95 |
@@ -110,13 +98,4 @@ These migration and security implications make contentless-delete a follow-up, n
 Another candidate is to process the existing stale-index queue after idle saves, coalescing while typing and retaining synchronous catch-up when a query needs freshness.
 If caught up before a query, the observed warm timings suggest an upper bound of 97–98% less foreground search latency, but this moves work rather than reducing indexing CPU and is not an implemented or measured fix.
 
-## Checks and limits
-
-The full benchmark passed with `Test Files 1 passed (1)` and `Tests 2 passed (2)` in 106.01 seconds.
-Node typechecking, focused oxlint and focused formatting checks passed.
-The existing storage-wire, sync-wire, search-catch-up and save tests passed.
-The existing sync-push performance budget still failed when rerun alone, uncontended: `AssertionError: expected 0.8856228820512908 to be less than 0.5`.
-An isolated run in a separate worktree at the unchanged base commit also failed: `AssertionError: expected 0.8261600205128278 to be less than 0.5`.
-The unscaled sync budget therefore does not pass on this machine independently of the new benchmark; no product code, existing tests or budget settings were changed.
-An earlier full harness run exposed revision timers surviving database closure; final cleanup now calls `notes.release(id)`, and the final full run emitted no revision warnings.
-No production performance fixes were made.
+The unscaled sync-push budget also fails at the unchanged base on a slower Linux container; set `DEVOT_BUDGET_SCALE` for that environment.
