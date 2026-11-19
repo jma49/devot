@@ -118,13 +118,13 @@ The byte-removal guarantee is retained rather than replacing compaction with a b
 `DEVOT_PURGE_REVIEW_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-purge-review.bench.test.ts --silent=false` measures 20 pulls after two warmups against copies of an optimized 10,000-note file-backed library, using WAL and synchronous FULL.
 Each pull receives 100 encoded tombstones through the real sync engine, including decoding, preserving merge revisions and storage commits; fixture setup, opening the database and connecting are outside timing.
 On reviewed commit `7cb8d072`, each synced purge optimized separately: **4942.812 / 5117.352 ms p50 / p95**.
-Deferring optimization until the end of the pull reduces this to **372.637 / 475.248 ms**, a 92.5% / 90.7% reduction.
+Deferring optimization until the end of the pull reduces this to **374.803 / 435.553 ms**, a 92.4% / 91.5% reduction.
 The remaining time includes per-record transactions and merge-version writes, not just FTS maintenance.
 Synced purges now persist a compaction-pending marker atomically with the deletion; a `finally` completes compaction after every pull, including failures, and opening the store recovers a marker left by a crash.
 Tests verify vocabulary, MATCH and database bytes through the deferred sync path, recovery after reopening and compaction failures; the two-device engine tests retain sync's existing local merge revision while removing the purged index terms.
 
 Blank-draft compaction is retained for correctness: zero current token counts do not prove that old deletion tombstones are absent.
-With sync batching and unconditional compaction, the same benchmark measured never-typed draft discard at **1.307 / 3.019 ms p50 / p95**, versus **0.783 / 2.218 ms** on reviewed commit `7cb8d072`.
+With sync batching and unconditional compaction, the same benchmark measured never-typed draft discard at **1.010 / 2.355 ms p50 / p95**, versus **0.783 / 2.218 ms** on reviewed commit `7cb8d072`.
 These optimized-seed timings are not a bound on full-index compaction in a fragmented library.
 
 ## Top bottleneck

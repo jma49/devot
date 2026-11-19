@@ -124,6 +124,7 @@ Part of the [architecture overview](../architecture.md).
   `notes_purge` refuses more than 500 IDs with `E_PURGE_TOO_MANY`; Empty Trash relays each committed batch before starting the next, so a later failure leaves earlier purges announced.
   Synced purges persist a `searchCompactionPending` marker in their transaction and defer compaction until the pull ends, including a failed pull; opening the store completes any compaction a crash left pending.
   Snapshots complete pending compaction on their source connection and pin a clean read transaction before copying, so a backup cannot retain a committed synced purge's postings.
+  Pending purge compaction is derived cleanup, not a licensed content write; an expired trial cannot block it.
   Blank drafts compact too: zero current token counts cannot establish that no old deletion tombstones remain.
   Rebuild Search Index uses `'delete-all'` followed by insertion from every `notes` row, empties `search_stale`, and checks internal FTS integrity and the indexed row count in the same cancellable transaction.
 - Markdown export (see Export and print) writes notes and notebooks as Markdown files that import back as they were.
