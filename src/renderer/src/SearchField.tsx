@@ -5,7 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type MutableRefObject,
+  type RefObject,
   type Ref,
 } from 'react'
 import type { BookRecord, TagRecord } from '../../core/storage'
@@ -40,7 +40,7 @@ const SYNTAX = [
 ] as const
 
 function mergeInputRef(
-  local: MutableRefObject<HTMLInputElement | null>,
+  local: RefObject<HTMLInputElement | null>,
   forwarded: Ref<HTMLInputElement>,
 ) {
   return (node: HTMLInputElement | null) => {
