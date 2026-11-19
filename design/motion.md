@@ -47,8 +47,6 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 
 ## Rules
 
-The empty scoped search's Search All Notes button uses the standard button hover and press feedback; changing scope replaces the results in place without additional motion.
-
 - **One curve for movement.** Whatever moves, grows, unfolds or turns uses `motion.easing.move`: a critically damped spring drawn as a curve. It is already moving fast in its first frame, so the window answers at once; it settles softly and never overshoots. Ease-in-out (`motion.easing.standard`) is for opacity and colour only; hover and focus keep their own quick curves.
 - **Interruptible.** A change that comes while a move is under way carries on from where things are seen, at the speed they have: a slide adds to the one under way (`composite: 'add'`, measured without it by `drawnOffset`), and a fade turns back from how opaque it is. Nothing jumps or restarts from rest.
 - **Final state first.** The layout takes its new state at once; the motion plays from the old place to it on top (transforms), and is removed when it ends.
@@ -77,6 +75,7 @@ The empty scoped search's Search All Notes button uses the standard button hover
 
 ## Interactions
 
+- **Search All Notes in an empty scoped search:** rule 2, replacing the results in place without additional motion; the button uses the standard hover and press feedback (rule 4).
 - **Buttons, tools, pop-up buttons, segments, a field's clear button:** shrink to `motion.scale.press` while pressed, and spring back on release. Editor floating bar buttons and rows do not: their pressed state is a fill.
 - **Segmented controls:** the pressed look takes its new place at once, and a copy of it slides there on top (`segmentSlide.ts`) on a settling spring. Pressing the pressed segment picks the copy up: it can be dragged to another segment, and the choice applies on release, lifting to `motion.scale.segment-lift` while it is held. A control that remounts on the change gives the place it came from; another view never slides it. A pressed segment does not shrink. A thumb moving between segments of different widths animates its width (a known exception to compositor only).
 - **Switch:** the knob widens by `motion.scale.knob-press` while pressed, away from the side it rests on, and stays a capsule. It animates width (small; a known exception to compositor only).

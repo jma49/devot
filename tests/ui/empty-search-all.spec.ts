@@ -1,4 +1,4 @@
-import { expect, test, openApp } from './fixtures'
+import { expect, test, openApp, reloadApp } from './fixtures'
 
 test.beforeEach(async ({ page }) => {
   await openApp(page)
@@ -43,4 +43,44 @@ test('widening an empty notebook search keeps its query and finds notes outside 
     /^Outside notebook match/,
   ])
   await expect(page.locator('.list-empty')).toHaveCount(0)
+})
+
+test('an empty gallery search can widen its scope without changing its query', async ({ page }) => {
+  await page
+    .getByRole('group', { name: 'Layout' })
+    .getByRole('button', { name: 'Gallery', exact: true })
+    .click()
+  const search = page.getByRole('searchbox', { name: 'Search notes' })
+  await search.fill('no matching notes anywhere')
+  await expect(page.locator('.gallery .list-empty')).toBeVisible()
+  const empty = page.locator('.list-empty')
+  const searchAll = empty.getByRole('button', { name: 'Search All Notes', exact: true })
+  await expect(searchAll).toBeVisible()
+  await searchAll.click()
+  await expect(search).toHaveValue('no matching notes anywhere')
+  await expect(search).toHaveAttribute('placeholder', 'Search All Notes')
+  await expect(searchAll).toHaveCount(0)
+  await expect(empty.locator('.list-empty-tip')).toHaveText('Try other words.')
+})
+
+test('the Simplified Chinese scoped empty search keeps its action readable', async ({
+  page,
+}, testInfo) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN'] })
+    window.devotIpcMocks = {
+      ...window.devotIpcMocks,
+      app_language_get: { chosen: 'zh-Hans', running: 'zh-Hans', available: true },
+    }
+  })
+  await reloadApp(page)
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hans')
+  await page.getByRole('searchbox').fill('no matching notes anywhere')
+  const empty = page.locator('.list-empty')
+  await expect(
+    empty.getByRole('button', { name: '\u641c\u7d22\u6240\u6709\u7b14\u8bb0', exact: true }),
+  ).toBeVisible()
+  await expect(empty.locator('.list-empty-message')).toBeVisible()
+  await expect(empty.locator('.list-empty-tip')).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('scoped-empty-zh.png') })
 })
