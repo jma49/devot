@@ -30,9 +30,15 @@ export const removeAiKey = (provider: AiApiProviderId) => view('ai_key_clear', {
 
 export const refreshAiCli = () => view('ai_cli_refresh')
 
-/** Each provider's models, from Rust's last lists unless `refresh`. */
-export async function loadAiModels(refresh = false): Promise<AiCatalogs> {
-  const catalogs = asAiCatalogs(await invoke<unknown>('ai_models', { refresh }))
+/**
+ * The models of each provider named, from Rust's last lists unless `refresh`.
+ * An HTTP provider's list goes to its server with the stored key, so ask for it only when the user opens that provider.
+ */
+export async function loadAiModels(
+  providers: readonly AiProviderId[],
+  refresh = false,
+): Promise<AiCatalogs> {
+  const catalogs = asAiCatalogs(await invoke<unknown>('ai_models', { providers, refresh }))
   if (!catalogs) throw new Error('E_AI_RESPONSE_INVALID')
   return catalogs
 }

@@ -350,7 +350,9 @@ describe('the model lists Rust reports', () => {
     }
     expect(asAiCatalogs(catalogs)).toEqual(catalogs)
     expect(asAiCatalogs({ ...catalogs, openai: { state: 'failed', code: 'boom' } })).toBeUndefined()
-    expect(asAiCatalogs({ ...catalogs, anthropic: undefined })).toBeUndefined()
+    const unasked = { openai: catalogs.openai, codexCli: catalogs.codexCli }
+    expect(asAiCatalogs(unasked)).toEqual(unasked)
+    expect(asAiCatalogs({})).toEqual({})
     expect(asAiCatalogs({ ...catalogs, claudeCli: { state: 'maybe' } })).toBeUndefined()
     expect(asAiCatalogs(null)).toBeUndefined()
   })

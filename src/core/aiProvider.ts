@@ -287,8 +287,8 @@ export type AiCatalog =
     }
   | { state: 'failed'; code: string }
 
-export type AiCatalogs = Record<AiApiProviderId, AiCatalog> &
-  Partial<Record<AiCliProviderId, AiCatalog>>
+/** The lists of the providers asked for (`ai_models` takes them by name). */
+export type AiCatalogs = Partial<Record<AiProviderId, AiCatalog>>
 
 /** A Try It answer (the `ai_try` command). */
 export interface AiTried {
@@ -333,11 +333,8 @@ function asCatalog(value: unknown): AiCatalog | undefined {
 export function asAiCatalogs(value: unknown): AiCatalogs | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const fields = value as Record<string, unknown>
-  const anthropic = asCatalog(fields.anthropic)
-  const openai = asCatalog(fields.openai)
-  if (!anthropic || !openai) return undefined
-  const catalogs: AiCatalogs = { anthropic, openai }
-  for (const id of AI_CLI_PROVIDERS) {
+  const catalogs: AiCatalogs = {}
+  for (const id of AI_PROVIDERS) {
     if (fields[id] === undefined || fields[id] === null) continue
     const catalog = asCatalog(fields[id])
     if (!catalog) return undefined

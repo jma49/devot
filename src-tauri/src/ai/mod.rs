@@ -92,12 +92,14 @@ pub struct Snapshot {
     pub suggest_model: Option<SuggestModel>,
 }
 
-/// Each provider's models; a provider that could not list them carries its own failure code.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// The models of each provider asked for; one that could not list them carries its own failure code.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Catalogs {
-    pub anthropic: Catalog,
-    pub openai: Catalog,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anthropic: Option<Catalog>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub openai: Option<Catalog>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claude_cli: Option<Catalog>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -392,9 +394,20 @@ impl Ai {
         {
             return Err("E_AI_PROVIDER_UNAVAILABLE");
         }
+        let saved = self
+            .clear_moved_keys(&settings)
+            .and_then(|()| self.settings.set(settings));
+        // A key may have gone even when the save then fails.
+        self.forget_catalogs();
+        saved?;
+        Ok(self.snapshot())
+    }
+
+    /// A key belongs to the origin it was entered for, so a provider moved to another origin loses it.
+    fn clear_moved_keys(&self, next: &AiSettings) -> Result<(), &'static str> {
         let before = self.settings.get();
         for id in ProviderId::HTTP {
-            if let (Some(prev), Some(next)) = (before.of(id), settings.of(id))
+            if let (Some(prev), Some(next)) = (before.of(id), next.of(id))
                 && !settings::same_origin(&prev.endpoint, &next.endpoint)
             {
                 match self.keys.clear(id) {
@@ -403,9 +416,7 @@ impl Ai {
                 }
             }
         }
-        self.settings.set(settings)?;
-        self.forget_catalogs();
-        Ok(self.snapshot())
+        Ok(())
     }
 
     pub fn set_key(&self, id: ProviderId, key: &str) -> Result<Snapshot, &'static str> {
@@ -421,8 +432,9 @@ impl Ai {
         if id.is_cli() {
             return Err("E_AI_REQUEST_INVALID");
         }
-        self.keys.clear(id)?;
+        let cleared = self.keys.clear(id);
         self.forget_catalogs();
+        cleared?;
         Ok(self.snapshot())
     }
 
@@ -744,11 +756,11 @@ impl Ai {
             purpose: Purpose::Main,
         };
         let started = Instant::now();
-        let generated = self.generate_with(
+        self.generate_with(
             &request,
             Some(Choice {
                 id,
-                model: Some(model),
+                model: Some(model.clone()),
                 reasoning,
             }),
         )?;
@@ -756,7 +768,7 @@ impl Ai {
         log::info!("I_AI_TRIED provider={} ms={elapsed_ms}", id.as_str());
         Ok(Tried {
             provider: id,
-            model: generated.model,
+            model,
             elapsed_ms,
         })
     }
@@ -765,42 +777,45 @@ impl Ai {
         self.catalog_epoch.fetch_add(1, Ordering::SeqCst);
     }
 
-    /// Each provider's models, from the cache unless `refresh`; a provider that fails does not fail the others.
-    pub fn models(&self, refresh: bool) -> Catalogs {
+    /// The models of each provider in `providers`, from the cache unless `refresh`; a provider that fails does not fail the others.
+    pub fn models(
+        &self,
+        providers: &[ProviderId],
+        refresh: bool,
+    ) -> Result<Catalogs, &'static str> {
+        let distinct = providers
+            .iter()
+            .enumerate()
+            .all(|(i, id)| !providers[..i].contains(id));
+        if providers.is_empty() || !distinct {
+            return Err("E_AI_REQUEST_INVALID");
+        }
         let settings = self.settings.get();
         let epoch = self.catalog_epoch.load(Ordering::SeqCst);
-        std::thread::scope(|scope| {
-            let fetch = |id: ProviderId| {
-                let settings = &settings;
-                scope.spawn(move || self.catalog(id, settings, epoch, refresh))
-            };
-            let anthropic = fetch(ProviderId::Anthropic);
-            let openai = fetch(ProviderId::Openai);
-            #[cfg(any(desktop, test))]
-            let (claude_cli, codex_cli) = if self.cli.is_some() {
-                (
-                    Some(fetch(ProviderId::ClaudeCli)),
-                    Some(fetch(ProviderId::CodexCli)),
-                )
-            } else {
-                (None, None)
-            };
-            let joined = |handle: std::thread::ScopedJoinHandle<'_, Catalog>| {
-                handle.join().unwrap_or(Catalog::Failed { code: FAILED })
-            };
-            Catalogs {
-                anthropic: joined(anthropic),
-                openai: joined(openai),
-                #[cfg(any(desktop, test))]
-                claude_cli: claude_cli.map(joined),
-                #[cfg(any(desktop, test))]
-                codex_cli: codex_cli.map(joined),
-                #[cfg(not(any(desktop, test)))]
-                claude_cli: None,
-                #[cfg(not(any(desktop, test)))]
-                codex_cli: None,
+        Ok(std::thread::scope(|scope| {
+            let handles: Vec<_> = providers
+                .iter()
+                .map(|&id| {
+                    let settings = &settings;
+                    (
+                        id,
+                        scope.spawn(move || self.catalog(id, settings, epoch, refresh)),
+                    )
+                })
+                .collect();
+            let mut catalogs = Catalogs::default();
+            for (id, handle) in handles {
+                let catalog = handle.join().unwrap_or(Catalog::Failed { code: FAILED });
+                let slot = match id {
+                    ProviderId::Anthropic => &mut catalogs.anthropic,
+                    ProviderId::Openai => &mut catalogs.openai,
+                    ProviderId::ClaudeCli => &mut catalogs.claude_cli,
+                    ProviderId::CodexCli => &mut catalogs.codex_cli,
+                };
+                *slot = Some(catalog);
             }
-        })
+            catalogs
+        }))
     }
 
     fn catalog(&self, id: ProviderId, settings: &AiSettings, epoch: u64, refresh: bool) -> Catalog {
@@ -828,13 +843,15 @@ impl Ai {
                     models.len()
                 );
                 let mut cache = self.catalogs.lock().unwrap_or_else(|e| e.into_inner());
-                cache.insert(
-                    id,
-                    CachedCatalog {
-                        source,
-                        models: models.clone(),
-                    },
-                );
+                if self.catalog_epoch.load(Ordering::SeqCst) == epoch {
+                    cache.insert(
+                        id,
+                        CachedCatalog {
+                            source,
+                            models: models.clone(),
+                        },
+                    );
+                }
                 Catalog::Ready {
                     models,
                     default_model,
@@ -863,7 +880,16 @@ impl Ai {
         }
         let implementation = provider(id).ok_or("E_AI_PROVIDER_UNAVAILABLE")?;
         let entry = settings.of(id).ok_or("E_AI_PROVIDER_UNAVAILABLE")?;
+        // Asked without a prompt first, so a provider with no key never reads the keychain.
+        if !self.keys.has(id)? {
+            return Err("E_AI_KEY_MISSING");
+        }
         let key = self.keys.get(id)?.ok_or("E_AI_KEY_MISSING")?;
+        // Reading the key can wait on the keychain; a key stays with the endpoint it was read for.
+        let current = self.settings.get();
+        if current.of(id).map(|now| now.endpoint.as_str()) != Some(entry.endpoint.as_str()) {
+            return Err("E_AI_SETTINGS_CHANGED");
+        }
         let wire = implementation.models_request(&entry.endpoint, &key);
         let answer = transport::get(&wire, self.timeout.min(CATALOG_TIMEOUT))?;
         if !(200..300).contains(&answer.status) {
@@ -1031,10 +1057,14 @@ pub async fn ai_key_clear(
     Ok(ai_key_clear_inner(&ai, provider).await?)
 }
 
-/// Each provider's models for the model picker; `refresh` fetches them again instead of using the last lists.
+/// The models of each provider in `providers` for the model picker; `refresh` fetches them again instead of using the last lists.
 #[tauri::command]
-pub async fn ai_models(ai: State<'_, Arc<Ai>>, refresh: bool) -> Result<Catalogs, String> {
-    task::blocking_with(&ai, FAILED, move |ai| Ok(ai.models(refresh))).await
+pub async fn ai_models(
+    ai: State<'_, Arc<Ai>>,
+    providers: Vec<ProviderId>,
+    refresh: bool,
+) -> Result<Catalogs, String> {
+    task::blocking_with(&ai, FAILED, move |ai| ai.models(&providers, refresh)).await
 }
 
 /// Try It: a fixed prompt with no note text, sent to one provider and model.

@@ -1323,12 +1323,14 @@ fn a_cancel_after_a_stream_ended_stops_no_later_stream() {
 const ANTHROPIC_MODELS: &str = r#"{"data":[{"id":"claude-opus-5-5","display_name":"Claude Opus 5.5","capabilities":{"effort":{"supported":true,"low":{"supported":true},"high":{"supported":true},"max":{"supported":true}}}}],"has_more":false}"#;
 const OPENAI_MODELS: &str = r#"{"object":"list","data":[{"id":"gpt-x","object":"model"}]}"#;
 
-fn ready(catalog: &Catalog) -> Vec<String> {
+fn ready(catalog: Option<&Catalog>) -> Vec<String> {
     match catalog {
-        Catalog::Ready { models, .. } => models.iter().map(|m| m.id.clone()).collect(),
-        Catalog::Failed { code } => panic!("catalog failed with {code}"),
+        Some(Catalog::Ready { models, .. }) => models.iter().map(|m| m.id.clone()).collect(),
+        other => panic!("not a list: {other:?}"),
     }
 }
+
+const HTTP: [ProviderId; 2] = [ProviderId::Anthropic, ProviderId::Openai];
 
 /// An app whose Anthropic provider talks to `anthropic` and OpenAI-compatible one to `openai`, both with keys.
 fn two_servers(anthropic: &Mock, openai: &Mock) -> Setup {
@@ -1347,11 +1349,11 @@ fn each_provider_lists_its_models_and_one_that_fails_leaves_the_others() {
     let openai = Mock::replying(500, "{}");
     let app = two_servers(&anthropic, &openai);
 
-    let catalogs = app.ai.models(false);
-    let Catalog::Ready {
+    let catalogs = app.ai.models(&HTTP, false).unwrap();
+    let Some(Catalog::Ready {
         models,
         default_model,
-    } = &catalogs.anthropic
+    }) = &catalogs.anthropic
     else {
         panic!("{:?}", catalogs.anthropic);
     };
@@ -1361,9 +1363,9 @@ fn each_provider_lists_its_models_and_one_that_fails_leaves_the_others() {
     assert_eq!(*default_model, Some("claude-sonnet-5-5"));
     assert_eq!(
         catalogs.openai,
-        Catalog::Failed {
+        Some(Catalog::Failed {
             code: "E_AI_PROVIDER_UNAVAILABLE"
-        }
+        })
     );
     assert_eq!((catalogs.claude_cli, catalogs.codex_cli), (None, None));
 
@@ -1386,10 +1388,10 @@ fn each_provider_lists_its_models_and_one_that_fails_leaves_the_others() {
 fn no_model_list_is_asked_for_without_a_key() {
     let server = Mock::replying(200, ANTHROPIC_MODELS);
     let app = setup(ProviderId::Anthropic, &server.base);
-    let catalogs = app.ai.models(true);
-    let missing = Catalog::Failed {
+    let catalogs = app.ai.models(&HTTP, true).unwrap();
+    let missing = Some(Catalog::Failed {
         code: "E_AI_KEY_MISSING",
-    };
+    });
     assert_eq!(
         (&catalogs.anthropic, &catalogs.openai),
         (&missing, &missing)
@@ -1406,21 +1408,21 @@ fn a_model_list_is_kept_until_a_refresh_or_a_new_key_and_a_failure_is_not_kept()
     ]);
     let app = two_servers(&anthropic, &openai);
 
-    let first = app.ai.models(false);
-    assert!(matches!(first.openai, Catalog::Failed { .. }));
-    let second = app.ai.models(false);
-    assert_eq!(ready(&second.anthropic), ["claude-opus-5-5"]);
-    assert_eq!(ready(&second.openai), ["gpt-x"]);
+    let first = app.ai.models(&HTTP, false).unwrap();
+    assert!(matches!(first.openai, Some(Catalog::Failed { .. })));
+    let second = app.ai.models(&HTTP, false).unwrap();
+    assert_eq!(ready(second.anthropic.as_ref()), ["claude-opus-5-5"]);
+    assert_eq!(ready(second.openai.as_ref()), ["gpt-x"]);
     assert_eq!((anthropic.hits(), openai.hits()), (1, 2));
 
-    app.ai.models(false);
+    app.ai.models(&HTTP, false).unwrap();
     assert_eq!((anthropic.hits(), openai.hits()), (1, 2));
-    app.ai.models(true);
+    app.ai.models(&HTTP, true).unwrap();
     assert_eq!((anthropic.hits(), openai.hits()), (2, 3));
     app.ai
         .set_key(ProviderId::Anthropic, "another-key-0123456789")
         .unwrap();
-    app.ai.models(false);
+    app.ai.models(&HTTP, false).unwrap();
     assert_eq!(anthropic.hits(), 3);
 }
 
@@ -1429,7 +1431,7 @@ fn a_model_list_fetched_for_one_server_is_not_shown_for_another() {
     let first = Mock::replying(200, ANTHROPIC_MODELS);
     let app = setup(ProviderId::Anthropic, &first.base);
     app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
-    app.ai.models(false);
+    app.ai.models(&[ProviderId::Anthropic], false).unwrap();
     assert_eq!(first.hits(), 1);
 
     let second = Mock::replying(200, r#"{"data":[{"id":"claude-haiku-5-5"}]}"#);
@@ -1437,8 +1439,8 @@ fn a_model_list_fetched_for_one_server_is_not_shown_for_another() {
     settings.anthropic.endpoint = second.base.clone();
     app.ai.set_settings(settings).unwrap();
     app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
-    let catalogs = app.ai.models(false);
-    assert_eq!(ready(&catalogs.anthropic), ["claude-haiku-5-5"]);
+    let catalogs = app.ai.models(&[ProviderId::Anthropic], false).unwrap();
+    assert_eq!(ready(catalogs.anthropic.as_ref()), ["claude-haiku-5-5"]);
     assert_eq!(second.hits(), 1);
 }
 
@@ -1454,9 +1456,11 @@ fn command_line_tools_list_their_models_until_they_are_probed_again() {
     )
     .with_cli(Arc::clone(&cli) as Arc<dyn super::cli::CliBackend>);
 
-    let catalogs = ai.models(false);
+    let both = [ProviderId::ClaudeCli, ProviderId::CodexCli];
+    let catalogs = ai.models(&both, false).unwrap();
+    assert_eq!((&catalogs.anthropic, &catalogs.openai), (&None, &None));
     assert_eq!(
-        ready(catalogs.claude_cli.as_ref().unwrap()),
+        ready(catalogs.claude_cli.as_ref()),
         ["opus", "sonnet", "haiku", "fable"]
     );
     assert_eq!(
@@ -1466,10 +1470,10 @@ fn command_line_tools_list_their_models_until_they_are_probed_again() {
         })
     );
     assert_eq!(*cli.listings.lock().unwrap(), 2);
-    ai.models(false);
+    ai.models(&both, false).unwrap();
     assert_eq!(*cli.listings.lock().unwrap(), 3);
     ai.refresh_cli();
-    ai.models(false);
+    ai.models(&both, false).unwrap();
     assert_eq!(*cli.listings.lock().unwrap(), 5);
 }
 
@@ -1660,4 +1664,234 @@ fn try_it_refuses_a_bad_model_or_level_and_reports_a_failure_as_a_code() {
         ai.try_model(ProviderId::Openai, "gpt-x", None),
         Err("E_AI_KEY_MISSING")
     );
+}
+
+/// Counts keychain reads, so a test can show that no secret was read.
+#[derive(Default)]
+struct CountingKeys {
+    keys: MemoryKeys,
+    reads: Mutex<usize>,
+}
+
+impl KeyStore for CountingKeys {
+    fn has(&self, provider: ProviderId) -> Result<bool, &'static str> {
+        self.keys.has(provider)
+    }
+
+    fn get(&self, provider: ProviderId) -> Result<Option<String>, &'static str> {
+        *self.reads.lock().unwrap() += 1;
+        self.keys.get(provider)
+    }
+
+    fn set(&self, provider: ProviderId, key: &str) -> Result<(), &'static str> {
+        self.keys.set(provider, key)
+    }
+
+    fn clear(&self, provider: ProviderId) -> Result<(), &'static str> {
+        self.keys.clear(provider)
+    }
+}
+
+#[test]
+fn a_model_list_is_asked_only_of_the_providers_named() {
+    let anthropic = Mock::replying(200, ANTHROPIC_MODELS);
+    let openai = Mock::replying(200, OPENAI_MODELS);
+    let app = two_servers(&anthropic, &openai);
+
+    let catalogs = app.ai.models(&[ProviderId::Openai], false).unwrap();
+    assert_eq!(ready(catalogs.openai.as_ref()), ["gpt-x"]);
+    assert_eq!(catalogs.anthropic, None);
+    assert_eq!((anthropic.hits(), openai.hits()), (0, 1));
+    assert_eq!(
+        serde_json::to_value(&catalogs).unwrap(),
+        json!({"openai": {"state": "ready", "defaultModel": null, "models": [
+            {"id": "gpt-x", "name": "gpt-x", "tier": null, "reasoning": [], "defaultReasoning": null}
+        ]}})
+    );
+
+    assert_eq!(app.ai.models(&[], false), Err("E_AI_REQUEST_INVALID"));
+    assert_eq!(
+        app.ai
+            .models(&[ProviderId::Openai, ProviderId::Openai], false),
+        Err("E_AI_REQUEST_INVALID")
+    );
+    let unknown: Result<ProviderId, _> = serde_json::from_value(json!("gemini"));
+    assert!(unknown.is_err());
+}
+
+#[test]
+fn a_provider_without_a_key_lists_nothing_and_reads_no_secret() {
+    let server = Mock::replying(200, ANTHROPIC_MODELS);
+    let dir = tempfile::tempdir().unwrap();
+    let store = SettingsStore::new(&dir.path().join(FILE));
+    let mut settings = store.get();
+    settings.anthropic.endpoint = server.base.clone();
+    store.set(settings).unwrap();
+    let keys = Arc::new(CountingKeys::default());
+    let ai = Ai::new(store, Arc::clone(&keys) as Arc<dyn KeyStore>, Gate::open());
+
+    let catalogs = ai.models(&HTTP, true).unwrap();
+    assert_eq!(
+        catalogs.anthropic,
+        Some(Catalog::Failed {
+            code: "E_AI_KEY_MISSING"
+        })
+    );
+    assert_eq!(*keys.reads.lock().unwrap(), 0);
+    ai.snapshot();
+    assert_eq!(*keys.reads.lock().unwrap(), 0, "Settings reads no secret");
+
+    ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    let catalogs = ai.models(&[ProviderId::Anthropic], true).unwrap();
+    assert_eq!(ready(catalogs.anthropic.as_ref()), ["claude-opus-5-5"]);
+    assert_eq!(*keys.reads.lock().unwrap(), 1);
+}
+
+#[test]
+fn a_list_read_under_settings_since_changed_is_not_fetched() {
+    let server = Mock::replying(200, ANTHROPIC_MODELS);
+    let app = setup(ProviderId::Anthropic, &server.base);
+    app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    let read_before = app.ai.settings.get();
+
+    let mut moved = app.ai.settings.get();
+    moved.anthropic.endpoint = format!("{}/other", server.base);
+    app.ai.set_settings(moved).unwrap();
+    assert!(
+        app.keys.has(ProviderId::Anthropic).unwrap(),
+        "same origin keeps the key"
+    );
+    let epoch_after = app.ai.catalog_epoch.load(Ordering::SeqCst);
+
+    assert_eq!(
+        app.ai
+            .catalog(ProviderId::Anthropic, &read_before, epoch_after, true),
+        Catalog::Failed {
+            code: "E_AI_SETTINGS_CHANGED"
+        }
+    );
+    assert_eq!(server.hits(), 0);
+}
+
+#[test]
+fn a_list_fetched_before_a_change_is_returned_but_never_cached() {
+    let server = Mock::replying(200, ANTHROPIC_MODELS);
+    let app = setup(ProviderId::Anthropic, &server.base);
+    app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    let settings = app.ai.settings.get();
+    let stale = app.ai.catalog_epoch.load(Ordering::SeqCst);
+    app.ai.forget_catalogs();
+
+    let catalog = app
+        .ai
+        .catalog(ProviderId::Anthropic, &settings, stale, false);
+    assert_eq!(ready(Some(&catalog)), ["claude-opus-5-5"]);
+    assert!(app.ai.catalogs.lock().unwrap().is_empty());
+    app.ai.models(&[ProviderId::Anthropic], false).unwrap();
+    assert_eq!(server.hits(), 2);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_key_cleared_by_a_save_that_then_fails_is_no_longer_listed_from_the_cache() {
+    use std::os::unix::fs::PermissionsExt;
+    let server = Mock::replying(200, ANTHROPIC_MODELS);
+    let app = setup(ProviderId::Anthropic, &server.base);
+    app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    app.ai.models(&[ProviderId::Anthropic], false).unwrap();
+    assert_eq!(server.hits(), 1);
+
+    let folder = app._dir.path();
+    let mut moved = app.ai.settings.get();
+    moved.anthropic.endpoint = "https://elsewhere.example.com".into();
+    std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let saved = app.ai.set_settings(moved);
+    std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(saved.unwrap_err(), "E_AI_SETTINGS_WRITE_FAILED");
+    assert!(!app.keys.has(ProviderId::Anthropic).unwrap());
+
+    let catalogs = app.ai.models(&[ProviderId::Anthropic], false).unwrap();
+    assert_eq!(
+        catalogs.anthropic,
+        Some(Catalog::Failed {
+            code: "E_AI_KEY_MISSING"
+        })
+    );
+    assert_eq!(server.hits(), 1);
+}
+
+#[test]
+fn a_command_line_tool_without_its_backend_is_unavailable() {
+    let app = setup(ProviderId::Anthropic, "https://api.example.com");
+    let catalogs = app
+        .ai
+        .models(&[ProviderId::ClaudeCli, ProviderId::CodexCli], false)
+        .unwrap();
+    let unavailable = Some(Catalog::Failed {
+        code: "E_AI_PROVIDER_UNAVAILABLE",
+    });
+    assert_eq!(
+        (&catalogs.claude_cli, &catalogs.codex_cli),
+        (&unavailable, &unavailable)
+    );
+}
+
+#[test]
+fn an_empty_suggestion_model_is_its_providers_model_setting() {
+    let reply = (contracts()[0].ok)("Hi").to_string();
+    let mock = Mock::replying(200, reply);
+    let app = setup(ProviderId::Openai, &mock.base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+    let mut settings = app.ai.settings.get();
+    settings.anthropic.model = "model-main".into();
+    settings.suggest_model = Omittable::Set(SuggestModel {
+        provider: ProviderId::Anthropic,
+        model: String::new(),
+        reasoning: None,
+    });
+    app.ai.set_settings(settings).unwrap();
+
+    let mut request = ask();
+    request.purpose = Purpose::Suggest;
+    let generated = app.ai.generate(&request).unwrap();
+    assert_eq!(generated.provider, ProviderId::Anthropic);
+    let seen = mock.seen.lock().unwrap();
+    assert_eq!(seen[0].path, "/v1/messages");
+    assert_eq!(seen[0].body["model"], "model-main");
+}
+
+#[test]
+fn a_suggestion_model_without_a_key_fails_and_never_falls_back() {
+    let reply = (contracts()[0].ok)("Hi").to_string();
+    let mock = Mock::replying(200, reply);
+    let app = setup(ProviderId::Anthropic, &mock.base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+    let mut settings = app.ai.settings.get();
+    settings.suggest_model = Omittable::Set(SuggestModel {
+        provider: ProviderId::Openai,
+        model: "small".into(),
+        reasoning: None,
+    });
+    app.ai.set_settings(settings).unwrap();
+
+    let mut request = ask();
+    request.purpose = Purpose::Suggest;
+    assert_eq!(app.ai.generate(&request).unwrap_err(), "E_AI_KEY_MISSING");
+    assert_eq!(mock.hits(), 0);
+}
+
+#[test]
+fn try_it_answers_the_model_it_was_asked_for() {
+    use super::CliState;
+    let dir = tempfile::tempdir().unwrap();
+    let cli = StubCli::new(CliState::Ready, CliState::Ready);
+    let ai = Ai::new(
+        SettingsStore::new(&dir.path().join(FILE)),
+        Arc::new(MemoryKeys::default()),
+        Gate::open(),
+    )
+    .with_cli(Arc::clone(&cli) as Arc<dyn super::cli::CliBackend>);
+    let tried = ai.try_model(ProviderId::ClaudeCli, " opus ", None).unwrap();
+    assert_eq!(tried.model, "opus");
+    assert_eq!(cli.runs.lock().unwrap()[0].1, "opus");
 }
