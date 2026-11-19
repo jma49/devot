@@ -213,7 +213,7 @@ Exceptions to these rules, each chosen on purpose:
 - **The sidebar footer's ends:** the sidebar's icon column wins over the end-cap rule.
   Its dot is a sidebar row's start padding (`size.sidebar-row-padding`, 10) from the outer edge, border included, so it sits on the column of the rows' icons, 4 off concentric with the end cap.
   Its chevron end matches: `size.sidebar-footer-end-sm` (6) puts the chevron's centre as far from its end (14) as the dot's is from the other, so the two ends look the same.
-  The footer grows above its minimum height when the localized status wraps, keeping the dot and chevron centered beside the text.
+  In the narrow overlay the footer can grow above its minimum height to fit the localized status, with the dot and chevron centered beside the wrapped text.
 - **The notebook pill's icon:** it is `size.icon-sm` (14), not the 10 px of the pill's other glyphs.
   A line icon is drawn larger to carry the weight of the filled 10 px marks beside it (the status icon, a tag's dot).
 

@@ -1242,6 +1242,10 @@ button {
   background: var(--color-fill-tool-hover);
 }
 
+.window:not([data-narrow]) .footer-toggle {
+  height: var(--size-sidebar-footer);
+}
+
 .footer-toggle .icon {
   background-color: var(--color-text-secondary);
 }
@@ -1272,6 +1276,12 @@ button {
   min-width: 0;
   overflow-wrap: anywhere;
   text-wrap: balance;
+}
+
+.window:not([data-narrow]) .footer-saved {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .footer-panel {
