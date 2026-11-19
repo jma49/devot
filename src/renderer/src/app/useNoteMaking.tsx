@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -27,7 +29,6 @@ import { notebookForNewNote } from '../notebookChoices'
 import { saveEdits } from '../saveGuards'
 import type { Selection } from '../Sidebar'
 import { useStable } from '../stable'
-import { TemplatePicker } from '../TemplatePicker'
 import { currentRecentTemplates } from '../templates'
 import { track } from '../usage'
 import type { useSearch } from '../useSearch'
@@ -35,6 +36,10 @@ import type { LibraryLists } from './useLibraryLists'
 import type { ViewState } from './useLibraryView'
 import type { useMode } from './useMode'
 import { logFailure } from '../failure'
+
+const TemplatePicker = lazy(() =>
+  import('../TemplatePicker').then((module) => ({ default: module.TemplatePicker })),
+)
 
 export const dailySettings = (): DailyNotesSettings => {
   const { dailyNotebook, dailyTemplate, dailyTitleFormat } = editorSettings()
@@ -399,22 +404,24 @@ export function useNoteMaking({
 
   const templatePicker =
     core && picking ? (
-      <TemplatePicker
-        core={core}
-        templates={templates}
-        headlines={loadHeadlines}
-        recent={picking.recent}
-        books={books}
-        bookId={libraryBook?.id ?? null}
-        locales={viewState.locales}
-        intoOpenNote={picking.into !== undefined}
-        onCreate={(id) =>
-          void (picking.into === undefined
-            ? createFromTemplate(id)
-            : fillFromTemplate(id, picking.into))
-        }
-        onCancel={() => setPicking(undefined)}
-      />
+      <Suspense fallback={null}>
+        <TemplatePicker
+          core={core}
+          templates={templates}
+          headlines={loadHeadlines}
+          recent={picking.recent}
+          books={books}
+          bookId={libraryBook?.id ?? null}
+          locales={viewState.locales}
+          intoOpenNote={picking.into !== undefined}
+          onCreate={(id) =>
+            void (picking.into === undefined
+              ? createFromTemplate(id)
+              : fillFromTemplate(id, picking.into))
+          }
+          onCancel={() => setPicking(undefined)}
+        />
+      </Suspense>
     ) : null
 
   return {
