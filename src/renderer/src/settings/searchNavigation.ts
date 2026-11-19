@@ -60,28 +60,48 @@ export function waitForSetting(
   done: () => void,
   key?: string,
 ) {
-  let live = true
+  let phase: 'initial' | 'waiting' | 'stopped' = 'initial'
+  let focusing = false
   const stop = () => {
-    live = false
+    phase = 'stopped'
     observer.disconnect()
     window.clearTimeout(timeout)
+    window.removeEventListener('pointerdown', interacted, true)
+    window.removeEventListener('keydown', interacted, true)
+    window.removeEventListener('focusin', focusChanged, true)
   }
-  const tryFocus = () => {
-    if (!live) return
-    if (label !== undefined && !focusSetting(body, label, key)) {
-      focusTemporarily(body)
-      return
-    }
-    if (label === undefined) focusTemporarily(body)
+  const finish = () => {
+    if (phase === 'stopped') return
     stop()
     done()
+  }
+  const interacted = () => finish()
+  const focusChanged = (event: Event) => {
+    if (!focusing && event.target !== body) finish()
+  }
+  const tryFocus = () => {
+    if (phase === 'stopped') return
+    focusing = true
+    try {
+      if (label !== undefined && !focusSetting(body, label, key)) {
+        if (phase === 'initial') {
+          phase = 'waiting'
+          focusTemporarily(body)
+        }
+        return
+      }
+      if (label === undefined) focusTemporarily(body)
+      finish()
+    } finally {
+      focusing = false
+    }
   }
   const observer = new MutationObserver(tryFocus)
   observer.observe(body, { childList: true, subtree: true, characterData: true })
-  const timeout = window.setTimeout(() => {
-    stop()
-    done()
-  }, 5000)
+  const timeout = window.setTimeout(finish, 5000)
+  window.addEventListener('pointerdown', interacted, true)
+  window.addEventListener('keydown', interacted, true)
+  window.addEventListener('focusin', focusChanged, true)
   queueMicrotask(tryFocus)
   return stop
 }

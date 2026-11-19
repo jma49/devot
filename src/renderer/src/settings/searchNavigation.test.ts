@@ -107,4 +107,38 @@ describe('settings search navigation', () => {
     body.remove()
     vi.useRealTimers()
   })
+
+  it.each(['pointerdown', 'keydown', 'focusin'])(
+    'cancels a pending target on %s without stealing focus later',
+    async (type) => {
+      const body = document.createElement('div')
+      const other = document.createElement('input')
+      document.body.append(body, other)
+      const focus = vi.spyOn(body, 'focus')
+      const done = vi.fn<() => void>()
+      const stop = waitForSetting(body, 'Port', done)
+      await Promise.resolve()
+      expect(document.activeElement).toBe(body)
+      body.append(document.createElement('span'))
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+      expect(focus).toHaveBeenCalledOnce()
+      if (type === 'focusin') other.focus()
+      else window.dispatchEvent(new Event(type))
+      expect(done).toHaveBeenCalledOnce()
+      other.focus()
+      const row = document.createElement('div')
+      row.className = 'setting'
+      row.innerHTML = '<label>Port</label><input>'
+      row.scrollIntoView = vi.fn<HTMLElement['scrollIntoView']>()
+      body.append(row)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+      expect(document.activeElement).toBe(other)
+      expect(row.scrollIntoView).not.toHaveBeenCalled()
+      expect(done).toHaveBeenCalledOnce()
+      stop()
+      focus.mockRestore()
+      body.remove()
+      other.remove()
+    },
+  )
 })
