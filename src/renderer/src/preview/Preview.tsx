@@ -847,6 +847,12 @@ export function Preview({
         onContextMenu={onContextMenu}
         onCopy={(event) => {
           const pending = selectingAll.current
+          if (!awaitingFull.current) {
+            buildAll()
+            if (pending && pane.current) selectAllIn(pane.current, window.getSelection())
+            selectingAll.current = undefined
+            return
+          }
           if (!pending) {
             buildAll()
             return
@@ -862,7 +868,11 @@ export function Preview({
             () => null,
           )
           void copySelection(selection).catch(async () => {
-            if (await selection) console.warn('W_PREVIEW_COPY_FAILED')
+            if ((await selection) && note === noteNow.current && source === shown.current) {
+              buildAll()
+              if (pane.current) selectAllIn(pane.current, window.getSelection())
+              console.warn('W_PREVIEW_COPY_FAILED')
+            }
           })
         }}
         // Scrolling by the user ends a restore; scrolls made by it are not reported.

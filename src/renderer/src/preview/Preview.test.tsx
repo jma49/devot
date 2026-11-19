@@ -217,6 +217,10 @@ describe('Preview', () => {
     'handles Copy following head-only Select All: %s',
     async (change) => {
       const copied: { text: string; html: string }[] = []
+      let deny!: (error: Error) => void
+      const refused = new Promise<void>((_, reject) => {
+        deny = reject
+      })
       vi.stubGlobal(
         'ClipboardItem',
         class {
@@ -227,7 +231,7 @@ describe('Preview', () => {
         },
       )
       const write = vi.spyOn(navigator.clipboard, 'write').mockImplementation(async (items) => {
-        if (change === 'denied') throw new Error('E_TEST_CLIPBOARD_DENIED')
+        if (change === 'denied') return refused
         const item = items[0]!
         const [text, html] = await Promise.all([
           item.getType('text/plain').then((blob) => blob.text()),
@@ -282,6 +286,11 @@ describe('Preview', () => {
         else finish({ pieces: full, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
       })
       await settle()
+      if (change === 'denied') {
+        window.getSelection()?.removeAllRanges()
+        await act(async () => deny(new Error('E_TEST_CLIPBOARD_DENIED')))
+        await settle()
+      }
       expect(copy.defaultPrevented).toBe(true)
       const wholeText = expect.stringContaining('TAIL_NEEDLE')
       const wholeHtml = expect.stringContaining('TAIL_NEEDLE')
@@ -304,10 +313,50 @@ describe('Preview', () => {
             ? ['W_PREVIEW_COPY_FAILED']
             : [],
       )
+      const retry = new Event('copy', { bubbles: true, cancelable: true })
+      act(() => {
+        pane.dispatchEvent(retry)
+      })
+      expect(retry.defaultPrevented).toBe(false)
+      expect(write).toHaveBeenCalledOnce()
+      expect(window.getSelection()?.toString().includes('TAIL_NEEDLE')).toBe(
+        change === 'ready' || change === 'denied',
+      )
       warned.mockClear()
     },
     60_000,
   )
+
+  it('builds a received full answer and selects it synchronously for native Copy', async () => {
+    const markdown = `${note(40_000, 'native-copy')}\n\nTAIL_NEEDLE`
+    const pieces = await createPieceRenderer()(markdown, { labels, loadedEmbeds: [] })
+    const { core } = fakeCore()
+    core.renderLivePreview = vi
+      .fn<Core['renderLivePreview']>()
+      .mockResolvedValue({ pieces, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+    const write = vi.spyOn(navigator.clipboard, 'write')
+    const { body } = show(core, markdown, 'native-copy')
+    await act(async () => {
+      for (let i = 0; i < 40; i++) await Promise.resolve()
+    })
+    expect(body().textContent).not.toContain('TAIL_NEEDLE')
+    const pane = body().closest('.preview')!
+    act(() => {
+      pane.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true, cancelable: true }),
+      )
+    })
+    const copy = new Event('copy', { bubbles: true, cancelable: true })
+    act(() => {
+      pane.dispatchEvent(copy)
+    })
+    expect(copy.defaultPrevented).toBe(false)
+    expect(write).not.toHaveBeenCalled()
+    expect(window.getSelection()?.toString()).toContain('TAIL_NEEDLE')
+    const fragment = window.getSelection()!.getRangeAt(0).cloneContents()
+    expect(fragment.querySelector('strong')?.textContent).toBe('bold')
+    expect(fragment.querySelector('a')?.getAttribute('href')).toBe('https://example.com/1')
+  }, 60_000)
 
   it('adds copy controls only after a paint opportunity and drops a replaced list', async () => {
     const frames = new Map<number, FrameRequestCallback>()
