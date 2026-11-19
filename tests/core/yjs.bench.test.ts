@@ -103,6 +103,8 @@ const noteState = (id: string, doc: Y.Doc, bodyHlc: string): NoteState => ({
   deletedHlc: '',
   bodyHlc,
   tags: [],
+  drawings: [],
+  drawingsHlc: '',
   ydoc: Y.encodeStateAsUpdate(doc),
 })
 

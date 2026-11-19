@@ -10,6 +10,7 @@ import type {
   SavedSearchRecord,
   TagRecord,
 } from '../storage'
+import type { NoteDrawingsRecord } from '../plugins/drawings'
 import type { SyncKind } from './records'
 
 export interface SyncEntry {
@@ -36,6 +37,8 @@ export interface SyncNoteRow {
   purged: boolean
   /** Every membership row, removed ones included. */
   tags: NoteTagRecord[]
+  /** Its kept plugin drawings (ADR 0030); null when it never kept one. */
+  drawings: NoteDrawingsRecord | null
 }
 
 /** An attachment without its bytes (`SyncStore.syncFileData`). */

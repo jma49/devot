@@ -167,6 +167,8 @@ pub fn run() {
             commands::tags::tag_rename,
             commands::tags::note_tag_put,
             commands::tags::note_tag_get,
+            commands::drawings::note_drawings_get,
+            commands::drawings::note_drawings_put,
             commands::saved_searches::saved_searches_list,
             commands::saved_searches::saved_search_put,
             commands::welcome::welcome_seed,

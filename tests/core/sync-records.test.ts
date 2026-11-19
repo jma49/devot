@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import { BODY, bodyText } from '../../src/core'
+import { blockHash, MAX_NOTE_DRAWINGS, type KeptDrawing } from '../../src/core/plugins/drawings'
+import { sha256Hex } from '../../src/core/sha256'
 import {
   bodyPrint,
   decodeRecord,
@@ -51,6 +53,8 @@ function note(patch: Partial<NoteState> = {}): NoteState {
     deletedHlc: '',
     bodyHlc: hlc(1),
     tags: [],
+    drawings: [],
+    drawingsHlc: '',
     ydoc: stateOf(textDoc('Hello\n')),
     ...patch,
   }
@@ -204,6 +208,137 @@ describe('merging a note', () => {
     )
     expect(merged.record.tags).toEqual([{ tagId: TAG, present: false, hlc: hlc(3) }])
     expect(merged).toMatchObject({ localNews: false, remoteNews: true })
+  })
+})
+
+describe('a note’s kept drawings', () => {
+  const drawing = (content: string): KeptDrawing => ({
+    pluginId: 'com.example.graphviz',
+    language: 'dot',
+    hash: blockHash(content),
+    appearance: 'light',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg"><text>${content}</text></svg>`,
+  })
+  const header = (bytes: Uint8Array) =>
+    JSON.parse(
+      new TextDecoder().decode(bytes.subarray(5, 5 + new DataView(bytes.buffer).getUint32(1))),
+    )
+  const bigEndian = (n: number) => [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]
+  const withHeader = (record: NoteState, patch: Record<string, unknown>) => {
+    const head = new TextEncoder().encode(
+      JSON.stringify({ ...header(encodeRecord(record)), ...patch }),
+    )
+    const out = new Uint8Array(5 + head.length + record.ydoc.length)
+    out[0] = 1
+    new DataView(out.buffer).setUint32(1, head.length)
+    out.set(head, 5)
+    out.set(record.ydoc, 5 + head.length)
+    return out
+  }
+
+  it('round-trip through the note’s record', () => {
+    const record = note({ drawings: [drawing('a')], drawingsHlc: hlc(4) })
+    expect(decodeRecord(ID, encodeRecord(record))).toEqual(record)
+  })
+
+  it('leave the bytes and the print of a note without drawings as they were', () => {
+    const { drawings: _drawings, drawingsHlc: _hlc, ydoc, ...before } = note()
+    const head = new TextEncoder().encode(JSON.stringify(before))
+    expect(encodeRecord(note())).toEqual(
+      Uint8Array.from([1, ...bigEndian(head.length), ...head, ...ydoc]),
+    )
+    expect(fingerprint(note())).toBe(sha256Hex(`${JSON.stringify(before)}\n${bodyPrint(ydoc)}`))
+    expect(fingerprint(note({ drawings: [], drawingsHlc: hlc(4) }))).not.toBe(fingerprint(note()))
+  })
+
+  it('read a list this build cannot take as none, and keep the note', () => {
+    for (const patch of [
+      { drawings: [drawing('a')], drawingsHlc: 'yesterday' },
+      { drawings: 'lots', drawingsHlc: hlc(4) },
+    ]) {
+      const read = decodeRecord(ID, withHeader(note(), patch)) as NoteState
+      expect(read).toMatchObject({ title: 'Plan', drawings: [], drawingsHlc: '' })
+    }
+  })
+
+  it('drop only a drawing this build cannot read, and the fields a later build adds', () => {
+    const read = decodeRecord(
+      ID,
+      withHeader(note(), {
+        drawings: [
+          { ...drawing('a'), svg: 7 },
+          { ...drawing('b'), width: 120 },
+          drawing('b'),
+          drawing('c'),
+        ],
+        drawingsHlc: hlc(4),
+      }),
+    ) as NoteState
+    expect(read).toMatchObject({ drawings: [drawing('b'), drawing('c')], drawingsHlc: hlc(4) })
+  })
+
+  const withBlocks = (...contents: string[]) =>
+    stateOf(textDoc(contents.map((c) => '```dot\n' + c + '\n```\n').join('\n')))
+
+  it('merge by key: the drawings of blocks the body holds come from both sides', () => {
+    const ydoc = withBlocks('a', 'b')
+    const mine = note({ ydoc, drawings: [drawing('b')], drawingsHlc: hlc(5) })
+    const theirs = note({ ydoc, drawings: [], drawingsHlc: hlc(6) })
+    const kept = note({ ydoc, drawings: [drawing('a')], drawingsHlc: hlc(4) })
+    expect(mergeNote(mine, theirs)).toMatchObject({
+      record: { drawings: [drawing('b')], drawingsHlc: hlc(6) },
+      localNews: true,
+    })
+    const both = mergeNote(mine, kept)
+    expect(both.record).toMatchObject({ drawingsHlc: hlc(5) })
+    expect(both.record.kind === 'note' && both.record.drawings).toEqual(
+      [drawing('a'), drawing('b')].sort((x, y) => (x.hash < y.hash ? -1 : 1)),
+    )
+    expect(both).toMatchObject({ localNews: true, remoteNews: true })
+    expect(mergeNote(kept, mine).record).toEqual(both.record)
+  })
+
+  it('merge the drawings of blocks gone from the body as one field, the newer clock winning', () => {
+    const older = note({ drawings: [drawing('a')], drawingsHlc: hlc(4) })
+    const newer = note({ drawings: [drawing('b')], drawingsHlc: hlc(5) })
+    expect(mergeNote(older, newer)).toMatchObject({
+      record: { drawings: [drawing('b')], drawingsHlc: hlc(5) },
+      localNews: false,
+      remoteNews: true,
+    })
+    expect(mergeNote(newer, older)).toMatchObject({
+      record: { drawings: [drawing('b')] },
+      localNews: true,
+      remoteNews: false,
+    })
+    const emptied = note({ drawings: [], drawingsHlc: hlc(6) })
+    expect(mergeNote(newer, emptied).record).toMatchObject({ drawings: [] })
+  })
+
+  it('keep the same drawings within the caps whichever side merges', () => {
+    const contents = Array.from({ length: MAX_NOTE_DRAWINGS + 4 }, (_, i) => `n${i}`)
+    const ydoc = withBlocks(...contents)
+    const half = (from: number, to: number) => contents.slice(from, to).map(drawing)
+    const mine = note({ ydoc, drawings: half(0, 20), drawingsHlc: hlc(5) })
+    const theirs = note({ ydoc, drawings: half(16, contents.length), drawingsHlc: hlc(6) })
+    const one = mergeNote(mine, theirs).record as NoteState
+    expect(one.drawings).toHaveLength(MAX_NOTE_DRAWINGS)
+    expect(mergeNote(theirs, mine).record).toMatchObject({ drawings: one.drawings })
+  })
+
+  it('come back to a store an older Devot pushed the note to without them', () => {
+    const mine = note({ drawings: [drawing('a')], drawingsHlc: hlc(4) })
+    const fromOldDevot = decodeRecord(
+      ID,
+      withHeader(note({ titleHlc: hlc(9), title: 'Edited' }), {}),
+    ) as NoteState
+    const merged = mergeNote(mine, fromOldDevot)
+    expect(merged.record).toMatchObject({
+      title: 'Edited',
+      drawings: [drawing('a')],
+      drawingsHlc: hlc(4),
+    })
+    expect(merged.localNews).toBe(true)
   })
 })
 

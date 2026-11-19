@@ -52,6 +52,8 @@ const NOTES: &[&str] = &[
     "tag_rename",
     "note_tag_put",
     "note_tag_get",
+    "note_drawings_get",
+    "note_drawings_put",
     "saved_searches_list",
     "saved_search_put",
     "search_index_rebuild",

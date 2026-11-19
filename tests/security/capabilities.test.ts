@@ -384,6 +384,7 @@ describe('Tauri command permissions', () => {
       'allow-log-write',
       'allow-main-windows-changed',
       'allow-note-backlinks',
+      'allow-note-drawings-get',
       'allow-note-get',
       'allow-note-link-graph',
       'allow-note-open',
@@ -455,7 +456,7 @@ describe('Tauri command permissions', () => {
       )
     // Its core never changes notebooks or renames tags, keeps saved searches, applies a template, lists the
     // Trash, compacts the history, shows activity, lists agent writes, searches by meaning or seeds the
-    // first-launch notes:
+    // first-launch notes, nor keeps a plugin's drawing (no plugin runs there):
     // those start in the main window.
     const mainOnly = [
       'activity_list',
@@ -465,6 +466,7 @@ describe('Tauri command permissions', () => {
       'book_put',
       'books_put',
       'files_copy',
+      'note_drawings_put',
       'notes_trash_list',
       'revisions_compact',
       'revisions_compactable',

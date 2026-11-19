@@ -55,6 +55,12 @@ import {
   type TagState,
 } from './records'
 import {
+  mergeNoteDrawings,
+  pruneNoteDrawings,
+  sameDrawings,
+  type NoteDrawingsRecord,
+} from '../plugins/drawings'
+import {
   MAX_SYNC_IDS,
   type SyncEntry,
   type SyncFileMeta,
@@ -242,6 +248,8 @@ export interface SyncEngineOptions {
   pollMs?: number
   /** The most plaintext bytes in one batch. */
   batchBytes?: number
+  /** The plugins that draw here: only their drawings of blocks gone are pruned before a push (ADR 0030). None by default. */
+  drawingPlugins?: () => ReadonlySet<string>
   onStatus?: (status: SyncStatus) => void
   /** Records another device changed here, after each page they came in. */
   onApplied?: (ids: string[]) => void
@@ -275,8 +283,12 @@ export interface SyncEngine {
 
 const storageFailure = (code: string) => code.startsWith('E_STORAGE_')
 
+/** Whether drawings stored here are the ones a pulled note carries, under its clock. */
+const inStep = (drawn: NoteDrawingsRecord | null, remote: NoteState) =>
+  (drawn?.hlc ?? '') === remote.drawingsHlc && sameDrawings(drawn?.drawings ?? [], remote.drawings)
+
 function noteStateOf(row: NonNullable<SyncLocal['note']>, bodyHlc: string): NoteState {
-  const { note, purged, tags } = row
+  const { note, purged, tags, drawings } = row
   if (purged) return tombstone(note.id, note.deletedAt ?? 0, note.deletedHlc ?? '')
   return {
     kind: 'note',
@@ -297,6 +309,8 @@ function noteStateOf(row: NonNullable<SyncLocal['note']>, bodyHlc: string): Note
     deletedHlc: note.deletedHlc ?? '',
     bodyHlc,
     tags: tags.map((t) => ({ tagId: t.tagId, present: t.present, hlc: t.hlc })),
+    drawings: drawings?.drawings ?? [],
+    drawingsHlc: drawings?.hlc ?? '',
     ydoc: note.ydoc,
   }
 }
@@ -450,6 +464,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   const recheckMs = options.recheckMs ?? PAUSE_RECHECK_MS
   const pollMs = options.pollMs ?? ICLOUD_POLL_MS
   const batchBytes = options.batchBytes ?? BATCH_BYTES
+  const drawingPlugins = options.drawingPlugins ?? (() => new Set<string>())
 
   let running = false
   let connected = false
@@ -484,6 +499,11 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
    * the note back. Any write during the wait moves it on, so a trash made before that write loses.
    */
   const seenEdits = new Map<string, { edits: number; hlc: string }>()
+  /**
+   * Note ID to its `edits` after a pull it had no change of its own pending for: a push with them unmoved only hands
+   * back what the pull merged, so it drops no drawing (ADR 0030). Lost on a restart, when a push prunes as for a change.
+   */
+  const pulledEdits = new Map<string, number>()
   /** Record ID to the fingerprint the relay refused as too large; a changed record is tried again. */
   const tooLarge = new Map<string, string>()
   /** Past the retry cap: left until the next `changed`, or on iCloud the next poll or focus pass. */
@@ -716,6 +736,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         }
       }
       for (const tag of row.tags) await storage.putNoteTag({ ...tag, hlc: tick() })
+      if (row.drawings) await storage.putNoteDrawings({ ...row.drawings, hlc: tick() })
     }
     const notes = [...(await storage.listNotes()), ...(await storage.listTrash())].map((n) => n.id)
     for (let at = 0; at < notes.length; at += MAX_SYNC_IDS) {
@@ -939,24 +960,38 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const merged = mine
       ? keptBody(mine, remote, mergeRecord(mine, remote) as MergedNote)
       : { record: remote, localNews: false, remoteNews: !('purged' in remote && remote.purged) }
-    if (merged.remoteNews) await write(local, merged.record, merged as MergedNote, remote)
+    const drawn = merged.remoteNews
+      ? await write(local, merged.record, merged as MergedNote, remote)
+      : undefined
     if (merged.remoteNews && mine?.kind === 'tag' && merged.record.kind === 'tag') {
       await followRename(mine, merged.record)
     }
     const [after] = merged.remoteNews ? await sync.syncRead([remote.id]) : [local]
     const bodyHlc = merged.record.kind === 'note' ? merged.record.bodyHlc : ''
-    const state = stateOf(after, bodyHlc) ?? merged.record
+    const read = stateOf(after, bodyHlc) ?? merged.record
+    // The drawings as written, not as read after: one kept since then is a change of this device's, pushed.
+    const state =
+      drawn !== undefined && read.kind === 'note'
+        ? { ...read, drawings: drawn?.drawings ?? [], drawingsHlc: drawn?.hlc ?? '' }
+        : read
+    const ahead = drawn !== undefined && remote.kind === 'note' && !inStep(drawn, remote)
     const body = state.kind === 'note' ? bodyPrint(state.ydoc) : ''
     await sync.syncPut({
       id: remote.id,
       kind: remote.kind,
       version,
       tag,
-      fingerprint: merged.localNews ? fingerprint(remote) : fingerprint(state, body),
+      fingerprint: merged.localNews || ahead ? fingerprint(remote) : fingerprint(state, body),
       bodyHlc,
       bodyFp: body,
       synced: after?.entry?.synced ?? 0,
     })
+    const was = local?.entry
+    const edits = after?.entry?.edits
+    const onlyPulled = !was || was.edits === was.synced || pulledEdits.get(remote.id) === was.edits
+    if (remote.kind === 'note' && edits !== undefined && onlyPulled)
+      pulledEdits.set(remote.id, edits)
+    else pulledEdits.delete(remote.id)
     return merged.remoteNews
   }
 
@@ -1024,21 +1059,22 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     )
   }
 
+  /** Writes a merged record here; for a live note, answers the drawings stored after. */
   async function write(
     local: SyncLocal | undefined,
     record: SyncRecord,
     merged: MergedNote,
     remote: SyncRecord,
-  ) {
-    if (record.kind === 'file') return writeFile(local, record, remote as FileState)
-    if (record.kind === 'book') return storage.putBook(bookRecordOf(record))
-    if (record.kind === 'tag') return storage.putTag(tagRecordOf(record))
-    if (record.kind === 'search') return storage.putSavedSearch(searchRecordOf(record))
+  ): Promise<NoteDrawingsRecord | null | undefined> {
+    if (record.kind === 'file') return void (await writeFile(local, record, remote as FileState))
+    if (record.kind === 'book') return void (await storage.putBook(bookRecordOf(record)))
+    if (record.kind === 'tag') return void (await storage.putTag(tagRecordOf(record)))
+    if (record.kind === 'search') return void (await storage.putSavedSearch(searchRecordOf(record)))
     const row = local?.note
     if (record.purged) {
       if (!row || row.purged) return
       await keepVersion(row.note)
-      return sync.syncPurge(record.id, now(), record.deletedHlc || clock.tick())
+      return void (await sync.syncPurge(record.id, now(), record.deletedHlc || clock.tick()))
     }
     if (row && merged.bodyChanged && (merged.bothEdited || !(await keptLately(row.note.id)))) {
       await keepVersion(row.note)
@@ -1049,6 +1085,11 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       if (had.get(tag.tagId) === tag.hlc) continue
       await storage.putNoteTag({ noteId: record.id, ...tag })
     }
+    if (remote.kind !== 'note' || remote.purged) return row?.drawings ?? null
+    return mergeNoteDrawings(storage, clock, record.id, {
+      drawings: remote.drawings,
+      hlc: remote.drawingsHlc,
+    })
   }
 
   const breaker = (id: string) => {
@@ -1316,6 +1357,20 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }
   }
 
+  /**
+   * A note pushed without the drawings its plugins here made of blocks it no longer holds (ADR 0030), dropped here
+   * first. Only a push of a change made here does it: a note that only pulled keeps them, so a device without the plugin
+   * still shows the block's note until this one draws it again.
+   */
+  async function withoutGoneDrawings(state: SyncRecord): Promise<SyncRecord> {
+    if (state.kind !== 'note' || state.purged || state.drawings.length === 0) return state
+    const plugins = drawingPlugins()
+    if (!state.drawings.some((d) => plugins.has(d.pluginId))) return state
+    const pruned = await pruneNoteDrawings(storage, clock, state.id, plugins)
+    if (!pruned || pruned.hlc === state.drawingsHlc) return state
+    return { ...state, drawings: pruned.drawings, drawingsHlc: pruned.hlc }
+  }
+
   /** What the relay says to an attachment it cannot take, kept apart from a note's: notes still sync. */
   function keepLocal(id: string, print: string, code: string) {
     unsynced.set(id, { print, code })
@@ -1348,13 +1403,18 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       return null
     }
     const stamped = stamp(local)
-    const state = stateOf(local, stamped.bodyHlc)
-    if (!state) {
+    const read = stateOf(local, stamped.bodyHlc)
+    if (!read) {
       await sync.syncPut({ ...entry, synced: entry.edits })
       return null
     }
     // stamp took the print of a live note's body, which the state holds.
-    const print = fingerprint(state, local.note && !local.note.purged ? stamped.bodyFp : undefined)
+    const bodyFp = local.note && !local.note.purged ? stamped.bodyFp : undefined
+    const readPrint = fingerprint(read, bodyFp)
+    const changedHere = readPrint !== entry.fingerprint && pulledEdits.get(id) !== entry.edits
+    if (pulledEdits.get(id) !== entry.edits) pulledEdits.delete(id)
+    const state = changedHere ? await withoutGoneDrawings(read) : read
+    const print = state === read ? readPrint : fingerprint(state, bodyFp)
     if (print === entry.fingerprint) {
       if (unsynced.delete(id)) reportUnsynced()
       await sync.syncPut({ ...entry, ...stamped, synced: entry.edits })

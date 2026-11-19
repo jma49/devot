@@ -9,6 +9,9 @@ export const PREVIEW_API_VERSION = 1
 /** The island kind of a plugin's drawing (ADR 0027); its source is the renderer's key, a newline, then the block. */
 export const PLUGIN_ISLAND = 'plugin'
 
+/** The island kind of a kept plugin drawing (ADR 0030); its source is the fence language, the block's hash, then the block. */
+export const KEPT_DRAWING_ISLAND = 'kept-drawing'
+
 /** Properties carrying an offset into the note's Markdown. */
 export const PIECE_OFFSET_PROPERTIES = [
   'dataTaskAt',
@@ -86,6 +89,8 @@ export interface PreviewOptions {
   pluginRenderers?: number
   /** Changes when the notes plugins read may have: only pieces that may hold a plugin's block are rendered again. */
   pluginNotes?: number
+  /** The languages the note keeps plugin drawings in, in a window without their plugin (ADR 0030): their blocks become islands. */
+  keptLanguages?: readonly string[]
 }
 
 export interface PreviewContext extends PreviewOptions {

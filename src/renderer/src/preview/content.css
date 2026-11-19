@@ -885,6 +885,13 @@
   contain: paint;
 }
 
+/* A block whose kept drawing (ADR 0030) no longer matches: its code, and a caption under it. */
+.kept-drawing-note {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-tertiary);
+  font-size: calc(var(--font-size-caption) * var(--preview-scale, 1));
+}
+
 .island-error {
   padding: var(--space-4) var(--space-6);
   border-radius: var(--radius-card);

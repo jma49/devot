@@ -165,6 +165,7 @@ export const messages: Record<keyof typeof en, string> = {
   'plugins.drawingEdit': '编辑',
   'plugins.drawingFailed': '插件无法绘制这个代码块。',
   'plugins.drawingLabel': '插件绘制的图',
+  'plugins.drawingKeptStale': '这张图会在装有其插件的 Mac 上更新。',
   'plugins.permission.note.read': '在你使用时读取打开的笔记',
   'plugins.permission.note.edit': '在你使用时修改打开的笔记',
   'plugins.permission.commands': '向命令面板添加命令',

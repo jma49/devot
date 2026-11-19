@@ -11,8 +11,8 @@ use tauri::State;
 
 use super::notes::{NoteDto, valid_hlc, valid_note_id, validate_purge};
 use crate::storage::{
-    BookRecord, Db, NoteTagRecord, SYNC_KINDS, SavedSearchRecord, SyncEntry, SyncFile,
-    SyncFileWrite, SyncLocal, SyncPending, TagRecord, Write,
+    BookRecord, Db, NoteDrawings, NoteTagRecord, SYNC_KINDS, SavedSearchRecord, SyncEntry,
+    SyncFile, SyncFileWrite, SyncLocal, SyncPending, TagRecord, Write,
 };
 use crate::sync::file_record::{self, Fields};
 
@@ -42,6 +42,7 @@ pub struct SyncNoteDto {
     pub note: NoteDto,
     pub purged: bool,
     pub tags: Vec<NoteTagRecord>,
+    pub drawings: Option<NoteDrawings>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -65,6 +66,7 @@ impl From<SyncLocal> for SyncLocalDto {
                 note: NoteDto::from(row.note),
                 purged: row.purged,
                 tags: row.tags,
+                drawings: row.drawings,
             }),
             book: local.book,
             tag: local.tag,

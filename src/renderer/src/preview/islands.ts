@@ -18,6 +18,8 @@ export interface IslandContext {
   width?: number | undefined
   /** Where a drawing's stylesheet goes when the element is not in the document itself (the editor's shadow root). */
   styleRoot?: DocumentOrShadowRoot | undefined
+  /** The note shown, in the preview: its kept plugin drawings are its own (ADR 0030). */
+  noteId?: string | undefined
 }
 
 export interface IslandContent {
@@ -36,7 +38,7 @@ export interface PreviewIsland {
   /** This source's drawing depends on the element's width: it is drawn again when that changes. */
   followsWidth?(source: string): boolean
   /** Changes when drawings of the same source may differ, so each is drawn again at its next mount. */
-  revision?(): string
+  revision?(context: IslandContext): string
   render(source: string, context: IslandContext): Promise<IslandContent>
 }
 
@@ -341,7 +343,7 @@ export function createIslandMounter(
       const follows = island?.followsWidth?.(source) === true
       // A pane that is hidden has no width: what is drawn stays until it is shown.
       const width = follows ? (drawingWidth(el.clientWidth) ?? known?.width) : undefined
-      const revision = island?.revision?.() ?? ''
+      const revision = island?.revision?.(context) ?? ''
       const key = `${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${revision}\n${source}`
       // A failure that may pass waits out its backoff; a source that changed
       // starts over at once.

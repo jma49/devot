@@ -13,6 +13,10 @@
 // A file (an attachment, docs/adr/0003-sync-attachments-as-records.md) carries its name, MIME type,
 // size and bytes, written once; the note it belongs to with the HLC of that link's last change; and
 // `purged`. A purged file is a tombstone: its ID and `purged`, nothing else.
+//
+// A note's kept plugin drawings (ADR 0030) are one more field, `drawings` with `drawingsHlc`, merged by key. A note
+// without any leaves both out, so its bytes and its fingerprint stay as a Devot from before them makes; that Devot
+// ignores them and pushes a note it edits without them.
 
 import * as Y from 'yjs'
 import { agentWriteRows } from '../authorship'
@@ -23,6 +27,12 @@ import { BODY, seedClient } from '../notes'
 import { sha256Hex } from '../sha256'
 import { NOTE_STATUSES, type NoteStatus } from '../storage'
 import { MAX_SORT_KEY_LENGTH } from '../order'
+import {
+  mergeDrawings,
+  readDrawings as readDrawingList,
+  sameDrawings,
+  type KeptDrawing,
+} from '../plugins/drawings'
 
 export type SyncKind = 'note' | 'book' | 'tag' | 'file' | 'search'
 
@@ -53,6 +63,9 @@ export interface NoteState {
   bodyHlc: string
   /** By tag ID. */
   tags: NoteTagState[]
+  /** Kept plugin drawings, one field: `drawingsHlc` is '' for a note that never kept one. */
+  drawings: KeptDrawing[]
+  drawingsHlc: string
   /** Empty for a tombstone. */
   ydoc: Uint8Array
 }
@@ -155,11 +168,14 @@ export function encodeRecord(record: SyncRecord): Uint8Array {
   return out
 }
 
+/** A note's fields as its record carries them: without drawings when it never kept one. */
+function noteFields(record: NoteState): object {
+  const { ydoc: _ydoc, drawings, drawingsHlc, ...fields } = record
+  return drawingsHlc === '' && drawings.length === 0 ? fields : { ...fields, drawings, drawingsHlc }
+}
+
 function split(record: SyncRecord): { header: object; body: Uint8Array } {
-  if (record.kind === 'note') {
-    const { ydoc, ...header } = record
-    return { header, body: ydoc }
-  }
+  if (record.kind === 'note') return { header: noteFields(record), body: record.ydoc }
   if (record.kind === 'file') {
     const { data, ...header } = record
     return { header, body: data }
@@ -234,8 +250,19 @@ function readNote(h: Record<string, unknown>, ydoc: Uint8Array): NoteState {
     deletedHlc: h['deletedHlc'] as string,
     bodyHlc: h['bodyHlc'] as string,
     tags: byTag(tagStates),
+    ...readDrawings(h, purged),
     ydoc,
   }
+}
+
+/** A list this build cannot read is left out rather than the note refused: the note's text matters more. */
+function readDrawings(
+  h: Record<string, unknown>,
+  purged: boolean,
+): Pick<NoteState, 'drawings' | 'drawingsHlc'> {
+  const hlc = h['drawingsHlc']
+  const drawings = purged || !isHlc(hlc) ? null : readDrawingList(h['drawings'])
+  return drawings ? { drawings, drawingsHlc: hlc as string } : { drawings: [], drawingsHlc: '' }
 }
 
 const isFileName = (v: unknown): v is string =>
@@ -423,9 +450,9 @@ export function fingerprint(record: SyncRecord, body?: string): string {
   // A file's bytes never change under its ID, so its fields stand for them.
   if (record.kind === 'file') return sha256Hex(JSON.stringify(split(record).header))
   if (record.kind !== 'note') return sha256Hex(JSON.stringify(record))
-  const { ydoc, ...fields } = record
-  const print = body ?? bodyPrint(ydoc)
-  return sha256Hex(`${JSON.stringify({ ...fields, tags: byTag(fields.tags) })}\n${print}`)
+  const print = body ?? bodyPrint(record.ydoc)
+  const fields = { ...noteFields(record), tags: byTag(record.tags) }
+  return sha256Hex(`${JSON.stringify(fields)}\n${print}`)
 }
 
 /** What storage derives from a note's state: its text and its agent_writes rows (ADR 0007). */
@@ -489,6 +516,7 @@ const NOTE_HLCS = [
   'datesHlc',
   'deletedHlc',
   'bodyHlc',
+  'drawingsHlc',
 ] as const
 
 const hlcsAhead = (of: NoteState, than: NoteState) =>
@@ -514,6 +542,8 @@ export function tombstone(id: string, deletedAt: number, deletedHlc: string): No
     deletedHlc,
     bodyHlc: '',
     tags: [],
+    drawings: [],
+    drawingsHlc: '',
     ydoc: new Uint8Array(0),
   }
 }
@@ -582,6 +612,11 @@ export function mergeNote(local: NoteState, remote: NoteState): MergedNote {
           updatedAt: Math.max(local.updatedAt, remote.updatedAt),
           datesHlc: local.datesHlc,
         }
+  const drawings = mergeDrawings(
+    { drawings: local.drawings, hlc: local.drawingsHlc },
+    { drawings: remote.drawings, hlc: remote.drawingsHlc },
+    () => doc.getText(BODY).toString(),
+  )
   const bodyHlc = later(local.bodyHlc, remote.bodyHlc)
   const edited = later(bodyHlc, title.hlc)
   const back = deleted.value !== null && edited > deleted.hlc
@@ -602,12 +637,16 @@ export function mergeNote(local: NoteState, remote: NoteState): MergedNote {
     deletedHlc: back ? edited : deleted.hlc,
     bodyHlc,
     tags: mergeTags(local.tags, remote.tags),
+    drawings: drawings.drawings,
+    drawingsHlc: drawings.hlc,
     ydoc: bodyRemoteNews ? Y.encodeStateAsUpdate(doc) : local.ydoc,
   }
   return {
     record,
-    localNews: bodyLocalNews || hlcsAhead(record, remote),
-    remoteNews: bodyRemoteNews || hlcsAhead(record, local),
+    localNews:
+      bodyLocalNews || hlcsAhead(record, remote) || !sameDrawings(record.drawings, remote.drawings),
+    remoteNews:
+      bodyRemoteNews || hlcsAhead(record, local) || !sameDrawings(record.drawings, local.drawings),
     bodyChanged: bodyRemoteNews && !localGivesWay,
     bothEdited: bodyLocalNews && bodyRemoteNews && !localGivesWay,
   }

@@ -50,6 +50,7 @@ import { frameConnector, showFrame } from './frames'
 import { createPluginHost, type PluginHost, type PluginNotes } from './host'
 import { useLibraryTurn } from './libraryTurn'
 import { pluginRenderersChanged } from './rendererRevision'
+import { keptDrawingsChanged } from '../preview/keptDrawings'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
 
@@ -246,9 +247,27 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
       },
       `${drawnKey}#${editableKey}`,
       { editable: new Set(JSON.parse(editableKey) as string[]), edit: editBlock },
+      (noteId, { key, content, appearance, svg }) => {
+        const target = rendererOfKey(key)
+        const spec = (JSON.parse(specsKey) as PluginRendererSpec[]).find((s) => s.key === key)
+        const c = latest.current.core
+        if (!c || !target || !spec) return
+        void c
+          .keepPluginDrawing(noteId, {
+            pluginId: target.plugin,
+            language: spec.language,
+            content,
+            appearance,
+            svg,
+          })
+          .then(
+            (kept) => kept && keptDrawingsChanged(new Set([noteId])),
+            () => console.warn('W_PLUGIN_DRAWING_KEEP_FAILED'),
+          )
+      },
     )
     return () => setPluginDrawer(undefined, '')
-  }, [host, drawnKey, editableKey, fail])
+  }, [host, drawnKey, editableKey, specsKey, fail])
 
   const keys = useMemo(() => {
     const { keys: given, dropped } = pluginKeys(plugins, takenByApp)

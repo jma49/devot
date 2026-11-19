@@ -42,6 +42,7 @@ import { createClock } from '../../core/hlc'
 import { createIdGenerator } from '../../core/ids'
 import { createNoteService } from '../../core/notes/service'
 import { observeWrites } from '../../core/observeWrites'
+import type { DrawingAppearance } from '../../core/plugins/drawings'
 import {
   createPieceRenderer,
   createPreviewRegistry,
@@ -116,6 +117,8 @@ let previewRegistry = createPreviewRegistry({ builtins: true })
 let pluginRevision = 0
 let pluginNotesRevision = 0
 let pluginLanguages: readonly string[] = []
+/** The plugins that draw SVG in this window: only they prune their kept drawings (ADR 0030). */
+let drawingPlugins: ReadonlySet<string> = new Set()
 let pluginRender: RenderPluginBlock | undefined
 const noteSplitter = shareSplitter(createBlockSplitter(PIECE_LENGTH))
 const pieces = createPieceRenderer({
@@ -133,6 +136,14 @@ const pluginRevisions = () => ({
   pluginNotes: pluginNotesRevision,
 })
 
+/** A language a plugin here draws is drawn live, so its kept drawings are not shown (ADR 0030). */
+function withoutDrawnLanguages<T extends { keptLanguages?: readonly string[] }>(options: T): T {
+  if (!options.keptLanguages) return options
+  const { keptLanguages, ...rest } = options
+  const languages = keptLanguages.filter((l) => !pluginLanguages.includes(l))
+  return (languages.length > 0 ? { ...rest, keptLanguages: languages } : rest) as T
+}
+
 const required = () => {
   if (!service) throw new Error('E_CORE_NOT_READY')
   return service
@@ -140,7 +151,7 @@ const required = () => {
 
 const livePreview = createLivePreviewRenderer({
   renderPieces: (markdown, options, known) =>
-    pieces(markdown, { ...options, ...pluginRevisions() }, known),
+    pieces(markdown, { ...withoutDrawnLanguages(options), ...pluginRevisions() }, known),
   linkTargets: (ids, embeds) => required().linkTargets(ids, embeds),
   onTargetsFailed: () => console.warn('W_LINK_TARGETS_FAILED'),
   split: noteSplitter(),
@@ -497,6 +508,37 @@ const coreApi = {
     known: string[],
     scope: string,
   ) => livePreview(markdown, options, known, scope),
+  /** The plugin drawings the note keeps (ADR 0030). */
+  noteDrawings: (noteId: string) => {
+    const parts = coreParts
+    if (!parts) throw new Error('E_CORE_NOT_READY')
+    return parts.storage.getNoteDrawings(noteId).then((row) => row?.drawings ?? [])
+  },
+  /** Keeps the drawing the page rebuilt from a plugin's answer for a block of the note; answers whether the list changed. */
+  keepPluginDrawing: (
+    noteId: string,
+    drawing: {
+      pluginId: string
+      language: string
+      content: string
+      appearance: DrawingAppearance
+      svg: string
+    },
+  ) => {
+    const parts = coreParts
+    if (!parts) throw new Error('E_CORE_NOT_READY')
+    const { content, ...kept } = drawing
+    // Lazy: keeping parses the note's Markdown, which the worker otherwise loads only to render.
+    return import('../../core/plugins/drawings').then(({ blockHash, keepNoteDrawing }) =>
+      keepNoteDrawing(
+        parts.storage,
+        parts.clock,
+        noteId,
+        { ...kept, hash: blockHash(content) },
+        drawingPlugins,
+      ),
+    )
+  },
   /** Plugins' preview renderers (ADR 0005); `render` asks the page, which asks the plugin. Pieces rendered before render again. */
   setPluginRenderers: (specs: PluginRendererSpec[], render: RenderPluginBlock) => {
     // The page sends `render` as a proxy; the one before is let go so its port closes.
@@ -507,6 +549,9 @@ const coreApi = {
       plugins: { specs, render, linkTargets: (ids) => required().linkTargets(ids) },
     })
     pluginLanguages = specs.map((s) => s.language)
+    drawingPlugins = new Set(
+      specs.filter((s) => s.output === 'svg').map((s) => s.key.slice(0, s.key.indexOf('/'))),
+    )
     pluginRevision += 1
   },
   /** The notes plugins' blocks may show changed (ADR 0028): the pieces that may hold such a block render again, the rest stay. */
@@ -577,6 +622,7 @@ const coreApi = {
         ...parts,
         ...(build ? { build } : {}),
         via,
+        drawingPlugins: () => drawingPlugins,
         sync: fromWireSync(store),
         transport: fromWireTransport(transport, via),
         onStatus: (status) => void Promise.resolve(onStatus(status)).catch(() => undefined),

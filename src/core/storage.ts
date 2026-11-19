@@ -3,6 +3,7 @@
 // Metadata fields carry the HLC of their last write; storage keeps the newer value per field (last-writer-wins). The body is a Yjs document written whole, only
 // while it is still at the version the writer last saw (see putNote), so a body written meanwhile is merged, never overwritten.
 
+import type { NoteDrawingsRecord } from './plugins/drawings'
 import type { AgentWriteRow } from './authorship'
 import type { FileCopy, FileMeta } from './files'
 import type { SemanticHit, SemanticQuery, SemanticStatus } from './semantic'
@@ -297,6 +298,10 @@ export interface StorageAdapter {
   putNoteTag(link: NoteTagRecord): Promise<void>
   /** On or off, with its HLC; null when never written. */
   getNoteTag(noteId: string, tagId: string): Promise<NoteTagRecord | null>
+  /** The plugin drawings a note keeps (ADR 0030); null for a note that never kept one. */
+  getNoteDrawings(noteId: string): Promise<NoteDrawingsRecord | null>
+  /** Written only under a newer HLC than the stored one. E_NOTE_DRAWINGS_INVALID for a list past the caps, E_NOTE_NOT_FOUND for a note not stored or purged. */
+  putNoteDrawings(record: NoteDrawingsRecord): Promise<void>
   /** Replaces the time, state and value of the revision with its ID. Ignored for a purged or unknown note. */
   putRevision(revision: RevisionRecord): Promise<void>
   /** Without state, newest first. */

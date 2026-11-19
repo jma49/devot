@@ -216,6 +216,8 @@ export function fromWire(wire: WireStorage): StorageAdapter {
     putSavedSearch: (search) => wire.putSavedSearch(search),
     putNoteTag: (link) => wire.putNoteTag(link),
     getNoteTag: (noteId, tagId) => wire.getNoteTag(noteId, tagId),
+    getNoteDrawings: (noteId) => wire.getNoteDrawings(noteId),
+    putNoteDrawings: (record) => wire.putNoteDrawings(record),
     putRevision: (revision) =>
       wire.putRevision({
         ...revision,

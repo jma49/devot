@@ -51,6 +51,7 @@ function fakeCore() {
       return rendered
     },
     forgetShownPieces: async () => undefined,
+    noteDrawings: async () => [],
   } as unknown as Core
   return { core, asked, renders }
 }
@@ -133,6 +134,8 @@ function follow(core: Core, markdown: string, noteId: string) {
 /** Waits for the first render to reach the page, but for no timer the page set. */
 const firstRender = async (renders: Promise<unknown>[]) => {
   await act(async () => {
+    // A note with a fence reads its kept drawings before its first render.
+    for (let i = 0; i < 20 && renders.length === 0; i += 1) await Promise.resolve()
     await renders[0]
     for (let i = 0; i < 20; i += 1) await Promise.resolve()
   })
@@ -370,4 +373,54 @@ describe('Preview', () => {
     expect(content(body())).toBe(await wholeBuild(edited))
     expect(body().querySelectorAll('.code-copy')).toHaveLength(edited.split('```ts').length - 1)
   }, 60_000)
+})
+
+describe('a note’s kept drawings (ADR 0030)', () => {
+  const drawingsCore = () => {
+    const { core, renders } = fakeCore()
+    const kept: (readonly string[] | undefined)[] = []
+    const reads: string[] = []
+    const render = core.renderLivePreview
+    Object.assign(core, {
+      renderLivePreview: (
+        markdown: string,
+        options: Omit<PreviewOptions, 'noteLinks'>,
+        known: string[],
+        scope: string,
+      ) => {
+        kept.push(options.keptLanguages)
+        return render(markdown, options, known, scope)
+      },
+      noteDrawings: async (id: string) => {
+        reads.push(id)
+        return [
+          {
+            pluginId: 'com.example.graphviz',
+            language: 'dot',
+            hash: 'a'.repeat(64),
+            appearance: 'light',
+            svg: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+          },
+        ]
+      },
+    })
+    return { core, renders, kept, reads }
+  }
+
+  it('waits for them before the first render of a note with a fence', async () => {
+    const { core, renders, kept } = drawingsCore()
+    show(core, '```dot\na -> b\n```\n', '0192a6f0-0000-7000-8000-00000000d001')
+    await settle()
+    await firstRender(renders)
+    expect(kept[0]).toEqual(['dot'])
+  })
+
+  it('reads none for a note without a fence', async () => {
+    const { core, renders, kept, reads } = drawingsCore()
+    show(core, 'Just text.\n', '0192a6f0-0000-7000-8000-00000000d002')
+    await settle()
+    await firstRender(renders)
+    expect(kept[0]).toBeUndefined()
+    expect(reads).toEqual([])
+  })
 })

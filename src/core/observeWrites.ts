@@ -58,6 +58,12 @@ export function observeWrites(
       (link) => [link.noteId],
     ),
     getNoteTag: (noteId, tagId) => storage.getNoteTag(noteId, tagId),
+    getNoteDrawings: (noteId) => storage.getNoteDrawings(noteId),
+    // Drawings are not in the Markdown, so the mirror has no note to write again; sync still hears of it.
+    putNoteDrawings: after(
+      (record) => storage.putNoteDrawings(record),
+      (_record) => [],
+    ),
     putRevision: (revision) => storage.putRevision(revision),
     listRevisions: (noteId) => storage.listRevisions(noteId),
     getRevision: (id) => storage.getRevision(id),

@@ -17,6 +17,7 @@ import { useContextMenu, type MenuPoint } from '../contextMenu'
 import { copyText } from '../noteMenu'
 import { keyMatches } from '../commands/keys'
 import { onPluginRenderersChanged } from '../plugins/rendererRevision'
+import { keptDrawingsOf, keptLanguages, loadKeptDrawings, watchKeptDrawings } from './keptDrawings'
 import { lookUp, startSpeaking, stopSpeaking } from '../textServices'
 import {
   PREVIEW_MENU,
@@ -179,6 +180,9 @@ const sameList = (a: readonly HTMLElement[], b: readonly HTMLElement[]) =>
  * How long a restored scroll position is kept up while images and diagrams
  * load and the content grows to reach it.
  */
+/** Only a block in a fence can show a kept drawing (ADR 0030). */
+const hasFence = (markdown: string) => markdown.includes('```') || markdown.includes('~~~')
+
 const RESTORE_SCROLL_MS = 5000
 
 /** How long a task builds the pieces a render left for later, between other work. */
@@ -226,7 +230,14 @@ export function Preview({
   const [refusedLink, setRefusedLink] = useState<string>()
   const appearance = useAppearance()
   const theme = useSyncExternalStore(subscribeAppearance, shownTheme, () => '')
-  const islandContext = useRef({ appearance, theme })
+  const islandContext = useRef<{
+    appearance: typeof appearance
+    theme: string
+    noteId?: string | undefined
+  }>({
+    appearance,
+    theme,
+  })
   const scroll = useRef<PreviewScrollPane | null>(null)
   const [mounter] = useState(() =>
     createIslandMounter(islands, { scroller: (body) => body.parentElement, shift: shiftScroll }),
@@ -235,6 +246,8 @@ export function Preview({
   const buildTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const render = useRef<(input: RenderInput) => void>(undefined)
+  /** Renders the latest input again. */
+  const renderAgain = useRef(() => {})
   const pieces = useRef<ShownPiece[]>([])
   /** The note the pieces on screen are of. */
   const piecesOf = useRef<string | undefined>(undefined)
@@ -374,22 +387,30 @@ export function Preview({
 
   useEffect(() => {
     const run = latestOnly(
-      (input: RenderInput) => {
+      async (input: RenderInput) => {
         // Read with the text, so a text that arrives after a switch is not taken for the note before.
         const source = input.read()
         const ofNote = noteNow.current
+        // A note with a fence waits for its kept drawings the first time, so its blocks do not show as code first.
+        const kept =
+          ofNote && hasFence(source)
+            ? (keptDrawingsOf(ofNote) ??
+              (await loadKeptDrawings((id) => core.noteDrawings(id), ofNote)))
+            : undefined
+        const languages = keptLanguages(kept ?? [])
         return core
           .renderLivePreview(
             source,
             {
               labels: previewLabels(),
+              ...(languages.length > 0 ? { keptLanguages: languages } : {}),
               loadedEmbeds: input.loadedEmbeds,
               ...(input.remoteImages ? { remoteImages: input.remoteImages } : {}),
               ...(input.frontMatterInInfo ? { frontMatterInInfo: true } : {}),
             },
             ofNote === piecesOf.current ? pieces.current.map((piece) => piece.key) : [],
             // The chips' notes are asked for again when another note opens or one of them changes.
-            `${noteNow.current ?? ''} ${linksChanged.current}`,
+            `${ofNote ?? ''} ${linksChanged.current}`,
           )
           .then((next) => ({ next, input, source, ofNote }))
       },
@@ -414,6 +435,7 @@ export function Preview({
         }
         shown.current = source
         shownLinks.current = next.links
+        islandContext.current = { ...islandContext.current, noteId: ofNote }
         afterBuild()
         scroll.current?.rendered(next.lines, pieces.current)
         if (!scrollAskedOnce.current && pieces.current.some((piece) => piece.nodes.length > 0)) {
@@ -435,7 +457,7 @@ export function Preview({
   }, [core, afterBuild, buildLater, keepRestoring, stopRestoring])
 
   useEffect(() => {
-    islandContext.current = { appearance, theme }
+    islandContext.current = { ...islandContext.current, appearance, theme }
     if (host.current)
       mounter.mount(host.current, islandContext.current, () => scroll.current?.changed())
   }, [appearance, theme, mounter])
@@ -462,6 +484,17 @@ export function Preview({
   })
   useEffect(() => text.subscribe(() => render.current?.(input.current)), [text])
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
+  useInsertionEffect(() => {
+    renderAgain.current = () => render.current?.(input.current)
+  })
+  useEffect(
+    () =>
+      watchKeptDrawings(
+        () => noteNow.current,
+        () => renderAgain.current(),
+      ),
+    [],
+  )
   // Another window or process can change a note a chip shows.
   useEffect(() => {
     const changed = (event: Event) => {

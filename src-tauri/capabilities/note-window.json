@@ -32,6 +32,7 @@
     "allow-tag-put",
     "allow-note-tag-put",
     "allow-note-tag-get",
+    "allow-note-drawings-get",
     "allow-revision-put",
     "allow-revisions-list",
     "allow-agent-writes-seen",
