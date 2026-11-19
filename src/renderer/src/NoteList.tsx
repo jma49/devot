@@ -811,7 +811,11 @@ export const NoteList = memo(function NoteList(props: Props) {
           return out
         })}
         {entries.length === 0 && props.empty ? (
-          <EmptyList kind={props.empty} editing={props.editing} onSearchAll={props.onSearchAll} />
+          <ListEmptyContent
+            as="li"
+            text={listEmpty(props.empty, props.editing, !!props.onSearchAll)}
+            onSearchAll={props.onSearchAll}
+          />
         ) : null}
       </ul>
       {props.capped ? (
@@ -826,19 +830,3 @@ export const NoteList = memo(function NoteList(props: Props) {
     </section>
   )
 })
-
-function EmptyList({
-  kind,
-  editing,
-  onSearchAll,
-}: {
-  kind: ListEmptyKind
-  editing?: boolean | undefined
-  onSearchAll?: (() => void) | undefined
-}) {
-  return (
-    <li className="list-empty" role="presentation">
-      <ListEmptyContent text={listEmpty(kind, editing, !!onSearchAll)} onSearchAll={onSearchAll} />
-    </li>
-  )
-}

@@ -646,9 +646,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
         }}
       />
       {emptyText ? (
-        <div className="list-empty">
-          <ListEmptyContent text={emptyText} />
-        </div>
+        <ListEmptyContent text={emptyText} />
       ) : (
         <div className="board-columns">
           {columns.map((column) => {

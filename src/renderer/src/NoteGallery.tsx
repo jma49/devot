@@ -492,9 +492,7 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
         }}
       />
       {emptyText ? (
-        <div className="list-empty">
-          <ListEmptyContent text={emptyText} onSearchAll={props.onSearchAll} />
-        </div>
+        <ListEmptyContent text={emptyText} onSearchAll={props.onSearchAll} />
       ) : (
         <div ref={scroller} className="gallery-scroll" onScroll={measure}>
           <ul
