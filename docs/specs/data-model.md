@@ -120,7 +120,8 @@ Part of the [architecture overview](../architecture.md).
   Both need a process that was already open during the upgrade, since an older build refuses to open a file with a newer schema.
   Contentless rowid deletes leave tombstones even with FTS5 `secure-delete` enabled, so a purge also runs FTS5 `optimize` to compact away deleted postings before committing.
   This can compact the whole index and makes a purge more expensive; normal saves and catch-up do not compact it.
-  Empty Trash purges its IDs in one transaction and compacts once at the end; every tombstone in that batch shares its timestamp and clock, and a refusal or failure rolls back the whole batch.
+  Empty Trash purges at most 500 IDs per transaction and compacts once at the end of each batch; every tombstone in a batch shares its timestamp and clock, and a refusal or failure rolls back that batch.
+  `notes_purge` refuses more than 500 IDs with `E_PURGE_TOO_MANY`; Empty Trash relays each committed batch before starting the next, so a later failure leaves earlier purges announced.
   Synced purges persist a `searchCompactionPending` marker in their transaction and defer compaction until the pull ends, including a failed pull; opening the store completes any compaction a crash left pending.
   A purge skips compaction only when its `notes_fts_docsize` has no tokens and `search_postings_pending` (schema v33) holds no earlier indexed history for that row; an update marks that history from the index itself, so clearing and catching up a draft cannot hide old postings.
   Compaction clears all indexed-history markers; upgrading v32 conservatively marks existing rows because they may already have deletion tombstones.

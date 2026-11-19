@@ -582,6 +582,9 @@ pub(crate) fn validate_purge(id: &str, at: i64, hlc: &str) -> Result<(), &'stati
 }
 
 fn validate_purges(ids: &[String], at: i64, hlc: &str) -> Result<(), &'static str> {
+    if ids.len() > 500 {
+        return Err("E_PURGE_TOO_MANY");
+    }
     if !ids.iter().all(|id| valid_note_id(id)) {
         return Err("E_NOTE_ID_INVALID");
     }
@@ -1063,6 +1066,14 @@ mod tests {
 
     #[test]
     fn validates_purge_arguments() {
+        assert_eq!(
+            validate_purges(&vec![ID.into(); 500], 1, "0001728000000000-0000-node"),
+            Ok(())
+        );
+        assert_eq!(
+            validate_purges(&vec![ID.into(); 501], 1, "0001728000000000-0000-node"),
+            Err("E_PURGE_TOO_MANY")
+        );
         assert_eq!(validate_purge(ID, 1, "0001728000000000-0000-node"), Ok(()));
         assert_eq!(
             validate_purge("x", 1, "0001728000000000-0000-node"),

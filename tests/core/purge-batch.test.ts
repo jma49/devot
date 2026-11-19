@@ -54,6 +54,64 @@ it('rolls back a batch that includes a live note and leaves secure-delete off', 
   expect(await s.listTrash()).toEqual([])
 })
 
+async function largeTrash(count: number) {
+  const sqlite = tempSqliteAdapter('devot-purge-chunks-')
+  const newId = createIdGenerator()
+  const insert = sqlite.db.prepare(
+    "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at, deleted_at) VALUES (?, 'Trash', '', '', x'00', 1, 1, 2)",
+  )
+  sqlite.db.transaction(() => {
+    for (let n = 0; n < count; n++) insert.run(newId())
+  })()
+  const committed: string[][] = []
+  const relayed: unknown[] = []
+  const storage = fromWire(
+    toWire({
+      ...sqlite,
+      async purgeNotes(ids, at, hlc) {
+        await sqlite.purgeNotes(ids, at, hlc)
+        committed.push([...ids])
+      },
+    }),
+  )
+  const notes = createNoteService({
+    storage,
+    clock: createClock('chunks'),
+    newId,
+    relay: (message) => relayed.push(message),
+    compact: false,
+  })
+  return {
+    sqlite,
+    notes,
+    committed,
+    relayed,
+    order: (await sqlite.listTrash()).map((note) => note.id),
+  }
+}
+
+it('empties more than 500 trashed notes in bounded batches through the wire', async () => {
+  const { sqlite, notes, committed, relayed, order } = await largeTrash(1001)
+  expect(await notes.emptyTrash()).toBe(1001)
+  expect(committed.map((ids) => ids.length)).toEqual([500, 500, 1])
+  expect(committed.flat()).toEqual(order)
+  expect(relayed).toEqual(order.map((noteId) => ({ kind: 'gone', noteId, purged: true })))
+  expect(await sqlite.listTrash()).toEqual([])
+})
+
+it('relays completed chunks but leaves a failed chunk unpurged and unannounced', async () => {
+  const { sqlite, notes, committed, relayed, order } = await largeTrash(501)
+  sqlite.db.exec(
+    `CREATE TRIGGER refuse_purge BEFORE UPDATE OF purged_at ON notes WHEN new.id = '${order[500]}' BEGIN SELECT RAISE(ABORT, 'E_TEST_PURGE'); END`,
+  )
+  await expect(notes.emptyTrash()).rejects.toThrow('E_TEST_PURGE')
+  expect(committed).toEqual([order.slice(0, 500)])
+  expect(relayed).toEqual(
+    order.slice(0, 500).map((noteId) => ({ kind: 'gone', noteId, purged: true })),
+  )
+  expect((await sqlite.listTrash()).map((note) => note.id)).toEqual(order.slice(500))
+})
+
 it('rolls back all purges on a database error without relaying any note', async () => {
   const s = tempSqliteAdapter('devot-purge-batch-')
   const relayed: unknown[] = []

@@ -105,9 +105,9 @@ Milliseconds, **p50 / p95**:
 | Empty Trash: 100 of 10,000 notes  |     177.947 / 287.230 |        4497.734 / 5476.375 |          134.566 / 137.964 |
 
 The original `emptyTrash` loop called `purgeNote` 100 times, so the initial contentless-delete implementation optimized 100 times in separate transactions.
-Empty Trash now sends its IDs through the wire to `notes_purge`, which purges in one transaction and runs FTS5 `optimize` once at the end, matching the TypeScript adapter.
+Empty Trash now sends its IDs through the wire to `notes_purge` in batches of at most 500, which purges each batch in one transaction and runs FTS5 `optimize` once at its end, matching the TypeScript adapter.
 The batch shares one timestamp and HLC, preserves attachment handover and revision deletion, refuses live non-empty notes, and rolls back every purge on any failure.
-Per-note notifications are sent only after commit; a failed batch sends none.
+Per-note notifications are sent only after each batch commits; a failed batch sends none, while earlier committed batches remain purged and announced.
 Rust and TypeScript tests cover empty batches, missing and duplicate IDs, refusals, database-error rollback, retained matches, vocabulary removal and byte scans including older indexed versions.
 Batching removes the multi-second Empty Trash regression and brings its measured p95 below 250 ms and below the base.
 Single-note purge in a 10,000-note library still costs about 19 times the base p50 because it must compact the index to remove tombstones; batching cannot amortize a singleton, though its measured p95 is below 60 ms.
