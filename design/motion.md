@@ -335,4 +335,6 @@ PlantUML and Markmap drawings replace their previous SVG at once (rule 2), as Me
 
 ## Stays instant
 
+The web clipper settings' optional image-host permission prompt uses the browser's native presentation (rule 2); upload progress and the final saved status replace the status line instantly, as other clipper statuses do.
+
 Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); on the iPhone, a theme, a colour scheme or a Glass Transparency change in the native screens; text folding (it would animate height inside CodeMirror's measured layout).

@@ -12,6 +12,11 @@
   "working": { "message": "Clipping…" },
   "saved": { "message": "Saved to Devot." },
   "settingsSaved": { "message": "Settings saved." },
+  "imageAccess": { "message": "Enable offline images (optional website access)" },
+  "imagesEnabled": {
+    "message": "Offline images enabled. Supported images will be saved with each clip."
+  },
+  "imagesRemote": { "message": "Website access was not granted. Images will remain remote links." },
   "E_NOTE_BODY_TOO_LARGE": {
     "message": "This clip exceeds the 1 MB Markdown limit. Select a smaller section."
   },

@@ -5,6 +5,23 @@ localize()
 const port = field<HTMLInputElement>('port')
 const token = field<HTMLInputElement>('token')
 const save = field<HTMLButtonElement>('save')
+const images = field<HTMLButtonElement>('images')
+void chrome.permissions.contains({ origins: ['http://*/*', 'https://*/*'] }).then((granted) => {
+  images.disabled = granted
+})
+images.addEventListener('click', () => {
+  images.disabled = true
+  void chrome.permissions.request({ origins: ['http://*/*', 'https://*/*'] }).then(
+    (granted) => {
+      images.disabled = granted
+      status(granted ? 'imagesEnabled' : 'imagesRemote')
+    },
+    () => {
+      images.disabled = false
+      status('imagesRemote')
+    },
+  )
+})
 save.disabled = true
 void chrome.storage.local.get(['port', 'token']).then(
   (stored) => {

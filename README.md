@@ -153,7 +153,8 @@ Every field is optional and percent-encoded, and `url` must be an http or https 
   In Firefox, open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on and select **clipper/dist/firefox/manifest.json** (temporary installs last until Firefox closes; persistent installs require signing).
   Enable Devot's local HTTP API in Settings, create a read/write token, and enable Allow AI Access for the destination notebook.
   Open the extension's Clipper settings, enter the port (default `27484`) and token, then open an article and choose Clip article or select content and choose Clip selection.
-  The popup lets you edit the title and choose an accessible notebook; images remain remote links.
+  The popup lets you edit the title and choose an accessible notebook; choose Enable offline images in the extension settings to grant optional image-host access and save supported images offline.
+  Images that cannot be downloaded or attached stay remote links.
   The token is stored locally in the browser profile, not synced.
 
 ## Markdown mirror

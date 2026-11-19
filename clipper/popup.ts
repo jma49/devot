@@ -27,6 +27,7 @@ async function clip(mode: Mode): Promise<void> {
   pending(true)
   status('working')
   try {
+    const images = await chrome.permissions.contains({ origins: ['http://*/*', 'https://*/*'] })
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab?.id) throw new Error('E_CLIP_URL')
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] })
@@ -45,8 +46,10 @@ async function clip(mode: Mode): Promise<void> {
     })
     if (!answer?.result?.value) throw new Error(answer?.result?.error || 'E_CLIP_EMPTY')
     const result = answer.result.value
+    if (!titleEdited) title.value = result.title
     await send({
       kind: 'save',
+      images,
       note: {
         title: (titleEdited && title.value.trim()) || result.title,
         markdown: result.markdown,

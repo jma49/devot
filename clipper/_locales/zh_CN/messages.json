@@ -1,5 +1,8 @@
 {
   "appName": { "message": "Devot 网页剪藏" },
+  "imageAccess": { "message": "启用离线图片（需要可选的网站访问权限）" },
+  "imagesEnabled": { "message": "已启用离线图片。剪藏时将保存支持的图片。" },
+  "imagesRemote": { "message": "未授予网站访问权限。图片将保留为远程链接。" },
   "title": { "message": "标题" },
   "notebook": { "message": "笔记本" },
   "article": { "message": "剪藏文章" },

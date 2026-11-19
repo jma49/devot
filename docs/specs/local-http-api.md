@@ -49,10 +49,15 @@ Every request passes these guards before anything reaches the notes:
 | `GET /v1/notes/<id>`                                                                  | `notes.read`                            | `{ id, title, notebook, status, pinned, tags, createdAt, updatedAt, markdown }` |
 | `PATCH /v1/notes/<id>` `{ title?, markdown? \| patches?, notebook?, tags?, status? }` | `notes.update` (write)                  | the note as `GET` answers it                                                    |
 | `POST /v1/notes/<id>/append` `{ text, heading?, position?, separator? }`              | `notes.append` (write)                  | the note as `GET` answers it                                                    |
+| `POST /v1/notes/<id>/files` `{ name, type, data }`                                    | `notes.files.create` (write)            | 201 `{ id, url: "devot://file/<id>" }`                                          |
 | `DELETE /v1/notes/<id>`                                                               | `notes.trash` (write; never purges)     | `{ id, title, trashed: true }`                                                  |
 
 Times are ISO strings; a notebook is named by ID or exact name.
-These calls are what the MCP tools make (see AI): the bridge reaches the same listener with a token of its own.
+File uploads carry standard padded base64 in `data` and the image MIME type in `type`; both Rust and the core validate the decoded bytes with the same raster-image checks as pasted attachments, and refuse a mismatched type, SVG, invalid names and empty files.
+The 2 MiB JSON request limit also applies to file uploads, including base64 overhead, even though the attachment store itself accepts files up to 10 MiB.
+The core first checks AI visibility with `ai.read`, so an absent, trashed or inaccessible note returns `E_NOTE_NOT_FOUND` without writing a file.
+It then assigns a file ID and writes through the main window's existing `storage.putFile` path into the `files` table; this route does not change the note body, so the caller must PATCH in the returned URL.
+The note and notebook calls are what the MCP tools make (see AI): the bridge reaches the same listener with a token of its own; file upload has no MCP tool.
 
 - **Through the core:** Rust writes and reads no notes itself.
   A checked call goes to the main window as an event (`devot://http-api`, `{ id, op, note, args }`) and Rust waits up to 15 s for the answer (`http_api_done`, main window only: the JSON, or a code; anything else becomes `E_HTTP_API_FAILED`).

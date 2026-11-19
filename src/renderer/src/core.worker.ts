@@ -270,7 +270,7 @@ const coreApi = {
     // The window runs calls one at a time (httpApiHost), so this names the one running.
     callWriter = httpWriter ? writerOfCall(call, httpWriter) : null
     try {
-      return await runHttpApiCall(httpApi, call)
+      return await runHttpApiCall(httpApi, call, parts)
     } finally {
       callWriter = null
     }

@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { ApiClient } from '../../clipper/client'
+import { ApiClient, MAX_IMAGE_BYTES } from '../../clipper/client'
 
 const requests: {
   path: string
@@ -10,6 +10,8 @@ const requests: {
   body: string
 }[] = []
 let empty = false
+let failUpload = false
+let failPatch = false
 const server = createServer(async (req, res) => {
   let body = ''
   for await (const chunk of req) body += String(chunk)
@@ -21,12 +23,90 @@ const server = createServer(async (req, res) => {
     body,
   })
   res.setHeader('Content-Type', 'application/json')
-  if (req.headers.authorization !== 'Bearer secret') {
+  if (req.url?.startsWith('/image')) {
+    if (req.url === '/image-missing') res.writeHead(404).end()
+    else if (req.url === '/image-large')
+      res.writeHead(200, { 'Content-Length': MAX_IMAGE_BYTES + 1 }).end()
+    else if (req.url === '/image-invalid') res.end('<svg/>')
+    else res.end(Buffer.from('iVBORw0KGgo=', 'base64'))
+  } else if (req.headers.authorization !== 'Bearer secret') {
     res.writeHead(401).end(JSON.stringify({ error: 'E_HTTP_TOKEN_INVALID' }))
   } else if (req.method === 'GET') {
     res.end(JSON.stringify({ notebooks: empty ? [] : [{ id: 'book', name: 'Inbox', notes: 0 }] }))
+  } else if (req.url?.endsWith('/files')) {
+    if (failUpload) res.writeHead(400).end(JSON.stringify({ error: 'E_FILE_TYPE_REFUSED' }))
+    else res.writeHead(201).end(JSON.stringify({ id: 'file', url: 'devot://file/file' }))
+  } else if (req.method === 'PATCH' && failPatch) {
+    res.writeHead(400).end(JSON.stringify({ error: 'E_NOTE_BODY_TOO_LARGE' }))
   } else {
     res.writeHead(201).end(JSON.stringify({ id: 'note' }))
+  }
+})
+
+it('creates the note, downloads and uploads images, then patches local image links', async () => {
+  const start = requests.length
+  const image = `http://127.0.0.1:${port}/image`
+  await new ApiClient({ port, token: 'secret' }).save(
+    { title: 'Article', notebook: 'book', markdown: `![Photo](${image})\n\nSource` },
+    true,
+  )
+  const calls = requests.slice(start)
+  expect(calls[1]?.auth).toBeUndefined()
+  expect(calls.map((c) => c.path)).toEqual([
+    '/v1/notes',
+    '/image',
+    '/v1/notes/note/files',
+    '/v1/notes/note',
+  ])
+  expect(JSON.parse(calls[2]!.body)).toEqual({
+    name: 'image.png',
+    type: 'image/png',
+    data: 'iVBORw0KGgo=',
+  })
+  expect(JSON.parse(calls[3]!.body)).toEqual({ markdown: '![Photo](devot://file/file)\n\nSource' })
+})
+
+it('keeps remote URLs for missing, oversize and unsupported images', async () => {
+  const start = requests.length
+  const markdown = ['missing', 'large', 'invalid']
+    .map((reason) => `![Photo](http://127.0.0.1:${port}/image-${reason})`)
+    .join('\n\n')
+  await new ApiClient({ port, token: 'secret' }).save(
+    { title: 'Article', notebook: 'book', markdown },
+    true,
+  )
+  expect(
+    requests
+      .slice(start)
+      .filter((c) => c.path.startsWith('/v1/'))
+      .map((c) => c.path),
+  ).toEqual(['/v1/notes'])
+})
+
+it('keeps a remote URL on upload refusal and surfaces a final patch failure', async () => {
+  const note = {
+    title: 'Article',
+    notebook: 'book',
+    markdown: `![Photo](http://127.0.0.1:${port}/image)`,
+  }
+  const client = new ApiClient({ port, token: 'secret' })
+  failUpload = true
+  try {
+    const start = requests.length
+    await expect(client.save(note, true)).resolves.toEqual({ id: 'note' })
+    expect(requests.slice(start).map((c) => c.path)).toEqual([
+      '/v1/notes',
+      '/image',
+      '/v1/notes/note/files',
+    ])
+  } finally {
+    failUpload = false
+  }
+  failPatch = true
+  try {
+    await expect(client.save(note, true)).rejects.toThrow('E_NOTE_BODY_TOO_LARGE')
+  } finally {
+    failPatch = false
   }
 })
 let port: number

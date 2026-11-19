@@ -469,6 +469,11 @@ fn a_read_only_token_reads_and_never_writes() {
         ("PATCH", note.as_str(), Some(r#"{"title":"a"}"#)),
         ("DELETE", note.as_str(), None),
         ("POST", "/v1/notebooks", Some(r#"{"name":"a"}"#)),
+        (
+            "POST",
+            &format!("{note}/files"),
+            Some(r#"{"name":"a","type":"image/png","data":"iVBORw0KGgo="}"#),
+        ),
     ] {
         let response = authorized(&api, method, target, body);
         assert_eq!(
@@ -478,6 +483,50 @@ fn a_read_only_token_reads_and_never_writes() {
         );
     }
     assert_eq!(api.core.reached(), 2);
+}
+
+#[test]
+fn file_uploads_validate_images_before_dispatch() {
+    let api = start(Scope::ReadWrite);
+    let target = format!("/v1/notes/{NOTE}/files");
+    for (body, code) in [
+        (
+            json!({"name":"a", "type":"image/png", "data":""}),
+            "E_FILE_SIZE_INVALID",
+        ),
+        (
+            json!({"name":"a", "type":"image/png", "data":"bad!"}),
+            "E_FILE_BODY_INVALID",
+        ),
+        (
+            json!({"name":"a", "type":"image/svg+xml", "data":"PHN2Zy8+"}),
+            "E_FILE_TYPE_REFUSED",
+        ),
+        (
+            json!({"name":"a", "type":"image/jpeg", "data":"iVBORw0KGgo="}),
+            "E_FILE_TYPE_REFUSED",
+        ),
+        (
+            json!({"name":"", "type":"image/png", "data":"iVBORw0KGgo="}),
+            "E_FILE_NAME_INVALID",
+        ),
+        (
+            json!({"name":"a", "type":"image/png", "data":"iVBORw0KGgo=", "extra":true}),
+            "E_HTTP_BODY_INVALID",
+        ),
+    ] {
+        assert_eq!(
+            authorized(&api, "POST", &target, Some(&body.to_string())).code(),
+            code
+        );
+    }
+    assert_eq!(api.core.reached(), 0);
+    let huge =
+        json!({"name":"a", "type":"image/png", "data":"a".repeat(2 * 1024 * 1024)}).to_string();
+    assert_eq!(
+        authorized(&api, "POST", &target, Some(&huge)).code(),
+        "E_HTTP_BODY_TOO_LARGE"
+    );
 }
 
 #[test]
@@ -903,6 +952,7 @@ fn routes_each_request_of_the_contract_to_its_call() {
         Op::NotesUpdate,
         Op::NotesAppend,
         Op::NotesTrash,
+        Op::NotesFilesCreate,
     ] {
         assert!(routed.contains(op.as_str()), "{}", op.as_str());
     }
@@ -1150,6 +1200,7 @@ fn once_the_trial_is_over_writes_are_refused_before_the_window_is_asked() {
         Op::NotesUpdate,
         Op::NotesAppend,
         Op::NotesTrash,
+        Op::NotesFilesCreate,
     ] {
         assert_eq!(
             dispatch.dispatch(&call(op)).unwrap_err(),

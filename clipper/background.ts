@@ -1,7 +1,7 @@
 import { ApiClient, type Note, type Settings } from './client'
 import { extension as chrome } from './platform'
 
-export type Request = { kind: 'notebooks' } | { kind: 'save'; note: Note }
+export type Request = { kind: 'notebooks' } | { kind: 'save'; note: Note; images: boolean }
 chrome.runtime.onMessage.addListener((request: Request, sender, respond) => {
   if (sender.id !== chrome.runtime.id || sender.tab) return false
   void (async () => {
@@ -11,7 +11,9 @@ chrome.runtime.onMessage.addListener((request: Request, sender, respond) => {
       token: String(stored['token'] ?? ''),
     }
     const client = new ApiClient(settings, chrome.runtime.getURL('').replace(/\/$/, ''))
-    return request.kind === 'notebooks' ? client.notebooks() : client.save(request.note)
+    return request.kind === 'notebooks'
+      ? client.notebooks()
+      : client.save(request.note, request.images)
   })().then(
     (value) => respond({ value }),
     (error: unknown) => respond({ error: error instanceof Error ? error.message : 'E_CLIP_API' }),

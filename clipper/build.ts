@@ -1,9 +1,14 @@
 import { build } from 'esbuild'
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { pathToFileURL } from 'node:url'
 
 const manifest = JSON.parse(await readFile(new URL('./manifest.json', import.meta.url), 'utf8'))
 for (const browser of ['chrome', 'firefox']) {
-  const outdir = new URL(`./dist/${browser}/`, import.meta.url)
+  const root = process.env['DEVOT_CLIPPER_BUILD_ROOT']
+  const outdir = new URL(
+    `${browser}/`,
+    root ? pathToFileURL(`${root}/`) : new URL('./dist/', import.meta.url),
+  )
   await mkdir(outdir, { recursive: true })
   await build({
     entryPoints: [
@@ -16,6 +21,7 @@ for (const browser of ['chrome', 'firefox']) {
     bundle: true,
     format: 'iife',
     platform: 'browser',
+    conditions: ['worker'],
     target: ['chrome120', 'firefox121'],
   })
   for (const file of ['popup.html', 'options.html', 'style.css', '_locales'])

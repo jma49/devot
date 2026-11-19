@@ -8,6 +8,38 @@ const prose =
     12,
   )
 
+it('removes heading controls without removing ordinary edit links', () => {
+  document.head.innerHTML = ''
+  document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}</p><div><a href="/edit">[edit]</a><h2>History<span class="mw-editsection"><a href="/edit">[edit]</a></span><button>Change</button><span role="button">Collapse</span><span aria-hidden="true">Hidden</span></h2><a href="/edit">[edit]</a></div><h3>Details <a href="/edit">edit</a></h3><p>${prose}<a href="/edit">edit</a></p></article>`
+  const result = extract(document, url, 'article')
+  expect(result.markdown).toContain('## History')
+  expect(result.markdown).toContain('### Details')
+  expect(result.markdown).not.toMatch(/Change|Collapse|Hidden/)
+  expect(result.markdown.match(/\[edit\]\(https:\/\/example.org\/edit\)/g)).toHaveLength(1)
+})
+
+it.each([
+  ['Lighthouse - Wikipedia', '', 'Wikipedia', 'Lighthouse'],
+  ['Wikipedia — Lighthouse', '', 'Wikipedia', 'Lighthouse'],
+  ['Lighthouse | Site', '', '', 'Lighthouse'],
+  ['Lighthouse — Site', '', '', 'Lighthouse'],
+  ['Browser title', 'Article headline', 'Site', 'Article headline'],
+  ['Lighthouse', '', '', 'Lighthouse'],
+])('chooses a clean article title from %s', (title, og, site, expected) => {
+  document.head.innerHTML = `<title>${title}</title><meta property="og:title" content="${og}"><meta property="og:site_name" content="${site}">`
+  document.body.innerHTML = `<article><h1>${title}</h1><p>${prose}</p></article>`
+  expect(extract(document, url, 'article').title).toBe(expected)
+})
+
+it('removes tracking parameters while preserving meaningful image and link parameters', () => {
+  document.head.innerHTML = ''
+  document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}</p><img src="/photo.png?width=500&utm_source=x&fbclid=x" alt="Photo"><a href="/more?gclid=x&page=2&mc_eid=x">More</a></article>`
+  const result = extract(document, url, 'article')
+  expect(result.markdown).toContain('![Photo](https://example.org/photo.png?width=500)')
+  expect(result.markdown).toContain('[More](https://example.org/more?page=2)')
+  expect(result.markdown).not.toMatch(/utm_|fbclid|gclid|mc_eid/)
+})
+
 it('extracts an article, preserving Markdown structure and absolute lazy images', () => {
   document.body.innerHTML = `<nav>Navigation junk</nav><article><h1>Expedition</h1><p>${prose}</p><h2>Findings</h2><p>${prose}</p><ul><li>First finding</li></ul><pre><code>const answer = 42;</code></pre><img data-src="../photo.jpg" alt="Team"><picture><source srcset="/wide.jpg 2x"><img alt="Landscape"></picture><img src="javascript:bad"><a href="/more">More</a></article><aside class="ad">Advertisement junk</aside><footer>Footer junk</footer>`
   const result = extract(document, url, 'article')

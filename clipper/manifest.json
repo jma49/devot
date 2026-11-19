@@ -5,6 +5,7 @@
   "default_locale": "en",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "action": { "default_popup": "popup.html" },
   "options_ui": { "page": "options.html", "open_in_tab": true },
   "background": { "service_worker": "background.js" }

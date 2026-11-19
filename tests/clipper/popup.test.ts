@@ -23,6 +23,7 @@ it.each([undefined, 'My headline', ''])(
         request.files ? [] : [{ result: { value: { title: 'Lighthouse', markdown: 'Article' } } }],
     )
     vi.stubGlobal('chrome', {
+      permissions: { contains: async () => true },
       i18n: { getMessage: (key: string) => key, getUILanguage: () => 'en' },
       tabs: { query: async () => [{ id: 1, title: 'Lighthouse - Wikipedia' }] },
       runtime: { sendMessage },
@@ -40,6 +41,7 @@ it.each([undefined, 'My headline', ''])(
     await vi.waitFor(() =>
       expect(sendMessage).toHaveBeenCalledWith({
         kind: 'save',
+        images: true,
         note: { title: edited?.trim() || 'Lighthouse', markdown: 'Article', notebook: 'book' },
       }),
     )
