@@ -11,5 +11,5 @@ export async function copySelection(pending: Promise<Selection | null>): Promise
   void text.catch(() => undefined)
   void html.catch(() => undefined)
   // WebKit requires the write during the gesture; its promised data may arrive later.
-  await navigator.clipboard.write([new ClipboardItem({ 'text/plain': text, 'text/html': html })])
+  await navigator.clipboard.write([new ClipboardItem({ 'text/html': html, 'text/plain': text })])
 }

@@ -80,7 +80,7 @@ Part of the [architecture overview](../architecture.md).
   What needs more of the note builds it first: a scroll-sync or outline jump to a line builds up to that line and a screen past it (nothing when that much is built), a restored scroll position builds until the preview is tall enough, and find, select all (the menu item or Cmd+A), copy and a link to a heading build all of it.
   Outline jumps to built headings are immediate when a pane height remains below them; missing headings or missing space below them await the full answer and build through the target and its following screen, or the end of the note.
   While only the head has arrived, find and selection await successful full completion before reading the DOM; replaced or failed requests cancel those actions, and Copy following a deferred Select All waits for that selection.
-  Deferred Copy starts a clipboard write during the copy gesture with promised plain-text and HTML representations of the completed selection, preserving formatting and links.
+  Deferred Copy starts a clipboard write during the copy gesture with promised HTML and plain-text representations of the completed selection, offering HTML first to preserve formatting and links in rich paste targets.
   Diagrams are added for what is built at once, every 250 ms while the build goes on, and when it ends.
   Copy buttons are committed after the full preview's DOM has had a paint opportunity, with a one-second fallback when a hidden window paints no frames; replacement work and teardown cancel the pending commit.
   `tests/renderer/preview-open.bench.test.ts` holds what that task builds from growing with the note.
