@@ -6,6 +6,7 @@ import { sampleNote } from '../../../../scripts/bench/fixtures'
 import { labels } from '../../../../tests/support/preview-html'
 import {
   buildFirstPieces,
+  FIRST_CHARACTERS,
   buildPending,
   buildToLine,
   hasPending,
@@ -24,6 +25,22 @@ const el = (
 ): ElementContent => ({ type: 'element', tagName, properties, children }) as ElementContent
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
+
+it('builds only the first screen budget synchronously', async () => {
+  const host = document.createElement('div')
+  const shown = patchPieces(
+    host,
+    [],
+    await createPieceRenderer()(sampleNote(100_000), { labels, loadedEmbeds: [] }),
+    { defer: true },
+  )
+  buildFirstPieces(host, shown)
+  expect(FIRST_CHARACTERS).toBe(6000)
+  expect(
+    shown.filter((piece) => !piece.pending).every((piece) => piece.offset < FIRST_CHARACTERS),
+  ).toBe(true)
+  expect(shown.some((piece) => piece.pending)).toBe(true)
+})
 
 const mark = (drawn: boolean) =>
   el('svg', { className: ['code-lang-icon'], viewBox: '0 0 24 24', ariaHidden: 'true' }, [

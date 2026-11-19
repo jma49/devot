@@ -56,6 +56,7 @@ import { createIslandMounter } from './islands'
 import { islands } from './islandRegistry'
 import { CodeCopyButtons, pieceCodeBlocks } from './CodeCopy'
 import { latestOnly } from './latest'
+import { warmMermaid } from './mermaid'
 import {
   previewScrollPane,
   shiftScroll,
@@ -111,6 +112,7 @@ export function previewNote(fields: PreviewNoteFields): PreviewNote {
 }
 
 interface RenderInput {
+  head?: boolean
   /** Read when the render starts, so renders that a newer one replaces never read the text. */
   read: () => string
   loadedEmbeds: string[]
@@ -184,6 +186,8 @@ const sameList = (a: readonly HTMLElement[], b: readonly HTMLElement[]) =>
 const hasFence = (markdown: string) => markdown.includes('```') || markdown.includes('~~~')
 
 const RESTORE_SCROLL_MS = 5000
+const HEAD_CHARACTERS = 8000
+const LONG_NOTE_CHARACTERS = 32_000
 
 /** How long a task builds the pieces a render left for later, between other work. */
 const SLICE_MS = 8
@@ -251,6 +255,11 @@ export function Preview({
   const pieces = useRef<ShownPiece[]>([])
   /** The note the pieces on screen are of. */
   const piecesOf = useRef<string | undefined>(undefined)
+  const requestedNote = useRef<string | undefined>(undefined)
+  const awaitingFull = useRef<
+    | { note: string | undefined; source: string; done: Promise<void>; finish: () => void }
+    | undefined
+  >(undefined)
   /** The Markdown the preview on screen was rendered from (images point into it). */
   const shown = useRef('')
   const findHandle = useRef(onFind)
@@ -261,7 +270,7 @@ export function Preview({
   /** The notes the shown preview links to; their chips are asked for again when one of them changes. */
   const shownLinks = useRef<readonly string[]>([])
   const linksChanged = useRef(0)
-  useEffect(() => {
+  useInsertionEffect(() => {
     noteNow.current = noteId
     findHandle.current = onFind
     scrollHandle.current = onScrollPane
@@ -271,7 +280,9 @@ export function Preview({
   const afterBuild = useCallback(() => {
     const el = host.current
     if (!el) return
-    mounter.mount(el, islandContext.current, () => scroll.current?.changed())
+    mounter.mount(el, { ...islandContext.current, eagerFirstMermaid: true }, () =>
+      scroll.current?.changed(),
+    )
     const blocks = pieceCodeBlocks(pieces.current)
     setCodes((now) => (sameList(now, blocks) ? now : blocks))
   }, [mounter])
@@ -304,17 +315,32 @@ export function Preview({
     }
     buildTimer.current = setTimeout(slice, 0)
   }, [afterBuild])
-  const buildAll = useCallback(() => {
-    const el = host.current
-    if (!el || !hasPending(pieces.current)) return
-    clearTimeout(buildTimer.current)
-    buildTimer.current = undefined
-    buildPending(el, pieces.current, () => true)
-    scroll.current?.built()
-    afterBuild()
-  }, [afterBuild])
+  const buildAll = useCallback(
+    function complete(): void | Promise<void> {
+      const waiting = awaitingFull.current
+      if (waiting)
+        return waiting.done.then(() => {
+          if (waiting.note === noteNow.current && waiting.source === shown.current) complete()
+        })
+      const el = host.current
+      if (!el || !hasPending(pieces.current)) return
+      clearTimeout(buildTimer.current)
+      buildTimer.current = undefined
+      buildPending(el, pieces.current, () => true)
+      scroll.current?.built()
+      afterBuild()
+    },
+    [afterBuild],
+  )
   const reachLine = useCallback(
-    (line: number) => {
+    function reach(line: number) {
+      const waiting = awaitingFull.current
+      if (waiting) {
+        void waiting.done.then(() => {
+          if (waiting.note === noteNow.current && waiting.source === shown.current) reach(line)
+        })
+        return
+      }
       const el = host.current
       if (!el || buildToLine(el, pieces.current, line) === 0) return
       scroll.current?.built()
@@ -386,20 +412,51 @@ export function Preview({
   }, [buildAll, reachLine])
 
   useEffect(() => {
-    const run = latestOnly(
-      async (input: RenderInput) => {
-        // Read with the text, so a text that arrives after a switch is not taken for the note before.
+    const { renderLivePreview, noteDrawings } = core
+    let active = true
+    let generation = 0
+    let fullFrame: number | undefined
+    let fullTimer: ReturnType<typeof setTimeout> | undefined
+    const warming = new Set<() => void>()
+    const finishFull = () => {
+      const waiting = awaitingFull.current
+      awaitingFull.current = undefined
+      waiting?.finish()
+    }
+    const reset = () => {
+      finishFull()
+      if (fullFrame !== undefined) cancelAnimationFrame(fullFrame)
+      clearTimeout(fullTimer)
+      fullFrame = undefined
+      fullTimer = undefined
+    }
+    const request = latestOnly(
+      async ({
+        input,
+        round,
+        ofNote,
+        opening,
+      }: {
+        input: RenderInput
+        round: number
+        ofNote: string | undefined
+        opening: boolean
+      }) => {
+        if (!active || round !== generation) return undefined
         const source = input.read()
-        const ofNote = noteNow.current
-        // A note with a fence waits for its kept drawings the first time, so its blocks do not show as code first.
-        const kept =
-          ofNote && hasFence(source)
-            ? (keptDrawingsOf(ofNote) ??
-              (await loadKeptDrawings((id) => core.noteDrawings(id), ofNote)))
-            : undefined
-        const languages = keptLanguages(kept ?? [])
-        return core
-          .renderLivePreview(
+        const valid = () =>
+          active && round === generation && ofNote === noteNow.current && source === input.read()
+        const release = opening ? warmMermaid(source, islandContext.current) : undefined
+        if (release) warming.add(release)
+        const ask = async () => {
+          const kept =
+            ofNote && hasFence(source)
+              ? (keptDrawingsOf(ofNote) ??
+                (await loadKeptDrawings((id) => noteDrawings(id), ofNote)))
+              : undefined
+          if (!valid()) return undefined
+          const languages = keptLanguages(kept ?? [])
+          const next = await renderLivePreview(
             source,
             {
               labels: previewLabels(),
@@ -409,13 +466,38 @@ export function Preview({
               ...(input.frontMatterInInfo ? { frontMatterInInfo: true } : {}),
             },
             ofNote === piecesOf.current ? pieces.current.map((piece) => piece.key) : [],
-            // The chips' notes are asked for again when another note opens or one of them changes.
             `${ofNote ?? ''} ${linksChanged.current}`,
+            input.head ? HEAD_CHARACTERS : undefined,
           )
-          .then((next) => ({ next, input, source, ofNote }))
+          return valid() ? { next, input, source, ofNote, round } : undefined
+        }
+        return ask()
+          .catch((error: unknown) => {
+            if (valid()) throw error
+            return undefined
+          })
+          .finally(() => {
+            release?.()
+            if (release) warming.delete(release)
+          })
       },
-      ({ next, input, source, ofNote }) => {
-        if (!host.current) return
+      (answer) => {
+        if (!answer || !host.current) return
+        const { next, input, source, ofNote, round } = answer
+        if (
+          !active ||
+          generation !== round ||
+          ofNote !== noteNow.current ||
+          source !== input.read()
+        )
+          return
+        if (next.partial) {
+          let finish!: () => void
+          const done = new Promise<void>((resolve) => {
+            finish = resolve
+          })
+          awaitingFull.current = { note: ofNote, source, done, finish }
+        } else finishFull()
         if (ofNote !== piecesOf.current) {
           // Another note shares nothing worth patching over with the one shown.
           host.current.replaceChildren()
@@ -450,12 +532,56 @@ export function Preview({
         }
         keepRestoring()
         if (hasPending(pieces.current)) buildLater()
+        if (next.partial) {
+          fullFrame = requestAnimationFrame(() => {
+            fullFrame = undefined
+            fullTimer = setTimeout(() => {
+              fullTimer = undefined
+              if (
+                active &&
+                generation === round &&
+                ofNote === noteNow.current &&
+                source === input.read()
+              )
+                run({ ...input, head: false })
+            }, 0)
+          })
+        }
       },
-      () => console.warn('W_PREVIEW_RENDER_FAILED'),
+      () => {
+        reset()
+        requestedNote.current = undefined
+        clearTimeout(buildTimer.current)
+        buildTimer.current = undefined
+        console.warn('W_PREVIEW_RENDER_FAILED')
+      },
     )
+    const run = (input: RenderInput) => {
+      const ofNote = noteNow.current
+      const opening = requestedNote.current !== ofNote
+      requestedNote.current = ofNote
+      if (input.head !== false) reset()
+      generation += 1
+      request({
+        input: {
+          ...input,
+          head: input.head ?? (opening && input.read().length > LONG_NOTE_CHARACTERS),
+        },
+        round: generation,
+        ofNote,
+        opening,
+      })
+    }
     render.current = run
+    return () => {
+      active = false
+      reset()
+      for (const release of warming) release()
+      warming.clear()
+      requestedNote.current = undefined
+      render.current = undefined
+    }
   }, [core, afterBuild, buildLater, keepRestoring, stopRestoring])
-
   useEffect(() => {
     islandContext.current = { ...islandContext.current, appearance, theme }
     if (host.current)
@@ -544,9 +670,17 @@ export function Preview({
     event.preventDefault()
     const href = link.getAttribute('href') ?? ''
     if (href.startsWith('#')) {
-      buildAll()
+      const note = noteNow.current
+      const complete = buildAll()
       const id = fragmentId(decodeURIComponent(href.slice(1)))
-      pane.current?.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'start' })
+      const jump = () => {
+        if (note === noteNow.current)
+          pane.current
+            ?.querySelector(`[id="${CSS.escape(id)}"]`)
+            ?.scrollIntoView({ block: 'start' })
+      }
+      if (complete) void complete.then(jump)
+      else jump()
       return
     }
     const note = NOTE_LINK.exec(href)
@@ -588,8 +722,16 @@ export function Preview({
           return
         }
         case 'selectAll':
-          buildAll()
-          if (pane.current) selectAllIn(pane.current, window.getSelection())
+          {
+            const note = noteNow.current
+            const complete = buildAll()
+            const select = () => {
+              if (pane.current && note === noteNow.current)
+                selectAllIn(pane.current, window.getSelection())
+            }
+            if (complete) void complete.then(select)
+            else select()
+          }
           return
         case 'startSpeaking':
           void startSpeaking(target.selection)
@@ -652,7 +794,17 @@ export function Preview({
         onKeyDown={(event) => {
           stopRestoring()
           // Select all runs after this, over a preview built whole.
-          if (keyMatches('Mod+A', event)) buildAll()
+          if (keyMatches('Mod+A', event)) {
+            const note = noteNow.current
+            const complete = buildAll()
+            if (complete) {
+              event.preventDefault()
+              void complete.then(() => {
+                if (pane.current && note === noteNow.current)
+                  selectAllIn(pane.current, window.getSelection())
+              })
+            }
+          }
         }}
         onScroll={(event) => {
           if (!scrollTarget.current) scrolled.current?.(event.currentTarget.scrollTop)

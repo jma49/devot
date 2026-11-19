@@ -4,8 +4,21 @@ import {
   followsWidth,
   isFrameMessage,
   isRenderRequest,
+  isWarmRequest,
   labelDiagram,
 } from './mermaid-protocol'
+
+it('accepts only a Mermaid engine warm request', () => {
+  expect(isWarmRequest({ type: 'warm', kind: 'mermaid' })).toBe(true)
+  for (const value of [
+    null,
+    {},
+    { type: 'warm', kind: 'other' },
+    { type: 'render', kind: 'mermaid' },
+  ]) {
+    expect(isWarmRequest(value)).toBe(false)
+  }
+})
 
 describe('isFrameMessage', () => {
   it('accepts a drawing and a failure with its reason', () => {

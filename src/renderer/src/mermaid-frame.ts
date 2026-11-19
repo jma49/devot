@@ -7,6 +7,7 @@
 import { engineLoader } from './diagram-engines/loader'
 import {
   isRenderRequest,
+  isWarmRequest,
   READY,
   targetOrigin,
   type FrameMessage,
@@ -48,6 +49,8 @@ window.addEventListener('message', (event) => {
   port?.close()
   port = received
   port.onmessage = (message) => {
+    if (isWarmRequest(message.data))
+      void engine(message.data.kind).catch(() => console.warn('W_DIAGRAM_WARM_FAILED'))
     if (isRenderRequest(message.data)) render(message.data)
   }
 })

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { NoteLinkTarget, PreviewOptions, PreviewPiece } from '../../src/core'
 import { createLivePreviewRenderer } from '../../src/core/preview/live'
+import { createPieceRenderer } from '../../src/core/preview'
+import { labels } from '../support/preview-html'
 
 const A = '0192a6f0-0000-7000-8000-00000000000a'
 const B = '0192a6f0-0000-7000-8000-00000000000b'
@@ -44,6 +46,24 @@ function setup(fail = false) {
 }
 
 describe('the live preview as the core renders it', () => {
+  it('returns a partial head with complete note facts and a reusable full prefix', async () => {
+    const pieces = createPieceRenderer({ pieceLength: 40 })
+    const render = createLivePreviewRenderer({
+      renderPieces: pieces,
+      renderHead: pieces.head,
+      linkTargets: async () => ({}),
+      onTargetsFailed: () => {},
+    })
+    const text =
+      '# Top\n\n' +
+      Array.from({ length: 40 }, (_, i) => `## Section ${i}\n\n- [ ] Task ${i}\n\n`).join('')
+    const head = await render(text, { labels, loadedEmbeds: [] }, [], 'head', 80)
+    const full = await render(text, { labels, loadedEmbeds: [] }, [], 'head')
+    expect(head.partial).toBe(true)
+    expect(head.tasks).toEqual(full.tasks)
+    expect(head.lines).toBe(full.lines)
+    expect(head.pieces).toEqual(full.pieces.slice(0, head.pieces.length))
+  })
   it('reads task progress, line count and linked notes from the text', async () => {
     const s = setup()
     const result = await s.render(

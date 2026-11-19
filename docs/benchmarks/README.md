@@ -27,6 +27,11 @@ Fixtures are generated when it runs (`scripts/bench/fixtures.ts`) and never comm
 
 `results.json` holds each series as `n`, `median`, `p90`, `min` and `max` (milliseconds), and the commit, machine and WebKit version. `pnpm bench -- --quick` runs a few of each, to check the harness; do not keep its numbers.
 
+Split-note opens report separate `editor`, `firstHeading`, `firstDiagram` and `preview` marks: editor text, the preview's first heading, its first Mermaid SVG and its last line, each followed by the paint helper.
+The first-diagram mark requires an actual SVG in a nonempty Mermaid target without scrolling; it does not infer readiness from an empty set of nearby diagrams.
+The older `mermaid` mark still measures all diagrams near the viewport after the last line arrives and is not a substitute for first-diagram paint.
+The first open and fresh unseen note each have one sample; the warm series has 14 samples in a full run, with medians and p90s for every mark.
+
 What the web harness cannot say: the real app's startup and memory (see below), the SQLite store (notes are in `localStorage` here, so a save at the end of typing costs more than in the app), and the display's refresh rate. WebKit in Playwright draws at 60 Hz, so frame times cluster at 17 ms.
 
 ### `pnpm bench:app`

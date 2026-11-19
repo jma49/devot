@@ -150,6 +150,13 @@ const required = () => {
 }
 
 const livePreview = createLivePreviewRenderer({
+  renderHead: (markdown, options, known, characters) =>
+    pieces.head(
+      markdown,
+      { ...withoutDrawnLanguages(options), ...pluginRevisions() },
+      known,
+      characters,
+    ),
   renderPieces: (markdown, options, known) =>
     pieces(markdown, { ...withoutDrawnLanguages(options), ...pluginRevisions() }, known),
   linkTargets: (ids, embeds) => required().linkTargets(ids, embeds),
@@ -507,7 +514,8 @@ const coreApi = {
     options: Omit<PreviewOptions, 'noteLinks'>,
     known: string[],
     scope: string,
-  ) => livePreview(markdown, options, known, scope),
+    headCharacters?: number,
+  ) => livePreview(markdown, options, known, scope, headCharacters),
   /** The plugin drawings the note keeps (ADR 0030). */
   noteDrawings: (noteId: string) => {
     const parts = coreParts

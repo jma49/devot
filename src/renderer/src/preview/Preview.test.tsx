@@ -11,6 +11,12 @@ import { patchPieces, UI_ATTRIBUTE } from './dom'
 import { textStore } from '../textStore'
 import { Preview } from './Preview'
 import type { ScrollPane } from './scrollSync'
+import { warmMermaid } from './mermaid'
+
+vi.mock('./mermaid', async (original) => ({
+  ...(await original<typeof import('./mermaid')>()),
+  warmMermaid: vi.fn<typeof warmMermaid>(() => () => undefined),
+}))
 
 vi.mock('../ipc', () => ({ invoke: vi.fn<() => Promise<unknown>>() }))
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -29,6 +35,7 @@ const note = (bytes: number, tag: string) => {
 }
 
 type Known = readonly string[]
+type RenderAnswer = Awaited<ReturnType<Core['renderLivePreview']>>
 
 function fakeCore() {
   const asked: Known[] = []
@@ -142,6 +149,164 @@ const firstRender = async (renders: Promise<unknown>[]) => {
 }
 
 describe('Preview', () => {
+  it('shows a long note head before asking for its full render, which reuses the head keys', async () => {
+    const markdown = note(40_000, 'head')
+    const renderer = createPieceRenderer()
+    const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    const full = await renderer(
+      markdown,
+      { labels, loadedEmbeds: [] },
+      head.pieces.map((piece) => piece.key),
+    )
+    let complete!: (value: RenderAnswer) => void
+    const pending = new Promise<RenderAnswer>((resolve) => {
+      complete = resolve
+    })
+    const { core } = fakeCore()
+    const asked = vi
+      .fn<Core['renderLivePreview']>()
+      .mockResolvedValueOnce({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValueOnce(pending)
+    core.renderLivePreview = asked
+    const { body, render: update } = show(core, markdown, 'head-sequence')
+    await settle()
+    expect(asked).toHaveBeenCalledTimes(2)
+    expect(asked.mock.calls[0]![4]).toBe(8000)
+    expect(asked.mock.calls[1]![4]).toBeUndefined()
+    expect(asked.mock.calls[1]![2]).toEqual(head.pieces.map((piece) => piece.key))
+    expect(body().textContent).toContain('head section 1')
+    expect(body().textContent).not.toContain('head section 150')
+    await act(async () =>
+      complete({
+        pieces: full,
+        partial: false,
+        lines: 1000,
+        links: [],
+        tasks: { done: 0, total: 0 },
+      }),
+    )
+    await settle()
+    expect(content(body())).toBe(await wholeBuild(markdown))
+    asked.mockResolvedValueOnce({ pieces: [], lines: 1, links: [], tasks: { done: 0, total: 0 } })
+    update(`${markdown}\n\nTyped`, 'head-sequence')
+    await settle()
+    expect(asked).toHaveBeenCalledTimes(3)
+    expect(asked.mock.calls[2]![4]).toBeUndefined()
+  }, 60_000)
+
+  it('drops a full answer after a newer note opens over the head', async () => {
+    const markdown = note(40_000, 'previous')
+    const renderer = createPieceRenderer()
+    const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    let complete!: (value: RenderAnswer) => void
+    const pending = new Promise<RenderAnswer>((resolve) => {
+      complete = resolve
+    })
+    const { core } = fakeCore()
+    const original = core.renderLivePreview
+    const asked = vi
+      .fn<Core['renderLivePreview']>()
+      .mockResolvedValueOnce({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValueOnce(pending)
+      .mockImplementation(original)
+    core.renderLivePreview = asked
+    const { body, render: update } = show(core, markdown, 'previous-full')
+    await settle()
+    update('# Current note', 'current-full')
+    await act(async () =>
+      complete({
+        pieces: await renderer(markdown, { labels, loadedEmbeds: [] }),
+        lines: 1000,
+        links: [],
+        tasks: { done: 0, total: 0 },
+      }),
+    )
+    await settle()
+    expect(body().textContent).toContain('Current note')
+    expect(body().textContent).not.toContain('previous section')
+    expect(asked).toHaveBeenCalledTimes(3)
+  }, 60_000)
+
+  it.each(['note', 'text', 'unmount'])(
+    'drops a pending head after %s changes',
+    async (change) => {
+      const markdown = note(40_000, 'old')
+      let complete!: (value: RenderAnswer) => void
+      const pending = new Promise<RenderAnswer>((resolve) => {
+        complete = resolve
+      })
+      const { core } = fakeCore()
+      const render = core.renderLivePreview
+      const asked = vi
+        .fn<Core['renderLivePreview']>()
+        .mockReturnValueOnce(pending)
+        .mockImplementation(render)
+      core.renderLivePreview = asked
+      const { render: update, body } = show(core, markdown, `stale-${change}`)
+      await act(async () => {
+        for (let i = 0; i < 30; i++) await Promise.resolve()
+      })
+      if (change === 'unmount')
+        act(() => {
+          root?.unmount()
+          root = undefined
+        })
+      else update('# New text', change === 'note' ? 'different' : `stale-${change}`)
+      const head = await createPieceRenderer().head(
+        markdown,
+        { labels, loadedEmbeds: [] },
+        [],
+        8000,
+      )
+      await act(async () =>
+        complete({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } }),
+      )
+      await settle()
+      expect(body()?.textContent ?? '').toBe(change === 'unmount' ? '' : 'New text')
+      expect(asked).toHaveBeenCalledTimes(change === 'unmount' ? 1 : 2)
+    },
+    60_000,
+  )
+
+  it('warms Mermaid while fenced-note metadata is still loading', async () => {
+    vi.mocked(warmMermaid).mockClear()
+    const release = vi.fn<() => void>()
+    vi.mocked(warmMermaid).mockReturnValueOnce(release)
+    const { core } = fakeCore()
+    vi.spyOn(core, 'noteDrawings').mockReturnValue(new Promise(() => {}))
+    const render = vi.spyOn(core, 'renderLivePreview')
+    show(core, '# Diagram\n\n```mermaid\nflowchart LR\nA-->B\n```', 'warming')
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(warmMermaid).toHaveBeenCalledOnce()
+    expect(render).not.toHaveBeenCalled()
+    act(() => {
+      root?.unmount()
+      root = undefined
+    })
+    expect(release).toHaveBeenCalledOnce()
+  })
+
+  it.each(['head', 'full'])('recovers after the %s request fails', async (phase) => {
+    const markdown = note(40_000, 'failed')
+    const head = await createPieceRenderer().head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    const { core } = fakeCore()
+    const asked = vi.fn<Core['renderLivePreview']>().mockImplementation(core.renderLivePreview)
+    if (phase === 'full')
+      asked.mockResolvedValueOnce({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } })
+    asked.mockRejectedValueOnce(new Error('E_TEST_RENDER'))
+    core.renderLivePreview = asked
+    const { render: update, body } = show(core, markdown, `failed-${phase}`)
+    await settle()
+    expect(warned).toHaveBeenCalledWith('W_PREVIEW_RENDER_FAILED')
+    warned.mockClear()
+    update('# Recovered', `failed-${phase}`)
+    await settle()
+    expect(body().textContent).toBe('Recovered')
+    expect(asked).toHaveBeenCalledTimes(phase === 'head' ? 2 : 3)
+  })
+
   it('builds what a big note shows first at once and the rest later, ending as one whole build', async () => {
     const { core, renders } = fakeCore()
     const markdown = note(200_000, 'big')

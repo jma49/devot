@@ -10,6 +10,7 @@ export const ISLAND_ATTRIBUTE = 'data-devot-island'
 
 export interface IslandContext {
   appearance: Appearance
+  eagerFirstMermaid?: boolean
   /** The theme on screen, when the appearance alone does not settle an island's colours. */
   theme?: string
   /** Aborted once a newer render for the same element starts, or the element goes. */
@@ -335,8 +336,11 @@ export function createIslandMounter(
         widths?.unobserve(el)
       }
     }
+    let firstMermaid = true
     for (const el of host.querySelectorAll(`[${ISLAND_ATTRIBUTE}]`)) {
       const kind = el.getAttribute(ISLAND_ATTRIBUTE) ?? ''
+      const eager = kind === 'mermaid' && firstMermaid && context.eagerFirstMermaid === true
+      if (kind === 'mermaid') firstMermaid = false
       const source = el.getAttribute('data-island-source') ?? ''
       const island = registry.get(kind)
       const known = slots.get(el)
@@ -372,7 +376,7 @@ export function createIslandMounter(
       if (reserved !== undefined && style) style.minHeight = `${reserved}px`
       waiting.set(el, () => render(el, slot, island, source, context, width))
       nearby?.observe(el)
-      if (near.has(el)) startWaiting(el)
+      if (eager || near.has(el)) startWaiting(el)
     }
     arm()
   }

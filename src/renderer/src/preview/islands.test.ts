@@ -372,6 +372,24 @@ describe('createIslandMounter', () => {
         scroller: () => view as unknown as HTMLElement,
       })
 
+    it('eagerly draws only the first Mermaid outside the margin and keeps later diagrams lazy', () => {
+      const { island, requests } = testIsland()
+      const elements = [islandElement('first'), islandElement('second')]
+      for (const el of elements) {
+        const get = el.getAttribute
+        el.getAttribute = (name) => (name === 'data-devot-island' ? 'mermaid' : get.call(el, name))
+      }
+      const mounter = mounterFor({ ...island, kind: 'mermaid' }, scroller())
+      const host = hostOf(elements)
+      mounter.mount(host, { appearance: 'light', eagerFirstMermaid: true })
+      expect(requests.map((request) => request.source)).toEqual(['first'])
+      mounter.mount(host, { appearance: 'light', eagerFirstMermaid: true })
+      expect(requests).toHaveLength(1)
+      near(elements[1]!)
+      expect(requests.map((request) => request.source)).toEqual(['first', 'second'])
+      mounter.dispose()
+    })
+
     it('draws only the islands within a screen of the view, above or below it, the rest once scrolled near', () => {
       const { island, requests } = testIsland()
       const view = scroller()
