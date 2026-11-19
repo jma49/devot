@@ -164,6 +164,7 @@ export async function importConverted(options: PluginImportOptions) {
     wikiLinks: false,
     layout: {
       app: null,
+      appOf: () => null,
       noteFolder: (path) => (many ? path.split('/').slice(0, -1).join('/') : ''),
       folderName: () => name,
       fileTitle: () => '',

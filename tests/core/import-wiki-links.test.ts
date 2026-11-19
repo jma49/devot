@@ -80,6 +80,23 @@ const memoryScan = (files: Record<string, string>): ImportScan => ({
 const link = (text: string, id: string) => `[${text}](${noteUri(id)})`
 
 describe('importing wiki-style links', () => {
+  it.each([
+    { kind: 'folder' as const, from: 'Start.md', target: 'Note.markdown' },
+    { kind: 'files' as const, from: 'Start.md', target: 'Note.md' },
+    { kind: 'files' as const, from: 'Picked/Start.md', target: 'Picked/Note.markdown' },
+  ])('resolves rooted links to $target in a $kind import', async ({ kind, from, target }) => {
+    const { sqlite, services } = await setup()
+    const files = { [from]: '[[/Note]] [[/Missing]]', [target]: '# Note' }
+    const report = await importMarkdown({
+      ...services,
+      scan: { ...memoryScan(files), kind },
+      source: memorySource(files),
+    })
+    const body = (await sqlite.getNote(report.noteIds[from]!))!.bodyMd
+    expect(body).toBe(`${link('Note', report.noteIds[target]!)} [[/Missing]]`)
+    expect(report.unresolvedLinks).toBe(1)
+  })
+
   async function importFixture(wikiLinks = true) {
     const { sqlite, services } = await setup()
     const existing = await services.notes.create('Existing Note')

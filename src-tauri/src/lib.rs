@@ -222,6 +222,8 @@ pub fn run() {
             commands::sync::sync_file_delete,
             ai::ai_key_set,
             ai::ai_key_clear,
+            ai::ai_models,
+            ai::ai_try,
             #[cfg(desktop)]
             ai::ai_cli_refresh,
             licence::licence_get,

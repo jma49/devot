@@ -1,7 +1,19 @@
-import { useMemo, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from 'react'
+import { flushSync } from 'react-dom'
 import type { BookRecord, DailyNotesSettings, NoteSummary } from '../../../core'
 import { headline } from '../../../core/extract'
 import { noteLink } from '../../../core/links'
+import type { UsageProperties } from '../../../core/usage'
 import { errorCode } from '../backups'
 import type { Core } from '../core-client'
 import type { EditorHandle } from '../editor/handle'
@@ -11,12 +23,12 @@ import { t } from '../i18n'
 import { MAX_LINK_NOTES } from '../linkCompletion'
 import { dropNote, linkedNoteCreate, linkedNoteDiscard } from '../linkedNotes'
 import { homeOf, viewLists, type ListView } from '../listUpdates'
-import { startEarlyKeys } from '../editor/earlyKeys'
+import { startEarlyKeys, takeEarlyKeys } from '../editor/earlyKeys'
+import { keyboardIsFree } from '../focus'
 import { notebookForNewNote } from '../notebookChoices'
 import { saveEdits } from '../saveGuards'
 import type { Selection } from '../Sidebar'
 import { useStable } from '../stable'
-import { TemplatePicker } from '../TemplatePicker'
 import { currentRecentTemplates } from '../templates'
 import { track } from '../usage'
 import type { useSearch } from '../useSearch'
@@ -25,10 +37,17 @@ import type { ViewState } from './useLibraryView'
 import type { useMode } from './useMode'
 import { logFailure } from '../failure'
 
+const TemplatePicker = lazy(() =>
+  import('../TemplatePicker').then((module) => ({ default: module.TemplatePicker })),
+)
+
 export const dailySettings = (): DailyNotesSettings => {
   const { dailyNotebook, dailyTemplate, dailyTitleFormat } = editorSettings()
   return { dailyNotebook, dailyTemplate, dailyTitleFormat }
 }
+
+const trackCreated = (from: UsageProperties<'note.created'>['from']) =>
+  track('note.created', { from })
 
 /** New notes: blank, from a template, today's, a copy, or made from a selection or link in the open note. */
 export function useNoteMaking({
@@ -74,6 +93,9 @@ export function useNoteMaking({
   // Template picker: recent ones are read on open; with `into`, the pick fills that empty note instead of making a new one.
   const [picking, setPicking] = useState<{ recent: string[]; into?: string }>()
   const recentTemplates = useMemo(() => currentRecentTemplates(), [])
+  const [making, setMaking] = useState(false)
+  const activeMaking = useRef<((teardown?: boolean) => void) | undefined>(undefined)
+  useEffect(() => () => activeMaking.current?.(true), [])
 
   /**
    * Shows a note just made (`listed`: lists reloaded since). If the view would not list it, the view that does shows instead: its notebook, All Notes or Templates, without filter or search.
@@ -91,9 +113,7 @@ export function useNoteMaking({
     if (!made) return
     const latest = searchState.latestSearch.current
     if (latest.query.trim()) {
-      const { found } = await c
-        .search(latest.query, latest.scope)
-        .catch(() => ({ found: [], capped: false }))
+      const { found } = await c.search(latest.query, latest.scope).catch(() => ({ found: [] }))
       if (found.some((n) => n.id === id)) return
     } else {
       const view: ListView = inTrash
@@ -117,75 +137,111 @@ export function useNoteMaking({
       books.map((b) => b.id),
     )
 
-  const create = async () => {
-    if (!core) return
-    const early = startEarlyKeys()
-    // Until the new note opens, a click in the shown body would type into that note (issue 1029).
-    const endPause = editorRef.current?.pauseForNewNote()
-    let id: string
-    try {
-      // Save pending titles first, so the refreshed list shows them.
-      await saveEdits(core)
-      id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
-    } catch (e) {
-      endPause?.()
-      early.fail()
-      setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
-      return
+  const reportCreateFailure = (e: unknown) =>
+    setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
+
+  const makeAndOpen = async (
+    make: (c: Core) => Promise<string | undefined>,
+    {
+      previewMode = () => editorMode.current,
+      onFailure = reportCreateFailure,
+      onEmpty,
+      collectKeys = true,
+    }: {
+      previewMode?: () => typeof mode | undefined
+      onFailure?: (e: unknown) => void
+      onEmpty?: () => void
+      collectKeys?: boolean
+    } = {},
+  ) => {
+    if (!core || activeMaking.current) return
+    const early = collectKeys ? startEarlyKeys() : undefined
+    const shownEditor = editorRef.current
+    const endPause = shownEditor?.pauseForNewNote()
+    let outcome: 'pending' | 'opened' | 'reopened' = 'pending'
+    const isCurrent = () => activeMaking.current === end
+    const end = (teardown = false) => {
+      if (!isCurrent()) return
+      activeMaking.current = undefined
+      if (!teardown) flushSync(() => setMaking(false))
+      if (outcome !== 'opened') endPause?.()
+      if (outcome === 'pending') early?.fail()
+      if (early && outcome === 'reopened' && shownEditor && editorRef.current === shownEditor) {
+        shownEditor.type(takeEarlyKeys(shownEditor.noteId))
+        if (keyboardIsFree()) shownEditor.focus()
+      }
     }
-    early.claim(id)
-    if (!inTemplates) track('note.created', { from: 'new_note' })
-    let opened = false
+    activeMaking.current = end
+    setMaking(true)
     try {
-      await showMade(core, id, await refresh(core))
-      // A new note is for typing: Preview alone would leave it without an editor.
-      if (mode === 'preview') setMode(editorMode.current)
-      opened = await select(id, { keyboard: true })
+      await saveEdits(core)
+      if (!isCurrent()) return
+      const id = await make(core)
+      if (!isCurrent()) return
+      if (!id) return onEmpty?.()
+      early?.claim(id)
+      const listed = await refresh(core)
+      if (!isCurrent()) return
+      await showMade(core, id, listed)
+      if (!isCurrent()) return
+      const nextMode = previewMode()
+      if (mode === 'preview' && nextMode) setMode(nextMode)
+      if (await (collectKeys ? select(id, { keyboard: true }) : select(id))) {
+        outcome = shownEditor?.noteId === id ? 'reopened' : 'opened'
+      }
+    } catch (e) {
+      if (isCurrent()) onFailure(e)
     } finally {
-      // Opened, the editor ends the pause when it leaves the shown note or shows it again.
-      if (!opened) endPause?.()
+      end()
     }
   }
 
+  const create = () =>
+    makeAndOpen(async (c) => {
+      const id = inTemplates ? await c.createTemplate() : await c.create('', newNoteBookId())
+      if (!inTemplates) trackCreated('new_note')
+      return id
+    })
+
   /** Makes a note from a template and opens it (see `showMade`); the template's notebook, if any, wins over the one shown. */
-  const createFromTemplate = async (templateId: string) => {
+  const createFromTemplate = (templateId: string) => {
     setPicking(undefined)
-    if (!core || !editing) return
-    await saveEdits(core)
-    const id = await core
-      .applyTemplate(templateId, Date.now(), newNoteBookId())
-      .catch((e: unknown) => {
-        setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
-        return undefined
-      })
-    if (!id) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
-    recentTemplates.use(templateId)
-    track('note.created', { from: 'template' })
-    // Its body, status and tags are written before the lists reload.
-    await saveEdits(core)
-    await showMade(core, id, await refresh(core))
-    if (mode === 'preview') setMode(editorMode.current)
-    await select(id, { keyboard: true })
+    if (!editing) return
+    const warnApplyFailed = () => console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
+    return makeAndOpen(
+      async (c) => {
+        const id = await c.applyTemplate(templateId, Date.now(), newNoteBookId())
+        if (!id) return undefined
+        recentTemplates.use(templateId)
+        trackCreated('template')
+        await saveEdits(c)
+        return id
+      },
+      {
+        onFailure: (e) => {
+          reportCreateFailure(e)
+          warnApplyFailed()
+        },
+        onEmpty: warnApplyFailed,
+      },
+    )
   }
 
   /** Finds or makes today's note (dailyNotes.ts) and opens it; one outside the workspace leaves it. */
-  const openToday = async () => {
-    if (!core) return
-    await saveEdits(core)
-    let opened: { id: string; created: boolean; bookId: string | null }
-    try {
-      opened = await core.openTodaysNote(dailySettings(), Date.now(), editing)
-    } catch (e) {
-      setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
-      return
-    }
-    if (opened.created) track('note.created', { from: 'today' })
-    if (workspaceIds && !(opened.bookId !== null && workspaceIds.has(opened.bookId))) {
-      setWorkspace(null)
-    }
-    await showMade(core, opened.id, await refresh(core))
-    if (opened.created && mode === 'preview') setMode('edit')
-    await select(opened.id, { keyboard: true })
+  const openToday = () => {
+    let created = false
+    return makeAndOpen(
+      async (c) => {
+        const opened = await c.openTodaysNote(dailySettings(), Date.now(), editing)
+        created = opened.created
+        if (opened.created) trackCreated('today')
+        if (workspaceIds && !(opened.bookId !== null && workspaceIds.has(opened.bookId))) {
+          setWorkspace(null)
+        }
+        return opened.id
+      },
+      { previewMode: () => (created ? 'edit' : undefined) },
+    )
   }
 
   /** Fills the open note from a template without making a new one; the open editor takes in the core's writes like another process's. */
@@ -199,7 +255,7 @@ export function useNoteMaking({
       .applyTemplateTo(templateId, noteId, Date.now())
       .then(() => true)
       .catch((e: unknown) => {
-        setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
+        reportCreateFailure(e)
         return false
       })
     if (!done) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
@@ -223,14 +279,21 @@ export function useNoteMaking({
     },
   )
 
-  const editBuiltInCopy = async (id: string) => {
-    if (!core || !editing) return
-    await saveEdits(core)
-    const copy = await core.saveTemplate(id, {}).catch(() => undefined)
-    if (!copy) return console.warn('W_TEMPLATE_COPY_FAILED', id)
-    setBuiltIn(undefined)
-    await showMade(core, copy, await refresh(core))
-    await select(copy, { keyboard: true })
+  const editBuiltInCopy = (id: string) => {
+    if (!editing) return
+    const warnCopyFailed = () => console.warn('W_TEMPLATE_COPY_FAILED', id)
+    return makeAndOpen(
+      async (c) => {
+        const copy = await c.saveTemplate(id, {})
+        if (copy) setBuiltIn(undefined)
+        return copy
+      },
+      {
+        previewMode: () => undefined,
+        onFailure: warnCopyFailed,
+        onEmpty: warnCopyFailed,
+      },
+    )
   }
   const pickBuiltIn = (id: string) => {
     if (!editing) return
@@ -243,20 +306,24 @@ export function useNoteMaking({
   })
   const shownBuiltIn = selected === undefined && inTemplates ? builtIn : undefined
 
-  const duplicate = async (id: string) => {
-    if (!core) return
-    await saveEdits(core)
-    const tagIds = [...notes, ...templates].find((n) => n.id === id)?.tagIds
-    const copy = await core.duplicate(id, t('note.copySuffix'), tagIds).catch((e: unknown) => {
-      const code = errorCode(e)
-      console.warn('W_NOTE_DUPLICATE_FAILED', id, code)
-      setChangeNotice(code)
-    })
-    if (!copy) return
-    if (!templates.some((n) => n.id === id)) track('note.created', { from: 'duplicate' })
-    await showMade(core, copy, await refresh(core))
-    await select(copy)
-  }
+  const duplicate = (id: string) =>
+    makeAndOpen(
+      async (c) => {
+        const tagIds = [...notes, ...templates].find((n) => n.id === id)?.tagIds
+        const copy = await c.duplicate(id, t('note.copySuffix'), tagIds)
+        if (copy && !templates.some((n) => n.id === id)) trackCreated('duplicate')
+        return copy
+      },
+      {
+        collectKeys: false,
+        previewMode: () => undefined,
+        onFailure: (e) => {
+          const code = errorCode(e)
+          console.warn('W_NOTE_DUPLICATE_FAILED', id, code)
+          setChangeNotice(code)
+        },
+      },
+    )
 
   /** Targets for the `[[` popup: search results, or the first notes of the list for no query. Runs on every key, so it saves nothing and takes no more than the popup shows. */
   const findLinkTargets = async (linkQuery: string) => {
@@ -287,7 +354,7 @@ export function useNoteMaking({
     })
     if (made === undefined) return
     if (moved) {
-      track('note.created', { from: 'selection' })
+      trackCreated('selection')
     } else {
       const dropped = made
       console.warn('W_NOTE_EXTRACT_NOT_LINKED', sourceId, dropped)
@@ -319,7 +386,7 @@ export function useNoteMaking({
     })
     if (made === undefined) return
     if (moved) {
-      track('note.created', { from: 'link' })
+      trackCreated('link')
     } else {
       const dropped = made
       console.warn('W_NOTE_EXTRACT_NOT_LINKED', sourceId, dropped)
@@ -337,25 +404,28 @@ export function useNoteMaking({
 
   const templatePicker =
     core && picking ? (
-      <TemplatePicker
-        core={core}
-        templates={templates}
-        headlines={loadHeadlines}
-        recent={picking.recent}
-        books={books}
-        bookId={libraryBook?.id ?? null}
-        locales={viewState.locales}
-        intoOpenNote={picking.into !== undefined}
-        onCreate={(id) =>
-          void (picking.into === undefined
-            ? createFromTemplate(id)
-            : fillFromTemplate(id, picking.into))
-        }
-        onCancel={() => setPicking(undefined)}
-      />
+      <Suspense fallback={null}>
+        <TemplatePicker
+          core={core}
+          templates={templates}
+          headlines={loadHeadlines}
+          recent={picking.recent}
+          books={books}
+          bookId={libraryBook?.id ?? null}
+          locales={viewState.locales}
+          intoOpenNote={picking.into !== undefined}
+          onCreate={(id) =>
+            void (picking.into === undefined
+              ? createFromTemplate(id)
+              : fillFromTemplate(id, picking.into))
+          }
+          onCancel={() => setPicking(undefined)}
+        />
+      </Suspense>
     ) : null
 
   return {
+    making,
     setPicking,
     recentTemplates,
     templatePicker,

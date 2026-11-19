@@ -1,9 +1,48 @@
 // An import converts and parses each file in a worker of its own (import.worker.ts), so the core
 // worker stays free for the saves queued meanwhile however long a large page takes. A worker that
 // cannot start, or fails, hands its files back to the core worker.
-import type { ImportOptions, ImportPreparer } from '../../core'
+import type { ImportOptions, ImportPreparer, ImportScan, ImportSource } from '../../core'
+import { importMarkdown, preparerHere } from '../../core/import'
 import type { Converted } from '../../core/plugins/protocol'
 import { importConverted } from '../../core/plugins/import'
+import { DEFAULT_CHOICES, type ImportChoices } from './importChoices'
+
+export type MarkdownImportArgs = [
+  scan: ImportScan,
+  destination: string | null,
+  source: ImportSource,
+  onProgress: (done: number, total: number) => void,
+  choices?: ImportChoices,
+]
+
+export function markdownImport(
+  options: Pick<ImportOptions, 'notes' | 'books' | 'tags' | 'newId' | 'files'>,
+  stopped: NonNullable<ImportOptions['stopped']>,
+  [
+    scan,
+    destination,
+    source,
+    onProgress,
+    { wikiLinks, conventions } = DEFAULT_CHOICES,
+  ]: MarkdownImportArgs,
+) {
+  const prepare = preparerOffThread(
+    () => new Worker(new URL('./import.worker.ts', import.meta.url), { type: 'module' }),
+    preparerHere(options.newId),
+    () => console.warn('W_IMPORT_WORKER_FAILED'),
+  )
+  return importMarkdown({
+    ...options,
+    scan,
+    source,
+    destination,
+    onProgress,
+    stopped,
+    prepare,
+    wikiLinks,
+    conventions,
+  }).finally(prepare.close)
+}
 
 export type ConvertedImportArgs = [
   name: string,
@@ -27,6 +66,7 @@ export type ImportRequest =
       path: string
       withImages: boolean
       conventions: boolean
+      keepProperties?: boolean
     }
   | { id: number; kind: 'links'; text: string }
 
@@ -106,9 +146,17 @@ export function preparerOffThread(
   }
 
   return {
-    file: (raw, path, withImages, conventions) =>
-      call({ kind: 'file', raw, path, withImages, conventions }, () =>
-        here.file(raw, path, withImages, conventions),
+    file: (raw, path, withImages, conventions, keepProperties) =>
+      call(
+        {
+          kind: 'file',
+          raw,
+          path,
+          withImages,
+          conventions,
+          ...(keepProperties === undefined ? {} : { keepProperties }),
+        },
+        () => here.file(raw, path, withImages, conventions, keepProperties),
       ),
     links: (text) => call({ kind: 'links', text }, () => here.links(text)),
     close: stop,

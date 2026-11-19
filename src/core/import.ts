@@ -15,6 +15,7 @@
 //   title, else to a library note of that title (case and diacritics aside, a folder prefix only choosing between notes of the same name), and `![[image.png]]`
 //   an attachment of the import folder's image of that name. A link not found stays as written and is counted. Code and links' own text are left alone.
 // - Everything else is kept as-is.
+// - Obsidian vaults are recognised from scan metadata: properties stay, images follow the vault's attachment settings, and canvases become Markdown notes.
 // - Line breaks become LF: the editor counts a CRLF as one character and the Yjs text as two, so a CR would make every later edit land in the wrong place.
 // - A file that fails part-way leaves no note behind (nor notebooks made only for it): it is listed as not imported.
 // - Nothing is written before `importMarkdown` runs. Bodies reach the note as Yjs operations (`NoteService.setBody`), never by writing the snapshot.
@@ -34,6 +35,7 @@ import {
 import { htmlToMarkdown, type HtmlImage } from './htmlImport'
 import { bearTags } from './importBear'
 import { importLayout, type ImportLayout } from './importLayout'
+import { canvasMarkdown } from './importCanvas'
 import { folderOf, isHtmlFile } from './importTree'
 import { MAX_BOOK_NAME_CHARS, type BookDraft, type BookService } from './books'
 import { errorCode } from './errors'
@@ -79,6 +81,12 @@ export interface ImportItem {
 
 /** Paths are relative, with `/`: to the folder for one folder; starting with each folder's name for several (and with the name of each file's folder for files). */
 export interface ImportScan {
+  vault?: {
+    root: string
+    attachmentFolderPath: string
+    newLinkFormat: 'shortest' | 'relative' | 'absolute'
+    useMarkdownLinks: boolean
+  }[]
   /** The import session; Rust only reads files for a session it started. */
   id: number
   name: string
@@ -180,6 +188,7 @@ export interface ImportPreparer {
     path: string,
     withImages: boolean,
     conventions: boolean,
+    keepProperties?: boolean,
   ): Promise<PreparedImport>
   links(text: string): Promise<ImageLinks>
 }
@@ -498,15 +507,18 @@ export function prepareImportFile(
   path: string,
   newId?: () => string,
   conventions = false,
+  keepProperties = false,
 ): PreparedImport {
-  const source = lineFeeds(raw)
+  const source = /\.canvas$/i.test(path) ? canvasMarkdown(raw) : lineFeeds(raw)
   const html = isHtmlFile(path) ? htmlToMarkdown(source, newId) : null
   const own = ownMeta(html ? html.markdown : source)
-  const read = conventions && !html ? withConventions(own.body, own.meta) : null
+  const read = conventions && !html ? withConventions(own.body, own.meta, keepProperties) : null
   const text = read?.text ?? own.body
   const tree = parseMarkdown(text)
   return {
-    title: own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path)),
+    title: /\.canvas$/i.test(path)
+      ? clipTitle(baseName(path))
+      : (own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path))),
     meta: read?.meta ?? own.meta,
     aliases: read?.aliases ?? [],
     text,
@@ -521,9 +533,9 @@ export function prepareImportFile(
   }
 }
 
-function withConventions(body: string, meta: FrontMatterMeta) {
+function withConventions(body: string, meta: FrontMatterMeta, keepProperties: boolean) {
   const found = noteTags(body)
-  const text = calloutsAsAlerts(found.body)
+  const text = calloutsAsAlerts(keepProperties ? body : found.body)
   const seen = new Set<string>()
   const tags = [...meta.tags, ...found.tags, ...bodyTags(text)].filter((tag) => {
     const key = tag.toLowerCase()
@@ -540,8 +552,8 @@ export function imagesIn(text: string): ImageLinks {
 }
 
 export const preparerHere = (newId: () => string): ImportPreparer => ({
-  file: async (raw, path, withImages, conventions) =>
-    prepareImportFile(raw, path, withImages ? newId : undefined, conventions),
+  file: async (raw, path, withImages, conventions, keepProperties) =>
+    prepareImportFile(raw, path, withImages ? newId : undefined, conventions, keepProperties),
   links: async (text) => imagesIn(text),
 })
 
@@ -549,7 +561,7 @@ export function unlocatedImages(markdown: string): string[] {
   return imagesOf(parseMarkdown(markdown), markdown).unlocated
 }
 
-const MARKDOWN_FILE = /\.(?:md|markdown)(?:[?#].*)?$/i
+const MARKDOWN_FILE = /\.(?:md|markdown|canvas)(?:[?#].*)?$/i
 
 /** Links (inline or by reference) whose destination names a Markdown file in the folder; a link whose destination cannot be found in the text is left out. */
 function fileLinksOf(tree: Root, markdown: string): ImageLink[] {
@@ -674,7 +686,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   const drafts: BookDraft[] = []
   const draftPaths: string[] = []
   const draftIndex = new Map<string, number>()
-  const layout = options.layout ?? importLayout(scan.kind, scan.files)
+  const layout = options.layout ?? importLayout(scan.kind, scan.files, scan.vault)
   const plan = (path: string) => {
     if (path === '' || draftIndex.has(path)) return
     const parent = folderOf(path)
@@ -701,7 +713,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   let attachments = 0
   const noteIds: Record<string, string> = {}
   const convertLinks = options.wikiLinks !== false
-  const conventions = options.conventions === true
+  const conventions = options.conventions ?? !!scan.vault?.length
   const findImage = imageFinder(scan)
   const importedNotes: ImportedNote[] = []
   const linked: LinkedNote[] = []
@@ -733,11 +745,12 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
         path,
         store !== undefined,
         conventions,
+        !!vaultOf(scan, path),
       )
       const { meta } = prepared
       let { text, images } = prepared
       const title =
-        layout.app !== null && prepared.title === fileTitle(path)
+        layout.appOf(path) !== null && prepared.title === fileTitle(path)
           ? clip(oneLine(composed(layout.fileTitle(path))), MAX_TITLE_CHARS) || prepared.title
           : prepared.title
       id = await notes.create(title, folder(layout.noteFolder(path)))
@@ -804,7 +817,9 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
           found.push({ path, image: link.url, code: 'E_IMPORT_PATH_OUTSIDE' })
           continue
         }
-        const fileId = await attach(target.path)
+        const fileId = await attach(
+          vaultOf(scan, path) ? (findImage(path, link.url) ?? target.path) : target.path,
+        )
         if (fileId) {
           // A size preset (`#half`) stays on the attachment's link.
           const dest = withImageSize(fileUri(fileId), splitImageSize(link.url).size)
@@ -843,7 +858,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       if (meta.status !== null && meta.status !== 'none') await notes.setStatus(noteId, meta.status)
       // Tags last: a tag made for a note that then failed would stay unused.
       for (const tag of meta.tags) await tags.addToNote(noteId, tag)
-      if (layout.app === 'bear') {
+      if (layout.appOf(path) === 'bear') {
         for (const tag of prepared.hashtags ?? []) {
           await tags.addToNote(noteId, tag).catch((error: unknown) => {
             found.push({ path, image: tag, code: errorCode(error, 'E_IMPORT_TAG_INVALID') })
@@ -998,6 +1013,9 @@ const rootOf = (kind: ImportKind, path: string) => (kind === 'folder' ? '' : pat
 
 const fileKey = (path: string) => composed(path).toLowerCase()
 
+const vaultOf = (scan: ImportScan, path: string) =>
+  scan.vault?.find((vault) => vault.root === rootOf(scan.kind, path))
+
 /** The import's image a wiki embed names: by its path from the note's folder, then from the top, then the nearest of that file name. */
 function imageFinder(scan: ImportScan) {
   const byPath = new Map<string, string>()
@@ -1013,21 +1031,44 @@ function imageFinder(scan: ImportScan) {
       return resolveImagePath(from, written)
     }
     const root = rootOf(scan.kind, from)
-    for (const base of [from, root === '' ? '_' : `${root}/_`]) {
-      const near = resolveImagePath(base, written)
+    const top = root === '' ? '_' : `${root}/_`
+    const setting = vaultOf(scan, from)?.attachmentFolderPath
+    const attachment = setting?.startsWith('./')
+      ? `${folderOf(from)}/${setting.slice(2)}/_`.replace(/^\//, '')
+      : setting && setting !== '/'
+        ? `${root ? `${root}/` : ''}${setting.replace(/^\//, '')}/_`
+        : top
+    const local = resolveImagePath('_', written)
+    if (local === null && resolveImagePath(from, written) === null) return null
+    for (const base of written.startsWith('/') ? [top] : [from, top, attachment]) {
+      const near = resolveImagePath(base, written.startsWith('/') ? written.slice(1) : written)
       const found = near === null ? undefined : byPath.get(fileKey(near))
-      if (found) return found
+      if (found && rootOf(scan.kind, found) === root) return found
     }
-    const named = (byName.get(fileKey(written.split('/').pop()!)) ?? []).filter(
-      (path) => rootOf(scan.kind, path) === root,
-    )
+    const named = (
+      byName.get(
+        fileKey((local ?? resolveImagePath(from, written) ?? written).split('/').pop()!),
+      ) ?? []
+    ).filter((path) => rootOf(scan.kind, path) === root)
     const folder = folderOf(from)
     return (
       named.find((path) => folderOf(path) === folder) ??
-      named.toSorted((a, b) => a.split('/').length - b.split('/').length)[0] ??
+      named.toSorted((a, b) =>
+        vaultOf(scan, from)
+          ? distance(from, a) - distance(from, b) || a.localeCompare(b)
+          : a.split('/').length - b.split('/').length,
+      )[0] ??
       null
     )
   }
+}
+
+function distance(from: string, to: string): number {
+  const a = folderOf(from).split('/').filter(Boolean)
+  const b = folderOf(to).split('/').filter(Boolean)
+  let common = 0
+  while (common < a.length && common < b.length && a[common] === b[common]) common += 1
+  return a.length + b.length - common * 2
 }
 
 /** The note a wiki link names: an imported note of that file name, else of that title, else a library note of that title. */
@@ -1039,7 +1080,11 @@ function noteFinder(imported: ImportedNote[], kind: ImportKind, notes: NoteServi
     if (key !== '') map.set(key, [...(map.get(key) ?? []), note])
   }
   for (const note of imported) {
-    add(byFile, titleKey(baseName(note.path)), note)
+    add(
+      byFile,
+      titleKey(/\.canvas$/i.test(note.path) ? note.path.split('/').pop()! : baseName(note.path)),
+      note,
+    )
     add(byTitle, titleKey(note.title), note)
     for (const alias of note.aliases) add(byAlias, titleKey(alias), note)
   }
@@ -1055,7 +1100,7 @@ function noteFinder(imported: ImportedNote[], kind: ImportKind, notes: NoteServi
   return async (from: string, target: WikiTarget): Promise<string | null> => {
     const name = titleKey(target.name)
     const named = byFile.get(name) ?? byTitle.get(name) ?? byAlias.get(name)
-    if (named) return nearest(named, from, target, kind).id
+    if (named) return nearest(named, from, target, kind)?.id ?? null
     library ??= libraryTitles()
     return (await library).get(name) ?? null
   }
@@ -1063,9 +1108,16 @@ function noteFinder(imported: ImportedNote[], kind: ImportKind, notes: NoteServi
 
 function nearest(named: ImportedNote[], from: string, target: WikiTarget, kind: ImportKind) {
   const written = titleKey(target.path)
+  const pathKey = (path: string) =>
+    titleKey(/\.canvas$/i.test(path) ? path : path.replace(/\.[^./]+$/, ''))
+  if (written.startsWith('/')) {
+    const root = kind === 'files' ? folderOf(from) : rootOf(kind, from)
+    const path = titleKey(`${root}${written}`.replace(/^\//, ''))
+    return named.find((note) => pathKey(note.path) === path)
+  }
   const inFolder = target.path.includes('/')
     ? named.filter((note) => {
-        const key = titleKey(note.path.replace(/\.[^./]+$/, ''))
+        const key = pathKey(note.path)
         return key === written || key.endsWith(`/${written}`)
       })
     : []

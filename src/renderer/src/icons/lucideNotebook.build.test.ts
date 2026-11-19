@@ -11,7 +11,7 @@ it('the notebook glyph chunk holds its catalog, not all of Lucide', async () => 
       write: false,
       minify: true,
       lib: { entry: 'src/renderer/src/icons/lucideNotebook.ts', formats: ['es'] },
-      rollupOptions: { external: ['react', 'react/jsx-runtime'] },
+      rolldownOptions: { external: ['react', 'react/jsx-runtime'] },
     },
   })
   const outputs = (Array.isArray(result) ? result : [result]) as {

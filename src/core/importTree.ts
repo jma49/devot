@@ -35,7 +35,7 @@ export function importTree(scan: ImportScan): ImportFolder {
     folders: [],
   }
   const byPath = new Map<string, ImportFolder>([['', root]])
-  const layout = importLayout(scan.kind, scan.files)
+  const layout = importLayout(scan.kind, scan.files, scan.vault)
   const folderAt = (path: string): ImportFolder => {
     const known = byPath.get(path)
     if (known) return known

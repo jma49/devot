@@ -3,7 +3,6 @@
 // footer reads it on the page after every pause in typing.
 import { frontMatterHead } from './frontMatterHead'
 
-export const WORD_GOAL_KEY = 'word-goal'
 export const MAX_WORD_GOAL = 10_000_000
 
 const LINE = /^word-goal:[ \t]*(?:'([^']*)'|"([^"]*)"|([^#'"\r\n]*?))[ \t]*(?:#.*)?$/m

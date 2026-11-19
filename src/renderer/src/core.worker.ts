@@ -14,8 +14,6 @@ import type {
   ExportSink,
   ExportTarget,
   HttpApiCall,
-  ImportScan,
-  ImportSource,
   NoteService,
   NoteStatus,
   SavedSearchService,
@@ -70,7 +68,6 @@ import { starterTemplates } from './starterTemplates'
 import type { WireSync, WireTransport } from './storage/syncWire'
 import { fromBase64, fromWire, toBase64, type WireStorage } from './storage/wire'
 import { forwardWorkerLogs, type WorkerLogMessage } from './workerLog'
-import { DEFAULT_CHOICES, type ImportChoices } from './importChoices'
 
 // The worker's own warnings, errors and uncaught failures go to the page,
 // which writes them to the local log (see workerLog.ts).
@@ -426,36 +423,10 @@ const coreApi = {
   setBookAiAccess: (id: string, on: boolean) => requiredBooks().setAiAccess(id, on),
   setBookIcon: (id: string, icon: string | null, color: TagColor | null) =>
     requiredBooks().setIcon(id, icon, color),
-  importMarkdown: (
-    scan: ImportScan,
-    destination: string | null,
-    source: ImportSource,
-    onProgress: (done: number, total: number) => void,
-    { wikiLinks, conventions }: ImportChoices = DEFAULT_CHOICES,
-  ) => {
+  importMarkdown: (...args: import('./importWorker').MarkdownImportArgs) => {
     const parts = importParts()
     return imports.run((stopped) =>
-      loadImport().then(([{ importMarkdown, preparerHere }, { preparerOffThread }]) => {
-        const prepare = preparerOffThread(
-          () =>
-            new Worker(new URL('./import.worker.ts', import.meta.url), {
-              type: 'module',
-            }),
-          preparerHere(parts.newId),
-          () => console.warn('W_IMPORT_WORKER_FAILED'),
-        )
-        return importMarkdown({
-          ...parts,
-          scan,
-          source,
-          destination,
-          onProgress,
-          stopped,
-          prepare,
-          wikiLinks,
-          conventions,
-        }).finally(prepare.close)
-      }),
+      loadImport().then(([, { markdownImport }]) => markdownImport(parts, stopped, args)),
     )
   },
   importConverted: (...args: import('./importWorker').ConvertedImportArgs) => {

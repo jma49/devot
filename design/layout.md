@@ -187,6 +187,13 @@ Insets are measured from the capsule's outer edge; where it has a border, `size.
 | Palette field                        | `size.glass-palette-field` 40                                | `space.6` 12                                      | `space.3` 6                                                 | the magnifier or Back `size.glass-palette-field-end-md` 11.5                                                                                              |
 | Floating bars                        | `size.float-toolbar-height` 38                               | `space.3` 6                                       | none                                                        | 28 px buttons `size.float-toolbar-end` 5, with `radius.glass-floating-bar` 19                                                                             |
 
+- **Floating bars that wrap (the selection toolbar):** a row is `size.float-toolbar-height` tall with `size.float-toolbar-end` above and below its 28 px buttons and at the bar's ends, so a bar of n rows is n rows tall and every row keeps the one-row grid.
+  The toolbar is one row while its buttons fit the editor's visible width (the host box, cut to any ancestor that clips sideways, such as the split view's scroll).
+  Otherwise it wraps between button groups only, at a separator, which becomes the line break: the fewest rows that fit, cut where the widest row is narrowest and the rows are most alike, never one long row and a stub.
+  The bar is as wide as its widest row; shorter rows start at the left end.
+  Its corners keep the one-row radius (`radius.glass-floating-bar`), so the buttons in the corners stay concentric with them; the notch keeps pointing at the selection's start.
+  The bar never scrolls sideways and never goes wider than the editor's visible width; a room narrower than one group puts each group on its own row and lets that group's buttons wrap inside it.
+  A tooltip of a button on a lower row sits above its own row, over the row before it, not above the bar.
 - **Removable tag pill:** at rest it is symmetric: its label ends `size.note-pill-pad` from the end, and the hidden x takes no room.
   Under the pointer or with the keyboard in the pill, its x shows over the label's end: a `size.note-pill-remove` (16) button `size.note-pill-end-remove` from the end and from the top and bottom, with its 10 px glyph centred in it.
   The label fades out under it over `size.note-pill-remove-cover` (14 = 8 + 10 + 6 - 10) from its end, clear under the glyph and fading in over one gap, so the x reads cleanly.
