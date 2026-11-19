@@ -213,6 +213,8 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
     The panes become inert in the commit that shows the version (`useLayoutEffect`).
   - A new note's page was put back at its top when the keyboard showed and once 0.4 s after the focus, and on a loaded simulator WebKit revealed the focused body later still, so the first line sat under the navigation bar (#934).
     The page stays at its top until its first line is typed or the reader moves it.
+  - Return on a row of a selection asked for the Title field in a ref, and React ran a passive effect of an earlier window render before the render that closed the summary: that effect took the request while no Title field was shown and dropped it, so the field never took the keyboard (#1017).
+    The request is state, so only the render that carries it acts on it.
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 
 ## Workflow
