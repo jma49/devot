@@ -29,14 +29,15 @@ const INDEXED_SEARCH_DELAY_MS = 40
 const DEFAULT_SEARCH_DELAY_MS = 120
 
 function searchDelay(query: string): number {
-  const terms = parseSearch(query)
-  const text = terms.filter(({ field }) => field === 'any' || field === 'title' || field === 'body')
   // A hashtag may resolve to text; a positive indexed term is needed for ranked search.
-  const indexed =
-    text.some(({ negate }) => !negate) &&
-    text.every(({ value }) => indexable(value)) &&
-    !terms.some(({ field }) => field === 'hashtag')
-  return indexed ? INDEXED_SEARCH_DELAY_MS : DEFAULT_SEARCH_DELAY_MS
+  let delay = DEFAULT_SEARCH_DELAY_MS
+  for (const { field, value, negate } of parseSearch(query)) {
+    if (field === 'hashtag') return DEFAULT_SEARCH_DELAY_MS
+    if (field !== 'any' && field !== 'title' && field !== 'body') continue
+    if (!indexable(value)) return DEFAULT_SEARCH_DELAY_MS
+    if (!negate) delay = INDEXED_SEARCH_DELAY_MS
+  }
+  return delay
 }
 
 export function useSearch(core: Core | undefined) {
@@ -47,23 +48,14 @@ export function useSearch(core: Core | undefined) {
   const searchField = useRef<HTMLInputElement>(null)
   const runSearch = useRef<(search: Search) => void>(undefined)
   const latestSearch = useRef<Search>({ query: '', scope: undefined })
-  const debounce = useRef<number>(undefined)
+  const pending = useRef<(cancel?: true) => boolean>(undefined)
   const [searchRequest, setSearchRequest] = useState(0)
   const askSearchField = useCallback(() => setSearchRequest((n) => n + 1), [])
   const rerunSearch = useCallback(() => {
     const search = latestSearch.current
-    if (debounce.current === undefined && search.query.trim()) runSearch.current?.(search)
+    if (!pending.current && search.query.trim()) runSearch.current?.(search)
   }, [])
-  const cancelDebounce = useCallback(() => {
-    window.clearTimeout(debounce.current)
-    debounce.current = undefined
-  }, [])
-  const submitSearch = useCallback(() => {
-    if (debounce.current === undefined) return false
-    cancelDebounce()
-    rerunSearch()
-    return true
-  }, [cancelDebounce, rerunSearch])
+  const submitSearch = useCallback(() => pending.current?.() ?? false, [])
   useEffect(() => {
     if (!core) return
     let alive = true
@@ -86,9 +78,7 @@ export function useSearch(core: Core | undefined) {
       )
       runSearch.current = latestOnly(
         async (search: Search) => {
-          if (!current(search)) return
-          const { found, capped } = await core.search(search.query, search.scope)
-          return { found, capped, search }
+          if (current(search)) return { ...(await core.search(search.query, search.scope)), search }
         },
         // Results that did not change keep their objects (and their rows their render).
         (next) => {
@@ -115,15 +105,22 @@ export function useSearch(core: Core | undefined) {
       runSearch.current = undefined
     }
   }, [core, rerunSearch])
-  const typed = useCallback(
-    (search: Search) => {
-      latestSearch.current = search
-      if (!search.query.trim()) return
-      debounce.current = window.setTimeout(submitSearch, searchDelay(search.query))
-      return cancelDebounce
-    },
-    [cancelDebounce, submitSearch],
-  )
+  const typed = useCallback((search: Search) => {
+    latestSearch.current = search
+    if (!search.query.trim()) return
+    const finish = (cancel?: true) => {
+      if (pending.current !== finish) return false
+      pending.current = undefined
+      clearTimeout(timer)
+      if (!cancel) runSearch.current?.(search)
+      return true
+    }
+    const timer = setTimeout(finish, searchDelay(search.query))
+    pending.current = finish
+    return () => {
+      finish(true)
+    }
+  }, [])
   useEffect(() => {
     if (searchRequest === 0) return
     searchField.current?.focus()
@@ -138,7 +135,6 @@ export function useSearch(core: Core | undefined) {
     setResults,
     related,
     searchField,
-    runSearch,
     latestSearch,
     rerunSearch,
     submitSearch,

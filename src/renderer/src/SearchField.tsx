@@ -282,36 +282,29 @@ export const SearchField = forwardRef<
           }}
           onKeyDown={(e) => {
             if (isComposing || isImeKey(e.nativeEvent)) return
-            const unmodified = !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey
-            const submit = e.key === 'Enter' && unmodified
+            const { key } = e
+            const commandKey = e.metaKey || e.ctrlKey || e.altKey
+            if ((key === 'Enter' || key === 'Tab') && !commandKey && !e.shiftKey) {
+              const chosen = openSuggestions && match.items[activeIndex]
+              if (chosen || (key === 'Enter' && onSubmit?.())) {
+                e.preventDefault()
+                e.stopPropagation()
+                if (chosen) acceptSuggestion(chosen)
+                return
+              }
+            }
             if (openSuggestions) {
-              const next = fieldStep(e.key, activeIndex, match.items.length)
+              const next = fieldStep(key, activeIndex, match.items.length)
               if (next !== undefined) {
                 e.preventDefault()
                 e.stopPropagation()
                 if (next >= 0) setActive(next)
                 return
               }
-              if (submit || (e.key === 'Tab' && unmodified)) {
-                const chosen = match.items[activeIndex]
-                if (chosen) {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  acceptSuggestion(chosen)
-                  return
-                }
-              }
-            }
-            if (submit && value.trim() && onSubmit?.()) {
-              e.preventDefault()
-              e.stopPropagation()
-              return
             }
             if (
-              e.key === 'Backspace' &&
-              !e.metaKey &&
-              !e.ctrlKey &&
-              !e.altKey &&
+              key === 'Backspace' &&
+              !commandKey &&
               pills.length > 0 &&
               e.currentTarget.selectionStart === 0 &&
               e.currentTarget.selectionEnd === 0
@@ -324,7 +317,7 @@ export const SearchField = forwardRef<
               onChange(nextValue)
               return
             }
-            if (e.key === 'Escape') {
+            if (key === 'Escape') {
               e.preventDefault()
               clearAll()
             }

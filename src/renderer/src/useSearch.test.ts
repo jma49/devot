@@ -45,7 +45,7 @@ describe('useSearch', () => {
     expect(hook.current.results?.found).toEqual([{ id: 'ab' }])
   })
 
-  it.each(['quasar', '\u540c\u6b65\u65b9'])(
+  it.each(['quasar', 'title:quasar tag:space', '\u540c\u6b65\u65b9'])(
     'runs the latest indexed query %s earlier',
     async (query) => {
       const { search, core } = fakeCore()
@@ -61,7 +61,7 @@ describe('useSearch', () => {
     },
   )
 
-  it.each(['body:ab', '\u540c\u6b65', '-exclude'])(
+  it.each(['body:ab', '\u540c\u6b65', '-exclude', 'quasar ab', 'quasar #star'])(
     'keeps the slower debounce for %s',
     async (query) => {
       const { search, core } = fakeCore()
