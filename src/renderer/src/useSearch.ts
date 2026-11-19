@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { NoteSummary } from '../../core'
-import { parseSearch, type SearchScope } from '../../core/search'
+import { indexable, parseSearch, type SearchScope } from '../../core/search'
 import { countBucket } from '../../core/usage'
 import type { Core } from './core-client'
 import { keepUnchanged } from './listUpdates'
@@ -25,6 +25,20 @@ export interface RelatedResults {
 }
 
 const SEARCH_SETTLED_MS = 1000
+const INDEXED_SEARCH_DELAY_MS = 40
+const DEFAULT_SEARCH_DELAY_MS = 120
+
+function searchDelay(query: string): number {
+  // A hashtag may resolve to text; a positive indexed term is needed for ranked search.
+  let delay = DEFAULT_SEARCH_DELAY_MS
+  for (const { field, value, negate } of parseSearch(query)) {
+    if (field === 'hashtag') return DEFAULT_SEARCH_DELAY_MS
+    if (field !== 'any' && field !== 'title' && field !== 'body') continue
+    if (!indexable(value)) return DEFAULT_SEARCH_DELAY_MS
+    if (!negate) delay = INDEXED_SEARCH_DELAY_MS
+  }
+  return delay
+}
 
 export function useSearch(core: Core | undefined) {
   const [query, setQuery] = useState('')
@@ -34,11 +48,18 @@ export function useSearch(core: Core | undefined) {
   const searchField = useRef<HTMLInputElement>(null)
   const runSearch = useRef<(search: Search) => void>(undefined)
   const latestSearch = useRef<Search>({ query: '', scope: undefined })
+  const pending = useRef<(cancel?: true) => boolean>(undefined)
   const [searchRequest, setSearchRequest] = useState(0)
   const askSearchField = useCallback(() => setSearchRequest((n) => n + 1), [])
+  const rerunSearch = useCallback(() => {
+    const search = latestSearch.current
+    if (!pending.current && search.query.trim()) runSearch.current?.(search)
+  }, [])
+  const submitSearch = useCallback(() => pending.current?.() ?? false, [])
   useEffect(() => {
     if (!core) return
     let alive = true
+    const current = (search: Search) => alive && latestSearch.current === search
     const arm = () => {
       if (!alive) return
       // Asked once a search's own results are in, so they never wait for it.
@@ -48,7 +69,7 @@ export function useSearch(core: Core | undefined) {
           search,
         }),
         (next) => {
-          if (latestSearch.current !== next.search) return
+          if (!current(next.search)) return
           setRelated((shown) =>
             shown ? { ...next, notes: keepUnchanged(shown.notes, next.notes) } : next,
           )
@@ -57,14 +78,11 @@ export function useSearch(core: Core | undefined) {
       )
       runSearch.current = latestOnly(
         async (search: Search) => {
-          const { found, capped } = await core.search(search.query, search.scope)
-          return { found, capped, search }
+          if (current(search)) return { ...(await core.search(search.query, search.scope)), search }
         },
         // Results that did not change keep their objects (and their rows their render).
         (next) => {
-          // An answer that lands after the field was cleared is not kept: the
-          // next query would first show it.
-          if (!latestSearch.current.query.trim()) return
+          if (!next || !current(next.search)) return
           setResults((shown) =>
             shown ? { ...next, found: keepUnchanged(shown.found, next.found) } : next,
           )
@@ -74,7 +92,7 @@ export function useSearch(core: Core | undefined) {
       )
       // A query typed before the core started had no search to run, and the
       // lists may have loaded before this effect.
-      if (latestSearch.current.query.trim()) runSearch.current(latestSearch.current)
+      rerunSearch()
     }
     // A UI test holds this back to type a search after the lists load but before it runs.
     const held = DEVOT_UI_TEST
@@ -84,16 +102,24 @@ export function useSearch(core: Core | undefined) {
     else arm()
     return () => {
       alive = false
+      runSearch.current = undefined
     }
-  }, [core])
-  const rerunSearch = useCallback(() => {
-    if (latestSearch.current.query.trim()) runSearch.current?.(latestSearch.current)
-  }, [])
+  }, [core, rerunSearch])
   const typed = useCallback((search: Search) => {
     latestSearch.current = search
     if (!search.query.trim()) return
-    const timer = setTimeout(() => runSearch.current?.(search), 120)
-    return () => clearTimeout(timer)
+    const finish = (cancel?: true) => {
+      if (pending.current !== finish) return false
+      pending.current = undefined
+      clearTimeout(timer)
+      if (!cancel) runSearch.current?.(search)
+      return true
+    }
+    const timer = setTimeout(finish, searchDelay(search.query))
+    pending.current = finish
+    return () => {
+      finish(true)
+    }
   }, [])
   useEffect(() => {
     if (searchRequest === 0) return
@@ -109,9 +135,9 @@ export function useSearch(core: Core | undefined) {
     setResults,
     related,
     searchField,
-    runSearch,
     latestSearch,
     rerunSearch,
+    submitSearch,
     typed,
     askSearchField,
   }
@@ -122,7 +148,7 @@ export function useSearchRuns(
   { query, results, typed }: ReturnType<typeof useSearch>,
   { scope: searchScope, inView }: { scope: SearchScope | undefined; inView: boolean },
 ) {
-  useEffect(() => typed({ query, scope: searchScope }), [query, searchScope, typed])
+  useLayoutEffect(() => typed({ query, scope: searchScope }), [query, searchScope, typed])
   // A usage event once typing pauses and the results answer the query; results following a change, or the same query in the same place, are not a new search.
   const countedSearch = useRef('')
   useEffect(() => {

@@ -28,6 +28,12 @@ Fixtures are generated when it runs (`scripts/bench/fixtures.ts`) and never comm
 
 `results.json` holds each series as `n`, `median`, `p90`, `min` and `max` (milliseconds), and the commit, machine and WebKit version. `pnpm bench -- --quick` runs a few of each, to check the harness; do not keep its numbers.
 
+`pnpm bench --search-only --out <file>` measures the desktop search UI with 10,000 notes and writes a separate report (`search-results.json` by default).
+It times the final keystroke to the paint that first shows the one correct row, after the previous prefix showed that row and a distractor.
+It interleaves an indexed-length body term and a two-character body term, with one warm-up and 40 measured samples each, and reports P95 as well as the usual statistics.
+It also types the same indexed word at two cadences and counts full-text worker calls per word and per second of active typing, alongside their round-trip P95.
+It uses the same in-memory store as the other renderer measurements, not native IPC or SQLite.
+
 What the web harness cannot say: the real app's startup and memory (see below), the SQLite store (notes are in `localStorage` here, so a save at the end of typing costs more than in the app), and the display's refresh rate. WebKit in Playwright draws at 60 Hz, so frame times cluster at 17 ms.
 
 ### `pnpm bench:app`

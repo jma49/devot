@@ -68,6 +68,7 @@ export const SearchField = forwardRef<
     value: string
     onChange: (query: string) => void
     onClear: () => void
+    onSubmit?: () => boolean
     onOptions?: ((at: MenuPoint) => void) | undefined
     placeholder: string
     icon?: IconName
@@ -75,7 +76,7 @@ export const SearchField = forwardRef<
     tags?: readonly TagRecord[] | undefined
   }
 >(function SearchField(
-  { value, onChange, onClear, onOptions, placeholder, icon = 'search', books, tags },
+  { value, onChange, onClear, onSubmit, onOptions, placeholder, icon = 'search', books, tags },
   ref,
 ) {
   const box = useRef<HTMLDivElement>(null)
@@ -280,33 +281,30 @@ export const SearchField = forwardRef<
             onChange(composeSearchValue(pills, nextDraft))
           }}
           onKeyDown={(e) => {
-            if (isImeKey(e.nativeEvent)) return
+            if (isComposing || isImeKey(e.nativeEvent)) return
+            const { key } = e
+            const commandKey = e.metaKey || e.ctrlKey || e.altKey
+            if ((key === 'Enter' || key === 'Tab') && !commandKey && !e.shiftKey) {
+              const chosen = openSuggestions && match.items[activeIndex]
+              if (chosen || (key === 'Enter' && onSubmit?.())) {
+                e.preventDefault()
+                e.stopPropagation()
+                if (chosen) acceptSuggestion(chosen)
+                return
+              }
+            }
             if (openSuggestions) {
-              const next = fieldStep(e.key, activeIndex, match.items.length)
+              const next = fieldStep(key, activeIndex, match.items.length)
               if (next !== undefined) {
                 e.preventDefault()
                 e.stopPropagation()
                 if (next >= 0) setActive(next)
                 return
               }
-              if (
-                (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) ||
-                (e.key === 'Tab' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey)
-              ) {
-                const chosen = match.items[activeIndex]
-                if (chosen) {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  acceptSuggestion(chosen)
-                  return
-                }
-              }
             }
             if (
-              e.key === 'Backspace' &&
-              !e.metaKey &&
-              !e.ctrlKey &&
-              !e.altKey &&
+              key === 'Backspace' &&
+              !commandKey &&
               pills.length > 0 &&
               e.currentTarget.selectionStart === 0 &&
               e.currentTarget.selectionEnd === 0
@@ -319,7 +317,7 @@ export const SearchField = forwardRef<
               onChange(nextValue)
               return
             }
-            if (e.key === 'Escape') {
+            if (key === 'Escape') {
               e.preventDefault()
               clearAll()
             }
