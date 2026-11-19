@@ -59,7 +59,9 @@ for (const width of [760, 800, 900]) {
     expect(preview.x).toBeGreaterThanOrEqual(editor.x + editor.width - 1)
   })
 
-  test(`the selection toolbar stays on one row in split mode (${width} px)`, async ({ page }) => {
+  test(`the selection toolbar shows every button inside the pane in split mode (${width} px)`, async ({
+    page,
+  }) => {
     await openNote(page, width, 'alpha beta gamma delta')
     await mode(page, 'Split').click()
     await page.getByRole('textbox', { name: 'Note body' }).click()
@@ -77,15 +79,14 @@ for (const width of [760, 800, 900]) {
         return b.x >= editor.x - 1 && b.x + b.width <= editor.x + editor.width + 1
       })
       .toBe(true)
-    const bar = await box(format(page))
-    const first = await box(buttons.first())
+    // The bar wraps between its groups instead of scrolling, so every button is whole inside the pane.
     for (let i = 0; i < count; i += 1) {
-      expect(
-        Math.abs((await box(buttons.nth(i))).y - first.y),
-        `button ${i} on the row`,
-      ).toBeLessThan(2)
+      const b = await box(buttons.nth(i))
+      expect(b.x, `button ${i} inside the pane`).toBeGreaterThanOrEqual(editor.x - 1)
+      expect(b.x + b.width, `button ${i} inside the pane`).toBeLessThanOrEqual(
+        editor.x + editor.width + 1,
+      )
     }
-    expect(bar.height).toBeLessThan(first.height * 1.5)
     await format(page).getByRole('button', { name: 'Quote' }).click()
     await expect(page.locator('.cm-line')).toHaveText('> alpha beta gamma delta')
   })

@@ -257,6 +257,56 @@ describe('the suggester', () => {
     expect(h.sent).toHaveLength(1)
   })
 
+  it('says why a pause with the setting on asked nothing, and when one is sent again', async () => {
+    const heard: (string | undefined)[] = []
+    const on = settings({ suggestOnIdle: true })
+    const denied = harness(
+      { bookOf: () => Promise.resolve(null), pauseRefused: (code) => heard.push(code) },
+      on,
+    )
+    expect(await denied.suggester.suggest('n1', CTX, 'idle')).toBeNull()
+    const signedOut = harness(
+      { pauseRefused: (code) => heard.push(code) },
+      settings({
+        suggestOnIdle: true,
+        active: 'codexCli',
+        cli: {
+          claudeCli: { state: 'ready', model: '' },
+          codexCli: { state: 'signedOut', model: '' },
+        },
+      }),
+    )
+    expect(await signedOut.suggester.suggest('n1', CTX, 'idle')).toBeNull()
+    const unlicensed = harness(
+      {
+        entitlements: { has: () => false },
+        pauseRefused: (code) => heard.push(code),
+      },
+      on,
+    )
+    expect(await unlicensed.suggester.suggest('n1', CTX, 'idle')).toBeNull()
+    const sent = harness({ pauseRefused: (code) => heard.push(code) }, on)
+    expect(await sent.suggester.suggest('n1', CTX, 'idle')).toBe(' to ship.')
+    expect(heard).toEqual([
+      'E_AI_ACCESS_DENIED',
+      'E_AI_AUTH_FAILED',
+      'E_LICENCE_REQUIRED',
+      undefined,
+    ])
+    expect([denied, signedOut, unlicensed].flatMap((h) => h.sent)).toEqual([])
+  })
+
+  it('says nothing for a pause while the setting is off, nor for the key', async () => {
+    const heard: (string | undefined)[] = []
+    const h = harness(
+      { bookOf: () => Promise.resolve(null), pauseRefused: (code) => heard.push(code) },
+      settings({ suggestOnIdle: false }),
+    )
+    expect(await h.suggester.suggest('n1', CTX, 'idle')).toBeNull()
+    await expect(h.suggester.suggest('n1', CTX, 'key')).rejects.toThrow('E_AI_ACCESS_DENIED')
+    expect(heard).toEqual([])
+  })
+
   it('leaves an empty note unsent', async () => {
     const h = harness()
     await expect(h.suggester.suggest('n1', { before: '', after: '' }, 'key')).rejects.toThrow(
