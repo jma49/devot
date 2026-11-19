@@ -63,6 +63,25 @@ async function run(
 }
 
 describe('Obsidian vault import', () => {
+  it('resolves canvas file nodes from the vault root despite nearby duplicates', async () => {
+    const { report, note, attached } = await run(
+      {
+        'Note.md': 'Root note',
+        'Work/Note.md': 'Nearby note',
+        'Work/Board.canvas': JSON.stringify({
+          nodes: [
+            { id: 'note', type: 'file', file: 'Note.md', x: 0, y: 0, width: 10, height: 10 },
+            { id: 'image', type: 'file', file: 'p.png', x: 0, y: 20, width: 10, height: 10 },
+          ],
+          edges: [],
+        }),
+      },
+      ['p.png', 'Work/p.png'],
+    )
+    expect((await note('Work/Board.canvas')).bodyMd).toContain(noteUri(report.noteIds['Note.md']!))
+    expect(attached).toEqual(['p.png'])
+  })
+
   it('uses metadata rather than a path to identify a vault', () => {
     expect(
       importLayout(

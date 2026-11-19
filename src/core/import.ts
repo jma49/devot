@@ -1088,7 +1088,7 @@ function noteFinder(imported: ImportedNote[], kind: ImportKind, notes: NoteServi
   return async (from: string, target: WikiTarget): Promise<string | null> => {
     const name = titleKey(target.name)
     const named = byFile.get(name) ?? byTitle.get(name) ?? byAlias.get(name)
-    if (named) return nearest(named, from, target, kind).id
+    if (named) return nearest(named, from, target, kind)?.id ?? null
     library ??= libraryTitles()
     return (await library).get(name) ?? null
   }
@@ -1096,6 +1096,11 @@ function noteFinder(imported: ImportedNote[], kind: ImportKind, notes: NoteServi
 
 function nearest(named: ImportedNote[], from: string, target: WikiTarget, kind: ImportKind) {
   const written = titleKey(target.path)
+  if (written.startsWith('/')) {
+    const root = rootOf(kind, from)
+    const path = `${root}${written}`.replace(/^\//, '')
+    return named.find((note) => titleKey(note.path.replace(/\.md$/i, '')) === path)
+  }
   const inFolder = target.path.includes('/')
     ? named.filter((note) => {
         const key = titleKey(

@@ -76,7 +76,7 @@ export function canvasMarkdown(raw: string): string {
           blocks.push(node.text!)
           break
         case 'file':
-          blocks.push(`${IMAGE.test(node.file!) ? '!' : ''}[[${node.file}]]`)
+          blocks.push(`${IMAGE.test(node.file!) ? '!' : ''}[[/${node.file}]]`)
           break
         case 'link':
           blocks.push(

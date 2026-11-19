@@ -15,7 +15,7 @@ describe('canvas Markdown', () => {
         JSON.stringify({ nodes, edges: [{ fromNode: 'a', toNode: 'b', label: 'next' }] }),
       ),
     ).toBe(
-      '## Work\n\n**Plan**\n\n![[Photo.png]]\n\n[[Note.md]]\n\n[https://example.com](<https://example.com>)\n\n## Connections\n\n- **Plan** → Photo.png: next\n',
+      '## Work\n\n**Plan**\n\n![[/Photo.png]]\n\n[[/Note.md]]\n\n[https://example.com](<https://example.com>)\n\n## Connections\n\n- **Plan** → Photo.png: next\n',
     )
   })
 
