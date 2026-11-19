@@ -8,6 +8,6 @@ const keepNames = { function: true, class: false }
 export default mergeConfig(app, {
   define: { DEVOT_UI_TEST: 'true' },
   build: {
-    rollupOptions: { output: { minify: { compress: { keepNames }, mangle: { keepNames } } } },
+    rolldownOptions: { output: { minify: { compress: { keepNames }, mangle: { keepNames } } } },
   },
 })

@@ -84,7 +84,7 @@ export default defineConfig({
     // Source maps exist only for the Sentry upload (scripts/sentry/ui.ts) and are deleted before
     // the app embeds dist/.
     sourcemap: false,
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         main: fileURLToPath(new URL('src/renderer/index.html', import.meta.url)),
         settings: fileURLToPath(new URL('src/renderer/settings.html', import.meta.url)),
