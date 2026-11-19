@@ -2,10 +2,9 @@ import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from '
 import { flattenBookTree } from '../../core/books'
 import { t } from './i18n'
 import { useKeymap } from './commands/shortcutSettings'
-import { titleWithKey } from './commands/titles'
 import { orderTagsWithPinned, PINNED_TAGS_KEY, readPinnedTags, togglePinnedTag } from './pinnedTags'
 import { watchScrollEdges } from './scrollEdge'
-import { Icon, ToolIcon } from './icons/Icon'
+import { Icon } from './icons/Icon'
 import { usePaneResize } from './paneResize'
 import { SIDEBAR_PANE } from './paneWidth'
 import { SidebarFooter } from './SidebarFooter'
@@ -144,18 +143,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
     >
       {/* The traffic lights sit here; the bar drags the window. */}
       <div className="titlebar" data-devot-part="sidebar-titlebar" data-tauri-drag-region>
-        {props.onHide ? (
-          <button
-            type="button"
-            className="tool sidebar-toggle"
-            data-tauri-drag-region="false"
-            aria-label={t('command.hideSidebar')}
-            title={titleWithKey('sidebar.hideTitle', 'view.sidebar')}
-            onClick={props.onHide}
-          >
-            <ToolIcon name="sidebar.toggle" />
-          </button>
-        ) : null}
+        {props.headerAction}
       </div>
       {ws ? workspaceTitle(view, ws) : null}
       <ul className="sources">

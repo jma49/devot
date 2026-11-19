@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { NoteStatus, TagColor, TagColorValue } from '../../../core'
 import { bookWithDescendants } from '../../../core/books'
 import type { NoteFilter } from '../../../core/tags'
@@ -38,7 +38,7 @@ export function useLibrarySidebar({
   openToday,
   askEmptyTrash,
   menus,
-  hideSidebar,
+  headerAction,
 }: {
   core: Core | undefined
   editing: boolean
@@ -56,7 +56,7 @@ export function useLibrarySidebar({
   openToday: () => Promise<void>
   askEmptyTrash: () => void
   menus: RefObject<SidebarMenus | null>
-  hideSidebar: (() => void) | undefined
+  headerAction: ReactNode
 }) {
   const { notes, books, tags, templates, trash } = lists
   const { counts, workspaceNode, sidebarTree, searchingAll, libraryBook, inTrash, inTemplates } =
@@ -75,7 +75,6 @@ export function useLibrarySidebar({
   const sidebarCopyFailed = useStable((failure: ExportFailure, code: string) =>
     setExportNotice({ failure, code }),
   )
-  const sidebarHide = useStable(() => hideSidebar?.())
   const sidebarSelect = useStable((next: Selection, options?: { clearFilter?: boolean }) =>
     showLibrary(next, options),
   )
@@ -163,7 +162,7 @@ export function useLibrarySidebar({
   )
   const sidebar = (
     <Sidebar
-      onHide={hideSidebar ? sidebarHide : undefined}
+      headerAction={headerAction}
       total={workspaceNode ? (counts.get(workspaceNode.id) ?? 0) : notes.length}
       tree={sidebarTree}
       counts={counts}
