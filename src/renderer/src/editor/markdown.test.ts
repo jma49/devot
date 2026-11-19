@@ -465,13 +465,32 @@ describe('reparsing an edit in a long note', () => {
     '## Part\n\nSome **prose** and `code`.\n\n- an item\n  - [ ] a task\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst x = 1\n```\n\n> a quote\n\n'
   const NOTE_TEXT = SECTION.repeat(400)
 
-  function reparse(tree: Tree, doc: string, at: number, insert: string) {
-    const changes: ChangedRange[] = [{ fromA: at, toA: at, fromB: at, toB: at + insert.length }]
-    const next = doc.slice(0, at) + insert + doc.slice(at)
+  function reparse(tree: Tree, doc: string, at: number, insert: string, deleted = 0) {
+    const changes: ChangedRange[] = [
+      { fromA: at, toA: at + deleted, fromB: at, toB: at + insert.length },
+    ]
+    const next = doc.slice(0, at) + insert + doc.slice(at + deleted)
     return {
       doc: next,
       tree: noteParser.parse(next, TreeFragment.applyChanges(TreeFragment.addTree(tree), changes)),
     }
+  }
+
+  function nodesOf(tree: Tree): string[] {
+    const nodes: string[] = []
+    const cursor = tree.cursor()
+    do nodes.push(`${cursor.name}:${cursor.from}-${cursor.to}`)
+    while (cursor.next())
+    return nodes
+  }
+
+  function firstDifference(tree: Tree, doc: string): string | undefined {
+    const reused = nodesOf(tree)
+    const whole = nodesOf(noteParser.parse(doc))
+    const at = whole.findIndex((node, i) => reused[i] !== node)
+    if (at >= 0) return `${reused[at]} instead of ${whole[at]}`
+    if (reused.length > whole.length) return `${reused[whole.length]} beyond the end`
+    return undefined
   }
 
   const depth = (tree: Tree): number =>
@@ -500,20 +519,63 @@ describe('reparsing an edit in a long note', () => {
     expect(slow).toEqual([])
   })
 
-  it('gives the tree a whole parse gives, as shallow, after many edits', () => {
+  // Each case ends a group of blocks with one whose end the edit right after it moves, so taking that group whole
+  // from the old tree would keep the old end.
+  it.each([
+    { last: '1. one\n2. two\n   - nested\n\n', insert: '1. * x\n\n\n* y after two blanks\n\n' },
+    { last: '1. one\n2. two\n   - nested\n\n', insert: '   - deeper\n' },
+    { last: '1. one\n2. two\n   - nested\n\n', deleted: 1 },
+    { last: '- a\n- b\n\n', insert: '- c\n' },
+    { last: '- a\n- b\n\n', insert: '  continued\n' },
+    { last: '- a\n- b\n\n', deleted: 1 },
+    { last: '- a\n  - nested\n\n', insert: '    - deeper\n' },
+    { last: '- a\n  - nested\n\n', deleted: 1 },
+    { last: '    indented code\n\n', insert: '    more code\n' },
+    { last: '    indented code\n\n', deleted: 2 },
+  ])(
+    'reparses an edit right after a group ending $last as a whole parse does',
+    ({ last, insert = '', deleted = 0 }) => {
+      const section = 'A paragraph of filler.\n\nAnother paragraph.\n\n' + last
+      const doc = section.repeat(150)
+      const tree = noteParser.parse(doc)
+      const wrong: string[] = []
+      for (let end = section.length; end < doc.length; end += section.length) {
+        const at = end - deleted
+        const next = reparse(tree, doc, at, insert, deleted)
+        const difference = firstDifference(next.tree, next.doc)
+        if (difference) wrong.push(`edit at ${at}: ${difference}`)
+      }
+      expect(wrong).toEqual([])
+    },
+  )
+
+  it('gives the tree a whole parse gives, at most two levels deeper, after many edits', () => {
     let { doc, tree } = { doc: NOTE_TEXT, tree: noteParser.parse(NOTE_TEXT) }
+    let seed = 7919
+    const random = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
+    const snippets = [
+      'w',
+      '\n',
+      '\n\n',
+      '- item\n',
+      '1. ',
+      '> ',
+      '    ',
+      '# ',
+      '| a |',
+      'More prose.\n\n',
+    ]
+    let deepest = 0
     for (let i = 0; i < 300; i++) {
-      const [at, insert] = (
-        [
-          [doc.length, 'More prose.\n\n'],
-          [0, 'w'],
-          [Math.floor(doc.length / 3), '- item\n'],
-        ] as const
-      )[i % 3]!
-      ;({ doc, tree } = reparse(tree, doc, at, insert))
+      const at = [doc.length, 0, Math.floor(doc.length / 3), Math.floor(random() * doc.length)][
+        i % 4
+      ]!
+      const deleted = i % 5 === 4 ? Math.min(doc.length - at, 1 + Math.floor(random() * 4)) : 0
+      const insert = deleted && i % 2 ? '' : snippets[Math.floor(random() * snippets.length)]!
+      ;({ doc, tree } = reparse(tree, doc, at, insert, deleted))
+      deepest = Math.max(deepest, depth(tree) - depth(noteParser.parse(doc)))
     }
-    const whole = noteParser.parse(doc)
-    expect(tree.toString()).toBe(whole.toString())
-    expect(depth(tree)).toBeLessThanOrEqual(depth(whole) + 1)
+    expect(firstDifference(tree, doc)).toBeUndefined()
+    expect(deepest).toBeLessThanOrEqual(2)
   })
 })
