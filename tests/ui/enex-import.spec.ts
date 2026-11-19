@@ -73,7 +73,7 @@ test('imports .enex export files through the sandboxed plugin with metadata and 
     )
     .toBe(3)
   const notice = page.locator('[data-devot-plugin-notice]')
-  await expect(notice).toHaveText('Imported 3 notes; 2 items skipped.Dismiss')
+  await expect(notice.locator('.notice-text')).toHaveText('Imported 3 notes; 2 items skipped.')
   await expect(notice).not.toContainText('could not finish')
   if (process.env['DEVOT_ENEX_SCREENSHOTS'])
     await page.screenshot({ path: '/home/ubuntu/screens/enex-result.png', animations: 'disabled' })
@@ -126,6 +126,27 @@ test('imports .enex export files through the sandboxed plugin with metadata and 
   )
   if (process.env['DEVOT_ENEX_SCREENSHOTS'])
     await page.screenshot({ path: '/home/ubuntu/screens/enex-dates.png', animations: 'disabled' })
+  await page.keyboard.press('Escape')
+  await notice.getByRole('button', { name: 'Show Skipped' }).click()
+  const skipped = page.getByRole('dialog', { name: 'Skipped import items' })
+  await expect(skipped.getByRole('listitem')).toHaveCount(2)
+  const pdf = skipped.getByRole('listitem').filter({ hasText: 'paper.pdf' })
+  await expect(pdf).toContainText('Attachment type not supported')
+  await expect(pdf.getByRole('button')).toHaveText('In note “Research & plans”')
+  const encrypted = skipped.getByRole('listitem').filter({ hasText: 'Encrypted content' })
+  await expect(encrypted).toContainText('Encrypted content cannot be imported')
+  await expect(encrypted.getByRole('button')).toHaveText('In note “Research & plans”')
+  if (process.env['DEVOT_ENEX_SCREENSHOTS'])
+    await page.screenshot({ path: '/home/ubuntu/screens/enex-skipped.png', animations: 'disabled' })
+  await page.keyboard.press('Escape')
+  await expect(skipped).toBeHidden()
+  await rows.filter({ hasText: 'Undated' }).click()
+  await notice.getByRole('button', { name: 'Show Skipped' }).click()
+  await skipped.getByRole('listitem').filter({ hasText: 'paper.pdf' }).getByRole('button').click()
+  await expect(skipped).toBeHidden()
+  await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue(
+    'Research & plans',
+  )
   expect(
     await page.evaluate(() =>
       window.devotIpcCalls

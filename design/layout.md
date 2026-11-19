@@ -39,6 +39,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - The editor footer (`.editor-counts`, words and characters) is caption size (11) in tertiary text, right-aligned and inset `space.10` from the content column's edge, with no rule above it; focus mode does not narrow it to the reading column, so it keeps the window's bottom-right corner.
   A note with a word goal shows its words as `340 / 1,500` in the same style, with the goal in the item's tooltip.
   Notices (`.notices`) sit in the bottom-right corner as glass popovers (`radius.glass-popover`, `size.glass-popover-inset`) and rise clear of `.editor-counts` and `.history-bar` whenever either is shown.
+  A plugin import notice offers Show Skipped beside Dismiss; its details reuse the import results sheet and problem rows, with the item name, caption reason and a note button on the sheet's text keyline.
 - Footnotes on screen start with a 48 pt hairline (`size.footnote-rule`) on the text's edge, with text at footnote size (12) in secondary. Print keeps the full-width rule.
 
 ## Settings footnotes

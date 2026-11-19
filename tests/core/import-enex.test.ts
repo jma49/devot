@@ -78,6 +78,21 @@ it('imports ENML, dates, tags and resources into a notebook under the destinatio
   expect(book.parentId).toBe(destination)
   const records = await Promise.all(Object.values(report.noteIds).map((id) => storage.getNote(id)))
   const first = records.find((n) => n?.title === 'Research & plans')!
+  expect(report.problems).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        image: 'paper.pdf',
+        code: 'E_IMPORT_ATTACHMENT_UNSUPPORTED',
+        noteId: first.id,
+        noteTitle: 'Research & plans',
+      }),
+      expect.objectContaining({
+        code: 'E_IMPORT_ENCRYPTED',
+        noteId: first.id,
+        noteTitle: 'Research & plans',
+      }),
+    ]),
+  )
   expect(first.bookId).toBe(book.id)
   expect(first.bodyMd).toContain('**bold**')
   expect(first.bodyMd).toContain('[link](https://example.com)')
@@ -231,7 +246,14 @@ it('refuses images above the existing attachment size limit', async () => {
   )
   expect(report.notes).toBe(1)
   expect(report.attachments).toBe(0)
-  expect(report.problems).toEqual([{ path: 'Archive/1.md', code: 'E_FILE_SIZE_INVALID' }])
+  expect(report.problems).toEqual([
+    {
+      path: 'Archive/1.md',
+      code: 'E_FILE_SIZE_INVALID',
+      noteId: report.noteIds['Archive/1.md'],
+      noteTitle: 'Large',
+    },
+  ])
 })
 
 it('keeps legacy single-note Markdown imports in the destination without a notebook', async () => {

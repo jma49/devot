@@ -14,7 +14,9 @@ type PluginImportOptions = Omit<ImportOptions, 'scan' | 'source' | 'prepare'> & 
 
 function prepare(note: Converted, options: PluginImportOptions): PreparedImport {
   const embedded: PreparedImport['embedded'] = []
-  const diagnostics = (note.diagnostics ?? []).map((code) => ({ code }))
+  const diagnostics: NonNullable<PreparedImport['diagnostics']> = (note.diagnostics ?? []).map(
+    (code) => ({ code }),
+  )
   const uris = new Map<number, string>()
   for (const [index, attachment] of (note.attachments ?? []).entries()) {
     try {
@@ -30,7 +32,10 @@ function prepare(note: Converted, options: PluginImportOptions): PreparedImport 
       embedded.push({ id, mime, data, name: attachment.name })
       uris.set(index, fileUri(id))
     } catch (error) {
-      diagnostics.push({ code: errorCode(error, 'E_IMPORT_ATTACHMENT_INVALID') })
+      diagnostics.push({
+        code: errorCode(error, 'E_IMPORT_ATTACHMENT_INVALID'),
+        image: attachment.name,
+      })
     }
   }
   let text = note.markdown ?? ''

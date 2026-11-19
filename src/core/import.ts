@@ -94,6 +94,8 @@ export interface ImportScan {
 export interface ImportProblem {
   path: string
   image?: string
+  noteId?: string
+  noteTitle?: string
   code: string
 }
 
@@ -155,7 +157,7 @@ export interface PreparedImport {
   /** An HTML file's embedded images, as attachments to store (none without IDs to give them). */
   embedded: (HtmlImage & { name?: string })[]
   dates?: { createdAt: number; updatedAt: number }
-  diagnostics?: { code: string }[]
+  diagnostics?: { code: string; image?: string }[]
   dropped: string[]
   /** Tags written in the text as Bear writes them, used for a Bear export (importBear.ts). */
   hashtags?: string[]
@@ -740,7 +742,8 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
           : prepared.title
       id = await notes.create(title, folder(layout.noteFolder(path)))
       const noteId = id
-      for (const diagnostic of prepared.diagnostics ?? []) found.push({ path, ...diagnostic })
+      for (const diagnostic of prepared.diagnostics ?? [])
+        found.push({ path, ...diagnostic, noteId, noteTitle: title })
       for (const dropped of prepared.dropped) {
         found.push({ path, image: dropped, code: 'E_IMPORT_HTML_CONTENT_DROPPED' })
       }

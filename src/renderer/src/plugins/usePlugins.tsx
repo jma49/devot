@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { InstalledPlugin } from '../../../core/plugins'
+import type { ImportProblem } from '../../../core/import'
 import type { PluginRendererSpec } from '../../../core/preview'
 import { errorCode } from '../../../core/errors'
 import { sheetOpen, useMenuEvent } from '../commands/dispatch'
@@ -53,6 +54,7 @@ import { pluginRenderersChanged } from './rendererRevision'
 import { keptDrawingsChanged } from '../preview/keptDrawings'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
+import { ImportDetails } from './ImportDetails'
 
 export interface PluginWindow {
   /** The note open in the editor. */
@@ -68,6 +70,7 @@ export interface PluginWindow {
   importBook(): string | null
   /** The lists show what an import made. */
   imported(): void
+  showNote(id: string): void
 }
 
 /** The notes plugins read load on a plugin's first read, so the main window starts without them. */
@@ -100,7 +103,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   const [panel, setPanel] = useState<{ plugin: string; height: number } | null>(null)
   const [notification, setNotification] = useState<
     | { kind: 'failure'; name: string; code: string }
-    | { kind: 'import'; notes: number; skipped: number }
+    | { kind: 'import' | 'details'; notes: number; problems: ImportProblem[] }
   >()
   const frames = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -294,7 +297,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
           if (!files) return
           setNotification(undefined)
           let made = 0
-          let skipped = 0
+          const problems: ImportProblem[] = []
           let importError: unknown
           try {
             for (const file of files) {
@@ -304,7 +307,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
                 made += report.notes
                 for (const problem of report.problems) {
                   if (report.noteIds[problem.path] && problem.code !== 'E_IMPORT_INCOMPLETE') {
-                    skipped++
+                    problems.push(problem)
                     logFailure(problem.code, 'W_PLUGIN_IMPORT_SKIPPED')
                   } else importError = new Error(problem.code)
                 }
@@ -318,8 +321,8 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
             if (made > 0) w.imported()
             if (importError || (made === 0 && files.length > 0))
               fail(action.plugin, importError ?? new Error('E_IMPORT_FAILED'))
-            else if (made > 0 && skipped > 0)
-              setNotification({ kind: 'import', notes: made, skipped })
+            else if (made > 0 && problems.length > 0)
+              setNotification({ kind: 'import', notes: made, problems })
           }
         } else {
           const open = w.openNote()
@@ -396,23 +399,35 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     })
 
   const sheet: ReactNode = (
-    <dialog
-      ref={dialog}
-      className="plugin-panel"
-      aria-label={panel ? nameOf(panel.plugin) : undefined}
-      onCancel={(e) => {
-        e.preventDefault()
-        closePanel()
-      }}
-    >
-      <div className="plugin-panel-bar">
-        <span className="plugin-panel-title">{panel ? nameOf(panel.plugin) : null}</span>
-        <button type="button" className="button" onClick={closePanel}>
-          {t('plugins.panelClose')}
-        </button>
-      </div>
-      <div ref={frames} className="plugin-frames" />
-    </dialog>
+    <>
+      <dialog
+        ref={dialog}
+        className="plugin-panel"
+        aria-label={panel ? nameOf(panel.plugin) : undefined}
+        onCancel={(e) => {
+          e.preventDefault()
+          closePanel()
+        }}
+      >
+        <div className="plugin-panel-bar">
+          <span className="plugin-panel-title">{panel ? nameOf(panel.plugin) : null}</span>
+          <button type="button" className="button" onClick={closePanel}>
+            {t('plugins.panelClose')}
+          </button>
+        </div>
+        <div ref={frames} className="plugin-frames" />
+      </dialog>
+      {notification?.kind === 'details' ? (
+        <ImportDetails
+          problems={notification.problems}
+          onClose={() => setNotification({ ...notification, kind: 'import' })}
+          onNote={(id) => {
+            setNotification({ ...notification, kind: 'import' })
+            latest.current.app.showNote(id)
+          }}
+        />
+      ) : null}
+    </>
   )
 
   const failure = notification?.kind === 'failure' ? notification : undefined
@@ -420,15 +435,24 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   const notice: ReactNode = notification ? (
     <div role="alert" className="notice" data-devot-part="notice" data-devot-plugin-notice>
       <span className="notice-text">
-        {notification.kind === 'import'
+        {notification.kind !== 'failure'
           ? format(t('plugins.importedWithSkips'), {
               notes: String(notification.notes),
-              skipped: String(notification.skipped),
+              skipped: String(notification.problems.length),
             })
           : licenceRefused
             ? t('plugins.trialEnded')
             : failureText('plugins.failed', notification.code, { name: notification.name })}
       </span>
+      {notification.kind !== 'failure' ? (
+        <button
+          type="button"
+          className="button"
+          onClick={() => setNotification({ ...notification, kind: 'details' })}
+        >
+          {t('plugins.showSkipped')}
+        </button>
+      ) : null}
       {licenceRefused ? (
         <button
           type="button"
