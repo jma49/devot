@@ -227,6 +227,7 @@ export const messages: Record<keyof typeof en, string> = {
   'pasteFormat.failed': '无法获取这个链接。',
   'editor.slashHint': '输入“/”调出命令…',
   'editor.emptyNoteHint': '直接开始输入，或',
+  'editor.startTyping': '直接开始输入',
   'editor.chooseTemplate': '选择模板',
   'editor.copyCodeBlock': '拷贝代码块',
   'editor.overwriteOn': '改写模式已打开',

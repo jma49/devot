@@ -263,6 +263,7 @@ export const messages = {
   'pasteFormat.failed': 'Could not fetch this link.',
   'editor.slashHint': "Type '/' for commands...",
   'editor.emptyNoteHint': 'Just start typing, or',
+  'editor.startTyping': 'Just start typing',
   'editor.chooseTemplate': 'Choose a template',
   'editor.copyCodeBlock': 'Copy code block',
   'editor.overwriteOn': 'Overwrite mode on',
