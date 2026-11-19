@@ -19,6 +19,6 @@ it('builds a command that starts, checks and packs a plugin', () => {
   const kit = (...args: string[]) =>
     execFileSync(process.execPath, [script, ...args], { cwd: dir }).toString()
   expect(kit('new', 'tools')).toMatch(/^Made /)
-  expect(kit('validate', 'tools')).toMatch(/^com\.example\.tools 0\.1\.0: valid for plugin API 2/)
+  expect(kit('validate', 'tools')).toMatch(/^com\.example\.tools 0\.1\.0: valid for plugin API 3/)
   expect(kit('pack', 'tools')).toMatch(/^Packed 3 files into /)
 })

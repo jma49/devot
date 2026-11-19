@@ -2,6 +2,8 @@
 // keys, preview renderers, menu bar picks (`devot://plugin-action`), import and export formats, and the sheet a plugin's UI shows in.
 import * as Comlink from 'comlink'
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useInsertionEffect,
@@ -47,14 +49,17 @@ import {
   type PluginAction,
 } from './contributions'
 import { frameConnector, showFrame } from './frames'
-import { createPluginHost, type PluginHost, type PluginNotes } from './host'
+import type { PluginHost, PluginNotes } from './host'
 import { useLibraryTurn } from './libraryTurn'
 import { pluginRenderersChanged } from './rendererRevision'
 import { keptDrawingsChanged } from '../preview/keptDrawings'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
-import { ImportDetails } from './ImportDetails'
 import { importBatch } from './importBatch'
+
+const ImportDetails = lazy(() =>
+  import('./ImportDetails').then((m) => ({ default: m.ImportDetails })),
+)
 
 export interface PluginWindow {
   /** The note open in the editor. */
@@ -114,46 +119,57 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
 
   const [host, setHost] = useState<PluginHost>()
   useEffect(() => {
-    // The editor counts only while it shows the open note: never a note it is still leaving.
-    const shownEditor = () => {
-      const { app: w } = latest.current
-      const editor = w.editor()
-      const open = w.openNote()
-      return editor && open && editor.noteId === open.id ? editor : null
+    let live = true
+    let made: PluginHost | undefined
+    void import('./host').then(
+      ({ createPluginHost }) => {
+        if (!live) return
+        // The editor counts only while it shows the open note: never a note it is still leaving.
+        const shownEditor = () => {
+          const { app: w } = latest.current
+          const editor = w.editor()
+          const open = w.openNote()
+          return editor && open && editor.noteId === open.id ? editor : null
+        }
+        made = createPluginHost({
+          connect: frameConnector(frames),
+          readNote: async () => {
+            const { core: c, app: w } = latest.current
+            const open = w.openNote()
+            if (!c || !open) return null
+            const note = await c.read(open.id)
+            return { title: note.title, markdown: note.bodyMd }
+          },
+          replaceNote: async (edit) => {
+            const { core: c, app: w } = latest.current
+            const open = w.openNote()
+            if (!c || !open) throw new Error('E_PLUGIN_NO_NOTE')
+            if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
+            w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
+          },
+          readSelection: async () => shownEditor()?.pluginSelection() ?? null,
+          insertText: async ({ text, selected }) => {
+            const editor = shownEditor()
+            if (!editor) throw new Error('E_PLUGIN_NO_NOTE')
+            if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
+            const refused = editor.pluginInsert(text, selected)
+            if (refused) throw new Error(refused)
+          },
+          storage: pluginStorage,
+          notes: lazyNotes(() => latest.current.core ?? undefined),
+          settings: pluginSettings,
+          showUi: (plugin, height) => setPanel({ plugin, height }),
+          hideUi: (plugin) => setPanel((now) => (now?.plugin === plugin ? null : now)),
+          warn: (code, plugin) => console.warn('W_PLUGIN_FAILED', code, plugin),
+        })
+        setHost(made)
+      },
+      (error: unknown) => console.warn('W_PLUGIN_FAILED', errorCode(error)),
+    )
+    return () => {
+      live = false
+      made?.stop()
     }
-    const made = createPluginHost({
-      connect: frameConnector(frames),
-      readNote: async () => {
-        const { core: c, app: w } = latest.current
-        const open = w.openNote()
-        if (!c || !open) return null
-        const note = await c.read(open.id)
-        return { title: note.title, markdown: note.bodyMd }
-      },
-      replaceNote: async (edit) => {
-        const { core: c, app: w } = latest.current
-        const open = w.openNote()
-        if (!c || !open) throw new Error('E_PLUGIN_NO_NOTE')
-        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
-        w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
-      },
-      readSelection: async () => shownEditor()?.pluginSelection() ?? null,
-      insertText: async ({ text, selected }) => {
-        const editor = shownEditor()
-        if (!editor) throw new Error('E_PLUGIN_NO_NOTE')
-        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
-        const refused = editor.pluginInsert(text, selected)
-        if (refused) throw new Error(refused)
-      },
-      storage: pluginStorage,
-      notes: lazyNotes(() => latest.current.core ?? undefined),
-      settings: pluginSettings,
-      showUi: (plugin, height) => setPanel({ plugin, height }),
-      hideUi: (plugin) => setPanel((now) => (now?.plugin === plugin ? null : now)),
-      warn: (code, plugin) => console.warn('W_PLUGIN_FAILED', code, plugin),
-    })
-    setHost(made)
-    return () => made.stop()
   }, [])
 
   useEffect(() => {
@@ -404,14 +420,16 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         <div ref={frames} className="plugin-frames" />
       </dialog>
       {notification?.kind === 'details' ? (
-        <ImportDetails
-          problems={notification.problems}
-          onClose={() => setNotification({ ...notification, kind: 'import' })}
-          onNote={(id) => {
-            setNotification({ ...notification, kind: 'import' })
-            latest.current.app.showNote(id)
-          }}
-        />
+        <Suspense fallback={null}>
+          <ImportDetails
+            problems={notification.problems}
+            onClose={() => setNotification({ ...notification, kind: 'import' })}
+            onNote={(id) => {
+              setNotification({ ...notification, kind: 'import' })
+              latest.current.app.showNote(id)
+            }}
+          />
+        </Suspense>
       ) : null}
     </>
   )
