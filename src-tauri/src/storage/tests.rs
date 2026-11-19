@@ -2239,7 +2239,7 @@ fn a_write_rewrites_the_search_index_only_when_title_or_markdown_changes() {
     assert_eq!((found(&store, "relay"), found(&store, "snapshot")), (0, 1));
     store
         .conn
-        .execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
+        .execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')")
         .unwrap();
 }
 
@@ -3420,10 +3420,27 @@ fn rebuilding_the_search_index_restores_search() {
     assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
     store
         .conn
-        .execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
+        .execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')")
         .unwrap();
     assert_eq!(store.rebuild_search_index(|| false).unwrap(), 2);
     assert_eq!(found(&store, "relay"), 1);
+}
+
+#[test]
+fn rebuilding_an_empty_or_only_purged_library_keeps_all_index_rows() {
+    let (_dir, mut store) = temp_store();
+    assert_eq!(store.rebuild_search_index(|| false).unwrap(), 0);
+    store.put_note(&note("gone", "Gone", 10), &[]).unwrap();
+    store
+        .trash_and_purge("gone", 20, "0000000000020-0000-test")
+        .unwrap();
+    assert_eq!(store.rebuild_search_index(|| false).unwrap(), 0);
+    let indexed: i64 = store
+        .conn
+        .query_row("SELECT count(*) FROM notes_fts", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(indexed, 1);
+    check_search_index(&store.conn);
 }
 
 #[test]
@@ -3638,6 +3655,13 @@ fn a_purged_note_leaves_no_text_in_the_file() {
             .put_revision(&version("r1", "a", 11, secret.as_bytes()))
             .unwrap();
         store.put_note(&note("b", "Kept", 10), &[]).unwrap();
+        assert_eq!(
+            store
+                .search_notes(&words(&["qxjzvwkpfyb"]), 10)
+                .unwrap()
+                .len(),
+            1
+        );
         store
             .trash_and_purge("a", 30, "0000000000000030-0000-a")
             .unwrap();
@@ -3653,6 +3677,29 @@ fn a_purged_note_leaves_no_text_in_the_file() {
             secure, 0,
             "only a purge takes text out of the index's pages"
         );
+        assert!(
+            store
+                .search_notes(&words(&["qxjzvwkpfyb"]), 10)
+                .unwrap()
+                .is_empty()
+        );
+        store
+            .conn
+            .execute_batch(
+                "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+            )
+            .unwrap();
+        for trigram in b"qxjzvwkpfyb".windows(3) {
+            let count: i64 = store
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM purge_vocab WHERE term = ?1",
+                    [std::str::from_utf8(trigram).unwrap()],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 0, "the purged trigram is still in the vocabulary");
+        }
     }
     let bytes = std::fs::read(&path).unwrap();
     let found = bytes
@@ -4076,7 +4123,7 @@ fn index_blocks(conn: &Connection) -> Vec<(i64, Vec<u8>)> {
 }
 
 fn check_search_index(conn: &Connection) {
-    conn.execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
+    conn.execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')")
         .unwrap();
 }
 
@@ -4245,6 +4292,39 @@ fn open_at_schema(path: &Path, version: usize) -> Connection {
 const BEFORE_CATCH_UP: usize = 28;
 
 #[test]
+fn contentless_migration_reindexes_v31_notes_and_stale_rows() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    {
+        let conn = open_at_schema(&path, 31);
+        conn.execute_batch(
+            "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at)
+             VALUES ('old', 'Original', '', 'orchard', x'00', 1, 1),
+                    ('edited', 'Edited', '', 'obsolete', x'00', 1, 1),
+                    ('deleted', 'Deleted', '', 'vanished', x'00', 1, 1);
+             INSERT INTO notes_fts (rowid, title, body_md) SELECT rowid, title, body_md FROM notes;
+             DELETE FROM search_stale;
+             UPDATE notes SET body_md = 'snapshot' WHERE id = 'edited';
+             DELETE FROM notes WHERE id = 'deleted';",
+        )
+        .unwrap();
+    }
+    let store = Store::open(&path).unwrap();
+    assert_eq!(search_stale(&store), 0);
+    for (term, id) in [
+        ("orchard", Some("old")),
+        ("snapshot", Some("edited")),
+        ("obsolete", None),
+        ("vanished", None),
+    ] {
+        let found = store.search_notes(&words(&[term]), 10).unwrap();
+        assert_eq!(found.first().map(|n| n.id.as_str()), id);
+        assert_eq!(found.len(), usize::from(id.is_some()));
+    }
+    check_search_index(&store.conn);
+}
+
+#[test]
 fn the_catch_up_migration_keeps_the_index_of_an_existing_library() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");
@@ -4263,15 +4343,16 @@ fn the_catch_up_migration_keeps_the_index_of_an_existing_library() {
             [],
         )
         .unwrap();
-        index_blocks(&conn)
+        let indexed = index_blocks(&conn);
+        conn.execute_batch(MIGRATIONS[BEFORE_CATCH_UP]).unwrap();
+        assert_eq!(index_blocks(&conn), indexed, "v29 re-indexes nothing");
+        conn.execute_batch(MIGRATIONS[BEFORE_CATCH_UP]).unwrap();
+        assert_eq!(index_blocks(&conn), indexed, "v29 is idempotent");
+        indexed
     };
     let store = Store::open(&path).unwrap();
     assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
-    assert_eq!(
-        index_blocks(&store.conn),
-        indexed,
-        "the upgrade re-indexes nothing"
-    );
+    assert!(!indexed.is_empty());
     assert_eq!(search_stale(&store), 0);
     check_search_index(&store.conn);
     let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
@@ -4284,11 +4365,6 @@ fn the_catch_up_migration_keeps_the_index_of_an_existing_library() {
         [1, 1, 1]
     );
 
-    store
-        .conn
-        .execute_batch(MIGRATIONS[BEFORE_CATCH_UP])
-        .expect("running the migration again changes nothing");
-    assert_eq!(index_blocks(&store.conn), indexed);
     drop(store);
     let store = Store::open(&path).unwrap();
     assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);

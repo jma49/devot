@@ -20,13 +20,69 @@ Consequently this is not yet an end-to-end encrypted sync benchmark.
 
 ## Machine
 
-The committed `large-notes.json` is one run on a Linux cloud VM: Intel Xeon, 8 cores, 31 GB, Linux 6.8 (AWS), Node 24.22, load average 0.53 at the start (its `machine` field).
+The committed `large-notes.json` is the schema v32 run on a Linux cloud VM: Intel Xeon, 8 cores, 31 GB, Linux 6.8 (AWS), Node 24.22, load average 0.33 at the start (its `machine` field).
 Numbers are not comparable across machines; compare runs only on the same quiet machine.
-Its `commit` ends in `+dirty` because it was taken before the benchmark itself was committed.
+Its `commit` ends in `+dirty` because the migration was measured before committing it.
+
+## Contentless-delete before and after
+
+Both full runs used the same quiet machine and thirty runs per size, with sixty observations for search and sync.
+Before is the clean benchmark branch tip `bf53e90d`, load average 0.02; after is that tip plus schema v32 and the store changes, load average 0.33.
+Only the after JSON is retained in `large-notes.json`; the original investigation below describes the external-content baseline.
+All values are milliseconds, p50 / p95.
+
+| Size   | Path                        |  Before p50 / p95 |   After p50 / p95 |
+| ------ | --------------------------- | ----------------: | ----------------: |
+| 100 KB | Cold open                   |     0.388 / 0.694 |     0.387 / 0.729 |
+| 100 KB | Edit + save                 |     2.840 / 6.479 |     2.846 / 5.832 |
+| 100 KB | Search after save           |   10.250 / 13.456 |    6.934 / 10.137 |
+| 100 KB | Warm search                 |     0.485 / 0.676 |     0.468 / 0.672 |
+| 100 KB | Client sync (no encryption) |     4.604 / 6.547 |     4.958 / 6.305 |
+| 100 KB | Paste + save                |     2.537 / 6.977 |     2.607 / 4.934 |
+| 100 KB | Relay upload                |     2.573 / 3.864 |     2.656 / 4.336 |
+| 100 KB | Relay download              |     2.341 / 3.011 |     1.319 / 2.212 |
+| 1 MB   | Cold open                   |     2.463 / 3.870 |     2.381 / 3.763 |
+| 1 MB   | Edit + save                 |   23.274 / 26.327 |   20.703 / 28.022 |
+| 1 MB   | Search after save           |   71.548 / 80.914 |   50.150 / 54.153 |
+| 1 MB   | Warm search                 |     1.934 / 4.992 |     1.863 / 2.117 |
+| 1 MB   | Client sync (no encryption) |   22.626 / 26.907 |   22.317 / 27.845 |
+| 1 MB   | Paste + save                |   19.550 / 27.193 |   17.384 / 23.375 |
+| 1 MB   | Relay upload                |    6.969 / 11.389 |    6.861 / 16.933 |
+| 1 MB   | Relay download              |    7.713 / 10.678 |    7.118 / 11.156 |
+| 5 MB   | Cold open                   |   17.261 / 19.331 |   16.081 / 19.820 |
+| 5 MB   | Edit + save                 |  98.217 / 105.369 | 100.722 / 111.638 |
+| 5 MB   | Search after save           | 385.381 / 412.933 | 284.428 / 309.602 |
+| 5 MB   | Warm search                 |     8.004 / 9.009 |     8.378 / 9.474 |
+| 5 MB   | Client sync (no encryption) |  98.110 / 106.008 | 101.712 / 119.497 |
+| 5 MB   | Paste + save                | 112.576 / 123.144 | 109.359 / 122.191 |
+| 5 MB   | Relay upload                |   24.696 / 43.204 |   25.723 / 44.235 |
+| 5 MB   | Relay download              |   32.786 / 39.213 |   31.089 / 38.330 |
+
+Search-after-save improves 29.9% p50 / 33.1% p95 at 1 MB and 26.2% / 25.0% at 5 MB.
+Unchanged paths fluctuate in both directions; these runs establish a catch-up gain, not an across-the-board speedup.
+Schema v32 rebuilds every note's index entry once and replaces stale text snapshots with rowids.
+Repair uses `delete-all`, reinsertion, internal `integrity-check` without rank and a row-count check, under the existing cancellable transaction.
+Search and attachment handover use MATCH, rowid and BM25; excerpts and body checks still read `notes`, never contentless column values.
+FTS5 accepts `secure-delete` on the new table, but rowid deletion still leaves tombstones and failed the existing byte-scan purge test without compaction.
+Purge therefore also runs FTS5 `optimize` inside its transaction before disabling secure deletion; this can compact the entire index, a deliberate permanent-deletion cost rather than a cost on each edit.
+Rust and TypeScript tests check MATCH, `fts5vocab` and raw database bytes after purge, including stale text in the TypeScript test.
+
+### Migration cost
+
+`DEVOT_FTS_MIGRATION_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-contentless-migration.bench.test.ts --silent=false` measures five fresh file-backed v31 stores per fixture, WAL and synchronous FULL, including migration commit but excluding fixture setup and post-migration optimization/vacuum.
+The 10,000 typical notes use the deterministic short `libraryBody` fixtures; the large note uses `sampleNote(5_000_000)` (5,149,729 bytes).
+Index sizes sum FTS shadow-table pages through `dbstat`, with optimized indexes before and after and vacuum after; all five runs returned identical sizes.
+
+| Library              | Migration p50 / p95 (ms) | Before index bytes | After index bytes |       Difference |
+| -------------------- | -----------------------: | -----------------: | ----------------: | ---------------: |
+| 10,000 typical notes |          63.271 / 83.434 |          4,165,632 |         4,177,920 | +12,288 (+0.30%) |
+| One 5 MB note        |        164.205 / 166.853 |          9,482,240 |         9,482,240 |                0 |
+
+These are clean-index sizes, not a bound on tombstones accumulated between merges or on peak migration disk/WAL space.
 
 ## Top bottleneck
 
-The unprofiled full run in `large-notes.json` makes deferred search catch-up the slowest measured path at both 1 MB and 5 MB.
+The original external-content full run made deferred search catch-up the slowest measured path at both 1 MB and 5 MB.
 To reproduce the separate profile run:
 
 ```sh
@@ -42,7 +98,7 @@ Do not interpret these samples as a breakdown of SQLite tokenization versus B-tr
 
 Reachability is explicit: the benchmark calls `notes.search('planning')` immediately after applying an editor update and flushing it.
 `src/core/notes/search.ts` passes the parsed query to `storage.searchNotes`; the adapter's `search` sees an indexable term and calls `catchUpSearchIndex`.
-`tests/support/sqlite-adapter.ts` runs `CATCH_UP_SQL` in an immediate transaction, deleting the old complete title/body from the trigram FTS index, inserting the new complete title/body and clearing its stale marker.
+Before schema v32, `tests/support/sqlite-adapter.ts` ran `CATCH_UP_SQL` in an immediate transaction, deleting the old complete title/body from the trigram FTS index, inserting the new complete title/body and clearing its stale marker.
 The production Rust store has matching `CATCH_UP_SQL` in `src-tauri/src/storage/search.rs`.
 As a disconfirming check against excerpt generation or query execution being the main cost, the identical warm query is measured after catch-up: its full-run p95 is 3.266 ms at 1 MB and 11.141 ms at 5 MB, versus 101.474 ms and 509.688 ms for catch-up.
 The profile agrees: `bodyOf` and `foldText` each account for only about 0.75% self time.
@@ -63,10 +119,10 @@ Deleting the old entry accounts for approximately 44% of the sum of median state
 The installed SQLite source corroborates re-tokenization: `sqlite3Fts5StorageDelete` calls `fts5StorageDeleteFromIndex`, whose indexed-column loop invokes `sqlite3Fts5Tokenize` with `FTS5_TOKENIZE_DOCUMENT`.
 Transaction time outside statements includes begin/commit, deferred FTS work and disk synchronization; those components were not measured separately, and independent percentiles do not add up.
 
-## Candidate fix (not in this PR)
+## Original candidate prototype
 
 A throwaway migration on temporary test-store databases replaced the external-content trigram table with `content='', contentless_delete=1`, changed catch-up to `DELETE FROM notes_fts WHERE rowid=@rowid` followed by the existing insert and stale-marker deletion, and made stale-update triggers keep only the rowid.
-The prototype is not committed; no store change or product migration is included in this PR.
+The throwaway prototype is not committed; schema v32 implements the migration separately from the benchmark-only PR #1048.
 The prototype's twenty-run measurements use the same fixtures and timing method as the statement breakdown above.
 
 | Operation                                     | Contentless-delete, 1 MB p50 / p95 | Contentless-delete, 5 MB p50 / p95 |
@@ -99,7 +155,7 @@ The prototype checked new/removed term visibility and excerpts after every catch
 A real migration is cross-store work: replace both stores' catch-up deletion SQL and the stale-text/deletion triggers from `src-tauri/migrations/0029_search_catch_up.sql`, populate the replacement index from `notes`, and preserve freshness across upgrades and concurrent writers.
 The repair path at `src-tauri/src/storage/search.rs:584` also needs replacement: its FTS `'rebuild'` command was verified to fail with `'rebuild' may not be used with a contentless fts5 table`.
 Purge and FTS `secure-delete` need dedicated cross-store correctness and forensic-removal validation before adopting deletion tombstones; accepting the configuration command alone does not establish equivalent guarantees.
-These migration and security implications make contentless-delete a follow-up, not part of this benchmark PR.
+These migration and security implications kept contentless-delete out of the benchmark-only PR #1048; schema v32 handles them in its stacked follow-up.
 
 Another candidate is to process the existing stale-index queue after idle saves, coalescing while typing and retaining synchronous catch-up when a query needs freshness.
 If caught up before a query, the observed warm timings suggest an upper bound of 97–98% less foreground search latency, but this moves work rather than reducing indexing CPU and is not an implemented or measured fix.

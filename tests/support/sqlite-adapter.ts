@@ -483,15 +483,14 @@ export function searchStatement(
 }
 
 /**
- * Re-indexes one stale note (`@rowid`): takes out the text the index holds for it, puts in what
- * the note holds now. A note that is not stale is indexed as it is and left alone: inserting its
- * row again would count it twice. A save only marks its note stale (schema v29); a search and a
- * purge catch the index up first. The same statements as the Rust store's (storage/search.rs,
+ * Re-indexes one stale note (`@rowid`) by rowid, without tokenizing its old text.
+ * A note that is not stale is left alone; searches and purges catch up first.
+ * The same statements as the Rust store's (storage/search.rs,
  * CATCH_UP_SQL; a test compares them).
  */
 export const CATCH_UP_SQL = [
-  `INSERT INTO notes_fts (notes_fts, rowid, title, body_md)
-       SELECT 'delete', rowid, title, body_md FROM search_stale WHERE rowid = @rowid AND title IS NOT NULL`,
+  `DELETE FROM notes_fts WHERE rowid = @rowid
+          AND EXISTS (SELECT 1 FROM search_stale WHERE rowid = @rowid)`,
   `INSERT INTO notes_fts (rowid, title, body_md)
        SELECT rowid, title, body_md FROM notes WHERE rowid = @rowid
           AND EXISTS (SELECT 1 FROM search_stale WHERE rowid = @rowid)`,
@@ -1108,7 +1107,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         const rowid = rowidOf.get(id)?.rowid
         searchSecureDelete.run(1n)
         purge.run({ id, at, hlc })
-        if (rowid !== undefined) catchUpNote(rowid)
+        if (rowid !== undefined) {
+          catchUpNote(rowid)
+          db.prepare("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')").run()
+        }
         searchSecureDelete.run(0n)
         dropLinks.run(id)
         // Attachments another note still shows pass to it; the rest go. A purge from sync leaves

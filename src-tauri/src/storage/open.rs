@@ -38,6 +38,7 @@ pub(super) const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0029_search_catch_up.sql"),
     include_str!("../../migrations/0030_image_text.sql"),
     include_str!("../../migrations/0031_note_drawings.sql"),
+    include_str!("../../migrations/0032_search_contentless_delete.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;

@@ -21,9 +21,8 @@ const HAND_OVER_FILES_SQL: &str = r#"UPDATE files SET note_hlc = MAX(note_hlc, @
         ORDER BY n.deleted_at IS NOT NULL, n.id LIMIT 1), note_id)
      WHERE note_id = @id"#;
 
-/// FTS5 `secure-delete`: on, the search index takes a note's old text out of its pages instead
-/// of only marking it deleted, so it leaves no trigrams behind. Only a purge turns it on, as it
-/// makes every change of a long note's text many times slower to index. The TypeScript adapter
+/// Only a purge enables FTS5 `secure-delete` and compacts the index: contentless rowid
+/// deletions leave tombstones even with secure deletion enabled. The TypeScript adapter
 /// (tests/support/sqlite-adapter.ts) runs the same statement.
 const SEARCH_SECURE_DELETE_SQL: &str =
     "INSERT INTO notes_fts (notes_fts, rank) VALUES ('secure-delete', ?1)";
@@ -80,6 +79,7 @@ impl Store {
         )?;
         if let Some(rowid) = rowid {
             catch_up_note(&tx, rowid)?;
+            tx.execute("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')", [])?;
         }
         tx.execute(SEARCH_SECURE_DELETE_SQL, [0])?;
         tx.execute("DELETE FROM note_tags WHERE note_id = ?1", [id])?;
