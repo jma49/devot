@@ -210,6 +210,8 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
     They wait for the request and for the push.
   - A StoreKit test cleared a purchase, bought again and read the product's entitlement, and the cleared purchase was still listed for a moment: it waits for the entitlement of the new transaction.
   - After a restore from the history bar the editor is owed the keyboard once the overlay has gone; the flag that said so did not say for which note, so a note opened in between took the keyboard. The flag holds the note, and another note drops it (#902).
+  - New Note left the note on screen editable while its note was made: a click in the body during that time put the keyboard back in the note being left, `[[` went into it, and the new note then replaced it, so the popup never showed (#1029).
+    New Note pauses the note on screen like a note switch does (`pauseForNewNote`, `makingSlot`), so what is typed meanwhile is kept for the new note.
   - StoreKit Test's local server answers some purchases with a server error (AMSErrorDomain 305) on a loaded runner; the retry covers it.
   - The history bar made the panes under a version inert in a passive effect, which runs after the paint for a version loaded asynchronously: a key typed in that frame reached the editor and changed the note under the version (#922).
     The panes become inert in the commit that shows the version (`useLayoutEffect`).

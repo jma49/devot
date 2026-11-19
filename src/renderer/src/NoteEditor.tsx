@@ -40,7 +40,13 @@ import {
 } from './editor/earlyKeys'
 import { newFromSelection, pastePlain } from './editor/noteKeys'
 import { editorScrollPane } from './editor/scrollPane'
-import { editorHandle, REMOTE, type EditorHandle } from './editor/handle'
+import {
+  editorHandle,
+  makingPause,
+  REMOTE,
+  type EditorHandle,
+  type MakingPause,
+} from './editor/handle'
 import { shadowContainer } from './editor/shadowFrame'
 import { reconfigureSetup } from './editor/settings'
 import { recount, type EditorCounts } from './editor/counts'
@@ -170,6 +176,7 @@ interface Shown {
   doc: Y.Doc
   place: EditorPlace
   handle: EditorHandle
+  making: MakingPause
   applyStep: ApplyRestore
   /** Lets the note go; `left` is the editor state it was left with. */
   close: (left: EditorState) => void
@@ -654,6 +661,7 @@ export function NoteEditor({
         view = before.view
         const leftState = view.state
         scroller.scrollTop = 0
+        left?.making.end()
         view.setState(initial)
         // setState keeps the DOM focus but sends no focus change, so the new state is told.
         const effects = [
@@ -671,6 +679,8 @@ export function NoteEditor({
       const untrackEditor = trackOpenEditor(noteId, view, doc, text)
       caretLineReport.current?.(view.state.doc.lineAt(view.state.selection.main.head).number)
       const ready = view
+      const isShown = () => shown.current === s
+      const making = makingPause(ready, isShown)
       const s: Shown = {
         core,
         noteId,
@@ -686,7 +696,8 @@ export function NoteEditor({
           doc.destroy()
           void core.unhold(noteId)
         },
-        handle: editorHandle(ready, doc, noteId, applyStep, () => shown.current === s),
+        handle: editorHandle(ready, doc, noteId, applyStep, isShown, making),
+        making,
       }
       shown.current = s
       loaded.current?.(body)
@@ -694,12 +705,7 @@ export function NoteEditor({
       publish(s)
       // Opened before this editor was published: changes sent in between reached no editor.
       if (handedOver) {
-        void catchUp(
-          doc,
-          (known) => core.open(noteId, known),
-          () => shown.current === s,
-          REMOTE,
-        )
+        void catchUp(doc, (known) => core.open(noteId, known), isShown, REMOTE)
       }
       const settle = () => {
         if (shown.current !== s) return
@@ -729,6 +735,7 @@ export function NoteEditor({
       const left = shown.current
       if (!view || !left) return
       const leftState = view.state
+      left.making.end()
       shown.current = null
       view.setState(EditorState.create({ extensions: PAUSED }))
       left.close(leftState)
@@ -741,6 +748,7 @@ export function NoteEditor({
       if (given) void core.unhold(noteId)
       const view = editor.current?.view
       view?.dispatch({ effects: pausedSlot.reconfigure([]) })
+      now.making.end()
       publish(now)
       // Back to the note still on screen: it takes the keyboard the switch took away.
       const el = host.current
@@ -763,6 +771,8 @@ export function NoteEditor({
           keys.claim(noteId)
         }
         leaving.dispatch({ effects: pausedSlot.reconfigure(PAUSED) })
+        // The switch's pause takes over from New Note's.
+        now?.making.end()
       }
       // The core keeps the note in memory while the editor shows it, so its
       // replica and the core's document never part (see NoteService.hold).

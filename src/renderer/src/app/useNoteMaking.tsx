@@ -120,22 +120,31 @@ export function useNoteMaking({
   const create = async () => {
     if (!core) return
     const early = startEarlyKeys()
+    // Until the new note opens, a click in the shown body would type into that note (issue 1029).
+    const endPause = editorRef.current?.pauseForNewNote()
     let id: string
     try {
       // Save pending titles first, so the refreshed list shows them.
       await saveEdits(core)
       id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     } catch (e) {
+      endPause?.()
       early.fail()
       setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
       return
     }
     early.claim(id)
     if (!inTemplates) track('note.created', { from: 'new_note' })
-    await showMade(core, id, await refresh(core))
-    // A new note is for typing: Preview alone would leave it without an editor.
-    if (mode === 'preview') setMode(editorMode.current)
-    await select(id, { keyboard: true })
+    let opened = false
+    try {
+      await showMade(core, id, await refresh(core))
+      // A new note is for typing: Preview alone would leave it without an editor.
+      if (mode === 'preview') setMode(editorMode.current)
+      opened = await select(id, { keyboard: true })
+    } finally {
+      // Opened, the editor ends the pause when it leaves the shown note or shows it again.
+      if (!opened) endPause?.()
+    }
   }
 
   /** Makes a note from a template and opens it (see `showMade`); the template's notebook, if any, wins over the one shown. */
