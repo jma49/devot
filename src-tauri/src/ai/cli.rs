@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::Value;
 
+use super::catalog::{self, CatalogModel};
 use super::provider::{
     Completion, Message, Partial, Prepared, ProviderId, Role, Stop, Usage, status_error,
 };
@@ -41,6 +42,9 @@ const CLI_PATH: &str = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin";
 /// misclassifying a signed-in installation under normal load.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 const MAX_PROBE_BYTES: usize = 64 * 1024;
+/// `codex debug models` prints each model's whole instructions, about 1 MB for a dozen models.
+const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
+const CATALOG_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_STDERR_BYTES: usize = 16 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
@@ -64,12 +68,20 @@ pub struct CliDone {
     pub completion: Completion,
 }
 
+/// The model and reasoning level a CLI request asks for; empty or None leaves each to the CLI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CliChoice<'a> {
+    pub model: &'a str,
+    pub reasoning: Option<&'a str>,
+}
+
 pub trait CliBackend: Send + Sync {
     fn probe(&self) -> CliStates;
+    fn models(&self, id: ProviderId) -> Result<Vec<CatalogModel>, &'static str>;
     fn run(
         &self,
         id: ProviderId,
-        model: &str,
+        choice: CliChoice<'_>,
         request: &Prepared<'_>,
         timeout: Duration,
         cancelled: &dyn Fn() -> bool,
@@ -89,10 +101,28 @@ impl CliBackend for SystemCli {
         probe_paths(claude.as_deref(), codex.as_deref(), PROBE_TIMEOUT)
     }
 
+    fn models(&self, id: ProviderId) -> Result<Vec<CatalogModel>, &'static str> {
+        let home = home_dir();
+        let path_var = std::env::var_os("PATH");
+        match id {
+            ProviderId::ClaudeCli => {
+                find_claude(path_var.as_deref(), home.as_deref(), is_executable)
+                    .ok_or("E_AI_CLI_MISSING")?;
+                Ok(catalog::claude_code())
+            }
+            ProviderId::CodexCli => {
+                let cli = find_codex(path_var.as_deref(), home.as_deref(), is_executable)
+                    .ok_or("E_AI_CLI_MISSING")?;
+                codex_models(&cli, CATALOG_TIMEOUT, MAX_CATALOG_BYTES)
+            }
+            ProviderId::Anthropic | ProviderId::Openai => Err("E_AI_PROVIDER_UNAVAILABLE"),
+        }
+    }
+
     fn run(
         &self,
         id: ProviderId,
-        model: &str,
+        choice: CliChoice<'_>,
         request: &Prepared<'_>,
         timeout: Duration,
         cancelled: &dyn Fn() -> bool,
@@ -108,7 +138,7 @@ impl CliBackend for SystemCli {
             ProviderId::Anthropic | ProviderId::Openai => return Err("E_AI_PROVIDER_UNAVAILABLE"),
         }
         .ok_or("E_AI_CLI_MISSING")?;
-        run_cli_binary(&cli, id, model, request, timeout, cancelled, on_text)
+        run_cli_binary(&cli, id, choice, request, timeout, cancelled, on_text)
     }
 }
 
@@ -232,8 +262,14 @@ struct ProbeOutput {
     stderr: Vec<u8>,
 }
 
-fn run_probe(cli: &Path, args: &[&str], timeout: Duration) -> Option<ProbeOutput> {
-    let workdir = tempfile::tempdir().ok()?;
+/// A run that outlasts `timeout` is killed and answers `E_AI_TIMEOUT`; one that cannot start, `E_AI_FAILED`.
+fn run_probe(
+    cli: &Path,
+    args: &[&str],
+    timeout: Duration,
+    max_stdout: usize,
+) -> Result<ProbeOutput, &'static str> {
+    let workdir = tempfile::tempdir().map_err(|_| "E_AI_FAILED")?;
     let mut child = Command::new(cli)
         .args(args)
         .current_dir(workdir.path())
@@ -243,9 +279,12 @@ fn run_probe(cli: &Path, args: &[&str], timeout: Duration) -> Option<ProbeOutput
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .ok()?;
-    let stdout = child.stdout.take()?;
-    let stderr = child.stderr.take()?;
+        .map_err(|_| "E_AI_FAILED")?;
+    let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("E_AI_FAILED");
+    };
     let (tx, rx) = mpsc::sync_channel(1);
     std::thread::spawn(move || {
         let err_job = std::thread::spawn(move || {
@@ -254,7 +293,10 @@ fn run_probe(cli: &Path, args: &[&str], timeout: Duration) -> Option<ProbeOutput
             buf
         });
         let mut out = Vec::new();
-        let _ = stdout.take(MAX_PROBE_BYTES as u64).read_to_end(&mut out);
+        let limit = u64::try_from(max_stdout)
+            .unwrap_or(u64::MAX)
+            .saturating_add(1);
+        let _ = stdout.take(limit).read_to_end(&mut out);
         let err = err_job.join().unwrap_or_default();
         let _ = tx.send((out, err));
     });
@@ -262,10 +304,10 @@ fn run_probe(cli: &Path, args: &[&str], timeout: Duration) -> Option<ProbeOutput
     let Ok((stdout, stderr)) = rx.recv_timeout(timeout) else {
         let _ = child.kill();
         let _ = child.wait();
-        return None;
+        return Err("E_AI_TIMEOUT");
     };
-    let status = wait_child_until(&mut child, deadline).ok()?;
-    Some(ProbeOutput {
+    let status = wait_child_until(&mut child, deadline)?;
+    Ok(ProbeOutput {
         status,
         stdout,
         stderr,
@@ -273,7 +315,7 @@ fn run_probe(cli: &Path, args: &[&str], timeout: Duration) -> Option<ProbeOutput
 }
 
 fn probe_claude(cli: &Path, timeout: Duration) -> CliState {
-    let Some(out) = run_probe(cli, &["auth", "status", "--json"], timeout) else {
+    let Ok(out) = run_probe(cli, &["auth", "status", "--json"], timeout, MAX_PROBE_BYTES) else {
         return CliState::SignedOut;
     };
     if !out.status.success() {
@@ -287,7 +329,7 @@ fn probe_claude(cli: &Path, timeout: Duration) -> CliState {
 }
 
 fn probe_codex(cli: &Path, timeout: Duration) -> CliState {
-    let Some(out) = run_probe(cli, &["login", "status"], timeout) else {
+    let Ok(out) = run_probe(cli, &["login", "status"], timeout, MAX_PROBE_BYTES) else {
         return CliState::SignedOut;
     };
     if !out.status.success() {
@@ -306,8 +348,28 @@ fn probe_codex(cli: &Path, timeout: Duration) -> CliState {
     }
 }
 
+/// Codex's own catalog; it needs no sign-in, so a signed-out Codex still lists its models.
+pub(crate) fn codex_models(
+    cli: &Path,
+    timeout: Duration,
+    max_bytes: usize,
+) -> Result<Vec<CatalogModel>, &'static str> {
+    let out = run_probe(cli, &["debug", "models"], timeout, max_bytes)?;
+    if out.stdout.len() > max_bytes {
+        return Err("E_AI_RESPONSE_TOO_LARGE");
+    }
+    if !out.status.success() {
+        return Err("E_AI_FAILED");
+    }
+    catalog::parse_codex(&out.stdout)
+}
+
 /// Never passes `--bare` (disables keychain/OAuth subscription auth) and never puts prompts in `argv`.
-pub(crate) fn claude_args(stream: bool, system: Option<&str>, model: &str) -> Vec<String> {
+pub(crate) fn claude_args(
+    stream: bool,
+    system: Option<&str>,
+    choice: CliChoice<'_>,
+) -> Vec<String> {
     let mut args = vec![
         "-p".into(),
         "--safe-mode".into(),
@@ -329,15 +391,19 @@ pub(crate) fn claude_args(stream: bool, system: Option<&str>, model: &str) -> Ve
     if let Some(sys) = system {
         args.push(format!("--system-prompt={sys}"));
     }
-    if !model.is_empty() {
+    if !choice.model.is_empty() {
         args.push("--model".into());
-        args.push(model.to_string());
+        args.push(choice.model.to_string());
+    }
+    if let Some(effort) = choice.reasoning {
+        args.push("--effort".into());
+        args.push(effort.to_string());
     }
     args
 }
 
 /// Never puts prompt or system text in `argv`; passes `-` so `codex exec` reads `stdin`.
-pub(crate) fn codex_args(model: &str) -> Vec<String> {
+pub(crate) fn codex_args(choice: CliChoice<'_>) -> Vec<String> {
     let mut args = vec![
         "exec".into(),
         "--ephemeral".into(),
@@ -350,9 +416,13 @@ pub(crate) fn codex_args(model: &str) -> Vec<String> {
         "never".into(),
         "--json".into(),
     ];
-    if !model.is_empty() {
+    if !choice.model.is_empty() {
         args.push("-m".into());
-        args.push(model.to_string());
+        args.push(choice.model.to_string());
+    }
+    if let Some(effort) = choice.reasoning {
+        args.push("-c".into());
+        args.push(format!("model_reasoning_effort=\"{effort}\""));
     }
     args.push("-".into());
     args
@@ -386,7 +456,7 @@ pub(crate) fn codex_stdin(system: Option<&str>, messages: &[Message]) -> String 
 fn run_cli_binary(
     cli: &Path,
     id: ProviderId,
-    model_override: &str,
+    choice: CliChoice<'_>,
     request: &Prepared<'_>,
     timeout: Duration,
     cancelled: &dyn Fn() -> bool,
@@ -397,11 +467,11 @@ fn run_cli_binary(
     }
     let (args, stdin_text) = match id {
         ProviderId::ClaudeCli => (
-            claude_args(request.stream, request.system, model_override),
+            claude_args(request.stream, request.system, choice),
             format_messages(request.messages),
         ),
         ProviderId::CodexCli => (
-            codex_args(model_override),
+            codex_args(choice),
             codex_stdin(request.system, request.messages),
         ),
         ProviderId::Anthropic | ProviderId::Openai => return Err("E_AI_PROVIDER_UNAVAILABLE"),
@@ -438,6 +508,7 @@ fn run_cli_binary(
         "E_AI_FAILED"
     })?;
     let deadline = Instant::now() + timeout;
+    let model_override = choice.model;
 
     if id == ProviderId::ClaudeCli && !request.stream {
         run_claude_single(child, stdout, rx_err, deadline, model_override)
@@ -1162,9 +1233,13 @@ mod tests {
         assert_eq!(find_codex(None, Some(home), |_| false), None);
     }
 
+    fn pick(model: &'static str, reasoning: Option<&'static str>) -> CliChoice<'static> {
+        CliChoice { model, reasoning }
+    }
+
     #[test]
     fn claude_and_codex_arguments_stay_sandboxed_and_never_pass_bare_or_prompts() {
-        let claude_gen = claude_args(false, Some("Be brief."), "sonnet");
+        let claude_gen = claude_args(false, Some("Be brief."), pick("sonnet", Some("high")));
         assert!(!claude_gen.iter().any(|a| a == "--bare"));
         assert_eq!(
             claude_gen,
@@ -1180,18 +1255,21 @@ mod tests {
                 "--system-prompt=Be brief.",
                 "--model",
                 "sonnet",
+                "--effort",
+                "high",
             ]
         );
-        let dash_sys = claude_args(false, Some("- bullet"), "");
+        let dash_sys = claude_args(false, Some("- bullet"), pick("", None));
         assert!(dash_sys.contains(&"--system-prompt=- bullet".to_string()));
-        let claude_stream = claude_args(true, None, "");
+        let claude_stream = claude_args(true, None, pick("", None));
         assert!(!claude_stream.iter().any(|a| a == "--bare"));
         assert!(claude_stream.contains(&"stream-json".to_string()));
         assert!(claude_stream.contains(&"--verbose".to_string()));
         assert!(claude_stream.contains(&"--include-partial-messages".to_string()));
         assert!(!claude_stream.contains(&"--model".to_string()));
+        assert!(!claude_stream.contains(&"--effort".to_string()));
 
-        let codex = codex_args("gpt-5.4");
+        let codex = codex_args(pick("gpt-5.4", Some("xhigh")));
         assert_eq!(
             codex,
             [
@@ -1207,10 +1285,14 @@ mod tests {
                 "--json",
                 "-m",
                 "gpt-5.4",
+                "-c",
+                "model_reasoning_effort=\"xhigh\"",
                 "-",
             ]
         );
-        assert_eq!(codex_args("").last().map(String::as_str), Some("-"));
+        let plain = codex_args(pick("", None));
+        assert_eq!(plain.last().map(String::as_str), Some("-"));
+        assert!(!plain.contains(&"-c".to_string()));
     }
 
     #[test]
@@ -1418,7 +1500,7 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
         let done = run_cli_binary(
             &script,
             ProviderId::ClaudeCli,
-            "sonnet",
+            pick("sonnet", Some("max")),
             &req,
             Duration::from_secs(5),
             &|| false,
@@ -1440,6 +1522,7 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
         assert!(!Path::new(cwd).exists(), "working dir removed on drop");
         assert!(!args.contains(canary), "prompt must never reach argv");
         assert!(!args.contains("--bare"));
+        assert!(args.contains("--effort max"), "{args}");
         assert!(seen.contains(canary), "prompt must arrive on stdin");
 
         // Cancelling stops streaming immediately.
@@ -1447,7 +1530,7 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
         let cancelled = run_cli_binary(
             &script,
             ProviderId::ClaudeCli,
-            "",
+            pick("", None),
             &req,
             Duration::from_secs(5),
             &|| false,
@@ -1472,7 +1555,7 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
         let externally_cancelled = run_cli_binary(
             &slow,
             ProviderId::CodexCli,
-            "",
+            pick("", None),
             &req,
             Duration::from_secs(5),
             &|| abort.load(std::sync::atomic::Ordering::SeqCst),
@@ -1487,7 +1570,7 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
         let timed_out = run_cli_binary(
             &slow,
             ProviderId::CodexCli,
-            "",
+            pick("", None),
             &req,
             Duration::from_millis(150),
             &|| false,
@@ -1496,5 +1579,67 @@ printf '{{"type":"result","subtype":"success","is_error":false,"result":"onetwo"
         .unwrap_err();
         assert_eq!(timed_out, "E_AI_TIMEOUT");
         assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn codex_lists_its_catalog_and_a_failure_is_a_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let listing = write_script(
+            dir.path(),
+            "codex",
+            r#"[ "$1 $2" = "debug models" ] || exit 3
+printf '%s' '{"models":[{"slug":"gpt-a","display_name":"GPT A","visibility":"list","priority":1}]}'
+"#,
+        );
+        let models = codex_models(&listing, Duration::from_secs(5), MAX_CATALOG_BYTES).unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].name, "GPT A");
+        let failing = write_script(dir.path(), "codex-fails", "exit 1\n");
+        assert_eq!(
+            codex_models(&failing, Duration::from_secs(5), MAX_CATALOG_BYTES),
+            Err("E_AI_FAILED")
+        );
+        let garbled = write_script(dir.path(), "codex-garbled", "echo nope\n");
+        assert_eq!(
+            codex_models(&garbled, Duration::from_secs(5), MAX_CATALOG_BYTES),
+            Err("E_AI_RESPONSE_INVALID")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_codex_catalog_past_its_cap_or_its_time_is_a_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let listing = r#"{"models":[{"slug":"gpt-a","visibility":"list"}]}"#;
+        let fits = write_script(
+            dir.path(),
+            "codex-fits",
+            &format!("printf '%s' '{listing}'\n"),
+        );
+        assert!(codex_models(&fits, Duration::from_secs(5), listing.len()).is_ok());
+        assert_eq!(
+            codex_models(&fits, Duration::from_secs(5), listing.len() - 1),
+            Err("E_AI_RESPONSE_TOO_LARGE")
+        );
+        let endless = write_script(dir.path(), "codex-endless", "exec yes\n");
+        assert_eq!(
+            codex_models(&endless, Duration::from_secs(5), 4096),
+            Err("E_AI_RESPONSE_TOO_LARGE")
+        );
+
+        let hung = write_script(dir.path(), "codex-hung", "exec sleep 5\n");
+        let started = Instant::now();
+        assert_eq!(
+            codex_models(&hung, Duration::from_millis(200), MAX_CATALOG_BYTES),
+            Err("E_AI_TIMEOUT")
+        );
+        assert!(started.elapsed() < Duration::from_secs(2));
+        let silent = write_script(dir.path(), "codex-silent", "exec 1>&- 2>&-\nexec sleep 5\n");
+        assert_eq!(
+            codex_models(&silent, Duration::from_millis(200), MAX_CATALOG_BYTES),
+            Err("E_AI_TIMEOUT"),
+            "output closed but still running"
+        );
     }
 }

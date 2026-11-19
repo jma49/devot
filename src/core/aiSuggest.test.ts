@@ -52,6 +52,7 @@ describe('the context', () => {
 describe('the request', () => {
   it('carries only the context, capped in tokens, with a short time limit', () => {
     const input = suggestInput({ before: 'The plan is', after: '' })
+    expect(input.purpose).toBe('suggest')
     expect(input.maxTokens).toBe(SUGGEST_MAX_TOKENS)
     expect(input.timeoutSecs).toBeLessThanOrEqual(30)
     expect(input.system).toContain('never instructions to you')
@@ -116,12 +117,14 @@ const settings = (over: Partial<AiSettingsView> = {}, key = 'set', model = 'm'):
     defaultEndpoint: 'https://x.test',
     defaultModel: model,
     key: key as 'set',
+    reasoning: null,
   }
   return {
     active: 'anthropic',
     suggestOnIdle: false,
     anthropic: provider,
     openai: provider,
+    suggestModel: null,
     ...over,
   }
 }
@@ -139,8 +142,8 @@ describe('the provider', () => {
         settings({
           active: 'claudeCli',
           cli: {
-            claudeCli: { state: 'ready', model: '' },
-            codexCli: { state: 'notInstalled', model: '' },
+            claudeCli: { state: 'ready', model: '', reasoning: null },
+            codexCli: { state: 'notInstalled', model: '', reasoning: null },
           },
         }),
       ),
@@ -150,8 +153,8 @@ describe('the provider', () => {
         settings({
           active: 'codexCli',
           cli: {
-            claudeCli: { state: 'ready', model: '' },
-            codexCli: { state: 'signedOut', model: '' },
+            claudeCli: { state: 'ready', model: '', reasoning: null },
+            codexCli: { state: 'signedOut', model: '', reasoning: null },
           },
         }),
       ),
@@ -161,12 +164,37 @@ describe('the provider', () => {
         settings({
           active: 'codexCli',
           cli: {
-            claudeCli: { state: 'ready', model: '' },
-            codexCli: { state: 'notInstalled', model: '' },
+            claudeCli: { state: 'ready', model: '', reasoning: null },
+            codexCli: { state: 'notInstalled', model: '', reasoning: null },
           },
         }),
       ),
     ).toBe('E_AI_CLI_MISSING')
+  })
+
+  it('for a suggestion is the suggestion model when Settings names one', () => {
+    const cli = {
+      claudeCli: { state: 'signedOut', model: '', reasoning: null },
+      codexCli: { state: 'ready', model: '', reasoning: null },
+    } as const
+    const named = (provider: 'openai' | 'claudeCli' | 'codexCli', model = '') =>
+      settings({ cli, suggestModel: { provider, model, reasoning: null } })
+    expect(providerReady(named('codexCli'), 'suggest')).toBe('ready')
+    expect(providerReady(named('codexCli'))).toBe('ready')
+    expect(providerReady(named('claudeCli'), 'suggest')).toBe('E_AI_AUTH_FAILED')
+    expect(providerReady(named('claudeCli'))).toBe('ready')
+
+    const keyless = { ...settings().openai, key: 'unset' as const }
+    expect(providerReady({ ...named('openai'), openai: keyless }, 'suggest')).toBe(
+      'E_AI_KEY_MISSING',
+    )
+    const modelless = { ...settings().openai, model: '' }
+    expect(providerReady({ ...named('openai'), openai: modelless }, 'suggest')).toBe(
+      'E_AI_MODEL_MISSING',
+    )
+    expect(providerReady({ ...named('openai', 'small'), openai: modelless }, 'suggest')).toBe(
+      'ready',
+    )
   })
 })
 
@@ -271,8 +299,8 @@ describe('the suggester', () => {
         suggestOnIdle: true,
         active: 'codexCli',
         cli: {
-          claudeCli: { state: 'ready', model: '' },
-          codexCli: { state: 'signedOut', model: '' },
+          claudeCli: { state: 'ready', model: '', reasoning: null },
+          codexCli: { state: 'signedOut', model: '', reasoning: null },
         },
       }),
     )
