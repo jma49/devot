@@ -130,6 +130,7 @@ export function SettingsWindow() {
       body.current,
       target.result.paneLabel ? t(target.result.label) : undefined,
       () => setTarget((current) => (current === target ? null : current)),
+      target.result.label,
     )
   }, [target])
 

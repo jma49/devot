@@ -1301,6 +1301,16 @@ test('search finds a setting and shows its pane', async ({ page }) => {
   await expect(field).toHaveValue('')
 })
 
+test('search focuses Icon Style by the radiogroup accessible name', async ({ page }) => {
+  await page.goto('/settings.html?pane=general')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  await field.fill('icon style')
+  await field.press('Enter')
+  const group = page.getByRole('radiogroup', { name: 'Icon style', exact: true })
+  await expect(group.getByRole('radio').first()).toBeFocused()
+  await expect(group).toBeInViewport()
+})
+
 test('Back and Forward walk the panes visited', async ({ page }) => {
   await page.goto('/settings.html')
   const back = page.locator('.settings-history-button').first()

@@ -11,13 +11,30 @@ export function searchKey(event: KeyDownFields, index: number, count: number) {
   }
 }
 
-export function focusSetting(body: HTMLElement, label: string): boolean {
-  const named = Array.from(body.querySelectorAll<HTMLElement>('*')).find(
-    (element) =>
-      element.textContent?.trim() === label &&
-      !Array.from(element.children).some((child) => child.textContent?.trim() === label),
-  )
-  const target = named?.closest<HTMLElement>('.setting, .settings-block, section') ?? named
+export function focusSetting(body: HTMLElement, label: string, key?: string): boolean {
+  const elements = Array.from(body.querySelectorAll<HTMLElement>('*'))
+  const stable =
+    key === undefined ? undefined : elements.find((element) => element.dataset['setting'] === key)
+  const named =
+    stable ??
+    elements.find((element) => {
+      const labelledBy = element
+        .getAttribute('aria-labelledby')
+        ?.split(/\s+/)
+        .map((id) => body.ownerDocument.getElementById(id)?.textContent?.trim() ?? '')
+        .join(' ')
+      return (
+        element.getAttribute('aria-label') === label ||
+        labelledBy === label ||
+        (element.textContent?.trim() === label &&
+          !Array.from(element.children).some((child) => child.textContent?.trim() === label))
+      )
+    })
+  const target =
+    stable ??
+    (named?.getAttribute('role') === 'radiogroup'
+      ? named
+      : (named?.closest<HTMLElement>('.setting, .settings-block, section') ?? named))
   if (!target) return false
   target.scrollIntoView({ block: 'center', behavior: 'instant' })
   const control = target.querySelector<HTMLElement>(
@@ -37,7 +54,12 @@ export function focusTemporarily(target: HTMLElement) {
   target.focus({ preventScroll: true })
 }
 
-export function waitForSetting(body: HTMLElement, label: string | undefined, done: () => void) {
+export function waitForSetting(
+  body: HTMLElement,
+  label: string | undefined,
+  done: () => void,
+  key?: string,
+) {
   let live = true
   const stop = () => {
     live = false
@@ -46,7 +68,7 @@ export function waitForSetting(body: HTMLElement, label: string | undefined, don
   }
   const tryFocus = () => {
     if (!live) return
-    if (label !== undefined && !focusSetting(body, label)) {
+    if (label !== undefined && !focusSetting(body, label, key)) {
       focusTemporarily(body)
       return
     }

@@ -48,6 +48,22 @@ describe('settings search navigation', () => {
     body.remove()
   })
 
+  it('prefers a stable setting key over text and matches accessible group names', () => {
+    const body = document.createElement('div')
+    body.innerHTML =
+      '<div class="setting"><label>Port</label><input></div><div class="setting" data-setting="httpApi.port"><label>Translated port</label><input></div><section><h3 id="icon-heading">Icon Style</h3><div role="radiogroup" aria-labelledby="icon-heading"><input type="radio"></div></section><section><div role="radiogroup" aria-label="Other Style"><input type="radio"></div></section>'
+    document.body.append(body)
+    for (const element of body.querySelectorAll<HTMLElement>('*'))
+      element.scrollIntoView = vi.fn<HTMLElement['scrollIntoView']>()
+    expect(focusSetting(body, 'Port', 'httpApi.port')).toBe(true)
+    expect(document.activeElement).toBe(body.querySelector('[data-setting] input'))
+    expect(focusSetting(body, 'Icon Style')).toBe(true)
+    expect(document.activeElement).toBe(body.querySelector('[aria-labelledby] input'))
+    expect(focusSetting(body, 'Other Style')).toBe(true)
+    expect(document.activeElement).toBe(body.querySelector('[aria-label] input'))
+    body.remove()
+  })
+
   it('retries a pending setting when its async row appears and can cancel the request', async () => {
     const body = document.createElement('div')
     body.scrollIntoView = vi.fn<HTMLElement['scrollIntoView']>()
