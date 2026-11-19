@@ -1095,6 +1095,9 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const rowidOf = db.prepare<[string], { rowid: number }>(
     'SELECT rowid FROM notes WHERE id = ? AND purged_at IS NULL',
   )
+  const hasPostings = db.prepare<[{ rowid: number }], { found: number }>(`SELECT
+    EXISTS (SELECT 1 FROM notes_fts_docsize WHERE id = @rowid AND sz IS NOT x'0000')
+    OR EXISTS (SELECT 1 FROM search_postings_pending WHERE rowid = @rowid) AS found`)
 
   /** Runs a search (see searchStatement). */
   const search = (query: NoteQuery, limit: number) => {
@@ -1108,6 +1111,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const purgeRows = (id: string, at: number, hlc: string, here: boolean) => {
     if (here && liveWithText.get(id)) throw new Error('E_NOTE_NOT_TRASHED')
     const rowid = rowidOf.get(id)?.rowid
+    const postings = rowid !== undefined && hasPostings.get({ rowid })!.found !== 0
     searchSecureDelete.run(1n)
     purge.run({ id, at, hlc })
     if (rowid !== undefined) catchUpNote(rowid)
@@ -1122,7 +1126,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     dropDrawings.run({ noteId: id })
     dropAgentWrites.run({ noteId: id })
     if (here) dropRevisions.run(id)
-    return rowid !== undefined
+    return postings
   }
 
   const compactPurged = () => {
@@ -1130,6 +1134,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     db.prepare("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')").run()
     searchSecureDelete.run(0n)
     db.prepare("DELETE FROM sync_state WHERE key = 'searchCompactionPending'").run()
+    db.prepare('DELETE FROM search_postings_pending').run()
   }
   const compactSyncPurges = () => {
     if (db.prepare("SELECT 1 FROM sync_state WHERE key = 'searchCompactionPending'").get()) {

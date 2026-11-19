@@ -117,6 +117,24 @@ The remaining time includes per-record transactions and merge-version writes, no
 Synced purges now persist a compaction-pending marker atomically with the deletion; a `finally` completes compaction after every pull, including failures, and opening the store recovers a marker left by a crash.
 Tests verify vocabulary, MATCH and database bytes through the deferred sync path, recovery after reopening and compaction failures; the two-device engine tests retain sync's existing local merge revision while removing the purged index terms.
 
+### Blank-draft discard
+
+The same opt-in review benchmark discards a never-typed draft through the note service in each copied 10,000-note library.
+The draft is caught up before timing, so the test exercises an existing zero-token FTS row rather than inferring emptiness from current note text.
+Milliseconds, **p50 / p95**:
+
+| Case                        | Reviewed `7cb8d072` |     Sync batching | Sync batching and blank-draft check |
+| --------------------------- | ------------------: | ----------------: | ----------------------------------: |
+| Pull 100 incoming purges    | 4942.812 / 5117.352 | 372.637 / 475.248 |                   350.286 / 519.753 |
+| Discard a never-typed draft |       0.783 / 2.218 |     1.307 / 3.019 |                       0.703 / 1.058 |
+
+An already optimized seed makes the old blank-draft optimization cheap; timings alone do not demonstrate that it was skipped, so SQL tracing explicitly tests that no `optimize` command runs.
+The contentless table has `notes_fts_docsize`; its two zero token counts are encoded as `x'0000'`, with the contentless-delete origin stored in a separate column.
+A zero-token row alone is insufficient: a typed-then-cleared draft that was caught up again can still have old deletion tombstones.
+Schema v33 therefore remembers indexed history when a row becomes stale, reading the token counts from the index, and clears those markers only after compaction.
+Existing v32 rows are marked conservatively during upgrade because their earlier tombstones cannot be inferred from current docsize.
+Rust and TypeScript tests cover never-indexed and indexed blank drafts, cleared drafts both before and after catch-up, vocabulary and byte removal, and the v32 zero-token upgrade case.
+
 ## Top bottleneck
 
 The original external-content full run made deferred search catch-up the slowest measured path at both 1 MB and 5 MB.
