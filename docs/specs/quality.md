@@ -188,7 +188,7 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
   - The Write mode specs read the note's Markdown once after the switch to Edit mode, and the editor's lines follow the Edit button by a frame or more (a table's delimiter row came back after its other rows): they poll the lines through one helper (`tests/ui/writeSource.ts`).
   - A menu item's handler was kept for its listener in a passive effect, which runs after the paint: a second pick right after the first one's change was on screen ran the handler of the render before, so the sidebar's second toggle showed what was already shown (docs/specs/stateful-code.md, One value, one owner).
   - The page ran the requests Swift made before its bridge attached at once, before the editor host mounted, and a request that found no editor was dropped.
-    On a loaded runner a note row tapped while the page still loaded stayed blank, its text never reached accessibility, and the editor tests swiped thirty times for nothing (#896).
+    On a loaded runner a note row tapped while the page still loaded stayed blank, its text never reached accessibility, and the editor tests swiped thirty times for nothing (#896, #892).
     Each request now waits for the editor (`createEditorSlot`, `src/renderer/src/phone/screens/editor.ts`).
   - XCTest reports an iPhone app's end late on an overloaded simulator: the app was gone within half a second of its terminate, while the runner heard of it after the minute `launch()` waits, and the retry attached to the dead process (#880, #895).
     The app is not the cause; the shards keep one retry for it.
@@ -226,6 +226,12 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
     The request is state, so only the render that carries it acts on it.
   - The sync bench held the time of every pass while typing in a 2 MB note, over the keys typed, to half a millisecond a key, and four pushes of the whole note set it: on main it read 1.3 to 2.2 ms against a 2.5 ms limit, and on two pull request runs a slow pass took it to 2.55 and 3.9 ms (#1037).
     Each pass now counts at the fastest time of its kind, pushing or not, which work added to every push or pass still raises; the push count and bytes stay checked as before.
+  - A drag on the Glass Transparency slider stops where the app had followed the finger to when it lifts, and on a loaded simulator a drag past -100 stopped at -60 (#1031).
+    The test drags on from where the thumb settled, as a person would, until the slider shows the value it sets.
+  - The undo toast lasts 4 s, and a loaded runner's steps from seeing the toast to the tap on Undo took longer, so the toast had gone (#1019).
+    A debug build launched with `-DevotWaitScale` stretches the toast by the tests' wait scale, as `waitLimit` stretches the tests' own waits.
+  - A screens test waited a fixed half second for a still's fade to remove it, and a loaded runner ends the fade later (#979).
+    It waits for the still to go (`settle(until:)`).
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 
 ## Workflow
