@@ -330,7 +330,7 @@ describe('Preview', () => {
       .mockResolvedValueOnce({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } })
       .mockReturnValueOnce(pending)
     core.renderLivePreview = asked
-    const { body, render: update } = show(core, markdown, 'head-sequence')
+    const { body, handles, render: update } = show(core, markdown, 'head-sequence')
     await settle()
     expect(asked).toHaveBeenCalledTimes(2)
     expect(asked.mock.calls[0]![4]).toBe(8000)
@@ -338,6 +338,8 @@ describe('Preview', () => {
     expect(asked.mock.calls[1]![2]).toEqual(head.pieces.map((piece) => piece.key))
     expect(body().textContent).toContain('head section 1')
     expect(body().textContent).not.toContain('head section 150')
+    expect(handles.pane?.reach).toBeTypeOf('function')
+    expect(handles.pane?.reach?.(1)).toBeUndefined()
     await act(async () =>
       complete({
         pieces: full,

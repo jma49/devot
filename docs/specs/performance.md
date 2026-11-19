@@ -77,7 +77,8 @@ Part of the [architecture overview](../architecture.md).
 - A render builds on the page at once the pieces it changed up to `FIRST_CHARACTERS` (20,000 characters of source) past the last piece already built, and leaves the rest waiting (`patchPieces` with `defer`, `buildPending` in `src/renderer/src/preview/dom.ts`); the preview builds them in order in tasks of about 8 ms after it.
   Pieces still waiting are always the last ones, so what is built reads as the note does.
   What needs more of the note builds it first: a scroll-sync or outline jump to a line builds up to that line and a screen past it (nothing when that much is built), a restored scroll position builds until the preview is tall enough, and find, select all (the menu item or Cmd+A), copy and a link to a heading build all of it.
-  While only the head has arrived, outline jumps, find and selection await successful full completion before reading the DOM; replaced or failed requests cancel those actions, and Copy following a deferred Select All waits for that selection.
+  Outline jumps to built headings are immediate; missing headings await the full answer and build only through the target and its following screen.
+  While only the head has arrived, find and selection await successful full completion before reading the DOM; replaced or failed requests cancel those actions, and Copy following a deferred Select All waits for that selection.
   Diagrams are added for what is built at once, every 250 ms while the build goes on, and when it ends.
   Copy buttons are committed after the full preview's DOM has had a paint opportunity, with a one-second fallback when a hidden window paints no frames; replacement work and teardown cancel the pending commit.
   `tests/renderer/preview-open.bench.test.ts` holds what that task builds from growing with the note.

@@ -3,7 +3,8 @@ import type { Mode } from '../viewModes'
 import { whenComplete } from '../preview/complete'
 
 export function scrollPreviewTo(pane: ScrollPane, line: number): void {
-  whenComplete(pane.complete, () => {
+  const reach = pane.reach
+  whenComplete(reach ? () => reach(line) : undefined, () => {
     pane.element.scrollTop = pane.offsetOf(line)
   })
 }

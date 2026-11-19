@@ -81,7 +81,7 @@ export interface ScrollPane {
   readonly element: Scroller
   topLine(): number
   offsetOf(line: number): number
-  complete?: CompletePreview
+  reach?: (line: number) => ReturnType<CompletePreview>
   onLayout?(listener: () => void): () => void
   /** The pane moved its own scroll position to keep showing what it showed (content above it grew): that scroll is no lead. */
   onMove?(listener: () => void): () => void
@@ -406,13 +406,9 @@ export function previewScrollPane(
   element: HTMLElement,
   {
     reach,
-    complete,
     frame = (run) => requestAnimationFrame(run),
     cancel = (handle) => cancelAnimationFrame(handle),
-  }: { reach?: (line: number) => void; complete?: CompletePreview } & Pick<
-    SyncOptions,
-    'frame' | 'cancel'
-  > = {},
+  }: Pick<ScrollPane, 'reach'> & Pick<SyncOptions, 'frame' | 'cancel'> = {},
 ): PreviewScrollPane {
   let lines = 1
   let pieces: readonly PreviewPiece[] = []
@@ -624,7 +620,7 @@ export function previewScrollPane(
   return {
     element,
     topLine: () => lineFor(element.scrollTop),
-    ...(complete ? { complete } : {}),
+    ...(reach ? { reach } : {}),
     offsetOf: (line) => {
       reach?.(line)
       return topFor(line)

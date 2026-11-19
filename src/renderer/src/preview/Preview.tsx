@@ -376,19 +376,23 @@ export function Preview({
     })
   }, [buildAll])
   const reachLine = useCallback(
-    function reach(line: number) {
+    function reach(line: number): void | Promise<boolean> {
+      if (!awaitingFull.current && !hasPending(pieces.current)) return
+      const el = host.current
+      if (!el || el.querySelector(`[data-source-line="${line}"]`)) return
+      if (buildToLine(el, pieces.current, line) > 0) {
+        scroll.current?.built()
+        afterBuild()
+      }
+      if (el.querySelector(`[data-source-line="${line}"]`)) return
       const waiting = awaitingFull.current
       if (waiting) {
-        void waiting.done.then((ready) => {
-          if (ready && waiting.note === noteNow.current && waiting.source === shown.current)
-            reach(line)
+        return waiting.done.then((ready) => {
+          if (!ready || waiting.note !== noteNow.current || waiting.source !== shown.current)
+            return false
+          return reach(line) ?? true
         })
-        return
       }
-      const el = host.current
-      if (!el || buildToLine(el, pieces.current, line) === 0) return
-      scroll.current?.built()
-      afterBuild()
     },
     [afterBuild],
   )
@@ -443,7 +447,7 @@ export function Preview({
     if (!pane.current) return
     const target = previewFindTarget(pane.current, { complete: buildAll })
     findHandle.current?.(target)
-    const scrolling = previewScrollPane(pane.current, { reach: reachLine, complete: buildAll })
+    const scrolling = previewScrollPane(pane.current, { reach: reachLine })
     scroll.current = scrolling
     scrollHandle.current?.(scrolling)
     return () => {
