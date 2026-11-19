@@ -214,7 +214,7 @@ export function NotePane({
   const quickTagShortcut = quickTagKey ? shortcutLabel(quickTagKey) : undefined
 
   return (
-    <main className="content" data-devot-part="editor">
+    <main className="content" data-devot-part="editor" inert={making.making}>
       <div className="toolbar editor-toolbar" data-devot-part="toolbar" data-tauri-drag-region>
         <div className="trail-buttons" data-tauri-drag-region>
           <button

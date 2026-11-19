@@ -94,6 +94,7 @@ it('the main window loads no Markdown parsing or server rendering before its fir
   const chunks = eager(main, 'main')
   expect(modulesOf(chunks, MARKDOWN_STACK)).toEqual([])
   expect(modulesOf(chunks, SERVER_RENDERING)).toEqual([])
+  expect(modulesOf(chunks, /\/src\/renderer\/src\/TemplatePicker\.tsx$/)).toEqual([])
   expect(bytesOf(chunks)).toBeLessThan(MAIN_EAGER_BUDGET)
 })
 
