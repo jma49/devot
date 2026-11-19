@@ -67,13 +67,26 @@ describe('useSearch', () => {
       const { search, core } = fakeCore()
       const hook = renderHook(searching, { props: core })
       act(() => hook.current.setQuery(query))
-      act(() => hook.current.rerunSearch())
       await advance(119)
       expect(search).not.toHaveBeenCalled()
       await advance(1)
       expect(search).toHaveBeenCalledExactlyOnceWith(query, undefined)
     },
   )
+
+  it('includes a note saved during the debounce in the pending search', async () => {
+    let notes: NoteSummary[] = []
+    const { core, search } = fakeCore(async () => notes)
+    const hook = renderHook(searching, { props: core })
+    act(() => hook.current.setQuery('quasar'))
+    await advance(20)
+    notes = [{ id: 'saved' } as NoteSummary]
+    act(() => hook.current.rerunSearch())
+    expect(search).not.toHaveBeenCalled()
+    await advance(20)
+    expect(hook.current.results?.found).toEqual(notes)
+    expect(search).toHaveBeenCalledExactlyOnceWith('quasar', undefined)
+  })
 
   it('runs submitted search immediately without also executing the pending debounce', async () => {
     const { search, core } = fakeCore()

@@ -3,7 +3,7 @@
 // in-memory storage, Tauri's IPC mocked), serves it under the production
 // CSP, drives it in Playwright's WebKit and writes docs/benchmarks/results.json.
 // usage: node scripts/bench/run.ts [--quick] [--search-only] [--out <file>]
-import { devices, webkit, type Browser, type Page } from '@playwright/test'
+import { devices, webkit, type Browser, type Locator, type Page } from '@playwright/test'
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
@@ -189,6 +189,72 @@ type Win = any
 
 const noteList = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 
+async function typingSearchLoad(page: Page, field: Locator, runs: number) {
+  const word = 'quasar'
+  await page.evaluate(() => {
+    const w = globalThis as Win
+    const post = Worker.prototype.postMessage
+    Worker.prototype.postMessage = function (this: Worker, ...parameters) {
+      const message = parameters[0] as { type?: string; path?: string[]; id?: string }
+      const trace = w.devotSearchTrace
+      if (trace && message?.type === 'APPLY' && message.path?.join('.') === 'search') {
+        const call = { start: performance.now(), end: 0 }
+        trace.calls.push(call)
+        const receive = (e: MessageEvent<{ id?: string }>) => {
+          if (e.data?.id !== message.id) return
+          call.end = performance.now()
+          this.removeEventListener('message', receive)
+        }
+        this.addEventListener('message', receive)
+      }
+      Reflect.apply(post, this, parameters)
+    }
+  })
+  const results = []
+  for (const delay of [25, 60]) {
+    const roundTrips: number[] = []
+    let during = 0
+    let typingTime = 0
+    for (let run = 0; run < runs; run += 1) {
+      await field.fill('')
+      await field.evaluate((input, length) => {
+        const trace = { keys: [] as number[], calls: [] as { start: number; end: number }[] }
+        ;(globalThis as Win).devotSearchTrace = trace
+        const mark = () => {
+          trace.keys.push(performance.now())
+          if (trace.keys.length === length) input.removeEventListener('keydown', mark)
+        }
+        input.addEventListener('keydown', mark)
+      }, word.length)
+      await field.pressSequentially(word, { delay })
+      await page.waitForFunction(() => {
+        const rows = document.querySelectorAll('[aria-label=Notes] .row-title')
+        return rows.length === 1 && rows[0]?.textContent === 'Indexed match'
+      })
+      const trace: { keys: number[]; calls: { start: number; end: number }[] } =
+        await page.evaluate(() => (globalThis as Win).devotSearchTrace)
+      if (trace.keys.length !== word.length || !trace.calls.length) {
+        throw new Error('Missing keypress or search RPC in typing trace')
+      }
+      const last = trace.keys.at(-1)!
+      typingTime += last - trace.keys[0]!
+      during += trace.calls.filter(({ start }) => start < last).length
+      for (const { start, end } of trace.calls) {
+        if (end < start) throw new Error('Unfinished search RPC after the final result')
+        roundTrips.push(end - start)
+      }
+    }
+    results.push({
+      delayMs: delay,
+      words: runs,
+      queriesPerWord: round(roundTrips.length / runs, 2),
+      queriesPerSecondWhileTyping: round((during * 1000) / typingTime, 2),
+      searchRpcP95Ms: round(percentile(roundTrips, 0.95)),
+    })
+  }
+  return results
+}
+
 async function searchResults(browser: Browser, base: string) {
   const page = await openPage(browser, base)
   const count = 10_000
@@ -256,6 +322,7 @@ async function searchResults(browser: Browser, base: string) {
           return [name, { ...summarize(times), p95: round(percentile(times, 0.95)) }]
         }),
       ),
+      typingLoad: await typingSearchLoad(page, field, quick ? 3 : 20),
     }
   } finally {
     await page.context().close()
