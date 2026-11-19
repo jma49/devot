@@ -102,8 +102,9 @@ pub(super) fn open_read_only(path: &Path) -> Result<Connection> {
 }
 
 pub fn snapshot(db_path: &Path, dest: &Path) -> Result<()> {
-    let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    let mut conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
     conn.busy_timeout(std::time::Duration::from_secs(5))?;
+    conn.set_transaction_behavior(TransactionBehavior::Immediate);
     conn.pragma_update(None, "secure_delete", "ON")?;
     let has_sync_state: bool = conn.query_row(
         "SELECT EXISTS (SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'sync_state')",
@@ -116,13 +117,13 @@ pub fn snapshot(db_path: &Path, dest: &Path) -> Result<()> {
         if has_sync_state {
             source
                 .compact_sync_purges()
-                .map_err(|_| StorageError::SnapshotCheckFailed)?;
+                .map_err(snapshot_compaction_error)?;
         }
         // Pin a clean read snapshot: a purge committed after compaction must not slip into the copy.
-        let tx = source.conn.transaction()?;
-        if has_sync_state
-            && sync_purges_pending(&tx).map_err(|_| StorageError::SnapshotCheckFailed)?
-        {
+        let tx = source
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Deferred)?;
+        if has_sync_state && sync_purges_pending(&tx).map_err(snapshot_compaction_error)? {
             if started.elapsed() >= COPY_PATIENCE {
                 return Err(StorageError::Sqlite(rusqlite::Error::SqliteFailure(
                     rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),
@@ -144,6 +145,20 @@ pub fn snapshot(db_path: &Path, dest: &Path) -> Result<()> {
         return Err(StorageError::SnapshotCheckFailed);
     }
     Ok(())
+}
+
+pub(super) fn snapshot_compaction_error(error: StorageError) -> StorageError {
+    match error {
+        StorageError::Sqlite(error)
+            if matches!(
+                error.sqlite_error_code(),
+                Some(rusqlite::ErrorCode::DatabaseCorrupt | rusqlite::ErrorCode::NotADatabase)
+            ) =>
+        {
+            StorageError::SnapshotCheckFailed
+        }
+        error => error,
+    }
 }
 
 impl Store {

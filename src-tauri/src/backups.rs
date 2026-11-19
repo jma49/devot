@@ -334,7 +334,7 @@ pub fn take(db_path: &Path, dir: &Path, now: i64, kind: Kind) -> Result<BackupIn
 }
 
 enum Taken {
-    /// The source could not be compacted safely or its copy failed `quick_check`.
+    /// The source or its copy is damaged.
     CheckFailed,
     Failed(&'static str),
 }
@@ -1276,6 +1276,39 @@ mod tests {
                 .iter()
                 .any(|(key, _)| key == "searchCompactionPending")
         );
+        assert!(block_on(db.call(|store| store.integrity_ok())).unwrap());
+    }
+
+    #[test]
+    fn a_writer_lock_during_compaction_aborts_restore_without_a_raw_copy_or_replacement() {
+        use tauri::async_runtime::block_on;
+        let (_dir, backups, db) = app_data();
+        let taken = backups.back_up(NOW).unwrap();
+        block_on(db.write(storage::Write::Bookkeeping, |store| {
+            store.sync_set_state("since", "live-cursor")?;
+            store.sync_set_state("searchCompactionPending", "1")
+        }))
+        .unwrap();
+        let holder = rusqlite::Connection::open(&backups.db_path).unwrap();
+        holder
+            .execute_batch(
+                "BEGIN IMMEDIATE; UPDATE sync_state SET value = 'uncommitted' WHERE key = 'since'",
+            )
+            .unwrap();
+        let started = Instant::now();
+
+        assert_eq!(
+            block_on(backups.restore(&db, &taken.id, NOW + HOUR)),
+            Err("E_BACKUP_SNAPSHOT_FAILED")
+        );
+
+        assert!(started.elapsed() >= Duration::from_secs(5));
+        assert_eq!(names(&backups), [taken.id]);
+        holder.execute_batch("ROLLBACK").unwrap();
+        let state = block_on(db.call(|store| store.sync_state())).unwrap();
+        assert!(state.contains(&("since".into(), "live-cursor".into())));
+        assert!(state.contains(&("searchCompactionPending".into(), "1".into())));
+        assert!(!state.iter().any(|(key, _)| key == RESTORED_AT));
         assert!(block_on(db.call(|store| store.integrity_ok())).unwrap());
     }
 
