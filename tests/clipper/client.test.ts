@@ -38,7 +38,11 @@ const server = createServer(async (req, res) => {
     if (failRead) res.writeHead(404).end(JSON.stringify({ error: 'E_NOTE_NOT_FOUND' }))
     else res.end(JSON.stringify({ markdown: noteMarkdown }))
   } else if (req.method === 'GET') {
-    res.end(JSON.stringify({ notebooks: empty ? [] : [{ id: 'book', name: 'Inbox', notes: 0 }] }))
+    res.end(
+      JSON.stringify({
+        notebooks: empty ? [] : [{ id: 'book', name: 'Inbox', notes: 0 }],
+      }),
+    )
   } else if (req.url?.endsWith('/files')) {
     if (editOnUpload) noteMarkdown = 'User edits made while an image was uploading'
     if (failUpload) res.writeHead(400).end(JSON.stringify({ error: 'E_FILE_TYPE_REFUSED' }))
@@ -54,10 +58,19 @@ const server = createServer(async (req, res) => {
 it('creates the note, downloads and uploads images, then patches local image links', async () => {
   const start = requests.length
   const image = `http://127.0.0.1:${port}/image`
-  await new ApiClient({ port, token: 'secret' }).save(
-    { title: 'Article', notebook: 'book', markdown: `![Photo](${image})\n\nSource` },
-    true,
-  )
+  const steps: number[] = []
+  await expect(
+    new ApiClient({ port, token: 'secret' }).save(
+      {
+        title: 'Article',
+        notebook: 'book',
+        markdown: `![Photo](${image})\n\nSource`,
+      },
+      true,
+      (done) => steps.push(done),
+    ),
+  ).resolves.toEqual({ id: 'note', imagesKept: false })
+  expect(steps).toEqual([0, 1])
   const calls = requests.slice(start)
   expect(calls[1]?.auth).toBeUndefined()
   expect(calls.map((c) => c.path)).toEqual([
@@ -73,7 +86,9 @@ it('creates the note, downloads and uploads images, then patches local image lin
     data: 'iVBORw0KGgo=',
   })
   expect(calls[3]?.body).toBe('')
-  expect(JSON.parse(calls[4]!.body)).toEqual({ markdown: '![Photo](devot://file/file)\n\nSource' })
+  expect(JSON.parse(calls[4]!.body)).toEqual({
+    markdown: '![Photo](devot://file/file)\n\nSource',
+  })
 })
 
 it('leaves the note untouched when its body changes while images upload', async () => {
@@ -89,7 +104,7 @@ it('leaves the note untouched when its body changes while images upload', async 
         },
         true,
       ),
-    ).resolves.toEqual({ id: 'note' })
+    ).resolves.toEqual({ id: 'note', imagesKept: true })
     expect(noteMarkdown).toBe('User edits made while an image was uploading')
     expect(requests.slice(start).map((call) => [call.path, call.body])).toEqual([
       ['/v1/notes', expect.any(String)],
@@ -102,7 +117,7 @@ it('leaves the note untouched when its body changes while images upload', async 
   }
 })
 
-it('does not patch the note when its body cannot be read back', async () => {
+it('reports the note saved, with remote images, when its body cannot be read back', async () => {
   const start = requests.length
   failRead = true
   try {
@@ -115,7 +130,7 @@ it('does not patch the note when its body cannot be read back', async () => {
         },
         true,
       ),
-    ).rejects.toThrow('E_NOTE_NOT_FOUND')
+    ).resolves.toEqual({ id: 'note', imagesKept: true })
     expect(requests.at(-1)).toMatchObject({ path: '/v1/notes/note', body: '' })
     expect(requests.slice(start)).toHaveLength(4)
   } finally {
@@ -140,7 +155,7 @@ it('keeps remote URLs for missing, oversize and unsupported images', async () =>
   ).toEqual(['/v1/notes'])
 })
 
-it('keeps a remote URL on upload refusal and surfaces a final patch failure', async () => {
+it('keeps a remote URL on upload refusal and a failed final patch, never failing a saved note', async () => {
   const note = {
     title: 'Article',
     notebook: 'book',
@@ -150,7 +165,10 @@ it('keeps a remote URL on upload refusal and surfaces a final patch failure', as
   failUpload = true
   try {
     const start = requests.length
-    await expect(client.save(note, true)).resolves.toEqual({ id: 'note' })
+    await expect(client.save(note, true)).resolves.toEqual({
+      id: 'note',
+      imagesKept: true,
+    })
     expect(requests.slice(start).map((c) => c.path)).toEqual([
       '/v1/notes',
       '/image',
@@ -161,7 +179,10 @@ it('keeps a remote URL on upload refusal and surfaces a final patch failure', as
   }
   failPatch = true
   try {
-    await expect(client.save(note, true)).rejects.toThrow('E_NOTE_BODY_TOO_LARGE')
+    await expect(client.save(note, true)).resolves.toEqual({
+      id: 'note',
+      imagesKept: true,
+    })
   } finally {
     failPatch = false
   }
@@ -183,7 +204,7 @@ it('lists notebooks and posts the exact note contract with authorization', async
   const client = new ApiClient({ port, token: 'secret' }, origin)
   expect(await client.notebooks()).toEqual([{ id: 'book', name: 'Inbox', notes: 0 }])
   const note = { title: 'Article', markdown: 'Body', notebook: 'book' }
-  expect(await client.save(note)).toEqual({ id: 'note' })
+  expect(await client.save(note)).toEqual({ id: 'note', imagesKept: false })
   expect(requests.at(-1)).toEqual({
     path: '/v1/notes',
     auth: 'Bearer secret',
@@ -222,7 +243,7 @@ it('accepts exactly the API limit', async () => {
       markdown: 'a'.repeat(1024 * 1024),
       notebook: 'book',
     }),
-  ).resolves.toEqual({ id: 'note' })
+  ).resolves.toEqual({ id: 'note', imagesKept: false })
 })
 it('enforces the UTF-8 Markdown byte limit before fetching', async () => {
   const count = requests.length

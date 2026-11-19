@@ -691,7 +691,7 @@ public enum L10n {
   }
 
   public static func browserExtensionsTitle() -> String {
-    text("browserExtensions.title", "Browser extensions")
+    text("browserExtensions.title", "Browser Extensions")
   }
 
   public static func browserExtensionsHint() -> String {
@@ -706,8 +706,12 @@ public enum L10n {
     text("browserExtensions.origin", "Extension origin")
   }
 
+  public static func browserExtensionsPlaceholder() -> String {
+    text("browserExtensions.placeholder", "chrome-extension://… or moz-extension://…")
+  }
+
   public static func browserExtensionsAdd() -> String {
-    text("browserExtensions.add", "Add extension")
+    text("browserExtensions.add", "Add Extension")
   }
 
   public static func browserExtensionsRemove() -> String {

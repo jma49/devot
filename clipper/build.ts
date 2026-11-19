@@ -18,6 +18,7 @@ for (const browser of ['chrome', 'firefox']) {
       'clipper/popup.ts',
       'clipper/options.ts',
       'clipper/content.ts',
+      'clipper/style.css',
     ],
     outdir: outdir.pathname,
     bundle: true,
@@ -26,8 +27,14 @@ for (const browser of ['chrome', 'firefox']) {
     conditions: ['worker'],
     target: ['chrome120', 'firefox121'],
   })
-  for (const file of ['popup.html', 'options.html', 'style.css'])
-    await cp(new URL(`./${file}`, import.meta.url), new URL(file, outdir), { recursive: true })
+  for (const file of ['popup.html', 'options.html', 'icons/'])
+    await cp(new URL(`./${file}`, import.meta.url), new URL(file, outdir), {
+      recursive: true,
+    })
+  await cp(
+    new URL('../design/app-icon/dove.svg', import.meta.url),
+    new URL('icons/dove.svg', outdir),
+  )
   for (const [locale, catalog] of [
     ['en', en],
     ['zh_CN', zhHans],

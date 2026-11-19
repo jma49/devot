@@ -6,7 +6,7 @@ It draws on Apple's [Human Interface Guidelines: Motion](https://developer.apple
 
 ## Should it move?
 
-The browser clipper uses native browser controls and immediate status text, with no custom motion.
+The browser clipper's popup and options page switch views (form, progress, saved, setup) and check results instantly, with no custom motion; its image progress is a native progress bar.
 Adding or removing a registered browser extension in Settings replaces the list immediately with no animation; copying its origin in the clipper options replaces the status text immediately.
 
 Decide in this order; the first match wins.
@@ -346,6 +346,6 @@ PlantUML and Markmap drawings replace their previous SVG at once (rule 2), as Me
 
 ## Stays instant
 
-The web clipper settings' optional image-host permission prompt uses the browser's native presentation (rule 2); upload progress and the final saved status replace the status line instantly, as other clipper statuses do.
+The web clipper settings' optional image-host permission prompt uses the browser's native presentation (rule 2); image progress, the saved view and Copy turning into Copied for two seconds replace what was there instantly, as other clipper states do.
 
 Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); on the iPhone, a theme, a colour scheme or a Glass Transparency change in the native screens; text folding (it would animate height inside CodeMirror's measured layout).

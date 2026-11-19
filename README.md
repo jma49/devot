@@ -151,10 +151,9 @@ Every field is optional and percent-encoded, and `url` must be an http or https 
 - **Browser clipper:** run `pnpm install` and `pnpm clipper:build`.
   In Chrome, enable Developer mode at `chrome://extensions` and Load unpacked **clipper/dist/chrome**.
   In Firefox, open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on and select **clipper/dist/firefox/manifest.json** (temporary installs last until Firefox closes; persistent installs require signing).
-  Enable Devot's local HTTP API in Settings, create a read/write token, and enable Allow AI Access for the destination notebook.
-  Open the extension's Clipper settings, enter the port (default `27484`) and token, then open an article and choose Clip article or select content and choose Clip selection.
-  The popup lets you edit the title and choose an accessible notebook; choose Enable offline images in the extension settings to grant optional image-host access and save supported images offline.
-  Images that cannot be downloaded or attached stay remote links.
+  The clipper's settings open on install and walk through connecting it: turn on Devot's local HTTP API with Read and Write access, paste the token, add the extension's origin under Browser Extensions, and allow AI access on a notebook; Save and Check confirms each step.
+  On any page, click the Devot button, check the title and notebook, choose Article or Selection and press Enter; Open in Devot shows the new note.
+  Allow Image Downloads in the clipper's settings to save images into the note; images that cannot be downloaded stay web links.
   The token is stored locally in the browser profile, not synced.
 
 ## Markdown mirror

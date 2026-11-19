@@ -122,10 +122,20 @@ export function extract(source: Document, sourceUrl: string, mode: Mode): Clip {
   if (!body) throw new Error('E_CLIP_EMPTY')
   const markdown = `${body}\n\n${cleanUrl(url)}\n`
   checkMarkdown(markdown)
+  return { title: pageTitle(source, article), markdown }
+}
+
+export function pageTitle(
+  source: Document,
+  article?: {
+    title?: string | null | undefined
+    siteName?: string | null | undefined
+  } | null,
+): string {
   const ogTitle = source.querySelector('meta[property="og:title"]')?.getAttribute('content')?.trim()
   const site =
     source.querySelector('meta[property="og:site_name"]')?.getAttribute('content')?.trim() ||
     article?.siteName ||
     ''
-  return { title: cleanTitle(ogTitle || article?.title || source.title, site), markdown }
+  return cleanTitle(ogTitle || article?.title || source.title, site)
 }

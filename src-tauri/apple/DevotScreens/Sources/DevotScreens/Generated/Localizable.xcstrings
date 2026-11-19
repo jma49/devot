@@ -5345,7 +5345,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add extension"
+            "value" : "Add Extension"
           }
         },
         "zh-Hans" : {
@@ -5424,6 +5424,23 @@
         }
       }
     },
+    "browserExtensions.placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "chrome-extension://… or moz-extension://…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "chrome-extension://… 或 moz-extension://…"
+          }
+        }
+      }
+    },
     "browserExtensions.remove" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5464,7 +5481,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Browser extensions"
+            "value" : "Browser Extensions"
           }
         },
         "zh-Hans" : {

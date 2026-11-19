@@ -6,6 +6,7 @@ export const messages: Record<keyof typeof en, string> = {
     '只有已注册的扩展可以使用此 API。请从剪藏设置中拷贝来源地址。更改会立即生效。',
   'browserExtensions.empty': '尚未注册浏览器扩展。',
   'browserExtensions.origin': '扩展来源地址',
+  'browserExtensions.placeholder': 'chrome-extension://\u2026 或 moz-extension://\u2026',
   'browserExtensions.add': '添加扩展',
   'browserExtensions.remove': '移除',
   'browserExtensions.removeOrigin': '移除 {origin}',

@@ -44,6 +44,8 @@ it('builds both locales from the app catalogs and starts both backgrounds withou
               listener = value
             },
           },
+          onConnect: { addListener: () => {} },
+          onInstalled: { addListener: () => {} },
         },
       },
     })

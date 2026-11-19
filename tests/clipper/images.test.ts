@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { storeImageLinks } from '../../clipper/images'
+import { hasRemoteImages, storeImageLinks } from '../../clipper/images'
 
 it('caps unique image uploads, visits them sequentially, and leaves failed images and code alone', async () => {
   const seen: string[] = []
@@ -40,4 +40,26 @@ it.each([
   expect(await storeImageLinks(markdown, async () => 'devot://file/local')).toBe(
     markdown.replace('https://example.org/photo.png', 'devot://file/local'),
   )
+})
+
+it('reports progress for each distinct image and finds remote images', async () => {
+  const steps: [number, number][] = []
+  const markdown =
+    '![A](https://example.org/a.png) ![B](https://example.org/b.png) ![A](https://example.org/a.png)'
+  expect(hasRemoteImages(markdown)).toBe(true)
+  const stored = await storeImageLinks(
+    markdown,
+    async (url) => {
+      if (url.endsWith('b.png')) throw new Error('E_DOWNLOAD')
+      return 'devot://file/a'
+    },
+    (done, total) => steps.push([done, total]),
+  )
+  expect(steps).toEqual([
+    [0, 2],
+    [1, 2],
+    [2, 2],
+  ])
+  expect(hasRemoteImages(stored)).toBe(true)
+  expect(hasRemoteImages('![A](devot://file/a) `![B](https://example.org/b.png)`')).toBe(false)
 })
