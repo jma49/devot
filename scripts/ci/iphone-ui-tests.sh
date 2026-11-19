@@ -158,8 +158,11 @@ run_tests() {
   # A test that fails once is run again, so a one-off simulator stall does not fail the job; a test
   # that fails twice fails it, and the log lists the first failure either way.
   shown="^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit|Evidence: |Restarting after|uncaught exception"
+  # XCTest's accessibility audit stops after a fixed 15 s, which no wait scale stretches, unless test
+  # timeouts are on: then it has the test's allowance, here XCTest's default 10 minutes (#985).
+  timeouts="-test-timeouts-enabled YES -default-test-execution-time-allowance 600"
   # shellcheck disable=SC2086
-  xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" \
+  xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" $timeouts \
     -retry-tests-on-failure -test-iterations 2 \
     -resultBundlePath "$results" $selection >"$log" 2>&1 || status=$?
   grep -E "$shown" "$log" || tail -n 60 "$log"
@@ -173,7 +176,7 @@ run_tests() {
     rm -rf "$retry_results"
     status=0
     # shellcheck disable=SC2086
-    xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" \
+    xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" $timeouts \
       -resultBundlePath "$retry_results" $again >"$log.retry" 2>&1 || status=$?
     grep -E "$shown" "$log.retry" || tail -n 60 "$log.retry"
     rm -f "$log.retry"

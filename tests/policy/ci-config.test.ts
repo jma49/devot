@@ -379,6 +379,12 @@ it('hands the app and the test runner to the shards as one small, short-lived ar
   expect(script).toContain('xcodebuild test-without-building -xctestrun "$xctestrun"')
   // A one-off stall reruns the test once; a test that fails twice still fails the job.
   expect(script).toContain('-retry-tests-on-failure -test-iterations 2')
+  // XCTest's accessibility audit stops after a fixed 15 s unless test timeouts are on; then it has the
+  // test's allowance, and both runs, the retry too, give it that (#985).
+  expect(script).toContain(
+    'timeouts="-test-timeouts-enabled YES -default-test-execution-time-allowance 600"',
+  )
+  expect(script.match(/xcodebuild test-without-building .* \$timeouts \\$/gm)).toHaveLength(2)
   expect(read('scripts/ci/devot-screens-tests.sh')).toContain(
     '-retry-tests-on-failure -test-iterations 2',
   )
