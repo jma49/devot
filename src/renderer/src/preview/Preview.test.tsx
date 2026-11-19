@@ -248,19 +248,18 @@ describe('Preview', () => {
       })
       await settle()
       expect(copy.defaultPrevented).toBe(true)
-      if (change === 'ready') {
-        expect(invoke).toHaveBeenCalledWith('clipboard_write_text', {
-          text: expect.stringContaining('TAIL_NEEDLE'),
-        })
-      } else {
-        expect(
-          vi.mocked(invoke).mock.calls.some(([command]) => command === 'clipboard_write_text'),
-        ).toBe(false)
-      }
-      if (change === 'error') {
-        expect(warned).toHaveBeenCalledWith('W_PREVIEW_RENDER_FAILED')
-        warned.mockClear()
-      }
+      const copied = vi
+        .mocked(invoke)
+        .mock.calls.filter(([command]) => command === 'clipboard_write_text')
+      const wholeText = expect.stringContaining('TAIL_NEEDLE')
+      expect(copied).toEqual(
+        change === 'ready' ? [['clipboard_write_text', { text: wholeText }]] : [],
+      )
+      const warnings = warned.mock.calls
+        .map(([code]) => String(code))
+        .filter((code) => code.startsWith('W_PREVIEW'))
+      expect(warnings).toEqual(change === 'error' ? ['W_PREVIEW_RENDER_FAILED'] : [])
+      warned.mockClear()
     },
     60_000,
   )
