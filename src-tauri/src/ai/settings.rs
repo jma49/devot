@@ -15,61 +15,67 @@ const MAX_ENDPOINT_LEN: usize = 2048;
 
 /// A field a caller may leave out: left out, `set` keeps what is stored, so the iPhone's Settings,
 /// which never sends the desktop's fields, does not wipe them; `null` clears it.
-#[derive(Debug, Clone)]
-pub struct Omittable<T> {
-    pub value: Option<T>,
-    sent: bool,
-}
-
-impl<T> Default for Omittable<T> {
-    fn default() -> Self {
-        Self {
-            value: None,
-            sent: false,
-        }
-    }
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Omittable<T> {
+    #[default]
+    Absent,
+    Clear,
+    Set(T),
 }
 
 impl<T: Clone> Omittable<T> {
     pub fn new(value: Option<T>) -> Self {
-        Self { value, sent: true }
+        value.map_or(Self::Clear, Self::Set)
+    }
+
+    /// Read from storage, where no value is simply absent.
+    fn stored(value: Option<T>) -> Self {
+        value.map_or(Self::Absent, Self::Set)
     }
 
     pub fn is_none(&self) -> bool {
-        self.value.is_none()
+        !matches!(self, Self::Set(_))
     }
 
     pub fn get(&self) -> Option<&T> {
-        self.value.as_ref()
+        match self {
+            Self::Set(value) => Some(value),
+            Self::Absent | Self::Clear => None,
+        }
     }
 
-    fn keep_unsent(&mut self, stored: &Self) {
-        if !self.sent {
-            self.value.clone_from(&stored.value);
+    fn map_value(
+        self,
+        f: impl FnOnce(T) -> Result<Option<T>, &'static str>,
+    ) -> Result<Self, &'static str> {
+        Ok(match self {
+            Self::Set(value) => Self::new(f(value)?),
+            other => other,
+        })
+    }
+
+    /// What is stored after a save: a value left out keeps `stored`, a cleared one is gone.
+    fn resolve(self, stored: &Self) -> Self {
+        match self {
+            Self::Absent => Self::stored(stored.get().cloned()),
+            Self::Clear => Self::Absent,
+            Self::Set(value) => Self::Set(value),
         }
     }
 }
 
-impl<T: PartialEq> PartialEq for Omittable<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-    }
-}
-
-impl<T: Eq> Eq for Omittable<T> {}
-
 impl<T: Serialize> Serialize for Omittable<T> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.value.serialize(serializer)
+        match self {
+            Self::Set(value) => serializer.serialize_some(value),
+            Self::Absent | Self::Clear => serializer.serialize_none(),
+        }
     }
 }
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Omittable<T> {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Ok(Self {
-            value: Option::<T>::deserialize(deserializer)?,
-            sent: true,
-        })
+        Ok(Option::<T>::deserialize(deserializer)?.map_or(Self::Clear, Self::Set))
     }
 }
 
@@ -215,6 +221,12 @@ impl AiSettings {
         }
     }
 
+    /// The model a request to `id` names when none is given; empty is the tool's own default.
+    fn model_of(&self, id: ProviderId) -> &str {
+        self.of(id)
+            .map_or_else(|| self.cli_model(id), |entry| entry.model.as_str())
+    }
+
     /// The reasoning level the user chose for `id`; None leaves it to the provider.
     pub fn reasoning(&self, id: ProviderId) -> Option<&str> {
         self.reasoning_field(id).get().map(String::as_str)
@@ -258,12 +270,15 @@ impl AiSettings {
         self.codex_cli.model = clean_model(&self.codex_cli.model)?;
         for id in ProviderId::ALL {
             let reasoning = self.reasoning_mut(id);
-            reasoning.value = clean_reasoning(reasoning.value.as_deref())?;
+            *reasoning = std::mem::take(reasoning).map_value(|r| clean_reasoning(Some(&r)))?;
         }
-        if let Some(suggest) = self.suggest_model.value.as_mut() {
-            suggest.model = clean_model(&suggest.model)?;
-            suggest.reasoning = clean_reasoning(suggest.reasoning.as_deref())?;
-        }
+        self.suggest_model = std::mem::take(&mut self.suggest_model).map_value(|suggest| {
+            Ok(Some(SuggestModel {
+                model: clean_model(&suggest.model)?,
+                reasoning: clean_reasoning(suggest.reasoning.as_deref())?,
+                ..suggest
+            }))
+        })?;
         Ok(self)
     }
 
@@ -295,7 +310,7 @@ impl AiSettings {
             {
                 entry.model = model;
             }
-            entry.reasoning = Omittable::new(stored_reasoning(stored));
+            entry.reasoning = Omittable::stored(stored_reasoning(stored));
         }
         for (key, target) in [
             ("claudeCli", &mut settings.claude_cli),
@@ -310,19 +325,21 @@ impl AiSettings {
                 {
                     target.model = model;
                 }
-                target.reasoning = Omittable::new(stored_reasoning(Some(stored)));
+                target.reasoning = Omittable::stored(stored_reasoning(Some(stored)));
             }
         }
         if let Some(suggest) = value
             .get("suggestModel")
             .and_then(|v| serde_json::from_value::<SuggestModel>(v.clone()).ok())
-            .filter(|s| clean_model(&s.model).is_ok())
-            .and_then(|mut s| {
-                s.reasoning = clean_reasoning(s.reasoning.as_deref()).ok()?;
-                Some(s)
+            .and_then(|s| {
+                Some(SuggestModel {
+                    model: clean_model(&s.model).ok()?,
+                    reasoning: clean_reasoning(s.reasoning.as_deref()).ok()?,
+                    ..s
+                })
             })
         {
-            settings.suggest_model = Omittable::new(Some(suggest));
+            settings.suggest_model = Omittable::Set(suggest);
         }
         StoredSettings {
             settings,
@@ -462,13 +479,30 @@ impl SettingsStore {
                 .model
                 .clone_from(&existing.settings.codex_cli.model);
         }
+        let before = &existing.settings;
+        // A level chosen for one model may not exist on the next, so a new model left without one drops it.
         for id in ProviderId::ALL {
-            let stored = existing.settings.reasoning_field(id);
-            settings.reasoning_mut(id).keep_unsent(stored);
+            let model_changed = settings.model_of(id) != before.model_of(id);
+            let reasoning = settings.reasoning_mut(id);
+            if model_changed && matches!(reasoning, Omittable::Absent) {
+                *reasoning = Omittable::Clear;
+            }
+            *reasoning = std::mem::take(reasoning).resolve(before.reasoning_field(id));
         }
-        settings
-            .suggest_model
-            .keep_unsent(&existing.settings.suggest_model);
+        let suggest_unsent = matches!(settings.suggest_model, Omittable::Absent);
+        settings.suggest_model =
+            std::mem::take(&mut settings.suggest_model).resolve(&before.suggest_model);
+        if suggest_unsent
+            && let Some(follows) = settings
+                .suggest_model
+                .get()
+                .filter(|suggest| suggest.model.is_empty())
+                .map(|suggest| suggest.provider)
+            && settings.model_of(follows) != before.model_of(follows)
+            && let Omittable::Set(suggest) = &mut settings.suggest_model
+        {
+            suggest.reasoning = None;
+        }
         self.file.write(&settings)?;
         Ok(settings)
     }
@@ -793,6 +827,101 @@ mod tests {
             None
         );
         assert_eq!(store.get(), before);
+    }
+
+    #[test]
+    fn a_field_is_absent_when_left_out_cleared_by_null_and_set_by_a_value() {
+        let read = |json: &str| {
+            serde_json::from_str::<ProviderSettings>(json)
+                .unwrap()
+                .reasoning
+        };
+        assert_eq!(read(r#"{"endpoint":"","model":""}"#), Omittable::Absent);
+        assert_eq!(
+            read(r#"{"endpoint":"","model":"","reasoning":null}"#),
+            Omittable::Clear
+        );
+        assert_eq!(
+            read(r#"{"endpoint":"","model":"","reasoning":"low"}"#),
+            Omittable::Set("low".to_string())
+        );
+        let written = serde_json::to_value(ProviderSettings {
+            endpoint: String::new(),
+            model: String::new(),
+            reasoning: Omittable::Set("low".into()),
+        })
+        .unwrap();
+        assert_eq!(written["reasoning"], "low");
+    }
+
+    #[test]
+    fn a_new_model_saved_without_a_level_drops_the_stored_level() {
+        let (_dir, store) = store();
+        let mut settings = store.get();
+        settings.anthropic.model = "model-a".into();
+        settings.anthropic.reasoning = Omittable::Set("high".into());
+        settings.codex_cli.model = "gpt-a".into();
+        settings.codex_cli.reasoning = Omittable::Set("xhigh".into());
+        settings.suggest_model = Omittable::Set(SuggestModel {
+            provider: ProviderId::Anthropic,
+            model: String::new(),
+            reasoning: Some("low".into()),
+        });
+        let saved = store.set(settings).unwrap();
+
+        let mut same = saved.clone();
+        same.anthropic.reasoning = Omittable::Absent;
+        same.suggest_model = Omittable::Absent;
+        let kept = store.set(same).unwrap();
+        assert_eq!(kept.reasoning(ProviderId::Anthropic), Some("high"));
+        assert_eq!(
+            kept.suggest_model.get().unwrap().reasoning.as_deref(),
+            Some("low")
+        );
+
+        let ios: AiSettings = serde_json::from_str(IOS_PAYLOAD).unwrap();
+        let after_ios = store.set(ios).unwrap();
+        assert_eq!(after_ios.anthropic.model, "claude-sonnet-5-5");
+        assert_eq!(after_ios.reasoning(ProviderId::Anthropic), None);
+        assert_eq!(after_ios.reasoning(ProviderId::CodexCli), Some("xhigh"));
+        let suggest = after_ios.suggest_model.get().unwrap();
+        assert_eq!(suggest.provider, ProviderId::Anthropic);
+        assert_eq!(suggest.reasoning, None, "it follows the Model setting");
+
+        let mut codex = store.get();
+        codex.codex_cli = serde_json::from_str(r#"{"model":"gpt-b"}"#).unwrap();
+        assert_eq!(
+            store.set(codex).unwrap().reasoning(ProviderId::CodexCli),
+            None
+        );
+
+        let mut both = store.get();
+        both.openai.model = "small".into();
+        both.openai.reasoning = Omittable::Set("low".into());
+        both.suggest_model = Omittable::Set(SuggestModel {
+            provider: ProviderId::Openai,
+            model: String::new(),
+            reasoning: Some("medium".into()),
+        });
+        let sent = store.set(both).unwrap();
+        assert_eq!(sent.reasoning(ProviderId::Openai), Some("low"));
+        assert_eq!(
+            sent.suggest_model.get().unwrap().reasoning.as_deref(),
+            Some("medium")
+        );
+    }
+
+    #[test]
+    fn the_suggestion_model_is_read_back_cleaned() {
+        let (dir, store) = store();
+        std::fs::write(
+            dir.path().join(FILE),
+            r#"{"suggestModel":{"provider":"claudeCli","model":" haiku ","reasoning":" low "}}"#,
+        )
+        .unwrap();
+        let suggest = store.get().suggest_model.get().cloned().unwrap();
+        assert_eq!(suggest.model, "haiku");
+        assert_eq!(suggest.reasoning.as_deref(), Some("low"));
     }
 
     #[test]
