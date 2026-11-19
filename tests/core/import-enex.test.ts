@@ -84,6 +84,7 @@ it('imports ENML, dates, tags and resources into a notebook under the destinatio
   expect(first.bodyMd).toContain('- [x] Done')
   expect(first.bodyMd).toMatch(/[-*] \[ \] Next/)
   expect(first.bodyMd).not.toContain('secret')
+  expect(first.bodyMd).not.toContain('![]()')
   expect(first.bodyMd).not.toContain('# Research')
   expect(first.bodyMd).toMatch(/!\[.*\]\(devot:\/\/file\//)
   const stored = storage.db.prepare('SELECT id, note_id, name, mime, data FROM files').all() as {

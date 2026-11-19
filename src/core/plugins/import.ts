@@ -3,6 +3,8 @@ import { checkUpload, detectImage, fileUri, MAX_FILE_BYTES } from '../files'
 import { htmlToMarkdown } from '../htmlImport'
 import { replaceRanges } from '../text'
 import { errorCode } from '../errors'
+import { parseMarkdown } from '../frontMatter'
+import type { Nodes } from 'mdast'
 import { checkResult, type Converted } from './protocol'
 
 type PluginImportOptions = Omit<ImportOptions, 'scan' | 'source' | 'prepare'> & {
@@ -42,6 +44,7 @@ function prepare(note: Converted, options: PluginImportOptions): PreparedImport 
     diagnostics.push(...converted.dropped.map(() => ({ code: 'E_IMPORT_HTML_CONTENT_DROPPED' })))
   }
   const links = imageLinks(text)
+  const missing = new Set<string>()
   text = replaceRanges(
     text,
     links.flatMap((link) => {
@@ -54,9 +57,24 @@ function prepare(note: Converted, options: PluginImportOptions): PreparedImport 
       if (index === undefined || !/^\d+$/.test(index)) return []
       if (Number(index) >= (note.attachments?.length ?? 0))
         diagnostics.push({ code: 'E_IMPORT_ATTACHMENT_MISSING' })
-      return [{ start: link.start, end: link.end, text: uris.get(Number(index)) ?? '' }]
+      const uri = uris.get(Number(index))
+      if (!uri && !link.html) {
+        missing.add(link.url)
+        return []
+      }
+      return [{ start: link.start, end: link.end, text: uri ?? '' }]
     }),
   )
+  const omitted: { start: number; end: number; text: string }[] = []
+  const omit = (node: Nodes) => {
+    if (node.type === 'image' && missing.has(node.url) && node.position) {
+      const { start, end } = node.position
+      if (start.offset !== undefined && end.offset !== undefined)
+        omitted.push({ start: start.offset, end: end.offset, text: '' })
+    } else if ('children' in node) node.children.forEach(omit)
+  }
+  if (missing.size) omit(parseMarkdown(text))
+  text = replaceRanges(text, omitted)
   const now = Date.now()
   const createdAt = note.createdAt ?? now
   const updatedAt = Math.max(createdAt, note.updatedAt ?? now)
