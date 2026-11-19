@@ -281,6 +281,12 @@ export function Preview({
   const linksChanged = useRef(0)
   useInsertionEffect(() => {
     noteNow.current = noteId
+    if (noteId !== piecesOf.current) {
+      clearTimeout(buildTimer.current)
+      buildTimer.current = undefined
+      codePaint.current?.()
+      codePaint.current = undefined
+    }
     findHandle.current = onFind
     scrollHandle.current = onScrollPane
     scrollAsked.current = initialScroll

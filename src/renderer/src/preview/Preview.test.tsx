@@ -150,6 +150,32 @@ const firstRender = async (renders: Promise<unknown>[]) => {
 }
 
 describe('Preview', () => {
+  it('stops building the old tail as soon as another note opens', async () => {
+    const { core, renders } = fakeCore()
+    const render = core.renderLivePreview
+    let finish!: (answer: RenderAnswer) => void
+    const short = '# New short note'
+    const pending = new Promise<RenderAnswer>((resolve) => {
+      finish = resolve
+    })
+    core.renderLivePreview = vi
+      .fn<Core['renderLivePreview']>()
+      .mockImplementation((source, ...args) =>
+        source === short ? pending : render(source, ...args),
+      )
+    const { body, render: update } = show(core, note(100_000, 'old-tail'), 'old-tail')
+    await firstRender(renders)
+    const sections = body().querySelectorAll('h2').length
+    update(short, 'short-note')
+    await settle()
+    expect(body().querySelectorAll('h2')).toHaveLength(sections)
+    expect(body().textContent).toContain('old-tail section 1')
+    const pieces = await createPieceRenderer()(short, { labels, loadedEmbeds: [] })
+    await act(async () => finish({ pieces, lines: 1, links: [], tasks: { done: 0, total: 0 } }))
+    await settle()
+    expect(body().textContent).toBe('New short note')
+  }, 60_000)
+
   it('treats the first nonempty editor body as the opening', async () => {
     const { core } = fakeCore()
     const asked = vi.spyOn(core, 'renderLivePreview')

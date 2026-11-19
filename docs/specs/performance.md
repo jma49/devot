@@ -82,6 +82,7 @@ Part of the [architecture overview](../architecture.md).
   Copy buttons are committed after the full preview's DOM has had a paint opportunity, with a one-second fallback when a hidden window paints no frames; replacement work and teardown cancel the pending commit.
   `tests/renderer/preview-open.bench.test.ts` holds what that task builds from growing with the note.
   Another note opened in the preview replaces what the last one showed instead of being patched over it, and the worker is asked for all its pieces; the preview reads the note's id with its text when a render starts, so a text that arrives after the switch is not patched over the note before.
+  Switching notes stops the old note's pending DOM slices and copy-control commit at once, keeping its existing DOM unchanged until the new preview arrives.
 - Typing in Split view renders no React component: the preview follows the editor's text store itself (`textStore.ts`) and reads the text only when a render starts, so renders a newer one replaces never read it.
   Copy buttons render only when the list of code blocks changes, and that list is read once for each piece the page builds (a piece left waiting is read when it is built).
   On the page, offsets in the note (`data-task-at`, `data-image-from`, `data-image-to`) count from their piece, and `noteOffset` adds the piece's start when one is read, so typing changes no attribute after the edit; source lines stay the note's, which scroll sync reads.
