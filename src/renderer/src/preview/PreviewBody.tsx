@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
   type MouseEvent,
 } from 'react'
+import { createPortal } from 'react-dom'
 import type { RemoteImageWait } from '../../../core'
 import { previewLabels } from './labels'
 import { PreviewFrameContent } from './PreviewFrame'
@@ -804,7 +805,7 @@ export function Preview({
         ) : null}
       </PreviewFrameContent>
       <CodeCopyButtons blocks={codes} />
-      <NoteHover pane={pane} load={previewsFor(core)} />
+      {createPortal(<NoteHover pane={pane} load={previewsFor(core)} />, document.body)}
     </>
   )
 }

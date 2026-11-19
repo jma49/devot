@@ -6,6 +6,7 @@ import { createPieceRenderer, type PreviewOptions } from '../../../core'
 import { createLivePreviewRenderer } from '../../../core/preview/live'
 import { labels } from '../../../../tests/support/preview-html'
 import type { Core } from '../core-client'
+import { sizes } from '../theme/tokens'
 import type { FindTarget } from '../find/target'
 import { patchPieces, UI_ATTRIBUTE } from './dom'
 import { textStore } from '../textStore'
@@ -161,6 +162,47 @@ const firstRender = async (renders: Promise<unknown>[]) => {
 }
 
 describe('Preview', () => {
+  it('selects and natively copies the note without a hovered note card', async () => {
+    const id = '0192a6f0-0000-7000-8000-000000000001'
+    const { core, renders } = fakeCore()
+    core.linkTargets = vi
+      .fn<Core['linkTargets']>()
+      .mockResolvedValue({ [id]: { title: 'Other title' } })
+    core.excerpts = vi.fn<Core['excerpts']>().mockResolvedValue({ [id]: 'Other excerpt' })
+    const { body } = show(
+      core,
+      `# Source\n\nA **source** [link](devot://note/${id}).\n\nSource tail`,
+      'source',
+    )
+    await firstRender(renders)
+    await act(async () => {
+      body()
+        .querySelector('a')!
+        .dispatchEvent(new PointerEvent('pointerover', { bubbles: true }))
+      await new Promise((resolve) =>
+        setTimeout(resolve, Number.parseFloat(sizes['motion.delay.tooltip']) + 1),
+      )
+    })
+    const card = document.querySelector('[role="tooltip"]')!
+    expect(card.textContent).toContain('Other excerpt')
+    const pane = body().closest('.preview')!
+    act(() => {
+      pane.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true }))
+    })
+    const copy = new Event('copy', { bubbles: true, cancelable: true })
+    act(() => {
+      pane.dispatchEvent(copy)
+    })
+    expect(copy.defaultPrevented).toBe(false)
+    const selection = window.getSelection()!
+    expect(selection.toString()).toContain('Source tail')
+    expect(selection.toString()).not.toContain('Other title')
+    expect(selection.toString()).not.toContain('Other excerpt')
+    const html = document.createElement('div')
+    html.append(selection.getRangeAt(0).cloneContents())
+    expect(html.querySelector('strong')?.textContent).toBe('source')
+    expect(html.querySelector('a')?.getAttribute('href')).toBe(`devot://note/${id}`)
+  })
   it('stops building the old tail as soon as another note opens', async () => {
     const { core, renders } = fakeCore()
     const render = core.renderLivePreview
