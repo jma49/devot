@@ -72,6 +72,7 @@ Part of the [architecture overview](../architecture.md).
   The head uses the whole note's link and footnote definitions, caches its rendered pieces and returns an explicit partial marker; the full answer reuses those pieces and adds the trailing footnote section.
   Eight thousand characters cover several rich blocks and the first diagram in the benchmark without paying for all later transforms; a safe Markdown piece may extend past the budget.
   The existing `latestOnly` queue coalesces pending text; request generations, note and text checks drop replaced answers and teardown answers, and typing in the same note still asks only for a full render.
+  An empty editor body while a note loads does not consume its opening; the first nonempty body selects head rendering and diagram warm-up.
   Fenced notes still await their kept-drawing languages before either render, so a kept plugin drawing never flashes as code.
 - A render builds on the page at once the pieces it changed up to `FIRST_CHARACTERS` (20,000 characters of source) past the last piece already built, and leaves the rest waiting (`patchPieces` with `defer`, `buildPending` in `src/renderer/src/preview/dom.ts`); the preview builds them in order in tasks of about 8 ms after it.
   Pieces still waiting are always the last ones, so what is built reads as the note does.

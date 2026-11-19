@@ -150,6 +150,27 @@ const firstRender = async (renders: Promise<unknown>[]) => {
 }
 
 describe('Preview', () => {
+  it('treats the first nonempty editor body as the opening', async () => {
+    const { core } = fakeCore()
+    const asked = vi.spyOn(core, 'renderLivePreview')
+    const { type } = follow(core, '', 'loading-body')
+    await settle()
+    const markdown = `${note(40_000, 'loaded')}\n\n\`\`\`mermaid\ngraph TD; A-->B\n\`\`\``
+    type(markdown)
+    await settle()
+    const opening = asked.mock.calls.find((call) => call[0] === markdown)
+    expect(opening?.[4]).toBe(8000)
+    expect(vi.mocked(warmMermaid).mock.calls.some(([source]) => source === markdown)).toBe(true)
+    type(`${markdown}\nTyped`)
+    await settle()
+    expect(asked.mock.calls.at(-1)?.[4]).toBeUndefined()
+    expect(
+      vi
+        .mocked(warmMermaid)
+        .mock.calls.filter(([source]) => source.startsWith('## loaded section')),
+    ).toHaveLength(1)
+  }, 60_000)
+
   it.each(['ready', 'note', 'error'])(
     'handles Copy following head-only Select All: %s',
     async (change) => {

@@ -597,14 +597,15 @@ export function Preview({
     )
     const run = (input: RenderInput) => {
       const ofNote = noteNow.current
-      const opening = requestedNote.current !== ofNote
-      requestedNote.current = ofNote
+      const source = input.read()
+      const opening = source.length > 0 && requestedNote.current !== ofNote
+      if (opening) requestedNote.current = ofNote
       if (input.head !== false) reset()
       generation += 1
       request({
         input: {
           ...input,
-          head: input.head ?? (opening && input.read().length > LONG_NOTE_CHARACTERS),
+          head: input.head ?? (opening && source.length > LONG_NOTE_CHARACTERS),
         },
         round: generation,
         ofNote,
