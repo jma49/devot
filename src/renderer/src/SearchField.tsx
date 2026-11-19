@@ -68,6 +68,7 @@ export const SearchField = forwardRef<
     value: string
     onChange: (query: string) => void
     onClear: () => void
+    onSubmit?: () => void
     onOptions?: ((at: MenuPoint) => void) | undefined
     placeholder: string
     icon?: IconName
@@ -75,7 +76,7 @@ export const SearchField = forwardRef<
     tags?: readonly TagRecord[] | undefined
   }
 >(function SearchField(
-  { value, onChange, onClear, onOptions, placeholder, icon = 'search', books, tags },
+  { value, onChange, onClear, onSubmit, onOptions, placeholder, icon = 'search', books, tags },
   ref,
 ) {
   const box = useRef<HTMLDivElement>(null)
@@ -280,7 +281,9 @@ export const SearchField = forwardRef<
             onChange(composeSearchValue(pills, nextDraft))
           }}
           onKeyDown={(e) => {
-            if (isImeKey(e.nativeEvent)) return
+            if (isComposing || isImeKey(e.nativeEvent)) return
+            const unmodified = !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey
+            const submit = e.key === 'Enter' && unmodified
             if (openSuggestions) {
               const next = fieldStep(e.key, activeIndex, match.items.length)
               if (next !== undefined) {
@@ -289,10 +292,7 @@ export const SearchField = forwardRef<
                 if (next >= 0) setActive(next)
                 return
               }
-              if (
-                (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) ||
-                (e.key === 'Tab' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey)
-              ) {
+              if (submit || (e.key === 'Tab' && unmodified)) {
                 const chosen = match.items[activeIndex]
                 if (chosen) {
                   e.preventDefault()
@@ -301,6 +301,12 @@ export const SearchField = forwardRef<
                   return
                 }
               }
+            }
+            if (submit && onSubmit && value.trim()) {
+              e.preventDefault()
+              e.stopPropagation()
+              onSubmit()
+              return
             }
             if (
               e.key === 'Backspace' &&

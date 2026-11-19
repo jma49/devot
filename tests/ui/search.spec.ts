@@ -47,6 +47,22 @@ test('the search field never autocorrects queries', async ({ page }) => {
   await expect(search(page)).toHaveAttribute('spellcheck', 'false')
 })
 
+test('Return shows the correct result without waiting for the short-query debounce', async ({
+  page,
+}) => {
+  await createNote(page, 'Zebra')
+  await createNote(page, 'Zenith')
+  const field = search(page)
+  await page.clock.install()
+  await page.clock.pauseAt(new Date(Date.now() + 1000))
+  await field.fill('eb')
+  await expect(header(page)).toHaveText('All Notes')
+  await field.press('Enter')
+  await page.clock.runFor(32)
+  await expect(header(page)).toHaveText('Search')
+  await expect(noteRows(page)).toHaveText([/^Zebra/])
+})
+
 test('results follow edits and the trash', async ({ page }) => {
   await createNote(page, 'Draft', 'first words')
   await search(page).fill('first')

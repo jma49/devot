@@ -80,7 +80,7 @@ export function useListProps({
   changeSelection: (next: ListSelection | undefined) => void
 }) {
   const { canBoard, canGallery, shownLayout, listView, libraryView, inView } = view
-  const { searchField, query, searchIn } = search
+  const { searchField, query, searchIn, submitSearch } = search
   const changeLayout = useStable((layout: ListLayout) =>
     setLayouts((shown) => withLayout(shown, libraryView, layout)),
   )
@@ -108,6 +108,7 @@ export function useListProps({
         value={query}
         onChange={changeQueryStable}
         onClear={clearSearchStable}
+        onSubmit={submitSearch}
         onOptions={editing ? openSearchFieldMenu : undefined}
         placeholder={inView ? t('search.placeholder') : t('search.placeholderAll')}
         books={books}
@@ -123,6 +124,7 @@ export function useListProps({
       tags,
       changeQueryStable,
       clearSearchStable,
+      submitSearch,
       openSearchFieldMenu,
     ],
   )
