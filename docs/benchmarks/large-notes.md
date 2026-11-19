@@ -108,39 +108,42 @@ The unscaled sync-push budget also fails at the unchanged base on a slower Linux
 
 ## Contentless-delete before and after
 
-Both full runs used the same quiet machine and thirty runs per size, with sixty observations for search and sync.
-Before is the clean benchmark branch tip `bf53e90d`, load average 0.02; after is that tip plus schema v32 and the store changes, load average 0.33.
-Only the after JSON is retained in `large-notes.json`; the original investigation below describes the external-content baseline.
+The sections above preserve the benchmark-only PR #1048 baseline and candidate discussion from main.
+The following measurements cover the implemented contentless-delete follow-up.
+Both full runs used the same quiet eight-core machine sequentially, with thirty runs per size and sixty observations for search and sync.
+Before is origin/main `f54903150bce17e37638b1881831587cf7136e77`, load average 1.64; after is merged head `6bf0f47df86583b18e10e233641485a1d50c21c0`, load average 1.05.
+The before artifact reports `+dirty` solely because its worktree had an untracked dependency-directory symlink; no tracked files differed from main.
+The original JSON fields remain the #1048 baseline; `contentlessDelete.before` and `contentlessDelete.after` retain these fresh full runs.
 All values are milliseconds, p50 / p95.
 
 | Size   | Path                        |  Before p50 / p95 |   After p50 / p95 |
 | ------ | --------------------------- | ----------------: | ----------------: |
-| 100 KB | Cold open                   |     0.388 / 0.694 |     0.387 / 0.729 |
-| 100 KB | Edit + save                 |     2.840 / 6.479 |     2.846 / 5.832 |
-| 100 KB | Search after save           |   10.250 / 13.456 |    6.934 / 10.137 |
-| 100 KB | Warm search                 |     0.485 / 0.676 |     0.468 / 0.672 |
-| 100 KB | Client sync (no encryption) |     4.604 / 6.547 |     4.958 / 6.305 |
-| 100 KB | Paste + save                |     2.537 / 6.977 |     2.607 / 4.934 |
-| 100 KB | Relay upload                |     2.573 / 3.864 |     2.656 / 4.336 |
-| 100 KB | Relay download              |     2.341 / 3.011 |     1.319 / 2.212 |
-| 1 MB   | Cold open                   |     2.463 / 3.870 |     2.381 / 3.763 |
-| 1 MB   | Edit + save                 |   23.274 / 26.327 |   20.703 / 28.022 |
-| 1 MB   | Search after save           |   71.548 / 80.914 |   50.150 / 54.153 |
-| 1 MB   | Warm search                 |     1.934 / 4.992 |     1.863 / 2.117 |
-| 1 MB   | Client sync (no encryption) |   22.626 / 26.907 |   22.317 / 27.845 |
-| 1 MB   | Paste + save                |   19.550 / 27.193 |   17.384 / 23.375 |
-| 1 MB   | Relay upload                |    6.969 / 11.389 |    6.861 / 16.933 |
-| 1 MB   | Relay download              |    7.713 / 10.678 |    7.118 / 11.156 |
-| 5 MB   | Cold open                   |   17.261 / 19.331 |   16.081 / 19.820 |
-| 5 MB   | Edit + save                 |  98.217 / 105.369 | 100.722 / 111.638 |
-| 5 MB   | Search after save           | 385.381 / 412.933 | 284.428 / 309.602 |
-| 5 MB   | Warm search                 |     8.004 / 9.009 |     8.378 / 9.474 |
-| 5 MB   | Client sync (no encryption) |  98.110 / 106.008 | 101.712 / 119.497 |
-| 5 MB   | Paste + save                | 112.576 / 123.144 | 109.359 / 122.191 |
-| 5 MB   | Relay upload                |   24.696 / 43.204 |   25.723 / 44.235 |
-| 5 MB   | Relay download              |   32.786 / 39.213 |   31.089 / 38.330 |
+| 100 KB | Cold open                   |     0.370 / 0.768 |     0.365 / 0.755 |
+| 100 KB | Edit + save                 |     2.780 / 5.488 |     1.947 / 4.815 |
+| 100 KB | Search after save           |   10.256 / 13.929 |     6.247 / 8.354 |
+| 100 KB | Warm search                 |     0.463 / 0.884 |     0.468 / 0.692 |
+| 100 KB | Client sync (no encryption) |     4.124 / 6.328 |     3.825 / 5.726 |
+| 100 KB | Paste + save                |     2.468 / 5.352 |     2.419 / 3.590 |
+| 100 KB | Relay upload                |     1.947 / 3.940 |     2.115 / 4.005 |
+| 100 KB | Relay download              |     1.414 / 3.181 |     1.831 / 3.232 |
+| 1 MB   | Cold open                   |     2.614 / 4.214 |     2.591 / 3.787 |
+| 1 MB   | Edit + save                 |   22.569 / 29.651 |   21.896 / 26.512 |
+| 1 MB   | Search after save           |   75.932 / 86.843 |   51.357 / 55.969 |
+| 1 MB   | Warm search                 |     1.976 / 2.303 |     1.954 / 2.141 |
+| 1 MB   | Client sync (no encryption) |   21.833 / 26.076 |   22.098 / 25.786 |
+| 1 MB   | Paste + save                |   19.865 / 30.099 |   17.760 / 20.997 |
+| 1 MB   | Relay upload                |    7.871 / 15.185 |    9.045 / 13.493 |
+| 1 MB   | Relay download              |    9.401 / 18.278 |    8.887 / 14.621 |
+| 5 MB   | Cold open                   |   17.936 / 22.176 |   18.893 / 22.533 |
+| 5 MB   | Edit + save                 | 101.476 / 152.497 | 102.993 / 122.693 |
+| 5 MB   | Search after save           | 408.783 / 483.332 | 293.565 / 353.365 |
+| 5 MB   | Warm search                 |    8.843 / 11.957 |    9.087 / 10.471 |
+| 5 MB   | Client sync (no encryption) | 103.437 / 148.713 | 103.518 / 129.910 |
+| 5 MB   | Paste + save                | 120.734 / 165.546 | 113.529 / 137.118 |
+| 5 MB   | Relay upload                |   29.869 / 49.863 |   35.889 / 46.209 |
+| 5 MB   | Relay download              |   28.426 / 45.640 |   31.734 / 54.067 |
 
-Search-after-save improves 29.9% p50 / 33.1% p95 at 1 MB and 26.2% / 25.0% at 5 MB.
+Search-after-save improves 32.4% p50 / 35.6% p95 at 1 MB and 28.2% / 26.9% at 5 MB.
 Unchanged paths fluctuate in both directions; these runs establish a catch-up gain, not an across-the-board speedup.
 Schema v32 rebuilds every note's index entry once and replaces stale text snapshots with rowids.
 Repair uses `delete-all`, reinsertion, internal `integrity-check` without rank and a row-count check, under the existing cancellable transaction.
@@ -165,7 +168,7 @@ These are clean-index sizes, not a bound on tombstones accumulated between merge
 An already-running worker thread samples whole-process RSS every 1 ms while the main thread executes synchronous SQLite; delta is relative to RSS immediately before migration, includes a final sample, and excludes worker startup.
 This is sampled resident growth, not SQLite allocation high-water or total app memory; zero means existing resident pages sufficed, not zero allocations, and sub-millisecond peaks can be missed.
 The 10,000-note p95 stays well below one second, so rebuilding stays inside the migration.
-The normal first-launch main window is built only after migration: `tauri.conf.json:18` disables automatic window creation, `lib.rs:498` opens the store before `lib.rs:653` builds the window, and `storage/db.rs:187–197` waits for `Store::open` to finish before returning.
+The normal first-launch main window is built only after migration: `tauri.conf.json:18` disables automatic window creation, `lib.rs:500` opens the store before `lib.rs:655` builds the window, and `storage/db.rs:187–197` waits for `Store::open` to finish before returning.
 `storage/open.rs:191–192` runs migrations and pending purge recovery before that return; `main_windows.rs:286` constructs the window afterward, with no migration progress window in this path.
 
 ### Purge cost
