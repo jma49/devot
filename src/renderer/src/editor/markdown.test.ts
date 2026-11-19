@@ -4,10 +4,11 @@ import { languages } from '@codemirror/language-data'
 import { EditorState } from '@codemirror/state'
 import {
   NodeProp,
+  Tree,
+  TreeCursor,
   TreeFragment,
   type ChangedRange,
   type PartialParse,
-  type Tree,
 } from '@lezer/common'
 import { highlightTree, tags } from '@lezer/highlight'
 import { MarkdownParser } from '@lezer/markdown'
@@ -16,7 +17,7 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { frontMatter } from '../../../core/import'
 import { light } from '../theme/tokens'
 import {
@@ -454,5 +455,65 @@ describe('inline math in the editor parser', () => {
       },
     })
     expect(names).toEqual(['InlineMath $a_8^2 *b*$', 'InlineMathMark $', 'InlineMathMark $'])
+  })
+})
+
+// An edit's reparse takes the blocks around it from the old tree in groups, not one by one, so it costs about the
+// same anywhere in a long note (patches/@lezer__markdown@1.8.1.patch).
+describe('reparsing an edit in a long note', () => {
+  const SECTION =
+    '## Part\n\nSome **prose** and `code`.\n\n- an item\n  - [ ] a task\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst x = 1\n```\n\n> a quote\n\n'
+  const NOTE_TEXT = SECTION.repeat(400)
+
+  function reparse(tree: Tree, doc: string, at: number, insert: string) {
+    const changes: ChangedRange[] = [{ fromA: at, toA: at, fromB: at, toB: at + insert.length }]
+    const next = doc.slice(0, at) + insert + doc.slice(at)
+    return {
+      doc: next,
+      tree: noteParser.parse(next, TreeFragment.applyChanges(TreeFragment.addTree(tree), changes)),
+    }
+  }
+
+  const depth = (tree: Tree): number =>
+    tree.children.reduce((d, child) => Math.max(d, child instanceof Tree ? depth(child) : 1), 0) + 1
+
+  it('steps past the blocks before and after an edit in groups', () => {
+    const tree = noteParser.parse(NOTE_TEXT)
+    let blockCount = 0
+    for (let block = tree.topNode.firstChild; block; block = block.nextSibling) blockCount++
+    const steps = (at: number) => {
+      const spy = vi.spyOn(TreeCursor.prototype, 'nextSibling')
+      reparse(tree, NOTE_TEXT, at, 'w')
+      const count = spy.mock.calls.length
+      spy.mockRestore()
+      return count
+    }
+    expect(blockCount).toBeGreaterThan(2000)
+    const places = {
+      end: NOTE_TEXT.length,
+      top: 0,
+      middle: NOTE_TEXT.indexOf('a task', NOTE_TEXT.length / 2),
+    }
+    const slow = Object.entries(places)
+      .map(([place, at]) => ({ place, taken: steps(at) }))
+      .filter(({ taken }) => taken >= blockCount / 4)
+    expect(slow).toEqual([])
+  })
+
+  it('gives the tree a whole parse gives, as shallow, after many edits', () => {
+    let { doc, tree } = { doc: NOTE_TEXT, tree: noteParser.parse(NOTE_TEXT) }
+    for (let i = 0; i < 300; i++) {
+      const [at, insert] = (
+        [
+          [doc.length, 'More prose.\n\n'],
+          [0, 'w'],
+          [Math.floor(doc.length / 3), '- item\n'],
+        ] as const
+      )[i % 3]!
+      ;({ doc, tree } = reparse(tree, doc, at, insert))
+    }
+    const whole = noteParser.parse(doc)
+    expect(tree.toString()).toBe(whole.toString())
+    expect(depth(tree)).toBeLessThanOrEqual(depth(whole) + 1)
   })
 })
