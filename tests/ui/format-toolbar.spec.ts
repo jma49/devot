@@ -638,12 +638,18 @@ test('a narrow editor wraps the toolbar onto more rows between its groups, every
   expect(Math.max(...counts)).toBeLessThanOrEqual(8)
 
   // The bar still sits beside the selection, its notch on the selection's start.
-  const bar = await expectBesideSelection(page)
-  const selected = (await page.locator('.cm-selectionBackground').first().boundingBox())!
-  const notch = await page
-    .locator('.cm-format-toolbar')
-    .evaluate((el) => Number.parseFloat(getComputedStyle(el).getPropertyValue('--float-notch-x')))
-  expect(Math.abs(bar.x + notch - selected.x)).toBeLessThan(2)
+  await expectBesideSelection(page)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const el = document.querySelector('.cm-tooltip.cm-format-toolbar')
+        const sel = document.querySelector('.cm-selectionBackground')?.getBoundingClientRect()
+        if (!el || !sel) return Number.POSITIVE_INFINITY
+        const notch = Number.parseFloat(getComputedStyle(el).getPropertyValue('--float-notch-x'))
+        return Math.abs(el.getBoundingClientRect().x + notch - sel.x)
+      }),
+    )
+    .toBeLessThan(2)
 })
 
 test('a tooltip of a button on the second row shows by its own row, inside the editor', async ({
