@@ -226,6 +226,8 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
     The request is state, so only the render that carries it acts on it.
   - The sync bench held the time of every pass while typing in a 2 MB note, over the keys typed, to half a millisecond a key, and four pushes of the whole note set it: on main it read 1.3 to 2.2 ms against a 2.5 ms limit, and on two pull request runs a slow pass took it to 2.55 and 3.9 ms (#1037).
     Each pass now counts at the fastest time of its kind, pushing or not, which work added to every push or pass still raises; the push count and bytes stay checked as before.
+  - A history bar test held the restore's answer 500 ms and clicked another note in that time; on a loaded runner the click came later, the answer had already given the editor the keyboard, and WebKit leaves the keyboard where it is when a row is clicked (#1020).
+    The test holds the answer until the other note is open (`holdLateReplies`), so it always checks the case it names.
   - xcodebuild reruns no test that ran out of its time allowance, so a test that is slow under load, not stuck, gets the whole limit: every StoreKit test may take two minutes (a purchase took 82 s).
 
 ## Workflow

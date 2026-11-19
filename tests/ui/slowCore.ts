@@ -2,11 +2,13 @@ import type { Page } from '@playwright/test'
 
 /**
  * Makes the core's replies to the calls named in `late` come 500 ms late, as on a busy machine.
+ * While `holdLateReplies` holds them, they wait for `releaseLateReplies` instead.
  * Once `failCoreCalls` names a call, that call fails in the core.
  */
 export async function slowCore(page: Page, late: string[]): Promise<void> {
   await page.addInitScript((lateCalls: string[]) => {
     const failing = window as { devotFailCalls?: string[] }
+    const held = window as { devotHeldReplies?: (() => void)[] }
     const delayed = new Set<unknown>()
     const post = Worker.prototype.postMessage
     Worker.prototype.postMessage = function (
@@ -35,10 +37,12 @@ export async function slowCore(page: Page, late: string[]): Promise<void> {
         const id = (event as MessageEvent<{ id?: unknown }>).data?.id
         if (!delayed.has(id)) return listener.call(this, event)
         // Every listener on the worker sees the reply late; the id is done after.
-        setTimeout(() => {
+        const reply = () => {
           delayed.delete(id)
           listener.call(this, event)
-        }, 500)
+        }
+        if (held.devotHeldReplies) held.devotHeldReplies.push(reply)
+        else setTimeout(reply, 500)
       }
       return listen.call(this, type, later, options)
     }
@@ -49,4 +53,23 @@ export async function failCoreCalls(page: Page, calls: string[]): Promise<void> 
   await page.evaluate((names) => {
     ;(window as { devotFailCalls?: string[] }).devotFailCalls = names
   }, calls)
+}
+
+export async function holdLateReplies(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    ;(window as { devotHeldReplies?: (() => void)[] }).devotHeldReplies = []
+  })
+}
+
+/** Hands the held replies over and resolves once the page has rendered what they changed. */
+export async function releaseLateReplies(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const host = window as { devotHeldReplies?: (() => void)[] }
+    const replies = host.devotHeldReplies ?? []
+    delete host.devotHeldReplies
+    for (const reply of replies) reply()
+    for (let frame = 0; frame < 2; frame += 1) {
+      await new Promise((done) => requestAnimationFrame(done))
+    }
+  })
 }

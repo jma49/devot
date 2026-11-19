@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { changeEditorSettingsElsewhere, expect, pickNoteMore, test, openApp } from './fixtures'
-import { failCoreCalls, slowCore } from './slowCore'
+import { failCoreCalls, holdLateReplies, releaseLateReplies, slowCore } from './slowCore'
 
 interface StoredNote {
   id: string
@@ -214,12 +214,12 @@ test('a restore that answers after another note opens leaves that note alone', a
   await expect(titleField(page)).toHaveValue('Plan')
   await changeEditorSettingsElsewhere(page, { historyBar: true })
   await showOldest(page)
+  await holdLateReplies(page)
   await bar(page).getByRole('button', { name: 'Restore Whole Version' }).click()
   await noteRow(page, 'Beta').click()
   await expect(titleField(page)).toHaveValue('Beta')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep old end')
-  // The core answers 500 ms late, and the editor takes the update after that.
-  await page.waitForTimeout(1_000)
+  await releaseLateReplies(page)
 
   await expect(body(page)).toHaveText('keep new end')
   expect(await savedBody(page, 'Beta')).toBe('keep new end')
