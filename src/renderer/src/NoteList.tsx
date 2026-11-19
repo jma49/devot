@@ -32,6 +32,7 @@ import {
 import { useHeadlines, type HeadlineLoader } from './headlines'
 import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
+import { ListEmptyContent } from './ListEmptyContent'
 import { usePaneResize } from './paneResize'
 import { LIST_PANE } from './paneWidth'
 import { entryOffsets, jumpIndex, spacerHeight, windowRuns } from './listWindow'
@@ -835,16 +836,9 @@ function EmptyList({
   editing?: boolean | undefined
   onSearchAll?: (() => void) | undefined
 }) {
-  const { message, tip, action } = listEmpty(kind, editing, !!onSearchAll)
   return (
     <li className="list-empty" role="presentation">
-      <span className="list-empty-message">{t(message)}</span>
-      {tip ? <span className="list-empty-tip">{t(tip)}</span> : null}
-      {action ? (
-        <button type="button" className="button" onClick={onSearchAll}>
-          {t(action)}
-        </button>
-      ) : null}
+      <ListEmptyContent text={listEmpty(kind, editing, !!onSearchAll)} onSearchAll={onSearchAll} />
     </li>
   )
 }
