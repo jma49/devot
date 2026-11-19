@@ -176,6 +176,8 @@ A flaky test is fixed, not retried: a retry hid flakes, which then stayed unfixe
   The first-attempt rate falling, or an issue's count rising, is the signal to fix a flake before it costs a release.
 - A flaky test is fixed at its cause, and the pull request that fixes it closes its issue; no test is skipped, disabled or quarantined to make a run green.
 - The causes found so far, and the rule each left:
+  - The Split render-cost test counted every media query in the window, including toolbar icons and the narrow-window check on a save, against the number of keys (#973).
+    One save made 40 queries without rendering a copy button; the test now counts the preview and copy-button renders directly and covers saves between keys as well as continuous typing.
   - A check made before the page settled: a test waits for the state it asserts (`expect.poll`, `toHave…`), never reads it once right after an action.
   - A spec that changes `localStorage` on the live page races the app's own writes; what a spec needs on every load goes in an init script (`tests/ui/fixtures.ts`).
   - A screens test that read the page's requests once after a fixed run-loop turn missed them on a loaded runner; it waits for them (`settle(until:)`).
