@@ -85,14 +85,27 @@ function prepare(note: Converted, options: PluginImportOptions): PreparedImport 
     }),
   )
   const omitted: { start: number; end: number; text: string }[] = []
+  const tree = parseMarkdown(text)
+  const definitions = new Map<string, string>()
+  const linked = new Set<string>()
+  const references = (node: Nodes) => {
+    if (node.type === 'definition') definitions.set(node.identifier, node.url)
+    if (node.type === 'linkReference') linked.add(node.identifier)
+    if ('children' in node) node.children.forEach(references)
+  }
+  if (missing.size) references(tree)
   const omit = (node: Nodes) => {
-    if (node.type === 'image' && missing.has(node.url) && node.position) {
+    const rejected =
+      (node.type === 'image' && missing.has(node.url)) ||
+      (node.type === 'imageReference' && missing.has(definitions.get(node.identifier) ?? '')) ||
+      (node.type === 'definition' && missing.has(node.url) && !linked.has(node.identifier))
+    if (rejected && node.position) {
       const { start, end } = node.position
       if (start.offset !== undefined && end.offset !== undefined)
         omitted.push({ start: start.offset, end: end.offset, text: '' })
     } else if ('children' in node) node.children.forEach(omit)
   }
-  if (missing.size) omit(parseMarkdown(text))
+  if (missing.size) omit(tree)
   text = replaceRanges(text, omitted)
   const now = Date.now()
   const createdAt = note.createdAt ?? now

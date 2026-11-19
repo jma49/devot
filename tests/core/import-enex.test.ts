@@ -282,6 +282,23 @@ it('rewrites only HTML image destinations, not attachment-like text or link URLs
   expect(note?.bodyMd).not.toContain('devot.invalid')
 })
 
+it('removes rejected reference images and unused definitions, preserving ordinary links', async () => {
+  const { report, storage } = await run('', {
+    converted: {
+      title: 'References',
+      markdown:
+        '![PDF][bad]\n![bad]\n![PDF][]\n![missing][absent]\n\n[bad]: attachment:0\n[PDF]: attachment:0\n[absent]: attachment:1\n\n[Keep][good]\n\n[good]: https://example.com',
+      attachments: [{ name: 'paper.pdf', mime: 'application/pdf', data: btoa('PDF') }],
+    },
+  })
+  const note = await storage.getNote(Object.values(report.noteIds)[0]!)
+  expect(report.notes).toBe(1)
+  expect(note?.bodyMd).not.toContain('![')
+  expect(note?.bodyMd).not.toContain('attachment:')
+  expect(note?.bodyMd).toContain('[Keep][good]')
+  expect(note?.bodyMd).toContain('[good]: https://example.com')
+})
+
 it('keeps legacy single-note Markdown imports in the destination without a notebook', async () => {
   const { report, storage, destination } = await run('', {
     converted: { title: 'Legacy', markdown: '**Body**' },
