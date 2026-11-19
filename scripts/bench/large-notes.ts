@@ -259,7 +259,9 @@ export async function runLargeNotes() {
   }
   const output = {
     generatedAt: new Date().toISOString(),
-    commit: `${execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()}+dirty`,
+    commit: `${execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()}${
+      execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim() ? '+dirty' : ''
+    }`,
     quick,
     machine,
     limitations: [

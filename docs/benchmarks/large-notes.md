@@ -18,6 +18,12 @@ The relay stores an unencrypted record of the same size except for cipher overhe
 It also excludes Rust IPC scheduling and all renderer work.
 Consequently this is not yet an end-to-end encrypted sync benchmark.
 
+## Machine
+
+The committed `large-notes.json` is one run on a Linux cloud VM: Intel Xeon, 8 cores, 31 GB, Linux 6.8 (AWS), Node 24.22, load average 0.53 at the start (its `machine` field).
+Numbers are not comparable across machines; compare runs only on the same quiet machine.
+Its `commit` ends in `+dirty` because it was taken before the benchmark itself was committed.
+
 ## Top bottleneck
 
 The unprofiled full run in `large-notes.json` makes deferred search catch-up the slowest measured path at both 1 MB and 5 MB.
