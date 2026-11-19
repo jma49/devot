@@ -10,6 +10,7 @@ import {
   type FindResult,
 } from '../../../core/find'
 import { NO_MATCHES, seedQuery, type FindChange, type FindTarget } from '../find/target'
+import { whenComplete, type CompletePreview } from './complete'
 
 const MATCH_HIGHLIGHT = 'devot-find'
 const CURRENT_HIGHLIGHT = 'devot-find-current'
@@ -206,10 +207,11 @@ const NOTHING: FindResult = { matches: [], invalid: false, capped: false }
 /** `complete` builds what the preview has not built yet, so find reads the whole note. */
 export function previewFindTarget(
   root: HTMLElement,
-  { complete }: { complete?: () => void } = {},
+  { complete }: { complete?: CompletePreview } = {},
 ): FindTarget {
   const reader = previewTextReader(root)
   let options: FindOptions | null = null
+  let round = 0
   let text: string | null = null
   let result = NOTHING
   let ranges: Range[] = []
@@ -292,16 +294,18 @@ export function previewFindTarget(
     canReplace: false,
     // The preview has no cursor: a step starts from the first (or last) match.
     search(next, step) {
-      complete?.()
-      if (options) reader.touched(observer.takeRecords())
-      else {
-        // Unwatched since the bar last closed: read everything again.
-        reader.forget()
-        observer.observe(root, WATCHED)
-      }
-      options = next
-      collect()
-      go(ranges.length === 0 ? null : step === 'previous' ? ranges.length - 1 : 0)
+      const request = ++round
+      whenComplete(complete, () => {
+        if (request !== round) return
+        if (options) reader.touched(observer.takeRecords())
+        else {
+          reader.forget()
+          observer.observe(root, WATCHED)
+        }
+        options = next
+        collect()
+        go(ranges.length === 0 ? null : step === 'previous' ? ranges.length - 1 : 0)
+      })
     },
     next() {
       if (ranges.length) go(current === null ? 0 : current + 1)
@@ -313,6 +317,7 @@ export function previewFindTarget(
     replace() {},
     replaceAll() {},
     clear() {
+      round += 1
       if (!options) return
       options = null
       observer.disconnect()

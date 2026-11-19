@@ -12,6 +12,7 @@ import { textStore } from '../textStore'
 import { Preview } from './Preview'
 import type { ScrollPane } from './scrollSync'
 import { warmMermaid } from './mermaid'
+import { invoke } from '../ipc'
 
 vi.mock('./mermaid', async (original) => ({
   ...(await original<typeof import('./mermaid')>()),
@@ -149,6 +150,74 @@ const firstRender = async (renders: Promise<unknown>[]) => {
 }
 
 describe('Preview', () => {
+  it.each(['ready', 'note', 'error'])(
+    'handles Copy following head-only Select All: %s',
+    async (change) => {
+      const markdown = `${note(40_000, 'copy')}\n\nTAIL_NEEDLE`
+      const renderer = createPieceRenderer()
+      const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+      const full = await renderer(
+        markdown,
+        { labels, loadedEmbeds: [] },
+        head.pieces.map((piece) => piece.key),
+      )
+      let finish!: (answer: RenderAnswer) => void
+      let fail!: (error: Error) => void
+      const done = new Promise<RenderAnswer>((resolve, reject) => {
+        finish = resolve
+        fail = reject
+      })
+      const { core } = fakeCore()
+      const render = core.renderLivePreview
+      core.renderLivePreview = vi
+        .fn<Core['renderLivePreview']>()
+        .mockResolvedValueOnce({ ...head, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+        .mockReturnValueOnce(done)
+        .mockImplementation(render)
+      const { body, render: update } = show(core, markdown, 'copy-head')
+      await settle()
+      expect(body().textContent).not.toContain('TAIL_NEEDLE')
+      window.getSelection()!.selectAllChildren(body())
+      const pane = body().closest('.preview')!
+      act(() => {
+        pane.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'a',
+            metaKey: true,
+            bubbles: true,
+            cancelable: true,
+          }),
+        )
+      })
+      const copy = new Event('copy', { bubbles: true, cancelable: true })
+      vi.mocked(invoke).mockClear()
+      act(() => {
+        pane.dispatchEvent(copy)
+      })
+      if (change === 'note') update('# Other note', 'other-copy')
+      await act(async () => {
+        if (change === 'error') fail(new Error('E_TEST_FULL'))
+        else finish({ pieces: full, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+      })
+      await settle()
+      expect(copy.defaultPrevented).toBe(true)
+      if (change === 'ready') {
+        expect(invoke).toHaveBeenCalledWith('clipboard_write_text', {
+          text: expect.stringContaining('TAIL_NEEDLE'),
+        })
+      } else {
+        expect(
+          vi.mocked(invoke).mock.calls.some(([command]) => command === 'clipboard_write_text'),
+        ).toBe(false)
+      }
+      if (change === 'error') {
+        expect(warned).toHaveBeenCalledWith('W_PREVIEW_RENDER_FAILED')
+        warned.mockClear()
+      }
+    },
+    60_000,
+  )
+
   it('adds copy controls only after a paint opportunity and drops a replaced list', async () => {
     const frames = new Map<number, FrameRequestCallback>()
     let key = 0

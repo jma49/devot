@@ -260,9 +260,15 @@ export function Preview({
   const piecesOf = useRef<string | undefined>(undefined)
   const requestedNote = useRef<string | undefined>(undefined)
   const awaitingFull = useRef<
-    | { note: string | undefined; source: string; done: Promise<void>; finish: () => void }
+    | {
+        note: string | undefined
+        source: string
+        done: Promise<boolean>
+        finish: (ready: boolean) => void
+      }
     | undefined
   >(undefined)
+  const selectingAll = useRef<Promise<boolean> | undefined>(undefined)
   /** The Markdown the preview on screen was rendered from (images point into it). */
   const shown = useRef('')
   const findHandle = useRef(onFind)
@@ -326,11 +332,13 @@ export function Preview({
     buildTimer.current = setTimeout(slice, 0)
   }, [afterBuild])
   const buildAll = useCallback(
-    function complete(): void | Promise<void> {
+    function complete(): void | Promise<boolean> {
       const waiting = awaitingFull.current
       if (waiting)
-        return waiting.done.then(() => {
-          if (waiting.note === noteNow.current && waiting.source === shown.current) complete()
+        return waiting.done.then((ready) => {
+          if (!ready || waiting.note !== noteNow.current || waiting.source !== shown.current)
+            return false
+          return complete() ?? true
         })
       const el = host.current
       if (!el || !hasPending(pieces.current)) return
@@ -342,12 +350,32 @@ export function Preview({
     },
     [afterBuild],
   )
+  const selectAll = useCallback(() => {
+    const note = noteNow.current
+    const source = shown.current
+    const select = () => {
+      if (!pane.current || note !== noteNow.current || source !== shown.current) return false
+      selectAllIn(pane.current, window.getSelection())
+      return true
+    }
+    const complete = buildAll()
+    if (!complete) {
+      select()
+      return
+    }
+    const pending = complete.then((ready) => ready && select())
+    selectingAll.current = pending
+    void pending.then(() => {
+      if (selectingAll.current === pending) selectingAll.current = undefined
+    })
+  }, [buildAll])
   const reachLine = useCallback(
     function reach(line: number) {
       const waiting = awaitingFull.current
       if (waiting) {
-        void waiting.done.then(() => {
-          if (waiting.note === noteNow.current && waiting.source === shown.current) reach(line)
+        void waiting.done.then((ready) => {
+          if (ready && waiting.note === noteNow.current && waiting.source === shown.current)
+            reach(line)
         })
         return
       }
@@ -409,7 +437,7 @@ export function Preview({
     if (!pane.current) return
     const target = previewFindTarget(pane.current, { complete: buildAll })
     findHandle.current?.(target)
-    const scrolling = previewScrollPane(pane.current, { reach: reachLine })
+    const scrolling = previewScrollPane(pane.current, { reach: reachLine, complete: buildAll })
     scroll.current = scrolling
     scrollHandle.current?.(scrolling)
     return () => {
@@ -428,10 +456,10 @@ export function Preview({
     let fullFrame: number | undefined
     let fullTimer: ReturnType<typeof setTimeout> | undefined
     const warming = new Set<() => void>()
-    const finishFull = () => {
+    const finishFull = (ready = false) => {
       const waiting = awaitingFull.current
       awaitingFull.current = undefined
-      waiting?.finish()
+      waiting?.finish(ready)
     }
     const reset = () => {
       finishFull()
@@ -502,12 +530,12 @@ export function Preview({
         )
           return
         if (next.partial) {
-          let finish!: () => void
-          const done = new Promise<void>((resolve) => {
+          let finish!: (ready: boolean) => void
+          const done = new Promise<boolean>((resolve) => {
             finish = resolve
           })
           awaitingFull.current = { note: ofNote, source, done, finish }
-        } else finishFull()
+        }
         if (ofNote !== piecesOf.current) {
           // Another note shares nothing worth patching over with the one shown.
           host.current.replaceChildren()
@@ -526,6 +554,7 @@ export function Preview({
           return
         }
         shown.current = source
+        if (!next.partial) finishFull(true)
         shownLinks.current = next.links
         islandContext.current = { ...islandContext.current, noteId: ofNote }
         afterBuild()
@@ -689,7 +718,10 @@ export function Preview({
             ?.querySelector(`[id="${CSS.escape(id)}"]`)
             ?.scrollIntoView({ block: 'start' })
       }
-      if (complete) void complete.then(jump)
+      if (complete)
+        void complete.then((ready) => {
+          if (ready) jump()
+        })
       else jump()
       return
     }
@@ -732,16 +764,7 @@ export function Preview({
           return
         }
         case 'selectAll':
-          {
-            const note = noteNow.current
-            const complete = buildAll()
-            const select = () => {
-              if (pane.current && note === noteNow.current)
-                selectAllIn(pane.current, window.getSelection())
-            }
-            if (complete) void complete.then(select)
-            else select()
-          }
+          selectAll()
           return
         case 'startSpeaking':
           void startSpeaking(target.selection)
@@ -753,7 +776,7 @@ export function Preview({
         default:
       }
     },
-    [buildAll],
+    [selectAll],
   )
   const showMenu = useContextMenu('preview', PREVIEW_MENU, pickMenuAction)
   const onContextMenu = (event: MouseEvent) => {
@@ -797,7 +820,22 @@ export function Preview({
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
-        onCopy={buildAll}
+        onCopy={(event) => {
+          const pending = selectingAll.current
+          if (!pending) {
+            buildAll()
+            return
+          }
+          event.preventDefault()
+          const note = noteNow.current
+          const source = shown.current
+          void pending
+            .then((ready) => {
+              if (ready && note === noteNow.current && source === shown.current)
+                return copyText(window.getSelection()?.toString() ?? '')
+            })
+            .catch(() => console.warn('W_PREVIEW_COPY_FAILED'))
+        }}
         // Scrolling by the user ends a restore; scrolls made by it are not reported.
         onWheel={stopRestoring}
         onPointerDown={stopRestoring}
@@ -805,15 +843,8 @@ export function Preview({
           stopRestoring()
           // Select all runs after this, over a preview built whole.
           if (keyMatches('Mod+A', event)) {
-            const note = noteNow.current
-            const complete = buildAll()
-            if (complete) {
-              event.preventDefault()
-              void complete.then(() => {
-                if (pane.current && note === noteNow.current)
-                  selectAllIn(pane.current, window.getSelection())
-              })
-            }
+            event.preventDefault()
+            selectAll()
           }
         }}
         onScroll={(event) => {
