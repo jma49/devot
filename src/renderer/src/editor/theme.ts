@@ -134,9 +134,12 @@ export function popupBox(view: EditorView): Rect {
   let top = toolbar.getBoundingClientRect().bottom
   for (let el = host.parentElement; el && el !== pane; el = el.parentElement) {
     const style = getComputedStyle(el)
+    const clipsY = style.overflowY !== 'visible'
+    const clipsX = style.overflowX !== 'visible'
+    if (!clipsX && !clipsY) continue
     const clip = el.getBoundingClientRect()
-    if (style.overflowY !== 'visible') top = Math.max(top, clip.top)
-    if (style.overflowX !== 'visible') {
+    if (clipsY) top = Math.max(top, clip.top)
+    if (clipsX) {
       left = Math.max(left, clip.left)
       right = Math.min(right, clip.right)
     }

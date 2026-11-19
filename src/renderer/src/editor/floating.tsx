@@ -26,6 +26,7 @@ import {
   notchStyles,
   outsideNotch,
 } from './notch'
+import { popupBox } from './theme'
 import type { Tip } from './toolbarButtons'
 
 export { BAR_GAP, NOTCH_X }
@@ -35,8 +36,8 @@ const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
 const BUTTON_SIZE = Number.parseFloat(sizes['size.float-button'])
 const BAR_END = Number.parseFloat(sizes['size.float-toolbar-end'])
 const ROW_HEIGHT = Number.parseFloat(sizes['size.float-toolbar-height'])
-/** The width of a separator between two groups of buttons: its hairline and the margin either side. */
-const SEPARATOR_WIDTH = 1 + 2 * Number.parseFloat(sizes['space.3'])
+const SEPARATOR_HAIRLINE = 1
+const SEPARATOR_WIDTH = SEPARATOR_HAIRLINE + 2 * Number.parseFloat(sizes['space.3'])
 
 export { BAR_END, BUTTON_SIZE, SEPARATOR_WIDTH }
 
@@ -75,7 +76,7 @@ interface ShownTip {
   row: { top: number; bottom: number; height: number }
 }
 
-function popupSpace(view: EditorView): DOMRect {
+function hostBox(view: EditorView): DOMRect {
   const root = view.dom.getRootNode()
   return (root instanceof ShadowRoot ? root.host : view.dom).getBoundingClientRect()
 }
@@ -97,13 +98,14 @@ export function useFloatTip(view: EditorView) {
       if (!button.isConnected) return
       const b = button.getBoundingClientRect()
       const box = bar.getBoundingClientRect()
-      const frame = popupSpace(view)
+      const frame = hostBox(view)
+      const clip = popupBox(view)
       const index = Math.max(0, Math.round((b.top - box.top - BAR_END) / ROW_HEIGHT))
       setShown({
         tip,
         x: b.left + b.width / 2 - box.left,
         below: b.top - TIP_ROOM < frame.top,
-        room: { left: frame.left - box.left, right: frame.right - box.left },
+        room: { left: clip.left - box.left, right: clip.right - box.left },
         row: { top: index * ROW_HEIGHT, bottom: (index + 1) * ROW_HEIGHT, height: box.height },
       })
     }, SHOW_AFTER_MS)
@@ -192,8 +194,8 @@ export function FloatButton(props: FloatButtonProps) {
 export function FloatSeparator({ broken = false }: { broken?: boolean }): ReactNode {
   return (
     <span
-      role="separator"
-      aria-orientation={broken ? 'horizontal' : 'vertical'}
+      role={broken ? 'presentation' : 'separator'}
+      aria-orientation={broken ? undefined : 'vertical'}
       className="cm-float-separator"
       data-break={broken ? '' : undefined}
     />
@@ -299,7 +301,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     width: '0',
     height: 'var(--size-float-separator-height)',
     margin: '0 var(--space-3)',
-    borderLeft: '1px solid var(--color-line-separator)',
+    borderLeft: `${SEPARATOR_HAIRLINE}px solid var(--color-line-separator)`,
   },
   '.cm-float-label': {
     flexShrink: '0',

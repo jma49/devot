@@ -147,10 +147,7 @@ function FormatToolbar(props: ToolbarProps) {
   )
 }
 
-/**
- * The editor's box, which scrolls and clips its popups (see the note
- * editor's tooltip space): the visible area the selection's start must be in.
- */
+/** The editor's box: the visible area the selection's start must be in. */
 function visibleArea(view: EditorView): Rect {
   const root = view.dom.getRootNode()
   return (root instanceof ShadowRoot ? root.host : view.dom).getBoundingClientRect()
@@ -184,7 +181,6 @@ function createToolbar(
   // as wide as its widest row; a bar that fits keeps one row at its own width.
   let layout = ''
   let rowsKey = ''
-  /** Whether the bar's size changed, and whether its rows did (the buttons then render again). */
   const fit = (space: { left: number; right: number }) => {
     const width = Math.max(0, Math.floor(space.right - space.left))
     const plan = planRows(groupWidths, SEPARATOR_WIDTH, width - 2 * BAR_END)
