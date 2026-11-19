@@ -25,8 +25,7 @@ export function useFocusRequest({
   titleRef: RefObject<HTMLInputElement | null>
   selected: string | undefined
 }) {
-  // The request is state, so only a render that carries it acts on it: an earlier render's
-  // effect, which React may run after the request was made, still sees no request (#1017).
+  // State, not a ref: an earlier render's effect that React runs late must not see the request.
   const [asked, setAsked] = useState<Asked>()
   const asks = useRef(0)
   const waiting = useRef<number>(undefined)
