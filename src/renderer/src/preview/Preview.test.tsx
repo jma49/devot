@@ -12,7 +12,6 @@ import { textStore } from '../textStore'
 import { Preview } from './Preview'
 import type { ScrollPane } from './scrollSync'
 import { warmMermaid } from './mermaid'
-import { invoke } from '../ipc'
 
 vi.mock('./mermaid', async (original) => ({
   ...(await original<typeof import('./mermaid')>()),
@@ -91,6 +90,9 @@ afterEach(() => {
   const codes = warned.mock.calls.map(([code]) => String(code))
   warned.mockRestore()
   const preview = codes.filter((code) => code.startsWith('W_PREVIEW'))
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   if (preview.length > 0) throw new Error(`preview warned: ${preview.join(', ')}`)
 })
 
@@ -211,9 +213,28 @@ describe('Preview', () => {
     expect(asked.mock.calls[0]?.[4]).toBe(8000)
   }, 60_000)
 
-  it.each(['ready', 'note', 'error'])(
+  it.each(['ready', 'note', 'error', 'denied'])(
     'handles Copy following head-only Select All: %s',
     async (change) => {
+      const copied: { text: string; html: string }[] = []
+      vi.stubGlobal(
+        'ClipboardItem',
+        class {
+          constructor(private data: Record<string, Promise<Blob>>) {}
+          getType(type: string): Promise<Blob> {
+            return this.data[type]!
+          }
+        },
+      )
+      const write = vi.spyOn(navigator.clipboard, 'write').mockImplementation(async (items) => {
+        if (change === 'denied') throw new Error('E_TEST_CLIPBOARD_DENIED')
+        const item = items[0]!
+        const [text, html] = await Promise.all([
+          item.getType('text/plain').then((blob) => blob.text()),
+          item.getType('text/html').then((blob) => blob.text()),
+        ])
+        copied.push({ text, html })
+      })
       const markdown = `${note(40_000, 'copy')}\n\nTAIL_NEEDLE`
       const renderer = createPieceRenderer()
       const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
@@ -251,10 +272,10 @@ describe('Preview', () => {
         )
       })
       const copy = new Event('copy', { bubbles: true, cancelable: true })
-      vi.mocked(invoke).mockClear()
       act(() => {
         pane.dispatchEvent(copy)
       })
+      expect(write).toHaveBeenCalledOnce()
       if (change === 'note') update('# Other note', 'other-copy')
       await act(async () => {
         if (change === 'error') fail(new Error('E_TEST_FULL'))
@@ -262,17 +283,27 @@ describe('Preview', () => {
       })
       await settle()
       expect(copy.defaultPrevented).toBe(true)
-      const copied = vi
-        .mocked(invoke)
-        .mock.calls.filter(([command]) => command === 'clipboard_write_text')
       const wholeText = expect.stringContaining('TAIL_NEEDLE')
-      expect(copied).toEqual(
-        change === 'ready' ? [['clipboard_write_text', { text: wholeText }]] : [],
+      const wholeHtml = expect.stringContaining('TAIL_NEEDLE')
+      expect(copied).toEqual(change === 'ready' ? [{ text: wholeText, html: wholeHtml }] : [])
+      const fragment = document.createElement('div')
+      fragment.innerHTML = copied[0]?.html ?? ''
+      expect(fragment.querySelector('strong')?.textContent).toBe(
+        change === 'ready' ? 'bold' : undefined,
+      )
+      expect(fragment.querySelector('a')?.getAttribute('href')).toBe(
+        change === 'ready' ? 'https://example.com/1' : undefined,
       )
       const warnings = warned.mock.calls
         .map(([code]) => String(code))
         .filter((code) => code.startsWith('W_PREVIEW'))
-      expect(warnings).toEqual(change === 'error' ? ['W_PREVIEW_RENDER_FAILED'] : [])
+      expect(warnings).toEqual(
+        change === 'error'
+          ? ['W_PREVIEW_RENDER_FAILED']
+          : change === 'denied'
+            ? ['W_PREVIEW_COPY_FAILED']
+            : [],
+      )
       warned.mockClear()
     },
     60_000,

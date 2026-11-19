@@ -15,6 +15,7 @@ import { fragmentId } from '../../../core/preview/headingIds'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import { useContextMenu, type MenuPoint } from '../contextMenu'
 import { copyText } from '../noteMenu'
+import { copySelection } from './copySelection'
 import { keyMatches } from '../commands/keys'
 import { onPluginRenderersChanged } from '../plugins/rendererRevision'
 import { keptDrawingsOf, keptLanguages, loadKeptDrawings, watchKeptDrawings } from './keptDrawings'
@@ -841,12 +842,16 @@ export function Preview({
           event.preventDefault()
           const note = noteNow.current
           const source = shown.current
-          void pending
-            .then((ready) => {
-              if (ready && note === noteNow.current && source === shown.current)
-                return copyText(window.getSelection()?.toString() ?? '')
-            })
-            .catch(() => console.warn('W_PREVIEW_COPY_FAILED'))
+          const selection = pending.then(
+            (ready) =>
+              ready && note === noteNow.current && source === shown.current
+                ? window.getSelection()
+                : null,
+            () => null,
+          )
+          void copySelection(selection).catch(async () => {
+            if (await selection) console.warn('W_PREVIEW_COPY_FAILED')
+          })
         }}
         // Scrolling by the user ends a restore; scrolls made by it are not reported.
         onWheel={stopRestoring}

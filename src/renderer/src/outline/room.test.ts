@@ -4,7 +4,7 @@ import type { ScrollPane } from '../preview/scrollSync'
 
 describe('the outline column', () => {
   it('jumps to a built heading without completing the remaining note', () => {
-    const complete = vi.fn(() => new Promise<boolean>(() => {}))
+    const complete = vi.fn<() => Promise<boolean>>(() => new Promise<boolean>(() => {}))
     const reach = vi.fn<(line: number) => void>()
     const pane = {
       element: { scrollTop: 0 },
