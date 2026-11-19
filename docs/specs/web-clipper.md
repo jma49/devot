@@ -24,6 +24,7 @@ The source URL ends the body on its own line after a blank line.
 After creating the note, the background downloads images one at a time and uploads supported raster images through `POST /v1/notes/<id>/files`.
 It detects image types from bytes, bounds streamed downloads to fit the API's 2 MiB JSON body cap after base64 encoding, and spaces upload requests by at least 120 ms to stay below the API's sustained rate limit.
 Each image URL is attempted only once, up to 50 per clip, and all occurrences of a successful upload become `devot://file/<id>` links through a final Markdown PATCH.
+The HTTP API exposes no conditional body-version write, so the background re-reads the note immediately before the PATCH and skips it if the Markdown changed during image uploads, preserving user edits and leaving the original remote images in place.
 Failed downloads, denied host access, unsupported images, oversized images and refused uploads keep their cleaned remote URLs.
 If the final PATCH fails, the popup reports the error; the initial note and any uploaded files remain, as other multi-step API writes do.
 The extension checks the API's 1 MiB UTF-8 Markdown limit before sending and reports a localized error for oversize clips.

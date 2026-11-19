@@ -118,7 +118,9 @@ export class ApiClient {
       })
       if (markdown !== note.markdown) {
         checkMarkdown(markdown)
-        await this.request(`notes/${encodeURIComponent(made.id)}`, { markdown }, 'PATCH')
+        const path = `notes/${encodeURIComponent(made.id)}`
+        const current = (await this.request(path)) as { markdown: string }
+        if (current.markdown === note.markdown) await this.request(path, { markdown }, 'PATCH')
       }
     }
     return made

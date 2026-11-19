@@ -12,6 +12,9 @@ const requests: {
 let empty = false
 let failUpload = false
 let failPatch = false
+let editOnUpload = false
+let failRead = false
+let noteMarkdown = ''
 const server = createServer(async (req, res) => {
   let body = ''
   for await (const chunk of req) body += String(chunk)
@@ -31,14 +34,19 @@ const server = createServer(async (req, res) => {
     else res.end(Buffer.from('iVBORw0KGgo=', 'base64'))
   } else if (req.headers.authorization !== 'Bearer secret') {
     res.writeHead(401).end(JSON.stringify({ error: 'E_HTTP_TOKEN_INVALID' }))
+  } else if (req.method === 'GET' && req.url === '/v1/notes/note') {
+    if (failRead) res.writeHead(404).end(JSON.stringify({ error: 'E_NOTE_NOT_FOUND' }))
+    else res.end(JSON.stringify({ markdown: noteMarkdown }))
   } else if (req.method === 'GET') {
     res.end(JSON.stringify({ notebooks: empty ? [] : [{ id: 'book', name: 'Inbox', notes: 0 }] }))
   } else if (req.url?.endsWith('/files')) {
+    if (editOnUpload) noteMarkdown = 'User edits made while an image was uploading'
     if (failUpload) res.writeHead(400).end(JSON.stringify({ error: 'E_FILE_TYPE_REFUSED' }))
     else res.writeHead(201).end(JSON.stringify({ id: 'file', url: 'devot://file/file' }))
   } else if (req.method === 'PATCH' && failPatch) {
     res.writeHead(400).end(JSON.stringify({ error: 'E_NOTE_BODY_TOO_LARGE' }))
   } else {
+    if (req.method === 'POST' && req.url === '/v1/notes') noteMarkdown = JSON.parse(body).markdown
     res.writeHead(201).end(JSON.stringify({ id: 'note' }))
   }
 })
@@ -57,13 +65,62 @@ it('creates the note, downloads and uploads images, then patches local image lin
     '/image',
     '/v1/notes/note/files',
     '/v1/notes/note',
+    '/v1/notes/note',
   ])
   expect(JSON.parse(calls[2]!.body)).toEqual({
     name: 'image.png',
     type: 'image/png',
     data: 'iVBORw0KGgo=',
   })
-  expect(JSON.parse(calls[3]!.body)).toEqual({ markdown: '![Photo](devot://file/file)\n\nSource' })
+  expect(calls[3]?.body).toBe('')
+  expect(JSON.parse(calls[4]!.body)).toEqual({ markdown: '![Photo](devot://file/file)\n\nSource' })
+})
+
+it('leaves the note untouched when its body changes while images upload', async () => {
+  const start = requests.length
+  editOnUpload = true
+  try {
+    await expect(
+      new ApiClient({ port, token: 'secret' }).save(
+        {
+          title: 'Article',
+          notebook: 'book',
+          markdown: `![Photo](http://127.0.0.1:${port}/image)`,
+        },
+        true,
+      ),
+    ).resolves.toEqual({ id: 'note' })
+    expect(noteMarkdown).toBe('User edits made while an image was uploading')
+    expect(requests.slice(start).map((call) => [call.path, call.body])).toEqual([
+      ['/v1/notes', expect.any(String)],
+      ['/image', ''],
+      ['/v1/notes/note/files', expect.any(String)],
+      ['/v1/notes/note', ''],
+    ])
+  } finally {
+    editOnUpload = false
+  }
+})
+
+it('does not patch the note when its body cannot be read back', async () => {
+  const start = requests.length
+  failRead = true
+  try {
+    await expect(
+      new ApiClient({ port, token: 'secret' }).save(
+        {
+          title: 'Article',
+          notebook: 'book',
+          markdown: `![Photo](http://127.0.0.1:${port}/image)`,
+        },
+        true,
+      ),
+    ).rejects.toThrow('E_NOTE_NOT_FOUND')
+    expect(requests.at(-1)).toMatchObject({ path: '/v1/notes/note', body: '' })
+    expect(requests.slice(start)).toHaveLength(4)
+  } finally {
+    failRead = false
+  }
 })
 
 it('keeps remote URLs for missing, oversize and unsupported images', async () => {
