@@ -8,6 +8,29 @@ export interface Clip {
   markdown: string
 }
 
+function srcsetUrls(value: string): string[] {
+  const urls: string[] = []
+  let rest = value
+  while (rest) {
+    rest = rest.replace(/^[\s,]+/, '')
+    const token = /^\S+/.exec(rest)?.[0]
+    if (!token) break
+    urls.push(token.replace(/,+$/, ''))
+    rest = rest.slice(token.length)
+    if (token.endsWith(',')) continue
+    let parentheses = 0
+    let end = 0
+    for (; end < rest.length; end++) {
+      const char = rest[end]
+      if (char === '(') parentheses++
+      else if (char === ')') parentheses = Math.max(0, parentheses - 1)
+      else if (char === ',' && parentheses === 0) break
+    }
+    rest = rest.slice(end + 1)
+  }
+  return urls
+}
+
 export function extract(source: Document, sourceUrl: string, mode: Mode): Clip {
   const url = new URL(sourceUrl)
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('E_CLIP_URL')
@@ -40,7 +63,10 @@ export function extract(source: Document, sourceUrl: string, mode: Mode): Clip {
       image.closest('picture')?.querySelector('source')?.getAttribute('srcset')
     const src =
       absolute(image.getAttribute('data-src')) ||
-      absolute(set?.split(',').at(-1)?.trim().split(/\s+/)[0] ?? null) ||
+      srcsetUrls(set ?? '')
+        .map(absolute)
+        .filter(Boolean)
+        .at(-1) ||
       absolute(image.getAttribute('src'))
     if (!src) {
       image.remove()

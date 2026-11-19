@@ -40,3 +40,15 @@ it('refuses an empty selection and a non-web source', () => {
   expect(() => extract(document, url, 'selection')).toThrow('E_CLIP_EMPTY')
   expect(() => extract(document, 'file:///private', 'article')).toThrow('E_CLIP_URL')
 })
+
+it.each(['srcset', 'data-srcset'])(
+  'does not turn inline %s payloads into relative image URLs',
+  (attribute) => {
+    document.head.innerHTML = ''
+    document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}</p><img ${attribute}="data:image/png;base64,aGVsbG8= 2x"><img ${attribute}="/real.png 1x, data:image/png;base64,aGVsbG8= 2x" alt="Real"><img ${attribute}="data:image/png;base64,aGVsbG8= 1x, /other.png 2x" alt="Other"></article>`
+    const result = extract(document, url, 'article')
+    expect(result.markdown).not.toMatch(/aGVsbG8|data:image/)
+    expect(result.markdown).toContain('![Real](https://example.org/real.png)')
+    expect(result.markdown).toContain('![Other](https://example.org/other.png)')
+  },
+)
