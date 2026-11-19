@@ -92,7 +92,8 @@ test('an empty list says why', async ({ page }) => {
   await expect(pane(page).locator('.list-empty')).toHaveCount(0)
   await page.getByRole('searchbox', { name: 'Search notes' }).fill('zzqxv')
   await expect(pane(page)).toContainText('No Matching Notes')
-  await expect(pane(page)).toContainText('Try other words, or search all notes.')
+  await expect(pane(page)).toContainText('Try other words.')
+  await expect(pane(page).getByRole('button', { name: 'Search All Notes' })).toHaveCount(0)
 })
 
 test('the list announces its note count in a status region', async ({ page }) => {
