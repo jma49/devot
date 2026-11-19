@@ -32,7 +32,7 @@ export interface EditorHandle {
   takeStep: (state: Uint8Array) => void
   focus: () => void
   focusStart: () => void
-  /** Takes no typing until the returned function ends it, or another note is shown: New Note's note is being made. */
+  /** Takes no typing until the returned function ends it, or the editor shows a note: New Note's note is being made. */
   pauseForNewNote: () => () => void
   /** Types `keys` at the caret as if they had been pressed there. */
   type: (keys: readonly EarlyKey[]) => void
@@ -88,6 +88,38 @@ export interface EditorHandle {
   ) => Promise<string | null>
 }
 
+export interface MakingPause {
+  /** Pauses the note until the returned function ends it; only the latest pause's end ends it. */
+  pause: () => () => void
+  /** Ends whichever pause is on: the editor showed a note, this one again or another. */
+  end: () => void
+}
+
+/** New Note's pause of the note in `view` (`makingSlot`); `isShown` is false once the editor has moved on to another note. */
+export function makingPause(view: EditorView, isShown: () => boolean): MakingPause {
+  let pausedBy: object | undefined
+  const set = (paused: boolean) => {
+    if (isShown()) view.dispatch({ effects: makingSlot.reconfigure(paused ? PAUSED : []) })
+  }
+  const end = () => {
+    pausedBy = undefined
+    set(false)
+  }
+  return {
+    pause: () => {
+      const pause = {}
+      pausedBy = pause
+      set(true)
+      return () => {
+        if (pausedBy === pause) end()
+      }
+    },
+    end: () => {
+      if (pausedBy) end()
+    },
+  }
+}
+
 /** What the window does with the note shown in `ready`; `isShown` is false once the editor has moved on to another note. */
 export function editorHandle(
   ready: EditorView,
@@ -95,8 +127,8 @@ export function editorHandle(
   noteId: string,
   takeStep: (state: Uint8Array) => void,
   isShown: () => boolean,
+  making: MakingPause,
 ): EditorHandle {
-  let pausedBy: object | undefined
   return {
     noteId,
     vector: () => Y.encodeStateVector(doc),
@@ -107,17 +139,7 @@ export function editorHandle(
       ready.focus()
       ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
     },
-    pauseForNewNote: () => {
-      const pause = {}
-      pausedBy = pause
-      if (isShown()) ready.dispatch({ effects: makingSlot.reconfigure(PAUSED) })
-      return () => {
-        // A later New Note's pause outlasts this one.
-        if (pausedBy !== pause) return
-        pausedBy = undefined
-        if (isShown()) ready.dispatch({ effects: makingSlot.reconfigure([]) })
-      }
-    },
+    pauseForNewNote: making.pause,
     type: (keys) => replayEarlyKeys(ready, keys),
     remeasure: () => ready.requestMeasure(),
     format: (id) => {

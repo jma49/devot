@@ -1,15 +1,18 @@
 // @vitest-environment happy-dom
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import { DEFAULT_EDITOR_SETTINGS } from '../../../core/editorSettings'
 import type { Core } from '../core-client'
 import type { LinkSources } from '../linkCompletion'
+import { editorHandle, makingPause } from './handle'
 import { linkOpener } from './lineCommands'
 import { newFromSelection } from './noteKeys'
 import {
   noteExtensions,
+  PAUSED,
+  pausedSlot,
   scrollToTop,
   type EditorLock,
   type EditorPlace,
@@ -161,5 +164,87 @@ describe('scrollToTop', () => {
     scroller.scrollTop = 6
     measure()
     expect(scroller.scrollTop).toBe(6)
+  })
+})
+
+describe('New Note pause', () => {
+  const views: EditorView[] = []
+  afterEach(() => {
+    for (const view of views.splice(0)) view.destroy()
+  })
+
+  function shownNote() {
+    const view = new EditorView({ state: noteState('Target', refs()).state, parent: document.body })
+    views.push(view)
+    const shown = { now: true }
+    const making = makingPause(view, () => shown.now)
+    const handle = editorHandle(
+      view,
+      new Y.Doc(),
+      'n1',
+      () => {},
+      () => shown.now,
+      making,
+    )
+    return { view, handle, making, shown }
+  }
+
+  const takesTyping = (view: EditorView) =>
+    view.state.facet(EditorView.editable) &&
+    !view.state.readOnly &&
+    view.contentDOM.getAttribute('aria-hidden') === null
+
+  it('takes no typing and hides the body until it ends', () => {
+    const { view, handle } = shownNote()
+    const end = handle.pauseForNewNote()
+    expect(takesTyping(view)).toBe(false)
+    expect(view.contentDOM.getAttribute('contenteditable')).toBe('false')
+    end()
+    expect(takesTyping(view)).toBe(true)
+  })
+
+  it('leaves a note switch paused when it ends', () => {
+    const { view, handle } = shownNote()
+    const end = handle.pauseForNewNote()
+    view.dispatch({ effects: pausedSlot.reconfigure(PAUSED) })
+    end()
+    expect(takesTyping(view)).toBe(false)
+  })
+
+  it('leaves a later New Note paused when an earlier one ends', () => {
+    const { view, handle } = shownNote()
+    const first = handle.pauseForNewNote()
+    const second = handle.pauseForNewNote()
+    first()
+    expect(takesTyping(view)).toBe(false)
+    second()
+    expect(takesTyping(view)).toBe(true)
+  })
+
+  it('ends when the editor shows the note again, and the late end changes nothing', () => {
+    const { view, handle, making } = shownNote()
+    const end = handle.pauseForNewNote()
+    making.end()
+    expect(takesTyping(view)).toBe(true)
+    view.dispatch({ effects: pausedSlot.reconfigure(PAUSED) })
+    end()
+    expect(takesTyping(view)).toBe(false)
+  })
+
+  it('is cleared by opening another note', () => {
+    const { view, handle, shown } = shownNote()
+    const end = handle.pauseForNewNote()
+    shown.now = false
+    view.setState(noteState('Next', refs()).state)
+    expect(takesTyping(view)).toBe(true)
+    end()
+    expect(takesTyping(view)).toBe(true)
+  })
+
+  it('pauses nothing once its note is no longer shown', () => {
+    const { view, handle, shown } = shownNote()
+    shown.now = false
+    handle.pauseForNewNote()
+    expect(takesTyping(view)).toBe(true)
   })
 })

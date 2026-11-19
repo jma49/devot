@@ -142,7 +142,7 @@ export function useNoteMaking({
       if (mode === 'preview') setMode(editorMode.current)
       opened = await select(id, { keyboard: true })
     } finally {
-      // Opened, the editor pauses the note it leaves until the new one shows.
+      // Opened, the editor ends the pause when it leaves the shown note or shows it again.
       if (!opened) endPause?.()
     }
   }
