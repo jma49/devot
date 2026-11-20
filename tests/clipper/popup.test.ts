@@ -189,6 +189,33 @@ it('keeps an edited title and starts on Selection when the page has one', async 
   expect(posted[0]).toMatchObject({ note: { title: 'My headline' } })
 })
 
+it.each([
+  ['  First line\r\n second\tline\n third  ', 'First line second line third'],
+  ['  First   line\t second  ', 'First line second'],
+  ['\r\n \t ', 'Lighthouse'],
+])('normalizes an edited title %j before saving', async (input, expected) => {
+  const { posted } = await open()
+  await vi.waitFor(() => expect(visible('clip')).toBe(true))
+  const title = document.querySelector<HTMLTextAreaElement>('#title')!
+  title.value = input
+  title.dispatchEvent(new Event('input'))
+  document.querySelector<HTMLFormElement>('#clip')!.requestSubmit()
+  await vi.waitFor(() => expect(posted).toHaveLength(1))
+  expect(posted[0]).toMatchObject({ note: { title: expected } })
+  await vi.waitFor(() => expect(visible('message-done')).toBe(true))
+  expect(text('message-text')).toBe(expected)
+})
+
+it('normalizes an extracted multiline title before saving', async () => {
+  const { posted } = await open({
+    extracted: { value: { title: 'First\n second\t line', markdown: 'Body' } },
+  })
+  await vi.waitFor(() => expect(visible('clip')).toBe(true))
+  document.querySelector<HTMLFormElement>('#clip')!.requestSubmit()
+  await vi.waitFor(() => expect(posted).toHaveLength(1))
+  expect(posted[0]).toMatchObject({ note: { title: 'First second line' } })
+})
+
 it('says when images stayed remote, and how to keep them', async () => {
   await open({
     saveUpdates: [{ kind: 'saved', saved: { id: 'n', imagesKept: true } }],

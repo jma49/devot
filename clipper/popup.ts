@@ -238,12 +238,13 @@ async function clip(): Promise<void> {
     })
     const result = await extract(mode)
     if (!titleEdited) title.value = result.title
+    title.value = (title.value.trim() || result.title).replace(/\s+/g, ' ').trim()
     void chrome.storage.local.set({ notebook: book.value })
     const saved = await saveThroughBackground({
       images: imagesAllowed,
       source: tab?.url ?? '',
       note: {
-        title: title.value.trim() || result.title,
+        title: title.value,
         markdown: result.markdown,
         notebook: book.value,
       },
