@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act } from 'react'
 import type { NoteSummary, TrashedNote } from '../../../core'
 import type { Core } from '../core-client'
 import type { useLicenceLink } from '../LicenceLink'
@@ -34,6 +35,7 @@ afterEach(() => {
 })
 
 function links(ready: boolean, launched: unknown[] = []) {
+  let editing = true
   tauri = mockTauri((cmd) => (cmd === 'deep_link_take' ? launched : null))
   const select = vi.fn<(id: string) => Promise<boolean>>(async () => true)
   const showLibrary = vi.fn<(next: Selection, options?: { clearFilter?: boolean }) => void>()
@@ -48,10 +50,11 @@ function links(ready: boolean, launched: unknown[] = []) {
     ready: shown,
     core,
     coreRef: { current: core },
-    editing: true,
+    editing,
     commands: {},
     licenceLink: { handle: () => {} } as unknown as ReturnType<typeof useLicenceLink>,
     startImport: async () => null,
+    enqueueImport: () => {},
     showLibrary,
     showLibraryRef: { current: showLibrary },
     select,
@@ -65,10 +68,44 @@ function links(ready: boolean, launched: unknown[] = []) {
   const hook = renderHook(({ shown }: { shown: boolean }) => useAppDeepLinks(props(shown)), {
     props: { shown: ready },
   })
-  return { hook, select, showLibrary, openTrashed, show: () => hook.rerender({ shown: true }) }
+  return {
+    hook,
+    select,
+    showLibrary,
+    openTrashed,
+    show: () => hook.rerender({ shown: true }),
+    edit: (allowed: boolean) => {
+      editing = allowed
+      hook.rerender({ shown: true })
+    },
+  }
 }
 
 describe('useAppDeepLinks', () => {
+  it('registers drag listeners once while reading the latest editing gate', async () => {
+    const listen = vi.spyOn(window, 'addEventListener')
+    try {
+      const { show, edit } = links(true)
+      await settle()
+      const data = { types: ['Files'], dropEffect: 'none' }
+      const over = () => {
+        const event = new Event('dragover', { cancelable: true })
+        Object.defineProperty(event, 'dataTransfer', { value: data })
+        act(() => {
+          window.dispatchEvent(event)
+        })
+      }
+      over()
+      expect(data.dropEffect).toBe('copy')
+      show()
+      edit(false)
+      over()
+      expect(data.dropEffect).toBe('none')
+      expect(listen.mock.calls.filter(([name]) => name === 'dragover')).toHaveLength(1)
+    } finally {
+      listen.mockRestore()
+    }
+  })
   it('opens the note a launch came with once the window has restored, not before', async () => {
     const { select, show } = links(false, [{ kind: 'note', id: LISTED }])
     await settle()

@@ -3,7 +3,7 @@ import { checkUpload, MAX_FILE_BYTES, type FileMeta } from '../../core/files'
 
 let nextId = -1
 export const importableName = (name: string) => /\.(md|markdown|html?|htm)$/i.test(name)
-const imageName = (name: string) => /\.(png|jpe?g|gif|webp|avif|hei[cf])$/i.test(name)
+export const imageName = (name: string) => /\.(png|jpe?g|gif|webp|avif|hei[cf])$/i.test(name)
 
 export function droppedImport(
   files: readonly File[],
@@ -41,13 +41,19 @@ export function droppedImport(
     const target = importableName(path) ? scan.files : scan.images
     target.push({ path, bytes: file.size })
   }
+  return { scan, ...droppedSource(byPath, putFile) }
+}
+
+export function droppedSource(
+  byPath: Map<string, File>,
+  putFile: (meta: FileMeta, data: Uint8Array) => Promise<unknown>,
+): { source: ImportSource; cleanup: () => Promise<void> } {
   const get = (path: string) => {
     const file = byPath.get(path)
     if (!file) throw new Error('E_IMPORT_FILE_NOT_FOUND')
     return file
   }
   return {
-    scan,
     source: {
       read: async (path) => get(path).text(),
       attach: async (path, ids) => {

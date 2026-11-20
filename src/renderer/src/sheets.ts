@@ -48,6 +48,13 @@ export function useSheets({
   // Sessions taken (their scan arrived) or closed: later events for them are ignored.
   const seenImports = useRef(new Set<number>())
   const shownImport = useRef<number | null>(null)
+  const droppedInputs = useRef(new Map<number, NonNullable<Parameters<typeof runImport>[5]>>())
+  const cleanupImport = useCallback(async (id: number) => {
+    const input = droppedInputs.current.get(id)
+    droppedInputs.current.delete(id)
+    if (input) await input.cleanup()
+    else if (id > 0) await finishImport(id)
+  }, [])
 
   /** Shows the next sheet unless one is up: an import job first (its result stays until closed; an import ends by showing its notebook), then Backups if asked meanwhile. */
   const nextSheet = useCallback(() => {
@@ -68,6 +75,38 @@ export function useSheets({
     setImportJob(job)
   }, [coreRef])
 
+  const enqueueImport = useCallback(
+    (scan: ImportScan, input?: Parameters<typeof runImport>[5]) => {
+      if (seenImports.current.has(scan.id)) return
+      seenImports.current.add(scan.id)
+      if (input) droppedInputs.current.set(scan.id, input)
+      if (shownImport.current === scan.id) {
+        setImportJob((job) => (job && job.id === scan.id ? { ...job, scan } : job))
+        return
+      }
+      const queued = importJobs.current.find((job) => job.id === scan.id)
+      if (queued) queued.scan = scan
+      else
+        importJobs.current.push({
+          id: scan.id,
+          name: scan.name,
+          kind: scan.kind,
+          scan,
+          failed: null,
+        })
+      nextSheet()
+    },
+    [nextSheet],
+  )
+
+  useEffect(
+    () => () => {
+      for (const input of droppedInputs.current.values()) void input.cleanup()
+      droppedInputs.current.clear()
+    },
+    [],
+  )
+
   const startImport = useCallback(
     async (
       scan: ImportScan,
@@ -81,7 +120,14 @@ export function useSheets({
       try {
         await saveEdits(c)
         const started = performance.now()
-        const report = await runImport(c, scan, destination, progress, options, input)
+        const report = await runImport(
+          c,
+          scan,
+          destination,
+          progress,
+          options,
+          input ?? droppedInputs.current.get(scan.id),
+        ).finally(() => droppedInputs.current.delete(scan.id))
         track('import.finished', {
           notes: report?.notes ?? 0,
           notebooks: report?.books ?? 0,
@@ -95,6 +141,9 @@ export function useSheets({
         }
         return report
       } catch (e) {
+        const dropped = droppedInputs.current.get(scan.id)
+        droppedInputs.current.delete(scan.id)
+        if (dropped) await dropped.cleanup()
         console.warn('W_IMPORT_FAILED', errorCode(e))
         await refresh(c).catch(() => {})
         throw new Error(errorCode(e), { cause: e })
@@ -106,9 +155,9 @@ export function useSheets({
   const closeImport = (cancelled: boolean) => {
     const id = importJob?.id ?? null
     if (id !== null) forgetScanFound(id)
-    if (cancelled && id !== null) {
+    if (id !== null && (cancelled || droppedInputs.current.has(id))) {
       seenImports.current.add(id)
-      void finishImport(id)
+      void cleanupImport(id)
     }
     setImportJob(undefined)
     importShown.current = false
@@ -193,16 +242,7 @@ export function useSheets({
     }
     const ready = (e: Event) => {
       const scan = (e as CustomEvent<ImportScan>).detail
-      if (seenImports.current.has(scan.id)) return
-      seenImports.current.add(scan.id)
-      if (update(scan.id, (job) => ({ ...job, scan }))) return
-      add({
-        id: scan.id,
-        name: scan.name,
-        kind: scan.kind,
-        scan,
-        failed: null,
-      })
+      enqueueImport(scan)
     }
     const failed = (e: Event) => {
       const detail = (e as CustomEvent<{ id: number | null; code: unknown } | string>).detail
@@ -246,7 +286,7 @@ export function useSheets({
       window.removeEventListener(IMPORT_FAILED, failed)
       unlisten?.()
     }
-  }, [nextSheet])
+  }, [nextSheet, enqueueImport])
 
   const restore = async (id: string) => {
     // No import runs while Backups is open; stopping one is a safeguard.
@@ -265,7 +305,7 @@ export function useSheets({
     for (const job of importJobs.current.splice(0)) {
       if (job.id !== null) {
         forgetScanFound(job.id)
-        await finishImport(job.id)
+        await cleanupImport(job.id)
       }
     }
     window.location.reload()
@@ -279,6 +319,7 @@ export function useSheets({
     setBackupNotice,
     nextSheet,
     startImport,
+    enqueueImport,
     closeImport,
     showBackups,
     closeBackups,

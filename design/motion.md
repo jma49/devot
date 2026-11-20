@@ -1,6 +1,7 @@
 # Motion
 
 File-drop feedback appears and disappears immediately as a direct drag target, without movement or animation.
+Dropped folders open the existing import modal with its standard dialog motion after scanning, without a separate transition.
 
 The spec for every motion in Devot. A new or changed interaction is classified here before it is built, and this file changes with the code. `tests/policy/motion-tokens.test.ts` enforces the parts a test can read.
 

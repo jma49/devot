@@ -56,6 +56,106 @@ async function dropFiles(
   }, files)
 }
 
+async function dropFolder(page: Page, name = 'Dropped folder') {
+  await page.locator('.window[data-ready]').waitFor()
+  await page.evaluate((rootName) => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      DataTransferItem.prototype,
+      'webkitGetAsEntry',
+    )
+    Object.defineProperty(DataTransferItem.prototype, 'webkitGetAsEntry', {
+      configurable: true,
+      value: () => ({
+        name: rootName,
+        isDirectory: true,
+        isFile: false,
+        createReader: () => {
+          let read = false
+          return {
+            readEntries: (done: (entries: unknown[]) => void) => {
+              const entries = read
+                ? []
+                : [
+                    {
+                      name: 'Imported notes',
+                      isDirectory: true,
+                      isFile: false,
+                      createReader: () => {
+                        let sent = false
+                        return {
+                          readEntries: (accept: (entries: unknown[]) => void) => {
+                            const found = sent
+                              ? []
+                              : [
+                                  {
+                                    name: 'Inside.md',
+                                    isDirectory: false,
+                                    isFile: true,
+                                    file: (take: (file: File) => void) =>
+                                      take(
+                                        new File(
+                                          ['# Inside\n\nFrom a dropped folder.'],
+                                          'Inside.md',
+                                        ),
+                                      ),
+                                  },
+                                ]
+                            sent = true
+                            accept(found)
+                          },
+                        }
+                      },
+                    },
+                  ]
+              read = true
+              done(entries)
+            },
+          }
+        },
+      }),
+    })
+    try {
+      const data = new DataTransfer()
+      data.items.add(new File([], rootName))
+      const options = { bubbles: true, cancelable: true, composed: true, dataTransfer: data }
+      window.dispatchEvent(new DragEvent('dragover', options))
+      window.dispatchEvent(new DragEvent('drop', options))
+    } finally {
+      if (descriptor)
+        Object.defineProperty(DataTransferItem.prototype, 'webkitGetAsEntry', descriptor)
+      else Reflect.deleteProperty(DataTransferItem.prototype, 'webkitGetAsEntry')
+    }
+  }, name)
+}
+
+test('dropped folders preview before importing a new notebook', async ({ page }) => {
+  await open(page)
+  await dropFolder(page)
+  await expect(dialog(page)).toContainText('Found 1 Markdown file')
+  await expect(dialog(page)).toContainText('Imported notes')
+  await expect(book(page, 'Imported notes')).toHaveCount(0)
+  await confirm(page)
+  await expect(dialog(page)).toContainText('Imported 1 note')
+  await button(page, 'Done').click()
+  await expect(book(page, 'Imported notes')).toBeVisible()
+  await noteRows(page).filter({ hasText: 'Inside' }).click()
+  await expect(body(page)).toContainText('From a dropped folder.')
+  expect(await calls(page, 'import_finish')).toEqual([])
+})
+
+test('cancelling a dropped folder imports nothing and releases only browser files', async ({
+  page,
+}) => {
+  await open(page)
+  await dropFolder(page, 'Cancelled folder')
+  await expect(dialog(page)).toContainText('Found 1 Markdown file')
+  await button(page, 'Cancel').click()
+  await expect(dialog(page)).toHaveCount(0)
+  await expect(book(page, 'Imported notes')).toHaveCount(0)
+  await expect(noteRows(page).filter({ hasText: 'Inside' })).toHaveCount(0)
+  expect(await calls(page, 'import_finish')).toEqual([])
+})
+
 test('dropped Markdown imports and opens, including over the editor, without finishing a Rust session', async ({
   page,
 }) => {

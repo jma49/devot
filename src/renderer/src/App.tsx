@@ -593,6 +593,7 @@ export function App() {
     commands,
     licenceLink,
     startImport,
+    enqueueImport: sheets.enqueueImport,
     showLibrary: viewChanges.showLibrary,
     showLibraryRef,
     select,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
 import type { NoteSummary, TrashedNote } from '../../../core'
 import { firstImported, openDestination } from '../cliOpen'
 import type { CommandHandlers } from '../commands/registry'
@@ -13,6 +13,7 @@ import type { useSheets } from '../sheets'
 import type { Selection } from '../Sidebar'
 import { DEFAULT_CHOICES } from '../importChoices'
 import { droppedImport } from '../dropImport'
+import { droppedFolders } from '../dropFolders'
 import { storage } from '../core-client'
 import { t } from '../i18n'
 import { useStable } from '../stable'
@@ -27,6 +28,7 @@ export function useAppDeepLinks({
   commands,
   licenceLink,
   startImport,
+  enqueueImport,
   showLibrary,
   showLibraryRef,
   select,
@@ -45,6 +47,7 @@ export function useAppDeepLinks({
   commands: Partial<CommandHandlers>
   licenceLink: ReturnType<typeof useLicenceLink>
   startImport: ReturnType<typeof useSheets>['startImport']
+  enqueueImport: ReturnType<typeof useSheets>['enqueueImport']
   showLibrary: (next: Selection, options?: { clearFilter?: boolean }) => void
   showLibraryRef: RefObject<
     ((next: Selection, options?: { clearFilter?: boolean }) => void) | undefined
@@ -115,14 +118,23 @@ export function useAppDeepLinks({
     handoffWork.current = handoffWork.current.then(() => runHandoff(link))
     return handoffWork.current
   }
-  useEffect(() => {
-    if (!ready) return
-    const hasFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files')
-    const editorImages = (event: DragEvent) => {
-      const editor = event
+  const acceptFolder = useStable(
+    (input: Awaited<ReturnType<typeof droppedFolders>>, bookId?: string) => {
+      if (!mounted.current || !editing) {
+        void input.cleanup()
+        return
+      }
+      input.scan.destination = bookId ?? null
+      enqueueImport(input.scan, input)
+    },
+  )
+  const handleDrag = useEffectEvent((phase: 'over' | 'drop', event: DragEvent) => {
+    const hasFiles = (drag: DragEvent) => drag.dataTransfer?.types.includes('Files')
+    const editorImages = (drag: DragEvent) => {
+      const editor = drag
         .composedPath()
         .some((target) => target instanceof Element && target.matches('.cm-editor'))
-      const data = event.dataTransfer
+      const data = drag.dataTransfer
       return (
         editor &&
         data &&
@@ -132,7 +144,7 @@ export function useAppDeepLinks({
         )
       )
     }
-    const over = (event: DragEvent) => {
+    if (phase === 'over') {
       if (!hasFiles(event)) return
       if (editorImages(event)) {
         setDragging(false)
@@ -141,11 +153,8 @@ export function useAppDeepLinks({
       event.preventDefault()
       if (event.dataTransfer) event.dataTransfer.dropEffect = editing ? 'copy' : 'none'
       setDragging(editing)
-    }
-    const leave = (event: DragEvent) => {
-      if (!event.relatedTarget) setDragging(false)
-    }
-    const drop = (event: DragEvent) => {
+      return
+    } else {
       setDragging(false)
       if (!hasFiles(event) || editorImages(event)) return
       event.preventDefault()
@@ -156,20 +165,54 @@ export function useAppDeepLinks({
         return
       }
       try {
-        const input = droppedImport(Array.from(event.dataTransfer?.files ?? []), (meta, bytes) =>
-          storage.putFile(meta, bytes),
-        )
-        const link: Extract<DeepLink, { kind: 'import' }> = {
-          kind: 'import',
-          scan: input.scan,
-          notebook: null,
-          first: input.scan.files[0]?.path ?? null,
-        }
+        const items = Array.from(event.dataTransfer?.items ?? [])
+        const entries = items.map((item) => item.webkitGetAsEntry?.())
+        const directories = entries
+          .filter((entry) => entry?.isDirectory)
+          .filter((entry) => entry != null)
+        const files = items.length
+          ? items.flatMap((item, at) => {
+              const file = entries[at]?.isDirectory ? null : item.getAsFile()
+              return file ? [file] : []
+            })
+          : Array.from(event.dataTransfer?.files ?? [])
         const bookId = library?.kind === 'book' ? library.id : undefined
-        handoffWork.current = handoffWork.current.then(() => runHandoff(link, input, bookId))
+        handoffWork.current = handoffWork.current.then(async () => {
+          try {
+            if (!mounted.current) return
+            if (directories.length)
+              acceptFolder(
+                await droppedFolders(directories, (meta, bytes) => storage.putFile(meta, bytes)),
+                bookId,
+              )
+            if (files.length || !directories.length) {
+              const input = droppedImport(files, (meta, bytes) => storage.putFile(meta, bytes))
+              await runHandoff(
+                {
+                  kind: 'import',
+                  scan: input.scan,
+                  notebook: null,
+                  first: input.scan.files[0]?.path ?? null,
+                },
+                input,
+                bookId,
+              )
+            }
+          } catch {
+            if (mounted.current) setLinkNotice('dropFailed')
+          }
+        })
       } catch {
         setLinkNotice('dropFailed')
       }
+    }
+  })
+  useEffect(() => {
+    if (!ready) return
+    const over = (event: DragEvent) => handleDrag('over', event)
+    const drop = (event: DragEvent) => handleDrag('drop', event)
+    const leave = (event: DragEvent) => {
+      if (!event.relatedTarget) setDragging(false)
     }
     const clear = () => setDragging(false)
     window.addEventListener('dragover', over, true)
@@ -184,7 +227,7 @@ export function useAppDeepLinks({
       window.removeEventListener('dragend', clear, true)
       window.removeEventListener('blur', clear)
     }
-  })
+  }, [ready])
   // Links other apps open (devot://note/<id>, devot://command/<id>), once the window has restored its view; sheets hold them back.
   useDeepLinks(ready, (link) => {
     setLinkNotice(undefined)

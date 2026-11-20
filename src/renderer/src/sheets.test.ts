@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Core } from './core-client'
 import { IMPORT_SCANNING } from './importer'
 import { useSheets } from './sheets'
+import { droppedImport } from './dropImport'
 import { renderHook, settle, unmountAll } from '../../../tests/support/render-hook'
 import { mockTauri } from '../../../tests/support/tauri-events'
 
@@ -42,6 +43,32 @@ const scanning = (id: number) =>
   )
 
 describe('useSheets', () => {
+  it('queues dropped sources with native jobs and cleans them on cancel, close and teardown', async () => {
+    tauri = mockTauri(answer)
+    const hook = renderHook(useSheets, { props: props() })
+    await settle()
+    const first = droppedImport([new File(['note'], 'note.md')], vi.fn())
+    const second = droppedImport([new File(['other'], 'other.md')], vi.fn())
+    first.scan.kind = 'folder'
+    second.scan.kind = 'folder'
+    act(() => {
+      hook.current.enqueueImport(first.scan, first)
+      scanning(5)
+      hook.current.enqueueImport(second.scan, second)
+    })
+    expect(hook.current.importJob?.id).toBe(first.scan.id)
+    act(() => hook.current.closeImport(true))
+    await expect(first.source.read('note.md')).rejects.toThrow('E_IMPORT_FILE_NOT_FOUND')
+    expect(hook.current.importJob?.id).toBe(5)
+    act(() => hook.current.closeImport(true))
+    expect(hook.current.importJob?.id).toBe(second.scan.id)
+    hook.unmount()
+    await expect(second.source.read('other.md')).rejects.toThrow('E_IMPORT_FILE_NOT_FOUND')
+    expect(tauri.calls.filter(([cmd]) => cmd === 'import_finish')).toEqual([
+      ['import_finish', { id: 5 }],
+    ])
+  })
+
   it('stops the listeners that register after the window unmounted', async () => {
     tauri = mockTauri(answer)
     tauri.hold()
