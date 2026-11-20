@@ -22,8 +22,97 @@ function cleanTitle(title: string, site: string): string {
     if (site && parts[0]?.toLowerCase() === site.toLowerCase()) parts.shift()
     else if (site && parts.at(-1)?.toLowerCase() === site.toLowerCase()) parts.pop()
     else parts.pop()
+    // "Title - Section - Site": a short section label left behind the site goes too.
+    const last = parts.at(-1) ?? ''
+    if (parts.length > 1 && last.split(/\s+/).length <= 2 && last.length <= 20) parts.pop()
   }
   return parts.join(' - ').trim() || title.trim()
+}
+
+const LANGUAGE = /(?:^|\s)(?:language|lang|highlight-source|brush:?)-?\s*([\w+#-]+)/i
+
+/** Shapes page markup the Markdown writer would otherwise turn into noise. */
+function tidy(page: Document, pageUrl: string): void {
+  const here = pageUrl.replace(/#.*$/, '')
+  const samePage = (link: Element) => {
+    const href = link.getAttribute('href') ?? ''
+    return href.startsWith('#') || (href.includes('#') && href.replace(/#.*$/, '') === here)
+  }
+  const unwrap = (element: Element) => element.replaceWith(...element.childNodes)
+  // A footnote marker such as [1] stays as text: the reference list it points to is clipped too, but its link would lead nowhere in a note.
+  for (const link of page.querySelectorAll('a[href]'))
+    if (samePage(link) && /^\[?\s*(\d+|[a-z])\s*\]?$/i.test(link.textContent?.trim() ?? ''))
+      unwrap(link)
+  for (const anchor of page.querySelectorAll('a:not([href])')) unwrap(anchor)
+  // A heading's permalink.
+  for (const link of page.querySelectorAll(':is(h1,h2,h3,h4,h5,h6) a[href]'))
+    if (samePage(link)) unwrap(link)
+  // An image linked to its own file page or full-size copy reads better as the image.
+  for (const link of page.querySelectorAll('a')) {
+    const images = link.querySelectorAll('img')
+    if (images.length === 1 && !link.textContent?.trim()) unwrap(link)
+  }
+  // A figure's caption goes under its image, and names an image that has no description.
+  for (const figure of page.querySelectorAll('figure')) {
+    const caption = figure.querySelector('figcaption')
+    const text = caption?.textContent?.replace(/\s+/g, ' ').trim()
+    if (!caption || !text) continue
+    const image = figure.querySelector('img')
+    if (image && !image.getAttribute('alt')?.trim()) image.setAttribute('alt', text)
+    const paragraph = page.createElement('p')
+    const emphasis = page.createElement('em')
+    emphasis.append(...caption.childNodes)
+    paragraph.append(emphasis)
+    caption.replaceWith(paragraph)
+    if (image) {
+      const holder = page.createElement('p')
+      holder.append(image)
+      paragraph.before(holder)
+    }
+  }
+  // Code blocks keep their language, which pages state in many ways.
+  for (const pre of page.querySelectorAll('pre')) {
+    const named = [
+      pre,
+      pre.querySelector('code'),
+      pre.parentElement,
+      pre.parentElement?.parentElement,
+    ]
+      .map(
+        (element) =>
+          element?.getAttribute('lang') ||
+          element?.getAttribute('data-lang') ||
+          LANGUAGE.exec(element?.className ?? '')?.[1],
+      )
+      .find(Boolean)
+    let code = pre.querySelector('code')
+    if (!code) {
+      code = page.createElement('code')
+      code.append(...pre.childNodes)
+      pre.append(code)
+    }
+    if (!named) continue
+    code.className = `language-${named.toLowerCase()}`
+    const label = pre.previousElementSibling
+    if (label?.textContent?.trim().toLowerCase() === named.toLowerCase()) label.remove()
+  }
+}
+
+/** Copies what an empty component draws in its open shadow root into the clone: only its code blocks when it has any, leaving out toolbars around them. */
+function showComponents(source: Document, page: Document): void {
+  const originals = source.body.querySelectorAll('*')
+  const copies = page.body.querySelectorAll('*')
+  originals.forEach((element, index) => {
+    const copy = copies[index]
+    if (!element.shadowRoot || !copy || element.childNodes.length) return
+    const blocks = [...element.shadowRoot.querySelectorAll('pre')]
+    const drawn = blocks.length
+      ? blocks
+      : [...element.shadowRoot.children].filter(
+          (node) => !node.matches('style, script, link, slot'),
+        )
+    for (const node of drawn) copy.append(node.cloneNode(true))
+  })
 }
 
 function srcsetUrls(value: string): string[] {
@@ -53,6 +142,7 @@ export function extract(source: Document, sourceUrl: string, mode: Mode): Clip {
   const url = new URL(sourceUrl)
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('E_CLIP_URL')
   const page = source.cloneNode(true) as Document
+  showComponents(source, page)
   const base = new URL(
     source.querySelector('base[href]')?.getAttribute('href') || sourceUrl,
     sourceUrl,
@@ -116,16 +206,27 @@ export function extract(source: Document, sourceUrl: string, mode: Mode): Clip {
     if (href) link.setAttribute('href', href)
     else link.removeAttribute('href')
   }
-  const article = mode === 'article' ? new Readability(page).parse() : null
+  tidy(page, url.href)
+  const article = mode === 'article' ? new Readability(page, { keepClasses: true }).parse() : null
   if (mode === 'article' && !article) throw new Error('E_CLIP_EMPTY')
   const body = htmlToMarkdown(article?.content ?? page.body.innerHTML).markdown.trim()
   if (!body) throw new Error('E_CLIP_EMPTY')
   const markdown = `${body}\n\n${cleanUrl(url)}\n`
   checkMarkdown(markdown)
+  return { title: pageTitle(source, article), markdown }
+}
+
+export function pageTitle(
+  source: Document,
+  article?: {
+    title?: string | null | undefined
+    siteName?: string | null | undefined
+  } | null,
+): string {
   const ogTitle = source.querySelector('meta[property="og:title"]')?.getAttribute('content')?.trim()
   const site =
     source.querySelector('meta[property="og:site_name"]')?.getAttribute('content')?.trim() ||
     article?.siteName ||
     ''
-  return { title: cleanTitle(ogTitle || article?.title || source.title, site), markdown }
+  return cleanTitle(ogTitle || article?.title || source.title, site)
 }

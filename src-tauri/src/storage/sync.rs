@@ -425,7 +425,11 @@ impl Store {
     /// engine kept just before among them, and so do its attachments, which the file records of
     /// that device settle (a purge that arrives before the heir note's link would delete them).
     pub fn sync_purge(&mut self, id: &str, at: i64, hlc: &str) -> Result<()> {
-        self.purge(id, at, hlc, false)
+        self.purge(id, at, hlc, false, false)
+    }
+
+    pub fn sync_purge_deferred(&mut self, id: &str, at: i64, hlc: &str) -> Result<()> {
+        self.purge(id, at, hlc, false, true)
     }
 }
 

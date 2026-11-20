@@ -29,6 +29,9 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - **Write mode's table bar:** above the rendered table, outside the grid, on the table's left edge (`BAR_GAP` clear of the header row). The table's first row line always carries a bar's height plus `BAR_GAP` of padding above the header, so the bar sits in that space and never covers the block above. When the editor has no room above the table the bar stays at the top of the visible part of the table, below the header row, and never covers it. Edit mode keeps the bar over the row above the caret.
 - **Write mode's task box:** one drawn box for open and done tasks, 0.875 em square with `radius.mark` (4), outlined in `color.line.control` when open and filled `color.accent.fill` with a `color.accent.on-fill` check when done (one stroke rule). It stands in for the list mark, the brackets and the space after them: its left edge is the list mark's column, the bullets' column, and it centres on the item's first line. The item's text starts `space.3` after it, at one x for done and open items, and a done item's strike-through covers that text only.
 - **Split view:** each pane uses the editor keyline inside its own width.
+- **Narrow sidebar:** below `size.sidebar-collapse-width`, Show Sidebar floats it over the list rather than taking room from the editor.
+  Its width stays inside the list's minimum width, and its titlebar has Hide Sidebar clear of the traffic lights.
+  Clicking or moving keyboard focus into the list or editor dismisses it, so it cannot cover the focused control.
 - **Scroll bars:** `.rows`, `.preview`, the editor and the Settings pane always reserve the scroll bar, pulled out of the keyline, so right edges stay put.
 - **Exceptions:** in focus mode the editor toolbar starts at `window-controls-inset`, and with the sidebar hidden the list toolbar keeps its start padding, so neither meets the traffic lights. The Settings toolbar keeps its own corner rule.
 
@@ -38,6 +41,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - One caption style for the sidebar and the list (`.section-header`, `.list-section`): caption size (11), semibold, tertiary text, no icon.
 - The editor footer (`.editor-counts`, words and characters) is caption size (11) in tertiary text, right-aligned and inset `space.10` from the content column's edge, with no rule above it; focus mode does not narrow it to the reading column, so it keeps the window's bottom-right corner.
   A note with a word goal shows its words as `340 / 1,500` in the same style, with the goal in the item's tooltip.
+  Vim Mode adds its localized NORMAL, INSERT or VISUAL label before the counts in the same caption style and spacing.
   Notices (`.notices`) sit in the bottom-right corner as glass popovers (`radius.glass-popover`, `size.glass-popover-inset`) and rise clear of `.editor-counts` and `.history-bar` whenever either is shown.
 - Footnotes on screen start with a 48 pt hairline (`size.footnote-rule`) on the text's edge, with text at footnote size (12) in secondary. Print keeps the full-width rule.
 
@@ -114,6 +118,15 @@ Its keyline is `size.phone-grouped-pad-x` (16) from a card's edge: section heade
   A diagram, math, a frame or an image from the web shows as a placeholder in a `color.fill.track` box with tertiary text.
 - **Caption:** one line 6 (`space.3`) under the sheet on the inner keyline, 11 (`font-size.caption`) in tertiary, the board card's meta line led by the marks: the pin, the status mark in its colour, the time, the task ring and count as on a board card, then the tag dots at the line's end.
   The title is not repeated, as the page shows it.
+
+## Table
+
+- The header and every row are `size.table-row-height` (32) tall, a 1 px `color.line.hairline` under each.
+- The title column is `size.table-title-width` (240) wide and every other `size.table-column-width` (160); cells are padded 8 (`space.4`), the title cell from the outer keyline (`size.list-keyline-outer`).
+- **Header:** 11 (`font-size.caption`) semibold in secondary, on `color.surface.list`, with a chevron for the sorted column; it and the title column stay put on the list's surface while the rest scrolls.
+- **Cells:** body text in primary, the title semibold; numbers end-aligned; a date in the list's date format; a checkbox at the start; a list as chips in `font-size.footnote` on `color.fill.card` at `radius.pill`.
+- **States:** under the pointer a row takes `color.fill.row-selected-inactive` mixed into the list's surface, selected the accent wash at `opacity.list-selected`, and the focused cell the inset `color.focus.ring` ring.
+- **Editing:** the cell's input fills it, 4 (`space.2`) inside, with the field style and the focus ring.
 
 ## One stroke rule
 
@@ -210,6 +223,7 @@ Exceptions to these rules, each chosen on purpose:
 - **The sidebar footer's ends:** the sidebar's icon column wins over the end-cap rule.
   Its dot is a sidebar row's start padding (`size.sidebar-row-padding`, 10) from the outer edge, border included, so it sits on the column of the rows' icons, 4 off concentric with the end cap.
   Its chevron end matches: `size.sidebar-footer-end-sm` (6) puts the chevron's centre as far from its end (14) as the dot's is from the other, so the two ends look the same.
+  In the narrow overlay the footer can grow above its minimum height to fit the localized status, with the dot and chevron centered beside the wrapped text.
 - **The notebook pill's icon:** it is `size.icon-sm` (14), not the 10 px of the pill's other glyphs.
   A line icon is drawn larger to carry the weight of the filled 10 px marks beside it (the status icon, a tag's dot).
 

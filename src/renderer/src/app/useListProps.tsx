@@ -14,8 +14,8 @@ import type { BookRecord, TagRecord } from '../../../core/storage'
 import type { useSearch } from '../useSearch'
 import type { ViewState } from './useLibraryView'
 
-const LAYOUTS_WITH_BOARD: readonly ListLayout[] = ['list', 'board', 'gallery']
-const LAYOUTS_WITHOUT_BOARD: readonly ListLayout[] = ['list', 'gallery']
+const LAYOUTS_WITH_BOARD: readonly ListLayout[] = ['list', 'board', 'gallery', 'table']
+const LAYOUTS_WITHOUT_BOARD: readonly ListLayout[] = ['list', 'gallery', 'table']
 
 function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
   // Re-render on keymap changes: the tooltip names the key in effect.

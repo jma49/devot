@@ -1,11 +1,14 @@
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 
-export async function storeImageLinks(
-  markdown: string,
-  upload: (url: string) => Promise<string>,
-): Promise<string> {
-  const images: { url: string; start: number; end: number }[] = []
+interface ImageLink {
+  url: string
+  start: number
+  end: number
+}
+
+function remoteImages(markdown: string): ImageLink[] {
+  const images: ImageLink[] = []
   unified()
     .use(remarkParse)
     .data('fromMarkdownExtensions', [
@@ -25,13 +28,29 @@ export async function storeImageLinks(
       },
     ])
     .parse(markdown)
+  return images
+}
+
+export function hasRemoteImages(markdown: string): boolean {
+  return remoteImages(markdown).length > 0
+}
+
+export async function storeImageLinks(
+  markdown: string,
+  upload: (url: string) => Promise<string>,
+  progress: (done: number, total: number) => void = () => {},
+): Promise<string> {
+  const images = remoteImages(markdown)
   const stored = new Map<string, string>()
-  for (const url of [...new Set(images.map((image) => image.url))].slice(0, 50)) {
+  const urls = [...new Set(images.map((image) => image.url))].slice(0, 50)
+  if (urls.length) progress(0, urls.length)
+  for (const [index, url] of urls.entries()) {
     try {
       stored.set(url, await upload(url))
     } catch {
       /* A refused image stays remote. */
     }
+    progress(index + 1, urls.length)
   }
   for (const image of images.reverse()) {
     const url = stored.get(image.url)

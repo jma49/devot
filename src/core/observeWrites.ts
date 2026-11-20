@@ -22,6 +22,7 @@ export function observeWrites(
     getNote: (id, options) => storage.getNote(id, options),
     openNote: (id) => storage.openNote(id),
     getBodies: (ids) => storage.getBodies(ids),
+    getHeads: (ids) => storage.getHeads(ids),
     searchNotes: (query, limit) => storage.searchNotes(query, limit),
     ...(semanticSearch ? { semanticSearch: (query) => semanticSearch(query) } : {}),
     ...(semanticStatus ? { semanticStatus: () => semanticStatus() } : {}),
@@ -29,6 +30,9 @@ export function observeWrites(
     listLinkGraph: (excludeBookId, limit) => storage.listLinkGraph(excludeBookId, limit),
     listTrash: () => storage.listTrash(),
     purgeNote: after((id: string, at: number, hlc: string) => storage.purgeNote(id, at, hlc)),
+    purgeNotes: after((ids: readonly string[], at: number, hlc: string) =>
+      storage.purgeNotes(ids, at, hlc),
+    ),
     putNote: after(
       (note) => storage.putNote(note),
       (note) => [note.id],

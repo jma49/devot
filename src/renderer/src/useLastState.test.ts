@@ -16,7 +16,7 @@ const memoryStore = () => lastStateStore(memoryStorage(), 'main')
 const ALL = { kind: 'all' } as const
 const BOOK = '01900000-0000-7000-8000-000000000001'
 const NOTE = '01900000-0000-7000-8000-000000000002'
-const LAYOUTS = { boards: [], galleries: [] }
+const LAYOUTS = { boards: [], galleries: [], tables: [] }
 
 type Props = Parameters<typeof useLastState>[0]
 

@@ -40,6 +40,7 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
   { pane: 'appearance', label: 'appearanceSettings.animations' },
   { pane: 'editing', label: 'editorSettings.toolbar' },
   { pane: 'editing', label: 'editorSettings.lineNumbers' },
+  { pane: 'editing', label: 'editorSettings.vimMode' },
   { pane: 'editing', label: 'editorSettings.highlightActiveLine' },
   { pane: 'editing', label: 'editorSettings.lineWrapping' },
   { pane: 'editing', label: 'editorSettings.inlineImages' },

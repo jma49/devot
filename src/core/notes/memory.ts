@@ -2,6 +2,7 @@ import * as Y from 'yjs'
 import { receiveStored } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { REVISION_PAUSE_MS } from '../revisions'
+import { frontMatterHead } from '../frontMatterHead'
 import { MAX_BODY_IDS, type NoteBody, type NoteSummary, type OpenedRecord } from '../storage'
 import { BODY } from './body'
 import { goneError, type Gone, type Live, type NoteContext } from './context'
@@ -102,6 +103,32 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
       batches.push(storage.getBodies(stored.slice(i, i + MAX_BODY_IDS)))
     }
     for (const batch of await Promise.all(batches)) found.push(...batch)
+    return found
+  }
+
+  /** `bodies` for the front matter alone: a note in memory from its document, the rest from storage's heads. */
+  const heads = async (ids: readonly string[]): Promise<Map<string, string>> => {
+    const found = new Map<string, string>()
+    const stored: string[] = []
+    for (const id of new Set(ids)) {
+      const note = live.get(id)
+      if (!note) {
+        stored.push(id)
+        continue
+      }
+      const head = frontMatterHead(note.doc.getText(BODY).toString())
+      if (head !== null) found.set(id, head)
+    }
+    const batches: Promise<{ id: string; head: string }[]>[] = []
+    for (let i = 0; i < stored.length; i += MAX_BODY_IDS) {
+      batches.push(storage.getHeads(stored.slice(i, i + MAX_BODY_IDS)))
+    }
+    for (const batch of await Promise.all(batches)) {
+      for (const { id, head } of batch) {
+        const fenced = frontMatterHead(head)
+        if (fenced !== null) found.set(id, fenced)
+      }
+    }
     return found
   }
 
@@ -207,6 +234,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     liveNote,
     drop,
     bodies,
+    heads,
     summaries,
     getStored,
     load,

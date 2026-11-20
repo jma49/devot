@@ -100,5 +100,7 @@ export interface SyncStore {
   /** An attachment another device purged: its row goes, its entry stays as the tombstone. */
   syncFileDelete(id: string): Promise<void>
   /** A purge another device made: as `purgeNote`, but the note's revisions stay (the copy kept before it among them). */
-  syncPurge(id: string, at: number, hlc: string): Promise<void>
+  syncPurge(id: string, at: number, hlc: string, deferCompaction?: boolean): Promise<void>
+  /** Completes deferred purge compaction; a failed pull must call this too. */
+  syncCompactPurges(): Promise<void>
 }

@@ -11,7 +11,7 @@
 [![Platform: macOS 15+, Apple Silicon and Intel](https://img.shields.io/badge/platform-macOS%2015%2B%20%C2%B7%20Apple%20Silicon%20%26%20Intel-lightgrey)](#download)
 [![CI](https://github.com/jma49/devot/actions/workflows/ci.yml/badge.svg)](https://github.com/jma49/devot/actions/workflows/ci.yml)
 
-[Website](https://devot.online) · [Docs](https://devot.online/docs) · [Download](#download) · [Features](#features) · [AI tools](#claude-and-other-mcp-clients) · [Development](docs/development.md)
+[Website](https://devot.online) · [Docs](https://devot.online/docs) · [Download](#download) · [Features](#features) · [Plugins](#plugins-on-mac) · [AI tools](#claude-and-other-mcp-clients) · [Development](docs/development.md)
 
 </div>
 
@@ -22,19 +22,21 @@
   </picture>
 </p>
 
-Devot keeps your notes in a SQLite database on your Mac or iPhone. Every feature works without an account or a network connection, and nothing leaves the device unless you export it, mirror it, let an AI tool read it, use an AI feature with your own provider key, or sync it, end-to-end encrypted, through your own iCloud or a relay you deploy.
-
-**Status:** stable releases for macOS and Devot for iPhone in the App Store, with end-to-end encrypted sync through your own iCloud or relay and AI with your own provider key ([website](https://devot.online)).
+Devot keeps your notes in a SQLite database on your Mac or iPhone.
+Writing, organising and searching work offline without a Devot account.
+You choose whether to sync your notes, share a page on the web or use an AI provider.
 
 ## Download
 
-1. Download the latest `Devot_<version>_universal.dmg` from the [latest release](https://github.com/jma49/devot/releases/latest) (the one marked Latest); it runs on Apple Silicon and Intel Macs.
-2. Open the dmg and drag Devot to Applications.
-3. For releases up to 1.0.4, the first time, right-click Devot in Applications and choose Open, then Open again: those builds are ad-hoc signed and not notarised, so macOS asks once. Releases from 1.0.5-beta2 on are signed with Devot's Developer ID and notarised by Apple, so they open without a warning. If it only offers Move to Trash, open System Settings > Privacy & Security and click Open Anyway.
+**Mac:** Download `Devot_<version>_universal.dmg` from the [latest release](https://github.com/jma49/devot/releases/latest), open it and drag Devot to Applications.
+Current builds are signed and notarised, and require macOS 15 or later on Apple Silicon or Intel.
+Devot checks for updates automatically; use **Devot > Check for Updates…** to check now.
 
-Devot needs macOS 15 or later, on Apple Silicon or Intel. Releases named `_aarch64` needed macOS 26 on Apple Silicon. Updates arrive in the app: Devot checks shortly after launch and then daily (hourly on a beta build), or on Devot > Check for Updates…, downloads the update in the background and offers Restart to Update.
+**iPhone:** Devot is available in the App Store.
 
 ## Features
+
+This list follows the current source; see the [release notes](https://github.com/jma49/devot/releases) for what's in the downloadable builds.
 
 **Organise**
 
@@ -63,11 +65,12 @@ Devot needs macOS 15 or later, on Apple Silicon or Intel. Releases named `_aarch
 
 - A Markdown editor with editor-only, split and preview modes, synced scrolling and a Focus Mode.
 - Write mode: the note renders as you write and shows the Markdown only of the element under the caret.
-- An outline beside the editor, and word and character counts.
+- A resizable note inspector with Outline, Info and History, and word and character counts in the editor.
 - A safe live preview with GitHub-flavoured Markdown, syntax-highlighted code blocks, math, Mermaid and PlantUML diagrams, Markmap mind maps, emoji, alerts, task lists and YouTube and Vimeo embeds that load only when you ask.
 - Tables you edit with keys: move between cells, add, move and align rows and columns, format the table.
 - Pasted and dropped images and other attachments, with sizes and an image viewer.
 - Find and Replace with case and regular expressions, multiple cursors, line commands and slash commands.
+- Optional Vim keybindings in **Settings > Editing > Vim Mode**.
 - Revision History: Devot keeps a version when you pause typing, and you can restore any of them.
 
 **Find and connect**
@@ -80,10 +83,14 @@ Devot needs macOS 15 or later, on Apple Silicon or Intel. Releases named `_aarch
 </p>
 
 - Full-text search with a query syntax (notebook, tag, status, pinned, title or body, and exclusions), and saved searches in the sidebar.
-- `[[` note links with a link index; each note lists the notes that link to it.
+- **Related by Meaning** adds semantic matches below keyword results, even when the words differ.
+  It uses the system's on-device sentence model where available, without an AI provider or internet connection.
+- **Image text search (OCR)** finds notes by words in attached screenshots, receipts and photos on Mac and iPhone.
+  Recognition runs on the device and doesn't change the note or sync the extracted text.
+- Connect notes with `[[` links, see backlinks and unlinked mentions, embed notes and explore their connections in Graph view.
 - `devot://` links open a note from other apps.
 - The browser clipper saves articles or selections with images; capture links fill Quick Capture from Shortcuts or a launcher (below).
-- A command palette for every command, and keyboard shortcuts you can change.
+- A command palette that finds commands and searches note titles and bodies, and keyboard shortcuts you can change.
 
 **Look**
 
@@ -92,18 +99,22 @@ Devot needs macOS 15 or later, on Apple Silicon or Intel. Releases named `_aarch
 - App, note and code fonts chosen separately, from the built-in fonts, any installed font or a font file you import (TTF, OTF, WOFF or WOFF2).
 - A Glass window, as see-through as you like.
 - macOS text services in the editor: Look Up and Speech.
+- English and Simplified Chinese on Mac and iPhone.
+  Follow the system language or choose one under **Settings > General > App Language**; the change takes effect the next time Devot opens.
 
 **Bring notes in and out**
 
 - Import Markdown files, a Markdown folder (with its images), HTML files, a Notion Markdown export or Bear TextBundles into a notebook; links between the imported files become note links.
+- Import an Obsidian vault on Mac, bringing across note properties and converting Canvas files into notes.
 - Export a note, a selection, a notebook or all notes as Markdown or HTML; export a note as PDF; print.
+- **Share on Web** publishes an encrypted, read-only page with an expiry date; anyone with the link can read it.
 - Keep a Markdown mirror folder up to date with every note (below).
 
 **Sync, on your terms**
 
 - End-to-end encrypted sync between your Mac and iPhone through your own iCloud, or through a relay you deploy ([docs/sync-relay.md](docs/sync-relay.md)): each note is sealed on the device before it leaves.
 - Devices on your Apple ID receive the key through iCloud Keychain; a pairing code works everywhere else.
-- No Devot account, and nothing stored on a Devot server.
+- Sync needs no Devot account and doesn't store your notes on a Devot server.
 
 **Stay safe**
 
@@ -114,7 +125,11 @@ Devot needs macOS 15 or later, on Apple Silicon or Intel. Releases named `_aarch
 **Work with AI, on your terms**
 
 - Claude and other MCP clients can search, read, create, edit and trash notes, only in notebooks you allow (below).
-- Edit with AI: improve, proofread, summarise or restructure a selection with your own Anthropic or OpenAI-compatible key (or a model on this Mac), and review the change line by line before you accept it.
+- **Edit with AI** improves, proofreads, summarises or restructures a selection, with a diff you can review before accepting it.
+- **Ask Your Notes** streams answers with links back to the source notes, using only notebooks you've allowed AI to access.
+- Choose Anthropic or an OpenAI-compatible endpoint, including a local model server.
+  On Mac, you can also use an installed and signed-in Claude Code or Codex CLI as the provider.
+- **Review Changes** lets you keep or undo individual edits made by an agent.
 - Suggest Next Edit offers a continuation at the caret as ghost text; Tab accepts it.
 
 <p align="center">
@@ -141,7 +156,19 @@ Devot needs macOS 15 or later, on Apple Silicon or Intel. Releases named `_aarch
   <br><sub>Revision History · Templates</sub>
 </p>
 
+## Plugins on Mac
+
+Open **Settings > Plugins > Official Plugins** to browse, install and update official plugins, or install a plugin from a local folder or ZIP archive.
+Devot shows what a plugin can access before you approve it, and runs plugins in a sandbox.
+Plugins can add themes, commands, preview renderers and import or export formats.
+iPhone doesn't run plugins, but it can display saved plugin drawings synced from a Mac.
+
+To build a plugin, use the [plugin kit](plugin-kit/README.md) to scaffold, validate and package it.
+
 ## Capture from anywhere
+
+Use your system's Share menu to send content to Devot on Mac or iPhone.
+On iPhone, use the **Add to Devot** and **Open Today's Note** Shortcuts actions, or open today's note from a widget or Control Center.
 
 `devot://capture?title=…&text=…&url=…` opens Quick Capture with the text filled in; you save it with ⌘↩ or cancel, so a link never makes a note by itself.
 Every field is optional and percent-encoded, and `url` must be an http or https address.
@@ -151,10 +178,9 @@ Every field is optional and percent-encoded, and `url` must be an http or https 
 - **Browser clipper:** run `pnpm install` and `pnpm clipper:build`.
   In Chrome, enable Developer mode at `chrome://extensions` and Load unpacked **clipper/dist/chrome**.
   In Firefox, open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on and select **clipper/dist/firefox/manifest.json** (temporary installs last until Firefox closes; persistent installs require signing).
-  Enable Devot's local HTTP API in Settings, create a read/write token, and enable Allow AI Access for the destination notebook.
-  Open the extension's Clipper settings, enter the port (default `27484`) and token, then open an article and choose Clip article or select content and choose Clip selection.
-  The popup lets you edit the title and choose an accessible notebook; choose Enable offline images in the extension settings to grant optional image-host access and save supported images offline.
-  Images that cannot be downloaded or attached stay remote links.
+  The clipper's settings open on install and walk through connecting it: turn on Devot's local HTTP API with Read and Write access, paste the token, add the extension's origin under Browser Extensions, and allow AI access on a notebook; Save and Check confirms each step.
+  On any page, click the Devot button, check the title and notebook, choose Article or Selection and press Enter; Open in Devot shows the new note.
+  Allow Image Downloads in the clipper's settings to save images into the note; images that cannot be downloaded stay web links.
   The token is stored locally in the browser profile, not synced.
 
 ## Markdown mirror
@@ -242,6 +268,8 @@ Report security problems privately, as [`SECURITY.md`](SECURITY.md) describes.
 
 [FSL-1.1-MIT](LICENSE): use, change and share Devot for anything but a competing commercial product. Each release becomes MIT two years after it is published. Versions up to v1.0.4 were published under MIT and stay MIT.
 
-Devot works fully for a 30-day trial; after it, notes are read-only (you can read, search, copy and export them) and sync and AI are locked until you add a license bought once, which unlocks them on up to three devices at a time in every version ([ADR 0006](docs/adr/0006-source-available-and-sold-once.md)).
+Devot works fully for a 30-day trial.
+After the trial, you can still read, search by keyword, copy and export your notes; editing, sync, semantic search and AI require a license.
+A one-time purchase unlocks them on up to three devices at a time in every version ([ADR 0006](docs/adr/0006-source-available-and-sold-once.md)).
 
 The source is public, so paying is optional: a build you make yourself ([docs/development.md](docs/development.md)) checks no license, and everything in it works. You can use and change it for free, as long as you do not sell it or offer it as a competing product, and it does not carry Devot's name or icon when you share it. It has no signed installer or automatic updates. The license pays for those, and for the work on Devot.

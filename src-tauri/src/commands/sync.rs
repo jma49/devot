@@ -299,9 +299,27 @@ pub async fn sync_note_purge(
     id: String,
     at: i64,
     hlc: String,
+    defer_compaction: Option<bool>,
 ) -> Result<(), String> {
     validate_purge(&id, at, &hlc).map_err(String::from)?;
-    db.write(Write::Content, move |store| store.sync_purge(&id, at, &hlc))
+    db.write(Write::Content, move |store| {
+        if defer_compaction.unwrap_or(false) {
+            store.sync_purge_deferred(&id, at, &hlc)
+        } else {
+            store.sync_purge(&id, at, &hlc)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_purges_compact(db: State<'_, Db>) -> Result<(), String> {
+    compact_purges(&db).await
+}
+
+async fn compact_purges(db: &Db) -> Result<(), String> {
+    db.write_derived(|store| store.compact_sync_purges())
         .await
         .map_err(|e| e.to_string())
 }
@@ -309,6 +327,85 @@ pub async fn sync_note_purge(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_expired_trial_still_allows_pending_purge_cleanup() {
+        use crate::licence::{Gate, testing};
+        use crate::storage::NoteRecord;
+        use std::sync::Arc;
+        use tauri::async_runtime::block_on;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let db = Db::spawn(&path).unwrap();
+        let id = "0192a6f0-0000-7000-8000-000000000001";
+        let secret = "qxjzvwkpfyb";
+        block_on(db.write(Write::Content, move |store| {
+            store.put_note(
+                &NoteRecord {
+                    id: id.into(),
+                    title: String::new(),
+                    title_hlc: "0000000000000001-0000-test".into(),
+                    body_md: secret.repeat(400),
+                    ydoc: vec![0],
+                    body_version: 0,
+                    book_id: None,
+                    book_hlc: String::new(),
+                    status: "none".into(),
+                    status_hlc: String::new(),
+                    pinned: false,
+                    pinned_hlc: String::new(),
+                    created_at: 1,
+                    updated_at: 1,
+                    dates_hlc: String::new(),
+                    deleted_at: None,
+                    deleted_hlc: None,
+                },
+                &[],
+            )?;
+            store.catch_up_search_index(None)?;
+            store.sync_purge_deferred(id, 2, "0000000000000002-0000-remote")
+        }))
+        .unwrap();
+        let pending = || {
+            block_on(db.call(|store| {
+                Ok(store
+                    .sync_state()?
+                    .iter()
+                    .any(|(key, _)| key == "searchCompactionPending"))
+            }))
+            .unwrap()
+        };
+        assert!(pending());
+        let licence = testing::licence(dir.path(), true);
+        let gate = Gate::of(&licence);
+        db.guard(Arc::new(move |what| gate.require_write(what)));
+        assert_eq!(
+            block_on(db.write(Write::Content, |_| Ok(())))
+                .unwrap_err()
+                .to_string(),
+            "E_LICENCE_REQUIRED"
+        );
+        block_on(compact_purges(&db)).unwrap();
+        assert!(!pending());
+        block_on(compact_purges(&db)).unwrap();
+
+        let copy = rusqlite::Connection::open(&path).unwrap();
+        let matches: i64 = copy
+            .query_row(
+                "SELECT count(*) FROM notes_fts WHERE notes_fts MATCH ?1",
+                [secret],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(matches, 0);
+        copy.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+            .unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        for trigram in secret.as_bytes().windows(3) {
+            assert!(!bytes.windows(3).any(|window| window == trigram));
+        }
+    }
 
     fn entry() -> SyncEntry {
         SyncEntry {

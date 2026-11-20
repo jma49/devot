@@ -441,6 +441,7 @@ export function QuickCapture() {
                     composingRef.current = false
                     tagLimit.onCompositionEnd(e)
                   }}
+                  onPaste={tagLimit.onPaste}
                   onChange={(e) => {
                     if (
                       composingRef.current ||

@@ -6,7 +6,7 @@ It draws on Apple's [Human Interface Guidelines: Motion](https://developer.apple
 
 ## Should it move?
 
-The browser clipper uses native browser controls and immediate status text, with no custom motion.
+The browser clipper's popup and options page switch views (form, progress, saved, setup) and check results instantly, with no custom motion; its image progress is a native progress bar.
 Adding or removing a registered browser extension in Settings replaces the list immediately with no animation; copying its origin in the clipper options replaces the status text immediately.
 
 Decide in this order; the first match wins.
@@ -22,6 +22,9 @@ Motion never carries meaning alone: the final state must say everything without 
 Native menus and other system-drawn things keep the system's motion.
 
 ## Which motion
+
+The Vim Mode switch uses the existing two-state control feedback; switching editor modes and Vim keyboard commands apply immediately without motion because they follow the keyboard.
+The footer's Vim mode label changes immediately without motion because it follows the keyboard.
 
 | What happens                                       | Motion                  | Duration                                         | Curve                                            |
 | -------------------------------------------------- | ----------------------- | ------------------------------------------------ | ------------------------------------------------ |
@@ -66,6 +69,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - New Notebook in the sidebar's Notebooks header stays visible at rest and keeps the standard tool hover, focus and press states (rule 2).
 - Empty Trash in the Trash's search row is the same tool as New Note, with the same press and hover fill.
 - Hiding or showing the sidebar (or entering focus mode): the pane that goes or comes fades and leaves or takes its room at once, and the panes that stay slide to their new places over `motion.duration.slide` (380 ms, `motion.easing.move`). A toolbar's room for the traffic lights opens at once, and the toolbar items it moves slide to their places with the panes.
+  In a narrow window the sidebar floats over the list and only fades; the list and editor keep their positions when it opens or closes.
 - Rows: the sidebar's notebooks and tags that come, go or move fade and slide over `motion.duration.slide` (`motion.easing.move`), and its rows slide 80 px as a workspace opens or closes. A note that comes into or leaves the note list fades in or out where it is, over `motion.duration.insert` (300 ms), while the notes after it slide to their new places over `motion.duration.slide`, as do notes that change order. Only a small change to the list's own data moves (`rowMotion.ts`): another view, scrolling or a section opening never does.
 - Sizes: the image viewer between Fit and Actual Size and a progress bar filling move over `motion.duration.grow` (300 ms, `motion.easing.move`); a tag chip just added grows from `motion.scale.chip-enter` as it fades in.
 - A toolbar button's tooltip shows after the pointer rests `motion.delay.tooltip` (400 ms); it fades in and out over `motion.duration.popover`, without growing.
@@ -116,10 +120,14 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Graph sheet (View > Show Graph):** a modal dialog with the dialog motion; Reduced motion follows the dialog's rule. The graph is laid out before it is drawn and appears at once, with no animated simulation (rule 2): reopening it draws the same picture. Panning and zooming follow the pointer, the trackpad and the keys with no motion of their own (rule 1), and 0 fits it again at once. The pointer over a dot shows its links and neighbours and dims the rest at once (rule 2: a state that follows the pointer). This Note and All Notes is a segmented control with its own slide; the new graph replaces the old at once.
 - **Note embeds in the preview:** rule 2. An embedded note is drawn with the preview, and an edit of that note redraws it in place at once, as a chip's title changes.
 - **Note Info's date picker:** rule 3. It grows from its date row and closes backwards like the card. A month change (the head's buttons, Page Up and Page Down, an arrow past the month's edge) is rule 3 too: the new days slide 16 (`space.7`, `--month-slide-shift`) in from the side they come from while they fade in, over `motion.duration.toggle`. Moving the day within the month and stepping the time are rule 1: no motion. Reduced motion: the picker only fades, and the days fade in place.
-- **List, Board and Gallery:** the new body fades in over `motion.duration.popover`, in the same view only.
+- **List, Board, Gallery and Table:** the new body fades in over `motion.duration.popover`, in the same view only.
 - **Gallery cards:** rule 2. Hover washes the card's cell over `motion.duration.hover`; the selection wash and the focus ring are states, shown at once.
   Cards that change place in the order (a new sort, a note added or gone) slide as rows do (`rowMotion.ts`); resizing the pane reflows them at once (rule 1), the sheets' height following their width.
   A thumbnail is drawn when its page arrives, with no fade, and scrolling has no motion of its own.
+- **Table:** rule 1 and 2. Moving between cells, sorting, filtering, hiding a column and adding one redraw the grid at once, with no slide of rows or columns (a sort can move thousands of rows; it follows the click).
+  Hover washes a row over `motion.duration.hover` on `motion.easing.out`; the selection wash and the focus ring are states, shown at once.
+  A cell's editor opens and closes at once in its cell, and a written value or a checkbox shows at once (rule 2); the alert about invalid front matter appears and goes at once.
+  Scrolling has no motion of its own, and the header and title column stay without moving.
 - **Board cards:** one that changes column flies there on a copy above the columns, as a column would clip it, when both ends can be seen (otherwise it is simply there); the others slide as rows do (`rowMotion.ts`).
   Hover washes a card over `motion.duration.hover` on `motion.easing.out`; the selection wash and the focus ring are states, shown at once (rule 2).
   Resetting the board's width (a double-click or Enter on the edge) takes the fitted width at once, as a drag of the edge does (rule 1).
@@ -346,6 +354,6 @@ PlantUML and Markmap drawings replace their previous SVG at once (rule 2), as Me
 
 ## Stays instant
 
-The web clipper settings' optional image-host permission prompt uses the browser's native presentation (rule 2); upload progress and the final saved status replace the status line instantly, as other clipper statuses do.
+The web clipper settings' optional image-host permission prompt uses the browser's native presentation (rule 2); image progress, the saved view and Copy turning into Copied for two seconds replace what was there instantly, as other clipper states do.
 
 Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); on the iPhone, a theme, a colour scheme or a Glass Transparency change in the native screens; text folding (it would animate height inside CodeMirror's measured layout).

@@ -63,6 +63,7 @@
     "@lezer/markdown": "1.8.1",
     "@mozilla/readability": "0.6.0",
     "@plantuml/core": "1.2026.9",
+    "@replit/codemirror-vim": "6.3.0",
     "@sentry/browser": "11.6.0",
     "@tauri-apps/api": "2.12.2",
     "comlink": "4.4.2",

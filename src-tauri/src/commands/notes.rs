@@ -1,7 +1,7 @@
 use super::authorship::validate_agent_writes;
 use crate::storage::{
-    AgentWriteRow, Db, LinkGraph, NOTE_STATUSES, NoteBody, NoteMeta, NoteQuery, NoteRecord,
-    NoteSummary, SetKind, TrashedNote, Write,
+    AgentWriteRow, Db, LinkGraph, NOTE_STATUSES, NoteBody, NoteHead, NoteMeta, NoteQuery,
+    NoteRecord, NoteSummary, SetKind, TrashedNote, Write,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -364,6 +364,15 @@ pub async fn notes_bodies(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Not
         .map_err(|e| e.to_string())
 }
 
+/// The front matter heads of many notes in one call (the table layout's properties).
+#[tauri::command]
+pub async fn notes_heads(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<NoteHead>, String> {
+    validate_body_ids(&ids).map_err(String::from)?;
+    db.call(move |store| store.get_heads(&ids))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// The note as a raw frame (`note_frame`), so a note of several MiB crosses with no JSON or base64
 /// work on the UI thread. The frame names the note IDs the body links to, for the link index, and
 /// the note's rows of the agent_writes index, derived from its Yjs state (`null` leaves the stored
@@ -578,7 +587,14 @@ pub async fn notes_trash_list(db: State<'_, Db>) -> Result<Vec<TrashedNote>, Str
 }
 
 pub(crate) fn validate_purge(id: &str, at: i64, hlc: &str) -> Result<(), &'static str> {
-    if !valid_note_id(id) {
+    validate_purges(&[id.to_owned()], at, hlc)
+}
+
+fn validate_purges(ids: &[String], at: i64, hlc: &str) -> Result<(), &'static str> {
+    if ids.len() > 500 {
+        return Err("E_PURGE_TOO_MANY");
+    }
+    if !ids.iter().all(|id| valid_note_id(id)) {
         return Err("E_NOTE_ID_INVALID");
     }
     if at < 0 {
@@ -596,6 +612,21 @@ pub async fn note_purge(db: State<'_, Db>, id: String, at: i64, hlc: String) -> 
     db.write(Write::Content, move |store| store.purge_note(&id, at, &hlc))
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn notes_purge(
+    db: State<'_, Db>,
+    ids: Vec<String>,
+    at: i64,
+    hlc: String,
+) -> Result<(), String> {
+    validate_purges(&ids, at, &hlc).map_err(String::from)?;
+    db.write(Write::Content, move |store| {
+        store.purge_notes(&ids, at, &hlc)
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -1044,6 +1075,14 @@ mod tests {
 
     #[test]
     fn validates_purge_arguments() {
+        assert_eq!(
+            validate_purges(&vec![ID.into(); 500], 1, "0001728000000000-0000-node"),
+            Ok(())
+        );
+        assert_eq!(
+            validate_purges(&vec![ID.into(); 501], 1, "0001728000000000-0000-node"),
+            Err("E_PURGE_TOO_MANY")
+        );
         assert_eq!(validate_purge(ID, 1, "0001728000000000-0000-node"), Ok(()));
         assert_eq!(
             validate_purge("x", 1, "0001728000000000-0000-node"),
@@ -1054,6 +1093,23 @@ mod tests {
             Err("E_NOTE_TIME_INVALID")
         );
         assert_eq!(validate_purge(ID, 1, ""), Err("E_NOTE_HLC_INVALID"));
+        assert_eq!(
+            validate_purges(&[], 1, "0001728000000000-0000-node"),
+            Ok(())
+        );
+        assert_eq!(
+            validate_purges(&[ID.into(), ID.into()], 1, "0001728000000000-0000-node"),
+            Ok(())
+        );
+        assert_eq!(
+            validate_purges(&[ID.into(), "x".into()], 1, "0001728000000000-0000-node"),
+            Err("E_NOTE_ID_INVALID")
+        );
+        assert_eq!(
+            validate_purges(&[], -1, "0001728000000000-0000-node"),
+            Err("E_NOTE_TIME_INVALID")
+        );
+        assert_eq!(validate_purges(&[], 1, ""), Err("E_NOTE_HLC_INVALID"));
     }
 
     /// The core cuts titles to MAX_TITLE_CHARS code points (src/core/noteLimits.ts; a policy test checks they match). Astral characters count two UTF-16 units each.

@@ -49,6 +49,8 @@ export interface LastState {
   boards?: readonly string[]
   /** The library views shown as a gallery (see `isGalleryView`), the one switched last at the end. */
   galleries?: readonly string[]
+  /** The library views shown as a table (where a gallery can show), the one switched last at the end. */
+  tables?: readonly string[]
 }
 
 /** The stored format; another one (a later Devot) is not read. */
@@ -100,7 +102,7 @@ function readNote(value: unknown): NoteState | undefined {
   return note
 }
 
-export type ListLayout = 'list' | 'board' | 'gallery'
+export type ListLayout = 'list' | 'board' | 'gallery' | 'table'
 
 // A status view is one column already, and an agent's view is not kept (`lastStateOf`), so neither has a board.
 const BOARD_FILTERS = /^(all|filter:pinned|filter:tag:(?<tag>[^|]*))$/
@@ -140,10 +142,12 @@ export function isGalleryView(view: string): boolean {
 export interface ViewLayouts {
   boards: readonly string[]
   galleries: readonly string[]
+  tables: readonly string[]
 }
 
 export function layoutOf(layouts: Partial<ViewLayouts> | undefined, view: string): ListLayout {
   if (layouts?.boards?.includes(view)) return 'board'
+  if (layouts?.tables?.includes(view)) return 'table'
   return layouts?.galleries?.includes(view) ? 'gallery' : 'list'
 }
 
@@ -155,9 +159,12 @@ export function withLayout(
 ): ViewLayouts {
   const boards = layouts?.boards ?? []
   const galleries = layouts?.galleries ?? []
+  const tables = layouts?.tables ?? []
   const can = layout === 'board' ? isBoardView(view) : isGalleryView(view)
   if (!can)
-    return layouts?.boards && layouts.galleries ? (layouts as ViewLayouts) : { boards, galleries }
+    return layouts?.boards && layouts.galleries && layouts.tables
+      ? (layouts as ViewLayouts)
+      : { boards, galleries, tables }
   const kept = (views: readonly string[], shown: boolean) => {
     const others = views.filter((v) => v !== view)
     return shown ? [...others, view].slice(-VIEWS_KEPT) : others
@@ -165,6 +172,7 @@ export function withLayout(
   return {
     boards: kept(boards, layout === 'board'),
     galleries: kept(galleries, layout === 'gallery'),
+    tables: kept(tables, layout === 'table'),
   }
 }
 
@@ -198,6 +206,8 @@ export function parseLastState(raw: string | null): LastState | undefined {
   if (boards) state.boards = boards
   const galleries = readViews(value['galleries'], isGalleryView)
   if (galleries) state.galleries = galleries
+  const tables = readViews(value['tables'], isGalleryView)
+  if (tables) state.tables = tables
   return state
 }
 
@@ -313,6 +323,7 @@ export interface WindowView {
   workspace: string | undefined
   boards: readonly string[]
   galleries: readonly string[]
+  tables?: readonly string[]
   /** The open note's place as the editor and preview last reported it. */
   note: NoteState | undefined
   /** The state stored before the Trash showed. */
@@ -323,7 +334,7 @@ export interface WindowView {
 
 /**
  * The state to store for the window as it is. While the Trash shows, the one from before it, with
- * the boards and galleries as they are now, and the note's place if it is still the note that was open.
+ * the boards, galleries and tables as they are now, and the note's place if it is still the note that was open.
  */
 export function lastStateOf(view: WindowView): LastState | undefined {
   const known = view.note
@@ -333,11 +344,10 @@ export function lastStateOf(view: WindowView): LastState | undefined {
       return {
         ...before,
         note: { ...known, keyboard: false },
-        boards: view.boards,
-        galleries: view.galleries,
+        ...layoutsOf(view),
       }
     }
-    return before && { ...before, boards: view.boards, galleries: view.galleries }
+    return before && { ...before, ...layoutsOf(view) }
   }
   let note: NoteState | undefined
   if (view.selected !== undefined) {
@@ -359,8 +369,15 @@ export function lastStateOf(view: WindowView): LastState | undefined {
     ...(view.workspace !== undefined ? { workspace: view.workspace } : {}),
     ...(view.boards.length > 0 ? { boards: view.boards } : {}),
     ...(view.galleries.length > 0 ? { galleries: view.galleries } : {}),
+    ...(view.tables?.length ? { tables: view.tables } : {}),
   }
 }
+
+const layoutsOf = (view: WindowView) => ({
+  boards: view.boards,
+  galleries: view.galleries,
+  ...(view.tables?.length ? { tables: view.tables } : {}),
+})
 
 export function clampSelection(selection: SelectionState, length: number): SelectionState {
   return {

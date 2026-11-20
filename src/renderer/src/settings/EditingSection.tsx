@@ -57,6 +57,7 @@ const PASTE_URL_LABELS: Readonly<Record<PasteUrlStyle, MessageKey>> = {
 }
 
 type Flag =
+  | 'vimMode'
   | 'toolbar'
   | 'lineNumbers'
   | 'highlightActiveLine'
@@ -69,6 +70,7 @@ type Flag =
   | 'highlightTrailingWhitespace'
 
 const FLAGS: Readonly<Record<Flag, { label: MessageKey; hint: MessageKey }>> = {
+  vimMode: { label: 'editorSettings.vimMode', hint: 'editorSettings.vimModeHint' },
   toolbar: { label: 'editorSettings.toolbar', hint: 'editorSettings.toolbarHint' },
   lineNumbers: { label: 'editorSettings.lineNumbers', hint: 'editorSettings.lineNumbersHint' },
   highlightActiveLine: {
@@ -145,6 +147,7 @@ export function EditingSection() {
       ) : null}
       <SettingsSection title="editorSettings.interface">
         {flag('toolbar')}
+        {flag('vimMode')}
         {flag('lineNumbers')}
         {flag('highlightActiveLine')}
         <Setting

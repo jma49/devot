@@ -28,6 +28,7 @@ import type {
   StorageAdapter,
   TagRecord,
 } from '../../../core'
+import { MAX_HEAD_CHARS } from '../../../core/storage'
 import { checkUpload, fileUri, type FileMeta } from '../../../core/files'
 import { noteLinks } from '../../../core/links'
 import { checkNote } from '../../../core/noteLimits'
@@ -260,6 +261,14 @@ export const memoryStorage: StorageAdapter = {
       return n && n.purgedAt === undefined ? [{ id, title: n.title, bodyMd: n.bodyMd }] : []
     })
   },
+  async getHeads(ids) {
+    return ids.flatMap((id) => {
+      const n = storedNote(id)
+      return n && n.purgedAt === undefined && n.bodyMd.startsWith('---')
+        ? [{ id, head: [...n.bodyMd].slice(0, MAX_HEAD_CHARS).join('') }]
+        : []
+    })
+  },
   async searchNotes(query, limit) {
     const live = await memoryStorage.listNotes()
     const stored = new Map(read<Stored>(NOTES).map((n) => [n.id, n]))
@@ -409,6 +418,19 @@ export const memoryStorage: StorageAdapter = {
     localStorage.setItem(FILES, JSON.stringify(files))
     const revisions = read<StoredRevision>(REVISIONS).filter((r) => r.noteId !== id)
     localStorage.setItem(REVISIONS, JSON.stringify(revisions))
+  },
+  async purgeNotes(ids, at, hlc) {
+    const keys = [NOTES, NOTE_TAGS, NOTE_DRAWINGS, AGENT_WRITES, FILES, REVISIONS]
+    const before = keys.map((key) => [key, localStorage.getItem(key)] as const)
+    try {
+      for (const id of ids) await memoryStorage.purgeNote(id, at, hlc)
+    } catch (error) {
+      for (const [key, value] of before) {
+        if (value === null) localStorage.removeItem(key)
+        else localStorage.setItem(key, value)
+      }
+      throw error
+    }
   },
   async putRevision(revision) {
     failWith(FAIL_REVISIONS)

@@ -254,6 +254,7 @@ export function HttpApiSection() {
                 spellCheck={false}
                 autoComplete="off"
                 aria-label={t('browserExtensions.origin')}
+                placeholder={t('browserExtensions.placeholder')}
                 onChange={(event) => setOriginDraft(event.currentTarget.value)}
               />
               <button

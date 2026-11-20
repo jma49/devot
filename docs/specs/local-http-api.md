@@ -10,7 +10,7 @@ Every request passes these guards before anything reaches the notes:
 
 - **Where it listens:** `127.0.0.1` only, on the port in Settings (27484 by default; 1024 to 65535), never on another interface.
   The settings are `<app data>/http-api.json` (`enabled`, `port`, `scope`, `extensionOrigins`): on this device only, never synced, never in backups.
-  Browser extensions in Settings accepts up to eight origins, defaulting to none; Rust rejects invalid additions with `E_HTTP_API_ORIGINS_INVALID`.
+  Browser Extensions in Settings accepts up to eight origins, defaulting to none; Rust rejects invalid additions with `E_HTTP_API_ORIGINS_INVALID`.
   Reading settings drops invalid entries, removes duplicates and keeps the first eight valid origins.
   A port another program holds leaves it on but not listening, and Settings says why (`E_HTTP_API_PORT_IN_USE`); the next change, or the next launch, tries again.
   It starts at launch when on (off the launch's thread, since it reads the keychain) and stops when turned off; a request already being answered finishes.

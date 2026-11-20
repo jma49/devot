@@ -230,6 +230,7 @@ describe('lists and search read covering indexes', () => {
     expect(words(statement('GRAPH_NOTES_SQL'))).toBe(words(LIST_SQL.graphNotes))
     expect(words(statement('NOTE_SUMMARIES_SQL'))).toBe(words(LIST_SQL.summaries))
     expect(words(statement('NOTE_BODIES_SQL'))).toBe(words(LIST_SQL.bodies))
+    expect(words(statement('NOTE_HEADS_SQL'))).toBe(words(LIST_SQL.heads))
   })
 
   it('searches live notes in the list index: a ranked search joins its matches to it', () => {

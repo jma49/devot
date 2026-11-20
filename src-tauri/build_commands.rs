@@ -32,6 +32,7 @@ const NOTES: &[&str] = &[
     "note_get",
     "note_open",
     "notes_bodies",
+    "notes_heads",
     "notes_summaries",
     "note_put",
     "note_put_meta",
@@ -61,6 +62,7 @@ const NOTES: &[&str] = &[
     "note_link_graph",
     "semantic_search",
     "semantic_status",
+    "notes_purge",
 ];
 
 /// Revisions, activity, agent writes and usage.
@@ -213,6 +215,7 @@ const SYNC: &[&str] = &[
     "sync_file_data",
     "sync_file_put",
     "sync_file_delete",
+    "sync_purges_compact",
 ];
 
 /// AI providers, AI access, MCP and the local HTTP API.
