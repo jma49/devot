@@ -94,7 +94,13 @@ function tidy(page: Document, pageUrl: string): void {
     if (!named) continue
     code.className = `language-${named.toLowerCase()}`
     const label = pre.previousElementSibling
-    if (label?.textContent?.trim().toLowerCase() === named.toLowerCase()) label.remove()
+    if (
+      label?.matches('div,span,p') &&
+      !label.matches('[role="heading"]') &&
+      !label.querySelector('h1,h2,h3,h4,h5,h6,[role="heading"]') &&
+      label.textContent?.trim().toLowerCase() === named.toLowerCase()
+    )
+      label.remove()
   }
 }
 

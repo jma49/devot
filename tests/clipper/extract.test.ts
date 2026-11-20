@@ -8,6 +8,14 @@ const prose =
     12,
   )
 
+it.each([2, 3, 4, 5, 6])('keeps a language-named h%s before its code block', (level) => {
+  document.head.innerHTML = '<title>Expedition</title>'
+  document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}</p><h${level}>Python</h${level}><pre><code class="language-python">print("hello")</code></pre><p>${prose}</p></article>`
+  const { markdown } = extract(document, url, 'article')
+  expect(markdown).toContain(`${'#'.repeat(level)} Python`)
+  expect(markdown).toContain('```python\nprint("hello")\n```')
+})
+
 it('removes heading controls without removing ordinary edit links', () => {
   document.head.innerHTML = ''
   document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}</p><div><a href="/edit">[edit]</a><h2>History<span class="mw-editsection"><a href="/edit">[edit]</a></span><button>Change</button><span role="button">Collapse</span><span aria-hidden="true">Hidden</span></h2><a href="/edit">[edit]</a></div><h3>Details <a href="/edit">edit</a></h3><p>${prose}<a href="/edit">edit</a></p></article>`
