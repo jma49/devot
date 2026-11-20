@@ -77,4 +77,15 @@ describe('memory storage note reads', () => {
     expect(again?.title).toBe('Note 1')
     expect(again?.ydoc[0]).toBe(0)
   })
+
+  it('purges a batch together and restores it if any note is live', async () => {
+    await storage.putNote(record(1, { deletedAt: 5, deletedHlc: HLC }))
+    await storage.putNote(record(2))
+    await expect(storage.purgeNotes([id(1), id(2)], 6, HLC)).rejects.toThrow('E_NOTE_NOT_TRASHED')
+    expect((await storage.getNote(id(1), { trashed: true }))?.bodyMd).toBe('Body 1')
+    await storage.putNote(record(2, { deletedAt: 5, deletedHlc: HLC, bodyVersion: 1 }))
+    await storage.purgeNotes([id(1), id(2)], 6, HLC)
+    expect(await storage.listTrash()).toEqual([])
+    await storage.purgeNotes([], 7, HLC)
+  })
 })

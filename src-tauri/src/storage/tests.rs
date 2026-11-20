@@ -2239,7 +2239,7 @@ fn a_write_rewrites_the_search_index_only_when_title_or_markdown_changes() {
     assert_eq!((found(&store, "relay"), found(&store, "snapshot")), (0, 1));
     store
         .conn
-        .execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
+        .execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')")
         .unwrap();
 }
 
@@ -3000,6 +3000,98 @@ fn a_snapshot_of_a_missing_database_fails() {
     assert!(!dir.path().join("s.sqlite").exists());
 }
 
+#[test]
+fn a_snapshot_compacts_committed_sync_purges_before_copying() {
+    let (dir, mut store) = temp_store();
+    let secret = "qxjzvwkpfyb";
+    let mut doomed = note("doomed", "", 10);
+    doomed.body_md = secret.repeat(400);
+    store.put_note(&doomed, &[]).unwrap();
+    store.put_note(&note("kept", "Retained", 10), &[]).unwrap();
+    store.catch_up_search_index(None).unwrap();
+    store
+        .sync_purge_deferred("doomed", 20, "0000000000000020-0000-remote")
+        .unwrap();
+    assert!(super::purge::sync_purges_pending(&store.conn).unwrap());
+    let backup = dir.path().join("snapshot.sqlite");
+    super::snapshot(&dir.path().join("devot.sqlite"), &backup).unwrap();
+    assert!(!super::purge::sync_purges_pending(&store.conn).unwrap());
+    let copy = open_read_only(&backup).unwrap();
+    assert_eq!(
+        copy.query_row("SELECT title FROM notes WHERE id = 'kept'", [], |row| {
+            row.get::<_, String>(0)
+        })
+        .unwrap(),
+        "Retained"
+    );
+    drop(copy);
+    let bytes = std::fs::read(&backup).unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        assert!(!bytes.windows(3).any(|window| window == trigram));
+    }
+}
+
+#[test]
+fn a_failed_pending_compaction_prevents_a_snapshot_and_keeps_the_marker() {
+    let (dir, mut store) = temp_store();
+    store
+        .put_note(&note("doomed", "Confidential", 10), &[])
+        .unwrap();
+    store.catch_up_search_index(None).unwrap();
+    store
+        .sync_purge_deferred("doomed", 20, "0000000000000020-0000-remote")
+        .unwrap();
+    store
+        .conn
+        .execute_batch(
+            "CREATE TRIGGER refuse_compaction BEFORE DELETE ON sync_state
+        WHEN old.key = 'searchCompactionPending' BEGIN SELECT RAISE(ABORT, 'E_TEST'); END",
+        )
+        .unwrap();
+    let backup = dir.path().join("snapshot.sqlite");
+    assert_eq!(
+        super::snapshot(&dir.path().join("devot.sqlite"), &backup)
+            .unwrap_err()
+            .code(),
+        "E_STORAGE_SNAPSHOT_CHECK_FAILED"
+    );
+    assert!(super::purge::sync_purges_pending(&store.conn).unwrap());
+    assert!(!backup.exists());
+}
+
+#[test]
+fn snapshot_compaction_preserves_only_locks_and_interrupts() {
+    use rusqlite::ffi;
+    let error =
+        |code| StorageError::Sqlite(rusqlite::Error::SqliteFailure(ffi::Error::new(code), None));
+    for code in [
+        ffi::SQLITE_CORRUPT,
+        ffi::SQLITE_NOTADB,
+        ffi::SQLITE_FULL,
+        ffi::SQLITE_IOERR,
+        ffi::SQLITE_READONLY,
+        ffi::SQLITE_CONSTRAINT,
+        ffi::SQLITE_ERROR,
+    ] {
+        assert!(matches!(
+            super::open::snapshot_compaction_error(error(code)),
+            StorageError::SnapshotCheckFailed
+        ));
+    }
+    for code in [ffi::SQLITE_BUSY, ffi::SQLITE_LOCKED, ffi::SQLITE_INTERRUPT] {
+        let StorageError::Sqlite(rusqlite::Error::SqliteFailure(actual, _)) =
+            super::open::snapshot_compaction_error(error(code))
+        else {
+            panic!("not a SQLite error")
+        };
+        assert_eq!(actual.extended_code, code);
+    }
+    assert!(matches!(
+        super::open::snapshot_compaction_error(StorageError::Refused("E_TEST")),
+        StorageError::SnapshotCheckFailed
+    ));
+}
+
 /// Child half of the crash-safety test: writes notes until killed and
 /// reports each one only after its transaction committed.
 #[test]
@@ -3420,10 +3512,27 @@ fn rebuilding_the_search_index_restores_search() {
     assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
     store
         .conn
-        .execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
+        .execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')")
         .unwrap();
     assert_eq!(store.rebuild_search_index(|| false).unwrap(), 2);
     assert_eq!(found(&store, "relay"), 1);
+}
+
+#[test]
+fn rebuilding_an_empty_or_only_purged_library_keeps_all_index_rows() {
+    let (_dir, mut store) = temp_store();
+    assert_eq!(store.rebuild_search_index(|| false).unwrap(), 0);
+    store.put_note(&note("gone", "Gone", 10), &[]).unwrap();
+    store
+        .trash_and_purge("gone", 20, "0000000000020-0000-test")
+        .unwrap();
+    assert_eq!(store.rebuild_search_index(|| false).unwrap(), 0);
+    let indexed: i64 = store
+        .conn
+        .query_row("SELECT count(*) FROM notes_fts", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(indexed, 1);
+    check_search_index(&store.conn);
 }
 
 #[test]
@@ -3638,6 +3747,13 @@ fn a_purged_note_leaves_no_text_in_the_file() {
             .put_revision(&version("r1", "a", 11, secret.as_bytes()))
             .unwrap();
         store.put_note(&note("b", "Kept", 10), &[]).unwrap();
+        assert_eq!(
+            store
+                .search_notes(&words(&["qxjzvwkpfyb"]), 10)
+                .unwrap()
+                .len(),
+            1
+        );
         store
             .trash_and_purge("a", 30, "0000000000000030-0000-a")
             .unwrap();
@@ -3653,6 +3769,29 @@ fn a_purged_note_leaves_no_text_in_the_file() {
             secure, 0,
             "only a purge takes text out of the index's pages"
         );
+        assert!(
+            store
+                .search_notes(&words(&["qxjzvwkpfyb"]), 10)
+                .unwrap()
+                .is_empty()
+        );
+        store
+            .conn
+            .execute_batch(
+                "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+            )
+            .unwrap();
+        for trigram in b"qxjzvwkpfyb".windows(3) {
+            let count: i64 = store
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM purge_vocab WHERE term = ?1",
+                    [std::str::from_utf8(trigram).unwrap()],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 0, "the purged trigram is still in the vocabulary");
+        }
     }
     let bytes = std::fs::read(&path).unwrap();
     let found = bytes
@@ -3669,6 +3808,260 @@ fn a_purged_note_leaves_no_text_in_the_file() {
         "the search index keeps {} trigrams",
         left.len()
     );
+}
+
+#[test]
+fn batch_purge_rolls_back_on_live_notes_and_database_errors() {
+    let (_dir, mut store) = temp_store();
+    store
+        .put_note(&in_trash(note("a", "Orchard", 10), 20), &[])
+        .unwrap();
+    store.put_note(&note("b", "Snapshot", 10), &[]).unwrap();
+    assert!(matches!(
+        store.purge_notes(&["a".into(), "b".into()], 30, "0000000000000030-0000-a"),
+        Err(StorageError::Refused("E_NOTE_NOT_TRASHED"))
+    ));
+    assert_eq!(store.list_trash().unwrap().len(), 1);
+    let body: String = store
+        .conn
+        .query_row("SELECT body_md FROM notes WHERE id = 'a'", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(body, "# Orchard\n");
+    store
+        .put_note(&in_trash(based_on(1, note("b", "Snapshot", 21)), 22), &[])
+        .unwrap();
+    store.conn.execute_batch("CREATE TRIGGER refuse_purge BEFORE UPDATE OF purged_at ON notes WHEN new.id = 'b' BEGIN SELECT RAISE(ABORT, 'E_TEST_PURGE'); END").unwrap();
+    assert!(
+        store
+            .purge_notes(&["a".into(), "b".into()], 30, "0000000000000030-0000-a")
+            .is_err()
+    );
+    assert_eq!(store.list_trash().unwrap().len(), 2);
+    store
+        .conn
+        .execute_batch("DROP TRIGGER refuse_purge")
+        .unwrap();
+    store
+        .purge_notes(
+            &["missing".into(), "a".into(), "a".into(), "b".into()],
+            30,
+            "0000000000000030-0000-a",
+        )
+        .unwrap();
+    assert!(store.list_trash().unwrap().is_empty());
+    store
+        .purge_notes(&[], 31, "0000000000000031-0000-a")
+        .unwrap();
+}
+
+#[test]
+fn purging_a_cleared_note_after_another_sync_compaction_removes_old_postings() {
+    let (dir, mut store) = temp_store();
+    let secret = "qxjzvwkpfyb";
+    let mut draft = note("draft", "", 10);
+    draft.body_md = secret.repeat(400);
+    store.put_note(&draft, &[]).unwrap();
+    store
+        .put_note(&note("other", "Temporary", 10), &[])
+        .unwrap();
+    store.catch_up_search_index(None).unwrap();
+    store
+        .conn
+        .execute("UPDATE notes SET body_md = '' WHERE id = 'draft'", [])
+        .unwrap();
+    store
+        .sync_purge("other", 20, "0000000000000020-0000-remote")
+        .unwrap();
+    store.catch_up_search_index(None).unwrap();
+    store
+        .purge_note("draft", 30, "0000000000000030-0000-test")
+        .unwrap();
+    store
+        .conn
+        .execute_batch(
+            "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+        )
+        .unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        let count: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM purge_vocab WHERE term = ?1",
+                [std::str::from_utf8(trigram).unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+    drop(store);
+    let bytes = std::fs::read(dir.path().join("devot.sqlite")).unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        assert!(!bytes.windows(3).any(|w| w == trigram));
+    }
+}
+
+#[test]
+fn synced_purges_compact_together_and_recover_after_reopen() {
+    for reopen in [false, true] {
+        let (dir, mut store) = temp_store();
+        let secret = "qxjzvwkpfyb";
+        for id in ["a", "b"] {
+            let mut row = note(id, "Gone", 10);
+            row.body_md = secret.repeat(400);
+            store.put_note(&row, &[]).unwrap();
+        }
+        store.put_note(&note("kept", "Orchard", 10), &[]).unwrap();
+        store.catch_up_search_index(None).unwrap();
+        for id in ["a", "b"] {
+            store
+                .sync_purge_deferred(id, 30, "0000000000000030-0000-remote")
+                .unwrap();
+        }
+        assert_eq!(
+            store
+                .sync_state()
+                .unwrap()
+                .iter()
+                .find_map(
+                    |(key, value)| (key == "searchCompactionPending").then_some(value.as_str())
+                ),
+            Some("1")
+        );
+        if reopen {
+            drop(store);
+            store = Store::open(&dir.path().join("devot.sqlite")).unwrap();
+        } else {
+            store.conn.execute_batch("CREATE TRIGGER refuse_compaction BEFORE DELETE ON sync_state WHEN old.key = 'searchCompactionPending' BEGIN SELECT RAISE(ABORT, 'E_TEST_COMPACT'); END").unwrap();
+            assert!(store.compact_sync_purges().is_err());
+            assert!(
+                store
+                    .sync_state()
+                    .unwrap()
+                    .iter()
+                    .any(|(key, _)| key == "searchCompactionPending")
+            );
+            store
+                .conn
+                .execute_batch("DROP TRIGGER refuse_compaction")
+                .unwrap();
+            store.compact_sync_purges().unwrap();
+        }
+        assert!(
+            !store
+                .sync_state()
+                .unwrap()
+                .iter()
+                .any(|(key, _)| key == "searchCompactionPending")
+        );
+        store.compact_sync_purges().unwrap();
+        store
+            .conn
+            .execute_batch(
+                "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+            )
+            .unwrap();
+        let matches: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM notes_fts WHERE notes_fts MATCH ?1",
+                [secret],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(matches, 0);
+        for trigram in secret.as_bytes().windows(3) {
+            let count: i64 = store
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM purge_vocab WHERE term = ?1",
+                    [std::str::from_utf8(trigram).unwrap()],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 0);
+        }
+        assert_eq!(
+            store.search_notes(&words(&["orchard"]), 10).unwrap().len(),
+            1
+        );
+        drop(store);
+        let bytes = std::fs::read(dir.path().join("devot.sqlite")).unwrap();
+        for trigram in secret.as_bytes().windows(3) {
+            assert!(!bytes.windows(3).any(|w| w == trigram));
+        }
+    }
+}
+
+#[test]
+fn batch_purge_removes_deleted_versions_and_trigrams_from_the_file() {
+    let (dir, mut store) = temp_store();
+    let secret = "qxjzvwkpfyb";
+    for id in ["a", "b"] {
+        let mut gone = note(id, "Gone", 10);
+        gone.body_md = secret.repeat(400);
+        gone.ydoc = secret.repeat(400).into_bytes();
+        store.put_note(&gone, &[]).unwrap();
+    }
+    store.put_note(&note("kept", "Orchard", 10), &[]).unwrap();
+    assert_eq!(store.search_notes(&words(&[secret]), 10).unwrap().len(), 2);
+    store
+        .conn
+        .execute("UPDATE notes SET body_md = 'snapshot' WHERE id = 'a'", [])
+        .unwrap();
+    assert_eq!(store.search_notes(&words(&[secret]), 10).unwrap().len(), 1);
+    store
+        .conn
+        .execute(
+            "UPDATE notes SET deleted_at = 20 WHERE id IN ('a', 'b')",
+            [],
+        )
+        .unwrap();
+    store
+        .purge_notes(&["a".into(), "b".into()], 30, "0000000000000030-0000-a")
+        .unwrap();
+    assert!(
+        store
+            .search_notes(&words(&[secret]), 10)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        store.search_notes(&words(&["orchard"]), 10).unwrap().len(),
+        1
+    );
+    store
+        .conn
+        .execute_batch(
+            "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+        )
+        .unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        let count: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM purge_vocab WHERE term = ?1",
+                [std::str::from_utf8(trigram).unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+    let secure: i64 = store
+        .conn
+        .query_row(
+            "SELECT v FROM notes_fts_config WHERE k = 'secure-delete'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(secure, 0);
+    drop(store);
+    let bytes = std::fs::read(dir.path().join("devot.sqlite")).unwrap();
+    for trigram in secret.as_bytes().windows(3) {
+        assert!(!bytes.windows(3).any(|window| window == trigram));
+    }
 }
 
 #[test]
@@ -4076,7 +4469,7 @@ fn index_blocks(conn: &Connection) -> Vec<(i64, Vec<u8>)> {
 }
 
 fn check_search_index(conn: &Connection) {
-    conn.execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
+    conn.execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')")
         .unwrap();
 }
 
@@ -4245,6 +4638,39 @@ fn open_at_schema(path: &Path, version: usize) -> Connection {
 const BEFORE_CATCH_UP: usize = 28;
 
 #[test]
+fn contentless_migration_reindexes_v31_notes_and_stale_rows() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    {
+        let conn = open_at_schema(&path, 31);
+        conn.execute_batch(
+            "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at)
+             VALUES ('old', 'Original', '', 'orchard', x'00', 1, 1),
+                    ('edited', 'Edited', '', 'obsolete', x'00', 1, 1),
+                    ('deleted', 'Deleted', '', 'vanished', x'00', 1, 1);
+             INSERT INTO notes_fts (rowid, title, body_md) SELECT rowid, title, body_md FROM notes;
+             DELETE FROM search_stale;
+             UPDATE notes SET body_md = 'snapshot' WHERE id = 'edited';
+             DELETE FROM notes WHERE id = 'deleted';",
+        )
+        .unwrap();
+    }
+    let store = Store::open(&path).unwrap();
+    assert_eq!(search_stale(&store), 0);
+    for (term, id) in [
+        ("orchard", Some("old")),
+        ("snapshot", Some("edited")),
+        ("obsolete", None),
+        ("vanished", None),
+    ] {
+        let found = store.search_notes(&words(&[term]), 10).unwrap();
+        assert_eq!(found.first().map(|n| n.id.as_str()), id);
+        assert_eq!(found.len(), usize::from(id.is_some()));
+    }
+    check_search_index(&store.conn);
+}
+
+#[test]
 fn the_catch_up_migration_keeps_the_index_of_an_existing_library() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");
@@ -4263,15 +4689,16 @@ fn the_catch_up_migration_keeps_the_index_of_an_existing_library() {
             [],
         )
         .unwrap();
-        index_blocks(&conn)
+        let indexed = index_blocks(&conn);
+        conn.execute_batch(MIGRATIONS[BEFORE_CATCH_UP]).unwrap();
+        assert_eq!(index_blocks(&conn), indexed, "v29 re-indexes nothing");
+        conn.execute_batch(MIGRATIONS[BEFORE_CATCH_UP]).unwrap();
+        assert_eq!(index_blocks(&conn), indexed, "v29 is idempotent");
+        indexed
     };
     let store = Store::open(&path).unwrap();
     assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
-    assert_eq!(
-        index_blocks(&store.conn),
-        indexed,
-        "the upgrade re-indexes nothing"
-    );
+    assert!(!indexed.is_empty());
     assert_eq!(search_stale(&store), 0);
     check_search_index(&store.conn);
     let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
@@ -4284,11 +4711,6 @@ fn the_catch_up_migration_keeps_the_index_of_an_existing_library() {
         [1, 1, 1]
     );
 
-    store
-        .conn
-        .execute_batch(MIGRATIONS[BEFORE_CATCH_UP])
-        .expect("running the migration again changes nothing");
-    assert_eq!(index_blocks(&store.conn), indexed);
     drop(store);
     let store = Store::open(&path).unwrap();
     assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);

@@ -540,13 +540,12 @@ pub(super) fn search_sql_within(
     (sql, values)
 }
 
-// Re-indexes one stale note (`@rowid`): takes out the text the index holds for it, puts in what
-// the note holds now. A note that is not stale is indexed as it is and left alone: inserting its
-// row again would count it twice. The same statements as the TypeScript adapter's
+// Re-indexes one stale note (`@rowid`) by rowid, without tokenizing its old text.
+// A note that is not stale is left alone. The same statements as the TypeScript adapter's
 // (tests/support/sqlite-adapter.ts, CATCH_UP_SQL; a test compares them).
 pub(super) const CATCH_UP_SQL: [&str; 3] = [
-    "INSERT INTO notes_fts (notes_fts, rowid, title, body_md)
-       SELECT 'delete', rowid, title, body_md FROM search_stale WHERE rowid = @rowid AND title IS NOT NULL",
+    "DELETE FROM notes_fts WHERE rowid = @rowid
+          AND EXISTS (SELECT 1 FROM search_stale WHERE rowid = @rowid)",
     "INSERT INTO notes_fts (rowid, title, body_md)
        SELECT rowid, title, body_md FROM notes WHERE rowid = @rowid
           AND EXISTS (SELECT 1 FROM search_stale WHERE rowid = @rowid)",
@@ -581,10 +580,22 @@ const REBUILD_STOP_STEPS: c_int = 100;
 
 fn rebuild_checked(conn: &Connection) -> rusqlite::Result<u32> {
     conn.execute_batch(
-        "INSERT INTO notes_fts (notes_fts) VALUES ('rebuild');
+        "INSERT INTO notes_fts (notes_fts) VALUES ('delete-all');
+         INSERT INTO notes_fts (rowid, title, body_md) SELECT rowid, title, body_md FROM notes;
          DELETE FROM search_stale;
-         INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1);",
+         INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check');",
     )?;
+    let counts_match: bool = conn.query_row(
+        "SELECT (SELECT count(*) FROM notes_fts) = (SELECT count(*) FROM notes)",
+        [],
+        |row| row.get(0),
+    )?;
+    if !counts_match {
+        return Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
+            None,
+        ));
+    }
     conn.query_row(
         "SELECT count(*) FROM notes WHERE purged_at IS NULL",
         [],
@@ -593,7 +604,7 @@ fn rebuild_checked(conn: &Connection) -> rusqlite::Result<u32> {
 }
 
 impl Store {
-    /// FTS5 reports no progress, so it is one statement, then checked against the table, all in one
+    /// Replaces the contentless index and checks its integrity and row count, all in one
     /// transaction: a failed check rolls the rebuild back, and so does `stop` answering true. SQLite
     /// asks it from a progress handler: `sqlite3_interrupt` would be lost between two statements
     /// and could stop the next job's statement instead.

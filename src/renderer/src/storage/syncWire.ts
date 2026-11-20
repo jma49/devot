@@ -72,7 +72,8 @@ export function fromWireSync(wire: WireSync): SyncStore {
     syncState: () => wire.syncState(),
     syncSetState: (key, value) => wire.syncSetState(key, value),
     syncReset: () => wire.syncReset(),
-    syncPurge: (id, at, hlc) => wire.syncPurge(id, at, hlc),
+    syncPurge: (id, at, hlc, deferCompaction) => wire.syncPurge(id, at, hlc, deferCompaction),
+    syncCompactPurges: () => wire.syncCompactPurges(),
     async syncFileData(id) {
       const data = await wire.syncFileData(id)
       return data === null ? null : fromBase64(data)

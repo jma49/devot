@@ -190,6 +190,7 @@ export function fromWire(wire: WireStorage): StorageAdapter {
     listLinkGraph: (excludeBookId, limit) => wire.listLinkGraph(excludeBookId, limit),
     listTrash: () => wire.listTrash(),
     purgeNote: (id, at, hlc) => wire.purgeNote(id, at, hlc),
+    purgeNotes: (ids, at, hlc) => wire.purgeNotes(ids, at, hlc),
     async putNote(note) {
       const links = noteLinks(note.bodyMd)
       checkNote(note, links)
