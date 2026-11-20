@@ -23,10 +23,13 @@ interface Options {
   extracted?: { value?: { title: string; markdown: string }; error?: string }
   saveUpdates?: unknown[]
   stored?: Record<string, unknown>
+  navigated?: boolean
 }
 
 function stub(options: Options = {}) {
   const posted: unknown[] = []
+  const injected: string[] = []
+  const firstExtract = options.navigated ? [{ missing: true }] : []
   const stored: Record<string, unknown> = { ...options.stored }
   const update = vi.fn<(id: number, change: { url: string }) => Promise<unknown>>(async () => ({}))
   const openOptionsPage = vi.fn<() => Promise<void>>(async () => {})
@@ -55,13 +58,14 @@ function stub(options: Options = {}) {
     scripting: {
       executeScript: async (request: { files?: string[]; args?: unknown[] }) =>
         request.files
-          ? []
+          ? (injected.push(request.files[0]!), [])
           : request.args
             ? [
                 {
-                  result: options.extracted ?? {
-                    value: { title: 'Lighthouse', markdown: 'Body' },
-                  },
+                  result: firstExtract.shift() ??
+                    options.extracted ?? {
+                      value: { title: 'Lighthouse', markdown: 'Body' },
+                    },
                 },
               ]
             : [
@@ -102,7 +106,7 @@ function stub(options: Options = {}) {
       },
     },
   })
-  return { posted, stored, update, openOptionsPage }
+  return { posted, stored, update, openOptionsPage, injected }
 }
 
 const text = (id: string) => document.getElementById(id)?.textContent
@@ -207,4 +211,14 @@ it('turns a refused save into the setup message', async () => {
   await vi.waitFor(() => expect(visible('clip')).toBe(true))
   document.querySelector<HTMLFormElement>('#clip')!.requestSubmit()
   await vi.waitFor(() => expect(text('message-text')).toBe('E_HTTP_READ_ONLY'))
+})
+
+it('injects the extractor once, and again only when the page lost it', async () => {
+  for (const navigated of [false, true]) {
+    const { injected, posted } = await open({ navigated })
+    await vi.waitFor(() => expect(visible('clip')).toBe(true))
+    document.querySelector<HTMLFormElement>('#clip')!.requestSubmit()
+    await vi.waitFor(() => expect(posted).toHaveLength(1))
+    expect(injected).toEqual(navigated ? ['content.js', 'content.js'] : ['content.js'])
+  }
 })

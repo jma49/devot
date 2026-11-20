@@ -116,10 +116,8 @@ function render(next: View): void {
       })
       break
     case 'ready':
-      if (next.problem) {
-        field('problem-text').textContent = message(next.problem)
-        announce(message(next.problem))
-      }
+      field('problem-text').textContent = next.problem ? message(next.problem) : ''
+      announce(next.problem ? message(next.problem) : '')
       break
     case 'saving': {
       const bar = field<HTMLProgressElement>('progress-bar')
@@ -197,31 +195,35 @@ function saveThroughBackground(request: SaveRequest): Promise<Saved> {
 }
 
 async function extract(mode: Mode): Promise<Clip> {
-  if (!tab?.id) throw new Error('E_CLIP_URL')
-  await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    files: ['content.js'],
-  })
-  const [answer] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: (selectedMode: Mode) => {
-      try {
+  const tabId = tab?.id
+  if (!tabId) throw new Error('E_CLIP_URL')
+  const run = async () => {
+    const [answer] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (selectedMode: Mode) => {
         const extractor = (
-          globalThis as typeof globalThis & {
-            devotExtract: (mode: Mode) => Clip
-          }
+          globalThis as typeof globalThis & { devotExtract?: (mode: Mode) => Clip }
         ).devotExtract
-        return { value: extractor(selectedMode) }
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : 'E_CLIP_EMPTY',
+        if (!extractor) return { missing: true }
+        try {
+          return { value: extractor(selectedMode) }
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : 'E_CLIP_EMPTY' }
         }
-      }
-    },
-    args: [mode],
-  })
-  if (!answer?.result?.value) throw new Error(answer?.result?.error || 'E_CLIP_EMPTY')
-  return answer.result.value
+      },
+      args: [mode],
+    })
+    return answer?.result
+  }
+  // The script injected when the popup opened is gone if the page navigated since.
+  let result = await run()
+  if (result && 'missing' in result) {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] })
+    result = await run()
+  }
+  if (!result || !('value' in result) || !result.value)
+    throw new Error((result && 'error' in result && result.error) || 'E_CLIP_EMPTY')
+  return result.value
 }
 
 async function clip(): Promise<void> {

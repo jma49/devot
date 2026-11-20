@@ -22,6 +22,7 @@ for (const browser of ['chrome', 'firefox']) {
     ],
     outdir: outdir.pathname,
     bundle: true,
+    minify: true,
     format: 'iife',
     platform: 'browser',
     conditions: ['worker'],
