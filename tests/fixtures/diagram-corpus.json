@@ -1,0 +1,64 @@
+[
+  {
+    "name": "flowchart",
+    "kind": "mermaid",
+    "source": "flowchart LR\n  A[Idea] --> B[Draft]\n  B -->|changes| C[Review]"
+  },
+  {
+    "name": "accessible-flowchart",
+    "kind": "mermaid",
+    "source": "flowchart TD\n  accTitle: Release steps\n  accDescr: Capture and review\n  A --> B"
+  },
+  {
+    "name": "sequence",
+    "kind": "mermaid",
+    "source": "sequenceDiagram\n  Alice->>Bob: Hello\n  Bob-->>Alice: Hi"
+  },
+  {
+    "name": "gantt",
+    "kind": "mermaid",
+    "source": "gantt\n  title Plan\n  dateFormat YYYY-MM-DD\n  section Design\n  Study :done, a1, 2026-01-01, 12d\n  Tokens :active, a2, 2026-01-13, 12d\n  section Build\n  Code :b1, 2026-01-25, 12d\n  Check :crit, b2, 2026-02-06, 12d\n  Old :crit, done, b3, 2026-02-18, 12d\n  Fix :crit, active, b4, 2026-03-02, 12d"
+  },
+  {
+    "name": "pie",
+    "kind": "mermaid",
+    "source": "pie title Week\n  \"Writing\" : 40\n  \"Reading\" : 30\n  \"Review\" : 20\n  \"Other\" : 10"
+  },
+  {
+    "name": "git",
+    "kind": "mermaid",
+    "source": "gitGraph\n  commit\n  branch develop\n  commit\n  checkout main\n  merge develop"
+  },
+  {
+    "name": "timeline",
+    "kind": "mermaid",
+    "source": "timeline\n  2025 : First : Second\n  2026 : Third"
+  },
+  {
+    "name": "mindmap",
+    "kind": "mermaid",
+    "source": "mindmap\n  root((Devot))\n    Notes\n      Tags\n    Sync"
+  },
+  {
+    "name": "journey",
+    "kind": "mermaid",
+    "source": "journey\n  section Capture\n    Open app: 5: Me\n  section Refine\n    Add diagram: 2: Me"
+  },
+  { "name": "class", "kind": "mermaid", "source": "classDiagram\n  class title" },
+  { "name": "state", "kind": "mermaid", "source": "stateDiagram-v2\n  title --> done" },
+  {
+    "name": "plantuml-sequence",
+    "kind": "plantuml",
+    "source": "@startuml\nAlice -> Bob: Hello\n@enduml"
+  },
+  {
+    "name": "plantuml-class",
+    "kind": "plantuml",
+    "source": "@startuml\nclass Note\nclass Tag\nNote --> Tag\n@enduml"
+  },
+  {
+    "name": "markmap",
+    "kind": "markmap",
+    "source": "# Notes\n## Ideas\n- Capture\n## Tasks\n- Ship"
+  }
+]

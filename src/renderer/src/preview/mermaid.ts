@@ -9,9 +9,10 @@
 // inline style is ever parsed. Scripts, event handlers, foreign objects,
 // external links and CSS that would fetch are dropped.
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
+import { allowsSvgAttribute, allowsSvgElement } from '../../../core/diagramSvg'
 import { format as fill, t } from '../i18n'
 import { dark, light, sizes, type ThemeColor } from '../theme/tokens'
-import { pointsElsewhere, withoutRemoteCss } from './diagram-css'
+import { withoutRemoteCss } from './diagram-css'
 import { FRAME_IDLE_MS, frameLifetime } from './frameLifetime'
 import type { IslandContent, IslandContext, PreviewIsland } from './islands'
 import { keptAnswers } from './kept'
@@ -30,21 +31,7 @@ import {
 import { diagramPalette, exportPalette, type DiagramPalette } from './mermaid-theme'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
-const XLINK_NS = 'http://www.w3.org/1999/xlink'
-// Animations can set an `href` after import, and `feImage` loads one; no engine draws them.
-const DROPPED = new Set([
-  'script',
-  'foreignObject',
-  'iframe',
-  'image',
-  'use',
-  'feImage',
-  'set',
-  'animate',
-  'animateMotion',
-  'animateTransform',
-  'discard',
-])
+const XML_NS = 'http://www.w3.org/XML/1998/namespace'
 
 /** Scripts only: without `allow-same-origin` the frame's origin is opaque. */
 export const MERMAID_FRAME_SANDBOX = 'allow-scripts'
@@ -246,22 +233,26 @@ export function importSvg(markup: string): { svg: SVGSVGElement; css: string } {
   const css: string[] = []
 
   const copy = (source: Element): Element | null => {
-    if (source.namespaceURI !== SVG_NS || DROPPED.has(source.localName)) return null
+    if (source.namespaceURI !== SVG_NS || !allowsSvgElement(source.localName)) return null
     if (source.localName === 'style') {
       css.push(withoutRemoteCss(source.textContent ?? ''))
       return null
     }
     const el = document.createElementNS(SVG_NS, source.localName)
     for (const attr of Array.from(source.attributes)) {
-      if (/^on/i.test(attr.localName)) continue
+      if (
+        !allowsSvgAttribute(
+          source.localName,
+          attr.name,
+          attr.localName === 'style' ? '' : attr.value,
+        )
+      )
+        continue
       if (attr.localName === 'style') {
         ;(el as SVGElement).style.cssText = withoutRemoteCss(attr.value)
         continue
       }
-      if (attr.localName === 'href' ? !attr.value.startsWith('#') : pointsElsewhere(attr.value))
-        continue
-      if (attr.namespaceURI === XLINK_NS)
-        el.setAttributeNS(XLINK_NS, `xlink:${attr.localName}`, attr.value)
+      if (attr.namespaceURI === XML_NS) el.setAttributeNS(XML_NS, attr.name, attr.value)
       else if (attr.namespaceURI === null) el.setAttribute(attr.localName, attr.value)
     }
     for (const child of Array.from(source.childNodes)) {
