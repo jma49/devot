@@ -85,6 +85,18 @@
     { "name": "a minimum app version", "patch": { "minAppVersion": "1.1.7" } },
     { "name": "API version 2", "patch": { "apiVersion": 2 } },
     {
+      "name": "API version 3 import size",
+      "patch": {
+        "apiVersion": 3,
+        "permissions": ["import"],
+        "contributes": {
+          "importFormats": [
+            { "id": "large", "title": "Large", "extensions": ["enex"], "maxFileBytes": 104857600 }
+          ]
+        }
+      }
+    },
+    {
       "name": "notes.read from API version 2",
       "patch": { "apiVersion": 2, "permissions": ["notes.read"], "contributes": null }
     },
@@ -461,10 +473,49 @@
     },
     {
       "name": "an API version newer than this Devot speaks",
-      "patch": { "apiVersion": 3 },
+      "patch": { "apiVersion": 4 },
       "code": "E_PLUGIN_API_TOO_NEW"
     },
     { "name": "API version 0", "patch": { "apiVersion": 0 }, "code": "E_PLUGIN_API_VERSION" },
+    {
+      "name": "import size before API 3",
+      "patch": {
+        "apiVersion": 2,
+        "permissions": ["import"],
+        "contributes": {
+          "importFormats": [
+            { "id": "large", "title": "Large", "extensions": ["enex"], "maxFileBytes": 104857600 }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "import size over maximum",
+      "patch": {
+        "apiVersion": 3,
+        "permissions": ["import"],
+        "contributes": {
+          "importFormats": [
+            { "id": "large", "title": "Large", "extensions": ["enex"], "maxFileBytes": 104857601 }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "zero import size",
+      "patch": {
+        "apiVersion": 3,
+        "permissions": ["import"],
+        "contributes": {
+          "importFormats": [
+            { "id": "large", "title": "Large", "extensions": ["enex"], "maxFileBytes": 0 }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
     {
       "name": "a fractional API version",
       "patch": { "apiVersion": 1.5 },

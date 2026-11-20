@@ -14,8 +14,6 @@ import type {
   ExportSink,
   ExportTarget,
   HttpApiCall,
-  ImportScan,
-  ImportSource,
   NoteService,
   NoteStatus,
   SavedSearchService,
@@ -71,7 +69,6 @@ import { starterTemplates } from './starterTemplates'
 import type { WireSync, WireTransport } from './storage/syncWire'
 import { fromBase64, fromWire, toBase64, type WireStorage } from './storage/wire'
 import { forwardWorkerLogs, type WorkerLogMessage } from './workerLog'
-import { DEFAULT_CHOICES, type ImportChoices } from './importChoices'
 
 // The worker's own warnings, errors and uncaught failures go to the page,
 // which writes them to the local log (see workerLog.ts).
@@ -85,7 +82,7 @@ const logInfo = (code: string, ...ids: string[]) =>
 
 // What no launch needs before the first list loads on first use, so the worker's own script
 // parses before `init` answers (issue 742).
-const loadImport = () => Promise.all([import('../../core/import'), import('./importWorker')])
+const loadImport = () => import('./importWorker')
 const loadExport = () => import('../../core/export')
 const loadMirror = () => import('../../core/mirror')
 const loadHttpApi = () => Promise.all([import('../../core/ai'), import('../../core/httpApi')])
@@ -175,6 +172,17 @@ const requiredBooks = () => {
 const requiredTemplates = () => {
   if (!templates) throw new Error('E_CORE_NOT_READY')
   return templates
+}
+
+const importParts = () => {
+  if (!newId) throw new Error('E_CORE_NOT_READY')
+  return {
+    notes: required(),
+    books: requiredBooks(),
+    tags: requiredTags(),
+    newId,
+    files: mirrorStorage,
+  }
 }
 
 const coreApi = {
@@ -431,45 +439,16 @@ const coreApi = {
   setBookAiAccess: (id: string, on: boolean) => requiredBooks().setAiAccess(id, on),
   setBookIcon: (id: string, icon: string | null, color: TagColor | null) =>
     requiredBooks().setIcon(id, icon, color),
-  importMarkdown: (
-    scan: ImportScan,
-    destination: string | null,
-    source: ImportSource,
-    onProgress: (done: number, total: number) => void,
-    { wikiLinks, conventions }: ImportChoices = DEFAULT_CHOICES,
-  ) => {
-    const ids = newId
-    if (!ids) throw new Error('E_CORE_NOT_READY')
-    const parts = {
-      notes: required(),
-      books: requiredBooks(),
-      tags: requiredTags(),
-    }
-    const files = mirrorStorage
+  importMarkdown: (...args: import('./importWorker').MarkdownImportArgs) => {
+    const parts = importParts()
     return imports.run((stopped) =>
-      loadImport().then(([{ importMarkdown, preparerHere }, { preparerOffThread }]) => {
-        const prepare = preparerOffThread(
-          () =>
-            new Worker(new URL('./import.worker.ts', import.meta.url), {
-              type: 'module',
-            }),
-          preparerHere(ids),
-          () => console.warn('W_IMPORT_WORKER_FAILED'),
-        )
-        return importMarkdown({
-          ...parts,
-          newId: ids,
-          scan,
-          source,
-          files,
-          destination,
-          onProgress,
-          stopped,
-          prepare,
-          wikiLinks,
-          conventions,
-        }).finally(prepare.close)
-      }),
+      loadImport().then(({ markdownImport }) => markdownImport(parts, stopped, args)),
+    )
+  },
+  importConverted: (...args: import('./importWorker').ConvertedImportArgs) => {
+    const parts = importParts()
+    return imports.run((stopped) =>
+      loadImport().then(({ convertedImport }) => convertedImport(parts, stopped, args)),
     )
   },
   holdImport: () => imports.hold(),

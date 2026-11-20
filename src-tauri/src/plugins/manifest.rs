@@ -6,7 +6,8 @@ use serde_json::{Map, Value};
 
 pub const FILE: &str = "devot-plugin.json";
 /// The newest plugin API this build speaks; a later one only adds, so an older plugin still runs (ADR 0020).
-pub const API_VERSION: u64 = 2;
+pub const API_VERSION: u64 = 3;
+pub const MAX_IMPORT_FILE_BYTES: u64 = 100 * 1024 * 1024;
 /// The oldest plugin API still run, kept at least 12 months after the next ships.
 pub const API_OLDEST: u64 = 1;
 pub const MAX_BYTES: usize = 64 * 1024;
@@ -96,6 +97,8 @@ pub struct ImportFormat {
     pub id: String,
     pub title: String,
     pub extensions: Vec<String>,
+    #[serde(rename = "maxFileBytes", skip_serializing_if = "Option::is_none")]
+    pub max_file_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -637,10 +640,18 @@ fn contributions(
                 _ => return Err(CONTRIBUTION),
             };
             unique(extensions.iter().map(String::as_str))?;
+            let max_file_bytes = match e.get("maxFileBytes") {
+                None => None,
+                Some(v) => match v.as_u64() {
+                    Some(n) if api >= 3 && n > 0 && n <= MAX_IMPORT_FILE_BYTES => Some(n),
+                    _ => return Err(CONTRIBUTION),
+                },
+            };
             Ok(ImportFormat {
                 id: contribution_id(e.get("id"))?,
                 title: title(e.get("title"))?,
                 extensions,
+                max_file_bytes,
             })
         })
         .collect::<Result<Vec<_>, &'static str>>()?;

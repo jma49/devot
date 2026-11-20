@@ -248,7 +248,7 @@ describe('Write mode quotes and alerts', () => {
 
   it("draw the label of each of the Markdown example note's alerts", () => {
     const alerts = rangesOf(example).ranges.flatMap((r) => (r.kind === 'alert' ? [r.alert] : []))
-    expect(alerts).toEqual(['note', 'tip', 'important', 'warning', 'caution', 'tip'])
+    expect(alerts).toEqual(['note', 'tip', 'important', 'warning', 'caution', 'note', 'tip'])
     const important = example.indexOf('> [!IMPORTANT]')
     const onIt = rangesOf(example, caret(important + 4)).ranges.filter((r) => r.kind === 'alert')
     expect(onIt.map((r) => r.kind === 'alert' && r.alert)).toEqual([
@@ -256,6 +256,7 @@ describe('Write mode quotes and alerts', () => {
       'tip',
       'warning',
       'caution',
+      'note',
       'tip',
     ])
   })

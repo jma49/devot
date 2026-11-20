@@ -2,6 +2,8 @@
 // keys, preview renderers, menu bar picks (`devot://plugin-action`), import and export formats, and the sheet a plugin's UI shows in.
 import * as Comlink from 'comlink'
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useInsertionEffect,
@@ -11,6 +13,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { InstalledPlugin } from '../../../core/plugins'
+import type { ImportProblem } from '../../../core/import'
 import type { PluginRendererSpec } from '../../../core/preview'
 import { errorCode } from '../../../core/errors'
 import { sheetOpen, useMenuEvent } from '../commands/dispatch'
@@ -43,16 +46,20 @@ import {
   editableRenderers,
   rendererSpecs,
   slashCommands,
-  stopsImport,
   type PluginAction,
 } from './contributions'
 import { frameConnector, showFrame } from './frames'
-import { createPluginHost, type PluginHost, type PluginNotes } from './host'
+import type { PluginHost, PluginNotes } from './host'
 import { useLibraryTurn } from './libraryTurn'
 import { pluginRenderersChanged } from './rendererRevision'
 import { keptDrawingsChanged } from '../preview/keptDrawings'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
+import { importBatch } from './importBatch'
+
+const ImportDetails = lazy(() =>
+  import('./ImportDetails').then((m) => ({ default: m.ImportDetails })),
+)
 
 export interface PluginWindow {
   /** The note open in the editor. */
@@ -68,6 +75,7 @@ export interface PluginWindow {
   importBook(): string | null
   /** The lists show what an import made. */
   imported(): void
+  showNote(id: string): void
 }
 
 /** The notes plugins read load on a plugin's first read, so the main window starts without them. */
@@ -98,7 +106,10 @@ const isAction = (value: unknown): value is PluginAction => {
 export function usePlugins(core: Core | undefined, app: PluginWindow) {
   const [plugins, setPlugins] = useState<readonly InstalledPlugin[]>([])
   const [panel, setPanel] = useState<{ plugin: string; height: number } | null>(null)
-  const [failure, setFailure] = useState<{ name: string; code: string }>()
+  const [notification, setNotification] = useState<
+    | { kind: 'failure'; name: string; code: string }
+    | { kind: 'import' | 'details'; notes: number; problems: ImportProblem[] }
+  >()
   const frames = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
   const latest = useRef({ core, app, plugins })
@@ -108,46 +119,57 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
 
   const [host, setHost] = useState<PluginHost>()
   useEffect(() => {
-    // The editor counts only while it shows the open note: never a note it is still leaving.
-    const shownEditor = () => {
-      const { app: w } = latest.current
-      const editor = w.editor()
-      const open = w.openNote()
-      return editor && open && editor.noteId === open.id ? editor : null
+    let live = true
+    let made: PluginHost | undefined
+    void import('./host').then(
+      ({ createPluginHost }) => {
+        if (!live) return
+        // The editor counts only while it shows the open note: never a note it is still leaving.
+        const shownEditor = () => {
+          const { app: w } = latest.current
+          const editor = w.editor()
+          const open = w.openNote()
+          return editor && open && editor.noteId === open.id ? editor : null
+        }
+        made = createPluginHost({
+          connect: frameConnector(frames),
+          readNote: async () => {
+            const { core: c, app: w } = latest.current
+            const open = w.openNote()
+            if (!c || !open) return null
+            const note = await c.read(open.id)
+            return { title: note.title, markdown: note.bodyMd }
+          },
+          replaceNote: async (edit) => {
+            const { core: c, app: w } = latest.current
+            const open = w.openNote()
+            if (!c || !open) throw new Error('E_PLUGIN_NO_NOTE')
+            if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
+            w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
+          },
+          readSelection: async () => shownEditor()?.pluginSelection() ?? null,
+          insertText: async ({ text, selected }) => {
+            const editor = shownEditor()
+            if (!editor) throw new Error('E_PLUGIN_NO_NOTE')
+            if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
+            const refused = editor.pluginInsert(text, selected)
+            if (refused) throw new Error(refused)
+          },
+          storage: pluginStorage,
+          notes: lazyNotes(() => latest.current.core ?? undefined),
+          settings: pluginSettings,
+          showUi: (plugin, height) => setPanel({ plugin, height }),
+          hideUi: (plugin) => setPanel((now) => (now?.plugin === plugin ? null : now)),
+          warn: (code, plugin) => console.warn('W_PLUGIN_FAILED', code, plugin),
+        })
+        setHost(made)
+      },
+      (error: unknown) => console.warn('W_PLUGIN_FAILED', errorCode(error)),
+    )
+    return () => {
+      live = false
+      made?.stop()
     }
-    const made = createPluginHost({
-      connect: frameConnector(frames),
-      readNote: async () => {
-        const { core: c, app: w } = latest.current
-        const open = w.openNote()
-        if (!c || !open) return null
-        const note = await c.read(open.id)
-        return { title: note.title, markdown: note.bodyMd }
-      },
-      replaceNote: async (edit) => {
-        const { core: c, app: w } = latest.current
-        const open = w.openNote()
-        if (!c || !open) throw new Error('E_PLUGIN_NO_NOTE')
-        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
-        w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
-      },
-      readSelection: async () => shownEditor()?.pluginSelection() ?? null,
-      insertText: async ({ text, selected }) => {
-        const editor = shownEditor()
-        if (!editor) throw new Error('E_PLUGIN_NO_NOTE')
-        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
-        const refused = editor.pluginInsert(text, selected)
-        if (refused) throw new Error(refused)
-      },
-      storage: pluginStorage,
-      notes: lazyNotes(() => latest.current.core ?? undefined),
-      settings: pluginSettings,
-      showUi: (plugin, height) => setPanel({ plugin, height }),
-      hideUi: (plugin) => setPanel((now) => (now?.plugin === plugin ? null : now)),
-      warn: (code, plugin) => console.warn('W_PLUGIN_FAILED', code, plugin),
-    })
-    setHost(made)
-    return () => made.stop()
   }, [])
 
   useEffect(() => {
@@ -183,7 +205,8 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   )
   const fail = useCallback(
     (plugin: string, error: unknown) =>
-      setFailure({
+      setNotification({
+        kind: 'failure',
         name: nameOf(plugin),
         code: logFailure(errorCode(error, 'E_PLUGIN_FAILED'), 'W_PLUGIN_FAILED'),
       }),
@@ -288,22 +311,21 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
           if (!c) return
           const files = await pickImportFiles(action.plugin, action.id)
           if (!files) return
-          let made = 0
-          try {
-            for (const file of files) {
-              try {
-                const note = await host.convertImport(action.plugin, action.id, file)
-                await c.capture(note.title, note.markdown, w.importBook())
-                made += 1
-              } catch (error) {
-                fail(action.plugin, error)
-                // A plugin that hangs or stopped would cost every remaining file its own wait.
-                if (stopsImport(error)) break
-              }
-            }
-          } finally {
-            if (made > 0) w.imported()
-          }
+          setNotification(undefined)
+          const {
+            made,
+            problems,
+            error: importError,
+          } = await importBatch(files, async (file) => {
+            const converted = await host.convertImport(action.plugin, action.id, file)
+            return c.importConverted(file.name, converted, w.importBook())
+          })
+          for (const problem of problems) logFailure(problem.code, 'W_PLUGIN_IMPORT_SKIPPED')
+          if (made > 0) w.imported()
+          if (importError || (made === 0 && files.length > 0))
+            fail(action.plugin, importError ?? new Error('E_IMPORT_FAILED'))
+          else if (made > 0 && problems.length > 0)
+            setNotification({ kind: 'import', notes: made, problems })
         } else {
           const open = w.openNote()
           if (!c || !open) return
@@ -379,46 +401,75 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     })
 
   const sheet: ReactNode = (
-    <dialog
-      ref={dialog}
-      className="plugin-panel"
-      aria-label={panel ? nameOf(panel.plugin) : undefined}
-      onCancel={(e) => {
-        e.preventDefault()
-        closePanel()
-      }}
-    >
-      <div className="plugin-panel-bar">
-        <span className="plugin-panel-title">{panel ? nameOf(panel.plugin) : null}</span>
-        <button type="button" className="button" onClick={closePanel}>
-          {t('plugins.panelClose')}
-        </button>
-      </div>
-      <div ref={frames} className="plugin-frames" />
-    </dialog>
+    <>
+      <dialog
+        ref={dialog}
+        className="plugin-panel"
+        aria-label={panel ? nameOf(panel.plugin) : undefined}
+        onCancel={(e) => {
+          e.preventDefault()
+          closePanel()
+        }}
+      >
+        <div className="plugin-panel-bar">
+          <span className="plugin-panel-title">{panel ? nameOf(panel.plugin) : null}</span>
+          <button type="button" className="button" onClick={closePanel}>
+            {t('plugins.panelClose')}
+          </button>
+        </div>
+        <div ref={frames} className="plugin-frames" />
+      </dialog>
+      {notification?.kind === 'details' ? (
+        <Suspense fallback={null}>
+          <ImportDetails
+            problems={notification.problems}
+            onClose={() => setNotification({ ...notification, kind: 'import' })}
+            onNote={(id) => {
+              setNotification({ ...notification, kind: 'import' })
+              latest.current.app.showNote(id)
+            }}
+          />
+        </Suspense>
+      ) : null}
+    </>
   )
 
+  const failure = notification?.kind === 'failure' ? notification : undefined
   const licenceRefused = failure?.code === LICENCE_REQUIRED
-  const notice: ReactNode = failure ? (
+  const notice: ReactNode = notification ? (
     <div role="alert" className="notice" data-devot-part="notice" data-devot-plugin-notice>
       <span className="notice-text">
-        {licenceRefused
-          ? t('plugins.trialEnded')
-          : failureText('plugins.failed', failure.code, { name: failure.name })}
+        {notification.kind !== 'failure'
+          ? format(t('plugins.importedWithSkips'), {
+              notes: String(notification.notes),
+              skipped: String(notification.problems.length),
+            })
+          : licenceRefused
+            ? t('plugins.trialEnded')
+            : failureText('plugins.failed', notification.code, { name: notification.name })}
       </span>
+      {notification.kind !== 'failure' ? (
+        <button
+          type="button"
+          className="button"
+          onClick={() => setNotification({ ...notification, kind: 'details' })}
+        >
+          {t('plugins.showSkipped')}
+        </button>
+      ) : null}
       {licenceRefused ? (
         <button
           type="button"
           className="button"
           onClick={() => {
-            setFailure(undefined)
+            setNotification(undefined)
             openLicenceSettings()
           }}
         >
           {t('licenceSettings.add')}
         </button>
       ) : null}
-      <button type="button" className="button" onClick={() => setFailure(undefined)}>
+      <button type="button" className="button" onClick={() => setNotification(undefined)}>
         {t('notice.dismiss')}
       </button>
     </div>

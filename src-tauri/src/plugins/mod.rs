@@ -580,7 +580,10 @@ pub fn export_name(title: &str, extension: &str) -> String {
     format!("{stem}.{extension}")
 }
 
-fn read_text(path: &Path) -> Result<PickedFile, &'static str> {
+fn read_text(path: &Path, limit: u64) -> Result<PickedFile, &'static str> {
+    if limit == 0 || limit > manifest::MAX_IMPORT_FILE_BYTES {
+        return Err("E_PLUGIN_IMPORT_TOO_LARGE");
+    }
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -588,21 +591,21 @@ fn read_text(path: &Path) -> Result<PickedFile, &'static str> {
         .to_string();
     let file = std::fs::File::open(path).map_err(|_| "E_PLUGIN_IMPORT_UNREADABLE")?;
     let mut bytes = Vec::new();
-    file.take(IMPORT_FILE_BYTES + 1)
+    file.take(limit + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| "E_PLUGIN_IMPORT_UNREADABLE")?;
-    if bytes.len() as u64 > IMPORT_FILE_BYTES {
+    if bytes.len() as u64 > limit {
         return Err("E_PLUGIN_IMPORT_TOO_LARGE");
     }
     let text = String::from_utf8(bytes).map_err(|_| "E_PLUGIN_IMPORT_NOT_TEXT")?;
     Ok(PickedFile { name, text })
 }
 
-fn read_picked(paths: &[PathBuf]) -> Result<Vec<PickedFile>, &'static str> {
+fn read_picked(paths: &[PathBuf], limit: u64) -> Result<Vec<PickedFile>, &'static str> {
     if paths.len() > IMPORT_FILES_MAX {
         return Err("E_PLUGIN_IMPORT_TOO_MANY");
     }
-    paths.iter().map(|p| read_text(p)).collect()
+    paths.iter().map(|p| read_text(p, limit)).collect()
 }
 
 fn check_export(title: &str, text: &str) -> Result<(), &'static str> {
@@ -908,6 +911,7 @@ pub async fn plugin_import_pick(
         .find(|f| f.id == format)
         .ok_or(FORMAT_UNKNOWN)?;
     let extensions: Vec<&str> = found.extensions.iter().map(String::as_str).collect();
+    let limit = found.max_file_bytes.unwrap_or(IMPORT_FILE_BYTES);
     let (reply, answer) = tokio::sync::oneshot::channel();
     let dialog = window
         .dialog()
@@ -927,7 +931,7 @@ pub async fn plugin_import_pick(
         .map(|f| f.into_path())
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "E_PLUGIN_IMPORT_UNREADABLE")?;
-    blocking(move || read_picked(&paths).map(Some)).await
+    blocking(move || read_picked(&paths, limit).map(Some)).await
 }
 
 /// True once saved; false when the user cancelled the panel.
@@ -983,7 +987,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let fine = dir.path().join("a.org");
         std::fs::write(&fine, "* heading\n").unwrap();
-        let read = read_text(&fine).unwrap();
+        let read = read_text(&fine, IMPORT_FILE_BYTES).unwrap();
         assert_eq!(
             (read.name.as_str(), read.text.as_str()),
             ("a.org", "* heading\n")
@@ -992,20 +996,31 @@ mod tests {
         let exact = dir.path().join("exact.org");
         std::fs::write(&exact, vec![b'a'; IMPORT_FILE_BYTES as usize]).unwrap();
         assert_eq!(
-            read_text(&exact).unwrap().text.len() as u64,
+            read_text(&exact, IMPORT_FILE_BYTES).unwrap().text.len() as u64,
             IMPORT_FILE_BYTES
         );
 
         let large = dir.path().join("large.org");
         std::fs::write(&large, vec![b'a'; IMPORT_FILE_BYTES as usize + 1]).unwrap();
-        assert_eq!(read_text(&large).err(), Some("E_PLUGIN_IMPORT_TOO_LARGE"));
+        assert_eq!(
+            read_text(&large, IMPORT_FILE_BYTES).err(),
+            Some("E_PLUGIN_IMPORT_TOO_LARGE")
+        );
+        assert!(read_text(&large, IMPORT_FILE_BYTES + 1).is_ok());
+        assert_eq!(
+            read_text(&large, manifest::MAX_IMPORT_FILE_BYTES + 1).err(),
+            Some("E_PLUGIN_IMPORT_TOO_LARGE")
+        );
 
         let binary = dir.path().join("binary.org");
         std::fs::write(&binary, [0x66, 0xff, 0xfe]).unwrap();
-        assert_eq!(read_text(&binary).err(), Some("E_PLUGIN_IMPORT_NOT_TEXT"));
+        assert_eq!(
+            read_text(&binary, IMPORT_FILE_BYTES).err(),
+            Some("E_PLUGIN_IMPORT_NOT_TEXT")
+        );
 
         assert_eq!(
-            read_text(&dir.path().join("gone.org")).err(),
+            read_text(&dir.path().join("gone.org"), IMPORT_FILE_BYTES).err(),
             Some("E_PLUGIN_IMPORT_UNREADABLE")
         );
     }
@@ -1020,16 +1035,24 @@ mod tests {
                 path
             })
             .collect();
-        assert_eq!(read_picked(&paths).err(), Some("E_PLUGIN_IMPORT_TOO_MANY"));
         assert_eq!(
-            read_picked(&paths[..IMPORT_FILES_MAX]).unwrap().len(),
+            read_picked(&paths, IMPORT_FILE_BYTES).err(),
+            Some("E_PLUGIN_IMPORT_TOO_MANY")
+        );
+        assert_eq!(
+            read_picked(&paths[..IMPORT_FILES_MAX], IMPORT_FILE_BYTES)
+                .unwrap()
+                .len(),
             IMPORT_FILES_MAX
         );
 
         let binary = dir.path().join("binary.org");
         std::fs::write(&binary, [0xff]).unwrap();
         let mixed = [paths[0].clone(), binary];
-        assert_eq!(read_picked(&mixed).err(), Some("E_PLUGIN_IMPORT_NOT_TEXT"));
+        assert_eq!(
+            read_picked(&mixed, IMPORT_FILE_BYTES).err(),
+            Some("E_PLUGIN_IMPORT_NOT_TEXT")
+        );
     }
 
     #[test]
@@ -1047,6 +1070,31 @@ mod tests {
     }
 
     const MANIFEST: &str = r#"{"id":"com.example.hello","name":"Hello","version":"1.0.0","apiVersion":1,"main":"main.js","permissions":["commands","import"],"contributes":{"commands":[{"id":"hi","title":"Say Hi"}],"importFormats":[{"id":"org","title":"Org","extensions":["org"]}]}}"#;
+
+    #[test]
+    fn import_formats_apply_their_declared_size_limit() {
+        let root = tempfile::tempdir().unwrap();
+        let file = root.path().join("large.org");
+        std::fs::write(&file, vec![b'a'; IMPORT_FILE_BYTES as usize + 1]).unwrap();
+        let mut value: serde_json::Value = serde_json::from_str(MANIFEST).unwrap();
+        value["apiVersion"] = 3.into();
+        value["contributes"]["importFormats"][0]["maxFileBytes"] =
+            manifest::MAX_IMPORT_FILE_BYTES.into();
+        let parsed = manifest::parse(&value).unwrap();
+        let format = &parsed.contributes.import_formats[0];
+        assert!(read_text(&file, format.max_file_bytes.unwrap_or(IMPORT_FILE_BYTES)).is_ok());
+        let legacy = manifest::parse_bytes(MANIFEST.as_bytes()).unwrap();
+        assert_eq!(
+            read_text(
+                &file,
+                legacy.contributes.import_formats[0]
+                    .max_file_bytes
+                    .unwrap_or(IMPORT_FILE_BYTES)
+            )
+            .err(),
+            Some("E_PLUGIN_IMPORT_TOO_LARGE")
+        );
+    }
 
     fn package(version: &str, main: &[u8]) -> Package {
         let manifest = MANIFEST.replace("1.0.0", version);

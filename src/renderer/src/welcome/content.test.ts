@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { WELCOME_BOOK_ID, welcomeSeed } from '../../../core'
 import { noteLinks } from '../../../core/links'
+import { createSlugger, slug } from '../../../core/preview/headingIds'
 import { toBase64 } from '../storage/wire'
 import { fillWelcome, welcomeContent } from './content'
+import example from './markdown-example.md?raw'
 
 describe('first-launch content', () => {
   it('fills every key and ID placeholder from the registry', () => {
@@ -17,6 +19,17 @@ describe('first-launch content', () => {
   it('refuses an unknown placeholder', () => {
     expect(() => fillWelcome('{{key:no.such}}')).toThrow('E_WELCOME_PLACEHOLDER')
     expect(() => fillWelcome('{{id:nobody}}')).toThrow('E_WELCOME_PLACEHOLDER')
+  })
+
+  it('jumps from every in-note link of the example to one of its headings', () => {
+    const outsideFences = example.split(/^```[^\n]*\n[\s\S]*?^```$/m).join('')
+    const next = createSlugger()
+    const headings = [...outsideFences.matchAll(/^#{1,6} (.+)$/gm)].map((m) =>
+      next(slug(m[1] ?? '')),
+    )
+    const targets = [...example.matchAll(/\]\(#([^)]+)\)/g)].map((m) => m[1])
+    expect(targets).toContain('plugins')
+    for (const target of targets) expect(headings).toContain(target)
   })
 
   // Rust writes this copy, never the window's, so a library without a licence takes these notes and no others.

@@ -15420,6 +15420,74 @@
         }
       }
     },
+    "import.reason.attachmentInvalid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attachment data is not valid"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件数据无效"
+          }
+        }
+      }
+    },
+    "import.reason.attachmentMissing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attachment data was not found"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到附件数据"
+          }
+        }
+      }
+    },
+    "import.reason.attachmentStorage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attachment could not be stored"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存附件"
+          }
+        }
+      }
+    },
+    "import.reason.attachmentType" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attachment type not supported"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持此附件类型"
+          }
+        }
+      }
+    },
     "import.reason.cancelled" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15433,6 +15501,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "扫描已取消。"
+          }
+        }
+      }
+    },
+    "import.reason.encrypted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted content cannot be imported"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法导入加密内容"
           }
         }
       }
@@ -27643,6 +27728,23 @@
         }
       }
     },
+    "plugins.importedWithSkips" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported {notes} notes; {skipped} items skipped."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已导入 {notes} 篇笔记；跳过了 {skipped} 项。"
+          }
+        }
+      }
+    },
     "plugins.install" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -28251,6 +28353,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "{name} 设置"
+          }
+        }
+      }
+    },
+    "plugins.showSkipped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Skipped"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看跳过的项目"
+          }
+        }
+      }
+    },
+    "plugins.skippedContent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note content"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "笔记内容"
+          }
+        }
+      }
+    },
+    "plugins.skippedNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In note “{title}”"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所属笔记：“{title}”"
+          }
+        }
+      }
+    },
+    "plugins.skippedTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipped import items"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入时跳过的项目"
           }
         }
       }

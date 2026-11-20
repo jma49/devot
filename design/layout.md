@@ -43,6 +43,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
   A note with a word goal shows its words as `340 / 1,500` in the same style, with the goal in the item's tooltip.
   Vim Mode adds its localized NORMAL, INSERT or VISUAL label before the counts in the same caption style and spacing.
   Notices (`.notices`) sit in the bottom-right corner as glass popovers (`radius.glass-popover`, `size.glass-popover-inset`) and rise clear of `.editor-counts` and `.history-bar` whenever either is shown.
+  A plugin import notice offers Show Skipped beside Dismiss; its details reuse the import results sheet and problem rows, with the item name, caption reason and a note button on the sheet's text keyline.
 - Footnotes on screen start with a 48 pt hairline (`size.footnote-rule`) on the text's edge, with text at footnote size (12) in secondary. Print keeps the full-width rule.
 
 ## Settings footnotes

@@ -18,4 +18,11 @@ describe('importReason', () => {
     expect(importReason('E_SOMETHING_ELSE')).toBeNull()
     expect(importReason('toString')).toBeNull()
   })
+
+  it('explains skipped plugin attachments and encrypted content', () => {
+    expect(t(importReason('E_IMPORT_ATTACHMENT_UNSUPPORTED')!)).toBe(
+      'Attachment type not supported',
+    )
+    expect(t(importReason('E_IMPORT_ENCRYPTED')!)).toBe('Encrypted content cannot be imported')
+  })
 })
