@@ -332,7 +332,9 @@ function GlassUsageSection() {
       {errorList}
       {events === undefined ? (
         readError ? null : (
-          <p role="status">{t('usage.loading')}</p>
+          <p role="status" className="pending-text">
+            {t('usage.loading')}
+          </p>
         )
       ) : (
         <>

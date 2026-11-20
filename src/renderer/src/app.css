@@ -125,6 +125,12 @@
   }
 }
 
+/* A loading line that waits `motion.delay.pending` before it shows (design/motion.md). */
+.pending-text {
+  animation: fade-in var(--motion-duration-quick) var(--motion-easing-standard)
+    var(--motion-delay-pending) backwards;
+}
+
 @keyframes popover-out {
   to {
     opacity: 0;

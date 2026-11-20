@@ -3264,6 +3264,13 @@
         },
         "$description": "The pointer resting on a toolbar button before its tooltip shows; it hides at once when the pointer leaves or presses."
       },
+      "pending": {
+        "$value": {
+          "value": 300,
+          "unit": "ms"
+        },
+        "$description": "A line that says something is loading waits this long before it fades in, so a quick answer never flashes it."
+      },
       "idle-hide": {
         "$value": {
           "value": 3000,

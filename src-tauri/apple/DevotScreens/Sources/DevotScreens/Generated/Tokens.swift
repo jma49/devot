@@ -3874,6 +3874,7 @@ public enum Tokens {
     public static let phonePeekMenu: TimeInterval = 0.05
     public static let phonePeek: TimeInterval = 0.42
     public static let tooltip: TimeInterval = 0.4
+    public static let pending: TimeInterval = 0.3
     public static let idleHide: TimeInterval = 3
   }
 

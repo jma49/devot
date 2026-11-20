@@ -443,6 +443,7 @@ export const sizes = {
   "motion.delay.phone-peek-menu": "50ms",
   "motion.delay.phone-peek": "420ms",
   "motion.delay.tooltip": "400ms",
+  "motion.delay.pending": "300ms",
   "motion.delay.idle-hide": "3000ms",
   "motion.ratio.phone-toast-dismiss": "0.25",
   "motion.velocity.phone-toast-flick": "800",
