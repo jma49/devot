@@ -1,6 +1,6 @@
 import type { ImportScan } from '../../core'
 import { MAX_FILE_BYTES } from '../../core/files'
-import { droppedImport, droppedSource, imageName } from './dropImport'
+import { droppedImport, droppedSource, imageName, readDroppedText } from './dropImport'
 
 export interface DropEntry {
   name: string
@@ -88,7 +88,7 @@ export async function droppedFolders(
         if (config) {
           const file = await readFile(config)
           if (file.size <= 65_536) {
-            const value: unknown = JSON.parse(await file.text())
+            const value: unknown = JSON.parse(await readDroppedText(file))
             if (value && typeof value === 'object') {
               const settings = value as Record<string, unknown>
               const path = settings['attachmentFolderPath']

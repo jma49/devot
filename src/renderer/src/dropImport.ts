@@ -5,6 +5,21 @@ let nextId = -1
 export const importableName = (name: string) => /\.(md|markdown|html?|htm)$/i.test(name)
 export const imageName = (name: string) => /\.(png|jpe?g|gif|webp|avif|hei[cf])$/i.test(name)
 
+export async function readDroppedText(file: File): Promise<string> {
+  let bytes: ArrayBuffer
+  try {
+    bytes = await file.arrayBuffer()
+  } catch {
+    throw new Error('E_IMPORT_UNREADABLE')
+  }
+  if (bytes.byteLength > MAX_FILE_BYTES) throw new Error('E_IMPORT_FILE_TOO_LARGE')
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    throw new Error('E_IMPORT_NOT_UTF8')
+  }
+}
+
 export function droppedImport(
   files: readonly File[],
   putFile: (meta: FileMeta, data: Uint8Array) => Promise<unknown>,
@@ -55,7 +70,7 @@ export function droppedSource(
   }
   return {
     source: {
-      read: async (path) => get(path).text(),
+      read: async (path) => readDroppedText(get(path)),
       attach: async (path, ids) => {
         const file = get(path)
         const meta = {

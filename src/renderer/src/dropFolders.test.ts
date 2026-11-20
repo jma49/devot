@@ -23,6 +23,22 @@ const folder = (name: string, children: DropEntry[]): DropEntry => ({
 })
 
 describe('directory drops', () => {
+  it('uses strict UTF-8 for folder notes', async () => {
+    const result = await droppedFolders(
+      [
+        folder('Root', [
+          {
+            name: 'bad.md',
+            isDirectory: false,
+            isFile: true,
+            file: (done) => done(new File([new Uint8Array([255])], 'bad.md')),
+          },
+        ]),
+      ],
+      vi.fn(),
+    )
+    await expect(result.source.read('bad.md')).rejects.toThrow('E_IMPORT_NOT_UTF8')
+  })
   it('handles empty folders, invalid roots, Unicode paths and shared count/depth limits', async () => {
     expect((await droppedFolders([folder('Empty', [])], vi.fn())).scan.files).toEqual([])
     await expect(droppedFolders([], vi.fn())).rejects.toThrow('E_IMPORT_ROOT_INVALID')

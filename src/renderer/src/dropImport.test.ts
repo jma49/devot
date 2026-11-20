@@ -5,6 +5,14 @@ import { MAX_FILE_BYTES } from '../../core/files'
 const file = (name: string, text = '# Dropped') => new File([text], name)
 
 describe('dropped imports', () => {
+  it('rejects malformed UTF-8 like the native note reader and strips a BOM', async () => {
+    const job = droppedImport(
+      [new File([new Uint8Array([255])], 'bad.md'), file('bom.md', '\ufeff# Note')],
+      vi.fn(),
+    )
+    await expect(job.source.read('bad.md')).rejects.toThrow('E_IMPORT_NOT_UTF8')
+    expect(await job.source.read('bom.md')).toBe('# Note')
+  })
   it('scans supported loose files and images with distinct negative ids', () => {
     const job = droppedImport([file('b.HTML'), file('a.markdown'), file('pic.png')], vi.fn())
     expect(job.scan.kind).toBe('files')
@@ -54,7 +62,7 @@ describe('dropped imports', () => {
 
   it('propagates read errors and bounds the scan', async () => {
     const unreadable = file('unreadable.md')
-    unreadable.text = () => Promise.reject(new Error('E_IMPORT_UNREADABLE'))
+    unreadable.arrayBuffer = () => Promise.reject(new Error('E_IMPORT_UNREADABLE'))
     await expect(droppedImport([unreadable], vi.fn()).source.read('unreadable.md')).rejects.toThrow(
       'E_IMPORT_UNREADABLE',
     )
