@@ -42,8 +42,10 @@ const index = testPlugin(
 index.manifest['apiVersion'] = 2
 
 const PAD = `
-devot.preview.handle('pad', (source) =>
-  '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40"><text x="4" y="24">' + source + '</text></svg>')
+devot.preview.handle('pad', (source) => {
+  globalThis.drawTurn = (globalThis.drawTurn ?? 0) + 1
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40" data-turn="' + globalThis.drawTurn + '"><text x="4" y="24">' + source + '</text></svg>'
+})
 devot.preview.edit('pad', async (source) => {
   if (source !== 'keep') return source + '!'
   await devot.ui.show({ height: 120 })
@@ -120,7 +122,7 @@ test('draws a block as the plugin’s SVG, for the theme on screen, kept inside 
   await expect
     .poll(() => drawing.locator('rect').evaluate((r) => getComputedStyle(r).fill))
     .toBe(expected)
-  expect(await drawing.evaluate((d) => getComputedStyle(d).position)).toBe('static')
+  await expect(drawing).toHaveCSS('position', 'static')
   await expect(preview.getByText('Before')).toBeVisible()
   await expect(drawing.locator('script')).toHaveCount(0)
   expect(await page.evaluate(() => (globalThis as { drawn?: number }).drawn)).toBeUndefined()
@@ -195,6 +197,22 @@ test('edits a drawn block in its plugin and puts the edit in the note, or leaves
   await page.keyboard.press('Meta+KeyE')
   await expect(body(page)).toContainText('hi!')
   await expect(body(page)).not.toContainText('keep!')
+})
+
+test('finishes an Edit click across a library redraw', async ({ page }) => {
+  await pluginFrame(page, 'com.example.sketch')
+  const preview = await previewOf(page, '```pad\nhi\n```\n')
+  const drawing = preview.locator('.plugin-drawing-box')
+  await expect(drawing.locator('text')).toHaveText('hi')
+  const turn = await drawing.locator('svg').getAttribute('data-turn')
+  const control = await drawing.getByRole('button', { name: 'Edit' }).elementHandle()
+  await drawing.getByRole('button', { name: 'Edit' }).hover()
+  await page.mouse.down()
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('devot:notes-loaded')))
+  await expect(drawing.locator('svg')).not.toHaveAttribute('data-turn', turn!)
+  expect(await control!.evaluate((button) => button.isConnected)).toBe(true)
+  await page.mouse.up()
+  await expect(drawing.locator('text')).toHaveText('hi!')
 })
 
 test('draws a block with code the plugin loads as a module from its own files', async ({

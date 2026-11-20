@@ -244,6 +244,8 @@ function failed(retry: boolean): IslandContent {
   return retry ? { node: box, retry } : { node: box }
 }
 
+const editableSources = new WeakMap<Node, string>()
+
 async function render(
   source: string,
   { appearance, noteId }: IslandContext,
@@ -278,7 +280,25 @@ async function render(
     button.setAttribute(EDIT_ATTRIBUTE, '')
     button.textContent = t('plugins.drawingEdit')
     box.append(host, button)
-    return { node: box }
+    editableSources.set(box, source)
+    return {
+      node: box,
+      update(previous) {
+        if (editableSources.get(previous) !== source) return false
+        const [shown, edit] = previous.childNodes
+        if (
+          previous.childNodes.length !== 2 ||
+          !(shown instanceof HTMLElement) ||
+          !shown.classList.contains('plugin-drawing') ||
+          !(edit instanceof HTMLButtonElement) ||
+          !edit.hasAttribute(EDIT_ATTRIBUTE)
+        )
+          return false
+        previous.replaceChild(host, shown)
+        if (edit.textContent !== button.textContent) edit.textContent = button.textContent
+        return true
+      },
+    }
   } catch {
     console.warn('W_PLUGIN_DRAWING_FAILED', key, 'E_PLUGIN_SVG')
     return failed(false)

@@ -44,6 +44,7 @@ The footer's Vim mode label changes immediately without motion because it follow
 | Colour meant to be noticed                         | fade                    | `color`                                          | `standard`                                       |
 
 A diagram redrawn for a new pane width (a gantt chart) has no motion: it follows the pane, and the new drawing replaces the old one once the pane has settled.
+An editable plugin drawing refreshed for unchanged block content replaces only its drawing at once (rule 2); its Edit button stays in place, including focus and an in-progress press.
 A diagram in the preview drawn as it comes within a screen of the view has no motion either: it takes its reserved place at once, and one drawn above the view keeps the view where it was.
 The import sheet's vault recognition line and initial conventions selection appear with the scan result, without additional motion.
 
