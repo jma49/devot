@@ -142,7 +142,7 @@ final class ListContext {
     @discardableResult
     func perform(_ intent: WriteIntent) -> Bool {
         switch intent {
-        case .newNote:
+        case .newNote, .capture:
             return false
         case .batch(let ids, let change):
             let forget = { [weak self] in

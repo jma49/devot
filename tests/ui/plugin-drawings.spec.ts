@@ -109,7 +109,6 @@ test('draws a block as the plugin’s SVG, for the theme on screen, kept inside 
     () => (globalThis as { themes?: { colors: Record<string, string> }[] }).themes,
   ))!.at(-1)!
   expect(sent.colors['series1']).toMatch(/^#[0-9a-f]{6}([0-9a-f]{2})?$/)
-  const fill = await drawing.locator('rect').evaluate((r) => getComputedStyle(r).fill)
   const expected = await page.evaluate((hex) => {
     const probe = document.createElement('div')
     probe.style.color = hex
@@ -118,7 +117,9 @@ test('draws a block as the plugin’s SVG, for the theme on screen, kept inside 
     probe.remove()
     return color
   }, sent.colors['series1']!)
-  expect(fill).toBe(expected)
+  await expect
+    .poll(() => drawing.locator('rect').evaluate((r) => getComputedStyle(r).fill))
+    .toBe(expected)
   expect(await drawing.evaluate((d) => getComputedStyle(d).position)).toBe('static')
   await expect(preview.getByText('Before')).toBeVisible()
   await expect(drawing.locator('script')).toHaveCount(0)

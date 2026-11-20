@@ -110,6 +110,18 @@ pub struct SharedImage {
     pub data: String,
 }
 
+/// What a scan or a transcription puts in the shown note at its caret: images each on a line of
+/// their own, then the text. `note_id` is the note the capture began on: another shown since takes nothing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct EditorAttach {
+    pub note_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<SharedImage>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+}
+
 /// The iPhone's Glass Transparency: -100 is solid, 0 the design, 100 the clearest, in steps of 5.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -419,6 +431,8 @@ pub enum Op {
     /// The Activity tab's figures: the last weeks' writing and the most edited notes.
     #[serde(rename = "activity.writing")]
     ActivityWriting(Empty),
+    #[serde(rename = "editor.attach")]
+    EditorAttach(EditorAttach),
     /// A share from another app, drained from the Share Extension's inbox into a new note.
     #[serde(rename = "share.capture")]
     ShareCapture(ShareCapture),
@@ -459,6 +473,7 @@ pub const OPS: &[&str] = &[
     "note.addTag",
     "note.today",
     "activity.writing",
+    "editor.attach",
     "share.capture",
 ];
 
@@ -991,6 +1006,7 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             Ok(())
         }
         Op::ShareCapture(share) => shared(share),
+        Op::EditorAttach(attach) => attached(attach),
         Op::GlassSet(GlassSet { transparency }) => {
             if !(-GLASS_TRANSPARENCY_MAX..=GLASS_TRANSPARENCY_MAX).contains(transparency)
                 || transparency % GLASS_TRANSPARENCY_STEP != 0
@@ -1032,6 +1048,21 @@ fn shared(share: &ShareCapture) -> Result<(), &'static str> {
         return Err("E_SCREENS_IMAGES_TOO_MANY");
     }
     share.images.iter().try_for_each(shared_image)
+}
+
+fn attached(attach: &EditorAttach) -> Result<(), &'static str> {
+    note_ids(std::slice::from_ref(&attach.note_id), 1)?;
+    let text = attach.text.as_deref().unwrap_or_default();
+    if attach.images.is_empty() && text.is_empty() {
+        return Err("E_SCREENS_ARGS_INVALID");
+    }
+    if text.chars().count() > MAX_SHARE_TEXT_CHARS {
+        return Err("E_SCREENS_TEXT_TOO_LONG");
+    }
+    if attach.images.len() > MAX_SHARE_IMAGES {
+        return Err("E_SCREENS_IMAGES_TOO_MANY");
+    }
+    attach.images.iter().try_for_each(shared_image)
 }
 
 /// The checks `file_put` makes, so the page is never handed bytes storage would refuse.
@@ -1257,6 +1288,29 @@ mod tests {
             "v": 1, "id": 1, "op": "share.capture",
             "args": { "id": NOTE, "title": "", "text": text, "images": vec![image; images] }
         }))
+    }
+
+    fn attach(text: &str, images: usize) -> Vec<u8> {
+        let image = json!({ "name": "Scan 1.jpg", "data": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBD" });
+        bytes(&json!({
+            "v": 1, "id": 1, "op": "editor.attach",
+            "args": { "noteId": NOTE, "text": text, "images": vec![image; images] }
+        }))
+    }
+
+    #[test]
+    fn takes_an_attachment_up_to_its_limits() {
+        let longest = "\u{e9}".repeat(MAX_SHARE_TEXT_CHARS);
+        assert!(from_swift(1, &attach(&longest, MAX_SHARE_IMAGES)).is_ok());
+        assert_eq!(
+            from_swift(1, &attach(&format!("{longest}a"), 0)),
+            Err("E_SCREENS_TEXT_TOO_LONG")
+        );
+        assert_eq!(
+            from_swift(1, &attach("", MAX_SHARE_IMAGES + 1)),
+            Err("E_SCREENS_IMAGES_TOO_MANY")
+        );
+        assert!(from_swift(1, &attach("", 1)).is_ok());
     }
 
     #[test]

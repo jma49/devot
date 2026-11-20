@@ -47,6 +47,8 @@ struct Api {
     gate: Arc<Gate>,
     core: Arc<Core>,
     token: String,
+    settings: Arc<SettingsStore>,
+    _dir: tempfile::TempDir,
 }
 
 fn quick(limits: Limits) -> Limits {
@@ -57,7 +59,9 @@ fn quick(limits: Limits) -> Limits {
 }
 
 fn start_with(scope: Scope, limits: Limits) -> Api {
-    let gate = Arc::new(Gate::new(quick(limits)));
+    let dir = tempfile::tempdir().unwrap();
+    let settings = Arc::new(SettingsStore::new(&dir.path().join(settings::FILE)));
+    let gate = Arc::new(Gate::new(quick(limits)).with_settings(Arc::clone(&settings)));
     let token = token::generate().unwrap();
     let sent = token.as_str().to_string();
     gate.allow(token, scope);
@@ -68,6 +72,8 @@ fn start_with(scope: Scope, limits: Limits) -> Api {
         gate,
         core,
         token: sent,
+        settings,
+        _dir: dir,
     }
 }
 
@@ -281,6 +287,12 @@ fn refuses_any_request_a_browser_sends() {
         format!("Origin: http://localhost:{port}"),
         "Origin: null".to_string(),
         "Origin:".to_string(),
+        "Origin: http://evil.example".to_string(),
+        "Origin: chrome-extension://".to_string(),
+        "Origin: chrome-extension://odd_id".to_string(),
+        "Origin: chrome-extension://x.evil.com".to_string(),
+        "Origin: chrome-extension://abcdefghijklmnopabcdefghijklmnop/".to_string(),
+        "Origin: moz-extension://not-a-uuid".to_string(),
     ] {
         for method in ["GET", "OPTIONS"] {
             let response = request(&api, method, "/v1/notebooks", &[&auth, &origin], None);
@@ -301,6 +313,126 @@ fn refuses_any_request_a_browser_sends() {
         );
     }
     assert_eq!(api.core.reached(), 0);
+}
+
+#[test]
+fn refuses_an_unregistered_but_valid_extension_origin() {
+    let api = start(Scope::ReadWrite);
+    let response = request(
+        &api,
+        "GET",
+        "/v1/notebooks",
+        &[
+            &bearer(&api),
+            "Origin: chrome-extension://pppppppppppppppppppppppppppppppp",
+        ],
+        None,
+    );
+    assert_eq!(
+        (response.status, response.code()),
+        (403, "E_HTTP_ORIGIN_REFUSED")
+    );
+    assert_eq!(api.core.reached(), 0);
+}
+
+#[test]
+fn accepts_extension_origins_but_still_requires_a_token() {
+    let api = start(Scope::ReadWrite);
+    let auth = bearer(&api);
+    for origin in [
+        "chrome-extension://abcdefghijklmnopabcdefghijklmnop",
+        "moz-extension://12345678-1234-4abc-8def-123456789abc",
+        "safari-web-extension://12345678-1234-4ABC-8DEF-123456789ABC",
+    ] {
+        api.settings
+            .set(HttpApiSettings {
+                extension_origins: vec![origin.into()],
+                ..HttpApiSettings::default()
+            })
+            .unwrap();
+        let origin = format!("Origin: {origin}");
+        let response = request(
+            &api,
+            "GET",
+            "/v1/notebooks",
+            &[
+                &auth,
+                &origin,
+                "Sec-Fetch-Site: none",
+                "Sec-Fetch-Dest: empty",
+            ],
+            None,
+        );
+        assert_eq!(response.status, 200, "{origin}");
+        assert_no_cors(&response);
+        let refused = request(&api, "GET", "/v1/notebooks", &[&origin], None);
+        assert_eq!(refused.status, 401);
+        assert_no_cors(&refused);
+    }
+    assert_eq!(api.core.reached(), 3);
+}
+
+#[test]
+fn removing_an_origin_takes_effect_without_restarting() {
+    let api = start(Scope::Read);
+    let origin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+    let send = || {
+        request(
+            &api,
+            "GET",
+            "/v1/notebooks",
+            &[
+                &bearer(&api),
+                &format!("Origin: {origin}"),
+                "Sec-Fetch-Site: none",
+            ],
+            None,
+        )
+    };
+    assert_eq!(send().code(), "E_HTTP_ORIGIN_REFUSED");
+    api.settings
+        .set(HttpApiSettings {
+            extension_origins: vec![origin.into()],
+            ..HttpApiSettings::default()
+        })
+        .unwrap();
+    assert_eq!(send().status, 200);
+    let other = request(
+        &api,
+        "GET",
+        "/v1/notebooks",
+        &[
+            &bearer(&api),
+            "Origin: chrome-extension://pppppppppppppppppppppppppppppppp",
+        ],
+        None,
+    );
+    assert_eq!(other.code(), "E_HTTP_ORIGIN_REFUSED");
+    api.settings.set(HttpApiSettings::default()).unwrap();
+    assert_eq!(send().code(), "E_HTTP_ORIGIN_REFUSED");
+    assert_eq!(api.core.reached(), 1);
+}
+
+#[test]
+fn settings_command_refuses_bad_origins_and_keeps_registration_on_token_rotation() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, _tokens, _core) = api(&dir);
+    assert_eq!(
+        api.set(false, 27484, vec!["null".into()]),
+        Err("E_HTTP_API_ORIGINS_INVALID")
+    );
+    assert!(api.view().extension_origins.is_empty());
+    let origins = vec!["chrome-extension://abcdefghijklmnopabcdefghijklmnop".into()];
+    assert_eq!(
+        api.set(false, 27484, origins.clone())
+            .unwrap()
+            .extension_origins,
+        origins
+    );
+    assert_eq!(
+        api.rotate(Scope::ReadWrite).unwrap().extension_origins,
+        origins
+    );
 }
 
 #[test]
@@ -432,6 +564,11 @@ fn a_read_only_token_reads_and_never_writes() {
         ("PATCH", note.as_str(), Some(r#"{"title":"a"}"#)),
         ("DELETE", note.as_str(), None),
         ("POST", "/v1/notebooks", Some(r#"{"name":"a"}"#)),
+        (
+            "POST",
+            &format!("{note}/files"),
+            Some(r#"{"name":"a","type":"image/png","data":"iVBORw0KGgo="}"#),
+        ),
     ] {
         let response = authorized(&api, method, target, body);
         assert_eq!(
@@ -441,6 +578,50 @@ fn a_read_only_token_reads_and_never_writes() {
         );
     }
     assert_eq!(api.core.reached(), 2);
+}
+
+#[test]
+fn file_uploads_validate_images_before_dispatch() {
+    let api = start(Scope::ReadWrite);
+    let target = format!("/v1/notes/{NOTE}/files");
+    for (body, code) in [
+        (
+            json!({"name":"a", "type":"image/png", "data":""}),
+            "E_FILE_SIZE_INVALID",
+        ),
+        (
+            json!({"name":"a", "type":"image/png", "data":"bad!"}),
+            "E_FILE_BODY_INVALID",
+        ),
+        (
+            json!({"name":"a", "type":"image/svg+xml", "data":"PHN2Zy8+"}),
+            "E_FILE_TYPE_REFUSED",
+        ),
+        (
+            json!({"name":"a", "type":"image/jpeg", "data":"iVBORw0KGgo="}),
+            "E_FILE_TYPE_REFUSED",
+        ),
+        (
+            json!({"name":"", "type":"image/png", "data":"iVBORw0KGgo="}),
+            "E_FILE_NAME_INVALID",
+        ),
+        (
+            json!({"name":"a", "type":"image/png", "data":"iVBORw0KGgo=", "extra":true}),
+            "E_HTTP_BODY_INVALID",
+        ),
+    ] {
+        assert_eq!(
+            authorized(&api, "POST", &target, Some(&body.to_string())).code(),
+            code
+        );
+    }
+    assert_eq!(api.core.reached(), 0);
+    let huge =
+        json!({"name":"a", "type":"image/png", "data":"a".repeat(2 * 1024 * 1024)}).to_string();
+    assert_eq!(
+        authorized(&api, "POST", &target, Some(&huge)).code(),
+        "E_HTTP_BODY_TOO_LARGE"
+    );
 }
 
 #[test]
@@ -866,6 +1047,7 @@ fn routes_each_request_of_the_contract_to_its_call() {
         Op::NotesUpdate,
         Op::NotesAppend,
         Op::NotesTrash,
+        Op::NotesFilesCreate,
     ] {
         assert!(routed.contains(op.as_str()), "{}", op.as_str());
     }
@@ -986,7 +1168,7 @@ fn is_off_until_turned_on_and_makes_a_read_only_token_then() {
     assert!(!view.enabled && view.listening.is_none() && view.problem.is_none());
     assert_eq!(view.token, TokenState::Unset);
     let port = free_port();
-    let on = api.set(true, port).unwrap();
+    let on = api.set(true, port, vec![]).unwrap();
     assert_eq!(
         (on.listening, on.scope, on.token),
         (Some(port), Scope::Read, TokenState::Set)
@@ -994,10 +1176,10 @@ fn is_off_until_turned_on_and_makes_a_read_only_token_then() {
     let token = tokens.get().unwrap().unwrap();
     assert!(token::is_token(&token));
     assert_eq!(api.reveal().unwrap().as_str(), token.as_str());
-    let off = api.set(false, port).unwrap();
+    let off = api.set(false, port, vec![]).unwrap();
     assert_eq!(off.listening, None);
     assert!(TcpStream::connect((Ipv4Addr::LOCALHOST, port)).is_err());
-    assert_eq!(api.set(true, 80), Err("E_HTTP_API_PORT_INVALID"));
+    assert_eq!(api.set(true, 80, vec![]), Err("E_HTTP_API_PORT_INVALID"));
 }
 
 #[test]
@@ -1005,7 +1187,7 @@ fn a_new_token_replaces_the_old_one_at_once_with_its_scope() {
     let dir = tempfile::tempdir().unwrap();
     let (api, tokens, core) = api(&dir);
     let port = free_port();
-    api.set(true, port).unwrap();
+    api.set(true, port, vec![]).unwrap();
     let old = tokens.get().unwrap().unwrap().as_str().to_string();
     let view = api.rotate(Scope::ReadWrite).unwrap();
     assert_eq!((view.scope, view.listening), (Scope::ReadWrite, Some(port)));
@@ -1028,13 +1210,13 @@ fn a_port_in_use_is_reported_and_tried_again_on_the_next_change() {
     let (api, _tokens, _core) = api(&dir);
     let taken = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
     let port = taken.local_addr().unwrap().port();
-    let view = api.set(true, port).unwrap();
+    let view = api.set(true, port, vec![]).unwrap();
     assert_eq!(
         (view.listening, view.problem),
         (None, Some("E_HTTP_API_PORT_IN_USE"))
     );
     drop(taken);
-    let view = api.set(true, port).unwrap();
+    let view = api.set(true, port, vec![]).unwrap();
     assert_eq!((view.listening, view.problem), (Some(port), None));
 }
 
@@ -1070,7 +1252,7 @@ fn a_new_token_works_at_once_even_when_its_scope_cannot_be_saved() {
     let dir = tempfile::tempdir().unwrap();
     let (api, tokens, core) = api(&dir);
     let port = free_port();
-    api.set(true, port).unwrap();
+    api.set(true, port, vec![]).unwrap();
     let old = tokens.get().unwrap().unwrap().as_str().to_string();
     let locked = ReadOnly::new(dir.path());
     assert_eq!(
@@ -1113,6 +1295,7 @@ fn once_the_trial_is_over_writes_are_refused_before_the_window_is_asked() {
         Op::NotesUpdate,
         Op::NotesAppend,
         Op::NotesTrash,
+        Op::NotesFilesCreate,
     ] {
         assert_eq!(
             dispatch.dispatch(&call(op)).unwrap_err(),

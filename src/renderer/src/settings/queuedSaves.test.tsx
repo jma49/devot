@@ -128,8 +128,17 @@ it('a change made while a refused AI Tools save ran is still sent', async () => 
 })
 
 it('a refused Local HTTP API save is not sent again when the port changes', async () => {
+  const extensionOrigins = [`chrome-extension://${'a'.repeat(32)}`]
   const rust = fakeRust(
-    { enabled: false, port: 8080, scope: 'read', listening: null, problem: null, token: 'set' },
+    {
+      enabled: false,
+      port: 8080,
+      scope: 'read',
+      extensionOrigins,
+      listening: null,
+      problem: null,
+      token: 'set',
+    },
     'http_api_set',
     'http_api_get',
   )
@@ -146,6 +155,9 @@ it('a refused Local HTTP API save is not sent again when the port changes', asyn
   })
   act(() => port.blur())
   await rust.answer()
-  expect(rust.sent.at(-1)).toEqual({ enabled: false, port: 9090 })
+  expect(rust.sent).toEqual([
+    { enabled: true, port: 8080, extensionOrigins },
+    { enabled: false, port: 9090, extensionOrigins },
+  ])
   expect(switches()[0]!.checked).toBe(false)
 })

@@ -204,4 +204,30 @@ export const messages = {
   'phone.ai.features': 'Features',
   'phone.ai.keyHint': 'Kept in the keychain, never synced',
   'phone.ai.suggestHint': 'Sends nearby text when you pause typing',
+  'phone.capture.menu': 'Scan or Transcribe',
+  'phone.capture.scan': 'Scan Document',
+  'phone.capture.transcribe': 'Transcribe Speech',
+  'phone.capture.scanPage': 'Scan {number}',
+  'phone.capture.textFailed':
+    'The transcript couldn’t be added to the note, so it was copied instead.',
+  'phone.capture.scanFailed': 'Some scanned pages could not be added to the note.',
+  'phone.transcribe.title': 'Transcribe',
+  'phone.transcribe.cancel': 'Cancel',
+  'phone.transcribe.insert': 'Insert',
+  'phone.transcribe.language': 'Language',
+  'phone.transcribe.english': 'English',
+  'phone.transcribe.chinese': 'Chinese (Mandarin)',
+  'phone.transcribe.preparing': 'Getting ready…',
+  'phone.transcribe.downloading': 'Downloading the speech model…',
+  'phone.transcribe.listening': 'Listening',
+  'phone.transcribe.hint':
+    'Start speaking and your words appear here. Everything stays on this iPhone.',
+  'phone.transcribe.finishing': 'Finishing…',
+  'phone.transcribe.micDenied':
+    'Devot can’t use the microphone. Allow it in Settings > Privacy & Security > Microphone.',
+  'phone.transcribe.unsupported': 'Transcription in this language isn’t available on this iPhone.',
+  'phone.transcribe.failed': 'Transcription stopped. The words heard so far are kept.',
+  'phone.usage.camera': 'Devot uses the camera to scan documents into your notes.',
+  'phone.usage.microphone':
+    'Devot uses the microphone to turn what you say into text in your notes, on this device.',
 } as const

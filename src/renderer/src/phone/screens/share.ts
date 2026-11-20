@@ -24,7 +24,8 @@ const text = (value: unknown): string => {
   return value
 }
 
-function bytes(base64: string): Uint8Array {
+/** Standard base64, as Swift sends an image's bytes. */
+export function bytes(base64: string): Uint8Array<ArrayBuffer> {
   const binary = atob(base64)
   const out = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)

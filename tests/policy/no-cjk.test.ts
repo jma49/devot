@@ -14,6 +14,7 @@ const TRANSLATIONS = [
   'src-tauri/apple/DevotShare/Sources/DevotShare/Generated/Localizable.xcstrings',
   'src-tauri/gen/apple/devot_Intents/Localizable.xcstrings',
   'src-tauri/gen/apple/devot_Widget/Localizable.xcstrings',
+  'src-tauri/gen/apple/devot_iOS/InfoPlist.xcstrings',
 ]
 const isTranslation = (file: string) => TRANSLATIONS.some((path) => file.startsWith(path))
 
@@ -36,6 +37,8 @@ it('no tracked file outside the translations contains CJK characters', () => {
 })
 
 it('lets CJK text only into the translations, and they exist', () => {
+  expect(isTranslation('clipper/_locales/zh_CN/messages.json')).toBe(false)
+  expect(isTranslation('clipper/_locales/zh_CN/messages.json.extra')).toBe(false)
   const files = listFiles('.')
   expect(TRANSLATIONS.every((path) => files.some((file) => file.startsWith(path)))).toBe(true)
   expect(isTranslation('src/renderer/src/i18n/en/app.ts')).toBe(false)

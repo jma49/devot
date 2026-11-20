@@ -354,7 +354,9 @@ fn indexing_waits_for_saves_to_be_quiet() {
             record(A, "Garden", &format!("Water {at}"), 10 + at),
         );
         loop {
-            let seen = observations.recv_timeout(Duration::from_secs(10)).unwrap();
+            let seen = observations
+                .recv_timeout(Duration::from_secs(10))
+                .expect("E_TEST_SEMANTIC_NO_OBSERVATION");
             if seen == library.db.writes().0 {
                 break;
             }

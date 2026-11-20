@@ -89,7 +89,7 @@ This list follows the current source; see the [release notes](https://github.com
   Recognition runs on the device and doesn't change the note or sync the extracted text.
 - Connect notes with `[[` links, see backlinks and unlinked mentions, embed notes and explore their connections in Graph view.
 - `devot://` links open a note from other apps.
-- Capture links fill Quick Capture from Shortcuts, a launcher or a browser bookmarklet (below).
+- The browser clipper saves articles or selections with images; capture links fill Quick Capture from Shortcuts or a launcher (below).
 - A command palette that finds commands and searches note titles and bodies, and keyboard shortcuts you can change.
 
 **Look**
@@ -174,11 +174,14 @@ On iPhone, use the **Add to Devot** and **Open Today's Note** Shortcuts actions,
 Every field is optional and percent-encoded, and `url` must be an http or https address.
 
 - **Shortcuts:** an Open URLs action with `devot://capture?text=` followed by the Shortcut Input, URL-encoded.
-- **A web clipper bookmarklet:** save this as a bookmark, then click it on any page to capture its title, the selected text and its address.
-
-  ```text
-  javascript:location.href='devot://capture?title='+encodeURIComponent(document.title)+'&text='+encodeURIComponent(getSelection())+'&url='+encodeURIComponent(location.href)
-  ```
+- **Launchers:** open a capture link with URL-encoded title, text and source URL.
+- **Browser clipper:** run `pnpm install` and `pnpm clipper:build`.
+  In Chrome, enable Developer mode at `chrome://extensions` and Load unpacked **clipper/dist/chrome**.
+  In Firefox, open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on and select **clipper/dist/firefox/manifest.json** (temporary installs last until Firefox closes; persistent installs require signing).
+  The clipper's settings open on install and walk through connecting it: turn on Devot's local HTTP API with Read and Write access, paste the token, add the extension's origin under Browser Extensions, and allow AI access on a notebook; Save and Check confirms each step.
+  On any page, click the Devot button, check the title and notebook, choose Article or Selection and press Enter; Open in Devot shows the new note.
+  Allow Image Downloads in the clipper's settings to save images into the note; images that cannot be downloaded stay web links.
+  The token is stored locally in the browser profile, not synced.
 
 ## Markdown mirror
 

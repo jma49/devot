@@ -21,11 +21,13 @@ const accessors = new Map(
 )
 
 it('keeps no iPhone string that nothing shows', () => {
-  const page = read(
-    listFiles('.', 'src/renderer/src').filter(
+  // The permission prompts are shown by the system, from the InfoPlist.xcstrings the script writes.
+  const page = read([
+    ...listFiles('.', 'src/renderer/src').filter(
       (path) => /\.tsx?$/.test(path) && !/\.test\.tsx?$/.test(path) && !path.includes('/i18n/'),
     ),
-  )
+    'scripts/i18n/apple.ts',
+  ])
   const native = read(listFiles('.', 'src-tauri/apple').filter((path) => path.endsWith('.swift')))
   const unused = Object.keys(messages).filter((key) => {
     if (page.includes(`'${key}'`) || page.includes(`"${key}"`) || page.includes(`\`${key}`)) {
