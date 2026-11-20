@@ -305,11 +305,12 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
       formatId: string,
       files: { name: string; text: string }[],
       destination: string | null,
+      notify = true,
     ) => {
       const { core: c, app: w, plugins: installed } = latest.current
       const plugin = installed.find((item) => item.manifest.id === pluginId)
       if (!c || !host || !plugin) throw new Error('E_PLUGIN_STOPPED')
-      setNotification(undefined)
+      if (notify) setNotification(undefined)
       const {
         ids,
         made,
@@ -319,17 +320,23 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
       for (const problem of problems) logFailure(problem.code, 'W_PLUGIN_IMPORT_SKIPPED')
       if (made > 0) w.imported()
       const failed = Boolean(importError || (made === 0 && files.length > 0))
-      if (failed) fail(pluginId, importError ?? new Error('E_IMPORT_FAILED'))
-      else if (made > 0 && problems.length > 0)
+      if (notify && failed) fail(pluginId, importError ?? new Error('E_IMPORT_FAILED'))
+      else if (notify && made > 0 && problems.length > 0)
         setNotification({ kind: 'import', notes: made, problems })
-      return { ids, failed }
+      return { ids, failed, made, problems }
     },
   )
 
   const importDropped = useStable(async (files: File[], destination: string | null) => {
-    return importDroppedFiles(files, latest.current.plugins, (plugin, formatId, read) =>
-      convertFiles(plugin, formatId, read, destination),
+    setNotification(undefined)
+    const result = await importDroppedFiles(
+      files,
+      latest.current.plugins,
+      (plugin, formatId, read) => convertFiles(plugin, formatId, read, destination, false),
     )
+    if (result.made > 0 && result.problems.length > 0)
+      setNotification({ kind: 'import', notes: result.made, problems: result.problems })
+    return result
   })
 
   const act = useCallback(

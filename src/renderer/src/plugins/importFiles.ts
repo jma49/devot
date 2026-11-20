@@ -9,14 +9,17 @@ const MAX_FILES = 20
 const MAX_BYTES = 5 * 1024 * 1024
 type ImportFile = { name: string; text: string }
 
+export interface PluginDropResult {
+  ids: string[]
+  failed: boolean
+  made: number
+  problems: ImportReport['problems']
+}
+
 export async function importDroppedFiles(
   files: readonly File[],
   plugins: readonly InstalledPlugin[],
-  convert: (
-    plugin: string,
-    format: string,
-    files: ImportFile[],
-  ) => Promise<{ ids: string[]; failed: boolean }>,
+  convert: (plugin: string, format: string, files: ImportFile[]) => Promise<PluginDropResult>,
 ) {
   if (files.length > MAX_FILES) throw new Error('E_PLUGIN_IMPORT_TOO_MANY')
   const groups = new Map<string, { plugin: InstalledPlugin; format: string; files: File[] }>()
@@ -43,16 +46,20 @@ export async function importDroppedFiles(
   }
   const ids: string[] = []
   let failed = false
+  let made = 0
+  const problems: ImportReport['problems'] = []
   for (const group of prepared) {
     try {
       const result = await convert(group.plugin.manifest.id, group.format, group.files)
       ids.push(...result.ids)
       failed ||= result.failed
+      made += result.made
+      problems.push(...result.problems)
     } catch {
       failed = true
     }
   }
-  return { ids, failed }
+  return { ids, failed, made, problems }
 }
 
 export function routeImport(name: string, plugins: readonly InstalledPlugin[]) {

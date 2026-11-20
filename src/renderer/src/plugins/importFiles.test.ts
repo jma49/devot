@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { parseManifest, type InstalledPlugin } from '../../../core/plugins'
 import type { ImportReport } from '../../../core/import'
 import { importDroppedFiles, importPluginFiles, readPluginFiles, routeImport } from './importFiles'
+import type { PluginDropResult } from './importFiles'
 
 const plugin = (): InstalledPlugin => ({
   manifest: parseManifest({
@@ -29,6 +30,45 @@ const report = (noteIds: Record<string, string> = { '1.md': 'note-id' }): Import
 })
 
 describe('plugin file imports', () => {
+  it.each(['warning-first', 'warning-last', 'both', 'later-failure'])(
+    'retains diagnostics for the whole drop: %s',
+    async (order) => {
+      const installed = plugin()
+      installed.manifest.contributes.importFormats.push({
+        id: 'other',
+        title: 'Other',
+        extensions: ['other'],
+      })
+      const first = { path: 'first.md', code: 'E_IMPORT_ATTACHMENT', noteId: 'first' }
+      const second = { path: 'second.md', code: 'E_IMPORT_ATTACHMENT', noteId: 'second' }
+      const convert = vi.fn<() => Promise<PluginDropResult>>().mockResolvedValueOnce({
+        ids: ['first'],
+        made: 1,
+        failed: false,
+        problems: order === 'warning-last' ? [] : [first],
+      })
+      if (order === 'later-failure') convert.mockRejectedValueOnce(new Error('E_PLUGIN_STOPPED'))
+      else
+        convert.mockResolvedValueOnce({
+          ids: ['second'],
+          made: 1,
+          failed: false,
+          problems: order === 'warning-first' ? [] : [second],
+        })
+      const result = await importDroppedFiles(
+        [new File(['one'], 'one.txt'), new File(['two'], 'two.other')],
+        [installed],
+        convert,
+      )
+      expect(result).toEqual({
+        ids: order === 'later-failure' ? ['first'] : ['first', 'second'],
+        made: order === 'later-failure' ? 1 : 2,
+        failed: order === 'later-failure',
+        problems:
+          order === 'both' ? [first, second] : order === 'warning-last' ? [second] : [first],
+      })
+    },
+  )
   it.each([false, true])(
     'enforces the whole drop count before reading either format (reversed: %s)',
     async (reverse) => {
@@ -44,8 +84,8 @@ describe('plugin file imports', () => {
       )
       const read = vi.spyOn(files[0]!, 'arrayBuffer')
       const convert = vi
-        .fn<() => Promise<{ ids: string[]; failed: boolean }>>()
-        .mockResolvedValue({ ids: [], failed: false })
+        .fn<() => Promise<PluginDropResult>>()
+        .mockResolvedValue({ ids: [], failed: false, made: 0, problems: [] })
       if (reverse) files.reverse()
       await expect(importDroppedFiles(files, [installed], convert)).rejects.toThrow(
         'E_PLUGIN_IMPORT_TOO_MANY',
@@ -55,6 +95,8 @@ describe('plugin file imports', () => {
       expect(await importDroppedFiles(files.slice(0, 20), [installed], convert)).toEqual({
         ids: [],
         failed: false,
+        made: 0,
+        problems: [],
       })
       expect(convert).toHaveBeenCalledTimes(2)
     },
@@ -71,7 +113,7 @@ describe('plugin file imports', () => {
       const good = new File(['good'], 'good.txt')
       const bad = new File([new Uint8Array([255])], 'bad.other')
       if (kind === 'size') Object.defineProperty(bad, 'size', { value: 6 * 1024 * 1024 })
-      const convert = vi.fn<() => Promise<{ ids: string[]; failed: boolean }>>()
+      const convert = vi.fn<() => Promise<PluginDropResult>>()
       for (const files of [
         [good, bad],
         [bad, good],
@@ -92,8 +134,8 @@ describe('plugin file imports', () => {
       extensions: ['other'],
     })
     const convert = vi
-      .fn<() => Promise<{ ids: string[]; failed: boolean }>>()
-      .mockResolvedValueOnce({ ids: ['written'], failed: false })
+      .fn<() => Promise<PluginDropResult>>()
+      .mockResolvedValueOnce({ ids: ['written'], failed: false, made: 1, problems: [] })
       .mockRejectedValueOnce(new Error('E_PLUGIN_STOPPED'))
     expect(
       await importDroppedFiles(
@@ -101,7 +143,7 @@ describe('plugin file imports', () => {
         [installed],
         convert,
       ),
-    ).toEqual({ ids: ['written'], failed: true })
+    ).toEqual({ ids: ['written'], failed: true, made: 1, problems: [] })
   })
   it('routes built-ins before enabled, permitted plugin formats', () => {
     const installed = plugin()
