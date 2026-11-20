@@ -109,7 +109,7 @@ struct TranscriptionSheet: View {
     /// The sheet at medium height, growing to large, that only its buttons close.
     static func controller(model: TranscriptionModel, insert: @escaping (String) -> Void) -> UIViewController {
         weak var shown: UIViewController?
-        let close = { shown?.dismiss(animated: true) }
+        let close: () -> Void = { shown?.dismiss(animated: true) }
         let hosting = UIHostingController(
             rootView: TranscriptionSheet(
                 model: model,
