@@ -73,6 +73,18 @@ describe('the AI settings queue', () => {
     expect(q.shown()).toMatchObject({ active: 'anthropic', suggestOnIdle: true })
   })
 
+  it('settles true once a change is saved, false once it is refused', async () => {
+    const { q, answers } = queue()
+    const saved = q.change((v) => ({ ...v, active: 'openai' }))
+    const refused = q.change((v) => ({ ...v, suggestOnIdle: true }))
+    await settle()
+    answers[0]!()
+    await settle()
+    answers[1]!(true)
+    expect(await saved).toBe(true)
+    expect(await refused).toBe(false)
+  })
+
   it('sends nothing for a change that changes nothing', async () => {
     const { q, sent } = queue()
     await q.change((v) => ({ ...v }))

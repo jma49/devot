@@ -4,6 +4,7 @@ import {
   isCliProvider,
   type AiApiProviderId,
   type AiCatalog,
+  type AiCatalogModel,
   type AiProviderId,
   type AiSettingsView,
 } from '../../../core/aiProvider'
@@ -27,10 +28,12 @@ import {
   mainChoice,
   providerState,
   RECENT_LIMIT,
+  rememberChoices,
   settingsChange,
   suggestChoice,
   suggestStatus,
   type Catalogs,
+  type KnownModels,
   type ModelChoice,
   type PickerTarget,
   type RecentModel,
@@ -59,6 +62,44 @@ import { openNotebookPicker } from './notebookPicker'
 import { aiAccessSummary, type AiAccessSummary } from './window'
 
 const RECENT_KEY = 'devot.ai.recentModels'
+const KNOWN_KEY = 'devot.ai.knownModels'
+
+function readKnown(): KnownModels {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(KNOWN_KEY) ?? '{}')
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    const known: Record<string, AiCatalogModel> = {}
+    for (const [key, value] of Object.entries(parsed)) {
+      const model = value as Partial<AiCatalogModel> | null
+      if (
+        typeof model?.id === 'string' &&
+        typeof model.name === 'string' &&
+        Array.isArray(model.reasoning) &&
+        model.reasoning.every((level) => typeof level === 'string')
+      ) {
+        known[key] = {
+          id: model.id,
+          name: model.name,
+          tier: model.tier === 'fast' || model.tier === 'best' ? model.tier : null,
+          reasoning: model.reasoning,
+          defaultReasoning:
+            typeof model.defaultReasoning === 'string' ? model.defaultReasoning : null,
+        }
+      }
+    }
+    return known
+  } catch {
+    return {}
+  }
+}
+
+function storeKnown(known: KnownModels) {
+  try {
+    localStorage.setItem(KNOWN_KEY, JSON.stringify(known))
+  } catch {
+    // Without storage a cloud model is named once its list is fetched.
+  }
+}
 
 export function readRecent(): RecentModel[] {
   try {
@@ -134,7 +175,14 @@ export function AiSection() {
   const [saveError, setSaveError] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
   const [catalogs, setCatalogs] = useState<Catalogs>({})
+  const [stored] = useState<KnownModels>(readKnown)
+  const known = view
+    ? rememberChoices(stored, catalogs, [mainChoice(view), suggestChoice(view)])
+    : stored
+  const knownText = JSON.stringify(known)
+  useEffect(() => storeKnown(JSON.parse(knownText) as KnownModels), [knownText])
   const [recent, setRecent] = useState<RecentModel[]>(readRecent)
+  useEffect(() => storeRecent(recent), [recent])
   const [tryState, setTryState] = useState<TryState>({ kind: 'idle' })
   const [sheet, setSheet] = useState<{ provider: AiApiProviderId; firstRun: boolean }>()
   const [summary, setSummary] = useState<AiAccessSummary>()
@@ -259,12 +307,12 @@ export function AiSection() {
   }
 
   const pick = (target: PickerTarget, picked: { provider: AiProviderId; model: string } | null) => {
-    change((shown) => choose(shown, target, catalogs, picked))
-    if (picked) {
-      const next = addRecent(recent, picked)
-      setRecent(next)
-      storeRecent(next)
-    }
+    setSaveError(undefined)
+    void queue
+      .change((shown) => choose(shown, target, catalogs, picked))
+      .then((saved) => {
+        if (saved && picked && mounted.current) setRecent((now) => addRecent(now, picked))
+      })
   }
 
   const checkTools = () => {
@@ -354,7 +402,7 @@ export function AiSection() {
     if (!sameChoice(now, tryState.choice)) return null
     const text =
       tryState.kind === 'trying'
-        ? format(t('aiSettings.trying'), { model: modelLabel(catalogs, view, target) })
+        ? format(t('aiSettings.trying'), { model: modelLabel(catalogs, known, view, target) })
         : tryState.kind === 'tried'
           ? format(t('aiSettings.tried'), {
               seconds: (tryState.elapsedMs / 1000).toLocaleString(currentLocale(), {
@@ -385,6 +433,7 @@ export function AiSection() {
         view={view}
         catalogs={catalogs}
         recent={recent}
+        known={known}
         describedBy={describedBy}
         onProvider={openProvider}
         onPick={(picked) => pick(target, picked)}
@@ -474,7 +523,8 @@ export function AiSection() {
       allowedNotebooks: summary?.allowed,
     })
     const suggestName =
-      choiceName(catalogs, suggestChoice(view)) ?? t(PROVIDER_NAMES[suggestChoice(view).provider])
+      choiceName(catalogs, suggestChoice(view), known) ??
+      t(PROVIDER_NAMES[suggestChoice(view).provider])
     const readyCount = providers.filter((id) => providerState(view, id) === 'ready').length
     const locale = currentLocale()
     return (
