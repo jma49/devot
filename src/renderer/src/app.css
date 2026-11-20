@@ -7059,6 +7059,22 @@ button.model-popup[aria-disabled='true'] {
   transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
 }
 
+/* A setting's segments: capsules the height of the pop-ups beside them. */
+.setting-control .segmented {
+  border-radius: var(--radius-capsule);
+}
+
+.setting-control .segment {
+  width: auto;
+  min-width: var(--size-settings-control);
+  height: calc(var(--size-settings-control) - 2 * var(--space-1));
+  padding-inline: var(--space-6);
+  border-radius: var(--radius-capsule);
+  white-space: nowrap;
+  font: inherit;
+  font-size: var(--font-size-body);
+}
+
 .select:hover:not(:has(select:disabled)) {
   background: var(--color-fill-tool-hover);
 }
