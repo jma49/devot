@@ -15,7 +15,9 @@ import {
 export function usePaneResize(pane: PaneSpec, fitted?: number) {
   const [stored, setStored] = useState(() => currentPaneWidthStore(pane).stored())
   const width = shownPaneWidth(pane, stored, fitted)
-  const resizing = useRef<{ x: number; width: number; set: boolean } | null>(null)
+  const resizing = useRef<{ x: number; width: number; stored: number | undefined } | null>(null)
+  const displayedWidth = (edge: HTMLDivElement) =>
+    edge.parentElement?.getBoundingClientRect().width || width
   const keep = (next: number) => {
     setStored(next)
     currentPaneWidthStore(pane).write(next)
@@ -39,7 +41,13 @@ export function usePaneResize(pane: PaneSpec, fitted?: number) {
     tabIndex: 0,
     onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      const next = paneWidthForKey(pane, e.key, e.shiftKey, width, document.dir === 'rtl')
+      const next = paneWidthForKey(
+        pane,
+        e.key,
+        e.shiftKey,
+        displayedWidth(e.currentTarget),
+        document.dir === 'rtl',
+      )
       if (next === undefined) return
       e.preventDefault()
       if (next === 'reset') reset()
@@ -50,7 +58,7 @@ export function usePaneResize(pane: PaneSpec, fitted?: number) {
       if (e.button !== 0) return
       e.preventDefault()
       e.currentTarget.setPointerCapture(e.pointerId)
-      resizing.current = { x: e.clientX, width, set: stored !== undefined }
+      resizing.current = { x: e.clientX, width: displayedWidth(e.currentTarget), stored }
     },
     onPointerMove(e: PointerEvent<HTMLDivElement>) {
       const from = resizing.current
@@ -64,8 +72,8 @@ export function usePaneResize(pane: PaneSpec, fitted?: number) {
     if (!from) return
     resizing.current = null
     const next = dragged(from, e)
-    // A drag that ends where it began leaves a width that was not set unset, so it stays fitted.
-    if (next === from.width && !from.set) setStored(undefined)
+    // A press or a drag back to its start must not save the CSS-clamped width over the preference.
+    if (next === from.width) setStored(from.stored)
     else keep(next)
   }
   return { width, edge }

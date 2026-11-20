@@ -35,7 +35,16 @@ test.beforeEach(async ({ page }) => {
   await openPhoneNote(page)
   await expect(note(page).locator('.cm-content')).toBeAttached()
   await expect(zone(page)).toHaveCount(1)
-  await page.waitForTimeout(600)
+  const layer = topLayer(page).filter({ has: note(page) })
+  await expect
+    .poll(() =>
+      layer.evaluate(
+        (el) =>
+          el.getAnimations().length === 0 &&
+          new DOMMatrix(getComputedStyle(el).transform).m41 === 0,
+      ),
+    )
+    .toBe(true)
 })
 
 test('the back button is at least 44 points, labelled, and pops', async ({ page }) => {
@@ -86,16 +95,6 @@ test('Back pressed mid-swipe leaves the screen below where it belongs', async ({
 })
 
 test('Back slides the popped screen out, keeping its own screen', async ({ page }) => {
-  // Opening a note can hold frames for seconds, and a pop from a push not yet begun has no way to slide.
-  await expect
-    .poll(() =>
-      topLayer(page).evaluate(
-        (layer) =>
-          layer.getAnimations().length === 0 &&
-          new DOMMatrix(getComputedStyle(layer).transform).m41 === 0,
-      ),
-    )
-    .toBe(true)
   // Slowed five times (the UI tests' build reads it on each motion), so a busy frame cannot skip the slide.
   await page.evaluate(() => {
     localStorage.setItem('devot.motionScale', '5')

@@ -3,7 +3,7 @@ import { act, type KeyboardEvent, type PointerEvent } from 'react'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { renderHook, unmountAll } from '../../../tests/support/render-hook'
 import { restoreLocalStorage, useMemoryLocalStorage } from '../../../tests/support/local-storage'
-import { BOARD_PANE, INSPECTOR_PANE, fittedBoardWidth } from './paneWidth'
+import { BOARD_PANE, INSPECTOR_PANE, SIDEBAR_PANE, fittedBoardWidth } from './paneWidth'
 import { usePaneResize } from './paneResize'
 
 beforeEach(useMemoryLocalStorage)
@@ -13,18 +13,25 @@ afterAll(restoreLocalStorage)
 const fitted = fittedBoardWidth(4)
 const saved = () => localStorage.getItem(BOARD_PANE.key)
 
-function pointer(clientX: number) {
+function pointer(clientX: number, renderedWidth?: number) {
   return {
     button: 0,
     clientX,
     pointerId: 1,
     preventDefault() {},
-    currentTarget: { setPointerCapture() {} },
+    currentTarget: {
+      setPointerCapture() {},
+      parentElement: { getBoundingClientRect: () => ({ width: renderedWidth }) },
+    },
   } as unknown as PointerEvent<HTMLDivElement>
 }
 
-function key(name: string) {
-  return { key: name, preventDefault() {} } as unknown as KeyboardEvent<HTMLDivElement>
+function key(name: string, renderedWidth?: number) {
+  return {
+    key: name,
+    preventDefault() {},
+    currentTarget: { parentElement: { getBoundingClientRect: () => ({ width: renderedWidth }) } },
+  } as unknown as KeyboardEvent<HTMLDivElement>
 }
 
 function board() {
@@ -98,4 +105,36 @@ it('resizes the inspector from its leading edge and resets its width', () => {
   expect(hook.current.width).toBe(200)
   act(() => hook.current.edge.onDoubleClick())
   expect(hook.current.width).toBe(220)
+})
+
+describe('a sidebar clamped below its saved width', () => {
+  const sidebar = () => {
+    localStorage.setItem(SIDEBAR_PANE.key, '500')
+    return renderHook(() => usePaneResize(SIDEBAR_PANE), { props: {} })
+  }
+
+  it('starts dragging from the rendered width, not the saved width', () => {
+    const hook = sidebar()
+    act(() => hook.current.edge.onPointerDown(pointer(204, 204)))
+    act(() => hook.current.edge.onPointerMove(pointer(184, 204)))
+    act(() => hook.current.edge.onPointerUp(pointer(184, 204)))
+    expect(hook.current.width).toBe(184)
+    expect(localStorage.getItem(SIDEBAR_PANE.key)).toBe('184')
+  })
+
+  it('keeps the saved width when a drag ends where it started', () => {
+    const hook = sidebar()
+    act(() => hook.current.edge.onPointerDown(pointer(204, 204)))
+    act(() => hook.current.edge.onPointerMove(pointer(184, 204)))
+    act(() => hook.current.edge.onPointerUp(pointer(204, 184)))
+    expect(hook.current.width).toBe(500)
+    expect(localStorage.getItem(SIDEBAR_PANE.key)).toBe('500')
+  })
+
+  it('starts keyboard resizing from the rendered width', () => {
+    const hook = sidebar()
+    act(() => hook.current.edge.onKeyDown(key('ArrowLeft', 204)))
+    expect(hook.current.width).toBe(194)
+    expect(localStorage.getItem(SIDEBAR_PANE.key)).toBe('194')
+  })
 })
