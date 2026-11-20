@@ -20,10 +20,11 @@ Part of the [architecture overview](../architecture.md).
   The patch also keeps a reparse from taking a block whose start or end the edit changed, which 1.8.1 did after some edits (#1040).
   It takes a block only on a line that starts where it did in the old tree: the fragment holds the line break before it, or the note's start unmoved; 1.8.1 kept a note's first block when an edit took the indent off its first line.
   A taken block ends before the last two whole lines of its fragment, because a table's delimiter row decides where the paragraph above its header ends; 1.8.1 left one line, and none after a line with trailing spaces.
-  Only a fragment that ends the note and a parse that reached its end lends those lines, because `TreeFragment.applyChanges` drops `openEnd` from a fragment it moves, and a parse CodeMirror stops early leaves such fragments behind.
+  Only a fragment that ends both the note and its tree lends those lines, because `TreeFragment.applyChanges` drops `openEnd` from a fragment it moves, and a parse CodeMirror stops early leaves such fragments behind.
   A list item that starts with a blank line takes no block for its first content: the blank line after that content ends the item only while the item holds just its marker, and a taken block would join it first.
   `markdown.test.ts` holds the smallest case of each, and 2,880 seeded random edits at line starts and ends, with whole and stopped parses, to the tree a whole parse gives.
-  In Node, about 260,000 random edits reparsed to a whole parse's tree, against 376 mismatches in 71,000 before, at the same cost per key (about 0.1 ms at 600 KB and 0.6 ms at 4 MB, at the top and the end alike).
+  The five post-fix Node fuzz runs recorded in #1041 total 260,598 reparses with no mismatch (30,200 + 16,766 + 45,000 + 26,002 + 142,630); these were separate from the committed test's 2,880 edit iterations.
+  The wider corpus had 376 mismatches in 71,027 reparses before the fix, at the same cost per key (about 0.1 ms at 600 KB and 0.6 ms at 4 MB, at the top and the end alike).
   The 1.5 times bound catches work of about half a keystroke; a smaller cost, such as the highlighting walk below, is held by its unit test.
   The editor's syntax highlighting (`editor/highlighting.ts`) highlights each top-level block in the visible ranges on its own, found from the range's start, because `highlightTree` from the root steps past every block before it (11,550 in a 600 KB note, about 2 ms a keystroke at the end in WebKit); `highlighting.test.ts` holds a range at the end to the steps of one at the top.
 - Opening a note does not wait for the note left to be saved: its edits are in the core already, and the open asks the core to save once the note has opened (`useOpenNote.ts`).

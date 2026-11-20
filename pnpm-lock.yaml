@@ -169,7 +169,7 @@ overrides:
   miniflare>sharp: ^0.35.5
 
 patchedDependencies:
-  '@lezer/markdown@1.8.1': c08c70ccee75a4629d2f3b19ff3bea0b1015cac47b8c3c1349f6ca6520eb1d48
+  '@lezer/markdown@1.8.1': 16e1bdd3a5ea1ee052f75599a181d084ec9de261611453b7953a398cbb6fcdd8
   hast-util-minify-whitespace@1.0.1: b9ea89b02adb67b4cc26bd8568b76e42c54a4aa725a6a86b6440fe5e237dfdc6
   vfile-location@5.0.3: acf2bbbc87b84d43862dcc7f5ef2f2dd84401c36f2253111c3c1af65452f7b76
 
@@ -209,7 +209,7 @@ importers:
         version: 1.2.5
       '@lezer/markdown':
         specifier: 1.8.1
-        version: 1.8.1(patch_hash=c08c70ccee75a4629d2f3b19ff3bea0b1015cac47b8c3c1349f6ca6520eb1d48)
+        version: 1.8.1(patch_hash=16e1bdd3a5ea1ee052f75599a181d084ec9de261611453b7953a398cbb6fcdd8)
       '@mozilla/readability':
         specifier: 0.6.0
         version: 0.6.0
@@ -3390,7 +3390,7 @@ snapshots:
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.14
       '@lezer/common': 1.5.3
-      '@lezer/markdown': 1.8.1(patch_hash=c08c70ccee75a4629d2f3b19ff3bea0b1015cac47b8c3c1349f6ca6520eb1d48)
+      '@lezer/markdown': 1.8.1(patch_hash=16e1bdd3a5ea1ee052f75599a181d084ec9de261611453b7953a398cbb6fcdd8)
 
   '@codemirror/lang-php@6.0.2':
     dependencies:
@@ -3801,7 +3801,7 @@ snapshots:
     dependencies:
       '@lezer/common': 1.5.3
 
-  '@lezer/markdown@1.8.1(patch_hash=c08c70ccee75a4629d2f3b19ff3bea0b1015cac47b8c3c1349f6ca6520eb1d48)':
+  '@lezer/markdown@1.8.1(patch_hash=16e1bdd3a5ea1ee052f75599a181d084ec9de261611453b7953a398cbb6fcdd8)':
     dependencies:
       '@lezer/common': 1.5.3
       '@lezer/highlight': 1.2.5

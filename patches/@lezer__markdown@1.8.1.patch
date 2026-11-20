@@ -1,5 +1,5 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 4a361b0..e27ccd1 100644
+index 4a361b0d03d5ed263f09e3eeebbbc2f1b6375ec8..f5702dcc6b88b6efa6da487bc3c91962451713d9 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
 @@ -823,7 +823,12 @@ class BlockContext {
@@ -16,28 +16,7 @@ index 4a361b0..e27ccd1 100644
              !this.fragments.matches(this.block.hash))
              return false;
          let taken = this.fragments.takeNodes(this);
-@@ -1008,7 +1013,10 @@ class BlockContext {
-     finish() {
-         while (this.stack.length > 1)
-             this.finishContext();
--        return this.addGaps(this.block.toTree(this.parser.nodeSet, this.lineStart));
-+        let tree = this.addGaps(this.block.toTree(this.parser.nodeSet, this.lineStart));
-+        if (this.atEnd)
-+            completeTrees.add(tree);
-+        return tree;
-     }
-     addGaps(tree) {
-         return this.ranges.length > 1 ?
-@@ -1863,6 +1871,8 @@ function injectMarks(elements, marks) {
- }
- // These are blocks that can span blank lines, and should thus only be
- // reused if their next sibling is also being reused.
-+// Trees of parses that reached the end of their input.
-+const completeTrees = new WeakSet;
- const NotLast = [Type.CodeBlock, Type.ListItem, Type.OrderedList, Type.BulletList];
- class FragmentCursor {
-     constructor(fragments, input) {
-@@ -1887,13 +1897,26 @@ class FragmentCursor {
+@@ -1887,13 +1892,26 @@ class FragmentCursor {
      moveTo(pos, lineStart) {
          while (this.fragment && this.fragment.to <= pos)
              this.nextFragment();
@@ -53,11 +32,11 @@ index 4a361b0..e27ccd1 100644
 +            // Where a block ends can depend on the two lines after it
 +            // (a table's delimiter row ends a paragraph above its header),
 +            // so taken blocks end before the fragment's last two whole
-+            // lines, unless the fragment ends the input and a parse that
-+            // reached it. `openEnd` can't tell: `applyChanges` drops it
++            // lines, unless the fragment ends both the input and its
++            // tree. `openEnd` can't tell: `applyChanges` drops it
 +            // from a fragment it moves.
 +            let end = this.fragment.to, tree = this.fragment.tree;
-+            let lines = end == this.input.length && end + this.fragment.offset == tree.length && completeTrees.has(tree) ? 1 : 3;
++            let lines = end == this.input.length && end + this.fragment.offset == tree.length ? 1 : 3;
 +            for (; lines > 0 && end > 0; lines--) {
                  end--;
 -            this.fragmentEnd = end ? end - 1 : 0;
@@ -68,7 +47,7 @@ index 4a361b0..e27ccd1 100644
          }
          let c = this.cursor;
          if (!c) {
-@@ -1906,7 +1929,7 @@ class FragmentCursor {
+@@ -1906,7 +1924,7 @@ class FragmentCursor {
                  return false;
          for (;;) {
              if (c.from >= rPos)
@@ -77,7 +56,7 @@ index 4a361b0..e27ccd1 100644
              if (!c.childAfter(rPos))
                  return false;
          }
-@@ -1918,15 +1941,18 @@ class FragmentCursor {
+@@ -1918,15 +1936,18 @@ class FragmentCursor {
          return tree && tree.prop(common.NodeProp.contextHash) == hash;
      }
      takeNodes(cx) {
@@ -101,7 +80,7 @@ index 4a361b0..e27ccd1 100644
                  if (cur.type.isAnonymous && cur.firstChild())
                      continue;
                  break;
-@@ -1972,6 +1998,25 @@ class FragmentCursor {
+@@ -1972,6 +1993,25 @@ class FragmentCursor {
          return end - start;
      }
  }
@@ -122,13 +101,13 @@ index 4a361b0..e27ccd1 100644
 +    return known;
 +}
 +function isGroup(node) {
-+    return node instanceof Tree && node.type.isAnonymous;
++    return node instanceof common.Tree && node.type.isAnonymous;
 +}
  function canStopAfterLastChild(tree) {
      while (tree.type.isAnonymous) {
          let last = tree.children[tree.children.length - 1];
 diff --git a/dist/index.js b/dist/index.js
-index bcaae77..1d5c4bf 100644
+index bcaae772b1e92dd3f279b5c0b6607a3df0a2b20a..0bffe1d44f3771fc6f45f8f4b34940947c8f8994 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -821,7 +821,12 @@ class BlockContext {
@@ -145,28 +124,7 @@ index bcaae77..1d5c4bf 100644
              !this.fragments.matches(this.block.hash))
              return false;
          let taken = this.fragments.takeNodes(this);
-@@ -1006,7 +1011,10 @@ class BlockContext {
-     finish() {
-         while (this.stack.length > 1)
-             this.finishContext();
--        return this.addGaps(this.block.toTree(this.parser.nodeSet, this.lineStart));
-+        let tree = this.addGaps(this.block.toTree(this.parser.nodeSet, this.lineStart));
-+        if (this.atEnd)
-+            completeTrees.add(tree);
-+        return tree;
-     }
-     addGaps(tree) {
-         return this.ranges.length > 1 ?
-@@ -1861,6 +1869,8 @@ function injectMarks(elements, marks) {
- }
- // These are blocks that can span blank lines, and should thus only be
- // reused if their next sibling is also being reused.
-+// Trees of parses that reached the end of their input.
-+const completeTrees = new WeakSet;
- const NotLast = [Type.CodeBlock, Type.ListItem, Type.OrderedList, Type.BulletList];
- class FragmentCursor {
-     constructor(fragments, input) {
-@@ -1885,13 +1895,26 @@ class FragmentCursor {
+@@ -1885,13 +1890,26 @@ class FragmentCursor {
      moveTo(pos, lineStart) {
          while (this.fragment && this.fragment.to <= pos)
              this.nextFragment();
@@ -182,11 +140,11 @@ index bcaae77..1d5c4bf 100644
 +            // Where a block ends can depend on the two lines after it
 +            // (a table's delimiter row ends a paragraph above its header),
 +            // so taken blocks end before the fragment's last two whole
-+            // lines, unless the fragment ends the input and a parse that
-+            // reached it. `openEnd` can't tell: `applyChanges` drops it
++            // lines, unless the fragment ends both the input and its
++            // tree. `openEnd` can't tell: `applyChanges` drops it
 +            // from a fragment it moves.
 +            let end = this.fragment.to, tree = this.fragment.tree;
-+            let lines = end == this.input.length && end + this.fragment.offset == tree.length && completeTrees.has(tree) ? 1 : 3;
++            let lines = end == this.input.length && end + this.fragment.offset == tree.length ? 1 : 3;
 +            for (; lines > 0 && end > 0; lines--) {
                  end--;
 -            this.fragmentEnd = end ? end - 1 : 0;
@@ -197,7 +155,7 @@ index bcaae77..1d5c4bf 100644
          }
          let c = this.cursor;
          if (!c) {
-@@ -1904,7 +1927,7 @@ class FragmentCursor {
+@@ -1904,7 +1922,7 @@ class FragmentCursor {
                  return false;
          for (;;) {
              if (c.from >= rPos)
@@ -206,7 +164,7 @@ index bcaae77..1d5c4bf 100644
              if (!c.childAfter(rPos))
                  return false;
          }
-@@ -1916,15 +1939,18 @@ class FragmentCursor {
+@@ -1916,15 +1934,18 @@ class FragmentCursor {
          return tree && tree.prop(NodeProp.contextHash) == hash;
      }
      takeNodes(cx) {
@@ -230,7 +188,7 @@ index bcaae77..1d5c4bf 100644
                  if (cur.type.isAnonymous && cur.firstChild())
                      continue;
                  break;
-@@ -1970,6 +1996,25 @@ class FragmentCursor {
+@@ -1970,6 +1991,25 @@ class FragmentCursor {
          return end - start;
      }
  }
