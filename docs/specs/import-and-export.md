@@ -9,6 +9,7 @@ Part of the [Markdown dialect](markdown-dialect.md).
 
 Dropping loose Markdown or HTML files into the main window imports copies into the notebook shown, or the default notebook when another view is shown, and opens the first successfully imported note without a confirmation sheet.
 Drops and command-line handoffs import one at a time.
+Drops are refused while Backups is open or restoring, and a restore waits for already accepted drop work, including plugin conversion, to finish before replacing the database.
 A window highlight marks file drops; unsupported files or a failed import with no imported note produce a notice.
 Images dropped alongside notes can satisfy relative image links by filename; browser drops provide no folder paths.
 Image-only drops over the editor remain attachments to the open note, and internal note and notebook drags keep their existing behavior.

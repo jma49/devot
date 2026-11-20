@@ -32,6 +32,7 @@ export function useAppDeepLinks({
   startImport,
   enqueueImport,
   pluginImports,
+  drops,
   showLibrary,
   showLibraryRef,
   select,
@@ -52,6 +53,7 @@ export function useAppDeepLinks({
   startImport: ReturnType<typeof useSheets>['startImport']
   enqueueImport: ReturnType<typeof useSheets>['enqueueImport']
   pluginImports: Pick<ReturnType<typeof usePlugins>, 'installed' | 'importDropped'>
+  drops: Pick<ReturnType<typeof useSheets>, 'dropsAllowed' | 'runDrop'>
   showLibrary: (next: Selection, options?: { clearFilter?: boolean }) => void
   showLibraryRef: RefObject<
     ((next: Selection, options?: { clearFilter?: boolean }) => void) | undefined
@@ -165,21 +167,22 @@ export function useAppDeepLinks({
     }
     if (phase === 'over') {
       if (!hasFiles(event)) return
-      if (editorImages(event)) {
+      if (drops.dropsAllowed() && editorImages(event)) {
         setDragging(false)
         return
       }
       event.preventDefault()
-      if (event.dataTransfer) event.dataTransfer.dropEffect = editing ? 'copy' : 'none'
-      setDragging(editing)
+      const allowed = editing && drops.dropsAllowed()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = allowed ? 'copy' : 'none'
+      setDragging(allowed)
       return
     } else {
       setDragging(false)
-      if (!hasFiles(event) || editorImages(event)) return
+      if (!hasFiles(event) || (drops.dropsAllowed() && editorImages(event))) return
       event.preventDefault()
       event.stopImmediatePropagation()
       setLinkNotice(undefined)
-      if (!editing) {
+      if (!editing || !drops.dropsAllowed()) {
         setLinkNotice('commandUnavailable')
         return
       }
@@ -196,36 +199,52 @@ export function useAppDeepLinks({
             })
           : Array.from(event.dataTransfer?.files ?? [])
         const bookId = library?.kind === 'book' ? library.id : undefined
-        handoffWork.current = handoffWork.current.then(async () => {
-          try {
-            if (!mounted.current) return
-            if (directories.length)
-              acceptFolder(
-                await droppedFolders(directories, (meta, bytes) => storage.putFile(meta, bytes)),
-                bookId,
-              )
-            const converted = files.filter(
-              (file) => routeImport(file.name, pluginImports.installed).kind === 'plugin',
-            )
-            const builtins = files.filter((file) => !converted.includes(file))
-            if (builtins.length || (!directories.length && !converted.length)) {
-              const input = droppedImport(builtins, (meta, bytes) => storage.putFile(meta, bytes))
-              await runHandoff(
-                {
-                  kind: 'import',
-                  scan: input.scan,
-                  notebook: null,
-                  first: input.scan.files[0]?.path ?? null,
-                },
-                input,
-                bookId,
-              )
-            }
-            if (converted.length) await runPluginDrop(converted, bookId)
-          } catch {
-            if (mounted.current) setLinkNotice('dropFailed')
-          }
-        })
+        void drops
+          .runDrop(async () => {
+            handoffWork.current = handoffWork.current.then(async () => {
+              try {
+                if (!mounted.current) return
+                if (directories.length)
+                  acceptFolder(
+                    await droppedFolders(directories, (meta, bytes) =>
+                      storage.putFile(meta, bytes),
+                    ),
+                    bookId,
+                  )
+                const converted = files.filter(
+                  (file) => routeImport(file.name, pluginImports.installed).kind === 'plugin',
+                )
+                const builtins = files.filter((file) => !converted.includes(file))
+                if (builtins.length || (!directories.length && !converted.length)) {
+                  const input = droppedImport(builtins, (meta, bytes) =>
+                    storage.putFile(meta, bytes),
+                  )
+                  await runHandoff(
+                    {
+                      kind: 'import',
+                      scan: input.scan,
+                      notebook: null,
+                      first: input.scan.files[0]?.path ?? null,
+                    },
+                    input,
+                    bookId,
+                  )
+                }
+                if (converted.length) await runPluginDrop(converted, bookId)
+              } catch {
+                if (mounted.current) setLinkNotice('dropFailed')
+              }
+            })
+            await handoffWork.current
+          })
+          .then(
+            (accepted) => {
+              if (!accepted && mounted.current) setLinkNotice('commandUnavailable')
+            },
+            () => {
+              if (mounted.current) setLinkNotice('dropFailed')
+            },
+          )
       } catch {
         setLinkNotice('dropFailed')
       }

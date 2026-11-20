@@ -595,6 +595,7 @@ export function App() {
     startImport,
     enqueueImport: sheets.enqueueImport,
     pluginImports: plugins,
+    drops: sheets,
     showLibrary: viewChanges.showLibrary,
     showLibraryRef,
     select,

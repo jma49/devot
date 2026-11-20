@@ -43,6 +43,52 @@ const scanning = (id: number) =>
   )
 
 describe('useSheets', () => {
+  it('refuses drops during Backups and waits for an in-flight conversion before restore', async () => {
+    tauri = mockTauri((cmd) => {
+      if (cmd === 'backup_restore') throw new Error('E_RESTORE_TEST')
+      return answer(cmd)
+    })
+    const given = props()
+    const stopImport = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    Object.assign(given.core, {
+      stopImport,
+      flush: async () => {},
+      holdCompaction: async () => {},
+      resumeCompaction: async () => {},
+    })
+    const hook = renderHook(useSheets, { props: given })
+    await settle()
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const active = hook.current.runDrop(() => held)
+    act(() => hook.current.showBackups())
+    const refused = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    expect(await hook.current.runDrop(refused)).toBe(false)
+    const restoring = hook.current.restore('backup').then(
+      () => 'restored',
+      () => 'failed',
+    )
+    await settle()
+    act(() => hook.current.closeBackups())
+    expect(hook.current.dropsAllowed()).toBe(false)
+    expect(stopImport).not.toHaveBeenCalled()
+    expect(tauri.invoked).not.toContain('backup_restore')
+    release()
+    expect(await active).toBe(true)
+    await expect(restoring).resolves.toBe('failed')
+    expect(tauri.invoked).toContain('backup_restore')
+    expect(refused).not.toHaveBeenCalled()
+    act(() => hook.current.closeBackups())
+    expect(await hook.current.runDrop(async () => {})).toBe(true)
+    await expect(
+      hook.current.runDrop(async () => {
+        throw new Error('E_DROP_TEST')
+      }),
+    ).rejects.toThrow('E_DROP_TEST')
+    expect(await hook.current.runDrop(async () => {})).toBe(true)
+  })
   it('queues dropped sources with native jobs and cleans them on cancel, close and teardown', async () => {
     tauri = mockTauri(answer)
     const hook = renderHook(useSheets, { props: props() })

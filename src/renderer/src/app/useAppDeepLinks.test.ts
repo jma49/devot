@@ -56,6 +56,13 @@ function links(ready: boolean, launched: unknown[] = []) {
     startImport: async () => null,
     enqueueImport: () => {},
     pluginImports: { installed: [], importDropped: async () => ({ ids: [], failed: false }) },
+    drops: {
+      dropsAllowed: () => true,
+      runDrop: async (work: () => Promise<void>) => {
+        await work()
+        return true
+      },
+    },
     showLibrary,
     showLibraryRef: { current: showLibrary },
     select,

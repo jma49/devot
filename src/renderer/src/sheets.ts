@@ -43,7 +43,18 @@ export function useSheets({
   const [importJob, setImportJob] = useState<ImportJob>()
   const [importKey, setImportKey] = useState(0)
   const importShown = useRef(false)
-  const backupsShown = useRef(false)
+  const backupsPhase = useRef<'closed' | 'open' | 'restoring'>('closed')
+  const dropWork = useRef<Promise<void>>(Promise.resolve())
+  const dropsAllowed = useCallback(() => backupsPhase.current === 'closed', [])
+  const runDrop = useCallback(
+    (work: () => Promise<void>): Promise<boolean> => {
+      if (!dropsAllowed()) return Promise.resolve(false)
+      const pending = dropWork.current.then(work)
+      dropWork.current = pending.catch(() => {})
+      return pending.then(() => true)
+    },
+    [dropsAllowed],
+  )
   const backupsWanted = useRef(false)
   // Sessions taken (their scan arrived) or closed: later events for them are ignored.
   const seenImports = useRef(new Set<number>())
@@ -58,13 +69,13 @@ export function useSheets({
 
   /** Shows the next sheet unless one is up: an import job first (its result stays until closed; an import ends by showing its notebook), then Backups if asked meanwhile. */
   const nextSheet = useCallback(() => {
-    if (importShown.current || backupsShown.current) return
+    if (importShown.current || backupsPhase.current !== 'closed') return
     const c = coreRef.current
     const job = c ? importJobs.current.shift() : undefined
     if (!c || !job) {
       if (backupsWanted.current) {
         backupsWanted.current = false
-        backupsShown.current = true
+        backupsPhase.current = 'open'
         setBackupsOpen(true)
       }
       return
@@ -171,8 +182,9 @@ export function useSheets({
   }, [nextSheet])
 
   const closeBackups = () => {
+    if (backupsPhase.current === 'restoring') return
     setBackupsOpen(false)
-    backupsShown.current = false
+    backupsPhase.current = 'closed'
     nextSheet()
   }
 
@@ -289,26 +301,32 @@ export function useSheets({
   }, [nextSheet, enqueueImport])
 
   const restore = async (id: string) => {
-    // No import runs while Backups is open; stopping one is a safeguard.
-    await core?.stopImport()
-    if (core) await saveEdits(core)
-    await restoreBackup(
-      id,
-      core
-        ? {
-            hold: () => core.holdCompaction(),
-            resume: () => core.resumeCompaction(),
-          }
-        : undefined,
-    )
-    // Folders picked meanwhile were never imported: close their sessions.
-    for (const job of importJobs.current.splice(0)) {
-      if (job.id !== null) {
-        forgetScanFound(job.id)
-        await cleanupImport(job.id)
+    backupsPhase.current = 'restoring'
+    try {
+      await dropWork.current
+      await core?.stopImport()
+      if (core) await saveEdits(core)
+      await restoreBackup(
+        id,
+        core
+          ? {
+              hold: () => core.holdCompaction(),
+              resume: () => core.resumeCompaction(),
+            }
+          : undefined,
+      )
+      // Folders picked meanwhile were never imported: close their sessions.
+      for (const job of importJobs.current.splice(0)) {
+        if (job.id !== null) {
+          forgetScanFound(job.id)
+          await cleanupImport(job.id)
+        }
       }
+      window.location.reload()
+    } catch (error) {
+      backupsPhase.current = 'open'
+      throw error
     }
-    window.location.reload()
   }
 
   return {
@@ -320,6 +338,8 @@ export function useSheets({
     nextSheet,
     startImport,
     enqueueImport,
+    dropsAllowed,
+    runDrop,
     closeImport,
     showBackups,
     closeBackups,

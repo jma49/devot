@@ -270,6 +270,16 @@ const calls = (page: Page, cmd: string) =>
 const scanning = (page: Page, id = 7, name = 'Vault') =>
   send(page, 'devot:import-scanning', { id, name, kind: 'folder' })
 
+test('file drops are refused while Backups is open', async ({ page }) => {
+  await open(page)
+  await showBackups(page)
+  await expect(backups(page)).toBeVisible()
+  await dropFiles(page, '.window', [{ name: 'Blocked.md', text: '# Blocked' }])
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(noteRows(page)).toHaveCount(0)
+  await expect(backups(page)).toBeVisible()
+})
+
 test('vault metadata enables conventions and identifies the source without preventing opt-out', async ({
   page,
 }) => {
