@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { parseManifest, type InstalledPlugin } from '../../../core/plugins'
 import type { ImportReport } from '../../../core/import'
-import { importPluginFiles, readPluginFiles, routeImport } from './importFiles'
+import { importDroppedFiles, importPluginFiles, readPluginFiles, routeImport } from './importFiles'
 
 const plugin = (): InstalledPlugin => ({
   manifest: parseManifest({
@@ -29,6 +29,50 @@ const report = (noteIds: Record<string, string> = { '1.md': 'note-id' }): Import
 })
 
 describe('plugin file imports', () => {
+  it.each(['utf8', 'size'] as const)(
+    'preflights every format before writing when a later group has invalid %s',
+    async (kind) => {
+      const installed = plugin()
+      installed.manifest.contributes.importFormats.push({
+        id: 'other',
+        title: 'Other',
+        extensions: ['other'],
+      })
+      const good = new File(['good'], 'good.txt')
+      const bad = new File([new Uint8Array([255])], 'bad.other')
+      if (kind === 'size') Object.defineProperty(bad, 'size', { value: 6 * 1024 * 1024 })
+      const convert = vi.fn<() => Promise<{ ids: string[]; failed: boolean }>>()
+      for (const files of [
+        [good, bad],
+        [bad, good],
+      ]) {
+        await expect(importDroppedFiles(files, [installed], convert)).rejects.toThrow(
+          kind === 'size' ? 'E_PLUGIN_IMPORT_TOO_LARGE' : 'E_PLUGIN_IMPORT_NOT_TEXT',
+        )
+        expect(convert).not.toHaveBeenCalled()
+      }
+    },
+  )
+
+  it('returns earlier IDs when a later group fails after preflight', async () => {
+    const installed = plugin()
+    installed.manifest.contributes.importFormats.push({
+      id: 'other',
+      title: 'Other',
+      extensions: ['other'],
+    })
+    const convert = vi
+      .fn<() => Promise<{ ids: string[]; failed: boolean }>>()
+      .mockResolvedValueOnce({ ids: ['written'], failed: false })
+      .mockRejectedValueOnce(new Error('E_PLUGIN_STOPPED'))
+    expect(
+      await importDroppedFiles(
+        [new File(['one'], 'one.txt'), new File(['two'], 'two.other')],
+        [installed],
+        convert,
+      ),
+    ).toEqual({ ids: ['written'], failed: true })
+  })
   it('routes built-ins before enabled, permitted plugin formats', () => {
     const installed = plugin()
     expect(routeImport('note.MD', [installed]).kind).toBe('builtin')

@@ -56,7 +56,7 @@ import { keptDrawingsChanged } from '../preview/keptDrawings'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
 import { useStable } from '../stable'
-import { importPluginFiles, readPluginFiles, routeImport } from './importFiles'
+import { importDroppedFiles, importPluginFiles, routeImport } from './importFiles'
 
 const ImportDetails = lazy(() =>
   import('./ImportDetails').then((m) => ({ default: m.ImportDetails })),
@@ -327,30 +327,9 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   )
 
   const importDropped = useStable(async (files: File[], destination: string | null) => {
-    const groups = new Map<string, { plugin: InstalledPlugin; format: string; files: File[] }>()
-    for (const file of files) {
-      const route = routeImport(file.name, latest.current.plugins)
-      if (route.kind !== 'plugin') throw new Error('E_PLUGIN_FORMAT_UNKNOWN')
-      const key = `${route.plugin.manifest.id}/${route.format}`
-      let group = groups.get(key)
-      if (!group) {
-        group = { plugin: route.plugin, format: route.format, files: [] }
-        groups.set(key, group)
-      }
-      group.files.push(file)
-    }
-    const ids: string[] = []
-    let failed = false
-    for (const group of groups.values()) {
-      const contribution = group.plugin.manifest.contributes.importFormats.find(
-        (item) => item.id === group.format,
-      )!
-      const read = await readPluginFiles(group.files, contribution.maxFileBytes)
-      const result = await convertFiles(group.plugin.manifest.id, group.format, read, destination)
-      ids.push(...result.ids)
-      failed ||= result.failed
-    }
-    return { ids, failed }
+    return importDroppedFiles(files, latest.current.plugins, (plugin, formatId, read) =>
+      convertFiles(plugin, formatId, read, destination),
+    )
   })
 
   const act = useCallback(

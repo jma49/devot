@@ -9,6 +9,51 @@ const MAX_FILES = 20
 const MAX_BYTES = 5 * 1024 * 1024
 type ImportFile = { name: string; text: string }
 
+export async function importDroppedFiles(
+  files: readonly File[],
+  plugins: readonly InstalledPlugin[],
+  convert: (
+    plugin: string,
+    format: string,
+    files: ImportFile[],
+  ) => Promise<{ ids: string[]; failed: boolean }>,
+) {
+  const groups = new Map<string, { plugin: InstalledPlugin; format: string; files: File[] }>()
+  for (const file of files) {
+    const route = routeImport(file.name, plugins)
+    if (route.kind !== 'plugin') throw new Error('E_PLUGIN_FORMAT_UNKNOWN')
+    const key = `${route.plugin.manifest.id}/${route.format}`
+    let group = groups.get(key)
+    if (!group) {
+      group = { plugin: route.plugin, format: route.format, files: [] }
+      groups.set(key, group)
+    }
+    group.files.push(file)
+  }
+  const prepared = []
+  for (const group of groups.values()) {
+    const contribution = group.plugin.manifest.contributes.importFormats.find(
+      (item) => item.id === group.format,
+    )!
+    prepared.push({
+      ...group,
+      files: await readPluginFiles(group.files, contribution.maxFileBytes),
+    })
+  }
+  const ids: string[] = []
+  let failed = false
+  for (const group of prepared) {
+    try {
+      const result = await convert(group.plugin.manifest.id, group.format, group.files)
+      ids.push(...result.ids)
+      failed ||= result.failed
+    } catch {
+      failed = true
+    }
+  }
+  return { ids, failed }
+}
+
 export function routeImport(name: string, plugins: readonly InstalledPlugin[]) {
   if (importableName(name)) return { kind: 'builtin' as const }
   if (imageName(name)) return { kind: 'image' as const }
