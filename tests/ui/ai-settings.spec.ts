@@ -189,6 +189,21 @@ test('a key is added from Providers and Keys and checked by listing its models',
   expect(await page.content()).not.toContain(SECRET)
 })
 
+test('a provider row keeps its name beside its mark, not in the middle of the row', async ({
+  page,
+}) => {
+  await fakeRust(page)
+  await openSettings(page, 'AI')
+  const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: /^Providers and Keys/ }).click()
+  const row = panel.getByRole('group', { name: 'OpenAI-compatible' })
+  const [box, mark, label] = await Promise.all(
+    [row, row.locator('.provider-mark'), row.locator('.setting-label')].map((l) => l.boundingBox()),
+  )
+  expect(box && mark && label).toBeTruthy()
+  expect(label!.x - (mark!.x + mark!.width)).toBeLessThan(box!.width / 8)
+})
+
 test('Try It answers in the pane under the model', async ({ page }) => {
   await fakeRust(page)
   await openSettings(page, 'AI')
