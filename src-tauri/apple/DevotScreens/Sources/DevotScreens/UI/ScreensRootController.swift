@@ -65,7 +65,7 @@ final class ScreensRootController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        if let window = view.window { host.windowSize(window.bounds.size) }
+        if let window = view.window { host.restingSize(tabs.restingPageSize(window.bounds.size)) }
     }
 
     @objc private func sceneActivated(_ notification: Notification) {

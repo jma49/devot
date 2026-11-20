@@ -71,7 +71,7 @@ final class WebStageTests: XCTestCase {
         let webView = RecordingWebView(frame: window.bounds)
         root.view.addSubview(webView)
         let host = WebViewHost(webView: webView)
-        host.windowSize(window.bounds.size)
+        host.fit(window.bounds.size)
         root.view.addSubview(host.stage)
         let first = UIView(frame: window.bounds)
         let second = UIView(frame: window.bounds)
@@ -106,9 +106,9 @@ final class WebStageTests: XCTestCase {
     func testFollowsTheWindowWhenItsSizeChanges() {
         let webView = RecordingWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         let host = WebViewHost(webView: webView)
-        host.windowSize(CGSize(width: 844, height: 390))
+        host.fit(CGSize(width: 844, height: 390))
         XCTAssertEqual(webView.bounds.size, CGSize(width: 844, height: 390))
-        host.windowSize(.zero)
+        host.fit(.zero)
         XCTAssertEqual(webView.bounds.size, CGSize(width: 844, height: 390))
     }
 
@@ -254,7 +254,9 @@ private final class HoldingScreen: WebHolderScreen {
 }
 
 @MainActor
+/// Empty defaults, and the iPhone's one stack: a test that wants an iPad's columns asks for them.
 func freshDefaults() throws -> UserDefaults {
+    DevotTabBarController.usesColumns = false
     let defaults = try XCTUnwrap(UserDefaults(suiteName: "WebStageTests"))
     defaults.removePersistentDomain(forName: "WebStageTests")
     return defaults

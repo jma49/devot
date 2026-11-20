@@ -187,6 +187,16 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Until the page has painted the note, a cover in `color.phone.background` shows the note's title where the page draws it; it fades over `motion.duration.phone-adjust` on `motion.easing.standard`, never before the push's first frame, and after 400 ms regardless.
   A link pushes the linked note the same way over the note it was in, which keeps a still of itself.
   Under Reduce Motion the system decides the push's look, and the cover still fades.
+- **Opening a note beside its list** (an iPad's columns): rule 2.
+  A note opened from a list replaces the one in the note's column with a crossfade over `motion.duration.phone-adjust`, under the same cover as a push; a link inside a note still pushes over it with the system's motion.
+  A notebook or tag opened from the Library's column replaces the middle column the same way.
+  The tab bar stays, and the list's row stays selected.
+  Under Reduce Motion, or with Animations set to Off, the column changes at once.
+- **Hiding and showing the lists** (an iPad's columns): rule 3.
+  The leading columns slide off the leading edge at their own width over `motion.duration.phone-adjust` on `motion.easing.standard`, and the note's column widens with them; the page takes its new width once, not frame by frame.
+  Under Reduce Motion, or with Animations set to Off, they go at once.
+- **A turn, Split View or Stage Manager across the columns' width** (an iPad's columns): rule 2.
+  Screens move between the one stack and the columns without motion, each kept where it was; the note shows under its cover until the page has drawn it at the new width.
 - **Back swipe and pop** (the native screens): rule 1, then rule 3.
   Back, the system's edge swipe and a tab tapped again pop with the system's motion, and the note under the finger is the live one, still scrolling and holding its caret and keyboard.
   A swipe the finger turns back changes nothing.

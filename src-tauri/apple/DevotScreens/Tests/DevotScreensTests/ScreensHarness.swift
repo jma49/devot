@@ -12,8 +12,10 @@ final class ScreensHarness {
     let screens: Screens
     private var answered = Set<UInt64>()
 
-    /// `shownFirst` puts tao's root in the window before the screens attach, as the app does.
-    init(defaults: UserDefaults, shownFirst: Bool = false) throws {
+    /// `shownFirst` puts tao's root in the window before the screens attach, as the app does;
+    /// `columns` lays an iPad's tabs out in columns, which the other tests leave to the iPhone's stack.
+    init(defaults: UserDefaults, shownFirst: Bool = false, columns: Bool = false) throws {
+        DevotTabBarController.usesColumns = columns
         let scene = try XCTUnwrap(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         window = UIWindow(windowScene: scene)

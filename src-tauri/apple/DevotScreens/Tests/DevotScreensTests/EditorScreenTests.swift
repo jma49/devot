@@ -97,7 +97,7 @@ final class EditorScreenTests: XCTestCase {
         page = FakePage()
         webView = RecordingWebView(frame: window.bounds)
         host = WebViewHost(webView: webView)
-        host.windowSize(window.bounds.size)
+        host.fit(window.bounds.size)
         window.addSubview(host.stage)
         host.stage.addSubview(webView)
         list = UIViewController()
@@ -325,7 +325,7 @@ final class EditorScreenTests: XCTestCase {
 
         let folded = CGSize(width: window.bounds.height, height: window.bounds.width)
         window.frame = CGRect(origin: .zero, size: folded)
-        host.windowSize(folded)
+        host.fit(folded)
         navigation.popViewController(animated: true)
         settleTransition()
         XCTAssertNil(one.snapshot, "a still of the old size never shows over the new one")

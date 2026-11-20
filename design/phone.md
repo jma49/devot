@@ -66,6 +66,8 @@ Activity: "Week" capsule, then a card of the last 15 weeks (`size.phone-heat-cel
 At a regular width (an iPad, an unfolded iPhone Duo) the screen keeps to the readable width and the heatmap grows with its card, up to `size.phone-heat-cell-wide` a day, its gap and corners in proportion.
 On the iPhone a gradient theme shades the heatmap in its own accent at rising strength (`heat-0` to `heat-4` in `tokens/phone-themes.tokens.json`, in place of `color.activity.level-*`), and tints the week's segmented control (`segment`, `segment-selected`) the same way.
 
+iPad columns (`docs/specs/iphone-screens.md`, Columns): the lists' column is `size.pad-list-width` and the Library's `size.pad-sidebar-width`, each its own navigation stack with its own glass bar, laid out at a compact width so rows keep a compact width's margins. A `size.phone-separator` hairline in `color.phone.separator` runs the full height between columns, the one stroke between them. The note's column takes the rest and centres the note at `size.reading-width` as a regular width does. An empty column says No Note Selected or Choose a List in Title 3, `color.phone.text-secondary`, centred in its safe area.
+
 Times, counts and stats use `.phone-figures`: the UI font with tabular figures.
 A notebook's path and the Mac key use `.phone-mono`, the mono font.
 

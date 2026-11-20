@@ -77,6 +77,7 @@ final class Screens: SettingsBridge {
             if !effects.isEmpty { haptics.play(.tabReselect) }
             run(effects)
         }
+        root.tabs.onKey = { [weak self] key in self?.pressed(key) }
         root.tabs.settings.bridge = self
         // A root shown before the install returns would ask Rust while it still refuses calls.
         root.onShown = { [weak self] in self?.afterInstall { [weak self] in self?.root.tabs.settings.start() } }
@@ -266,7 +267,7 @@ final class Screens: SettingsBridge {
             }
             openNote(id, title: title)
         case .navBack:
-            guard let navigation = shownNavigation, navigation.topViewController is EditorScreen,
+            guard let navigation = shownNoteStack, navigation.topViewController is EditorScreen,
                 navigation.transitionCoordinator == nil
             else { return true }
             navigation.popViewController(animated: true)
@@ -340,31 +341,73 @@ final class Screens: SettingsBridge {
         return true
     }
 
-    private var shownNavigation: UINavigationController? {
-        root.tabs.shownNavigation
+    /// The stack a note opens on in the shown tab: beside its lists, the note's column.
+    private var shownNoteStack: UINavigationController? {
+        root.tabs.shownNoteStack
+    }
+
+    private var shownColumns: NoteColumns? {
+        root.tabs.selected.flatMap { root.tabs.columns[$0] }
     }
 
     private var editorScreens: [EditorScreen] {
-        root.tabs.navigations.values.flatMap(\.viewControllers).compactMap { $0 as? EditorScreen }
+        (TabModel.tabs + [.search]).flatMap(root.tabs.controllers).compactMap { $0 as? EditorScreen }
     }
 
-    /// Pushed at once on the shown tab; a second tap while a push runs, or on the note already shown, does nothing.
-    private func openNote(_ id: String, title: String) {
-        guard let navigation = shownNavigation, navigation.transitionCoordinator == nil,
+    /// A key command of the whole app. New Note starts from the list shown, or from Notes; over a
+    /// note in one stack, the stack goes back to its list first.
+    private func pressed(_ key: AppKey) {
+        let tabs = root.tabs
+        switch key {
+        case .newNote:
+            if let tab = tabs.selected, tab != .notes, tab != .library { tabs.select(.notes) }
+            guard let tab = tabs.selected, let stack = tabs.noteStack(tab), stack.transitionCoordinator == nil else { return }
+            let list = tabs.controllers(tab).last { $0 is NoteListScreen } as? NoteListScreen
+            if !(tabs.columns[tab]?.showsNotesBeside ?? false), stack.topViewController is EditorScreen,
+                let below = stack.viewControllers.last(where: { !($0 is EditorScreen) })
+            {
+                stack.popToViewController(below, animated: false)
+            }
+            gate.require(.newNote(bookId: list?.bookId))
+        case .today: follow(.today)
+        case .search: tabs.startSearch()
+        case .settings: tabs.select(.settings)
+        }
+    }
+
+    /// Pushed at once on the shown tab; a second tap while a push runs, or on the note already shown,
+    /// does nothing. Beside its lists, a note opened from a list takes the place of the one shown,
+    /// and one opened from a note is pushed over it.
+    private func openNote(_ id: String, title: String, fromNote: Bool = false) {
+        guard let navigation = shownNoteStack, navigation.transitionCoordinator == nil,
             (navigation.topViewController as? EditorScreen)?.noteId != id
         else { return }
         let screen = EditorScreen(
             noteId: id, title: title, tab: tabModel.selected, host: root.host, actions: editorActions)
+        if let columns = shownColumns {
+            screen.hidesBottomBarWhenPushed = false
+            if columns.showsNotesBeside, !fromNote {
+                columns.open(screen)
+                return discardLeftNewNotes()
+            }
+        }
         navigation.pushViewController(screen, animated: true)
     }
 
-    /// Pushed in the same turn as the tap, under a cover, while the page makes the note.
+    /// Pushed in the same turn as the tap, under a cover, while the page makes the note; beside its
+    /// lists, in the place of the note shown.
     private func pushNewNote(_ bookId: String?) {
-        guard let navigation = shownNavigation, navigation.transitionCoordinator == nil,
-            !(navigation.topViewController is EditorScreen)
-        else { return }
+        guard let navigation = shownNoteStack, navigation.transitionCoordinator == nil else { return }
+        let columns = shownColumns.flatMap { $0.showsNotesBeside ? $0 : nil }
+        guard columns != nil || !(navigation.topViewController is EditorScreen) else { return }
         let screen = EditorScreen(newNoteIn: bookId, tab: tabModel.selected, host: root.host, actions: editorActions)
-        navigation.pushViewController(screen, animated: true)
+        if shownColumns != nil { screen.hidesBottomBarWhenPushed = false }
+        let listBelow = columns.map { ($0.controllers.last { !($0 is EditorScreen) }) as? NoteListScreen }
+        if let columns {
+            columns.open(screen)
+        } else {
+            navigation.pushViewController(screen, animated: true)
+        }
         request(.noteCreate, screen.bookId.map { ["bookId": .string($0)] } ?? [:]) { [weak self] outcome in
             guard let self else { return }
             switch outcome {
@@ -372,7 +415,11 @@ final class Screens: SettingsBridge {
                 guard let id = made["id"]?.string else { return refusedCreate(screen, code: "E_SCREENS_MESSAGE_INVALID") }
                 fresh[id] = FreshNote(rev: made["rev"]?.number ?? 0)
                 screen.created(id)
-                if let stack = screen.navigationController?.viewControllers, let at = stack.firstIndex(of: screen), at > 0 {
+                if let listBelow {
+                    listBelow?.created(id)
+                } else if let stack = screen.navigationController?.viewControllers, let at = stack.firstIndex(of: screen),
+                    at > 0
+                {
                     (stack[at - 1] as? NoteListScreen)?.created(id)
                 }
                 discardLeftNewNotesOnceSettled(navigation)
@@ -388,7 +435,9 @@ final class Screens: SettingsBridge {
         rust.log(.warn, locked ? "W_PHONE_WRITE_LOCKED op=note.create code=\(code)" : "W_PHONE_NEW_NOTE_FAILED code=\(code)")
         guard let navigation = screen.navigationController else { return }
         afterTransition(navigation) { [weak self] in
-            if navigation.topViewController === screen {
+            if let columns = navigation.parent as? NoteColumns, columns.notes === navigation {
+                columns.close(screen, animated: true)
+            } else if navigation.topViewController === screen {
                 navigation.popViewController(animated: true)
             } else {
                 navigation.viewControllers.removeAll { $0 === screen }
@@ -410,6 +459,7 @@ final class Screens: SettingsBridge {
     /// A new note whose screen is in no stack any more, with nothing changed in it, goes; the page
     /// checks again that it is still as made. A back swipe turned back keeps the screen, and the note.
     private func discardLeftNewNotes() {
+        guard !root.tabs.rearranging else { return }
         let shown = Set(editorScreens.compactMap(\.noteId))
         for (id, note) in fresh where !shown.contains(id) {
             fresh[id] = nil
@@ -435,6 +485,7 @@ final class Screens: SettingsBridge {
     /// The new notes a native list drops before the pop that leaves them draws a frame; the page
     /// still decides, on `note.discard`, whether each one goes.
     private func untouchedNewNotes() -> [String] {
+        guard !root.tabs.rearranging else { return [] }
         let shown = Set(editorScreens.compactMap(\.noteId))
         return fresh.filter { !$0.value.touched && !shown.contains($0.key) }.map(\.key)
     }
@@ -519,7 +570,7 @@ final class Screens: SettingsBridge {
                 lists.readLibrary()
                 done(nil)
             },
-            open: { [weak self] id, title in self?.openNote(id, title: title) },
+            open: { [weak self] id, title in self?.openNote(id, title: title, fromNote: true) },
             text: { [weak self] id, done in self?.root.tabs.lists.text(id) { _, markdown in done(markdown) } },
             haptics: haptics)
     }
@@ -527,6 +578,9 @@ final class Screens: SettingsBridge {
     private func hideEditor(_ done: @escaping () -> Void) {
         // Before the hide, so the list the page paints for it has no row for the note.
         discardLeftNewNotes()
+        // A list beside the note shows with it: the page keeps the note.
+        if root.tabs.rearranging { return done() }
+        if let holder = root.host.holder, root.tabs.showsBeside(holder) { return done() }
         guard editorShown else { return done() }
         editorShown = false
         askEditor(.editorHide, done: done)
@@ -568,7 +622,7 @@ final class Screens: SettingsBridge {
         case .pair(let link):
             root.tabs.settings.router.open(.sync(anchor: nil, join: link))
         case .mode(let mode):
-            guard shownNavigation?.topViewController is EditorScreen else { return }
+            guard shownNoteStack?.topViewController is EditorScreen else { return }
             askEditor(.editorSetMode, ["mode": .string(mode.rawValue)])
         }
     }
@@ -579,14 +633,15 @@ final class Screens: SettingsBridge {
             guard let self, let titles else { return }
             let kept = Restoration.cut(screens, live: Set(titles.keys))
             if kept.count < screens.count { rust.log(.info, "I_SCREENS_ROUTE_NOTE_GONE") }
-            guard let navigation = root.tabs.navigations[tab], let first = navigation.viewControllers.first else { return }
+            let controllers = root.tabs.controllers(tab)
+            guard let first = controllers.first else { return }
             let animated = inFront()
             if let shown = root.tabs.presentedViewController, shown !== lockSheet {
                 shown.dismiss(animated: animated)
             }
             var stack = [first]
             for (at, screen) in kept.enumerated() {
-                let current = navigation.viewControllers.dropFirst(at + 1).first
+                let current = controllers.dropFirst(at + 1).first
                 if let current, descriptor(current) == screen {
                     stack.append(current)
                 } else if let made = controller(screen, tab: tab, titles: titles) {
@@ -596,7 +651,7 @@ final class Screens: SettingsBridge {
                 }
             }
             root.tabs.select(tab)
-            setStack(navigation, stack, animated: animated)
+            setStack(tab, stack, animated: animated)
         }
     }
 
@@ -619,10 +674,10 @@ final class Screens: SettingsBridge {
     /// Whether the last stack a route or a launch set moved, for the tests.
     private(set) var lastStackAnimated: Bool?
 
-    private func setStack(_ navigation: UINavigationController, _ stack: [UIViewController], animated: Bool) {
-        guard navigation.viewControllers != stack else { return }
+    private func setStack(_ tab: Tab, _ stack: [UIViewController], animated: Bool) {
+        guard root.tabs.controllers(tab) != stack else { return }
         lastStackAnimated = animated
-        navigation.setViewControllers(stack, animated: animated)
+        root.tabs.setControllers(tab, stack, animated: animated)
     }
 
     /// A screen of the tab's own kind: Settings pages under Settings, lists and notes elsewhere.
@@ -657,14 +712,15 @@ final class Screens: SettingsBridge {
     func save() {
         var record = Restoration(tab: root.tabs.selected ?? .library, savedAt: now())
         for tab in Restoration.tabs {
-            guard let navigation = root.tabs.navigations[tab] else { continue }
+            let controllers = root.tabs.controllers(tab)
+            guard !controllers.isEmpty else { continue }
             var stack: [ScreenRoute] = []
-            for controller in navigation.viewControllers.dropFirst() {
+            for controller in controllers.dropFirst() {
                 guard let screen = descriptor(controller) else { break }
                 stack.append(screen)
             }
             record.stacks[tab] = stack
-            let top = navigation.viewControllers[min(stack.count, navigation.viewControllers.count - 1)]
+            let top = controllers[min(stack.count, controllers.count - 1)]
             if let list = top as? NoteListScreen, let id = list.firstVisibleId { record.firstVisible[tab] = id }
         }
         for screen in editorScreens where screen.isNew {
@@ -685,10 +741,12 @@ final class Screens: SettingsBridge {
             return afterInstall { [weak self] in self?.discard(earlier) }
         }
         for tab in Restoration.tabs {
-            guard let navigation = root.tabs.navigations[tab], let first = navigation.viewControllers.first else { continue }
+            guard let first = root.tabs.controllers(tab).first else { continue }
             let made = (record.stacks[tab] ?? []).compactMap { controller($0, tab: tab, titles: [:]) }
-            if !made.isEmpty { setStack(navigation, [first] + made, animated: false) }
-            if let id = record.firstVisible[tab], let list = navigation.topViewController as? NoteListScreen {
+            if !made.isEmpty { setStack(tab, [first] + made, animated: false) }
+            if let id = record.firstVisible[tab],
+                let list = root.tabs.controllers(tab).last as? NoteListScreen
+            {
                 list.restoreFirstVisible(id)
             }
         }
@@ -722,11 +780,12 @@ final class Screens: SettingsBridge {
     }
 
     private func cut(_ screen: EditorScreen) {
-        guard let navigation = screen.navigationController,
-            let at = navigation.viewControllers.firstIndex(of: screen)
+        guard let tab = (TabModel.tabs + [.search]).first(where: { root.tabs.controllers($0).contains(screen) })
         else { return }
+        let controllers = root.tabs.controllers(tab)
+        guard let at = controllers.firstIndex(of: screen) else { return }
         rust.log(.info, "I_SCREENS_RESTORE_NOTE_GONE")
-        setStack(navigation, Array(navigation.viewControllers[..<at]), animated: false)
+        setStack(tab, Array(controllers[..<at]), animated: false)
     }
 
     private func ask(_ op: Op, _ tab: Tab, answered: Bool) {
