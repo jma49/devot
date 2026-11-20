@@ -232,6 +232,44 @@ describe('checkResult', () => {
   })
 })
 
+describe('rich import results', () => {
+  it('validates API 3 multi-note conversions with HTML, metadata and attachments', () => {
+    const notes = [
+      {
+        title: 'One',
+        html: '<p>Hi</p>',
+        tags: ['work'],
+        createdAt: 1,
+        updatedAt: 0,
+        attachments: [{ name: 'image.png', mime: 'image/png', data: 'aGk=' }],
+        diagnostics: ['E_IMPORT_ENCRYPTED'],
+      },
+    ]
+    expect(checkResult('import.convert', notes, 3)).toEqual(notes)
+    expect(checkResult('import.convert', [], 3)).toEqual([])
+    expect(() => checkResult('import.convert', notes, 2)).toThrow('E_PLUGIN_RESULT_INVALID')
+    for (const change of [
+      { html: undefined },
+      { markdown: 'also Markdown' },
+      { tags: [1] },
+      { tags: [''] },
+      { tags: ['x\ny'] },
+      { createdAt: -1 },
+      { createdAt: Number.NaN },
+      { createdAt: Number.POSITIVE_INFINITY },
+      { updatedAt: 1.5 },
+      { attachments: [{ name: 'x', mime: 'image/png', data: '!' }] },
+      { attachments: [{ name: '', mime: 'image/png', data: 'aGk=' }] },
+      { attachments: [{ name: 'x', mime: 'image', data: 'aGk=' }] },
+      { attachments: [{ name: 'x', mime: 'image/png', data: 'a=Gk' }] },
+      { diagnostics: ['secret text'] },
+    ])
+      expect(() => checkResult('import.convert', [{ ...notes[0], ...change }], 3)).toThrow(
+        'E_PLUGIN_RESULT_INVALID',
+      )
+  })
+})
+
 describe('storage and settings calls', () => {
   it('need the storage permission but no running command', () => {
     expect(checkCall(call('storage.get', { key: 'a' }), context(['storage'], false))).toEqual({

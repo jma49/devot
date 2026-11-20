@@ -18,6 +18,9 @@ Motion never carries meaning alone: the final state must say everything without 
 
 Native menus and other system-drawn things keep the system's motion.
 
+Plugin import completion and skipped-item counts replace the notice text at once (rule 2), without movement.
+Show Skipped opens a modal results sheet with the dialog motion (rule 3); choosing its note closes the sheet and selects the note without moving the content (rule 2).
+
 ## Which motion
 
 The Vim Mode switch uses the existing two-state control feedback; switching editor modes and Vim keyboard commands apply immediately without motion because they follow the keyboard.

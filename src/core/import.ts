@@ -34,7 +34,7 @@ import {
 } from './frontMatter'
 import { htmlToMarkdown, type HtmlImage } from './htmlImport'
 import { bearTags } from './importBear'
-import { importLayout } from './importLayout'
+import { importLayout, type ImportLayout } from './importLayout'
 import { canvasMarkdown } from './importCanvas'
 import { folderOf, isHtmlFile } from './importTree'
 import { MAX_BOOK_NAME_CHARS, type BookDraft, type BookService } from './books'
@@ -102,6 +102,8 @@ export interface ImportScan {
 export interface ImportProblem {
   path: string
   image?: string
+  noteId?: string
+  noteTitle?: string
   code: string
 }
 
@@ -126,6 +128,7 @@ export interface ImportReport {
 }
 
 export interface ImportOptions {
+  layout?: ImportLayout
   notes: NoteService
   books: BookService
   tags: TagService
@@ -160,7 +163,9 @@ export interface PreparedImport {
   text: string
   images: ImageLinks
   /** An HTML file's embedded images, as attachments to store (none without IDs to give them). */
-  embedded: HtmlImage[]
+  embedded: (HtmlImage & { name?: string })[]
+  dates?: { createdAt: number; updatedAt: number }
+  diagnostics?: { code: string; image?: string }[]
   dropped: string[]
   /** Tags written in the text as Bear writes them, used for a Bear export (importBear.ts). */
   hashtags?: string[]
@@ -681,7 +686,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   const drafts: BookDraft[] = []
   const draftPaths: string[] = []
   const draftIndex = new Map<string, number>()
-  const layout = importLayout(scan.kind, scan.files, scan.vault)
+  const layout = options.layout ?? importLayout(scan.kind, scan.files, scan.vault)
   const plan = (path: string) => {
     if (path === '' || draftIndex.has(path)) return
     const parent = folderOf(path)
@@ -750,13 +755,19 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
           : prepared.title
       id = await notes.create(title, folder(layout.noteFolder(path)))
       const noteId = id
+      for (const diagnostic of prepared.diagnostics ?? [])
+        found.push({ path, ...diagnostic, noteId, noteTitle: title })
       for (const dropped of prepared.dropped) {
         found.push({ path, image: dropped, code: 'E_IMPORT_HTML_CONTENT_DROPPED' })
       }
       if (store) {
         let refused = false
         for (const image of prepared.embedded) {
-          const file = { id: image.id, noteId, name: `image.${EXTENSIONS[image.mime] ?? 'png'}` }
+          const file = {
+            id: image.id,
+            noteId,
+            name: image.name ?? `image.${EXTENSIONS[image.mime] ?? 'png'}`,
+          }
           try {
             checkUpload(file, image.data)
             await store.putFile(file, image.data)
@@ -854,6 +865,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
           })
         }
       }
+      if (prepared.dates) await notes.setDates(noteId, prepared.dates)
       await notes.release(noteId)
       imported += 1
       noteIds[path] = noteId

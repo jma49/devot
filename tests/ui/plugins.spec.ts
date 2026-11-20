@@ -190,6 +190,19 @@ test('an import format turns the picked files into notes', async ({ page }) => {
   expect(await calls(page, 'plugin_import_pick')).toEqual([
     { plugin: 'com.example.tools', format: 'shout' },
   ])
+  await expect(page.locator('[data-devot-plugin-notice]')).toBeHidden()
+})
+
+test('an import converter error with no imported notes shows a failure', async ({ page }) => {
+  await page.evaluate(() => {
+    window.devotIpcMocks = {
+      ...window.devotIpcMocks,
+      plugin_import_pick: () => [{ name: 'bad.shout', text: 'quiet bad' }],
+    }
+  })
+  await paletteRun(page, 'Import Shout Files')
+  await expect(page.locator('[data-devot-plugin-notice]')).toContainText('could not finish.')
+  await expect(noteRows(page)).toHaveCount(0)
 })
 
 test('an export format turns the open note into a file Rust saves', async ({ page }) => {

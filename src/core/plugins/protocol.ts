@@ -290,7 +290,13 @@ export function checkCall(call: CallMessage, context: CallContext): CheckedCall 
 
 export interface Converted {
   title: string
-  markdown: string
+  markdown?: string
+  html?: string
+  tags?: string[]
+  createdAt?: number
+  updatedAt?: number
+  attachments?: { name: string; mime: string; data: string }[]
+  diagnostics?: string[]
 }
 
 /** A plugin's answer to a host call, checked; throws E_PLUGIN_RESULT_INVALID. */
@@ -298,8 +304,13 @@ export function checkResult(method: 'command.run', value: unknown): null
 export function checkResult(method: 'preview.render', value: unknown): string | null
 export function checkResult(method: 'preview.edit', value: unknown): string | null
 export function checkResult(method: 'import.convert', value: unknown): Converted
+export function checkResult(
+  method: 'import.convert',
+  value: unknown,
+  apiVersion: number,
+): Converted | Converted[]
 export function checkResult(method: 'export.convert', value: unknown): string
-export function checkResult(method: HostMethod, value: unknown): unknown {
+export function checkResult(method: HostMethod, value: unknown, apiVersion = 2): unknown {
   const invalid = () => {
     throw new Error('E_PLUGIN_RESULT_INVALID')
   }
@@ -317,14 +328,99 @@ export function checkResult(method: HostMethod, value: unknown): unknown {
         ? value
         : invalid()
     case 'import.convert': {
-      if (!isRecord(value)) return invalid()
-      const { title, markdown } = value
-      if (typeof title !== 'string' || typeof markdown !== 'string') return invalid()
-      if (wellFormed(title) !== title || wellFormed(markdown) !== markdown) return invalid()
-      if ([...title].length > MAX_TITLE_CHARS || utf8Length(markdown) > MAX_BODY_BYTES) {
-        return invalid()
+      if (Array.isArray(value) && (apiVersion < 3 || value.length > 5000)) return invalid()
+      let bytes = 0
+      const convert = (raw: unknown): Converted => {
+        if (!isRecord(raw)) return invalid()
+        const { title, markdown, html, tags, createdAt, updatedAt, attachments, diagnostics } = raw
+        const text = markdown ?? html
+        if (
+          typeof title !== 'string' ||
+          typeof text !== 'string' ||
+          (markdown !== undefined && html !== undefined)
+        )
+          return invalid()
+        if (
+          wellFormed(title) !== title ||
+          wellFormed(text) !== text ||
+          [...title].length > MAX_TITLE_CHARS ||
+          utf8Length(text) > MAX_BODY_BYTES
+        )
+          return invalid()
+        if (
+          apiVersion < 3 &&
+          [html, tags, createdAt, updatedAt, attachments, diagnostics].some((v) => v !== undefined)
+        )
+          return invalid()
+        const out: Converted = {
+          title: title.replace(/[\r\n]+/g, ' ').trim(),
+          ...(markdown === undefined ? { html: text } : { markdown: text }),
+        }
+        if (tags !== undefined) {
+          if (
+            !Array.isArray(tags) ||
+            tags.length > 1000 ||
+            !tags.every(
+              (tag) =>
+                typeof tag === 'string' &&
+                wellFormed(tag) === tag &&
+                tag.trim().length > 0 &&
+                [...tag].length <= 100 &&
+                !/[\r\n]/.test(tag),
+            )
+          )
+            return invalid()
+          out.tags = tags
+        }
+        for (const [key, at] of [
+          ['createdAt', createdAt],
+          ['updatedAt', updatedAt],
+        ] as const) {
+          if (at !== undefined) {
+            if (typeof at !== 'number' || !Number.isSafeInteger(at) || at < 0) return invalid()
+            out[key] = at
+          }
+        }
+        bytes += utf8Length(text)
+        if (attachments !== undefined) {
+          if (!Array.isArray(attachments) || attachments.length > 1000) return invalid()
+          out.attachments = attachments.map((a) => {
+            if (!isRecord(a)) return invalid()
+            const { name, mime, data } = a
+            if (
+              typeof name !== 'string' ||
+              !name ||
+              [...name].length > 200 ||
+              wellFormed(name) !== name ||
+              /\p{Cc}/u.test(name) ||
+              typeof mime !== 'string' ||
+              !/^[a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+$/.test(mime) ||
+              mime.length > 100 ||
+              typeof data !== 'string' ||
+              data.length > 140 * 1024 * 1024 ||
+              data.length % 4 !== 0 ||
+              /[^A-Za-z0-9+/]/.test(data.replace(/={1,2}$/, ''))
+            )
+              return invalid()
+            bytes += data.length
+            return { name, mime, data }
+          })
+        }
+        if (diagnostics !== undefined) {
+          if (
+            !Array.isArray(diagnostics) ||
+            diagnostics.length > 1000 ||
+            !diagnostics.every(
+              (code) => typeof code === 'string' && /^[EWI]_[A-Z0-9_]{1,62}$/.test(code),
+            )
+          )
+            return invalid()
+          out.diagnostics = diagnostics
+        }
+        if (bytes > 140 * 1024 * 1024) return invalid()
+        return out
       }
-      return { title: title.replace(/[\r\n]+/g, ' ').trim(), markdown }
+      return Array.isArray(value) ? value.map(convert) : convert(value)
     }
     case 'export.convert':
       return typeof value === 'string' && value.length <= MAX_EXPORT_CHARS ? value : invalid()

@@ -463,6 +463,7 @@ export function App() {
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const plugins = usePlugins(core, {
     openNote: () => openNote,
+    showNote: (id) => void select(id),
     applyUpdate: applyToOpenNote,
     editor: () => editorRef.current,
     importBook: () => libraryBook?.id ?? null,

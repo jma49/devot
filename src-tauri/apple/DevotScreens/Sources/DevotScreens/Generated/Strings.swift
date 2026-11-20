@@ -3414,6 +3414,26 @@ public enum L10n {
     text("import.reason.type", "Not a supported image format")
   }
 
+  public static func importReasonAttachmentType() -> String {
+    text("import.reason.attachmentType", "Attachment type not supported")
+  }
+
+  public static func importReasonAttachmentInvalid() -> String {
+    text("import.reason.attachmentInvalid", "Attachment data is not valid")
+  }
+
+  public static func importReasonAttachmentMissing() -> String {
+    text("import.reason.attachmentMissing", "Attachment data was not found")
+  }
+
+  public static func importReasonAttachmentStorage() -> String {
+    text("import.reason.attachmentStorage", "Attachment could not be stored")
+  }
+
+  public static func importReasonEncrypted() -> String {
+    text("import.reason.encrypted", "Encrypted content cannot be imported")
+  }
+
   public static func importReasonPath() -> String {
     text("import.reason.path", "Hidden or not a valid path")
   }
@@ -4832,6 +4852,26 @@ public enum L10n {
 
   public static func pluginsFailed(name p0: String) -> String {
     fill(text("plugins.failed", "{name} could not finish."), ["name": p0])
+  }
+
+  public static func pluginsImportedWithSkips(notes p0: String, skipped p1: String) -> String {
+    fill(text("plugins.importedWithSkips", "Imported {notes} notes; {skipped} items skipped."), ["notes": p0, "skipped": p1])
+  }
+
+  public static func pluginsShowSkipped() -> String {
+    text("plugins.showSkipped", "Show Skipped")
+  }
+
+  public static func pluginsSkippedTitle() -> String {
+    text("plugins.skippedTitle", "Skipped import items")
+  }
+
+  public static func pluginsSkippedContent() -> String {
+    text("plugins.skippedContent", "Note content")
+  }
+
+  public static func pluginsSkippedNote(title p0: String) -> String {
+    fill(text("plugins.skippedNote", "In note “{title}”"), ["title": p0])
   }
 
   public static func pluginsTrialEnded() -> String {

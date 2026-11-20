@@ -1,0 +1,20 @@
+{
+  "id": "community.enex",
+  "name": "ENEX Import",
+  "version": "1.0.0",
+  "apiVersion": 3,
+  "description": "Import notes, images, tags and dates from .enex export files.",
+  "author": "Devot",
+  "main": "main.js",
+  "permissions": ["import"],
+  "contributes": {
+    "importFormats": [
+      {
+        "id": "enex",
+        "title": "Evernote Export Files",
+        "extensions": ["enex"],
+        "maxFileBytes": 104857600
+      }
+    ]
+  }
+}
