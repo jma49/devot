@@ -25,7 +25,6 @@ it.each([
   ['Lighthouse — Site', '', '', 'Lighthouse'],
   ['Browser title', 'Article headline', 'Site', 'Article headline'],
   ['Lighthouse', '', '', 'Lighthouse'],
-  ['Article', '&amp;lt;article&amp;gt; element', '', '<article> element'],
 ])('chooses a clean article title from %s', (title, og, site, expected) => {
   document.head.innerHTML = `<title>${title}</title><meta property="og:title" content="${og}"><meta property="og:site_name" content="${site}">`
   document.body.innerHTML = `<article><h1>${title}</h1><p>${prose}</p></article>`
@@ -122,10 +121,11 @@ it('clips code a page draws inside a component', () => {
   document.head.innerHTML = ''
   document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}</p><code-example class="brush: js"></code-example><p>${prose}</p></article>`
   const shadow = document.querySelector('code-example')!.attachShadow({ mode: 'open' })
-  shadow.innerHTML = '<style>pre { color: red }</style><pre><code>let a = 1</code></pre>'
+  shadow.innerHTML =
+    '<style>pre { color: red }</style><div><span>js</span><play-button>Play</play-button></div><pre><code>let a = 1</code></pre>'
   const { markdown } = extract(document, url, 'article')
   expect(markdown).toContain('```js\nlet a = 1\n```')
-  expect(markdown).not.toContain('color: red')
+  expect(markdown).not.toMatch(/color: red|Play|^js$/m)
 })
 
 it.each([

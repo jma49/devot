@@ -98,15 +98,20 @@ function tidy(page: Document, pageUrl: string): void {
   }
 }
 
-/** Copies what an empty component draws in its open shadow root, such as a code block, into the clone. */
+/** Copies what an empty component draws in its open shadow root into the clone: only its code blocks when it has any, leaving out toolbars around them. */
 function showComponents(source: Document, page: Document): void {
   const originals = source.body.querySelectorAll('*')
   const copies = page.body.querySelectorAll('*')
   originals.forEach((element, index) => {
     const copy = copies[index]
     if (!element.shadowRoot || !copy || element.childNodes.length) return
-    for (const node of element.shadowRoot.children)
-      if (!node.matches('style, script, link, slot')) copy.append(node.cloneNode(true))
+    const blocks = [...element.shadowRoot.querySelectorAll('pre')]
+    const drawn = blocks.length
+      ? blocks
+      : [...element.shadowRoot.children].filter(
+          (node) => !node.matches('style, script, link, slot'),
+        )
+    for (const node of drawn) copy.append(node.cloneNode(true))
   })
 }
 
@@ -223,11 +228,5 @@ export function pageTitle(
     source.querySelector('meta[property="og:site_name"]')?.getAttribute('content')?.trim() ||
     article?.siteName ||
     ''
-  return cleanTitle(decodeEntities(ogTitle || article?.title || source.title), site)
-}
-
-/** Some sites escape their title twice, which leaves entities such as `&lt;` in the attribute value. */
-function decodeEntities(text: string): string {
-  if (!/&(#\d+|#x[\da-f]+|[a-z]+\d*);/i.test(text)) return text
-  return new DOMParser().parseFromString(text, 'text/html').documentElement.textContent ?? text
+  return cleanTitle(ogTitle || article?.title || source.title, site)
 }
