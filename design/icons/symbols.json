@@ -11,7 +11,6 @@
     "phone.pair": "qrcode",
     "phone.filter": "line.3.horizontal.decrease",
     "phone.info": "info.circle",
-    "phone.columns.toggle": "sidebar.left",
     "phone.close": "xmark",
     "phone.keyboard.hide": "keyboard.chevron.compact.down",
     "phone.swipe.pin": "pin.fill",
