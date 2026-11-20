@@ -21,12 +21,13 @@ describe('head preview pieces', () => {
 
   it('checks cross-piece definitions before considering a whole note cached', async () => {
     const render = createPieceRenderer({ pieceLength: 1 })
+    const top = '# Top\n\n'
     const first = '[link]: https://first.test\n\n'
     const second = '[link]: https://second.test\n\n'
     const linked = '[Read][link].\n\n'
-    const source = first + second + linked
+    const source = top + first + second + linked
     await render(source, options)
-    const changed = second + first + linked
+    const changed = top + second + first + linked
     const head = await render.head(changed, options, [], 1)
     expect(head.partial).toBe(true)
     const full = await render(changed, options)
@@ -92,30 +93,16 @@ describe('head preview pieces', () => {
       expect(transformed.filter((text) => text === source)).toHaveLength(1)
   })
 
-  it.each(['edit', 'options', 'switch', 'close', 'failure'])(
+  it.each(['edit', 'options', 'switch', 'close'])(
     'discards the prepared tail after %s',
     async (change) => {
-      const registry = createPreviewRegistry({ builtins: true })
-      let fail = false
-      registry.register({
-        id: 'test.failure',
-        apiVersion: 1,
-        transform: () => {
-          if (fail) throw new Error('E_TEST_RENDER')
-        },
-      })
-      const render = createPieceRenderer({ pieceLength: 80, registry, capacity: 0 })
+      const render = createPieceRenderer({ pieceLength: 80, capacity: 0 })
       await render.head(markdown, options, [], 160)
       let text = markdown
       const changed = change === 'options' ? { ...options, loadedEmbeds: ['changed'] } : options
       if (change === 'edit') text = markdown.replace('https://example.com', 'https://changed.test')
       if (change === 'switch') await render('Another note.', options)
       if (change === 'close') render.forgetShown()
-      if (change === 'failure') {
-        fail = true
-        await expect(render(markdown, options)).rejects.toThrow('E_TEST_RENDER')
-        fail = false
-      }
       const parse = vi.spyOn(definitions, 'parseSeeded')
       try {
         const actual = await render(text, changed)
@@ -127,6 +114,32 @@ describe('head preview pieces', () => {
       }
     },
   )
+
+  it('discards the prepared tail after a failed render', async () => {
+    const registry = createPreviewRegistry({ builtins: true })
+    let fail = false
+    registry.register({
+      id: 'test.failure',
+      apiVersion: 1,
+      transform: () => {
+        if (fail) throw new Error('E_TEST_RENDER')
+      },
+    })
+    const render = createPieceRenderer({ pieceLength: 80, registry, capacity: 0 })
+    await render.head(markdown, options, [], 160)
+    fail = true
+    await expect(render(markdown, options)).rejects.toThrow('E_TEST_RENDER')
+    fail = false
+    const parse = vi.spyOn(definitions, 'parseSeeded')
+    try {
+      const actual = await render(markdown, options)
+      expect(parse).toHaveBeenCalled()
+      const expected = await createPieceRenderer({ pieceLength: 80 })(markdown, options)
+      expect(actual.map((piece) => piece.nodes)).toEqual(expected.map((piece) => piece.nodes))
+    } finally {
+      parse.mockRestore()
+    }
+  })
 
   it('returns a complete answer for empty and short documents', async () => {
     for (const text of ['', '# Short']) {
