@@ -24,6 +24,8 @@ export interface IslandContext {
 
 export interface IslandContent {
   node: Node
+  /** Refreshes a previous root in place, returning whether it can be kept. */
+  update?: (previous: Node) => boolean
   dispose?: () => void
   /**
    * The content stands in for a failure that may pass (not an error in the
@@ -209,11 +211,13 @@ export function createIslandMounter(
 
   const put = ({ el, slot, content }: Landed) => {
     slot.pending = undefined
+    const previous = slot.shown?.node
+    if (previous && content.update?.(previous)) content.node = previous
     slot.shown?.dispose?.()
     slot.shown = content
     const style = styleOf(el)
     if (style) style.minHeight = ''
-    el.replaceChildren(content.node)
+    if (content.node !== previous) el.replaceChildren(content.node)
     if (content.retry === true) failed(slot)
     else {
       slot.retry = false
