@@ -1,10 +1,71 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { KeptDrawing } from '../../../core/plugins/drawings'
 import { keptDrawingsChanged, loadKeptDrawings } from './keptDrawings'
-import { importPluginSvg, keptDrawingIsland, keptMarkup } from './pluginDrawing'
+import {
+  importPluginSvg,
+  keptDrawingIsland,
+  keptMarkup,
+  pluginIsland,
+  setPluginDrawer,
+} from './pluginDrawing'
 
 const drawing = (body: string) => `<svg xmlns="http://www.w3.org/2000/svg">${body}</svg>`
+
+describe('editable drawing redraws', () => {
+  const context = { appearance: 'light' as const }
+  const edits = { editable: new Set(['pad']), edit: async () => {} }
+  const draw = (revision: string) =>
+    setPluginDrawer(async () => drawing(`<text>${revision}</text>`), revision, edits)
+
+  afterEach(() => {
+    setPluginDrawer(undefined, '')
+    document.body.replaceChildren()
+    vi.restoreAllMocks()
+  })
+
+  it('updates the drawing without replacing a focused Edit button', async () => {
+    draw('first')
+    const first = await pluginIsland.render('pad\nhi', context)
+    const root = first.node as HTMLElement
+    document.body.append(root)
+    const button = root.querySelector('button')!
+    const label = button.firstChild
+    button.focus()
+    draw('next')
+    const next = await pluginIsland.render('pad\nhi', context)
+    expect(next.update?.(root)).toBe(true)
+    expect(root.querySelector('button')).toBe(button)
+    expect(button.firstChild).toBe(label)
+    expect(document.activeElement).toBe(button)
+    expect(root.firstElementChild!.shadowRoot!.querySelector('text')!.textContent).toBe('next')
+  })
+
+  it('does not reuse controls for changed content or a different kind of root', async () => {
+    draw('changed')
+    const first = await pluginIsland.render('pad\nhi', context)
+    const next = await pluginIsland.render('pad\nbye', context)
+    expect(next.update?.(first.node)).toBe(false)
+    expect(next.update?.(document.createElement('div'))).toBe(false)
+  })
+
+  it.each(['declined', 'failed'])('replaces controls when a drawing is %s', async (answer) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    draw('initial')
+    await pluginIsland.render('pad\nhi', context)
+    setPluginDrawer(
+      async () => {
+        if (answer === 'failed') throw new Error('E_PLUGIN_STOPPED')
+        return null
+      },
+      answer,
+      edits,
+    )
+    const next = await pluginIsland.render('pad\nhi', context)
+    expect(next.update).toBeUndefined()
+    expect((next.node as Element).querySelector('button')).toBeNull()
+  })
+})
 
 describe('a drawing a plugin answers', () => {
   it('keeps shapes, text and styling, and nothing that runs, links or loads from elsewhere', () => {
