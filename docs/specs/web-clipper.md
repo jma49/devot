@@ -38,6 +38,10 @@ It detects image types from bytes, bounds streamed downloads to fit the API's 2 
 Each image URL is attempted only once, up to 50 per clip, and all occurrences of a successful upload become `devot://file/<id>` links through a final Markdown PATCH.
 The HTTP API exposes no conditional body-version write, so the background re-reads the note immediately before the PATCH and skips it if the Markdown changed during image uploads, preserving user edits and leaving the original remote images in place.
 Failed downloads, denied host access, unsupported images, oversized images and refused uploads keep their cleaned remote URLs.
+A page on the open web never makes the clipper download from the local network: an image on a loopback, private, link-local or carrier-grade NAT address, or on a single-label or local-only name (`.local`, `.lan`, `.internal`, `.corp`, `.home.arpa`), stays a remote link unless the clipped page is itself on such a host.
+This mirrors the browser's Private Network Access rule, which the extension's all-hosts permission would otherwise bypass, so a hostile page cannot use a clip to send requests to a router or to Devot's own API; an intranet page still keeps its intranet images offline.
+A public name that resolves to a private address cannot be told apart from the extension, but the request still omits cookies and the token, and its bytes go only into the user's own note.
+Devot itself never fetches a URL for the clipper: it only receives image bytes the extension uploaded.
 Once the note exists, nothing that goes wrong with its images fails the save, so retrying never makes a second note: a failed download, upload, read-back or final PATCH leaves the remote links and the popup says some images stayed web links (or, without image access, how to allow it); any uploaded files remain, as with other multi-step API writes.
 The extension checks the API's 1 MiB UTF-8 Markdown limit before sending and reports a localized error for oversize clips.
 API error codes are translated where known, with a generic localized fallback and no note content in errors.

@@ -241,6 +241,7 @@ async function clip(): Promise<void> {
     void chrome.storage.local.set({ notebook: book.value })
     const saved = await saveThroughBackground({
       images: imagesAllowed,
+      source: tab?.url ?? '',
       note: {
         title: title.value.trim() || result.title,
         markdown: result.markdown,

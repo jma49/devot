@@ -1,5 +1,6 @@
 import { detectImage } from '../src/core/files'
 import { hasRemoteImages, storeImageLinks } from './images'
+import { mayDownload } from './network'
 
 export const MAX_IMAGE_BYTES = Math.floor((2 * 1024 * 1024 - 4096) / 4) * 3
 
@@ -125,21 +126,23 @@ export class ApiClient {
   }
 
   /**
-   * Makes the note, then stores its images. Once the note exists nothing that goes wrong with
-   * images fails the save, so a retry never makes a second copy; `imagesKept` says some stayed remote.
+   * Makes the note, then stores the images of the page at `imagesFrom`, or none without it. Once the
+   * note exists nothing that goes wrong with images fails the save, so a retry never makes a second
+   * copy; `imagesKept` says some stayed remote.
    */
   async save(
     note: Note,
-    images = false,
+    imagesFrom?: string,
     progress: (done: number, total: number) => void = () => {},
   ): Promise<Saved> {
     checkMarkdown(note.markdown)
     const made = (await this.request('notes', note)) as { id: string }
-    if (!images) return { id: made.id, imagesKept: hasRemoteImages(note.markdown) }
+    if (!imagesFrom) return { id: made.id, imagesKept: hasRemoteImages(note.markdown) }
     try {
       const markdown = await storeImageLinks(
         note.markdown,
         async (url) => {
+          if (!mayDownload(url, imagesFrom)) throw new Error('E_CLIP_LOCAL_IMAGE')
           const image = await downloadImage(url)
           await new Promise((resolve) => setTimeout(resolve, 120))
           const file = (await this.request(

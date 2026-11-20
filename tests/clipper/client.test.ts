@@ -66,7 +66,7 @@ it('creates the note, downloads and uploads images, then patches local image lin
         notebook: 'book',
         markdown: `![Photo](${image})\n\nSource`,
       },
-      true,
+      page,
       (done) => steps.push(done),
     ),
   ).resolves.toEqual({ id: 'note', imagesKept: false })
@@ -102,7 +102,7 @@ it('leaves the note untouched when its body changes while images upload', async 
           notebook: 'book',
           markdown: `![Photo](http://127.0.0.1:${port}/image)`,
         },
-        true,
+        page,
       ),
     ).resolves.toEqual({ id: 'note', imagesKept: true })
     expect(noteMarkdown).toBe('User edits made while an image was uploading')
@@ -128,7 +128,7 @@ it('reports the note saved, with remote images, when its body cannot be read bac
           notebook: 'book',
           markdown: `![Photo](http://127.0.0.1:${port}/image)`,
         },
-        true,
+        page,
       ),
     ).resolves.toEqual({ id: 'note', imagesKept: true })
     expect(requests.at(-1)).toMatchObject({ path: '/v1/notes/note', body: '' })
@@ -145,7 +145,7 @@ it('keeps remote URLs for missing, oversize and unsupported images', async () =>
     .join('\n\n')
   await new ApiClient({ port, token: 'secret' }).save(
     { title: 'Article', notebook: 'book', markdown },
-    true,
+    page,
   )
   expect(
     requests
@@ -153,6 +153,21 @@ it('keeps remote URLs for missing, oversize and unsupported images', async () =>
       .filter((c) => c.path.startsWith('/v1/'))
       .map((c) => c.path),
   ).toEqual(['/v1/notes'])
+})
+
+it('never downloads a local-network image for a page on the open web', async () => {
+  const start = requests.length
+  await expect(
+    new ApiClient({ port, token: 'secret' }).save(
+      {
+        title: 'Article',
+        notebook: 'book',
+        markdown: `![Router](http://127.0.0.1:${port}/image)`,
+      },
+      'https://example.org/article',
+    ),
+  ).resolves.toEqual({ id: 'note', imagesKept: true })
+  expect(requests.slice(start).map((c) => c.path)).toEqual(['/v1/notes'])
 })
 
 it('keeps a remote URL on upload refusal and a failed final patch, never failing a saved note', async () => {
@@ -165,7 +180,7 @@ it('keeps a remote URL on upload refusal and a failed final patch, never failing
   failUpload = true
   try {
     const start = requests.length
-    await expect(client.save(note, true)).resolves.toEqual({
+    await expect(client.save(note, page)).resolves.toEqual({
       id: 'note',
       imagesKept: true,
     })
@@ -179,7 +194,7 @@ it('keeps a remote URL on upload refusal and a failed final patch, never failing
   }
   failPatch = true
   try {
-    await expect(client.save(note, true)).resolves.toEqual({
+    await expect(client.save(note, page)).resolves.toEqual({
       id: 'note',
       imagesKept: true,
     })
@@ -188,6 +203,7 @@ it('keeps a remote URL on upload refusal and a failed final patch, never failing
   }
 })
 let port: number
+const page = 'http://127.0.0.1/article'
 beforeAll(async () => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   port = (server.address() as { port: number }).port

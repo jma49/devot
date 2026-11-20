@@ -7,6 +7,7 @@ export type Request = { kind: 'notebooks' } | { kind: 'check' }
 export interface SaveRequest {
   note: Note
   images: boolean
+  source: string
 }
 export type SaveUpdate =
   | { kind: 'images'; done: number; total: number }
@@ -51,7 +52,7 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onMessage.addListener((request: SaveRequest) => {
     void (async () => {
       const api = await client()
-      return api.save(request.note, request.images, (done, total) =>
+      return api.save(request.note, request.images ? request.source : undefined, (done, total) =>
         post({ kind: 'images', done, total }),
       )
     })().then(

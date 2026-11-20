@@ -165,6 +165,7 @@ it('shows the cleaned title, the host and the last notebook, then saves with pro
   expect(posted).toEqual([
     {
       images: true,
+      source: 'https://example.org/a',
       note: { title: 'Lighthouse', markdown: 'Body', notebook: 'reading' },
     },
   ])
