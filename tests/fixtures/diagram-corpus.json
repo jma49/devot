@@ -5,6 +5,16 @@
     "source": "flowchart LR\n  A[Idea] --> B[Draft]\n  B -->|changes| C[Review]"
   },
   {
+    "name": "bidirectional-flowchart",
+    "kind": "mermaid",
+    "source": "flowchart LR; A <--> B"
+  },
+  {
+    "name": "class-relationships",
+    "kind": "mermaid",
+    "source": "classDiagram\n  Animal <|-- Duck\n  Car *-- Wheel\n  Team o-- Player"
+  },
+  {
     "name": "accessible-flowchart",
     "kind": "mermaid",
     "source": "flowchart TD\n  accTitle: Release steps\n  accDescr: Capture and review\n  A --> B"

@@ -11,7 +11,7 @@ const ATTRIBUTES: Readonly<Record<string, string>> = {
   line: 'class data-et data-from data-id data-to id marker-end name stroke stroke-dasharray stroke-width style x1 x2 y1 y2',
   marker: 'class id markerHeight markerUnits markerWidth orient refX refY viewBox',
   mask: 'height id maskUnits width x y',
-  path: 'class d data-depth data-edge data-et data-id data-look data-path data-points fill id marker-end stroke stroke-dasharray stroke-width style transform viewBox',
+  path: 'class d data-depth data-edge data-et data-id data-look data-path data-points fill id marker-end marker-start stroke stroke-dasharray stroke-width style transform viewBox',
   polygon: 'class fill points stroke stroke-width style',
   rect: 'class data-look fill filter height id name rx ry stroke stroke-width style transform transform-origin width x y',
   style: '',

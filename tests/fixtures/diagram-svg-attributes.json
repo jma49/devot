@@ -71,6 +71,7 @@
     "fill",
     "id",
     "marker-end",
+    "marker-start",
     "stroke",
     "stroke-dasharray",
     "stroke-width",
