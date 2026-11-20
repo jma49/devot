@@ -1,6 +1,7 @@
 import type { FindTarget } from '../../find/target'
 import type { EditorMode } from './message'
 import type { ScreensHandlers } from './ops'
+import { bytes } from './share'
 
 /** The formatting bar's buttons, the editor's format IDs Rust lets through (`screens::message`). */
 export const BAR_FORMATS = ['heading', 'bold', 'italic', 'taskList', 'code', 'link'] as const
@@ -48,8 +49,18 @@ export interface NativeEditor {
   readonly find: (action: FindAction, query: string) => FindCount | Promise<FindCount>
   /** The keyboard and the formatting bar cover `bottom` points of the note, already. */
   readonly insets: (bottom: number) => void
+  /**
+   * A scan's pages or a transcription at the caret of `noteId`, the note the capture began on;
+   * the codes of images refused. Another note shown since takes nothing (`E_SCREENS_NOTE_NOT_SHOWN`).
+   */
+  readonly attach: (noteId: string, attachment: NativeAttachment) => Promise<readonly string[]>
   /** The shown note's copy, which Swift then opens; null when no note is shown. */
   readonly duplicate: () => Promise<{ id: string; title: string } | null>
+}
+
+export interface NativeAttachment {
+  readonly images: readonly { readonly name: string; readonly data: Uint8Array<ArrayBuffer> }[]
+  readonly text: string
 }
 
 /**
@@ -152,6 +163,24 @@ export function editorHandlers(
       if (typeof bottom !== 'number' || !Number.isFinite(bottom) || bottom < 0) throw invalid()
       await withEditor((editor) => editor.insets(bottom))
       return {}
+    },
+    'editor.attach': async (args) => {
+      const noteId = args['noteId']
+      if (typeof noteId !== 'string' || noteId === '') throw invalid()
+      const images = args['images'] ?? []
+      const text = args['text'] ?? ''
+      if (!Array.isArray(images) || typeof text !== 'string') throw invalid()
+      const attachment: NativeAttachment = {
+        text,
+        images: images.map((image: unknown) => {
+          if (typeof image !== 'object' || image === null) throw invalid()
+          const { name, data } = image as Record<string, unknown>
+          if (typeof name !== 'string' || typeof data !== 'string') throw invalid()
+          return { name, data: bytes(data) }
+        }),
+      }
+      if (attachment.images.length === 0 && text === '') throw invalid()
+      return { refused: await withEditor((editor) => editor.attach(noteId, attachment)) }
     },
     'editor.duplicate': async () => {
       const made = await withEditor((editor) => editor.duplicate())

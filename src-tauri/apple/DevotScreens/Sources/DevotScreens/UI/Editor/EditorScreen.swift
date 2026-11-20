@@ -29,6 +29,10 @@ struct EditorActions {
     /// The note's Markdown, for Share.
     var text: (_ id: String, _ done: @escaping (String) -> Void) -> Void = { _, _ in }
     var haptics = Haptics()
+    /// The speech model a transcription listens with; tests give a stand-in.
+    var listener: @MainActor () -> SpeechListening = { SystemSpeechListener() }
+    /// Where the transcription sheet keeps the language picked last.
+    var defaults: UserDefaults = .standard
 }
 
 /// A note pushed over its list: the system bar and back swipe around the page's editor, which
@@ -91,6 +95,11 @@ final class EditorScreen: WebHolderScreen {
     private(set) lazy var findItem = UIBarButtonItem(
         image: UIImage(systemName: "magnifyingglass"),
         primaryAction: UIAction { [weak self] _ in self?.startFind() })
+    private(set) lazy var captureItem = UIBarButtonItem(
+        image: UIImage(systemName: "plus.circle"),
+        menu: UIMenu(children: [
+            UIDeferredMenuElement.uncached { [weak self] provide in provide(self?.captureMenu() ?? []) }
+        ]))
     private(set) lazy var aiItem = UIBarButtonItem(
         image: UIImage(systemName: "sparkles"),
         primaryAction: UIAction { [weak self] _ in self?.suggest() })
@@ -134,8 +143,9 @@ final class EditorScreen: WebHolderScreen {
         forwardItem.accessibilityLabel = L10n.phoneNoteNext()
         findItem.accessibilityLabel = L10n.phoneNoteFind()
         aiItem.accessibilityLabel = L10n.phoneNoteSuggest()
+        captureItem.accessibilityLabel = L10n.phoneCaptureMenu()
         forwardItem.isEnabled = false
-        toolbarItems = [backItem, forwardItem, findItem, .flexibleSpace(), aiItem]
+        toolbarItems = [backItem, forwardItem, findItem, .flexibleSpace(), captureItem, aiItem]
         labelModeItem()
     }
 
@@ -518,6 +528,104 @@ final class EditorScreen: WebHolderScreen {
 
     private func suggest() {
         askPage(.editorAi, ["action": .string("suggest")])
+    }
+
+    // MARK: Scan and transcribe
+
+    /// Scan Document where the device has a camera that can, and Transcribe Speech; each goes through the gate.
+    func captureMenu() -> [UIMenuElement] {
+        guard noteId != nil else { return [] }
+        var items: [UIMenuElement] = []
+        if DocumentScanner.isSupported {
+            items.append(
+                UIAction(title: L10n.phoneCaptureScan(), image: UIImage(systemName: "doc.viewfinder")) { [weak self] _ in
+                    self?.askCapture(.scan)
+                })
+        }
+        items.append(
+            UIAction(title: L10n.phoneCaptureTranscribe(), image: UIImage(systemName: "waveform")) { [weak self] _ in
+                self?.askCapture(.transcribe)
+            })
+        return items
+    }
+
+    func askCapture(_ kind: CaptureKind) {
+        guard let noteId else { return }
+        actions.write(.capture(noteId: noteId, kind: kind))
+    }
+
+    /// The gate let a capture through: the camera or the transcription sheet rises over this note.
+    func beginCapture(_ kind: CaptureKind) {
+        guard let noteId, view.window != nil, presentedViewController == nil else { return }
+        switch kind {
+        case .scan:
+            guard DocumentScanner.isSupported else { return }
+            DocumentScanner { [weak self] scanned in self?.attachScan(scanned, to: noteId) }.present(from: self)
+        case .transcribe:
+            let defaults = actions.defaults
+            let model = TranscriptionModel(
+                listener: actions.listener(),
+                language: .preferred(
+                    stored: defaults.string(forKey: TranscriptionLanguage.storeKey),
+                    appLanguage: Bundle.main.preferredLocalizations.first),
+                remember: { defaults.set($0.rawValue, forKey: TranscriptionLanguage.storeKey) })
+            present(
+                TranscriptionSheet.controller(model: model) { [weak self] text in self?.attachText(text, to: noteId) },
+                animated: true)
+        }
+    }
+
+    /// One page a message, in order, each at the caret after the one before.
+    func attachScan(_ scanned: ScannedPages, to noteId: String) {
+        attachPages(scanned.pages[...], to: noteId, number: 1, refused: scanned.failed)
+    }
+
+    private func attachPages(_ pages: ArraySlice<Data>, to noteId: String, number: Int, refused: Int) {
+        guard let page = pages.first else {
+            if refused > 0 { tellCaptureFailed(L10n.phoneCaptureScanFailed()) }
+            return
+        }
+        let image: JSONValue = .object([
+            "name": .string(ScanEncoding.name(page: number)), "data": .string(page.base64EncodedString()),
+        ])
+        actions.page(.editorAttach, ["noteId": .string(noteId), "images": .array([image])]) { [weak self] outcome in
+            guard let self else { return }
+            switch outcome {
+            case .ok(let result):
+                let more = result["refused"]?.array?.count ?? 0
+                attachPages(pages.dropFirst(), to: noteId, number: number + 1, refused: refused + more)
+            case .failed:
+                attachPages([], to: noteId, number: number, refused: refused + pages.count)
+            }
+        }
+    }
+
+    /// The transcript in pieces no longer than a message takes, in order; a piece refused copies all of it.
+    func attachText(_ text: String, to noteId: String) {
+        guard !text.isEmpty else { return }
+        attachPieces(Transcript.chunks(text, limit: Self.maxAttachedText)[...], whole: text, to: noteId)
+    }
+
+    /// What `editor.attach` carries at most (MAX_SHARE_TEXT_CHARS in src-tauri/src/screens/message.rs).
+    static let maxAttachedText = 100_000
+
+    private func attachPieces(_ pieces: ArraySlice<String>, whole: String, to noteId: String) {
+        guard let piece = pieces.first else { return }
+        actions.page(.editorAttach, ["noteId": .string(noteId), "text": .string(piece)]) { [weak self] outcome in
+            guard let self else { return }
+            if case .failed = outcome {
+                UIPasteboard.general.string = whole
+                return tellCaptureFailed(L10n.phoneCaptureTextFailed())
+            }
+            attachPieces(pieces.dropFirst(), whole: whole, to: noteId)
+        }
+    }
+
+    private func tellCaptureFailed(_ message: String) {
+        guard view.window != nil, presentedViewController == nil else { return }
+        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: L10n.phoneClose(), style: .default))
+        present(alert, animated: true)
     }
 
     // MARK: More, pickers and Note Info

@@ -248,7 +248,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Title under the bar** (the native screens): rule 2.
   Once the note's own title has scrolled under the system bar, the bar shows it; it goes when the title comes back.
 - **Bottom toolbar and the keyboard** (the native screens): rule 3.
-  A note's screen has the system's bottom toolbar of Back, Forward, Find and, in Edit, AI.
+  A note's screen has the system's bottom toolbar of Back, Forward, Find, Scan or Transcribe and, in Edit, AI.
   Back, Forward and Find stand side by side, so the system draws them on one glass, and a flexible space sets AI apart on its own.
   It hides as the keyboard rises and comes back as it goes, inside the keyboard's own animation: the same duration and curve, never the toolbar's own slide.
   A keyboard raised for a sheet over the note moves neither the toolbar nor the bars.
@@ -266,6 +266,11 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Find, from the toolbar or the More menu, swaps a glass bar in at once in the formatting bar's place: a field, the count, previous, next, and a close circle.
   The count follows each key typed; a count for an older query is dropped.
   Return steps to the next match; Close clears the highlights and swaps the bar out at once.
+- **Scan and transcribe** (the native screens): the system's menu from the toolbar's Scan or Transcribe button, with the system's motion.
+  Scan Document is the system's document camera, presented and dismissed with its own full-screen motion.
+  Transcribe Speech is a system sheet at medium and large height with a grabber, risen and closed with the system's motion; a drag down does not close it.
+  What is heard replaces the transcript in place as it comes, and the status line and its symbol change at once (rule 2); nothing pulses or animates while listening.
+  The pages and the transcript appear in the note at once (rule 2), and an alert for a page or transcript not added is the system's.
 - **Note's More menu** (the native screens): the system's menu from its bar button, with the system's motion.
   Pin, Status, Move to Notebook, Tags, Share, Find in Note, Duplicate and Move to Trash; a write goes through the gate and plays its haptic.
   Move to Trash pops the note's screen once the note is in the Trash, and offers the undo toast over the list; a refused or failed write leaves the screen.

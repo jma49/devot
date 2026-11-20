@@ -6710,6 +6710,94 @@ public enum L10n {
     text("phone.ai.suggestHint", "Sends nearby text when you pause typing")
   }
 
+  public static func phoneCaptureMenu() -> String {
+    text("phone.capture.menu", "Scan or Transcribe")
+  }
+
+  public static func phoneCaptureScan() -> String {
+    text("phone.capture.scan", "Scan Document")
+  }
+
+  public static func phoneCaptureTranscribe() -> String {
+    text("phone.capture.transcribe", "Transcribe Speech")
+  }
+
+  public static func phoneCaptureScanPage(number p0: String) -> String {
+    fill(text("phone.capture.scanPage", "Scan {number}"), ["number": p0])
+  }
+
+  public static func phoneCaptureTextFailed() -> String {
+    text("phone.capture.textFailed", "The transcript couldn’t be added to the note, so it was copied instead.")
+  }
+
+  public static func phoneCaptureScanFailed() -> String {
+    text("phone.capture.scanFailed", "Some scanned pages could not be added to the note.")
+  }
+
+  public static func phoneTranscribeTitle() -> String {
+    text("phone.transcribe.title", "Transcribe")
+  }
+
+  public static func phoneTranscribeCancel() -> String {
+    text("phone.transcribe.cancel", "Cancel")
+  }
+
+  public static func phoneTranscribeInsert() -> String {
+    text("phone.transcribe.insert", "Insert")
+  }
+
+  public static func phoneTranscribeLanguage() -> String {
+    text("phone.transcribe.language", "Language")
+  }
+
+  public static func phoneTranscribeEnglish() -> String {
+    text("phone.transcribe.english", "English")
+  }
+
+  public static func phoneTranscribeChinese() -> String {
+    text("phone.transcribe.chinese", "Chinese (Mandarin)")
+  }
+
+  public static func phoneTranscribePreparing() -> String {
+    text("phone.transcribe.preparing", "Getting ready…")
+  }
+
+  public static func phoneTranscribeDownloading() -> String {
+    text("phone.transcribe.downloading", "Downloading the speech model…")
+  }
+
+  public static func phoneTranscribeListening() -> String {
+    text("phone.transcribe.listening", "Listening")
+  }
+
+  public static func phoneTranscribeHint() -> String {
+    text("phone.transcribe.hint", "Start speaking and your words appear here. Everything stays on this iPhone.")
+  }
+
+  public static func phoneTranscribeFinishing() -> String {
+    text("phone.transcribe.finishing", "Finishing…")
+  }
+
+  public static func phoneTranscribeMicDenied() -> String {
+    text("phone.transcribe.micDenied", "Devot can’t use the microphone. Allow it in Settings > Privacy & Security > Microphone.")
+  }
+
+  public static func phoneTranscribeUnsupported() -> String {
+    text("phone.transcribe.unsupported", "Transcription in this language isn’t available on this iPhone.")
+  }
+
+  public static func phoneTranscribeFailed() -> String {
+    text("phone.transcribe.failed", "Transcription stopped. The words heard so far are kept.")
+  }
+
+  public static func phoneUsageCamera() -> String {
+    text("phone.usage.camera", "Devot uses the camera to scan documents into your notes.")
+  }
+
+  public static func phoneUsageMicrophone() -> String {
+    text("phone.usage.microphone", "Devot uses the microphone to turn what you say into text in your notes, on this device.")
+  }
+
   public static func settingsTitle() -> String {
     text("settings.title", "Settings")
   }

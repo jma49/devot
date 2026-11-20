@@ -38,6 +38,10 @@
 	<string>0.0.0</string>
 	<key>DevotCloudKitContainer</key>
 	<string>$(DEVOT_CLOUDKIT_CONTAINER)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Devot uses the camera to scan documents into your notes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Devot uses the microphone to turn what you say into text in your notes, on this device.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>

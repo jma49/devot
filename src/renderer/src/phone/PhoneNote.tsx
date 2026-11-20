@@ -55,6 +55,7 @@ import {
   type BarFormat,
   type FindAction,
   type FindCount,
+  type NativeAttachment,
 } from './screens/editor'
 import type { EditorMode, EditorNoteFacts, EditorPicker } from './screens/message'
 
@@ -85,6 +86,8 @@ export interface NoteCommands {
   /** Find works in Edit, so a search shows the editor until `close`. */
   readonly find: (action: FindAction, query: string) => FindCount | Promise<FindCount>
   readonly duplicate: () => Promise<{ id: string; title: string } | null>
+  /** Swift checked the gate before the capture began; the licence may have lapsed since. */
+  readonly attach: (attachment: NativeAttachment) => Promise<readonly string[]>
   /** The screen went: sheets, Find and the keyboard go with it. */
   readonly leave: () => void
   /** Puts the caret at the start of the body, in Edit only, and types `typed` there; whether it took it. */
@@ -373,6 +376,13 @@ export function PhoneNote(props: {
       if (!core || !note) return null
       const id = await core.duplicate(note.id, t('note.copySuffix'), [...note.tagIds])
       return { id, title: (await core.read(id)).title }
+    },
+    attach: async ({ images, text: typed }) => {
+      const shown = editor.current
+      if (!shown) throw new Error('E_SCREENS_NO_NOTE')
+      if (!editing) throw new Error('E_LICENCE_REQUIRED')
+      const files = images.map(({ name, data }) => new File([data], name))
+      return shown.attach({ images: files, text: typed })
     },
     focusBody: (typed) => {
       const shown = editor.current

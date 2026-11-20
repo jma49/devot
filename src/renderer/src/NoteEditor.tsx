@@ -8,6 +8,7 @@ import { readWrites, type AgentWrite } from '../../core/authorship'
 import { BODY } from '../../core/notes'
 import { undoneWrites } from './editor/authorshipUndo'
 import { imageFiles, storeImages } from './attachments'
+import { asBlockAt, type AttachContent } from './editor/attachContent'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
@@ -102,7 +103,7 @@ function attachImages(
   noteId: string,
   text: Y.Text,
   refused: (codes: string[]) => void,
-): { extension: Extension; choose: (view: EditorView) => void } {
+): { extension: Extension; choose: (view: EditorView) => void; attach: AttachContent } {
   const insert = (view: EditorView, pos: number, files: File[]) => {
     const anchor = anchorAt(text, Math.min(pos, view.state.doc.length))
     void storeImages(noteId, files).then(async (stored) => {
@@ -129,6 +130,15 @@ function attachImages(
     input.addEventListener('cancel', () => input.remove())
     document.body.appendChild(input)
     input.click()
+  }
+  const attach: AttachContent = async (view, { images, text: typed }) => {
+    const pos = Math.min(view.state.selection.main.head, view.state.doc.length)
+    const anchor = anchorAt(text, pos)
+    const stored = images.length > 0 ? await storeImages(noteId, images) : null
+    const links = stored?.links ? asBlockAt(view.state.doc, pos, stored.links) : ''
+    const markdown = links + typed
+    if (markdown) await insertAtAnchor(core, noteId, anchor, markdown)
+    return stored?.refused ?? []
   }
   const extension = EditorView.domEventHandlers({
     paste(event, view) {
@@ -168,7 +178,7 @@ function attachImages(
       return true
     },
   })
-  return { extension, choose }
+  return { extension, choose, attach }
 }
 
 interface Shown {

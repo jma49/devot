@@ -72,7 +72,7 @@ function noteState(
         settings: { ...settings },
         frame: document.createElement('div'),
         scroller: document.createElement('div'),
-        images: { extension: [], choose: () => {} },
+        images: { extension: [], choose: () => {}, attach: async () => [] },
         place,
         placeChanged,
         restoring: () => false,
