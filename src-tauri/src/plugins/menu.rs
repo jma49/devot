@@ -226,14 +226,32 @@ impl Bar for AppBar<'_> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum Target {
+    PluginsPane,
+    PluginItem,
+    NotPlugins,
+}
+
+fn target(id: &str) -> Target {
+    if id == SETTINGS_ID {
+        Target::PluginsPane
+    } else if id.starts_with(ITEM_PREFIX) {
+        Target::PluginItem
+    } else {
+        Target::NotPlugins
+    }
+}
+
 /// True when the menu item was a plugin's (or Plugin Settings).
 pub fn on_menu_event(app: &AppHandle, id: &str) -> bool {
-    if id == SETTINGS_ID {
-        crate::settings::open(app);
-        return true;
-    }
-    if !id.starts_with(ITEM_PREFIX) {
-        return false;
+    match target(id) {
+        Target::PluginsPane => {
+            crate::settings::open_plugins(app);
+            return true;
+        }
+        Target::PluginItem => {}
+        Target::NotPlugins => return false,
     }
     let action = app
         .try_state::<PluginMenus>()
@@ -250,6 +268,13 @@ pub fn on_menu_event(app: &AppHandle, id: &str) -> bool {
 mod tests {
     use super::*;
     use crate::plugins::manifest;
+
+    #[test]
+    fn plugin_settings_opens_settings_at_the_plugins_pane() {
+        assert_eq!(target(SETTINGS_ID), Target::PluginsPane);
+        assert_eq!(target(crate::menu::SETTINGS_ID), Target::NotPlugins);
+        assert_eq!(target("devot.plugin.0"), Target::PluginItem);
+    }
 
     fn installed(json: &str, enabled: bool, granted: &[&str]) -> Installed {
         let manifest = manifest::parse_bytes(json.as_bytes()).unwrap();

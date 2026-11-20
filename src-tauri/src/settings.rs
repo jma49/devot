@@ -315,6 +315,11 @@ mod tests {
     }
 
     #[test]
+    fn plugin_settings_opens_settings_at_the_plugins_pane() {
+        assert_eq!(page_at(PLUGINS_PANE), "settings.html?pane=plugins");
+    }
+
+    #[test]
     fn opens_the_data_folder_itself_with_open() {
         let folder = Path::new("/Users/me/Library/Application Support/io.github.jma49.devot.dev");
         let open = open_folder_command(folder).unwrap();
