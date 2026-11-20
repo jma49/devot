@@ -81,7 +81,7 @@ const logInfo = (code: string, ...ids: string[]) =>
 
 // What no launch needs before the first list loads on first use, so the worker's own script
 // parses before `init` answers (issue 742).
-const loadImport = () => Promise.all([import('../../core/import'), import('./importWorker')])
+const loadImport = () => import('./importWorker')
 const loadExport = () => import('../../core/export')
 const loadMirror = () => import('../../core/mirror')
 const loadHttpApi = () => Promise.all([import('../../core/ai'), import('../../core/httpApi')])
@@ -426,13 +426,13 @@ const coreApi = {
   importMarkdown: (...args: import('./importWorker').MarkdownImportArgs) => {
     const parts = importParts()
     return imports.run((stopped) =>
-      loadImport().then(([, { markdownImport }]) => markdownImport(parts, stopped, args)),
+      loadImport().then(({ markdownImport }) => markdownImport(parts, stopped, args)),
     )
   },
   importConverted: (...args: import('./importWorker').ConvertedImportArgs) => {
     const parts = importParts()
     return imports.run((stopped) =>
-      loadImport().then(([, { convertedImport }]) => convertedImport(parts, stopped, args)),
+      loadImport().then(({ convertedImport }) => convertedImport(parts, stopped, args)),
     )
   },
   holdImport: () => imports.hold(),
