@@ -384,12 +384,12 @@ final class Screens: SettingsBridge {
         else { return }
         let screen = EditorScreen(
             noteId: id, title: title, tab: tabModel.selected, host: root.host, actions: editorActions)
-        if let columns = shownColumns, columns.showsNotesBeside {
-            guard fromNote else {
+        if let columns = shownColumns {
+            screen.hidesBottomBarWhenPushed = false
+            if columns.showsNotesBeside, !fromNote {
                 columns.open(screen)
                 return discardLeftNewNotes()
             }
-            screen.hidesBottomBarWhenPushed = false
         }
         navigation.pushViewController(screen, animated: true)
     }
@@ -401,6 +401,7 @@ final class Screens: SettingsBridge {
         let columns = shownColumns.flatMap { $0.showsNotesBeside ? $0 : nil }
         guard columns != nil || !(navigation.topViewController is EditorScreen) else { return }
         let screen = EditorScreen(newNoteIn: bookId, tab: tabModel.selected, host: root.host, actions: editorActions)
+        if shownColumns != nil { screen.hidesBottomBarWhenPushed = false }
         let listBelow = columns.map { ($0.controllers.last { !($0 is EditorScreen) }) as? NoteListScreen }
         if let columns {
             columns.open(screen)

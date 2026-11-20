@@ -112,8 +112,11 @@ final class ColumnsTests: XCTestCase {
 
     func testANarrowerWindowStacksTheNoteOverItsListAndAWiderOneSetsItBesideAgain() throws {
         let notes = try showNotes()
+        let list = try XCTUnwrap(notes.stack.topViewController)
+        let room = list.view.safeAreaInsets
         open(first, "First")
         let one = try XCTUnwrap(notes.notes.topViewController as? EditorScreen)
+        XCTAssertFalse(one.hidesBottomBarWhenPushed, "the tabs follow the bar, never a push")
 
         resize(CGSize(width: 834, height: 1194))
         XCTAssertEqual(notes.layout, .one)
@@ -128,6 +131,7 @@ final class ColumnsTests: XCTestCase {
         XCTAssertTrue(notes.notes.topViewController === one)
         XCTAssertTrue(notes.stack.topViewController is NoteListScreen)
         harness.settle(until: { self.host.holder === one && !self.tabs.isTabBarHidden })
+        harness.settle(until: { list.view.safeAreaInsets == room }, timeout: 5)
         XCTAssertFalse(harness.requests().contains { $0.op == .noteDiscard })
     }
 

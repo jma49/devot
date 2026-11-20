@@ -59,11 +59,16 @@ final class NoteColumns: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        let next = ColumnLayout.fitting(
-            width: view.bounds.width, regular: traitCollection.horizontalSizeClass == .regular,
-            allowsThree: allowsThree, widths: Self.widths)
-        if next != layout { UIView.performWithoutAnimation { rearrange(to: next) } }
+        fit(width: view.bounds.width, traits: traitCollection)
         place()
+    }
+
+    private func fit(width: CGFloat, traits: UITraitCollection) {
+        guard width > 0 else { return }
+        let next = ColumnLayout.fitting(
+            width: width, regular: traits.horizontalSizeClass == .regular, allowsThree: allowsThree,
+            widths: Self.widths)
+        if next != layout { UIView.performWithoutAnimation { rearrange(to: next) } }
     }
 
     /// Every screen of the tab, in stack order, the columns' empty screens left out.
@@ -91,9 +96,13 @@ final class NoteColumns: UIViewController {
     }
 
     func setControllers(_ all: [UIViewController], animated: Bool) {
-        // A tab a route just selected has not laid out: a push into its one stack would still be
-        // animating when its columns take the note, which then stays in the narrow one.
-        view.window?.layoutIfNeeded()
+        // A tab a route or a launch fills may not have laid out at this width: a note pushed into its
+        // one stack would still be moving when the columns take it, and would stay in the narrow one.
+        if let window = view.window {
+            window.layoutIfNeeded()
+        } else if let parent {
+            fit(width: parent.view.bounds.width, traits: parent.traitCollection)
+        }
         guard all != controllers else { return }
         distribute(all, animated: animated)
     }
@@ -191,9 +200,10 @@ final class NoteColumns: UIViewController {
         for column in [lists, notes] where !columns.contains(column) {
             set(column, [], animated: false)
         }
-        // The tab bar stays beside the lists; over them, a note takes it away as a push does.
+        // The tab follows the bar itself (`followBar`): a screen that hides it as it is pushed takes the
+        // tabs' room out of the safe area, which a later move between columns never gives back.
         for screen in all where screen is EditorScreen {
-            screen.hidesBottomBarWhenPushed = layout == .one
+            screen.hidesBottomBarWhenPushed = false
         }
         for (column, part) in zip(columns, parts) where column.viewControllers != part {
             set(column, part, animated: animated && column.view.window != nil)
