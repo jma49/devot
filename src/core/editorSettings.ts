@@ -20,7 +20,7 @@ export type PasteUrlStyle = 'plain' | 'autolink' | 'link' | 'choose'
 export type LineWrappingMode = 'off' | 'all' | 'prose' | 'unwrapAtCursor'
 export type AppearanceChoice = 'system' | 'light' | 'dark'
 export type ThemeChoice = 'default' | 'ivory' | GradientTheme
-export type IconStyleChoice = 'sfSymbols' | 'lucide'
+export type IconStyleChoice = 'sfSymbols' | 'lucide' | 'kubai'
 export type GradientTheme = 'dawn' | 'tide' | 'sage' | 'ember'
 
 export type ListDatesStyle = 'relative' | 'absolute'
@@ -242,7 +242,7 @@ export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
 export const GRADIENT_THEMES: readonly GradientTheme[] = ['dawn', 'tide', 'sage', 'ember']
 export const THEMES: readonly ThemeChoice[] = ['default', 'ivory', ...GRADIENT_THEMES]
-export const ICON_STYLES: readonly IconStyleChoice[] = ['sfSymbols', 'lucide']
+export const ICON_STYLES: readonly IconStyleChoice[] = ['sfSymbols', 'lucide', 'kubai']
 /** The gradient themes keep the default palette, accent included. */
 export const themeFollowsSystemAccent = (theme: ThemeChoice): boolean => theme !== 'ivory'
 export const gradientThemeChosen = (

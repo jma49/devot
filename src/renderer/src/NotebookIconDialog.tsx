@@ -54,7 +54,11 @@ export function NotebookIconDialog(props: {
   )
   const appIconStyle = useEditorSetting('iconStyle')
   const [iconSet, setIconSet] = useState<NotebookIconSet>(() =>
-    book.icon && notebookIcon(book.icon) ? notebookIconSet(book.icon) : appIconStyle,
+    book.icon && notebookIcon(book.icon)
+      ? notebookIconSet(book.icon)
+      : appIconStyle === 'sfSymbols'
+        ? 'sfSymbols'
+        : 'lucide',
   )
   const setGroup = useRef<HTMLDivElement>(null)
   useSegmentSlide(

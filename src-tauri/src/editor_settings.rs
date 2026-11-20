@@ -139,6 +139,7 @@ pub enum Appearance {
 pub enum IconStyle {
     SfSymbols,
     Lucide,
+    Kubai,
 }
 
 /// The page applies it (the tokens read `data-theme` on the root element), picking `light_theme`
@@ -1548,6 +1549,7 @@ mod tests {
     fn reads_an_unknown_stored_icon_style_as_sf_symbols() {
         for (stored, style) in [
             (json!("lucide"), IconStyle::Lucide),
+            (json!("kubai"), IconStyle::Kubai),
             (json!("sfSymbols"), IconStyle::SfSymbols),
             (json!("other"), IconStyle::SfSymbols),
             (json!(7), IconStyle::SfSymbols),

@@ -3792,6 +3792,23 @@
         }
       }
     },
+    "appearanceSettings.iconStyleKubai" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kubai"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kubai"
+          }
+        }
+      }
+    },
     "appearanceSettings.iconStyleLucide" : {
       "extractionState" : "manual",
       "localizations" : {
