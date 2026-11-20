@@ -18,6 +18,7 @@ export async function importDroppedFiles(
     files: ImportFile[],
   ) => Promise<{ ids: string[]; failed: boolean }>,
 ) {
+  if (files.length > MAX_FILES) throw new Error('E_PLUGIN_IMPORT_TOO_MANY')
   const groups = new Map<string, { plugin: InstalledPlugin; format: string; files: File[] }>()
   for (const file of files) {
     const route = routeImport(file.name, plugins)

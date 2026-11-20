@@ -29,6 +29,36 @@ const report = (noteIds: Record<string, string> = { '1.md': 'note-id' }): Import
 })
 
 describe('plugin file imports', () => {
+  it.each([false, true])(
+    'enforces the whole drop count before reading either format (reversed: %s)',
+    async (reverse) => {
+      const installed = plugin()
+      installed.manifest.contributes.importFormats.push({
+        id: 'other',
+        title: 'Other',
+        extensions: ['other'],
+      })
+      const files = Array.from(
+        { length: 21 },
+        (_, index) => new File(['text'], `${index}.${index % 2 ? 'txt' : 'other'}`),
+      )
+      const read = vi.spyOn(files[0]!, 'arrayBuffer')
+      const convert = vi
+        .fn<() => Promise<{ ids: string[]; failed: boolean }>>()
+        .mockResolvedValue({ ids: [], failed: false })
+      if (reverse) files.reverse()
+      await expect(importDroppedFiles(files, [installed], convert)).rejects.toThrow(
+        'E_PLUGIN_IMPORT_TOO_MANY',
+      )
+      expect(read).not.toHaveBeenCalled()
+      expect(convert).not.toHaveBeenCalled()
+      expect(await importDroppedFiles(files.slice(0, 20), [installed], convert)).toEqual({
+        ids: [],
+        failed: false,
+      })
+      expect(convert).toHaveBeenCalledTimes(2)
+    },
+  )
   it.each(['utf8', 'size'] as const)(
     'preflights every format before writing when a later group has invalid %s',
     async (kind) => {
