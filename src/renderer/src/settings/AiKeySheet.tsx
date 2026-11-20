@@ -92,6 +92,8 @@ export function AiKeySheet(props: {
 
   const name = t(PROVIDER_NAMES[provider])
   const hasKey = stored.key === 'set' || stored.key === 'unknown'
+  // The title stays the one the sheet opened with: saving stores the key before the check ends.
+  const [openedWithKey] = useState(hasKey)
   const busy = phase.kind === 'saving' || phase.kind === 'checking'
   const done = phase.kind === 'checked'
   const canSave =
@@ -161,7 +163,7 @@ export function AiKeySheet(props: {
         }}
       >
         <h2 id={`${ids}-title`} className="sheet-title">
-          {format(t(hasKey ? 'aiSettings.changeKeyTitle' : 'aiSettings.addKeyTitle'), {
+          {format(t(openedWithKey ? 'aiSettings.changeKeyTitle' : 'aiSettings.addKeyTitle'), {
             provider: name,
           })}
         </h2>
