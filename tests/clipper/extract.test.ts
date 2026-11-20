@@ -84,3 +84,40 @@ it.each(['srcset', 'data-srcset'])(
     expect(result.markdown).toContain('![Other](https://example.org/other.png)')
   },
 )
+
+it('drops footnote markers and heading permalinks, unwraps linked images and keeps figure captions', () => {
+  document.head.innerHTML = ''
+  document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}<sup class="reference"><a href="#cite_note-1">[1]</a></sup> and <a href="${url}#cite_note-2">[b]</a> but <a href="/one">[3]</a></p><h2><a href="#findings">Findings</a></h2><p>${prose}</p><figure><a href="/wiki/File:Photo.jpg"><img src="/photo.jpg"></a><figcaption>The team at <a href="/camp">camp</a></figcaption></figure></article>`
+  const { markdown } = extract(document, url, 'article')
+  expect(markdown).not.toMatch(/\[1\]|\[b\]|cite_note/)
+  expect(markdown).toContain('[\\[3\\]](https://example.org/one)')
+  expect(markdown).toContain('## Findings\n')
+  expect(markdown).toContain(
+    '![The team at camp](https://example.org/photo.jpg)\n\n*The team at [camp](https://example.org/camp)*',
+  )
+  expect(markdown).not.toContain('File:Photo')
+})
+
+it.each([
+  ['<div class="highlight highlight-source-js"><pre>let a = 1</pre></div>', 'js'],
+  ['<pre class="brush: html notranslate"><code>&lt;p&gt;</code></pre>', 'html'],
+  ['<pre><code class="language-rust">fn main() {}</code></pre>', 'rust'],
+  ['<pre lang="Python">print(1)</pre>', 'python'],
+])('keeps the language of %s', (block, language) => {
+  document.head.innerHTML = ''
+  document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}</p>${block}<p>${prose}</p></article>`
+  expect(extract(document, url, 'article').markdown).toMatch(new RegExp('```' + language + '\\n'))
+})
+
+it.each([
+  ['<article> element - HTML | MDN', 'MDN Web Docs', '<article> element'],
+  [
+    'Largest Contentful Paint (LCP) | Articles | web.dev',
+    'web.dev',
+    'Largest Contentful Paint (LCP)',
+  ],
+])('drops a section label left behind the site in %s', (title, site, expected) => {
+  document.head.innerHTML = `<title>${title.replace(/</g, '&lt;')}</title><meta property="og:site_name" content="${site}">`
+  document.body.innerHTML = `<article><h1>Heading</h1><p>${prose}</p></article>`
+  expect(extract(document, url, 'article').title).toBe(expected)
+})
