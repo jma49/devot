@@ -31,6 +31,7 @@ export const messages: Record<keyof typeof en, string> = {
   'command.showBoard': '以看板显示',
   'command.showList': '以列表显示',
   'command.showGallery': '以画廊显示',
+  'command.showTable': '以表格显示',
   'command.alertNote': '注意提示块',
   'command.alertTip': '技巧提示块',
   'command.alertImportant': '重要提示块',

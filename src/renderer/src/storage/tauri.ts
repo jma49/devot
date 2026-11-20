@@ -11,6 +11,7 @@ import type {
   CompactableVersion,
   LinkGraph,
   NoteBody,
+  NoteHead,
   NoteSummary,
   NoteTagRecord,
   RevisionSummary,
@@ -37,6 +38,7 @@ export const tauriWire: WireStorage = {
   openNote: (id) =>
     invoke<ArrayBuffer>('note_open', { id }).then((frame) => Comlink.transfer(frame, [frame])),
   getBodies: (ids) => invoke<NoteBody[]>('notes_bodies', { ids }),
+  getHeads: (ids) => invoke<NoteHead[]>('notes_heads', { ids }),
   // The worker found the links and checked the note and its agent_writes rows (what note_put refuses).
   putNote: ({ frame }) => invoke('note_put', frame),
   putNoteMeta: ({ agentWrites, ...note }) =>

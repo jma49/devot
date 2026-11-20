@@ -470,6 +470,7 @@ describe('Tauri command permissions', () => {
       'books_put',
       'files_copy',
       'note_drawings_put',
+      'notes_heads',
       'notes_purge',
       'notes_trash_list',
       'revisions_compact',
