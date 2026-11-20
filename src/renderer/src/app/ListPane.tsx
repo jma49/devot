@@ -1,5 +1,6 @@
-import { useMemo, type RefObject } from 'react'
+import { lazy, Suspense, useMemo, type CSSProperties, type RefObject } from 'react'
 import type { NoteSummary, TagColor, TagColorValue, TagRecord } from '../../../core'
+import type { PropertyValue } from '../../../core/propertyTypes'
 import { bookIcon } from '../../../core/books'
 import { BookIcon } from '../BookIcon'
 import { BuiltInTemplates } from '../BuiltInTemplates'
@@ -10,7 +11,8 @@ import { Icon } from '../icons/Icon'
 import { NoteBoard } from '../NoteBoard'
 import { NoteGallery } from '../NoteGallery'
 import { NoteList } from '../NoteList'
-import { fittedBoardWidth } from '../paneWidth'
+import { usePaneResize } from '../paneResize'
+import { BOARD_PANE, fittedBoardWidth } from '../paneWidth'
 import { STATUSES, type SidebarMenus } from '../Sidebar'
 import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { SearchResults } from '../useSearch'
@@ -22,6 +24,20 @@ import type { useListProps } from './useListProps'
 import type { useNoteMaking } from './useNoteMaking'
 import type { NoteOpening } from './useNoteOpening'
 import type { useTrashList } from './useTrash'
+
+const NoteTable = lazy(() => import('../NoteTable').then((m) => ({ default: m.NoteTable })))
+
+/** The table's place while its code loads, at its width so nothing beside it moves. */
+function TablePending({ fittedWidth }: { fittedWidth: number }) {
+  const { width } = usePaneResize(BOARD_PANE, fittedWidth)
+  return (
+    <section
+      className="list table-layout"
+      aria-busy
+      style={{ '--list-width': `${width}px` } as CSSProperties}
+    />
+  )
+}
 
 // Stable identity so the memoized list and sidebar skip equal props.
 const NO_NOTES: NoteSummary[] = []
@@ -38,12 +54,20 @@ export function ListPane({
   view,
   listProps,
   opening: { switching, openingId },
-  loaders: { loadHeadlines, loadDetails, loadTaskCounts, loadCardPreviews, loadStrips },
+  loaders: {
+    loadHeadlines,
+    loadDetails,
+    loadTaskCounts,
+    loadCardPreviews,
+    loadProperties,
+    loadStrips,
+  },
   board: { moveCards, stepCards, undoMove, redoMove },
   trashList: { trashKey, trashRowMenu, emptyTrashButton },
   openTrashed,
   making: { shownBuiltIn, showBuiltIn },
   sidebarMenus,
+  applyToOpenNote,
 }: {
   core: Core | undefined
   editing: boolean
@@ -60,9 +84,11 @@ export function ListPane({
   openTrashed: (id: string) => void
   making: ReturnType<typeof useNoteMaking>
   sidebarMenus: RefObject<SidebarMenus | null>
+  applyToOpenNote: (noteId: string, update: Uint8Array) => void
 }) {
   const { galleryShown, listView, searching, filterLabel, libraryBook, activeFilter, viewName } =
     view
+  const { tableShown } = view
   const { galleryNotes, sortButton, sortButtonRef, shownSelection, highlight, shownResults } = view
   const { shownRelated } = view
   const { tagsById, agentWrites, inTrash, templateRows, inTemplates, boardShown, boardNotes } = view
@@ -129,7 +155,57 @@ export function ListPane({
       kind === 'tag' ? sidebarMenus.current?.tag(id, at) : sidebarMenus.current?.book(id, at)
   }, [menuKey, sidebarMenus])
 
-  return galleryShown ? (
+  const writeProperty = useMemo(
+    () =>
+      core && editing
+        ? async (id: string, key: string, value: PropertyValue) =>
+            applyToOpenNote(id, await core.setProperty(id, key, value))
+        : undefined,
+    [core, editing, applyToOpenNote],
+  )
+  const fittedWidth = fittedBoardWidth(boardStatusList.length)
+
+  return tableShown ? (
+    <Suspense fallback={<TablePending fittedWidth={fittedWidth} />}>
+      <NoteTable
+        onSearchAll={onSearchAll}
+        editing={editing}
+        view={listView}
+        title={
+          searching
+            ? (savedSearches.find((s) => s.id === activeSearch)?.name ?? t('search.results'))
+            : (filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes'))
+        }
+        icon={searching ? undefined : listIcon}
+        onTitleMenu={searching ? undefined : listTitleMenu}
+        empty={searching ? 'search' : activeFilter ? 'filter' : libraryBook ? 'notebook' : 'all'}
+        filter={filterField}
+        scope={
+          searching
+            ? format(t('search.in'), { view: viewName })
+            : filterLabel !== undefined
+              ? libraryBook?.name
+              : undefined
+        }
+        notes={galleryNotes}
+        tags={tagsById}
+        fittedWidth={fittedWidth}
+        capped={searching && (results?.capped ?? false)}
+        selected={selected}
+        opening={switching ? openingId : undefined}
+        onSelect={openFromList}
+        onCreate={core && editing ? createFromList : undefined}
+        onMenu={showNoteMenu}
+        sort={sortButton}
+        sortButtonRef={sortButtonRef}
+        layout={layoutControl}
+        onFind={searching ? findAgain : findInView}
+        headlines={loadHeadlines}
+        properties={loadProperties}
+        onWrite={writeProperty}
+      />
+    </Suspense>
+  ) : galleryShown ? (
     <NoteGallery
       onSearchAll={onSearchAll}
       editing={editing}
@@ -153,7 +229,7 @@ export function ListPane({
       notes={galleryNotes}
       tags={tagsById}
       changedBy={agentWrites.view.changedBy}
-      fittedWidth={fittedBoardWidth(boardStatusList.length)}
+      fittedWidth={fittedWidth}
       capped={searching && (results?.capped ?? false)}
       selected={selected}
       opening={switching ? openingId : undefined}

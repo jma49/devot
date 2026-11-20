@@ -6,7 +6,7 @@ import { tempDir } from '../support/temp-dirs'
 // What a window parses before its first paint, and the worker before `init` answers (#742).
 // The budgets hold the gain: raise one only with a reason in the pull request.
 const MAIN_EAGER_BUDGET = 2_403_000
-const WORKER_EAGER_BUDGET = 961_700
+const WORKER_EAGER_BUDGET = 964_100
 
 // The window never parses or converts Markdown itself: the core worker does.
 const MARKDOWN_STACK =

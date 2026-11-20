@@ -29,8 +29,6 @@ const MUDDY = {
   'syntax-heading': '#689d6a',
   'syntax-link': '#7c8f72',
   'accent-text': '#83a598',
-  'accent-fill': '#83a598',
-  'accent-on-fill': '#a8b8b0',
   'fill-row-selected-unemphasized': '#ebdbb20a',
   'fill-row-selected': '#ebdbb208',
 }
@@ -55,7 +53,6 @@ describe('legibleColors', () => {
     expect(
       Math.abs(hueOf(rgb(out['syntax-heading']!)) - hueOf(rgb(MUDDY['syntax-heading']))),
     ).toBeLessThan(6)
-    expect(ratio(out['accent-on-fill']!, out['accent-fill']!)).toBeGreaterThanOrEqual(4.5)
   })
 
   it("lifts a faint selected row until it stands out as much as Devot's own", () => {

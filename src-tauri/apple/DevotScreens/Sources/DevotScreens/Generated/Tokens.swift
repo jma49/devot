@@ -3642,6 +3642,9 @@ public enum Tokens {
     public static let boardColumnMinWidth: CGFloat = 150
     public static let cardMetaLine: CGFloat = 14
     public static let cardTaskRing: CGFloat = 12
+    public static let tableRowHeight: CGFloat = 32
+    public static let tableTitleWidth: CGFloat = 240
+    public static let tableColumnWidth: CGFloat = 160
     public static let galleryCardMinWidth: CGFloat = 220
     public static let galleryCardMaxWidth: CGFloat = 300
     public static let galleryPageWidth: CGFloat = 480

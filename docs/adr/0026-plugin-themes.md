@@ -18,8 +18,8 @@ A plugin with the `themes` permission (API version 2) lists color themes, and Se
 - The choice is one theme per appearance, stored in `plugins.json` (`plugin_themes`, `plugin_theme_choose`); a choice whose plugin is off, removed or no longer lists it falls back to Devot's own theme.
 - Every window draws the chosen theme over the built-in tokens by setting `--color-*` on the root element, for the tokens this build knows only (`src/renderer/src/theme/pluginThemes.ts`); a token a theme leaves out keeps Devot's color.
   A window keeps the themes in effect in its local storage and draws them before Rust answers, so a window opened later paints its plugin theme first, never Devot's theme under it.
-- Icon colors are not a theme's: status marks, settings tiles, tag icons and phone status tiles keep Devot's colors whatever a theme file says, so an icon keeps its meaning and contrast in every theme.
-- A theme is never harder to read than Devot's own: each text color reaches the contrast Devot's default theme gives it on the same surfaces (capped at WCAG AAA, and at 6:1 for syntax, alert and status colors), and each selection and control fill stands out from its surface as much as Devot's.
+- Colors that carry a meaning are not a theme's: icons (status marks, settings tiles, tag icons, phone status tiles), tag colors, statuses, the destructive red, and the colors of buttons and controls (accent fill, focus ring, switch handle, phone swipe actions) keep Devot's colors whatever a theme file says, so an icon, a tag or a button keeps its meaning and contrast in every theme (`keepsDevotColor` in `pluginThemes.ts`).
+- A theme is never harder to read than Devot's own: each text color reaches the contrast Devot's default theme gives it on the same surfaces (capped at WCAG AAA, and at 6:1 for syntax and alert colors), and each selection and control fill stands out from its surface as much as Devot's.
   A color that already reaches its floor is kept; one that does not moves lighter in Dark Mode or darker in Light Mode just far enough, in OKLCH, so its hue and colorfulness stay (`themeLegibility.ts`).
 
 ## Consequences

@@ -119,6 +119,7 @@
   "tests/ui/preview-menu.spec.ts": 15657,
   "tests/ui/preview-resize.spec.ts": 30000,
   "tests/ui/preview.spec.ts": 217399,
+  "tests/ui/property-table.spec.ts": 24000,
   "tests/ui/quick-capture.spec.ts": 13706,
   "tests/ui/quick-tag.spec.ts": 42651,
   "tests/ui/ready.spec.ts": 8583,

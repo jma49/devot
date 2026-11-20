@@ -68,6 +68,7 @@ export interface AppCommandState {
   boardShown: boolean
   canGallery: boolean
   galleryShown: boolean
+  tableShown: boolean
   canGoBack: boolean
   canGoForward: boolean
   hasNext: boolean
@@ -270,6 +271,10 @@ export function appHandlers(at: AppCommandState, act: AppCommandActions): Comman
     handlers['view.toggleGallery'] = {
       run: () => act.changeLayout(at.galleryShown ? 'list' : 'gallery'),
       label: at.galleryShown ? 'command.showList' : 'command.showGallery',
+    }
+    handlers['view.toggleTable'] = {
+      run: () => act.changeLayout(at.tableShown ? 'list' : 'table'),
+      label: at.tableShown ? 'command.showList' : 'command.showTable',
     }
   }
   const boardTargets =

@@ -1,7 +1,7 @@
 use super::authorship::validate_agent_writes;
 use crate::storage::{
-    AgentWriteRow, Db, LinkGraph, NOTE_STATUSES, NoteBody, NoteMeta, NoteQuery, NoteRecord,
-    NoteSummary, SetKind, TrashedNote, Write,
+    AgentWriteRow, Db, LinkGraph, NOTE_STATUSES, NoteBody, NoteHead, NoteMeta, NoteQuery,
+    NoteRecord, NoteSummary, SetKind, TrashedNote, Write,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -360,6 +360,15 @@ pub(crate) fn validate_body_ids(ids: &[String]) -> Result<(), &'static str> {
 pub async fn notes_bodies(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<NoteBody>, String> {
     validate_body_ids(&ids).map_err(String::from)?;
     db.call(move |store| store.get_bodies(&ids))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The front matter heads of many notes in one call (the table layout's properties).
+#[tauri::command]
+pub async fn notes_heads(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<NoteHead>, String> {
+    validate_body_ids(&ids).map_err(String::from)?;
+    db.call(move |store| store.get_heads(&ids))
         .await
         .map_err(|e| e.to_string())
 }
