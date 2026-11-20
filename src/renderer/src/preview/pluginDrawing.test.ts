@@ -49,6 +49,25 @@ describe('editable drawing redraws', () => {
     expect(next.update?.(document.createElement('div'))).toBe(false)
   })
 
+  it.each(['empty', 'missing button', 'extra child', 'wrong host', 'wrong button'])(
+    'declines an in-place update with an unexpected child shape: %s',
+    async (shape) => {
+      draw('initial')
+      const first = await pluginIsland.render('pad\nhi', context)
+      const root = first.node as HTMLElement
+      if (shape === 'empty') root.replaceChildren()
+      if (shape === 'missing button') root.lastChild?.remove()
+      if (shape === 'extra child') root.append(document.createElement('span'))
+      if (shape === 'wrong host') root.firstChild?.replaceWith(document.createElement('div'))
+      if (shape === 'wrong button') root.lastChild?.replaceWith(document.createElement('div'))
+      const before = [...root.childNodes]
+      draw('next')
+      const next = await pluginIsland.render('pad\nhi', context)
+      expect(next.update?.(root)).toBe(false)
+      expect([...root.childNodes]).toEqual(before)
+    },
+  )
+
   it.each(['declined', 'failed'])('replaces controls when a drawing is %s', async (answer) => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     draw('initial')

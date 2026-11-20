@@ -285,9 +285,17 @@ async function render(
       node: box,
       update(previous) {
         if (editableSources.get(previous) !== source) return false
-        previous.replaceChild(host, previous.firstChild!)
-        if (previous.lastChild!.textContent !== button.textContent)
-          previous.lastChild!.textContent = button.textContent
+        const [shown, edit] = previous.childNodes
+        if (
+          previous.childNodes.length !== 2 ||
+          !(shown instanceof HTMLElement) ||
+          !shown.classList.contains('plugin-drawing') ||
+          !(edit instanceof HTMLButtonElement) ||
+          !edit.hasAttribute(EDIT_ATTRIBUTE)
+        )
+          return false
+        previous.replaceChild(host, shown)
+        if (edit.textContent !== button.textContent) edit.textContent = button.textContent
         return true
       },
     }
