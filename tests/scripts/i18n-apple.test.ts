@@ -3,6 +3,9 @@ import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   APP_INTENTS_XCSTRINGS,
+  compileInfoPlistStrings,
+  INFO_PLIST_KEYS,
+  INFO_PLIST_XCSTRINGS,
   WIDGET_XCSTRINGS,
   appleStrings,
   compileSettingsIndex,
@@ -30,6 +33,11 @@ const catalog = JSON.parse(xcstrings) as {
 const english = (key: string) => catalog.strings[key]!.localizations.en.stringUnit.value
 
 describe('the Swift string catalog', () => {
+  it('leaves browser-only clipper keys out of every generated Apple output', async () => {
+    const outputs = await appleStrings('.')
+    for (const [, content] of outputs) expect(content).not.toMatch(/clipper[.A-Z]/)
+  })
+
   it('writes every catalog key once, in Strings.swift and in the string catalog', () => {
     const keys = Object.keys(en)
     expect(keys.length).toBeGreaterThan(1000)
@@ -190,6 +198,7 @@ describe('the Swift string catalog', () => {
       SHARE_XCSTRINGS,
       APP_INTENTS_XCSTRINGS,
       WIDGET_XCSTRINGS,
+      INFO_PLIST_XCSTRINGS,
     ])
     expect(staleOutputs('.', outputs)).toEqual([])
   })
@@ -238,5 +247,30 @@ describe("the native Settings' search index", () => {
   it('names only keys the string catalog has', () => {
     for (const [, key] of index.matchAll(/"([a-zA-Z]+\.[a-zA-Z.]+)"/g))
       expect(en).toHaveProperty([key!])
+  })
+})
+
+describe("the app's permission prompts", () => {
+  const plist = readFileSync('src-tauri/gen/apple/devot_iOS/Info.plist', 'utf8')
+  const project = readFileSync('src-tauri/gen/apple/project.yml', 'utf8')
+
+  it('keeps the English of each prompt in Info.plist and project.yml as the catalog has it', () => {
+    for (const [plistKey, key] of Object.entries(INFO_PLIST_KEYS)) {
+      expect(plist).toContain(`<key>${plistKey}</key>\n\t<string>${en[key]}</string>`)
+      expect(project).toContain(`${plistKey}: ${en[key]}\n`)
+    }
+  })
+
+  it('translates each prompt under its Info.plist key', () => {
+    const strings = JSON.parse(compileInfoPlistStrings(en, { 'zh-Hans': zhHans }))
+      .strings as Record<
+      string,
+      { localizations: Record<string, { stringUnit: { value: string } }> }
+    >
+    expect(Object.keys(strings)).toStrictEqual(Object.keys(INFO_PLIST_KEYS).sort())
+    for (const [plistKey, key] of Object.entries(INFO_PLIST_KEYS)) {
+      expect(strings[plistKey]!.localizations['en']!.stringUnit.value).toBe(en[key])
+      expect(strings[plistKey]!.localizations['zh-Hans']!.stringUnit.value).toBe(zhHans[key])
+    }
   })
 })

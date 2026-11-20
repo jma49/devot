@@ -321,19 +321,28 @@ fn indexing_waits_for_saves_to_be_quiet() {
         quiet: Duration::from_millis(250),
         ..fast()
     };
+    let quiet = pace.quiet;
     let library = library_paced(&[], pace);
     ready(&library, 0);
+    let mut previous = Instant::now();
+    let mut steady = true;
     for at in 0..30 {
         put(
             &library.db,
             record(A, "Garden", &format!("Water {at}"), 10 + at),
         );
+        let saved = Instant::now();
         std::thread::sleep(Duration::from_millis(10));
-        assert_eq!(
-            embedded(&library),
-            0,
-            "nothing is embedded while saves go on"
-        );
+        // A stalled runner can leave a real quiet gap between two saves, after which indexing is right.
+        steady &= previous.elapsed() < quiet / 2;
+        previous = saved;
+        if steady {
+            assert_eq!(
+                embedded(&library),
+                0,
+                "nothing is embedded while saves go on"
+            );
+        }
     }
     ready(&library, 1);
     assert!(embedded(&library) > 0);

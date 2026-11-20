@@ -115,7 +115,7 @@ test('shows where a notebook will go while it is dragged', async ({ page }) => {
   expect(await line(target, 'after')).toBeNull()
   expect(await outline(target)).toEqual({ style: 'dashed', width: '2px', offset: '-2px' })
   await expect(source).toHaveAttribute('data-dragging', 'true')
-  expect(await outline(source, 'opacity')).toBe('0.5')
+  await expect.poll(() => outline(source, 'opacity')).toBe('0.5')
 
   const self = await pointIn(source, 'top')
   await page.mouse.move(from.x + self.x, from.y + self.y, { steps: 4 })

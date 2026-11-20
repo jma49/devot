@@ -9,6 +9,9 @@ It draws on Apple's [Human Interface Guidelines: Motion](https://developer.apple
 
 ## Should it move?
 
+The browser clipper's popup and options page switch views (form, progress, saved, setup) and check results instantly, with no custom motion; its image progress is a native progress bar.
+Adding or removing a registered browser extension in Settings replaces the list immediately with no animation; copying its origin in the clipper options replaces the status text immediately.
+
 Decide in this order; the first match wins.
 
 1. **It follows the pointer or the keyboard directly** (a pane being resized, a drag image, typing): no motion. It is already moving with the hand.
@@ -190,6 +193,16 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Until the page has painted the note, a cover in `color.phone.background` shows the note's title where the page draws it; it fades over `motion.duration.phone-adjust` on `motion.easing.standard`, never before the push's first frame, and after 400 ms regardless.
   A link pushes the linked note the same way over the note it was in, which keeps a still of itself.
   Under Reduce Motion the system decides the push's look, and the cover still fades.
+- **Opening a note beside its list** (an iPad's columns): rule 2.
+  A note opened from a list replaces the one in the note's column with a crossfade over `motion.duration.phone-adjust`, under the same cover as a push; a link inside a note still pushes over it with the system's motion.
+  A notebook or tag opened from the Library's column replaces the middle column the same way.
+  The tab bar stays, and the list's row stays selected.
+  Under Reduce Motion, or with Animations set to Off, the column changes at once.
+- **Hiding and showing the lists** (an iPad's columns): rule 3.
+  The leading columns slide off the leading edge at their own width over `motion.duration.phone-adjust` on `motion.easing.standard`, and the note's column widens with them; the page takes its new width once, not frame by frame.
+  Under Reduce Motion, or with Animations set to Off, they go at once.
+- **A turn, Split View or Stage Manager across the columns' width** (an iPad's columns): rule 2.
+  Screens move between the one stack and the columns without motion, each kept where it was; the note shows under its cover until the page has drawn it at the new width.
 - **Back swipe and pop** (the native screens): rule 1, then rule 3.
   Back, the system's edge swipe and a tab tapped again pop with the system's motion, and the note under the finger is the live one, still scrolling and holding its caret and keyboard.
   A swipe the finger turns back changes nothing.
@@ -258,7 +271,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Title under the bar** (the native screens): rule 2.
   Once the note's own title has scrolled under the system bar, the bar shows it; it goes when the title comes back.
 - **Bottom toolbar and the keyboard** (the native screens): rule 3.
-  A note's screen has the system's bottom toolbar of Back, Forward, Find and, in Edit, AI.
+  A note's screen has the system's bottom toolbar of Back, Forward, Find, Scan or Transcribe and, in Edit, AI.
   Back, Forward and Find stand side by side, so the system draws them on one glass, and a flexible space sets AI apart on its own.
   It hides as the keyboard rises and comes back as it goes, inside the keyboard's own animation: the same duration and curve, never the toolbar's own slide.
   A keyboard raised for a sheet over the note moves neither the toolbar nor the bars.
@@ -276,6 +289,11 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Find, from the toolbar or the More menu, swaps a glass bar in at once in the formatting bar's place: a field, the count, previous, next, and a close circle.
   The count follows each key typed; a count for an older query is dropped.
   Return steps to the next match; Close clears the highlights and swaps the bar out at once.
+- **Scan and transcribe** (the native screens): the system's menu from the toolbar's Scan or Transcribe button, with the system's motion.
+  Scan Document is the system's document camera, presented and dismissed with its own full-screen motion.
+  Transcribe Speech is a system sheet at medium and large height with a grabber, risen and closed with the system's motion; a drag down does not close it.
+  What is heard replaces the transcript in place as it comes, and the status line and its symbol change at once (rule 2); nothing pulses or animates while listening.
+  The pages and the transcript appear in the note at once (rule 2), and an alert for a page or transcript not added is the system's.
 - **Note's More menu** (the native screens): the system's menu from its bar button, with the system's motion.
   Pin, Status, Move to Notebook, Tags, Share, Find in Note, Duplicate and Move to Trash; a write goes through the gate and plays its haptic.
   Move to Trash pops the note's screen once the note is in the Trash, and offers the undo toast over the list; a refused or failed write leaves the screen.
@@ -356,5 +374,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 PlantUML and Markmap drawings replace their previous SVG at once (rule 2), as Mermaid does. Markmap layout animation, pan, zoom and folding are disabled in the static preview and exported pages.
 
 ## Stays instant
+
+The web clipper settings' optional image-host permission prompt uses the browser's native presentation (rule 2); image progress, the saved view and Copy turning into Copied for two seconds replace what was there instantly, as other clipper states do.
 
 Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); on the iPhone, a theme, a colour scheme or a Glass Transparency change in the native screens; text folding (it would animate height inside CodeMirror's measured layout).

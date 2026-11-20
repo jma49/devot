@@ -1213,6 +1213,7 @@ test('search waits for an async setting and cancels targeting when the query cha
                 enabled: false,
                 port: 27484,
                 scope: 'read',
+                extensionOrigins: [],
                 listening: null,
                 problem: null,
                 token: 'unset',

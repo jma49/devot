@@ -16,8 +16,8 @@ final class NoteCell: UICollectionViewListCell {
         accessibilityTraits = .button
         configurationUpdateHandler = { cell, state in
             var background = UIBackgroundConfiguration.listCell().updated(for: state)
-            background.backgroundColor =
-                state.isHighlighted || state.isSelected ? Tokens.Color.phonePressed : Tokens.Color.phoneBackground
+            let pressed = state.isHighlighted || state.isSelected || state.isFocused
+            background.backgroundColor = pressed ? Tokens.Color.phonePressed : Tokens.Color.phoneBackground
             cell.backgroundConfiguration = background
         }
     }

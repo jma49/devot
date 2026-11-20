@@ -9,6 +9,7 @@ enum BarButton {
         configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .body)
         configuration.baseForegroundColor = Tokens.Color.phoneText
         let button = UIButton(configuration: configuration, primaryAction: UIAction { _ in action() })
+        button.isPointerInteractionEnabled = true
         button.accessibilityLabel = label
         button.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([

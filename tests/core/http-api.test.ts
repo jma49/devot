@@ -79,7 +79,7 @@ async function world() {
     newId: createIdGenerator(),
     writer: () => HTTP_WRITER,
   })
-  const run = (call: HttpApiCall) => runHttpApiCall(api, call)
+  const run = (call: HttpApiCall) => runHttpApiCall(api, call, { storage: adapter, newId })
   return { adapter, notes, shared, priv, note, hidden, run }
 }
 
@@ -123,6 +123,10 @@ const EXPECTED: Record<string, (w: World) => unknown> = {
   }),
   'create a note': (w) => ({ id: expect.any(String), title: 'Plan', notebook: sharedRef(w) }),
   'read a note': readNote,
+  'attach an image': () => ({
+    id: expect.any(String),
+    url: expect.stringMatching(/^devot:\/\/file\//),
+  }),
   'update a note with patches': (w) => ({
     ...readNote(w),
     title: 'Kiwi pie, again',
@@ -139,6 +143,31 @@ const EXPECTED: Record<string, (w: World) => unknown> = {
 }
 
 describe('every routed call answers its JSON', () => {
+  it('stores decoded image bytes on the named note and refuses invalid uploads without writing', async () => {
+    const w = await world()
+    const args = { name: 'photo.png', type: 'image/png', data: 'iVBORw0KGgo=' }
+    const made = (await w.run({ op: 'notes.files.create', note: w.note, args })) as {
+      id: string
+      url: string
+    }
+    expect(made.url).toBe(`devot://file/${made.id}`)
+    expect(
+      w.adapter.db.prepare('SELECT note_id, mime, data FROM files WHERE id = ?').get(made.id),
+    ).toEqual({ note_id: w.note, mime: 'image/png', data: Buffer.from(args.data, 'base64') })
+    for (const [changed, code] of [
+      [{ data: '' }, 'E_FILE_SIZE_INVALID'],
+      [{ data: 'invalid!' }, 'E_FILE_BODY_INVALID'],
+      [{ data: Buffer.from('<svg/>').toString('base64') }, 'E_FILE_TYPE_REFUSED'],
+      [{ type: 'image/jpeg' }, 'E_FILE_TYPE_REFUSED'],
+      [{ name: '' }, 'E_FILE_NAME_INVALID'],
+      [{ data: 'a'.repeat(2 * 1024 * 1024) }, 'E_HTTP_BODY_TOO_LARGE'],
+    ] as const) {
+      await expect(
+        w.run({ op: 'notes.files.create', note: w.note, args: { ...args, ...changed } }),
+      ).rejects.toThrow(code)
+    }
+    expect(w.adapter.db.prepare('SELECT count(*) AS n FROM files').get()).toEqual({ n: 1 })
+  })
   it('covers every call the core knows, each once at least', () => {
     expect(new Set(CASES.map((c) => c.call.op))).toEqual(new Set(HTTP_API_OPS))
     expect(CASES.map((c) => c.name).sort()).toEqual(Object.keys(EXPECTED).sort())
@@ -191,6 +220,11 @@ describe('the API sees only what AI may', () => {
       { op: 'notes.update', note: hidden, args: { title: 'Mine' } },
       { op: 'notes.append', note: hidden, args: { text: 'Mine' } },
       { op: 'notes.trash', note: hidden, args: {} },
+      {
+        op: 'notes.files.create',
+        note: hidden,
+        args: { name: 'photo.png', type: 'image/png', data: 'iVBORw0KGgo=' },
+      },
     ] as const) {
       await expect(w.run(call)).rejects.toThrow('E_NOTE_NOT_FOUND')
     }

@@ -7010,6 +7010,39 @@ button.note-info-row:focus-visible {
   width: var(--size-settings-field);
 }
 
+.http-api-origins {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.http-api-origins li,
+.http-api-origin-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.http-api-origins code,
+.http-api-origin-form input {
+  flex: 1;
+  min-width: 0;
+}
+
+.http-api-origins code {
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-caption);
+}
+
+.http-api-origins button,
+.http-api-origin-form button {
+  flex-shrink: 0;
+}
+
 .setting-control:has(> .settings-text) > :is(.settings-buttons, .settings-error) {
   width: var(--size-settings-field);
 }

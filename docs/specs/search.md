@@ -58,6 +58,7 @@ The Rust store ships bundled rusqlite SQLite 3.54.1; the better-sqlite3 store sh
   A body of more than 600 characters is not read whole, so a page of results costs the same however long the notes are (`EXCERPT_STRETCH`): a word is looked for as written (in any case), at most 8 places, after the front matter, and each place is read with 300 characters on each side as a body of its own (growing 300 at a time while the word shows too near an end of it for a whole excerpt).
   So in a long body a word that only markers cut apart (`te**rm**`) shows no excerpt, and a code fence or comment opened, or a link reference defined, outside that stretch is not known in it (`tests/support/excerpts.json` holds the cases both stores agree on).
 - **Text in images** (`src-tauri/src/image_text/`, schema v30): the words in a note's images count as its body, so a search finds a receipt, a whiteboard photo or a screenshot by what it shows.
+  A document scanned on the iPhone or iPad goes into the note as one image a page (`docs/specs/iphone-screens.md`, Scan and transcribe), so its words are found the same way.
   - **On the device only:** the system's text recognition (Apple Vision, `VNRecognizeTextRequest`, accurate, with language correction and the language detected per image) reads each image on macOS and iOS; no image or text leaves the device for it, so end-to-end encryption holds.
     A build without Vision (Linux, Windows) reads nothing and searches as before.
   - **Kept apart from the note:** the text never enters the Markdown, the Yjs state, history or sync.

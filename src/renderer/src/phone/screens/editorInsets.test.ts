@@ -32,6 +32,7 @@ function nativeEditor(target: () => FindTarget | null): NativeEditor {
     find: (action, query) => runFind(target(), action, query),
     insets: setFootInset,
     duplicate: async () => null,
+    attach: async () => [],
   }
 }
 

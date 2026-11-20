@@ -27,8 +27,7 @@ import {
 } from '@codemirror/state'
 import { EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view'
 import { formatOf, insertOf, type CommandId } from '../commands/registry'
-import { t, type MessageKey } from '../i18n'
-import { en } from '../i18n/en'
+import { englishText, t, type MessageKey } from '../i18n'
 import type { IconName } from '../icons/symbols'
 import { isImeKey } from '../ime'
 import { alertKind, listBullet, type AlertKind } from './blocks'
@@ -216,7 +215,7 @@ function itemById(id: string): SlashDef | undefined {
 const shownLabel = (item: SlashDef) =>
   typeof item.label === 'string' ? t(item.label) : item.label.text
 const englishLabel = (item: SlashDef) =>
-  typeof item.label === 'string' ? en[item.label] : item.label.text
+  typeof item.label === 'string' ? englishText(item.label) : item.label.text
 const isPlugin = (item: SlashDef) => 'plugin' in item.action
 
 /** The slash and the query typed after it: the line up to the cursor, no other slash, no leading space. */

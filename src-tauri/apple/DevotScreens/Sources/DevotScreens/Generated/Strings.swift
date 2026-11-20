@@ -690,6 +690,42 @@ public enum L10n {
     fill(text("change.bookNameInvalid", "A notebook name is one line of at most {max} characters."), ["max": p0])
   }
 
+  public static func browserExtensionsTitle() -> String {
+    text("browserExtensions.title", "Browser Extensions")
+  }
+
+  public static func browserExtensionsHint() -> String {
+    text("browserExtensions.hint", "Only registered extensions may use this API. Copy the origin from the clipper settings. Changes apply immediately.")
+  }
+
+  public static func browserExtensionsEmpty() -> String {
+    text("browserExtensions.empty", "No browser extensions registered.")
+  }
+
+  public static func browserExtensionsOrigin() -> String {
+    text("browserExtensions.origin", "Extension origin")
+  }
+
+  public static func browserExtensionsPlaceholder() -> String {
+    text("browserExtensions.placeholder", "chrome-extension://… or moz-extension://…")
+  }
+
+  public static func browserExtensionsAdd() -> String {
+    text("browserExtensions.add", "Add Extension")
+  }
+
+  public static func browserExtensionsRemove() -> String {
+    text("browserExtensions.remove", "Remove")
+  }
+
+  public static func browserExtensionsRemoveOrigin(origin p0: String) -> String {
+    fill(text("browserExtensions.removeOrigin", "Remove {origin}"), ["origin": p0])
+  }
+
+  public static func browserExtensionsInvalid() -> String {
+    text("browserExtensions.invalid", "Enter up to eight extension origins, without a trailing slash, path or port.")
+  }
+
   public static func commandSelectAllNotes() -> String {
     text("command.selectAllNotes", "Select All Notes")
   }
@@ -6138,6 +6174,26 @@ public enum L10n {
     text("phone.tab.search", "Search")
   }
 
+  public static func phoneColumnsNoNote() -> String {
+    text("phone.columns.noNote", "No Note Selected")
+  }
+
+  public static func phoneColumnsNoList() -> String {
+    text("phone.columns.noList", "Choose a List")
+  }
+
+  public static func phoneColumnsHide() -> String {
+    text("phone.columns.hide", "Hide Lists")
+  }
+
+  public static func phoneColumnsShow() -> String {
+    text("phone.columns.show", "Show Lists")
+  }
+
+  public static func phoneKeySettings() -> String {
+    text("phone.key.settings", "Open Settings")
+  }
+
   public static func phoneActivityPeriod() -> String {
     text("phone.activity.period", "Week")
   }
@@ -6892,6 +6948,94 @@ public enum L10n {
 
   public static func phoneAiSuggestHint() -> String {
     text("phone.ai.suggestHint", "Sends nearby text when you pause typing")
+  }
+
+  public static func phoneCaptureMenu() -> String {
+    text("phone.capture.menu", "Scan or Transcribe")
+  }
+
+  public static func phoneCaptureScan() -> String {
+    text("phone.capture.scan", "Scan Document")
+  }
+
+  public static func phoneCaptureTranscribe() -> String {
+    text("phone.capture.transcribe", "Transcribe Speech")
+  }
+
+  public static func phoneCaptureScanPage(number p0: String) -> String {
+    fill(text("phone.capture.scanPage", "Scan {number}"), ["number": p0])
+  }
+
+  public static func phoneCaptureTextFailed() -> String {
+    text("phone.capture.textFailed", "The transcript couldn’t be added to the note, so it was copied instead.")
+  }
+
+  public static func phoneCaptureScanFailed() -> String {
+    text("phone.capture.scanFailed", "Some scanned pages could not be added to the note.")
+  }
+
+  public static func phoneTranscribeTitle() -> String {
+    text("phone.transcribe.title", "Transcribe")
+  }
+
+  public static func phoneTranscribeCancel() -> String {
+    text("phone.transcribe.cancel", "Cancel")
+  }
+
+  public static func phoneTranscribeInsert() -> String {
+    text("phone.transcribe.insert", "Insert")
+  }
+
+  public static func phoneTranscribeLanguage() -> String {
+    text("phone.transcribe.language", "Language")
+  }
+
+  public static func phoneTranscribeEnglish() -> String {
+    text("phone.transcribe.english", "English")
+  }
+
+  public static func phoneTranscribeChinese() -> String {
+    text("phone.transcribe.chinese", "Chinese (Mandarin)")
+  }
+
+  public static func phoneTranscribePreparing() -> String {
+    text("phone.transcribe.preparing", "Getting ready…")
+  }
+
+  public static func phoneTranscribeDownloading() -> String {
+    text("phone.transcribe.downloading", "Downloading the speech model…")
+  }
+
+  public static func phoneTranscribeListening() -> String {
+    text("phone.transcribe.listening", "Listening")
+  }
+
+  public static func phoneTranscribeHint() -> String {
+    text("phone.transcribe.hint", "Start speaking and your words appear here. Everything stays on this iPhone.")
+  }
+
+  public static func phoneTranscribeFinishing() -> String {
+    text("phone.transcribe.finishing", "Finishing…")
+  }
+
+  public static func phoneTranscribeMicDenied() -> String {
+    text("phone.transcribe.micDenied", "Devot can’t use the microphone. Allow it in Settings > Privacy & Security > Microphone.")
+  }
+
+  public static func phoneTranscribeUnsupported() -> String {
+    text("phone.transcribe.unsupported", "Transcription in this language isn’t available on this iPhone.")
+  }
+
+  public static func phoneTranscribeFailed() -> String {
+    text("phone.transcribe.failed", "Transcription stopped. The words heard so far are kept.")
+  }
+
+  public static func phoneUsageCamera() -> String {
+    text("phone.usage.camera", "Devot uses the camera to scan documents into your notes.")
+  }
+
+  public static func phoneUsageMicrophone() -> String {
+    text("phone.usage.microphone", "Devot uses the microphone to turn what you say into text in your notes, on this device.")
   }
 
   public static func settingsTitle() -> String {

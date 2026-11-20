@@ -385,7 +385,8 @@ final class NoteListScreen: ListScreen, UICollectionViewDelegate {
 
     // MARK: Bar items
 
-    private var bookId: String? {
+    /// The notebook New Note makes its note in from this list; nil for unfiled.
+    var bookId: String? {
         if case .book(let id) = source.view { return id }
         return nil
     }

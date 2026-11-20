@@ -173,6 +173,7 @@ pub struct View {
     pub enabled: bool,
     pub port: u16,
     pub scope: Scope,
+    pub extension_origins: Vec<String>,
     /// The port it listens on, while it does.
     pub listening: Option<u16>,
     /// Why it is on but not listening.
@@ -215,7 +216,7 @@ pub fn bridge_socket(identifier: &str) -> Option<PathBuf> {
 }
 
 pub struct HttpApi {
-    settings: SettingsStore,
+    settings: Arc<SettingsStore>,
     tokens: Arc<dyn TokenStore>,
     mcp: Option<McpParts>,
     /// A main window listens for calls: a call made before that would wait its whole timeout.
@@ -238,6 +239,8 @@ impl HttpApi {
         answers: Arc<Answers>,
         limits: Limits,
     ) -> Self {
+        let settings = Arc::new(settings);
+        let gate = Arc::new(Gate::new(limits).with_settings(Arc::clone(&settings)));
         Self {
             settings,
             tokens,
@@ -245,7 +248,7 @@ impl HttpApi {
             window_listening: AtomicBool::new(false),
             applying: Mutex::new(()),
             keychain_waiting: AtomicBool::new(false),
-            gate: Arc::new(Gate::new(limits)),
+            gate,
             dispatch,
             answers,
             running: Mutex::new(Running {
@@ -305,6 +308,7 @@ impl HttpApi {
             enabled: settings.enabled,
             port: settings.port,
             scope: settings.scope,
+            extension_origins: settings.extension_origins,
             listening,
             problem,
             token: match self.tokens.has() {
@@ -502,12 +506,18 @@ impl HttpApi {
         (self.gate.last_mcp_call(), self.answers.busy())
     }
 
-    pub fn set(&self, enabled: bool, port: u16) -> Result<View, &'static str> {
+    pub fn set(
+        &self,
+        enabled: bool,
+        port: u16,
+        extension_origins: Vec<String>,
+    ) -> Result<View, &'static str> {
         let stored = self.settings.get();
         self.settings.set(HttpApiSettings {
             enabled,
             port: check_port(port)?,
             scope: stored.scope,
+            extension_origins,
         })?;
         self.apply();
         Ok(self.view())
@@ -602,8 +612,9 @@ pub async fn http_api_set(
     api: State<'_, Arc<HttpApi>>,
     enabled: bool,
     port: u16,
+    extension_origins: Vec<String>,
 ) -> Result<View, String> {
-    blocking(&api, move |api| api.set(enabled, port)).await
+    blocking(&api, move |api| api.set(enabled, port, extension_origins)).await
 }
 
 #[tauri::command]

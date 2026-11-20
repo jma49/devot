@@ -29,6 +29,10 @@ struct EditorActions {
     /// The note's Markdown, for Share.
     var text: (_ id: String, _ done: @escaping (String) -> Void) -> Void = { _, _ in }
     var haptics = Haptics()
+    /// The speech model a transcription listens with; tests give a stand-in.
+    var listener: @MainActor () -> SpeechListening = { SystemSpeechListener() }
+    /// Where the transcription sheet keeps the language picked last.
+    var defaults: UserDefaults = .standard
 }
 
 /// A note pushed over its list: the system bar and back swipe around the page's editor, which
@@ -91,9 +95,18 @@ final class EditorScreen: WebHolderScreen {
     private(set) lazy var findItem = UIBarButtonItem(
         image: UIImage(systemName: "magnifyingglass"),
         primaryAction: UIAction { [weak self] _ in self?.startFind() })
+    private(set) lazy var captureItem = UIBarButtonItem(
+        image: UIImage(systemName: "plus.circle"),
+        menu: UIMenu(children: [
+            UIDeferredMenuElement.uncached { [weak self] provide in provide(self?.captureMenu() ?? []) }
+        ]))
     private(set) lazy var aiItem = UIBarButtonItem(
         image: UIImage(systemName: "sparkles"),
         primaryAction: UIAction { [weak self] _ in self?.suggest() })
+    /// Beside the lists: slides them away, or back.
+    private(set) lazy var columnsItem = UIBarButtonItem(
+        image: UIImage(systemName: "sidebar.left"),
+        primaryAction: UIAction { [weak self] _ in self?.toggleLists() })
 
     convenience init(
         noteId: String, title: String, tab: Tab, host: WebViewHost, actions: EditorActions,
@@ -134,12 +147,33 @@ final class EditorScreen: WebHolderScreen {
         forwardItem.accessibilityLabel = L10n.phoneNoteNext()
         findItem.accessibilityLabel = L10n.phoneNoteFind()
         aiItem.accessibilityLabel = L10n.phoneNoteSuggest()
+        captureItem.accessibilityLabel = L10n.phoneCaptureMenu()
         forwardItem.isEnabled = false
-        toolbarItems = [backItem, forwardItem, findItem, .flexibleSpace(), aiItem]
+        toolbarItems = [backItem, forwardItem, findItem, .flexibleSpace(), captureItem, aiItem]
         labelModeItem()
     }
 
     required init?(coder: NSCoder) { nil }
+
+    override func viewDidLayoutSubviews() {
+        let frame = view.bounds.inset(by: UIEdgeInsets(top: barDrop, left: 0, bottom: 0, right: 0))
+        if webContainer.frame != frame {
+            webContainer.frame = frame
+            cover.frame = frame
+        }
+        super.viewDidLayoutSubviews()
+    }
+
+    /// The page keeps the bar's room at the window's safe area; under an iPad's floating tabs the bar
+    /// sits lower, so the page moves down with it rather than run its title under the bar's buttons.
+    private var barDrop: CGFloat {
+        guard let window = view.window, let navigation = navigationController, !navigation.isNavigationBarHidden
+        else { return 0 }
+        let bar = navigation.navigationBar
+        let barTop = bar.convert(bar.bounds, to: window).minY
+        let ownTop = view.convert(view.bounds, to: window).minY
+        return max(0, barTop - window.safeAreaInsets.top - ownTop)
+    }
 
     override func loadView() {
         view = UIView()
@@ -166,6 +200,11 @@ final class EditorScreen: WebHolderScreen {
             guard let self else { return false }
             return presentedViewController == nil || holdsKeyboard
         }
+        if traitCollection.userInterfaceIdiom == .pad {
+            let pencil = UIPencilInteraction()
+            pencil.delegate = self
+            view.addInteraction(pencil)
+        }
         if isNew {
             keyField.alpha = 0
             keyField.isAccessibilityElement = false
@@ -176,6 +215,8 @@ final class EditorScreen: WebHolderScreen {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        showColumnsItem()
+        backItem.isEnabled = navigationController?.viewControllers.first !== self
         navigationController?.setNavigationBarHidden(false, animated: animated)
         navigationController?.setToolbarHidden(keyboardUp || finding, animated: animated)
         // The page's own horizontal gestures (text selection, swiping a table) keep the content.
@@ -197,6 +238,7 @@ final class EditorScreen: WebHolderScreen {
     /// Never in the tap: the keyboard is asked for once the push has landed.
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        if !isNew { takeKeysIfFree() }
         guard isNew, !appearedForTyping else { return }
         appearedForTyping = true
         keyField.becomeFirstResponder()
@@ -520,6 +562,104 @@ final class EditorScreen: WebHolderScreen {
         askPage(.editorAi, ["action": .string("suggest")])
     }
 
+    // MARK: Scan and transcribe
+
+    /// Scan Document where the device has a camera that can, and Transcribe Speech; each goes through the gate.
+    func captureMenu() -> [UIMenuElement] {
+        guard noteId != nil else { return [] }
+        var items: [UIMenuElement] = []
+        if DocumentScanner.isSupported {
+            items.append(
+                UIAction(title: L10n.phoneCaptureScan(), image: UIImage(systemName: "doc.viewfinder")) { [weak self] _ in
+                    self?.askCapture(.scan)
+                })
+        }
+        items.append(
+            UIAction(title: L10n.phoneCaptureTranscribe(), image: UIImage(systemName: "waveform")) { [weak self] _ in
+                self?.askCapture(.transcribe)
+            })
+        return items
+    }
+
+    func askCapture(_ kind: CaptureKind) {
+        guard let noteId else { return }
+        actions.write(.capture(noteId: noteId, kind: kind))
+    }
+
+    /// The gate let a capture through: the camera or the transcription sheet rises over this note.
+    func beginCapture(_ kind: CaptureKind) {
+        guard let noteId, view.window != nil, presentedViewController == nil else { return }
+        switch kind {
+        case .scan:
+            guard DocumentScanner.isSupported else { return }
+            DocumentScanner { [weak self] scanned in self?.attachScan(scanned, to: noteId) }.present(from: self)
+        case .transcribe:
+            let defaults = actions.defaults
+            let model = TranscriptionModel(
+                listener: actions.listener(),
+                language: .preferred(
+                    stored: defaults.string(forKey: TranscriptionLanguage.storeKey),
+                    appLanguage: Bundle.main.preferredLocalizations.first),
+                remember: { defaults.set($0.rawValue, forKey: TranscriptionLanguage.storeKey) })
+            present(
+                TranscriptionSheet.controller(model: model) { [weak self] text in self?.attachText(text, to: noteId) },
+                animated: true)
+        }
+    }
+
+    /// One page a message, in order, each at the caret after the one before.
+    func attachScan(_ scanned: ScannedPages, to noteId: String) {
+        attachPages(scanned.pages[...], to: noteId, number: 1, refused: scanned.failed)
+    }
+
+    private func attachPages(_ pages: ArraySlice<Data>, to noteId: String, number: Int, refused: Int) {
+        guard let page = pages.first else {
+            if refused > 0 { tellCaptureFailed(L10n.phoneCaptureScanFailed()) }
+            return
+        }
+        let image: JSONValue = .object([
+            "name": .string(ScanEncoding.name(page: number)), "data": .string(page.base64EncodedString()),
+        ])
+        actions.page(.editorAttach, ["noteId": .string(noteId), "images": .array([image])]) { [weak self] outcome in
+            guard let self else { return }
+            switch outcome {
+            case .ok(let result):
+                let more = result["refused"]?.array?.count ?? 0
+                attachPages(pages.dropFirst(), to: noteId, number: number + 1, refused: refused + more)
+            case .failed:
+                attachPages([], to: noteId, number: number, refused: refused + pages.count)
+            }
+        }
+    }
+
+    /// The transcript in pieces no longer than a message takes, in order; a piece refused copies all of it.
+    func attachText(_ text: String, to noteId: String) {
+        guard !text.isEmpty else { return }
+        attachPieces(Transcript.chunks(text, limit: Self.maxAttachedText)[...], whole: text, to: noteId)
+    }
+
+    /// What `editor.attach` carries at most (MAX_SHARE_TEXT_CHARS in src-tauri/src/screens/message.rs).
+    static let maxAttachedText = 100_000
+
+    private func attachPieces(_ pieces: ArraySlice<String>, whole: String, to noteId: String) {
+        guard let piece = pieces.first else { return }
+        actions.page(.editorAttach, ["noteId": .string(noteId), "text": .string(piece)]) { [weak self] outcome in
+            guard let self else { return }
+            if case .failed = outcome {
+                UIPasteboard.general.string = whole
+                return tellCaptureFailed(L10n.phoneCaptureTextFailed())
+            }
+            attachPieces(pieces.dropFirst(), whole: whole, to: noteId)
+        }
+    }
+
+    private func tellCaptureFailed(_ message: String) {
+        guard view.window != nil, presentedViewController == nil else { return }
+        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: L10n.phoneClose(), style: .default))
+        present(alert, animated: true)
+    }
+
     // MARK: More, pickers and Note Info
 
     func moreMenu() -> [UIMenuElement] {
@@ -592,8 +732,41 @@ final class EditorScreen: WebHolderScreen {
         guard let note else { return }
         actions.trash(note.id) { [weak self] in
             guard let self, let navigation = navigationController, navigation.topViewController === self else { return }
-            navigation.popViewController(animated: true)
+            if let columns, columns.notes === navigation {
+                columns.close(self, animated: true)
+            } else {
+                navigation.popViewController(animated: true)
+            }
         }
+    }
+
+    // MARK: Columns
+
+    /// The columns this screen shows in, beside its lists or in their one stack.
+    private var columns: NoteColumns? {
+        navigationController?.parent as? NoteColumns
+    }
+
+    private var besideLists: Bool {
+        guard let columns, let navigation = navigationController else { return false }
+        return columns.notes === navigation
+    }
+
+    func showColumnsItem() {
+        navigationItem.leftItemsSupplementBackButton = true
+        guard besideLists else {
+            navigationItem.leftBarButtonItem = nil
+            return
+        }
+        let hidden = columns?.leadingHidden ?? false
+        columnsItem.accessibilityLabel = hidden ? L10n.phoneColumnsShow() : L10n.phoneColumnsHide()
+        navigationItem.leftBarButtonItem = columnsItem
+    }
+
+    func toggleLists() {
+        guard besideLists, let columns else { return }
+        columns.setLeadingHidden(!columns.leadingHidden)
+        showColumnsItem()
     }
 
     private func share() {
@@ -654,5 +827,70 @@ final class EditorScreen: WebHolderScreen {
                     })))
         shown = sheet
         present(sheet, animated: true)
+    }
+}
+
+// MARK: A hardware keyboard and Apple Pencil
+
+extension EditorScreen: UIPencilInteractionDelegate {
+    override var canBecomeFirstResponder: Bool { true }
+
+    /// The note's own keys, named in the list a held Command shows; the keys the Mac's menus use.
+    override var keyCommands: [UIKeyCommand]? {
+        guard host.holder === self, presentedViewController == nil else { return [] }
+        var commands = [
+            UIKeyCommand(title: L10n.findLabel(), action: #selector(findKey), input: "f", modifierFlags: .command),
+            UIKeyCommand(title: L10n.commandModeToggle(), action: #selector(modeKey), input: "e", modifierFlags: .command),
+            UIKeyCommand(
+                title: L10n.commandNoteInfo(), action: #selector(infoKey), input: "i", modifierFlags: [.command, .alternate]),
+        ]
+        if finding {
+            commands += [
+                UIKeyCommand(title: L10n.findNext(), action: #selector(nextMatchKey), input: "g", modifierFlags: .command),
+                UIKeyCommand(
+                    title: L10n.findPrevious(), action: #selector(previousMatchKey), input: "g",
+                    modifierFlags: [.command, .shift]),
+                UIKeyCommand(title: L10n.phoneFindClose(), action: #selector(closeFindKey), input: UIKeyCommand.inputEscape),
+            ]
+        }
+        if backItem.isEnabled {
+            commands.append(UIKeyCommand(title: L10n.commandBack(), action: #selector(backKey), input: "[", modifierFlags: .command))
+        }
+        if forward != nil {
+            commands.append(
+                UIKeyCommand(title: L10n.commandForward(), action: #selector(forwardKey), input: "]", modifierFlags: .command))
+        }
+        if besideLists, let columns {
+            commands.append(
+                UIKeyCommand(
+                    title: columns.leadingHidden ? L10n.phoneColumnsShow() : L10n.phoneColumnsHide(),
+                    action: #selector(listsKey), input: "s", modifierFlags: [.command, .control]))
+        }
+        return commands
+    }
+
+    @objc private func findKey() { startFind() }
+    @objc private func modeKey() { toggleMode() }
+    @objc private func infoKey() { showInfo() }
+    @objc private func nextMatchKey() { stepFind(true) }
+    @objc private func previousMatchKey() { stepFind(false) }
+    @objc private func closeFindKey() { closeFind() }
+    @objc private func listsKey() { toggleLists() }
+
+    @objc private func backKey() {
+        guard let navigation = navigationController, navigation.topViewController === self,
+            navigation.viewControllers.first !== self
+        else { return }
+        navigation.popViewController(animated: true)
+    }
+
+    @objc private func forwardKey() { goForward() }
+
+    /// A double tap on the Pencil, unless the person's setting ignores it, turns between Edit and
+    /// Preview: the one switch this screen has between tools.
+    func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveTap tap: UIPencilInteraction.Tap) {
+        guard UIPencilInteraction.preferredTapAction != .ignore, host.holder === self, presentedViewController == nil
+        else { return }
+        toggleMode()
     }
 }

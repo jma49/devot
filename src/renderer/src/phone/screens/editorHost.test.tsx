@@ -498,6 +498,68 @@ describe('the editor host under the native screens', () => {
     })
   })
 
+  it('hands a scan’s pages and a transcription to the shown note, and refuses them once locked', async () => {
+    const id = await shell.notes.create('Plans', null)
+    const attach = vi.fn<EditorHandle['attach']>(async () => ['E_FILE_TYPE_REFUSED'])
+    await start()
+    await swift('editor.show', { noteId: id })
+    act(() => {
+      editors.latest!.handleRef!.current = { attach } as unknown as EditorHandle
+    })
+    expect(
+      await swift('editor.attach', {
+        noteId: id,
+        images: [{ name: 'scan-1.jpg', data: 'AAEC' }],
+      }),
+    ).toStrictEqual({ refused: ['E_FILE_TYPE_REFUSED'] })
+    const [scan] = attach.mock.calls[0]!
+    expect(scan.text).toBe('')
+    expect(scan.images.map((file) => file.name)).toStrictEqual(['scan-1.jpg'])
+    expect([...new Uint8Array(await scan.images[0]!.arrayBuffer())]).toStrictEqual([0, 1, 2])
+    await swift('editor.attach', { noteId: id, text: 'Said aloud.' })
+    expect(attach.mock.calls[1]![0]).toStrictEqual({ images: [], text: 'Said aloud.' })
+    licence = ENDED
+    await act(async () => {
+      await readCurrentLicence()
+    })
+    await expect(bridge.handlers['editor.attach']!({ noteId: id, text: 'Later.' })).rejects.toThrow(
+      'E_LICENCE_REQUIRED',
+    )
+    expect(attach).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuses an attachment with nothing in it or of the wrong shape', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await swift('editor.show', { noteId: id })
+    for (const args of [
+      { noteId: id },
+      { noteId: id, text: '' },
+      { noteId: id, text: 3 },
+      { noteId: id, images: [{ name: 'a.jpg' }] },
+      { text: 'No note.' },
+    ]) {
+      await expect(bridge.handlers['editor.attach']!(args)).rejects.toThrow(
+        'E_SCREENS_ARGS_INVALID',
+      )
+    }
+  })
+
+  it('gives a capture nothing once another note is shown than the one it began on', async () => {
+    const id = await shell.notes.create('Plans', null)
+    const other = await shell.notes.create('Other', null)
+    const attach = vi.fn<EditorHandle['attach']>(async () => [])
+    await start()
+    await swift('editor.show', { noteId: other })
+    act(() => {
+      editors.latest!.handleRef!.current = { attach } as unknown as EditorHandle
+    })
+    await expect(bridge.handlers['editor.attach']!({ noteId: id, text: 'Late.' })).rejects.toThrow(
+      'E_SCREENS_NOTE_NOT_SHOWN',
+    )
+    expect(attach).not.toHaveBeenCalled()
+  })
+
   it('tells Swift to show the save toast when a note newly could not be saved', async () => {
     await start()
     act(() => failTestSave())

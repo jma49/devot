@@ -72,6 +72,9 @@ targets:
         CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "1.0.0"
         ITSAppUsesNonExemptEncryption: false
+        # The English prompts; scripts/i18n/apple.ts writes devot_iOS/InfoPlist.xcstrings with every language.
+        NSCameraUsageDescription: Devot uses the camera to scan documents into your notes.
+        NSMicrophoneUsageDescription: Devot uses the microphone to turn what you say into text in your notes, on this device.
         DevotCloudKitContainer: $(DEVOT_CLOUDKIT_CONTAINER)
         CFBundleURLTypes:
           - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER).devot
