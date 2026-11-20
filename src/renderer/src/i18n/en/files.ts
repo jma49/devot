@@ -9,6 +9,8 @@ export const prefixes = [
 ]
 
 export const messages = {
+  'import.dropHint': 'Drop files to import and open',
+  'import.dropFailed': 'These files could not be imported.',
   'pageSetup.title': 'Page Setup',
   'pageSetup.paper': 'Paper',
   'pageSetup.paper.a4': 'A4',

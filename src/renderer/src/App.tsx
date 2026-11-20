@@ -585,6 +585,7 @@ export function App() {
     loadHeadlines,
   })
   const linkNotice = useAppDeepLinks({
+    library,
     ready: restored && core !== undefined,
     core,
     coreRef,

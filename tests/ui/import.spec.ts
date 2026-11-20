@@ -33,6 +33,59 @@ const SCAN = {
 }
 const PATHS = SCAN.files.map((f) => f.path)
 
+async function dropFiles(
+  page: Page,
+  target: string,
+  files: { name: string; text: string; type?: string }[],
+) {
+  await page.locator(target).evaluate((element, entries) => {
+    const data = new DataTransfer()
+    for (const file of entries)
+      data.items.add(new File([file.text], file.name, { type: file.type ?? 'text/markdown' }))
+    const bounds = element.getBoundingClientRect()
+    const options = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      dataTransfer: data,
+      clientX: bounds.left + 5,
+      clientY: bounds.top + 5,
+    }
+    element.dispatchEvent(new DragEvent('dragover', options))
+    element.dispatchEvent(new DragEvent('drop', options))
+  }, files)
+}
+
+test('dropped Markdown imports and opens, including over the editor, without finishing a Rust session', async ({
+  page,
+}) => {
+  await open(page)
+  await page.locator('.window[data-ready]').waitFor()
+  await dropFiles(page, '.window', [
+    { name: 'Dropped.md', text: '# Dropped\n\nFirst dropped body.' },
+  ])
+  await expect(body(page)).toContainText('First dropped body.')
+  await dropFiles(page, '.cm-content', [
+    { name: 'Second.md', text: '# Second\n\nSecond dropped body.' },
+  ])
+  await expect(body(page)).toContainText('Second dropped body.')
+  const original = page.getByRole('option', { name: /^Dropped Just now/ })
+  await expect(original).toBeVisible()
+  await original.click()
+  await expect(body(page)).not.toContainText('Second dropped body.')
+  expect(await calls(page, 'import_finish')).toEqual([])
+})
+
+test('unsupported dropped files show a notice and clear the drop highlight', async ({ page }) => {
+  await open(page)
+  await page.locator('.window[data-ready]').waitFor()
+  await dropFiles(page, '.window', [
+    { name: 'archive.zip', text: 'unsupported', type: 'application/zip' },
+  ])
+  await expect(page.getByRole('alert')).toContainText('These files could not be imported.')
+  await expect(page.locator('.drop-import')).toHaveCount(0)
+})
+
 const HTML_FILES: Record<string, string> = {
   'page.html':
     '<html><head><title>Saved page</title><script>alert(1)</script></head>' +

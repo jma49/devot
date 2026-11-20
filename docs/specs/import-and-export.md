@@ -5,6 +5,18 @@ Part of the [Markdown dialect](markdown-dialect.md).
 
 ## Import
 
+### Drag and drop
+
+Dropping loose Markdown or HTML files into the main window imports copies into the notebook shown, or the default notebook when another view is shown, and opens the first successfully imported note without a confirmation sheet.
+Drops and command-line handoffs import one at a time.
+A window highlight marks file drops; unsupported files or a failed import with no imported note produce a notice.
+Images dropped alongside notes can satisfy relative image links by filename; browser drops provide no folder paths.
+Image-only drops over the editor remain attachments to the open note, and internal note and notebook drags keep their existing behavior.
+The renderer reads browser files directly and stores validated attachment bytes using the IDs allocated by core import, without creating or finishing a Rust import session.
+The normal import size limits and editing write gate apply.
+
+### File picker
+
 File > Import has three items: Markdown Files… (`.md`, `.markdown`), Markdown Folder… (one or more folders of Markdown files) and HTML Files… (`.html`, `.htm`).
 A notebook's context menu has the same three items in its Import submenu: the web view starts them with `import_pick(kind, bookId)` (Rust checks both), and the session's READY payload carries that notebook as `destination`, so the sheet skips choosing one (a folder's tree offers Import into it; picked files import at once).
 If the notebook is gone by then, the sheet asks as usual.

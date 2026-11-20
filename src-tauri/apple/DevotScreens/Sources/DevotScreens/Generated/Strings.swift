@@ -2766,6 +2766,14 @@ public enum L10n {
     text("editor.overwriteOff", "Overwrite mode off")
   }
 
+  public static func importDropHint() -> String {
+    text("import.dropHint", "Drop files to import and open")
+  }
+
+  public static func importDropFailed() -> String {
+    text("import.dropFailed", "These files could not be imported.")
+  }
+
   public static func pageSetupTitle() -> String {
     text("pageSetup.title", "Page Setup")
   }

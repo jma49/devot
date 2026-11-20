@@ -74,13 +74,14 @@ export function useSheets({
       destination: string | null,
       progress: (done: number, total: number) => void,
       options: ImportChoices,
+      input?: Parameters<typeof runImport>[5],
     ) => {
       const c = coreRef.current
       if (!c) throw new Error('E_CORE_NOT_READY')
       try {
         await saveEdits(c)
         const started = performance.now()
-        const report = await runImport(c, scan, destination, progress, options)
+        const report = await runImport(c, scan, destination, progress, options, input)
         track('import.finished', {
           notes: report?.notes ?? 0,
           notebooks: report?.books ?? 0,

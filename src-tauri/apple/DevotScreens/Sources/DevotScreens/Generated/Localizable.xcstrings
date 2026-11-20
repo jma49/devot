@@ -14893,6 +14893,40 @@
         }
       }
     },
+    "import.dropFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These files could not be imported."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法导入这些文件。"
+          }
+        }
+      }
+    },
+    "import.dropHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop files to import and open"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖放文件以导入并打开"
+          }
+        }
+      }
+    },
     "import.empty" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -31,7 +31,7 @@ async function sendFiles(
         data.items.add(new w.File([bytes], f.name, { type: f.type }))
       }
       const rect = target.getBoundingClientRect()
-      const init = { bubbles: true, cancelable: true }
+      const init = { bubbles: true, cancelable: true, composed: true }
       const event =
         action === 'paste'
           ? new w.ClipboardEvent('paste', { ...init, clipboardData: data })
