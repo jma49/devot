@@ -46,8 +46,7 @@ final class ColumnsTests: XCTestCase {
     private var harness: ScreensHarness!
 
     override func setUp() async throws {
-        DevotTabBarController.usesColumns = true
-        harness = try ScreensHarness(defaults: try freshDefaults())
+        harness = try ScreensHarness(defaults: try freshDefaults(), columns: true)
         resize(CGSize(width: 1366, height: 1024))
         harness.answerAll()
     }
@@ -55,7 +54,6 @@ final class ColumnsTests: XCTestCase {
     override func tearDown() async throws {
         harness.close()
         harness = nil
-        DevotTabBarController.usesColumns = UIDevice.current.userInterfaceIdiom == .pad
     }
 
     private var tabs: DevotTabBarController { harness.screens.root.tabs }

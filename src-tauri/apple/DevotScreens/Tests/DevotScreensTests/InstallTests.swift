@@ -20,6 +20,7 @@ final class InstallTests: XCTestCase {
 
     override func setUp() async throws {
         defaults = UserDefaults(suiteName: "InstallTests")
+        DevotTabBarController.usesColumns = false
         defaults.removePersistentDomain(forName: "InstallTests")
     }
 

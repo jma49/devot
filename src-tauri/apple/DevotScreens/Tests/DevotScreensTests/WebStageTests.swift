@@ -254,7 +254,9 @@ private final class HoldingScreen: WebHolderScreen {
 }
 
 @MainActor
+/// Empty defaults, and the iPhone's one stack: a test that wants an iPad's columns asks for them.
 func freshDefaults() throws -> UserDefaults {
+    DevotTabBarController.usesColumns = false
     let defaults = try XCTUnwrap(UserDefaults(suiteName: "WebStageTests"))
     defaults.removePersistentDomain(forName: "WebStageTests")
     return defaults
