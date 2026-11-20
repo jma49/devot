@@ -120,10 +120,14 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Graph sheet (View > Show Graph):** a modal dialog with the dialog motion; Reduced motion follows the dialog's rule. The graph is laid out before it is drawn and appears at once, with no animated simulation (rule 2): reopening it draws the same picture. Panning and zooming follow the pointer, the trackpad and the keys with no motion of their own (rule 1), and 0 fits it again at once. The pointer over a dot shows its links and neighbours and dims the rest at once (rule 2: a state that follows the pointer). This Note and All Notes is a segmented control with its own slide; the new graph replaces the old at once.
 - **Note embeds in the preview:** rule 2. An embedded note is drawn with the preview, and an edit of that note redraws it in place at once, as a chip's title changes.
 - **Note Info's date picker:** rule 3. It grows from its date row and closes backwards like the card. A month change (the head's buttons, Page Up and Page Down, an arrow past the month's edge) is rule 3 too: the new days slide 16 (`space.7`, `--month-slide-shift`) in from the side they come from while they fade in, over `motion.duration.toggle`. Moving the day within the month and stepping the time are rule 1: no motion. Reduced motion: the picker only fades, and the days fade in place.
-- **List, Board and Gallery:** the new body fades in over `motion.duration.popover`, in the same view only.
+- **List, Board, Gallery and Table:** the new body fades in over `motion.duration.popover`, in the same view only.
 - **Gallery cards:** rule 2. Hover washes the card's cell over `motion.duration.hover`; the selection wash and the focus ring are states, shown at once.
   Cards that change place in the order (a new sort, a note added or gone) slide as rows do (`rowMotion.ts`); resizing the pane reflows them at once (rule 1), the sheets' height following their width.
   A thumbnail is drawn when its page arrives, with no fade, and scrolling has no motion of its own.
+- **Table:** rule 1 and 2. Moving between cells, sorting, filtering, hiding a column and adding one redraw the grid at once, with no slide of rows or columns (a sort can move thousands of rows; it follows the click).
+  Hover washes a row over `motion.duration.hover` on `motion.easing.out`; the selection wash and the focus ring are states, shown at once.
+  A cell's editor opens and closes at once in its cell, and a written value or a checkbox shows at once (rule 2); the alert about invalid front matter appears and goes at once.
+  Scrolling has no motion of its own, and the header and title column stay without moving.
 - **Board cards:** one that changes column flies there on a copy above the columns, as a column would clip it, when both ends can be seen (otherwise it is simply there); the others slide as rows do (`rowMotion.ts`).
   Hover washes a card over `motion.duration.hover` on `motion.easing.out`; the selection wash and the focus ring are states, shown at once (rule 2).
   Resetting the board's width (a double-click or Enter on the edge) takes the fitted width at once, as a drag of the edge does (rule 1).

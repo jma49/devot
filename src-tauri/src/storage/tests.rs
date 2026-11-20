@@ -1,5 +1,6 @@
 use super::notes::{
-    BACKLINKS_SQL, NOTE_BODIES_SQL, NOTE_SUMMARIES_SQL, NOTES_LIST_SQL, TRASH_LIST_SQL,
+    BACKLINKS_SQL, MAX_HEAD_CHARS, NOTE_BODIES_SQL, NOTE_HEADS_SQL, NOTE_SUMMARIES_SQL,
+    NOTES_LIST_SQL, TRASH_LIST_SQL,
 };
 use super::open::{MIGRATIONS, copy_pages, open_read_only};
 use super::search::{
@@ -504,6 +505,35 @@ fn reads_bodies_in_one_call_without_purged_or_unknown_notes() {
         store.get_bodies(&["a".to_string()]).unwrap()[0].body_md,
         "- [x] done\n"
     );
+}
+
+#[test]
+fn reads_front_matter_heads_of_notes_that_open_with_a_fence() {
+    let (_dir, mut store) = temp_store();
+    let long = format!("---\nk: {}\n---\n", "\u{4e00}".repeat(9_000));
+    for (id, body) in [
+        ("a", "---\nrating: 4\n---\nBody"),
+        ("b", "Body\n---\n"),
+        ("c", long.as_str()),
+    ] {
+        store
+            .put_note(
+                &NoteRecord {
+                    body_md: body.into(),
+                    ..note(id, id, 10)
+                },
+                &[],
+            )
+            .unwrap();
+    }
+    let ids: Vec<String> = ["c", "missing", "b", "a"].map(String::from).into();
+    let heads = store.get_heads(&ids).unwrap();
+    assert_eq!(
+        heads.iter().map(|h| h.id.as_str()).collect::<Vec<_>>(),
+        ["c", "a"]
+    );
+    assert_eq!(heads[1].head, "---\nrating: 4\n---\nBody");
+    assert_eq!(heads[0].head.chars().count(), MAX_HEAD_CHARS as usize);
 }
 
 #[test]
@@ -2273,8 +2303,8 @@ fn lists_and_searches_read_covering_indexes() {
         );
         assert!(!list.contains("TEMP B-TREE"), "{list}");
     }
-    for by_id in [NOTE_SUMMARIES_SQL, NOTE_BODIES_SQL] {
-        let read = plan(&by_id.replace("@ids", "'[]'"), &[]);
+    for by_id in [NOTE_SUMMARIES_SQL, NOTE_BODIES_SQL, NOTE_HEADS_SQL] {
+        let read = plan(&by_id.replace("@ids", "'[]'").replace("@chars", "8"), &[]);
         assert!(
             read.contains("USING INDEX sqlite_autoindex_notes_1 (id=?)"),
             "{read}"

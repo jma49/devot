@@ -2221,7 +2221,7 @@ button {
 }
 
 /* The board and the gallery take the note list's place with a width of their own (paneWidth.ts fits it to the board's columns until the user drags it); in a narrow window they give way first, and the board's columns shrink to their minimum and scroll sideways. */
-.list:is(.board, .gallery) {
+.list:is(.board, .gallery, .table-layout) {
   width: var(--list-width);
   max-width: none;
   min-width: var(--size-board-min-width);
@@ -2455,6 +2455,209 @@ button {
 
 .card-tasks-done .card-tasks-arc {
   stroke: var(--color-status-done-mark);
+}
+
+/* The table's rows are one height (`size.table-row-height`), so only those near the part that shows render; the header and the title column stay while the rest scrolls, on the list's own surface so rows never show through them. */
+.table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: calc(var(--space-6) + var(--trial-bar-inset, 0px));
+  scroll-padding-block: var(--size-table-row-height) var(--trial-bar-inset, 0px);
+  scroll-padding-inline-start: var(--size-table-title-width);
+}
+
+.table-grid {
+  position: relative;
+  min-width: max-content;
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: var(--table-columns);
+  height: var(--size-table-row-height);
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.table-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-surface-list);
+}
+
+.table-body {
+  position: relative;
+}
+
+.table-body > .table-row {
+  position: absolute;
+  inset-inline: 0;
+}
+
+.table-cell,
+.table-head-cell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-inline: var(--space-4);
+  overflow: hidden;
+  outline: none;
+}
+
+.table-sticky {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  padding-inline-start: var(--size-list-keyline-outer);
+  background: var(--color-surface-list);
+}
+
+.table-cell.is-number {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-cell:focus-visible,
+.table-head-button:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+.table-row[aria-selected='true'] > .table-cell {
+  background: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    var(--color-surface-list)
+  );
+}
+
+.table-body > .table-row:not([aria-selected='true']):hover > .table-cell {
+  background: color-mix(
+    in srgb,
+    var(--color-fill-row-selected-inactive),
+    var(--color-surface-list)
+  );
+  transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.table-head-button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  text-align: start;
+  cursor: default;
+}
+
+.table-head-name,
+.table-text,
+.table-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.table-head-mark {
+  display: flex;
+  flex: none;
+  color: var(--color-text-tertiary);
+}
+
+.table-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.table-title.is-untitled {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+.table-cell time {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.table-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.table-chips {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.table-chip {
+  flex: none;
+  max-width: 100%;
+  padding: 0 var(--space-3);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-fill-card);
+  font-size: var(--font-size-footnote);
+  line-height: calc(var(--size-table-row-height) - var(--space-5));
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.table-check {
+  margin: 0;
+}
+
+.table-input {
+  width: 100%;
+  min-width: 0;
+  height: calc(var(--size-table-row-height) - var(--space-3));
+  box-sizing: border-box;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-field);
+  background: var(--color-fill-field);
+  color: var(--color-text-primary);
+  font: inherit;
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+}
+
+.table-input[aria-invalid='true'] {
+  outline-color: var(--color-text-destructive);
+}
+
+.table-add {
+  padding-inline: var(--space-3);
+}
+
+.table-none {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: sticky;
+  inset-inline-start: 0;
+  width: var(--list-width);
+  max-width: 100%;
+}
+
+.table-notice {
+  margin: var(--space-3) var(--size-list-keyline-outer);
+  font-size: var(--font-size-footnote);
+  color: var(--color-text-destructive);
 }
 
 /* The gallery's cards sit in rows of one height (gallery.ts places them), so only the rows near the part that shows render. */

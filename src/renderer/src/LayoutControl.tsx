@@ -14,15 +14,16 @@ const LAYOUTS: { layout: ListLayout; icon: IconName; label: MessageKey; title: M
     label: 'layout.gallery',
     title: 'command.showGallery',
   },
+  { layout: 'table', icon: 'layout.table', label: 'layout.table', title: 'command.showTable' },
 ]
 
 // A switch mounts a new control, so the thumb's last place outlives the old one.
 const lastSegment: { view: string; index: number } = { view: '', index: -1 }
 
 /**
- * The List, Board and Gallery segments, those of `layouts` (a status view has
- * no board). The list, the board and the gallery each render their own
- * header, so a switch mounts a new control: `onChange` says whether the
+ * The List, Board, Gallery and Table segments, those of `layouts` (a status
+ * view has no board). Each layout renders its own header, so a switch mounts
+ * a new control: `onChange` says whether the
  * pressed segment had the keyboard, and `takesKeyboard` (asked once on mount)
  * whether the new control's pressed segment takes it back.
  */

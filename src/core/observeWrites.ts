@@ -22,6 +22,7 @@ export function observeWrites(
     getNote: (id, options) => storage.getNote(id, options),
     openNote: (id) => storage.openNote(id),
     getBodies: (ids) => storage.getBodies(ids),
+    getHeads: (ids) => storage.getHeads(ids),
     searchNotes: (query, limit) => storage.searchNotes(query, limit),
     ...(semanticSearch ? { semanticSearch: (query) => semanticSearch(query) } : {}),
     ...(semanticStatus ? { semanticStatus: () => semanticStatus() } : {}),

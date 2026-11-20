@@ -116,6 +116,8 @@ export interface NoteService {
   taskCounts(ids: readonly string[]): Promise<Record<string, TaskProgress>>
   /** The Markdown each gallery card shows (see `cardExcerpt`), pending edits included. Missing notes are left out. */
   cardExcerpts(ids: readonly string[]): Promise<Record<string, string>>
+  /** The front matter of each note that opens with one (`frontMatterHead`), pending edits included, for the table layout's properties; a fence that closes past MAX_HEAD_CHARS counts as none. */
+  frontMatterHeads(ids: readonly string[]): Promise<Record<string, string>>
   /** Never pinned; a deleted notebook counts as none. `suffix` is kept by cutting the title to fit. Images become the copy's own (see extract); tags are the caller's (see duplicateNote). */
   duplicate(id: string, options?: { suffix?: string }): Promise<string>
   /** Images become the note's own copies so purging the source keeps them; if they cannot be copied no note is left and the copy's error is thrown. A given `title` (New Note from Link) names the note instead. */
@@ -131,6 +133,11 @@ export interface NoteService {
   fill(id: string, content: { title: string; markdown: string }): Promise<void>
   /** Applies the text difference as Yjs operations (see textEdits), never by writing the snapshot. */
   setBody(id: string, markdown: string): Promise<void>
+  /**
+   * The body `rewrite` makes of the body as it is now, applied as Yjs operations (see textEdits) with no version kept: a table cell's
+   * write. Returns the Yjs update, for the editor's replica. Throws what `rewrite` throws, E_NOTE_BODY_TOO_LARGE and E_NOTE_NOT_FOUND.
+   */
+  rewriteBody(id: string, rewrite: (markdown: string) => string): Promise<Uint8Array>
   /** `setBody` only while the body is still `expected`, checked and changed in one step; false when it was not. */
   setBodyFrom(id: string, expected: string, markdown: string): Promise<boolean>
   /** On a failed save the note is dropped anyway and the error thrown: the caller (import, the AI service) undoes or reports it. */
