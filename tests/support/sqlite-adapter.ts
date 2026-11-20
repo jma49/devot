@@ -43,6 +43,7 @@ import type {
   BookRecord,
   CompactableVersion,
   NoteBody,
+  NoteHead,
   NoteTagRecord,
   NoteQuery,
   NoteRecord,
@@ -57,7 +58,7 @@ import type {
   TextCondition,
   TrashedNote,
 } from '../../src/core/storage'
-import { MAX_BODY_IDS, MAX_PUT_BOOKS } from '../../src/core/storage'
+import { MAX_BODY_IDS, MAX_HEAD_CHARS, MAX_PUT_BOOKS } from '../../src/core/storage'
 import { tempDir } from './temp-dirs'
 
 /**
@@ -356,6 +357,9 @@ export const LIST_SQL = {
   /** Titles and bodies of the notes among `@ids` (a JSON array) that are not purged, in the order asked. */
   bodies: `SELECT n.id, n.title, n.body_md AS bodyMd FROM json_each(@ids) j JOIN notes n ON n.id = j.value
      WHERE n.purged_at IS NULL ORDER BY j.key`,
+  /** The start (`@chars`) of each of `@ids` that opens with a front matter fence. */
+  heads: `SELECT n.id, substr(n.body_md, 1, @chars) AS head FROM json_each(@ids) j JOIN notes n ON n.id = j.value
+     WHERE n.purged_at IS NULL AND substr(n.body_md, 1, 3) = '---' ORDER BY j.key`,
   /**
    * Backlinks (`@id`, `@excludeBook`, `@limit`): the list's index in its order, keeping the notes
    * the link index has as linking to the note, so it stops at a page and reads no row.
@@ -802,6 +806,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   )
   const summaries = db.prepare<[{ ids: string }], SummaryRow>(LIST_SQL.summaries)
   const bodyRows = db.prepare<[{ ids: string }], NoteBody>(LIST_SQL.bodies)
+  const headRows = db.prepare<[{ ids: string; chars: number }], NoteHead>(LIST_SQL.heads)
   const get = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL')
   const bodyMd = db.prepare<[string], { body_md: string }>('SELECT body_md FROM notes WHERE id = ?')
   const imageTextOf = db.prepare<[string], { text: string }>(
@@ -1196,6 +1201,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       return opened
     },
     getBodies: async (ids) => bodyRows.all({ ids: JSON.stringify(ids) }),
+    getHeads: async (ids) => headRows.all({ ids: JSON.stringify(ids), chars: MAX_HEAD_CHARS }),
     async putNote(note) {
       // What the app's note_put refuses, this refuses too.
       const links = noteLinks(note.bodyMd)

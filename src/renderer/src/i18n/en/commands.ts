@@ -32,6 +32,7 @@ export const messages = {
   'command.showBoard': 'Show as Board',
   'command.showList': 'Show as List',
   'command.showGallery': 'Show as Gallery',
+  'command.showTable': 'Show as Table',
   'command.alertNote': 'Note Alert',
   'command.alertTip': 'Tip Alert',
   'command.alertImportant': 'Important Alert',

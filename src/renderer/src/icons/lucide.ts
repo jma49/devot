@@ -341,6 +341,10 @@ export const LUCIDE_ICONS = {
   'layout.list': ListIcon,
   'layout.board': Columns3Icon,
   'layout.gallery': LayoutGridIcon,
+  'layout.table': TableIcon,
+  'table.sortAscending': ChevronUpIcon,
+  'table.sortDescending': ChevronDownIcon,
+  'table.addProperty': PlusIcon,
 } as const satisfies Record<IconName, LucideIcon>
 
 /**

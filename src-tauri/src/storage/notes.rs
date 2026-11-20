@@ -2,8 +2,8 @@ use rusqlite::{OptionalExtension, params};
 
 use super::agent_writes::{AGENT_WRITES_KEEP_SQL, AGENT_WRITES_PUT_SQL};
 use super::{
-    AgentWriteRow, GraphNote, LinkGraph, NoteBody, NoteMeta, NoteRecord, NoteSummary, Result,
-    StorageError, Store, TrashedNote,
+    AgentWriteRow, GraphNote, LinkGraph, NoteBody, NoteHead, NoteMeta, NoteRecord, NoteSummary,
+    Result, StorageError, Store, TrashedNote,
 };
 
 /// The same statements as the TypeScript adapter's (tests/support/sqlite-adapter.ts, LIST_SQL; a test compares
@@ -57,6 +57,10 @@ pub(super) const NOTE_SUMMARIES_SQL: &str = "SELECT id, title, created_at AS cre
      ORDER BY updated_at DESC, id DESC";
 pub(super) const NOTE_BODIES_SQL: &str = "SELECT n.id, n.title, n.body_md AS bodyMd FROM json_each(@ids) j JOIN notes n ON n.id = j.value
      WHERE n.purged_at IS NULL ORDER BY j.key";
+/// MAX_HEAD_CHARS in src/core/storage.ts (a policy test checks they match).
+pub const MAX_HEAD_CHARS: i64 = 8_192;
+pub(super) const NOTE_HEADS_SQL: &str = "SELECT n.id, substr(n.body_md, 1, @chars) AS head FROM json_each(@ids) j JOIN notes n ON n.id = j.value
+     WHERE n.purged_at IS NULL AND substr(n.body_md, 1, 3) = '---' ORDER BY j.key";
 
 pub(super) fn summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
     let tags: Option<String> = row.get(7)?;
@@ -158,6 +162,23 @@ impl Store {
                 body_md: row.get(2)?,
             })
         })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// The start of each of `ids` whose body opens with a front matter fence, at most
+    /// MAX_HEAD_CHARS characters, in their order; purged and unknown IDs are left out.
+    pub fn get_heads(&self, ids: &[String]) -> Result<Vec<NoteHead>> {
+        let mut statement = self.conn.prepare_cached(NOTE_HEADS_SQL)?;
+        let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".into());
+        let rows = statement.query_map(
+            rusqlite::named_params! { "@ids": ids, "@chars": MAX_HEAD_CHARS },
+            |row| {
+                Ok(NoteHead {
+                    id: row.get(0)?,
+                    head: row.get(1)?,
+                })
+            },
+        )?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 

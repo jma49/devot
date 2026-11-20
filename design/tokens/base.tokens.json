@@ -1890,6 +1890,30 @@
       },
       "$description": "The task ring in a card's meta row: a 1.5 px ring of radius 4.5 drawn on a 12 px box, centred on the meta line."
     },
+    "table-row-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "A row of the table layout, its header too: one line of body text with the note row's padding."
+    },
+    "table-title-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 240,
+        "unit": "px"
+      },
+      "$description": "The table layout's title column, which stays at the start while the others scroll sideways."
+    },
+    "table-column-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 160,
+        "unit": "px"
+      },
+      "$description": "Every other column of the table layout: fields and properties."
+    },
     "gallery-card-min-width": {
       "$type": "dimension",
       "$value": {

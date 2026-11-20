@@ -21,9 +21,10 @@ export function readingMethods(
   | 'rowDetails'
   | 'taskCounts'
   | 'cardExcerpts'
+  | 'frontMatterHeads'
 > {
   const { live, holds } = ctx
-  const { bodies, getStored, letGo, trim, using } = k.memory
+  const { bodies, heads, getStored, letGo, trim, using } = k.memory
   return {
     open: (id, known) =>
       using(id, (note) => ({
@@ -87,6 +88,8 @@ export function readingMethods(
       for (const note of await bodies(ids)) found[note.id] = taskProgress(note.bodyMd)
       return found
     },
+
+    frontMatterHeads: async (ids) => Object.fromEntries(await heads(ids)),
 
     async cardExcerpts(ids) {
       const found: Record<string, string> = {}
