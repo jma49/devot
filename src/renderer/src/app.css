@@ -4726,17 +4726,40 @@ button.note-info-row:focus-visible {
   width: var(--size-icon-sm);
   height: var(--size-icon-sm);
   border-radius: var(--radius-mark);
-  background: var(--color-fill-control);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-footnote);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1;
+  box-shadow: inset 0 0 0 0.5px var(--color-line-hairline);
+}
+
+/* A provider's mark on its maker's colour, as the Settings sidebar's tiles: the same in every theme. */
+.provider-mark[data-provider='codexCli'] {
+  background: var(--color-icon-tile-codex);
+  color: var(--color-icon-tile-foreground);
+}
+
+.provider-mark[data-provider='claudeCli'] {
+  background: var(--color-icon-tile-claude-code);
+  color: var(--color-icon-tile-foreground);
+}
+
+.provider-mark[data-provider='anthropic'] {
+  background: var(--color-icon-tile-anthropic);
+  color: var(--color-icon-tile-foreground-contrast);
+}
+
+.provider-mark[data-provider='openai'] {
+  background: var(--color-icon-tile-openai);
+  color: var(--color-icon-tile-foreground-contrast);
+}
+
+.provider-mark svg {
+  width: 72%;
+  height: 72%;
+  fill: currentColor;
 }
 
 :is(.model-picker-rail, .ai-provider-row) .provider-mark {
   width: var(--size-provider-mark);
   height: var(--size-provider-mark);
-  font-size: var(--font-size-caption);
+  border-radius: var(--radius-settings-tile);
 }
 
 .ai-state-dot {
@@ -4976,7 +4999,8 @@ button.model-popup[aria-disabled='true'] {
   background: var(--color-fill-hover);
 }
 
-.ai-provider-row {
+/* .setting's wider gap would hold the name away from its mark. */
+.setting.ai-provider-row {
   gap: var(--space-5);
 }
 
@@ -8479,6 +8503,36 @@ button.popup:focus-visible {
   padding: var(--space-6) 0;
 }
 
+/* A plugin's name sets one line box, and its controls sit on one row centred on that line, whichever control a row has. */
+.plugin-row .setting-label {
+  line-height: var(--space-8);
+}
+
+.plugin-row .setting-control {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--size-settings-control);
+  margin-top: calc((var(--space-8) - var(--size-settings-control)) / 2);
+}
+
+/* Remove… is secondary to the switch beside it: a borderless label until the pointer is on it. */
+.settings-card .plugin-row .button-quiet {
+  padding: 0 var(--space-5);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.settings-card .plugin-row .button-quiet:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-fill-tool-hover);
+  color: var(--color-text-destructive);
+}
+
+.plugin-offer-state {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+}
+
 .plugin-settings {
   padding: 0 0 var(--space-6) var(--space-7);
 }
@@ -8492,6 +8546,7 @@ button.popup:focus-visible {
 .plugin-permissions {
   margin: 0;
   padding-left: var(--space-7);
+  list-style: disc;
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
 }

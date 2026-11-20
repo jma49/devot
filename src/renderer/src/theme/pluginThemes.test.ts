@@ -112,7 +112,15 @@ describe('readPluginThemes', () => {
       'status-dropped-mark',
       'status-hold-mark',
     ])
-    expect(icons.filter((t) => t.startsWith('icon-tile-'))).toHaveLength(14)
+    expect(icons.filter((t) => t.startsWith('icon-tile-'))).toHaveLength(18)
+    expect(icons).toEqual(
+      expect.arrayContaining([
+        'icon-tile-codex',
+        'icon-tile-claude-code',
+        'icon-tile-anthropic',
+        'icon-tile-openai',
+      ]),
+    )
     expect(icons.filter((t) => t.startsWith('tag-icon-'))).toHaveLength(8)
     expect(icons.filter((t) => t.startsWith('phone-status-tile-'))).toHaveLength(5)
     for (const token of icons) expect(THEME_COLORS.has(token)).toBe(false)
