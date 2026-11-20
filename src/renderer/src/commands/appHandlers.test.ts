@@ -33,6 +33,7 @@ const state = (extra: Partial<AppCommandState> = {}): AppCommandState => ({
   boardShown: false,
   canGallery: false,
   galleryShown: false,
+  tableShown: false,
   canGoBack: false,
   canGoForward: false,
   hasNext: false,

@@ -34,11 +34,29 @@ export const NO_PLUGIN_THEMES: PluginThemes = { themes: [], chosen: { light: nul
 export const isIconColor = (token: string): boolean =>
   /^(?:icon-tile-|tag-icon-|phone-status-tile-)/.test(token) || /^status-[a-z]+-mark$/.test(token)
 
+/**
+ * Colors that carry a meaning stay Devot's under every theme: icons, tag colors, statuses, the
+ * destructive red and the colors of buttons and controls, so a button, a tag or a warning looks
+ * the same whatever theme is chosen.
+ */
+export const keepsDevotColor = (token: string): boolean =>
+  isIconColor(token) ||
+  /^(?:tag-|status-|phone-action-)/.test(token) ||
+  /destructive/.test(token) ||
+  [
+    'accent-fill',
+    'accent-hover',
+    'accent-on-fill',
+    'focus-ring',
+    'switch-handle',
+    'phone-on-action',
+  ].includes(token)
+
 /** Each color token a theme may set, as a theme file names it: its CSS variable after `--color-`. */
 export const THEME_COLORS: ReadonlySet<string> = new Set(
   Object.keys(light)
     .map((k) => k.slice('color.'.length).replaceAll('.', '-'))
-    .filter((token) => !isIconColor(token)),
+    .filter((token) => !keepsDevotColor(token)),
 )
 
 const COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/

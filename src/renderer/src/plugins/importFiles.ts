@@ -1,6 +1,8 @@
 import { effectivePermissions, type InstalledPlugin } from '../../../core/plugins'
 import { imageName, importableName } from '../dropImport'
-import { stopsImport } from './contributions'
+import type { ImportReport } from '../../../core/import'
+import type { Converted } from '../../../core/plugins/protocol'
+import { importBatch } from './importBatch'
 import type { PluginHost } from './host'
 
 const MAX_FILES = 20
@@ -21,13 +23,16 @@ export function routeImport(name: string, plugins: readonly InstalledPlugin[]) {
   return { kind: 'unsupported' as const }
 }
 
-export async function readPluginFiles(files: readonly File[]): Promise<ImportFile[]> {
+export async function readPluginFiles(
+  files: readonly File[],
+  maxBytes = MAX_BYTES,
+): Promise<ImportFile[]> {
   if (files.length > MAX_FILES) throw new Error('E_PLUGIN_IMPORT_TOO_MANY')
   const out: ImportFile[] = []
   for (const file of files) {
-    if (file.size > MAX_BYTES) throw new Error('E_PLUGIN_IMPORT_TOO_LARGE')
+    if (file.size > maxBytes) throw new Error('E_PLUGIN_IMPORT_TOO_LARGE')
     const bytes = await file.arrayBuffer()
-    if (bytes.byteLength > MAX_BYTES) throw new Error('E_PLUGIN_IMPORT_TOO_LARGE')
+    if (bytes.byteLength > maxBytes) throw new Error('E_PLUGIN_IMPORT_TOO_LARGE')
     let text: string
     try {
       text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)
@@ -45,35 +50,36 @@ export async function importPluginFiles(
   files: readonly ImportFile[],
   host: Pick<PluginHost, 'convertImport'>,
   core: {
-    capture: (title: string, markdown: string, destination: string | null) => Promise<string>
+    importConverted: (
+      name: string,
+      converted: Converted | Converted[],
+      destination: string | null,
+    ) => Promise<ImportReport>
   },
   destination: string | null,
   allowed: () => boolean,
-  failed: (error: unknown) => void,
-): Promise<string[]> {
+) {
   if (!plugin.enabled || !effectivePermissions(plugin).has('import'))
     throw new Error('E_PLUGIN_PERMISSION_DENIED')
-  if (!plugin.manifest.contributes.importFormats.some((item) => item.id === format))
-    throw new Error('E_PLUGIN_FORMAT_UNKNOWN')
+  const contribution = plugin.manifest.contributes.importFormats.find((item) => item.id === format)
+  if (!contribution) throw new Error('E_PLUGIN_FORMAT_UNKNOWN')
+  const maxBytes = contribution.maxFileBytes ?? MAX_BYTES
   if (files.length > MAX_FILES) throw new Error('E_PLUGIN_IMPORT_TOO_MANY')
   for (const file of files) {
     const bytes = new TextEncoder().encode(file.text)
-    if (bytes.length > MAX_BYTES) throw new Error('E_PLUGIN_IMPORT_TOO_LARGE')
+    if (bytes.length > maxBytes) throw new Error('E_PLUGIN_IMPORT_TOO_LARGE')
     if (new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes) !== file.text)
       throw new Error('E_PLUGIN_IMPORT_NOT_TEXT')
   }
   if (!allowed()) throw new Error('E_LICENCE_REQUIRED')
   const ids: string[] = []
-  for (const file of files) {
-    try {
-      if (!allowed()) throw new Error('E_LICENCE_REQUIRED')
-      const note = await host.convertImport(plugin.manifest.id, format, file)
-      if (!allowed()) throw new Error('E_LICENCE_REQUIRED')
-      ids.push(await core.capture(note.title, note.markdown, destination))
-    } catch (error) {
-      failed(error)
-      if (stopsImport(error) || !allowed()) break
-    }
-  }
-  return ids
+  const batch = await importBatch([...files], async (file) => {
+    if (!allowed()) throw new Error('E_LICENCE_REQUIRED')
+    const converted = await host.convertImport(plugin.manifest.id, format, file)
+    if (!allowed()) throw new Error('E_LICENCE_REQUIRED')
+    const report = await core.importConverted(file.name, converted, destination)
+    ids.push(...Object.values(report.noteIds))
+    return report
+  })
+  return { ...batch, ids }
 }

@@ -814,6 +814,10 @@ public enum L10n {
     text("command.showGallery", "Show as Gallery")
   }
 
+  public static func commandShowTable() -> String {
+    text("command.showTable", "Show as Table")
+  }
+
   public static func commandAlertNote() -> String {
     text("command.alertNote", "Note Alert")
   }
@@ -3418,6 +3422,26 @@ public enum L10n {
     text("import.reason.type", "Not a supported image format")
   }
 
+  public static func importReasonAttachmentType() -> String {
+    text("import.reason.attachmentType", "Attachment type not supported")
+  }
+
+  public static func importReasonAttachmentInvalid() -> String {
+    text("import.reason.attachmentInvalid", "Attachment data is not valid")
+  }
+
+  public static func importReasonAttachmentMissing() -> String {
+    text("import.reason.attachmentMissing", "Attachment data was not found")
+  }
+
+  public static func importReasonAttachmentStorage() -> String {
+    text("import.reason.attachmentStorage", "Attachment could not be stored")
+  }
+
+  public static func importReasonEncrypted() -> String {
+    text("import.reason.encrypted", "Encrypted content cannot be imported")
+  }
+
   public static func importReasonPath() -> String {
     text("import.reason.path", "Hidden or not a valid path")
   }
@@ -4838,6 +4862,26 @@ public enum L10n {
     fill(text("plugins.failed", "{name} could not finish."), ["name": p0])
   }
 
+  public static func pluginsImportedWithSkips(notes p0: String, skipped p1: String) -> String {
+    fill(text("plugins.importedWithSkips", "Imported {notes} notes; {skipped} items skipped."), ["notes": p0, "skipped": p1])
+  }
+
+  public static func pluginsShowSkipped() -> String {
+    text("plugins.showSkipped", "Show Skipped")
+  }
+
+  public static func pluginsSkippedTitle() -> String {
+    text("plugins.skippedTitle", "Skipped import items")
+  }
+
+  public static func pluginsSkippedContent() -> String {
+    text("plugins.skippedContent", "Note content")
+  }
+
+  public static func pluginsSkippedNote(title p0: String) -> String {
+    fill(text("plugins.skippedNote", "In note “{title}”"), ["title": p0])
+  }
+
   public static func pluginsTrialEnded() -> String {
     text("plugins.trialEnded", "Your Devot trial has ended, so a plugin cannot change notes. Add a license in Settings > License.")
   }
@@ -5874,6 +5918,10 @@ public enum L10n {
     text("layout.gallery", "Gallery")
   }
 
+  public static func layoutTable() -> String {
+    text("layout.table", "Table")
+  }
+
   public static func galleryResize() -> String {
     text("gallery.resize", "Resize Gallery")
   }
@@ -5892,6 +5940,134 @@ public enum L10n {
 
   public static func galleryImage() -> String {
     text("gallery.image", "Image from the web")
+  }
+
+  public static func tableResize() -> String {
+    text("table.resize", "Resize Table")
+  }
+
+  public static func tableTitle() -> String {
+    text("table.title", "Title")
+  }
+
+  public static func tableStatus() -> String {
+    text("table.status", "Status")
+  }
+
+  public static func tableTags() -> String {
+    text("table.tags", "Tags")
+  }
+
+  public static func tableUpdated() -> String {
+    text("table.updated", "Date Updated")
+  }
+
+  public static func tableTypeText() -> String {
+    text("table.type.text", "Text")
+  }
+
+  public static func tableTypeNumber() -> String {
+    text("table.type.number", "Number")
+  }
+
+  public static func tableTypeCheckbox() -> String {
+    text("table.type.checkbox", "Checkbox")
+  }
+
+  public static func tableTypeDate() -> String {
+    text("table.type.date", "Date")
+  }
+
+  public static func tableTypeList() -> String {
+    text("table.type.list", "List")
+  }
+
+  public static func tableColumnHeader(column p0: String, type p1: String) -> String {
+    fill(text("table.columnHeader", "{column}, {type}"), ["column": p0, "type": p1])
+  }
+
+  public static func tableSortedAscending() -> String {
+    text("table.sortedAscending", "Sorted ascending")
+  }
+
+  public static func tableSortedDescending() -> String {
+    text("table.sortedDescending", "Sorted descending")
+  }
+
+  public static func tableFiltered() -> String {
+    text("table.filtered", "Filtered")
+  }
+
+  public static func tableSortAscending() -> String {
+    text("table.sortAscending", "Sort Ascending")
+  }
+
+  public static func tableSortDescending() -> String {
+    text("table.sortDescending", "Sort Descending")
+  }
+
+  public static func tableClearSort() -> String {
+    text("table.clearSort", "Clear Sort")
+  }
+
+  public static func tableFilterFilled() -> String {
+    text("table.filterFilled", "Show Only Filled")
+  }
+
+  public static func tableFilterEmpty() -> String {
+    text("table.filterEmpty", "Show Only Empty")
+  }
+
+  public static func tableFilterChecked() -> String {
+    text("table.filterChecked", "Show Only Checked")
+  }
+
+  public static func tableFilterUnchecked() -> String {
+    text("table.filterUnchecked", "Show Only Unchecked")
+  }
+
+  public static func tableClearFilter() -> String {
+    text("table.clearFilter", "Clear Filter")
+  }
+
+  public static func tableHideColumn() -> String {
+    text("table.hideColumn", "Hide Column")
+  }
+
+  public static func tableShowAllColumns() -> String {
+    text("table.showAllColumns", "Show All Columns")
+  }
+
+  public static func tableAddProperty() -> String {
+    text("table.addProperty", "Add Property")
+  }
+
+  public static func tablePropertyName() -> String {
+    text("table.propertyName", "Property name")
+  }
+
+  public static func tablePropertyInvalid() -> String {
+    text("table.propertyInvalid", "Use up to 64 characters, other than title, tags, status or notebook.")
+  }
+
+  public static func tableEditCell(column p0: String) -> String {
+    fill(text("table.editCell", "Edit {column}"), ["column": p0])
+  }
+
+  public static func tableNoMatches() -> String {
+    text("table.noMatches", "No Notes Match the Table Filters")
+  }
+
+  public static func tableClearFilters() -> String {
+    text("table.clearFilters", "Clear Filters")
+  }
+
+  public static func tableWriteFailed() -> String {
+    text("table.writeFailed", "The property could not be saved.")
+  }
+
+  public static func tableFrontMatterInvalid() -> String {
+    text("table.frontMatterInvalid", "The note’s front matter is not valid YAML, so it was left unchanged.")
   }
 
   public static func noteCreateTag(name p0: String) -> String {

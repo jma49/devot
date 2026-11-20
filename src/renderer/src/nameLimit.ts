@@ -5,7 +5,7 @@
 // the text it inserts. An input method's composition is left alone until it
 // ends, then limited the same way.
 
-import { useRef, type ChangeEvent, type CompositionEvent } from 'react'
+import { useRef, type ChangeEvent, type ClipboardEvent, type CompositionEvent } from 'react'
 import { charCount, clipChars, textDiff } from '../../core/text'
 
 /**
@@ -29,6 +29,21 @@ export function limitEdit(
   }
 }
 
+/**
+ * The name to take from pasted text that spans lines: its first line with text, trimmed. A text
+ * field drops line breaks on its own and would run a pasted block's lines into one name.
+ * Undefined for text on one line, which pastes as it is.
+ */
+export function pastedName(text: string): string | undefined {
+  if (!/[\r\n]/.test(text)) return undefined
+  return (
+    text
+      .split(/\r\n|\r|\n/)
+      .map((line) => line.trim())
+      .find((line) => line !== '') ?? ''
+  )
+}
+
 function limitField(field: HTMLInputElement, previous: string, max: number): string {
   const { value, caret } = limitEdit(previous, field.value, max)
   if (value !== field.value) {
@@ -48,6 +63,14 @@ export function useNameLimit(value: string, max: number, onValue: (value: string
       const from = before.current ?? value
       before.current = null
       onValue(limitField(e.currentTarget, from, max))
+    },
+    onPaste: (e: ClipboardEvent<HTMLInputElement>) => {
+      const name = pastedName(e.clipboardData.getData('text/plain'))
+      if (name === undefined) return
+      e.preventDefault()
+      const field = e.currentTarget
+      field.setRangeText(name, field.selectionStart ?? 0, field.selectionEnd ?? 0, 'end')
+      onValue(limitField(field, value, max))
     },
     onChange: (e: ChangeEvent<HTMLInputElement>) => {
       if (before.current !== null) onValue(e.currentTarget.value)

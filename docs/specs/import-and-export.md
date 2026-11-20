@@ -23,7 +23,7 @@ The notebook shown when the folder is dropped is its destination, or the sheet a
 Loose files mixed with directories are imported and opened separately, while directories wait for confirmation in the sheet.
 Loose files matching an enabled plugin's permitted import format use that plugin's converter and open the first captured note in the same destination as other loose files.
 Built-in Markdown and HTML handling takes priority over plugin extensions, and supported images retain their attachment behavior.
-Plugin drops share the picker's limits of 20 UTF-8 files of at most 5 MiB each; a failed or unsupported drop shows the same notice as other dropped files.
+Plugin drops share the picker's limit of 20 UTF-8 files and the selected format's size limit (5 MiB by default), including API 3 multi-note results, metadata, attachments and diagnostics; a failed or unsupported drop shows the same notice as other dropped files.
 Cancelling or closing an unstarted dropped import releases its browser files without finishing a native session.
 
 ### File picker
@@ -101,7 +101,20 @@ A cancelled panel sends nothing.
   A quit that is called off lets the import go on from the next file.
   Once the window has saved and goes on with the quit, the import ends there and lists the files it did not reach, and stays ended if another window calls the quit off after that.
   Closing a window File > New Window opened does the same with its own import.
-- Notes get the import time as their creation and update time.
+- Markdown and HTML notes get the import time as their creation and update time.
+
+### .enex export files
+
+The first-party ENEX Import plugin (`plugins/enex/`, plugin API 3, permission `import`) adds `.enex` export files to File > Import and the palette when installed and enabled.
+Each file becomes a notebook named after its filename without the extension, under the notebook currently shown.
+An empty export makes no notebook.
+The plugin's sandboxed frame parses XML without resolving external entities or loading the DOCTYPE; malformed XML or ENML fails the file before any of its notes or notebooks are made.
+The plugin supplies each note's title, tags, dates, resources and ENML converted to HTML; the host uses its sanitized HTML-to-Markdown converter, including checked and unchecked tasks, without adding a title heading.
+Created and updated dates are read as UTC, applied after the body and tags, and fall back to the current time when missing or invalid; an updated date before the created date is clamped to it.
+Resources are matched to media references by the MD5 of their decoded bytes, with supported raster images stored as note-owned attachments under their exported filenames, subject to the existing 10 MB limit.
+Unreferenced supported images are appended to the note, while unsupported resources, invalid resources and encrypted sections are skipped and reported by code against that note.
+The format declares a 100 MiB per-file limit, enforced by Rust before the plugin sees its UTF-8 text.
+The generic plugin import host reuses the existing import pipeline for destination, per-note progress, stopping between notes, failure cleanup and removal of unused notebooks.
 
 ## Export and print
 

@@ -355,7 +355,7 @@
 
   Object.defineProperty(globalThis, 'devot', {
     value: Object.freeze({
-      apiVersion: 2,
+      apiVersion: 3,
       commands: Object.freeze({
         handle: register('command.run', (fn) => fn()),
       }),

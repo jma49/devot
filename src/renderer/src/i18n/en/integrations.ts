@@ -187,6 +187,11 @@ export const messages = {
   'plugins.exportAs': 'Export Note as {title}…',
   'plugins.panelClose': 'Close',
   'plugins.failed': '{name} could not finish.',
+  'plugins.importedWithSkips': 'Imported {notes} notes; {skipped} items skipped.',
+  'plugins.showSkipped': 'Show Skipped',
+  'plugins.skippedTitle': 'Skipped import items',
+  'plugins.skippedContent': 'Note content',
+  'plugins.skippedNote': 'In note “{title}”',
   'plugins.trialEnded':
     'Your Devot trial has ended, so a plugin cannot change notes. Add a license in Settings > License.',
 } as const

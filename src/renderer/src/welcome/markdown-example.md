@@ -19,6 +19,7 @@ Everything below is plain Markdown. Open this note in the editor (*Show Editor* 
 - [Code](#code)
 - [Math](#math)
 - [Diagrams](#diagrams)
+- [Plugins](#plugins)
 - [Footnotes](#footnotes)
 - [Rules, symbols and escapes](#rules-symbols-and-escapes)
 
@@ -341,9 +342,124 @@ A `markmap` block turns a Markdown outline into a mind map:
 - Mermaid
 - PlantUML
 - Markmap
+## Plugins
+- Graphviz
+- Charts
+- CSV and BibTeX
+- Note Query
+- Excalidraw
+- Themes
 ```
 
 All three render offline and are included in HTML and PDF exports. Markmap shows a static, fully expanded map with plain-text labels. PlantUML uses its built-in Smetana layout; external includes and libraries are not loaded.
+
+---
+
+## Plugins
+
+Everything above is built in. Devot's official plugins draw a few more kinds of block, and none of them is installed until you ask for it: on the Mac, open _Settings > Plugins_, find the plugin under _Official Plugins_ and click its _Install_ button. Devot shows what the plugin asks for before anything is installed.
+
+> [!NOTE]
+> Without its plugin, a block below stays plain code. That is not an error: the note keeps the block as written, and it draws as soon as the plugin is on. A drawing travels with the note, so the iPhone shows what the Mac drew. Exports and printing show plugin blocks as code.
+
+### The route, as a graph
+
+The **Graphviz** plugin draws a `dot` block:
+
+```dot
+digraph route {
+  rankdir=LR
+  node [shape=box, style=rounded]
+  Coast -> Valley -> Bridge -> Loft
+  Valley -> Ridge [style=dashed, label="hawk?"]
+  Ridge -> Bridge [style=dashed]
+}
+```
+
+### A week of deliveries, as a chart
+
+The **Charts** plugin draws a `chart` block, from rows of a label and numbers. `type: line` or `type: bar` and a `title:` go first:
+
+```chart
+type: line
+title: Notes delivered
+day, Pidge, Rook
+Mon, 4, 2
+Tue, 6, 3
+Wed, 5, 5
+Thu, 8, 4
+Fri, 7, 6
+```
+
+### The roster, from CSV
+
+The **CSV Tables** plugin shows a `csv` block as a table, and imports `.csv` and `.tsv` files as notes (_File > Import_):
+
+```csv
+Pigeon,Ring,Flights,Best time
+Pidge,0042,128,2h 30m
+Rook,0017,96,2h 55m
+Biscuit,0108,12,4h 10m
+```
+
+### The keeper's reading list, from BibTeX
+
+The **BibTeX References** plugin shows a `bibtex` block as a reference list, and imports `.bib` files:
+
+```bibtex
+@article{keeton1971,
+  author  = {Keeton, William T.},
+  title   = {Magnets Interfere with Pigeon Homing},
+  journal = {Proceedings of the National Academy of Sciences},
+  year    = {1971},
+  volume  = {68},
+  number  = {1},
+  pages   = {102--106}
+}
+
+@article{walcott1996,
+  author  = {Walcott, Charles},
+  title   = {Pigeon Homing: Observations, Experiments and Confusions},
+  journal = {Journal of Experimental Biology},
+  year    = {1996},
+  volume  = {199},
+  pages   = {21--27}
+}
+```
+
+### Your notes, as a live table
+
+The **Note Query** plugin turns a `query` block into a table or list of the notes that match, each linked to its note. It is drawn again whenever a note changes:
+
+```query
+TABLE notebook AS "Notebook", updated AS "Last changed"
+SORT updated DESC
+LIMIT 5
+```
+
+`FROM #tag` or `FROM "Notebook"` narrows it, and `WHERE` filters by `status`, dates or any front matter property, such as `WHERE tags contains "example"`.
+
+### The loft, as a sketch
+
+The **Excalidraw** plugin draws an `excalidraw` block as a hand-drawn sketch. The block holds the sketch as JSON, so it travels with the note, and an empty block is a blank page to start from. With the note open in the editor, _Edit_ on the drawing opens a whiteboard, and _Done_ writes the sketch back into the block:
+
+```excalidraw
+{
+  "type": "excalidraw",
+  "version": 2,
+  "elements": [
+    {"type": "rectangle", "x": 220, "y": 40, "width": 140, "height": 100, "roundness": {"type": 3}, "seed": 1},
+    {"type": "text", "x": 266, "y": 75, "width": 48, "height": 30, "text": "Loft", "originalText": "Loft", "fontSize": 24, "seed": 2},
+    {"type": "ellipse", "x": 0, "y": 60, "width": 90, "height": 60, "seed": 3},
+    {"type": "text", "x": 18, "y": 78, "width": 54, "height": 25, "text": "Pidge", "originalText": "Pidge", "fontSize": 20, "seed": 4},
+    {"type": "arrow", "x": 100, "y": 90, "width": 110, "height": 0, "points": [[0, 0], [110, 0]], "endArrowhead": "arrow", "seed": 5}
+  ]
+}
+```
+
+### Colours
+
+Theme plugins (Catppuccin, Tokyo Night, Dracula, Nord, Gruvbox, Solarized, Rosé Pine and One) add colour themes for light and dark. Once one is installed, choose its card in _Settings > Appearance_.
 
 ---
 

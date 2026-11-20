@@ -178,6 +178,7 @@ export function App() {
   const { library, filter, workspace, inTrash, inTemplates, libraryBook, activeFilter } = view
   const { workspaceNode, layouts, setLibrary, setFilter, setWorkspace, tree, counts } = view
   const { multiIds, selectedNote, selectedIsTemplate, agentWrites, boardShown, galleryShown } = view
+  const { tableShown } = view
   const showAlertMenu = useAlertMenu()
   const setImageSize = useCallback<SetImageSize>((source, size) => {
     editorRef.current?.setImageSize(source, size)
@@ -462,6 +463,7 @@ export function App() {
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const plugins = usePlugins(core, {
     openNote: () => openNote,
+    showNote: (id) => void select(id),
     applyUpdate: applyToOpenNote,
     editor: () => editorRef.current,
     importBook: () => libraryBook?.id ?? null,
@@ -655,7 +657,7 @@ export function App() {
       data-sidebar-hidden={sidebarOff || undefined}
       data-narrow={narrow || undefined}
       data-board={boardShown || undefined}
-      data-gallery={galleryShown || undefined}
+      data-gallery={galleryShown || tableShown || undefined}
     >
       <ToolTips />
       {librarySidebar.sidebar}
@@ -675,6 +677,7 @@ export function App() {
         openTrashed={trashActions.openTrashed}
         making={making}
         sidebarMenus={sidebarMenus}
+        applyToOpenNote={applyToOpenNote}
       />
       <NotePane
         core={core}

@@ -15,9 +15,9 @@ import {
   saveEdits,
   type AskedQuit,
 } from './saveGuards'
-import { welcomeContent } from './welcome/content'
 import { listSeeded } from './welcome/seed'
 import { libraryWrote } from './plugins/libraryTurn'
+import { loadWelcome } from './welcome/load'
 
 export function useCoreSession() {
   const [core, setCore] = useState<Core>()
@@ -101,7 +101,7 @@ export function useCoreStart(
           (!DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome)
         await listSeeded(
           () => refresh(c),
-          seeds ? () => c.seedWelcome(welcomeContent()) : undefined,
+          seeds ? () => loadWelcome().then((content) => c.seedWelcome(content)) : undefined,
         )
         setListsLoaded(true)
         nextSheet()

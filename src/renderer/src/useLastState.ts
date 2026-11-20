@@ -100,6 +100,7 @@ export function useLastState({
       workspace: workspaceId,
       boards: layouts.boards,
       galleries: layouts.galleries,
+      tables: layouts.tables,
       note: noteState.current,
       beforeTrash: libraryState.current,
       keyboard: () => inEditor(document.activeElement),
