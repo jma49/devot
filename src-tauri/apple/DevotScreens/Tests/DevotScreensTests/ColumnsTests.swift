@@ -114,6 +114,12 @@ final class ColumnsTests: XCTestCase {
         let notes = try showNotes()
         let list = try XCTUnwrap(notes.stack.topViewController)
         let room = list.view.safeAreaInsets
+        let tabBar = tabs.tabBar.convert(tabs.tabBar.bounds, to: nil)
+        if tabBar.minY < harness.window.bounds.midY {
+            let bar = notes.stack.navigationBar
+            XCTAssertGreaterThanOrEqual(
+                bar.convert(bar.bounds, to: nil).minY, tabBar.maxY - 0.5, "the lists' bar sits below the tabs")
+        }
         open(first, "First")
         let one = try XCTUnwrap(notes.notes.topViewController as? EditorScreen)
         XCTAssertFalse(one.hidesBottomBarWhenPushed, "the tabs follow the bar, never a push")

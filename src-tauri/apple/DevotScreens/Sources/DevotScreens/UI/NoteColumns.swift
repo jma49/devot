@@ -60,7 +60,21 @@ final class NoteColumns: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         fit(width: view.bounds.width, traits: traitCollection)
+        keepTabsRoom()
         place()
+    }
+
+    /// UIKit gives a container of its own the room of the tabs floating over its top only once they
+    /// next hide and show, so until then its bars sit under them: the columns make up the difference.
+    private func keepTabsRoom() {
+        var room: CGFloat = 0
+        if let tabs = tabBarController, !tabs.isTabBarHidden, view.window != nil {
+            let bar = tabs.tabBar.convert(tabs.tabBar.bounds, to: view)
+            let given = view.safeAreaInsets.top - additionalSafeAreaInsets.top
+            if bar.minY < view.bounds.midY { room = max(0, bar.maxY - given) }
+        }
+        guard additionalSafeAreaInsets.top != room else { return }
+        additionalSafeAreaInsets.top = room
     }
 
     private func fit(width: CGFloat, traits: UITraitCollection) {
