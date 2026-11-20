@@ -63,6 +63,8 @@ final class DocumentScanner: NSObject, VNDocumentCameraViewControllerDelegate {
     nonisolated func documentCameraViewController(
         _ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan
     ) {
+        // The camera calls this on the main thread, and nothing else holds the scan.
+        nonisolated(unsafe) let scan = scan
         MainActor.assumeIsolated {
             let pages = (0..<scan.pageCount).map { scan.imageOfPage(at: $0) }
             controller.dismiss(animated: true)
