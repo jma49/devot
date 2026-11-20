@@ -33,6 +33,7 @@ export const messages: Record<keyof typeof en, string> = {
   'aiSettings.cliReady': '已就绪',
   'aiSettings.cliSignedOut': '需要登录',
   'aiSettings.cliNotInstalled': '未安装',
+  'aiSettings.cliChecking': '正在检查…',
   'aiSettings.cliUse': '使用',
   'aiSettings.cliUseLabel': '使用 {provider}',
   'aiSettings.cliRefreshed': '已检查已安装的 AI 工具。',

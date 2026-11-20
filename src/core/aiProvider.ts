@@ -146,7 +146,8 @@ export interface AiProviderView {
   reasoning: string | null
 }
 
-export type AiCliState = 'ready' | 'signedOut' | 'notInstalled'
+/** `checking`: Settings opened before the tools' first check answered. */
+export type AiCliState = 'ready' | 'signedOut' | 'notInstalled' | 'checking'
 
 export interface AiCliProviderView {
   state: AiCliState
@@ -208,7 +209,10 @@ function asCliProviderView(value: unknown): AiCliProviderView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { state, model, reasoning } = value as Record<string, unknown>
   if (
-    (state !== 'ready' && state !== 'signedOut' && state !== 'notInstalled') ||
+    (state !== 'ready' &&
+      state !== 'signedOut' &&
+      state !== 'notInstalled' &&
+      state !== 'checking') ||
     typeof model !== 'string'
   ) {
     return undefined

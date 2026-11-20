@@ -54,12 +54,21 @@ pub enum CliState {
     SignedOut,
     #[default]
     NotInstalled,
+    /// Only in a settings view, before the first probe has answered.
+    Checking,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CliStates {
     pub claude_cli: CliState,
     pub codex_cli: CliState,
+}
+
+impl CliStates {
+    pub const CHECKING: Self = Self {
+        claude_cli: CliState::Checking,
+        codex_cli: CliState::Checking,
+    };
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

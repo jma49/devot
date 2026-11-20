@@ -23,6 +23,7 @@ import {
   aiProviders,
   choiceName,
   choose,
+  cliChecking,
   chooseReasoning,
   isFirstRun,
   mainChoice,
@@ -156,6 +157,8 @@ export function suggestStatusText(status: SuggestStatus, modelName: string): str
       return t('aiSettings.suggest.licence')
     case 'noNotebooks':
       return t('aiSettings.suggest.noNotebooks')
+    case 'checking':
+      return t('aiSettings.cliChecking')
     case 'provider':
       return format(t(SUGGEST_REASONS[status.code]), {
         provider: t(PROVIDER_NAMES[status.provider]),
@@ -240,6 +243,19 @@ export function AiSection() {
 
   const opened = useEffectEvent((loaded: AiSettingsView) => {
     queue.loaded(loaded)
+    if (cliChecking(loaded)) {
+      // A change made meanwhile waits in the queue and is built on the checked answer.
+      void queue.run(refreshAiCli).then(
+        (checked) => {
+          if (mounted.current && checked.cli)
+            void loadCatalogs(AI_CLI_PROVIDERS, false).catch(() => undefined)
+        },
+        (e: unknown) => {
+          if (mounted.current) setLoadError(logFailure(errorCode(e), 'W_AI_SETTINGS_FAILED'))
+        },
+      )
+      return
+    }
     // The local tools list their models from this Mac; a cloud provider's list waits to be asked for.
     if (loaded.cli) void loadCatalogs(AI_CLI_PROVIDERS, false).catch(() => undefined)
   })
@@ -587,7 +603,11 @@ export function AiSection() {
                 role="status"
               >
                 {status.kind === 'off' ? null : (
-                  <StateDot state={status.kind === 'ready' ? 'ok' : 'warn'} />
+                  <StateDot
+                    state={
+                      status.kind === 'ready' ? 'ok' : status.kind === 'checking' ? 'off' : 'warn'
+                    }
+                  />
                 )}
                 {suggestStatusText(status, suggestName)}
               </span>

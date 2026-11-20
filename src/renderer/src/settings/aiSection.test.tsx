@@ -18,7 +18,7 @@ const http = {
   key: 'unset',
   reasoning: null,
 } as const
-const tool = (state: 'ready' | 'signedOut' | 'notInstalled') => ({
+const tool = (state: 'ready' | 'signedOut' | 'notInstalled' | 'checking') => ({
   state,
   model: '',
   reasoning: null,
@@ -160,6 +160,33 @@ const railButton = (name: string) =>
   )
 
 describe('Settings > AI', () => {
+  it('shows the pane before the local tools are checked, and fills it in once they are', async () => {
+    const checked = stored
+    stored = { ...stored, cli: { codexCli: tool('checking'), claudeCli: tool('checking') } }
+    let answer: (view: AiSettingsView) => void = () => undefined
+    rust((command) =>
+      command === 'ai_cli_refresh'
+        ? new Promise<AiSettingsView>((resolve) => {
+            answer = resolve
+          })
+        : undefined,
+    )
+    await pane()
+    expect(host.querySelector('[data-setting="aiSettings.model"]')?.textContent).toContain(
+      'Codex · Checking…',
+    )
+    expect(calls('ai_cli_refresh')).toHaveLength(1)
+    expect(calls('ai_models')).toEqual([])
+
+    stored = checked
+    await act(async () => answer(checked))
+    await settle()
+    expect(host.querySelector('[data-setting="aiSettings.model"]')?.textContent).toContain(
+      'Codex · Ready',
+    )
+    expect(calls('ai_models')).toEqual([{ providers: ['claudeCli', 'codexCli'], refresh: false }])
+  })
+
   it('lists the local tools’ models when it opens, and a cloud provider’s only once that provider is opened', async () => {
     stored = { ...stored, openai: { ...http, key: 'set' } }
     await pane()

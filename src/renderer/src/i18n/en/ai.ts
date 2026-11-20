@@ -34,6 +34,7 @@ export const messages = {
   'aiSettings.cliReady': 'Ready',
   'aiSettings.cliSignedOut': 'Sign-in needed',
   'aiSettings.cliNotInstalled': 'Not installed',
+  'aiSettings.cliChecking': 'Checking…',
   'aiSettings.cliUse': 'Use',
   'aiSettings.cliUseLabel': 'Use {provider}',
   'aiSettings.cliRefreshed': 'Checked installed AI tools.',
