@@ -50,6 +50,7 @@ export const STATE_NAMES: Record<ProviderState, MessageKey> = {
   keyUnavailable: 'aiSettings.status.keyUnavailable',
   signedOut: 'aiSettings.cliSignedOut',
   notInstalled: 'aiSettings.cliNotInstalled',
+  checking: 'aiSettings.cliChecking',
 }
 
 /** Initials, not words: the mark stands beside the provider's name and is hidden from speech. */
@@ -576,6 +577,9 @@ function Note(props: {
   const name = t(PROVIDER_NAMES[props.provider])
   if (note.kind === 'loading') {
     return <p className="model-picker-note">{t('aiSettings.modelsLoading')}</p>
+  }
+  if (note.kind === 'blocked' && note.state === 'checking') {
+    return <p className="model-picker-note">{t('aiSettings.cliChecking')}</p>
   }
   if (note.kind === 'failed') {
     return (

@@ -1,6 +1,7 @@
 // What Settings > AI shows about providers and models, worked out from Rust's settings and model
 // lists: each provider's state, the rows of the model picker, and why suggestions would not run.
 import {
+  AI_CLI_PROVIDERS,
   isCliProvider,
   type AiCatalog,
   type AiCatalogModel,
@@ -20,6 +21,7 @@ export type ProviderState =
   | 'keyUnavailable'
   | 'signedOut'
   | 'notInstalled'
+  | 'checking'
 
 export type StateDot = 'ok' | 'warn' | 'off'
 
@@ -30,6 +32,7 @@ export const STATE_DOTS: Record<ProviderState, StateDot> = {
   keyUnavailable: 'off',
   signedOut: 'warn',
   notInstalled: 'off',
+  checking: 'off',
 }
 
 /** The providers this build can use: the local tools only where Rust reports them. */
@@ -54,8 +57,13 @@ export function providerState(view: AiSettingsView, id: AiProviderId): ProviderS
   }
 }
 
+/** Settings opened before the local tools' first check answered: the pane shows at once and fills in when it does. */
+export const cliChecking = (view: AiSettingsView): boolean =>
+  AI_CLI_PROVIDERS.some((id) => view.cli?.[id].state === 'checking')
+
 /** Nothing can answer the Model setting until a key is added or a tool is ready, so the pane leads with how to set one up. A missing model is chosen in the picker instead. */
 export function isFirstRun(view: AiSettingsView): boolean {
+  if (cliChecking(view)) return false
   const ready = providerReady(view, 'main')
   return ready !== 'ready' && ready !== 'E_AI_MODEL_MISSING'
 }
@@ -404,6 +412,7 @@ export type SuggestStatus =
   | { kind: 'off' }
   | { kind: 'licence' }
   | { kind: 'noNotebooks' }
+  | { kind: 'checking' }
   | {
       kind: 'provider'
       provider: AiProviderId
@@ -418,8 +427,9 @@ export function suggestStatus(
   if (!view.suggestOnIdle) return { kind: 'off' }
   if (!context.licensed) return { kind: 'licence' }
   if (context.allowedNotebooks === 0) return { kind: 'noNotebooks' }
-  const ready = providerReady(view, 'suggest')
   const choice = suggestChoice(view)
+  if (providerState(view, choice.provider) === 'checking') return { kind: 'checking' }
+  const ready = providerReady(view, 'suggest')
   if (ready !== 'ready') return { kind: 'provider', provider: choice.provider, code: ready }
   return { kind: 'ready', choice }
 }

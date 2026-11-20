@@ -1633,6 +1633,23 @@
         }
       }
     },
+    "aiSettings.cliChecking" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在检查…"
+          }
+        }
+      }
+    },
     "aiSettings.cliNotInstalled" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -130,6 +130,10 @@ public enum L10n {
     text("aiSettings.cliNotInstalled", "Not installed")
   }
 
+  public static func aiSettingsCliChecking() -> String {
+    text("aiSettings.cliChecking", "Checking…")
+  }
+
   public static func aiSettingsCliUse() -> String {
     text("aiSettings.cliUse", "Use")
   }
