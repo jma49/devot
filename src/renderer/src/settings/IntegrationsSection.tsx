@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { CHOOSE_AI_ACCESS } from '../aiAccess'
 import { errorCode } from '../backups'
 import { Chevron } from '../Chevron'
 import { writeClipboardText } from '../clipboard'
@@ -7,6 +6,7 @@ import { format, t, type MessageKey } from '../i18n'
 import { SettingsSection } from './controls'
 import { HttpApiSection } from './HttpApiSection'
 import { McpAccessSection } from './McpAccessSection'
+import { openNotebookPicker } from './notebookPicker'
 import {
   claudeCodeCommand,
   clientStateLog,
@@ -25,7 +25,6 @@ import {
   disconnectMcpClient,
   mcpSetup,
   openMcpExtension,
-  showMainWindow,
   type AiAccessSummary,
 } from './window'
 import { failureText, logFailure } from '../failure'
@@ -81,18 +80,6 @@ const CONNECT_LABEL: Readonly<Record<McpConnectionState, MessageKey | null>> = {
   stale: 'integrations.reconnect',
   other: 'integrations.replace',
   unreadable: null,
-}
-
-/** Opens the AI access picker in the main window: the flag in the storage both windows share asks it to. */
-function openNotebookPicker() {
-  try {
-    localStorage.setItem(CHOOSE_AI_ACCESS, '1')
-  } catch {
-    // Without the shared storage the main window still opens; the picker is one menu away.
-  }
-  void showMainWindow().catch((e: unknown) =>
-    console.warn('W_MAIN_WINDOW_SHOW_FAILED', errorCode(e)),
-  )
 }
 
 /** Every configuration to copy, folded away under one disclosure at the end of the Clients card. */

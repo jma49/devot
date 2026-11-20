@@ -1,54 +1,107 @@
 import type { Page } from '@playwright/test'
 import { expect, openSettings, test } from './fixtures'
 
-// Settings > AI. Rust is faked in the page: it keeps the settings and says
-// only whether a key is stored, as the real commands do.
+// Settings > AI. Rust is faked in the page: it keeps the settings, says only whether a key is
+// stored, lists each provider's models and answers Try It, as the real commands do.
 
 const SECRET = 'sk-test-0123456789'
 
-async function fakeRust(page: Page, failing?: string, storedKey = 'unset', keyFailing?: string) {
-  await page.addInitScript(
-    ([failure, initial, keyFailure]) => {
-      const w = window
-      const provider = (endpoint: string, model: string, defaultModel: string) => ({
-        endpoint,
-        model,
-        defaultEndpoint: endpoint,
-        defaultModel,
-        key: initial,
-      })
-      const state: Record<string, any> = {
-        active: 'anthropic',
-        suggestOnIdle: false,
-        anthropic: provider('https://api.anthropic.com', 'claude-sonnet-5-5', 'claude-sonnet-5-5'),
-        openai: provider('https://api.openai.com/v1', '', ''),
-      }
-      const copy = () => JSON.parse(JSON.stringify(state))
-      w.devotIpcMocks = {
-        ai_settings_get: () => copy(),
-        ai_settings_set: (args: { settings: Record<string, any> }) => {
-          if (failure) throw failure
-          for (const id of ['anthropic', 'openai']) {
-            state[id].endpoint = args.settings[id].endpoint
-            state[id].model = args.settings[id].model
-          }
-          state['active'] = args.settings['active']
-          state['suggestOnIdle'] = args.settings['suggestOnIdle']
-          return copy()
-        },
-        ai_key_set: (args: { provider: string }) => {
-          if (keyFailure) throw keyFailure
-          state[args.provider].key = 'set'
-          return copy()
-        },
-        ai_key_clear: (args: { provider: string }) => {
-          state[args.provider].key = 'unset'
-          return copy()
-        },
-      }
-    },
-    [failing, storedKey, keyFailing ?? null] as const,
-  )
+interface Options {
+  codex?: 'ready' | 'signedOut' | 'notInstalled'
+  claude?: 'ready' | 'signedOut' | 'notInstalled'
+  active?: string
+  refuseSave?: string
+  allowed?: number
+}
+
+async function fakeRust(page: Page, options: Options = {}) {
+  await page.addInitScript((o: Options) => {
+    const w = window
+    const http = (endpoint: string) => ({
+      endpoint: '',
+      model: '',
+      defaultEndpoint: endpoint,
+      defaultModel: '',
+      key: 'unset',
+      reasoning: null,
+    })
+    const state: Record<string, any> = {
+      active: o.active ?? 'claudeCli',
+      suggestOnIdle: false,
+      anthropic: http('https://api.anthropic.com'),
+      openai: http('https://api.openai.com/v1'),
+      cli: {
+        claudeCli: { state: o.claude ?? 'ready', model: '', reasoning: null },
+        codexCli: { state: o.codex ?? 'ready', model: '', reasoning: null },
+      },
+      suggestModel: null,
+    }
+    const model = (id: string, name: string, tier: string | null, reasoning: string[] = []) => ({
+      id,
+      name,
+      tier,
+      reasoning,
+      defaultReasoning: reasoning.length > 0 ? 'medium' : null,
+    })
+    const lists: Record<string, unknown> = {
+      codexCli: {
+        state: 'ready',
+        defaultModel: 'gpt-5.5',
+        models: [
+          model('gpt-5.5', 'GPT-5.5', 'best', ['low', 'medium', 'high']),
+          model('gpt-5.5-mini', 'GPT-5.5 Mini', 'fast'),
+        ],
+      },
+      claudeCli: {
+        state: 'ready',
+        defaultModel: null,
+        models: [
+          model('opus', 'Opus', 'best', ['low', 'medium', 'high']),
+          model('haiku', 'Haiku', 'fast'),
+        ],
+      },
+      openai: {
+        state: 'ready',
+        defaultModel: null,
+        models: [model('o-small', 'O Small', 'fast'), model('o-large', 'O Large', null)],
+      },
+    }
+    const copy = () => JSON.parse(JSON.stringify(state))
+    w.devotIpcMocks = {
+      ai_settings_get: () => copy(),
+      ai_settings_set: (args: { settings: Record<string, any> }) => {
+        if (o.refuseSave) throw o.refuseSave
+        const s = args.settings
+        for (const id of ['anthropic', 'openai']) Object.assign(state[id], s[id])
+        for (const id of ['claudeCli', 'codexCli'])
+          if (s[id]) Object.assign(state['cli'][id], s[id])
+        state['active'] = s['active']
+        state['suggestOnIdle'] = s['suggestOnIdle']
+        state['suggestModel'] = s['suggestModel'] ?? null
+        return copy()
+      },
+      ai_key_set: (args: { provider: string }) => {
+        state[args.provider].key = 'set'
+        return copy()
+      },
+      ai_key_clear: (args: { provider: string }) => {
+        state[args.provider].key = 'unset'
+        return copy()
+      },
+      ai_cli_refresh: () => {
+        state['cli'].codexCli.state = 'ready'
+        return copy()
+      },
+      ai_models: (args: { providers: string[] }) =>
+        Object.fromEntries(args.providers.map((p) => [p, lists[p]])),
+      ai_try: (args: { provider: string; model: string }) => ({
+        provider: args.provider,
+        model: args.model,
+        elapsedMs: 840,
+      }),
+      settings_ai_access_summary: { notebooks: 3, allowed: o.allowed ?? 2 },
+    }
+  }, options)
 }
 
 const calls = (page: Page, cmd: string) =>
@@ -57,231 +110,140 @@ const calls = (page: Page, cmd: string) =>
     cmd,
   )
 
-test('shows Claude as the active provider with its defaults', async ({ page }) => {
+test('one Model pop-up picks a provider’s model, and its reasoning starts at the default', async ({
+  page,
+}) => {
   await fakeRust(page)
   await openSettings(page, 'AI')
   const panel = page.getByRole('tabpanel')
   await expect(panel).toContainText('only when you start an AI action')
-  await expect(panel.getByRole('combobox', { name: 'Provider' })).toHaveValue('anthropic')
-  const claude = panel.getByRole('region', { name: 'Claude (Anthropic)' })
-  await expect(claude.getByRole('textbox', { name: 'Endpoint' })).toHaveValue(
-    'https://api.anthropic.com',
-  )
-  await expect(claude.getByRole('textbox', { name: 'Model' })).toHaveValue('claude-sonnet-5-5')
-  await expect(claude).toContainText('No key is stored.')
-  const other = panel.getByRole('region', { name: 'OpenAI-compatible' })
-  await expect(other).toContainText('The name of the model to ask on this server.')
+  await expect
+    .poll(() => calls(page, 'ai_models'))
+    .toEqual([{ providers: ['claudeCli', 'codexCli'], refresh: false }])
+
+  await panel.getByRole('button', { name: /^Model:/ }).click()
+  const picker = page.getByRole('dialog', { name: 'Choose a Model' })
+  await expect(picker).toBeVisible()
+  await picker.getByRole('button', { name: 'Codex · Ready' }).click()
+  await picker.getByRole('option', { name: /^GPT-5\.5(?! Mini)/ }).click()
+  await expect(picker).toHaveCount(0)
+  await expect
+    .poll(async () => (await calls(page, 'ai_settings_set')).at(-1))
+    .toMatchObject({ settings: { active: 'codexCli', codexCli: { model: 'gpt-5.5' } } })
+  await expect(panel.getByRole('button', { name: /^Model: GPT-5\.5/ })).toBeVisible()
+
+  await panel.getByRole('button', { name: /^Model:/ }).click()
+  const levels = picker.getByRole('group', { name: 'Reasoning' }).getByRole('button')
+  await expect(levels).toHaveText(['Default (Medium)', 'Low', 'Medium', 'High'])
+  await levels.filter({ hasText: /^High$/ }).click()
+  await expect
+    .poll(async () => (await calls(page, 'ai_settings_set')).at(-1))
+    .toMatchObject({ settings: { codexCli: { model: 'gpt-5.5', reasoning: 'high' } } })
+  // A cloud provider's list is asked for only once that provider is opened.
+  expect(
+    (await calls(page, 'ai_models')).some((c) => (c as any).providers.includes('openai')),
+  ).toBe(false)
 })
 
-test('picks the active provider and saves an endpoint and a model on leaving the field', async ({
+test('search finds models of every provider, and Return picks the first', async ({ page }) => {
+  await fakeRust(page)
+  await openSettings(page, 'AI')
+  await page
+    .getByRole('tabpanel')
+    .getByRole('button', { name: /^Model:/ })
+    .click()
+  const picker = page.getByRole('dialog', { name: 'Choose a Model' })
+  const search = picker.getByRole('combobox', { name: 'Search all models' })
+  await expect(search).toBeFocused()
+  await search.fill('mini')
+  await expect(picker.getByRole('option')).toHaveText([/GPT-5\.5 Mini/])
+  await search.press('Enter')
+  await expect
+    .poll(async () => (await calls(page, 'ai_settings_set')).at(-1))
+    .toMatchObject({ settings: { active: 'codexCli', codexCli: { model: 'gpt-5.5-mini' } } })
+})
+
+test('a key is added from Providers and Keys and checked by listing its models', async ({
   page,
 }) => {
   await fakeRust(page)
   await openSettings(page, 'AI')
   const panel = page.getByRole('tabpanel')
-  await panel.getByRole('combobox', { name: 'Provider' }).selectOption('openai')
-  await expect.poll(async () => (await calls(page, 'ai_settings_set')).length).toBe(1)
-
-  const other = panel.getByRole('region', { name: 'OpenAI-compatible' })
-  await other.getByRole('textbox', { name: 'Endpoint' }).fill('http://localhost:11434/v1')
-  // Moving on to the next field stores the endpoint; Return stores the model.
-  await other.getByRole('textbox', { name: 'Model' }).fill('llama3.2:3b')
-  await other.getByRole('textbox', { name: 'Model' }).press('Enter')
-  await expect.poll(async () => (await calls(page, 'ai_settings_set')).length).toBe(3)
-  expect((await calls(page, 'ai_settings_set')).at(-1)).toEqual({
-    settings: {
-      active: 'openai',
-      suggestOnIdle: false,
-      anthropic: { endpoint: 'https://api.anthropic.com', model: 'claude-sonnet-5-5' },
-      openai: { endpoint: 'http://localhost:11434/v1', model: 'llama3.2:3b' },
-    },
-  })
-  await expect(panel.getByRole('combobox', { name: 'Provider' })).toHaveValue('openai')
-  // Leaving a field that did not change stores nothing.
-  await other.getByRole('textbox', { name: 'Model' }).focus()
-  await other.getByRole('textbox', { name: 'Endpoint' }).focus()
-  await page.getByRole('combobox', { name: 'Provider' }).focus()
-  expect(await calls(page, 'ai_settings_set')).toHaveLength(3)
-})
-
-test('a key goes to Rust, is cleared from the page, keeps the keyboard on Save Key and can be removed', async ({
-  page,
-}) => {
-  await fakeRust(page)
-  await openSettings(page, 'AI')
-  const claude = page.getByRole('region', { name: 'Claude (Anthropic)' })
-  const field = claude.getByLabel('API key for Claude (Anthropic)')
-  const save = claude.getByRole('button', { name: 'Save Key' })
-  const remove = claude.getByRole('button', { name: 'Remove Key' })
-  await expect(save).toBeDisabled()
-  await expect(remove).toBeDisabled()
-
-  await field.fill(SECRET)
-  // As the keyboard reaches it: focused, then Enter (WebKit does not focus on a click).
-  await save.focus()
-  await expect(save).toBeFocused()
-  await page.keyboard.press('Enter')
-  await expect(claude).toContainText('A key is stored in the Keychain.')
-  // aria-disabled, not disabled: the button stays under the keyboard (A121).
-  await expect(save).toBeDisabled()
-  await expect(save).toBeFocused()
-  await expect(field).toHaveValue('')
-  await expect(page.getByRole('tabpanel').getByRole('status')).toHaveText(
-    'The Claude (Anthropic) key was saved.',
-  )
-  expect(await calls(page, 'ai_key_set')).toEqual([{ provider: 'anthropic', key: SECRET }])
-  // Nothing of the key stays in the page.
+  await panel.getByRole('button', { name: /^Providers and Keys/ }).click()
+  await panel.getByRole('button', { name: 'Add a key for OpenAI-compatible' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Add Key for OpenAI-compatible' })
+  const key = sheet.getByLabel('API key for OpenAI-compatible')
+  await expect(key).toBeFocused()
+  await key.fill(SECRET)
+  await sheet.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(sheet).toContainText('Key works · 2 models found.')
+  await expect(sheet).toContainText('O Large')
+  expect(await calls(page, 'ai_key_set')).toEqual([{ provider: 'openai', key: SECRET }])
+  expect((await calls(page, 'ai_models')).at(-1)).toEqual({ providers: ['openai'], refresh: true })
+  await expect(key).toHaveValue('')
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(
+    panel.getByRole('button', { name: 'Change the key for OpenAI-compatible' }),
+  ).toBeVisible()
   expect(await page.content()).not.toContain(SECRET)
-  expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain(SECRET)
-
-  await remove.click()
-  await expect(claude).toContainText('No key is stored.')
-  expect(await calls(page, 'ai_key_clear')).toEqual([{ provider: 'anthropic' }])
 })
 
-test('a refused change shows its code and puts the stored values back', async ({ page }) => {
-  await fakeRust(page, 'E_AI_ENDPOINT_INVALID')
-  await openSettings(page, 'AI')
-  const claude = page.getByRole('region', { name: 'Claude (Anthropic)' })
-  const endpoint = claude.getByRole('textbox', { name: 'Endpoint' })
-  await endpoint.fill('http://example.com')
-  await endpoint.press('Enter')
-  await expect(page.getByRole('alert')).toHaveText('The AI settings could not be saved.')
-  await expect(endpoint).toHaveValue('https://api.anthropic.com')
-})
-
-test('a keychain that cannot be read still lets a key be replaced or removed', async ({ page }) => {
-  await fakeRust(page, undefined, 'unknown')
-  await openSettings(page, 'AI')
-  const claude = page.getByRole('region', { name: 'Claude (Anthropic)' })
-  await expect(claude).toContainText('The Keychain could not be read.')
-  const field = claude.getByLabel('API key for Claude (Anthropic)')
-  await expect(field).toBeEnabled()
-  await field.fill(SECRET)
-  await expect(claude.getByRole('button', { name: 'Save Key' })).toBeEnabled()
-  await claude.getByRole('button', { name: 'Remove Key' }).click()
-  await expect(claude).toContainText('No key is stored.')
-})
-
-test('suggestions on a pause are off until turned on, and say what they send', async ({ page }) => {
+test('Try It answers in the pane under the model', async ({ page }) => {
   await fakeRust(page)
   await openSettings(page, 'AI')
   const panel = page.getByRole('tabpanel')
-  const toggle = panel.getByRole('switch', { name: 'Suggest When I Pause' })
-  await expect(toggle).not.toBeChecked()
-  await expect(toggle).toHaveAccessibleDescription(
-    /at most 2,000 characters before the caret and 500 after it/,
-  )
-  await toggle.check()
-  await expect
-    .poll(async () => (await calls(page, 'ai_settings_set')).at(-1))
-    .toMatchObject({
-      settings: { suggestOnIdle: true, active: 'anthropic' },
-    })
-  await expect(toggle).toBeChecked()
-  const model = panel
-    .getByRole('region', { name: 'Claude (Anthropic)' })
-    .getByRole('textbox', { name: 'Model' })
-  await model.fill('claude-other')
-  await model.press('Enter')
-  await expect
-    .poll(async () => (await calls(page, 'ai_settings_set')).at(-1))
-    .toMatchObject({
-      settings: { suggestOnIdle: true },
-    })
+  await panel.getByRole('button', { name: /^Model:/ }).click()
+  await page
+    .getByRole('dialog', { name: 'Choose a Model' })
+    .getByRole('button', { name: 'Try It' })
+    .click()
+  await expect(panel).toContainText('Answered in 0.8 s.')
+  expect(await calls(page, 'ai_try')).toEqual([
+    { provider: 'claudeCli', model: '', reasoning: null },
+  ])
 })
 
-test('a refused key is reported beside its own field', async ({ page }) => {
-  await fakeRust(page, undefined, 'unset', 'E_AI_KEY_INVALID')
-  await openSettings(page, 'AI')
-  const claude = page.getByRole('region', { name: 'Claude (Anthropic)' })
-  const field = claude.getByLabel('API key for Claude (Anthropic)')
-  await field.fill('not a key')
-  await claude.getByRole('button', { name: 'Save Key' }).click()
-  // The pane may be scrolled to the provider: the error belongs beside the field (A122).
-  const error = claude.getByRole('alert')
-  await expect(error).toHaveText('The key could not be changed.')
-  await expect(field).toHaveAccessibleDescription(/The key could not be changed\./)
-  // Typing a new key clears it.
-  await field.fill('another')
-  await expect(error).toHaveCount(0)
-})
-
-test('discovers local CLI providers On This Mac, refreshes login status, switches active provider and saves a model override', async ({
+test('suggestions say why they would not run, and a local tool offers a cloud suggestion model', async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    const w = window
-    const provider = (endpoint: string, model: string, defaultModel: string) => ({
-      endpoint,
-      model,
-      defaultEndpoint: endpoint,
-      defaultModel,
-      key: 'unset',
-    })
-    const state: Record<string, any> = {
-      active: 'claudeCli',
-      suggestOnIdle: false,
-      anthropic: provider('https://api.anthropic.com', 'claude-sonnet-5-5', 'claude-sonnet-5-5'),
-      openai: provider('https://api.openai.com/v1', '', ''),
-      cli: {
-        claudeCli: { state: 'ready', model: '' },
-        codexCli: { state: 'signedOut', model: '' },
-      },
-    }
-    const copy = () => JSON.parse(JSON.stringify(state))
-    w.devotIpcMocks = {
-      ai_settings_get: () => copy(),
-      ai_settings_set: (args: { settings: Record<string, any> }) => {
-        for (const id of ['anthropic', 'openai']) {
-          state[id].endpoint = args.settings[id].endpoint
-          state[id].model = args.settings[id].model
-        }
-        if (args.settings['claudeCli'])
-          state['cli'].claudeCli.model = args.settings['claudeCli'].model
-        if (args.settings['codexCli']) state['cli'].codexCli.model = args.settings['codexCli'].model
-        state['active'] = args.settings['active']
-        state['suggestOnIdle'] = args.settings['suggestOnIdle']
-        return copy()
-      },
-      ai_cli_refresh: () => {
-        state['cli'].codexCli.state = 'ready'
-        return copy()
-      },
-    }
-  })
-
+  await fakeRust(page, { allowed: 0 })
   await openSettings(page, 'AI')
   const panel = page.getByRole('tabpanel')
-  const local = panel.getByRole('region', { name: 'On This Mac' })
-  const claudeRow = local.getByRole('group', { name: 'Claude Code' })
-  const codexRow = local.getByRole('group', { name: 'Codex' })
+  await expect(panel).toContainText('0 of 3 notebooks allow AI access.')
+  await panel.getByRole('switch', { name: 'Suggest When I Pause' }).check()
+  await expect(panel).toContainText('No suggestions: no notebook allows AI access.')
+  await expect(panel).toContainText('A cloud model with a key keeps suggestions quick.')
+  await panel.getByRole('button', { name: /^Suggestion Model:/ }).click()
+  const picker = page.getByRole('dialog', { name: 'Choose a Model' })
+  await expect(picker.getByRole('option').first()).toContainText('Same as Model')
+  await picker.getByRole('button', { name: 'Claude (Anthropic) · Needs an API key' }).click()
+  await expect(picker).toContainText('Claude (Anthropic) is not set up')
+  await expect(picker.getByRole('button', { name: 'Add Key…' })).toBeVisible()
+})
 
-  await expect(claudeRow).toContainText('Ready')
-  await expect(claudeRow.locator('.client-state-dot')).toHaveAttribute('data-state', 'ready')
-  await expect(claudeRow.getByRole('button', { name: 'Claude Code is active' })).toBeDisabled()
-  await expect(codexRow).toContainText('Sign-in needed')
-  await expect(codexRow.locator('.client-state-dot')).toHaveAttribute('data-state', 'signedOut')
-  await expect(codexRow.getByRole('button', { name: 'Use Codex' })).toBeDisabled()
-  await expect(panel.getByRole('combobox', { name: 'Provider' })).toHaveValue('claudeCli')
+test('with nothing set up, the pane lists the tools found on this Mac', async ({ page }) => {
+  await fakeRust(page, { codex: 'signedOut', claude: 'notInstalled', active: 'anthropic' })
+  await openSettings(page, 'AI')
+  const panel = page.getByRole('tabpanel')
+  const start = panel.getByRole('region', { name: 'Choose How Devot Reaches AI' })
+  await expect(start.getByRole('group', { name: 'Codex' })).toContainText('Sign-in needed')
+  await expect(start.getByRole('group', { name: 'Claude Code' })).toContainText('Not installed')
+  await expect(panel.getByRole('button', { name: /^Model:/ })).toHaveCount(0)
+  await start.getByRole('button', { name: 'Check Codex again' }).click()
+  await start.getByRole('button', { name: 'Use Codex' }).click()
+  await expect(panel.getByRole('button', { name: /^Model:/ })).toBeVisible()
+})
 
-  await local.getByRole('button', { name: 'Refresh' }).click()
-  await expect(codexRow).toContainText('Ready')
-  await expect(codexRow.getByRole('button', { name: 'Use Codex' })).toBeEnabled()
-
-  await codexRow.getByRole('button', { name: 'Use Codex' }).click()
-  await expect(panel.getByRole('combobox', { name: 'Provider' })).toHaveValue('codexCli')
-  await expect(codexRow.getByRole('button', { name: 'Codex is active' })).toBeDisabled()
-
-  const codexModel = local.getByRole('textbox', { name: 'Codex model' })
-  await codexModel.fill('gpt-5.4')
-  await codexModel.press('Enter')
-  await expect
-    .poll(async () => (await calls(page, 'ai_settings_set')).at(-1))
-    .toMatchObject({
-      settings: {
-        active: 'codexCli',
-        codexCli: { model: 'gpt-5.4' },
-      },
-    })
+test('a refused change says so and keeps the stored model', async ({ page }) => {
+  await fakeRust(page, { refuseSave: 'E_AI_ENDPOINT_INVALID' })
+  await openSettings(page, 'AI')
+  const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: /^Model:/ }).click()
+  await page
+    .getByRole('dialog', { name: 'Choose a Model' })
+    .getByRole('option', { name: /^Haiku/ })
+    .click()
+  await expect(page.getByRole('alert')).toHaveText('The AI settings could not be saved.')
+  await expect(panel.getByRole('button', { name: /^Model: Default/ })).toBeVisible()
 })

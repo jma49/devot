@@ -86,20 +86,20 @@ public enum L10n {
     text("aiSettings.suggestOnIdle", "Suggest When I Pause")
   }
 
-  public static func aiSettingsSuggestOnIdleHint(before p0: String, after p1: String) -> String {
-    fill(text("aiSettings.suggestOnIdleHint", "Off, a suggestion is asked for only when you use Suggest Next Edit. On, one is also asked for a moment after you stop typing. Each request sends at most {before} characters before the caret and {after} after it, from notes in a notebook with Allow AI Access on."), ["before": p0, "after": p1])
+  public static func aiSettingsLede() -> String {
+    text("aiSettings.lede", "Devot sends text only when you start an AI action, and only from notebooks that allow AI access.")
   }
 
-  public static func aiSettingsActiveTitle() -> String {
-    text("aiSettings.activeTitle", "Active Provider")
+  public static func aiSettingsModelTitle() -> String {
+    text("aiSettings.modelTitle", "Model")
   }
 
-  public static func aiSettingsActive() -> String {
-    text("aiSettings.active", "Provider")
+  public static func aiSettingsModelValue(label p0: String, model p1: String, provider p2: String) -> String {
+    fill(text("aiSettings.modelValue", "{label}: {model}, {provider}"), ["label": p0, "model": p1, "provider": p2])
   }
 
-  public static func aiSettingsActiveHint() -> String {
-    text("aiSettings.activeHint", "The provider AI features use.")
+  public static func aiSettingsProviderStatus(provider p0: String, status p1: String) -> String {
+    fill(text("aiSettings.providerStatus", "{provider} · {status}"), ["provider": p0, "status": p1])
   }
 
   public static func aiSettingsProviderAnthropic() -> String {
@@ -118,14 +118,6 @@ public enum L10n {
     text("aiSettings.provider.codexCli", "Codex")
   }
 
-  public static func aiSettingsLocalTitle() -> String {
-    text("aiSettings.localTitle", "On This Mac")
-  }
-
-  public static func aiSettingsLocalFootnote() -> String {
-    text("aiSettings.localFootnote", "Devot detects Claude Code and Codex installed on this Mac and uses your existing sign-in, with no API key needed. Tools run without file access or extensions, and receive only notes from notebooks with Allow AI Access on.")
-  }
-
   public static func aiSettingsCliReady() -> String {
     text("aiSettings.cliReady", "Ready")
   }
@@ -142,48 +134,312 @@ public enum L10n {
     text("aiSettings.cliUse", "Use")
   }
 
-  public static func aiSettingsCliActive() -> String {
-    text("aiSettings.cliActive", "Active")
-  }
-
   public static func aiSettingsCliUseLabel(provider p0: String) -> String {
     fill(text("aiSettings.cliUseLabel", "Use {provider}"), ["provider": p0])
   }
 
-  public static func aiSettingsCliActiveLabel(provider p0: String) -> String {
-    fill(text("aiSettings.cliActiveLabel", "{provider} is active"), ["provider": p0])
-  }
-
-  public static func aiSettingsCliModelLabel(provider p0: String) -> String {
-    fill(text("aiSettings.cliModelLabel", "{provider} model"), ["provider": p0])
-  }
-
-  public static func aiSettingsCliModelHint() -> String {
-    text("aiSettings.cliModelHint", "Optional model override. Leave empty for the tool’s default.")
-  }
-
-  public static func aiSettingsCliModelDefault() -> String {
-    text("aiSettings.cliModelDefault", "Default")
-  }
-
-  public static func aiSettingsCliRefreshTitle() -> String {
-    text("aiSettings.cliRefreshTitle", "Installed Tools")
-  }
-
-  public static func aiSettingsCliRefreshHint() -> String {
-    text("aiSettings.cliRefreshHint", "Check again after installing or signing in to Claude Code or Codex.")
-  }
-
-  public static func aiSettingsCliRefresh() -> String {
-    text("aiSettings.cliRefresh", "Refresh")
-  }
-
-  public static func aiSettingsCliRefreshing() -> String {
-    text("aiSettings.cliRefreshing", "Checking…")
-  }
-
   public static func aiSettingsCliRefreshed() -> String {
     text("aiSettings.cliRefreshed", "Checked installed AI tools.")
+  }
+
+  public static func aiSettingsStatusNeedsKey() -> String {
+    text("aiSettings.status.needsKey", "Needs an API key")
+  }
+
+  public static func aiSettingsStatusKeyUnknown() -> String {
+    text("aiSettings.status.keyUnknown", "The Keychain could not be read")
+  }
+
+  public static func aiSettingsStatusKeyUnavailable() -> String {
+    text("aiSettings.status.keyUnavailable", "The Keychain cannot be used")
+  }
+
+  public static func aiSettingsDefaultModel() -> String {
+    text("aiSettings.defaultModel", "Default")
+  }
+
+  public static func aiSettingsDefaultModelNamed(model p0: String) -> String {
+    fill(text("aiSettings.defaultModelNamed", "Default ({model})"), ["model": p0])
+  }
+
+  public static func aiSettingsReasoning() -> String {
+    text("aiSettings.reasoning", "Reasoning")
+  }
+
+  public static func aiSettingsDefaultReasoning() -> String {
+    text("aiSettings.defaultReasoning", "Default")
+  }
+
+  public static func aiSettingsDefaultReasoningNamed(level p0: String) -> String {
+    fill(text("aiSettings.defaultReasoningNamed", "Default ({level})"), ["level": p0])
+  }
+
+  public static func aiSettingsLevelNone() -> String {
+    text("aiSettings.level.none", "None")
+  }
+
+  public static func aiSettingsLevelMinimal() -> String {
+    text("aiSettings.level.minimal", "Minimal")
+  }
+
+  public static func aiSettingsLevelLow() -> String {
+    text("aiSettings.level.low", "Low")
+  }
+
+  public static func aiSettingsLevelMedium() -> String {
+    text("aiSettings.level.medium", "Medium")
+  }
+
+  public static func aiSettingsLevelHigh() -> String {
+    text("aiSettings.level.high", "High")
+  }
+
+  public static func aiSettingsLevelXhigh() -> String {
+    text("aiSettings.level.xhigh", "Extra High")
+  }
+
+  public static func aiSettingsLevelMax() -> String {
+    text("aiSettings.level.max", "Max")
+  }
+
+  public static func aiSettingsPicker() -> String {
+    text("aiSettings.picker", "Choose a Model")
+  }
+
+  public static func aiSettingsPickerSearch() -> String {
+    text("aiSettings.pickerSearch", "Search all models")
+  }
+
+  public static func aiSettingsPickerModels() -> String {
+    text("aiSettings.pickerModels", "Models")
+  }
+
+  public static func aiSettingsPickerProviders() -> String {
+    text("aiSettings.pickerProviders", "Providers")
+  }
+
+  public static func aiSettingsRecent() -> String {
+    text("aiSettings.recent", "Recent")
+  }
+
+  public static func aiSettingsTierFast() -> String {
+    text("aiSettings.tier.fast", "fast")
+  }
+
+  public static func aiSettingsTierBest() -> String {
+    text("aiSettings.tier.best", "best")
+  }
+
+  public static func aiSettingsOtherModel() -> String {
+    text("aiSettings.otherModel", "Other Model ID…")
+  }
+
+  public static func aiSettingsOtherModelField(provider p0: String) -> String {
+    fill(text("aiSettings.otherModelField", "Model ID for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsUseModelId(id p0: String) -> String {
+    fill(text("aiSettings.useModelId", "Use “{id}” as a model ID"), ["id": p0])
+  }
+
+  public static func aiSettingsNotSetUpGroup(provider p0: String) -> String {
+    fill(text("aiSettings.notSetUpGroup", "{provider} · not set up"), ["provider": p0])
+  }
+
+  public static func aiSettingsBlockedTitle(provider p0: String) -> String {
+    fill(text("aiSettings.blocked.title", "{provider} is not set up"), ["provider": p0])
+  }
+
+  public static func aiSettingsBlockedKey() -> String {
+    text("aiSettings.blocked.key", "Add a key and Devot lists the models it can use.")
+  }
+
+  public static func aiSettingsBlockedSignedOut() -> String {
+    text("aiSettings.blocked.signedOut", "Sign in to it in Terminal, then Check Again.")
+  }
+
+  public static func aiSettingsBlockedNotInstalled() -> String {
+    text("aiSettings.blocked.notInstalled", "Install it on this Mac, then Check Again.")
+  }
+
+  public static func aiSettingsModelsLoading() -> String {
+    text("aiSettings.modelsLoading", "Listing models…")
+  }
+
+  public static func aiSettingsModelsFailed() -> String {
+    text("aiSettings.modelsFailed", "The models could not be listed.")
+  }
+
+  public static func aiSettingsTryAgain() -> String {
+    text("aiSettings.tryAgain", "Try Again")
+  }
+
+  public static func aiSettingsAddKey() -> String {
+    text("aiSettings.addKey", "Add Key…")
+  }
+
+  public static func aiSettingsChangeKey() -> String {
+    text("aiSettings.changeKey", "Change Key…")
+  }
+
+  public static func aiSettingsAddKeyLabel(provider p0: String) -> String {
+    fill(text("aiSettings.addKeyLabel", "Add a key for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsChangeKeyLabel(provider p0: String) -> String {
+    fill(text("aiSettings.changeKeyLabel", "Change the key for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsCheckAgain() -> String {
+    text("aiSettings.checkAgain", "Check Again")
+  }
+
+  public static func aiSettingsCheckAgainLabel(provider p0: String) -> String {
+    fill(text("aiSettings.checkAgainLabel", "Check {provider} again"), ["provider": p0])
+  }
+
+  public static func aiSettingsTryIt() -> String {
+    text("aiSettings.tryIt", "Try It")
+  }
+
+  public static func aiSettingsTrying(model p0: String) -> String {
+    fill(text("aiSettings.trying", "Asking {model}…"), ["model": p0])
+  }
+
+  public static func aiSettingsTried(seconds p0: String) -> String {
+    fill(text("aiSettings.tried", "Answered in {seconds} s."), ["seconds": p0])
+  }
+
+  public static func aiSettingsTryFailed() -> String {
+    text("aiSettings.tryFailed", "No answer came.")
+  }
+
+  public static func aiSettingsSameAsModel() -> String {
+    text("aiSettings.sameAsModel", "Same as Model")
+  }
+
+  public static func aiSettingsNotebooks() -> String {
+    text("aiSettings.notebooks", "Notebooks")
+  }
+
+  public static func aiSettingsNotebooksCount(allowed p0: String, notebooks p1: String) -> String {
+    fill(text("aiSettings.notebooksCount", "{allowed} of {notebooks} notebooks allow AI access."), ["allowed": p0, "notebooks": p1])
+  }
+
+  public static func aiSettingsChooseNotebooks() -> String {
+    text("aiSettings.chooseNotebooks", "Choose…")
+  }
+
+  public static func aiSettingsSuggestHint() -> String {
+    text("aiSettings.suggestHint", "Ghost text appears a moment after you stop typing at the end of a line. Tab accepts it.")
+  }
+
+  public static func aiSettingsSuggestFootnote(before p0: String, after p1: String) -> String {
+    fill(text("aiSettings.suggestFootnote", "Each request sends at most {before} characters before the caret and {after} after it."), ["before": p0, "after": p1])
+  }
+
+  public static func aiSettingsSuggestModel() -> String {
+    text("aiSettings.suggestModel", "Suggestion Model")
+  }
+
+  public static func aiSettingsSuggestModelHint() -> String {
+    text("aiSettings.suggestModelHint", "A fast model keeps suggestions quick.")
+  }
+
+  public static func aiSettingsSuggestModelLocalHint() -> String {
+    text("aiSettings.suggestModelLocalHint", "A tool on this Mac answers slowly. A cloud model with a key keeps suggestions quick.")
+  }
+
+  public static func aiSettingsSuggestReady(model p0: String) -> String {
+    fill(text("aiSettings.suggest.ready", "Ready: {model} suggests in notebooks that allow AI access."), ["model": p0])
+  }
+
+  public static func aiSettingsSuggestLicence() -> String {
+    text("aiSettings.suggest.licence", "No suggestions: AI needs a Devot license.")
+  }
+
+  public static func aiSettingsSuggestNoNotebooks() -> String {
+    text("aiSettings.suggest.noNotebooks", "No suggestions: no notebook allows AI access.")
+  }
+
+  public static func aiSettingsSuggestNoKey(provider p0: String) -> String {
+    fill(text("aiSettings.suggest.noKey", "No suggestions: {provider} has no key."), ["provider": p0])
+  }
+
+  public static func aiSettingsSuggestNoModel(provider p0: String) -> String {
+    fill(text("aiSettings.suggest.noModel", "No suggestions: choose a model for {provider}."), ["provider": p0])
+  }
+
+  public static func aiSettingsSuggestCliMissing(provider p0: String) -> String {
+    fill(text("aiSettings.suggest.cliMissing", "No suggestions: {provider} is not installed."), ["provider": p0])
+  }
+
+  public static func aiSettingsSuggestSignedOut(provider p0: String) -> String {
+    fill(text("aiSettings.suggest.signedOut", "No suggestions: sign in to {provider}."), ["provider": p0])
+  }
+
+  public static func aiSettingsProvidersTitle() -> String {
+    text("aiSettings.providersTitle", "Providers and Keys")
+  }
+
+  public static func aiSettingsProvidersSummary(ready p0: String, other p1: String) -> String {
+    fill(text("aiSettings.providersSummary", "{ready} ready · {other} not set up"), ["ready": p0, "other": p1])
+  }
+
+  public static func aiSettingsFirstRunTitle() -> String {
+    text("aiSettings.firstRunTitle", "Choose How Devot Reaches AI")
+  }
+
+  public static func aiSettingsFirstRunFootnote() -> String {
+    text("aiSettings.firstRunFootnote", "Claude Code and Codex use your existing sign-in, with no key. They run without file access or extensions.")
+  }
+
+  public static func aiSettingsFirstRunNoTools() -> String {
+    text("aiSettings.firstRunNoTools", "No AI tool was found on this Mac. Add a key, or install Claude Code or Codex and Check Again.")
+  }
+
+  public static func aiSettingsAddKeyTitle(provider p0: String) -> String {
+    fill(text("aiSettings.addKeyTitle", "Add Key for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsChangeKeyTitle(provider p0: String) -> String {
+    fill(text("aiSettings.changeKeyTitle", "Change Key for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsKeySheetDetail() -> String {
+    text("aiSettings.keySheetDetail", "Requests go from this Mac straight to the provider, with your own key, kept in the macOS Keychain.")
+  }
+
+  public static func aiSettingsKeyPlaceholder() -> String {
+    text("aiSettings.keyPlaceholder", "Paste a key")
+  }
+
+  public static func aiSettingsCustomEndpoint() -> String {
+    text("aiSettings.customEndpoint", "Custom Endpoint")
+  }
+
+  public static func aiSettingsCheckingKey() -> String {
+    text("aiSettings.checkingKey", "Checking the key…")
+  }
+
+  public static func aiSettingsKeyWorksOne(count p0: String) -> String {
+    fill(text("aiSettings.keyWorksOne", "Key works · {count} model found."), ["count": p0])
+  }
+
+  public static func aiSettingsKeyWorksOther(count p0: String) -> String {
+    fill(text("aiSettings.keyWorksOther", "Key works · {count} models found."), ["count": p0])
+  }
+
+  public static func aiSettingsKeyCheckFailed() -> String {
+    text("aiSettings.keyCheckFailed", "The key was saved, but no models could be listed.")
+  }
+
+  public static func aiSettingsEndpointFailed() -> String {
+    text("aiSettings.endpointFailed", "The endpoint could not be saved.")
+  }
+
+  public static func aiSettingsDone() -> String {
+    text("aiSettings.done", "Done")
   }
 
   public static func aiSettingsEndpoint() -> String {
