@@ -321,20 +321,51 @@ fn indexing_waits_for_saves_to_be_quiet() {
         quiet: Duration::from_millis(250),
         ..fast()
     };
-    let library = library_paced(&[], pace);
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::spawn(&dir.path().join("devot.sqlite")).unwrap();
+    let model = Hashed::default();
+    let made = model.clone();
+    let (observed, observations) = mpsc::channel();
+    let elapsed = Arc::new(Mutex::new(pace.quiet - Duration::from_millis(1)));
+    let clock = Arc::clone(&elapsed);
+    let semantic = Semantic::start_with_activity(
+        db.clone(),
+        dir.path().join(FILE),
+        Box::new(move || Some(Box::new(made))),
+        Gate::open(),
+        pace,
+        Box::new(move |db| {
+            let (writes, _) = db.writes();
+            let since = (writes > 0).then(|| *clock.lock().unwrap());
+            let _ = observed.send(writes);
+            (writes, since)
+        }),
+    );
+    let library = Library {
+        _dir: dir,
+        db,
+        semantic,
+        model,
+    };
     ready(&library, 0);
     for at in 0..30 {
         put(
             &library.db,
             record(A, "Garden", &format!("Water {at}"), 10 + at),
         );
-        std::thread::sleep(Duration::from_millis(10));
+        loop {
+            let seen = observations.recv_timeout(Duration::from_secs(10)).unwrap();
+            if seen == library.db.writes().0 {
+                break;
+            }
+        }
         assert_eq!(
             embedded(&library),
             0,
             "nothing is embedded while saves go on"
         );
     }
+    *elapsed.lock().unwrap() = pace.quiet;
     ready(&library, 1);
     assert!(embedded(&library) > 0);
 }
