@@ -55,6 +55,7 @@ function links(ready: boolean, launched: unknown[] = []) {
     licenceLink: { handle: () => {} } as unknown as ReturnType<typeof useLicenceLink>,
     startImport: async () => null,
     enqueueImport: () => {},
+    pluginImports: { installed: [], importDropped: async () => ({ ids: [], failed: false }) },
     showLibrary,
     showLibraryRef: { current: showLibrary },
     select,

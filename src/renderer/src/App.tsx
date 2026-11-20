@@ -594,6 +594,7 @@ export function App() {
     licenceLink,
     startImport,
     enqueueImport: sheets.enqueueImport,
+    pluginImports: plugins,
     showLibrary: viewChanges.showLibrary,
     showLibraryRef,
     select,

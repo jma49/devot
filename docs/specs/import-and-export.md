@@ -20,6 +20,9 @@ Only Markdown, supported images and a detected vault's canvas files are scanned,
 Vault settings use the same defaults and validation as native folder scans.
 The notebook shown when the folder is dropped is its destination, or the sheet asks as usual when no notebook is shown.
 Loose files mixed with directories are imported and opened separately, while directories wait for confirmation in the sheet.
+Loose files matching an enabled plugin's permitted import format use that plugin's converter and open the first captured note in the same destination as other loose files.
+Built-in Markdown and HTML handling takes priority over plugin extensions, and supported images retain their attachment behavior.
+Plugin drops share the picker's limits of 20 UTF-8 files of at most 5 MiB each; a failed or unsupported drop shows the same notice as other dropped files.
 Cancelling or closing an unstarted dropped import releases its browser files without finishing a native session.
 
 ### File picker

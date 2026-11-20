@@ -14,6 +14,8 @@ import type { Selection } from '../Sidebar'
 import { DEFAULT_CHOICES } from '../importChoices'
 import { droppedImport } from '../dropImport'
 import { droppedFolders } from '../dropFolders'
+import { routeImport } from '../plugins/importFiles'
+import type { usePlugins } from '../plugins/usePlugins'
 import { storage } from '../core-client'
 import { t } from '../i18n'
 import { useStable } from '../stable'
@@ -29,6 +31,7 @@ export function useAppDeepLinks({
   licenceLink,
   startImport,
   enqueueImport,
+  pluginImports,
   showLibrary,
   showLibraryRef,
   select,
@@ -48,6 +51,7 @@ export function useAppDeepLinks({
   licenceLink: ReturnType<typeof useLicenceLink>
   startImport: ReturnType<typeof useSheets>['startImport']
   enqueueImport: ReturnType<typeof useSheets>['enqueueImport']
+  pluginImports: Pick<ReturnType<typeof usePlugins>, 'installed' | 'importDropped'>
   showLibrary: (next: Selection, options?: { clearFilter?: boolean }) => void
   showLibraryRef: RefObject<
     ((next: Selection, options?: { clearFilter?: boolean }) => void) | undefined
@@ -73,6 +77,16 @@ export function useAppDeepLinks({
       mounted.current = false
     }
   }, [])
+  const importDestination = useStable(async (c: Core, notebook: string | null, bookId?: string) => {
+    const listed = await c.listBooks()
+    if (!editing) throw new Error('E_LICENCE_REQUIRED')
+    const to = openDestination(notebook, listed, editorSettings().defaultNotebook)
+    return bookId && listed.some((b) => b.id === bookId)
+      ? bookId
+      : to.kind === 'create'
+        ? await c.createBook(to.name, null)
+        : to.id
+  })
   const runHandoff = useStable(
     async (
       link: Extract<DeepLink, { kind: 'import' }>,
@@ -86,16 +100,7 @@ export function useAppDeepLinks({
         return
       }
       try {
-        // The notebooks as storage has them now, not as the last render showed them.
-        const listed = await c.listBooks()
-        if (!editing) throw new Error('E_LICENCE_REQUIRED')
-        const to = openDestination(link.notebook, listed, editorSettings().defaultNotebook)
-        const destination =
-          bookId && listed.some((b) => b.id === bookId)
-            ? bookId
-            : to.kind === 'create'
-              ? await c.createBook(to.name, null)
-              : to.id
+        const destination = await importDestination(c, link.notebook, bookId)
         const report = await startImport(link.scan, destination, () => {}, DEFAULT_CHOICES, input)
         if (!mounted.current) return
         const id = report ? firstImported(report.noteIds, link.scan.files, link.first) : undefined
@@ -128,6 +133,20 @@ export function useAppDeepLinks({
       enqueueImport(input.scan, input)
     },
   )
+  const runPluginDrop = useStable(async (files: File[], bookId?: string) => {
+    const c = coreRef.current
+    if (!mounted.current || !c) return
+    const destination = await importDestination(c, null, bookId)
+    const result = await pluginImports.importDropped(files, destination)
+    if (!mounted.current) return
+    if (result.ids[0]) {
+      showLibraryRef.current?.(destination ? { kind: 'book', id: destination } : { kind: 'all' }, {
+        clearFilter: true,
+      })
+      await select(result.ids[0])
+    }
+    if (!result.ids.length || result.failed) setLinkNotice('dropFailed')
+  })
   const handleDrag = useEffectEvent((phase: 'over' | 'drop', event: DragEvent) => {
     const hasFiles = (drag: DragEvent) => drag.dataTransfer?.types.includes('Files')
     const editorImages = (drag: DragEvent) => {
@@ -185,8 +204,12 @@ export function useAppDeepLinks({
                 await droppedFolders(directories, (meta, bytes) => storage.putFile(meta, bytes)),
                 bookId,
               )
-            if (files.length || !directories.length) {
-              const input = droppedImport(files, (meta, bytes) => storage.putFile(meta, bytes))
+            const converted = files.filter(
+              (file) => routeImport(file.name, pluginImports.installed).kind === 'plugin',
+            )
+            const builtins = files.filter((file) => !converted.includes(file))
+            if (builtins.length || (!directories.length && !converted.length)) {
+              const input = droppedImport(builtins, (meta, bytes) => storage.putFile(meta, bytes))
               await runHandoff(
                 {
                   kind: 'import',
@@ -198,6 +221,7 @@ export function useAppDeepLinks({
                 bookId,
               )
             }
+            if (converted.length) await runPluginDrop(converted, bookId)
           } catch {
             if (mounted.current) setLinkNotice('dropFailed')
           }

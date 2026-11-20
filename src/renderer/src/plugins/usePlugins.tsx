@@ -43,7 +43,6 @@ import {
   editableRenderers,
   rendererSpecs,
   slashCommands,
-  stopsImport,
   type PluginAction,
 } from './contributions'
 import { frameConnector, showFrame } from './frames'
@@ -53,6 +52,8 @@ import { pluginRenderersChanged } from './rendererRevision'
 import { keptDrawingsChanged } from '../preview/keptDrawings'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
+import { useStable } from '../stable'
+import { importPluginFiles, readPluginFiles, routeImport } from './importFiles'
 
 export interface PluginWindow {
   /** The note open in the editor. */
@@ -275,6 +276,59 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     return given
   }, [plugins])
 
+  const convertFiles = useStable(
+    async (
+      pluginId: string,
+      formatId: string,
+      files: { name: string; text: string }[],
+      destination: string | null,
+    ) => {
+      const { core: c, app: w, plugins: installed } = latest.current
+      const plugin = installed.find((item) => item.manifest.id === pluginId)
+      if (!c || !host || !plugin) throw new Error('E_PLUGIN_STOPPED')
+      let failed = false
+      const ids = await importPluginFiles(
+        plugin,
+        formatId,
+        files,
+        host,
+        c,
+        destination,
+        editingAllowed,
+        (error) => {
+          failed = true
+          fail(pluginId, error)
+        },
+      )
+      if (ids.length) w.imported()
+      return { ids, failed }
+    },
+  )
+
+  const importDropped = useStable(async (files: File[], destination: string | null) => {
+    const read = await readPluginFiles(files)
+    const groups = new Map<string, { plugin: string; format: string; files: typeof read }>()
+    for (const file of read) {
+      const route = routeImport(file.name, latest.current.plugins)
+      if (route.kind !== 'plugin') throw new Error('E_PLUGIN_FORMAT_UNKNOWN')
+      const key = `${route.plugin.manifest.id}/${route.format}`
+      let group = groups.get(key)
+      if (!group) {
+        group = { plugin: route.plugin.manifest.id, format: route.format, files: [] }
+        groups.set(key, group)
+      }
+      group.files.push(file)
+    }
+    const ids: string[] = []
+    let failed = false
+    for (const group of groups.values()) {
+      const result = await convertFiles(group.plugin, group.format, group.files, destination)
+      ids.push(...result.ids)
+      failed ||= result.failed
+    }
+    return { ids, failed }
+  })
+
   const act = useCallback(
     async (action: PluginAction) => {
       const { core: c, app: w } = latest.current
@@ -288,22 +342,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
           if (!c) return
           const files = await pickImportFiles(action.plugin, action.id)
           if (!files) return
-          let made = 0
-          try {
-            for (const file of files) {
-              try {
-                const note = await host.convertImport(action.plugin, action.id, file)
-                await c.capture(note.title, note.markdown, w.importBook())
-                made += 1
-              } catch (error) {
-                fail(action.plugin, error)
-                // A plugin that hangs or stopped would cost every remaining file its own wait.
-                if (stopsImport(error)) break
-              }
-            }
-          } finally {
-            if (made > 0) w.imported()
-          }
+          await convertFiles(action.plugin, action.id, files, w.importBook())
         } else {
           const open = w.openNote()
           if (!c || !open) return
@@ -318,7 +357,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         fail(action.plugin, error)
       }
     },
-    [host, fail],
+    [host, fail, convertFiles],
   )
 
   const slash = useMemo(() => slashCommands(plugins), [plugins])
@@ -424,5 +463,5 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     </div>
   ) : null
 
-  return { entries, act, sheet, notice }
+  return { entries, act, sheet, notice, installed: plugins, importDropped }
 }

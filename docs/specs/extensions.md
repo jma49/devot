@@ -52,5 +52,7 @@ Part of the [architecture overview](../architecture.md).
   - **UI:** a plugin shows its frame only from one of its commands (`ui.show`), in a sheet titled with its name, with Close; the frames stay in that sheet while it is closed, so showing one never reloads it.
     Closing tells the plugin (`ui.hidden`).
   - **Plugin kit** (ADR 0024): `plugin-kit/` holds the API's types and the `devot-plugin` command (`new`, `validate`, `pack`), bundled from the app's manifest rules (`pnpm plugin-kit:build`); its tests in `tests/plugin-kit/` keep it in step with the runtime and the package limits.
+    Loose file drops also match enabled, permitted import formats by extension, case-insensitively, after built-in Markdown, HTML and image handling.
+    The picker and drop path share conversion and capture, enforce the same 20-file and 5 MiB UTF-8 limits, and use the import permission; a drop opens the first captured note in the current or default notebook.
   - **Tests:** `tests/ui/plugins-sandbox.spec.ts` (a hostile plugin cannot reach Tauri, the main window, another plugin, the network or a note without permission), `tests/ui/plugins.spec.ts` (each contribution point), `tests/ui/plugin-settings.spec.ts`, `tests/ui-csp/csp.spec.ts` (a plugin under the production policy), `src/renderer/src/plugins/host.test.ts`, `src/core/plugins/protocol.test.ts`, `tests/core/plugin-*.test.ts`, and Rust's `plugins` tests (packages, install, serving, menus).
     The UI tests serve the same pages from `src-tauri/plugin-frame/` (`tests/ui/plugins.ts`).

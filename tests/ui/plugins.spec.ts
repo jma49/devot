@@ -68,6 +68,21 @@ const tools = testPlugin(
   TOOLS,
 )
 
+test('dropping a plugin import format converts and opens its captured note', async ({ page }) => {
+  await page.locator('.window[data-ready]').waitFor()
+  await page.locator('.window').evaluate((element) => {
+    const data = new DataTransfer()
+    data.items.add(new File(['converted from a drop'], 'Dropped.shout'))
+    const options = { bubbles: true, cancelable: true, composed: true, dataTransfer: data }
+    element.dispatchEvent(new DragEvent('dragover', options))
+    element.dispatchEvent(new DragEvent('drop', options))
+  })
+  await expect(body(page)).toContainText('CONVERTED FROM A DROP')
+  await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue('Dropped')
+  expect(await calls(page, 'plugin_import_pick')).toEqual([])
+  expect(await calls(page, 'import_finish')).toEqual([])
+})
+
 const denied = testPlugin(
   'com.example.denied',
   ['commands', 'preview'],
