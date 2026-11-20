@@ -193,6 +193,35 @@ describe('Settings > AI', () => {
     expect(host.querySelector('.model-picker')).toBeNull()
   })
 
+  it('names a cloud model as its list last showed it, before that list is fetched again', async () => {
+    stored = { ...stored, active: 'openai', openai: { ...http, key: 'set', model: 'o-large' } }
+    await pane()
+    expect(modelButton('Model').getAttribute('aria-label')).toContain('o-large')
+    await click(modelButton('Model'))
+    await settle()
+    act(() => root.unmount())
+
+    vi.mocked(invoke).mockClear()
+    root = createRoot(host)
+    await pane()
+    expect(calls('ai_models')).toEqual([{ providers: ['claudeCli', 'codexCli'], refresh: false }])
+    expect(modelButton('Model').getAttribute('aria-label')).toContain('O Large')
+  })
+
+  it('adds a model to Recent only once its save is accepted', async () => {
+    rust((command) =>
+      command === 'ai_settings_set' ? Promise.reject(new Error('E_AI_SETTINGS_WRITE')) : undefined,
+    )
+    await pane()
+    await click(modelButton('Model'))
+    const mini = [...host.querySelectorAll('.model-picker [role="option"]')].find((o) =>
+      o.textContent?.startsWith('GPT-5.5 Mini'),
+    )
+    await click(mini)
+    await settle()
+    expect(localStorage.getItem('devot.ai.recentModels') ?? '[]').toBe('[]')
+  })
+
   it('saves the model picked, with its provider, and shows Default (Medium) first for its reasoning', async () => {
     await pane()
     await click(modelButton('Model'))

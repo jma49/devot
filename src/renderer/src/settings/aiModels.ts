@@ -107,8 +107,41 @@ export function chosenModel(catalogs: Catalogs, choice: ModelChoice): AiCatalogM
 }
 
 /** The name a choice shows: the model's own, the ID when the list does not hold it, or null for the provider's unnamed default. */
-export function choiceName(catalogs: Catalogs, choice: ModelChoice): string | null {
-  const model = chosenModel(catalogs, choice)
+/** Cloud models as last seen in their provider's list, by the choice that named them (`provider/model`). */
+export type KnownModels = Readonly<Record<string, AiCatalogModel>>
+
+const knownKey = (choice: ModelChoice) => `${choice.provider}/${choice.model}`
+
+/** The chosen model from its list, else as last seen there: a cloud list is fetched only when asked for. */
+export function shownModel(
+  catalogs: Catalogs,
+  known: KnownModels,
+  choice: ModelChoice,
+): AiCatalogModel | undefined {
+  return chosenModel(catalogs, choice) ?? known[knownKey(choice)]
+}
+
+/** The known models of the cloud choices held now, each read again from its list when that list is loaded. */
+export function rememberChoices(
+  known: KnownModels,
+  catalogs: Catalogs,
+  choices: readonly ModelChoice[],
+): KnownModels {
+  const next: Record<string, AiCatalogModel> = {}
+  for (const choice of choices) {
+    if (isCliProvider(choice.provider)) continue
+    const model = shownModel(catalogs, known, choice)
+    if (model) next[knownKey(choice)] = model
+  }
+  return next
+}
+
+export function choiceName(
+  catalogs: Catalogs,
+  choice: ModelChoice,
+  known: KnownModels = {},
+): string | null {
+  const model = shownModel(catalogs, known, choice)
   if (model) return model.name
   return choice.model === '' ? null : choice.model
 }

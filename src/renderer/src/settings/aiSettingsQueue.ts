@@ -10,8 +10,8 @@ export interface AiSettingsQueue {
   shown(): AiSettingsView | undefined
   /** Takes Rust's settings as read when the pane opened. */
   loaded(view: AiSettingsView): void
-  /** Saves `patch` of the settings as they stand when it is sent; settles once Rust answered or refused. */
-  change(patch: (view: AiSettingsView) => AiSettingsView): Promise<void>
+  /** Saves `patch` of the settings as they stand when it is sent; settles false if Rust refused it. */
+  change(patch: (view: AiSettingsView) => AiSettingsView): Promise<boolean>
   /** Runs a call that answers with the settings (a key stored, the tools checked) in turn; rejects with its error. */
   run(call: () => Promise<AiSettingsView>): Promise<AiSettingsView>
 }
@@ -45,17 +45,19 @@ export function createAiSettingsQueue(options: {
       show()
     },
     change(patch) {
-      if (!held) return Promise.resolve()
+      if (!held) return Promise.resolve(false)
       unanswered.push(patch)
       show()
       return after(async () => {
         const before = held
         try {
-          if (!before) return
+          if (!before) return false
           const sent = patch(before)
           if (!options.same(sent, before)) held = await options.save(sent)
+          return true
         } catch (e) {
           options.onRefused(e)
+          return false
         } finally {
           unanswered.splice(unanswered.indexOf(patch), 1)
           show()

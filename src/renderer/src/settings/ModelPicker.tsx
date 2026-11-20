@@ -31,7 +31,9 @@ import {
   type PickerTarget,
   type ProviderNote,
   type ProviderState,
+  type KnownModels,
   type RecentModel,
+  shownModel,
 } from './aiModels'
 
 export const PROVIDER_NAMES: Record<AiProviderId, MessageKey> = {
@@ -98,6 +100,7 @@ export interface ModelPickerProps {
   view: AiSettingsView
   catalogs: Catalogs
   recent: readonly RecentModel[]
+  known: KnownModels
   disabled?: boolean
   describedBy?: string | undefined
   /** The rail moved to a provider, or the picker opened on it: its list may be fetched now. */
@@ -118,9 +121,14 @@ function targetChoice(view: AiSettingsView, target: PickerTarget) {
   return target === 'main' ? mainChoice(view) : suggestChoice(view)
 }
 
-export function modelLabel(catalogs: Catalogs, view: AiSettingsView, target: PickerTarget) {
+export function modelLabel(
+  catalogs: Catalogs,
+  known: KnownModels,
+  view: AiSettingsView,
+  target: PickerTarget,
+) {
   const choice = targetChoice(view, target)
-  const name = choiceName(catalogs, choice)
+  const name = choiceName(catalogs, choice, known)
   return name ?? t('aiSettings.defaultModel')
 }
 
@@ -131,8 +139,8 @@ export function ModelPicker(props: ModelPickerProps) {
   const [open, setOpen] = usePickerOpen(box)
   const choice = targetChoice(view, target)
   const following = target === 'suggest' && view.suggestModel === null
-  const name = modelLabel(catalogs, view, target)
-  const { levels } = reasoningLevels(catalogs, choice)
+  const name = modelLabel(catalogs, props.known, view, target)
+  const levels = shownModel(catalogs, props.known, choice)?.reasoning ?? []
   const sub = following
     ? t('aiSettings.sameAsModel')
     : levels.length > 0

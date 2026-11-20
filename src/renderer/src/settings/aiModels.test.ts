@@ -12,6 +12,8 @@ import {
   pickerSections,
   providerState,
   reasoningLevels,
+  rememberChoices,
+  shownModel,
   settingsChange,
   suggestChoice,
   suggestStatus,
@@ -398,5 +400,30 @@ describe('the suggestion status line', () => {
       kind: 'ready',
       choice: { provider: 'codexCli', model: 'gpt-6.1-sol', reasoning: 'medium' },
     })
+  })
+})
+
+describe('models known from an earlier list', () => {
+  const sonnet = model('claude-sonnet-5-5', { name: 'Sonnet 5.5' })
+  const choice = { provider: 'anthropic', model: 'claude-sonnet-5-5', reasoning: null } as const
+  const listed: Catalogs = {
+    anthropic: { state: 'ready', models: [sonnet], defaultModel: null },
+  }
+
+  it('remembers a cloud choice from its list, and names it once the list is gone', () => {
+    const known = rememberChoices({}, listed, [choice])
+    expect(shownModel({}, known, choice)).toEqual(sonnet)
+    expect(shownModel({ anthropic: { state: 'idle' } }, known, choice)?.name).toBe('Sonnet 5.5')
+  })
+
+  it('keeps only the choices the settings hold, and never a local tool', () => {
+    const known = rememberChoices({}, listed, [choice])
+    const other = { provider: 'anthropic', model: 'claude-haiku-5-5', reasoning: null } as const
+    expect(rememberChoices(known, {}, [other])).toEqual({})
+    expect(
+      rememberChoices({}, catalogs, [
+        { provider: 'codexCli', model: 'gpt-6.1-sol', reasoning: null },
+      ]),
+    ).toEqual({})
   })
 })
