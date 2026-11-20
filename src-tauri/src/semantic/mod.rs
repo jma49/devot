@@ -75,6 +75,7 @@ impl Default for Pace {
 }
 
 type Answer = std::result::Result<Vec<Nearest>, &'static str>;
+type Activity = Box<dyn Fn(&Db) -> (u64, Option<Duration>) + Send>;
 
 struct Search {
     text: String,
@@ -96,6 +97,17 @@ impl Semantic {
         licence: Gate,
         pace: Pace,
     ) -> Self {
+        Self::start_with_activity(db, path, make, licence, pace, Box::new(Db::writes))
+    }
+
+    fn start_with_activity(
+        db: Db,
+        path: PathBuf,
+        make: MakeEmbedder,
+        licence: Gate,
+        pace: Pace,
+        activity: Activity,
+    ) -> Self {
         let (searches, inbox) = mpsc::channel();
         let status = Arc::new(Mutex::new(Status::Starting));
         let worker = Worker {
@@ -103,6 +115,7 @@ impl Semantic {
             licence: licence.clone(),
             status: Arc::clone(&status),
             pace,
+            activity,
         };
         let spawned = std::thread::Builder::new()
             .name("devot-semantic".into())
@@ -141,6 +154,7 @@ struct Worker {
     licence: Gate,
     status: Arc<Mutex<Status>>,
     pace: Pace,
+    activity: Activity,
 }
 
 /// What is left to index, from the last time every note's version was read.
@@ -195,7 +209,7 @@ impl Worker {
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => return,
             }
-            let (writes, since) = self.db.writes();
+            let (writes, since) = (self.activity)(&self.db);
             if let Some(since) = since.filter(|since| *since < self.pace.quiet) {
                 queue.stale.clear();
                 next = Instant::now() + (self.pace.quiet - since);
