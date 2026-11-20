@@ -2,7 +2,9 @@ import UIKit
 import WebKit
 
 /// Moves the one web view between screens. WebKit drops its layers when the view leaves the window
-/// and relayouts the page when its size changes (spike S1), so a move never does either.
+/// and relayouts the page when its size changes (spike S1), so a move never does either: the page
+/// keeps the size of the screen that shows it, the window's except beside an iPad's lists, and the
+/// size a note would open at while it rests.
 @MainActor
 final class WebViewHost {
     let webView: WKWebView
@@ -25,6 +27,7 @@ final class WebViewHost {
         guard let window = webView.window, container.window === window else { return false }
         if webView.superview !== container { container.addSubview(webView) }
         webView.autoresizingMask = []
+        if container !== stage, container.bounds.size != .zero { size = container.bounds.size }
         webView.frame = CGRect(origin: .zero, size: size ?? webView.bounds.size)
         return true
     }
@@ -37,7 +40,13 @@ final class WebViewHost {
     /// The size the web view keeps wherever it is: the window's, once the root has laid out.
     var pageSize: CGSize { size ?? webView.bounds.size }
 
-    func windowSize(_ size: CGSize) {
+    /// The size a note opens at, kept while the web view rests; a screen that shows it sets its own.
+    func restingSize(_ size: CGSize) {
+        guard holder == nil else { return }
+        fit(size)
+    }
+
+    func fit(_ size: CGSize) {
         guard size != .zero, size != self.size else { return }
         self.size = size
         webView.frame = CGRect(origin: webView.frame.origin, size: size)
@@ -62,6 +71,12 @@ class WebHolderScreen: UIViewController {
 
     /// Where the web view goes, full bleed, reporting the window's safe area.
     var webContainer: WindowSafeAreaView { holding }
+
+    /// A turn, a fold or the lists sliding away resize the page with the screen that shows it.
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if host.holder === self { host.fit(webContainer.bounds.size) }
+    }
 
     /// The first callback that guarantees a window, which a move needs.
     override func viewIsAppearing(_ animated: Bool) {

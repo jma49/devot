@@ -3772,6 +3772,10 @@ public enum Tokens {
     public static let phoneSearchEmpty: CGFloat = 56
     public static let phoneHeatCell: CGFloat = 16
     public static let phoneHeatCellWide: CGFloat = 40
+    public static let padSidebarWidth: CGFloat = 300
+    public static let padListWidth: CGFloat = 360
+    public static let padTwoColumns: CGFloat = 960
+    public static let padThreeColumns: CGFloat = 1280
     public static let phoneHeatGap: CGFloat = 4
     public static let phoneHeatLegend: CGFloat = 11
     public static let phoneSectionHead: CGFloat = 40

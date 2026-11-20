@@ -2802,6 +2802,26 @@
       "$value": { "value": 40, "unit": "px" },
       "$description": "The most a day in the heatmap grows to on an iPad, with its gap and corner in proportion."
     },
+    "pad-sidebar-width": {
+      "$type": "dimension",
+      "$value": { "value": 300, "unit": "px" },
+      "$description": "The Library's column on an iPad that shows three columns."
+    },
+    "pad-list-width": {
+      "$type": "dimension",
+      "$value": { "value": 360, "unit": "px" },
+      "$description": "The list's column on an iPad that shows the note beside its list."
+    },
+    "pad-two-columns": {
+      "$type": "dimension",
+      "$value": { "value": 960, "unit": "px" },
+      "$description": "The narrowest regular-width window that shows the note beside its list."
+    },
+    "pad-three-columns": {
+      "$type": "dimension",
+      "$value": { "value": 1280, "unit": "px" },
+      "$description": "The narrowest regular-width window that shows the Library, its list and the note side by side."
+    },
     "phone-heat-gap": {
       "$type": "dimension",
       "$value": { "value": 4, "unit": "px" },

@@ -34,6 +34,8 @@ class ListScreen: UIViewController {
         collection.backgroundColor = Tokens.Color.phoneBackground
         collection.delegate = self as? UICollectionViewDelegate
         collection.allowsMultipleSelectionDuringEditing = true
+        // A hardware keyboard's arrows and Tab move through the rows.
+        collection.allowsFocus = traitCollection.userInterfaceIdiom == .pad
         view.addSubview(collection)
         self.collection = collection
     }
@@ -64,7 +66,10 @@ class ListScreen: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         context.hideEditor {}
+        takeKeysIfFree()
     }
+
+    override var canBecomeFirstResponder: Bool { true }
 }
 
 extension NSCollectionLayoutSection {

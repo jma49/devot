@@ -37,12 +37,38 @@ UIApplication (tao's app delegate, unchanged)
 
 ### At a regular width
 
-The iPad and an unfolded iPhone Duo run the same screens in the phone layout (ADR 0014), so nothing is drawn only for them, but a regular width keeps the screens from stretching.
+The iPad and an unfolded iPhone Duo run the same screens as the iPhone (ADR 0014), and a regular width keeps them from stretching.
+An iPad wide enough lays a tab's stack out in columns (Columns, below); nothing else is drawn only for it.
 
 - Every native list keeps to the system's readable width at a regular width (`keepingReadable`, `readableList` in `ListScreen.swift`), so cards and rows sit in a centred column instead of spanning a landscape screen; a compact width, such as an iPhone in portrait or a narrow Split View pane, keeps its margins.
 - The Settings pages keep to the same width: `keepToTheReadableWidth` makes the sides safe area, read from the navigation stack's readable guide, and the grouped list insets its rows from it while its background runs on.
 - A note wider than `size.reading-width` inside its side safe area centres its column (`.phone-note-scroll`), and the editor cover's title follows, so a note on an iPad reads as a page instead of lines across the screen.
 - Activity's heatmap grows with its card at a regular width, days, gaps and corners in proportion, up to `size.phone-heat-cell-wide` a day, so the fifteen weeks span the card.
+
+### Columns
+
+On an iPad (`DevotTabBarController.usesColumns`), Notes and Library hold their stack in `NoteColumns`, which lays it out by its width (`ColumnLayout`).
+
+- At a regular width of at least `size.pad-two-columns` (960), the lists stay in the first column, `size.pad-list-width` (360) wide, and the notes on top of the stack go to the note's column beside them.
+  The Library at `size.pad-three-columns` (1280) gives its root a column of `size.pad-sidebar-width` (300), the notebook, tag or saved list it opened the next, and the note the rest, as the Mac's sidebar, list and note do.
+  Narrower, or at a compact width (Split View, Slide Over, an iPad mini in portrait, iPhone Duo), the tab is the iPhone's one stack.
+- The stack's order stays the record: routes, a launch and a save read and set `controllers`, and a change of layout moves screens between the columns' stacks without animation, never making or dropping one.
+  While screens move (`rearranging`) no new note is discarded and the page keeps its note.
+- A note opened from a list takes the place of the note shown; one opened from a note (a link, Forward, a copy) is pushed over it, so Back returns to it.
+  New Note takes the place of the note shown, and its list selects its row.
+  The lists' columns lay out at a compact width, with their margins.
+- A list shown beside the note never asks the page to let it go; a note's column left empty (the note trashed, its new note refused) shows No Note Selected and asks it then.
+- The page is the size of the screen that shows it: the note's column beside the lists, the window otherwise; while it rests it keeps the size the next note opens at, so a move never resizes it.
+- The tab bar stays beside the lists; a note pushed over its list in the one stack takes it away, as on the iPhone.
+- The editor's Lists button (`sidebar.left`) and Control-Command-S slide the lists away so the note has the width, and back.
+
+### Keyboard, pointer and Apple Pencil
+
+- The tab bar holds the app's keys and an editor its note's, as `keyCommands`, so a held Command lists them by name: New Note (Command-N), Open Today's Note (Option-Command-T), Search All Notes (Shift-Command-F), Settings (Command-comma); Find in Note (Command-F), with Next and Previous Match (Command-G, Shift-Command-G) and Escape while finding, Toggle Editor and Preview (Command-E), Note Info (Option-Command-I), Back and Forward (Command-[ and Command-]) and the lists (Control-Command-S).
+  They are the Mac's keys for the same commands; the page keeps every key they leave, its formatting ones included.
+- On an iPad a list or a note's screen takes the keys while no field has them (`takeKeysIfFree`), so the keys answer before anything is tapped; the lists' rows take focus, so the arrows and Tab move through them.
+- The bars' buttons, the lists' rows and the editor's glass buttons take the pointer's hover; rows show focus as they show a press.
+- Apple Pencil writes in the editor and in the native fields with Scribble, which WebKit and UIKit bring; a double tap on the Pencil turns between Edit and Preview unless the person's setting ignores it.
 
 ## Install and the kill switch
 

@@ -5954,6 +5954,26 @@ public enum L10n {
     text("phone.tab.search", "Search")
   }
 
+  public static func phoneColumnsNoNote() -> String {
+    text("phone.columns.noNote", "No Note Selected")
+  }
+
+  public static func phoneColumnsNoList() -> String {
+    text("phone.columns.noList", "Choose a List")
+  }
+
+  public static func phoneColumnsHide() -> String {
+    text("phone.columns.hide", "Hide Lists")
+  }
+
+  public static func phoneColumnsShow() -> String {
+    text("phone.columns.show", "Show Lists")
+  }
+
+  public static func phoneKeySettings() -> String {
+    text("phone.key.settings", "Open Settings")
+  }
+
   public static func phoneActivityPeriod() -> String {
     text("phone.activity.period", "Week")
   }

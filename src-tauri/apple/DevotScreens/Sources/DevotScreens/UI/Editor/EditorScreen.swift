@@ -94,6 +94,10 @@ final class EditorScreen: WebHolderScreen {
     private(set) lazy var aiItem = UIBarButtonItem(
         image: UIImage(systemName: "sparkles"),
         primaryAction: UIAction { [weak self] _ in self?.suggest() })
+    /// Beside the lists: slides them away, or back.
+    private(set) lazy var columnsItem = UIBarButtonItem(
+        image: UIImage(systemName: "sidebar.left"),
+        primaryAction: UIAction { [weak self] _ in self?.toggleLists() })
 
     convenience init(
         noteId: String, title: String, tab: Tab, host: WebViewHost, actions: EditorActions,
@@ -166,6 +170,11 @@ final class EditorScreen: WebHolderScreen {
             guard let self else { return false }
             return presentedViewController == nil || holdsKeyboard
         }
+        if traitCollection.userInterfaceIdiom == .pad {
+            let pencil = UIPencilInteraction()
+            pencil.delegate = self
+            view.addInteraction(pencil)
+        }
         if isNew {
             keyField.alpha = 0
             keyField.isAccessibilityElement = false
@@ -176,6 +185,8 @@ final class EditorScreen: WebHolderScreen {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        showColumnsItem()
+        backItem.isEnabled = navigationController?.viewControllers.first !== self
         navigationController?.setNavigationBarHidden(false, animated: animated)
         navigationController?.setToolbarHidden(keyboardUp || finding, animated: animated)
         // The page's own horizontal gestures (text selection, swiping a table) keep the content.
@@ -197,6 +208,7 @@ final class EditorScreen: WebHolderScreen {
     /// Never in the tap: the keyboard is asked for once the push has landed.
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        if !isNew { takeKeysIfFree() }
         guard isNew, !appearedForTyping else { return }
         appearedForTyping = true
         keyField.becomeFirstResponder()
@@ -592,8 +604,41 @@ final class EditorScreen: WebHolderScreen {
         guard let note else { return }
         actions.trash(note.id) { [weak self] in
             guard let self, let navigation = navigationController, navigation.topViewController === self else { return }
-            navigation.popViewController(animated: true)
+            if let columns, columns.notes === navigation {
+                columns.close(self, animated: true)
+            } else {
+                navigation.popViewController(animated: true)
+            }
         }
+    }
+
+    // MARK: Columns
+
+    /// The columns this screen shows in, beside its lists or in their one stack.
+    private var columns: NoteColumns? {
+        navigationController?.parent as? NoteColumns
+    }
+
+    private var besideLists: Bool {
+        guard let columns, let navigation = navigationController else { return false }
+        return columns.notes === navigation
+    }
+
+    func showColumnsItem() {
+        navigationItem.leftItemsSupplementBackButton = true
+        guard besideLists else {
+            navigationItem.leftBarButtonItem = nil
+            return
+        }
+        let hidden = columns?.leadingHidden ?? false
+        columnsItem.accessibilityLabel = hidden ? L10n.phoneColumnsShow() : L10n.phoneColumnsHide()
+        navigationItem.leftBarButtonItem = columnsItem
+    }
+
+    func toggleLists() {
+        guard besideLists, let columns else { return }
+        columns.setLeadingHidden(!columns.leadingHidden)
+        showColumnsItem()
     }
 
     private func share() {
@@ -654,5 +699,70 @@ final class EditorScreen: WebHolderScreen {
                     })))
         shown = sheet
         present(sheet, animated: true)
+    }
+}
+
+// MARK: A hardware keyboard and Apple Pencil
+
+extension EditorScreen: UIPencilInteractionDelegate {
+    override var canBecomeFirstResponder: Bool { true }
+
+    /// The note's own keys, named in the list a held Command shows; the keys the Mac's menus use.
+    override var keyCommands: [UIKeyCommand]? {
+        guard host.holder === self, presentedViewController == nil else { return [] }
+        var commands = [
+            UIKeyCommand(title: L10n.findLabel(), action: #selector(findKey), input: "f", modifierFlags: .command),
+            UIKeyCommand(title: L10n.commandModeToggle(), action: #selector(modeKey), input: "e", modifierFlags: .command),
+            UIKeyCommand(
+                title: L10n.commandNoteInfo(), action: #selector(infoKey), input: "i", modifierFlags: [.command, .alternate]),
+        ]
+        if finding {
+            commands += [
+                UIKeyCommand(title: L10n.findNext(), action: #selector(nextMatchKey), input: "g", modifierFlags: .command),
+                UIKeyCommand(
+                    title: L10n.findPrevious(), action: #selector(previousMatchKey), input: "g",
+                    modifierFlags: [.command, .shift]),
+                UIKeyCommand(title: L10n.phoneFindClose(), action: #selector(closeFindKey), input: UIKeyCommand.inputEscape),
+            ]
+        }
+        if backItem.isEnabled {
+            commands.append(UIKeyCommand(title: L10n.commandBack(), action: #selector(backKey), input: "[", modifierFlags: .command))
+        }
+        if forward != nil {
+            commands.append(
+                UIKeyCommand(title: L10n.commandForward(), action: #selector(forwardKey), input: "]", modifierFlags: .command))
+        }
+        if besideLists, let columns {
+            commands.append(
+                UIKeyCommand(
+                    title: columns.leadingHidden ? L10n.phoneColumnsShow() : L10n.phoneColumnsHide(),
+                    action: #selector(listsKey), input: "s", modifierFlags: [.command, .control]))
+        }
+        return commands
+    }
+
+    @objc private func findKey() { startFind() }
+    @objc private func modeKey() { toggleMode() }
+    @objc private func infoKey() { showInfo() }
+    @objc private func nextMatchKey() { stepFind(true) }
+    @objc private func previousMatchKey() { stepFind(false) }
+    @objc private func closeFindKey() { closeFind() }
+    @objc private func listsKey() { toggleLists() }
+
+    @objc private func backKey() {
+        guard let navigation = navigationController, navigation.topViewController === self,
+            navigation.viewControllers.first !== self
+        else { return }
+        navigation.popViewController(animated: true)
+    }
+
+    @objc private func forwardKey() { goForward() }
+
+    /// A double tap on the Pencil, unless the person's setting ignores it, turns between Edit and
+    /// Preview: the one switch this screen has between tools.
+    func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveTap tap: UIPencilInteraction.Tap) {
+        guard UIPencilInteraction.preferredTapAction != .ignore, host.holder === self, presentedViewController == nil
+        else { return }
+        toggleMode()
     }
 }
