@@ -156,13 +156,14 @@ export function useAppDeepLinks({
         .composedPath()
         .some((target) => target instanceof Element && target.matches('.cm-editor'))
       const data = drag.dataTransfer
+      if (!editor || !data) return false
+      const files = Array.from(data.files)
+      if (files.length) return files.every((file) => file.type.startsWith('image/'))
+      const items = Array.from(data.items).filter((item) => item.kind === 'file')
       return (
-        editor &&
-        data &&
-        data.items.length > 0 &&
-        Array.from(data.items).every(
-          (item) => item.kind === 'file' && item.type.startsWith('image/'),
-        )
+        drag.type === 'dragover' &&
+        items.length > 0 &&
+        items.every((item) => item.type.startsWith('image/'))
       )
     }
     if (phase === 'over') {
