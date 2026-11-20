@@ -120,10 +120,17 @@ export function trashMethods(
     async emptyTrash() {
       await Promise.all(writable().map(save))
       const all = await storage.listTrash()
-      // Each window that shows one of them hears it is gone as soon as it is, as for a single purge.
-      for (const note of all) {
-        await storage.purgeNote(note.id, now(), clock.tick())
-        relay({ kind: 'gone', noteId: note.id, purged: true })
+      if (all.length === 0) return 0
+      for (let offset = 0; offset < all.length; offset += 500) {
+        const batch = all.slice(offset, offset + 500)
+        await storage.purgeNotes(
+          batch.map((note) => note.id),
+          now(),
+          clock.tick(),
+        )
+        for (const note of batch) {
+          relay({ kind: 'gone', noteId: note.id, purged: true })
+        }
       }
       return all.length
     },

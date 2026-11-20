@@ -48,6 +48,7 @@ export interface EditorSettings {
   tabWidth: number
   listMarker: ListMarker
   spellCheck: boolean
+  vimMode: boolean
   highlightActiveLine: boolean
   /** How see-through the sheet is, from its design wash: 0 is the design, -100 opaque, 100 twice as see-through. */
   windowTransparency: number
@@ -134,6 +135,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   tabWidth: 2,
   listMarker: '*',
   spellCheck: true,
+  vimMode: false,
   highlightActiveLine: false,
   windowTransparency: 0,
   materialTransparency: 0,
@@ -308,6 +310,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   tabWidth: wholeIn(TAB_WIDTH_MIN, TAB_WIDTH_MAX),
   listMarker: oneOf(LIST_MARKERS),
   spellCheck: isFlag,
+  vimMode: isFlag,
   highlightActiveLine: isFlag,
   windowTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),
   materialTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),

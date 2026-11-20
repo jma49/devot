@@ -60,6 +60,7 @@ export const tauriWire: WireStorage = {
     }),
   copyFiles: (noteId, copies) => invoke('files_copy', { noteId, copies }),
   purgeNote: (id, at, hlc) => invoke('note_purge', { id, at, hlc }),
+  purgeNotes: (ids, at, hlc) => invoke('notes_purge', { ids, at, hlc }),
   listBooks: () => invoke<BookRecord[]>('books_list'),
   isLiveBook: (id) => invoke<boolean>('book_is_live', { id }),
   putBook: (book) => invoke('book_put', { book }),

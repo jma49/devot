@@ -29,6 +29,9 @@ export function observeWrites(
     listLinkGraph: (excludeBookId, limit) => storage.listLinkGraph(excludeBookId, limit),
     listTrash: () => storage.listTrash(),
     purgeNote: after((id: string, at: number, hlc: string) => storage.purgeNote(id, at, hlc)),
+    purgeNotes: after((ids: readonly string[], at: number, hlc: string) =>
+      storage.purgeNotes(ids, at, hlc),
+    ),
     putNote: after(
       (note) => storage.putNote(note),
       (note) => [note.id],

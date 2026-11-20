@@ -31,6 +31,17 @@ import {
 } from '../../src/core/editorSettings'
 
 describe('editor settings', () => {
+  it('defaults Vim mode off and accepts only boolean choices', () => {
+    expect(parseEditorSettings(null).vimMode).toBe(false)
+    expect(parseEditorSettings({}).vimMode).toBe(false)
+    expect(parseEditorSettings({ vimMode: true }).vimMode).toBe(true)
+    expect(parseEditorSettings({ vimMode: false }).vimMode).toBe(false)
+    for (const vimMode of [null, 'true', 1, {}]) {
+      expect(parseEditorSettings({ vimMode }).vimMode).toBe(false)
+      expect(() => checkEditorSettingsPatch({ vimMode })).toThrow('E_EDITOR_SETTINGS_INVALID')
+    }
+  })
+
   it('has roomy defaults, the new ones for settings the user never set', () => {
     expect(DEFAULT_EDITOR_SETTINGS).toEqual({
       lineNumbers: false,
@@ -51,6 +62,7 @@ describe('editor settings', () => {
       tabWidth: 2,
       listMarker: '*',
       spellCheck: true,
+      vimMode: false,
       highlightActiveLine: false,
       windowTransparency: 0,
       materialTransparency: 0,

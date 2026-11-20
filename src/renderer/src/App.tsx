@@ -610,6 +610,7 @@ export function App() {
     setConfirm,
   })
   const librarySidebar = useLibrarySidebar({
+    headerAction: narrow ? listProps.sidebarToggle : undefined,
     core,
     editing,
     lists,
@@ -643,6 +644,8 @@ export function App() {
   return (
     <div
       className="window"
+      onPointerDownCapture={panes.dismissSidebar}
+      onFocusCapture={panes.dismissSidebar}
       data-focus={focus || undefined}
       data-ready={restored || undefined}
       data-sidebar-hidden={sidebarOff || undefined}

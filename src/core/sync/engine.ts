@@ -820,6 +820,14 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   }
 
   async function pullAll() {
+    try {
+      await pullPages()
+    } finally {
+      await sync.syncCompactPurges()
+    }
+  }
+
+  async function pullPages() {
     const state = await sync.syncState()
     keepBefore = state[KEEP_BEFORE] ?? ''
     let since = storedCursor(state[SINCE])
@@ -1074,7 +1082,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     if (record.purged) {
       if (!row || row.purged) return
       await keepVersion(row.note)
-      return void (await sync.syncPurge(record.id, now(), record.deletedHlc || clock.tick()))
+      return void (await sync.syncPurge(record.id, now(), record.deletedHlc || clock.tick(), true))
     }
     if (row && merged.bodyChanged && (merged.bothEdited || !(await keptLately(row.note.id)))) {
       await keepVersion(row.note)

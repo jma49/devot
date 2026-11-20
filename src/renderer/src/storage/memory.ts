@@ -410,6 +410,19 @@ export const memoryStorage: StorageAdapter = {
     const revisions = read<StoredRevision>(REVISIONS).filter((r) => r.noteId !== id)
     localStorage.setItem(REVISIONS, JSON.stringify(revisions))
   },
+  async purgeNotes(ids, at, hlc) {
+    const keys = [NOTES, NOTE_TAGS, NOTE_DRAWINGS, AGENT_WRITES, FILES, REVISIONS]
+    const before = keys.map((key) => [key, localStorage.getItem(key)] as const)
+    try {
+      for (const id of ids) await memoryStorage.purgeNote(id, at, hlc)
+    } catch (error) {
+      for (const [key, value] of before) {
+        if (value === null) localStorage.removeItem(key)
+        else localStorage.setItem(key, value)
+      }
+      throw error
+    }
+  },
   async putRevision(revision) {
     failWith(FAIL_REVISIONS)
     const note = read<Stored>(NOTES).find((n) => n.id === revision.noteId)

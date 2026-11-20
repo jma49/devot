@@ -75,18 +75,17 @@ const staleNotes = () =>
 const median = (values: number[]) =>
   values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!
 
-// The save is also held to half the re-index it skipped, measured just after it on the same
-// machine: on any machine, a save that tokenized its text would cost more.
 it('saves a 1 MB note without re-indexing it', { timeout: 60_000 }, async (context) => {
   const saves: number[] = []
-  const reindexes: number[] = []
+  const indexBlocks = storage.db.prepare('SELECT id, block FROM notes_fts_data ORDER BY id')
   for (let i = 0; i < SAVES; i += 1) {
+    const indexed = indexBlocks.all()
     saves.push(await save(i % 2 ? `Big ${i}` : 'Big', body(i + 1)))
     expect(staleNotes()).toBe(1)
-    reindexes.push(await cpuMs(async () => storage.catchUpSearchIndex()))
+    expect(indexBlocks.all()).toEqual(indexed)
+    storage.catchUpSearchIndex()
   }
   expectWithinBudget(context, median(saves), BUDGET_MS)
-  expectWithinBudget(context, median(saves), median(reindexes) / 2, { exact: true })
   const found = await storage.searchNotes(query(`Edit ${SAVES}`), 1)
   expect(found.map((n) => n.id)).toEqual(['big'])
 })

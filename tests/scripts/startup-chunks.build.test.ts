@@ -17,6 +17,7 @@ const SERVER_RENDERING =
 const BROWSER_ONLY = /\/src\/renderer\/src\/i18n\/(?:en|zh-Hans)\/clipper\.ts$/
 const EXTENSION_SETTINGS =
   /\/src\/renderer\/src\/(?:settings\/(?:HttpApiSection\.tsx|httpApi\.ts)|i18n\/(?:en|zh-Hans)\/browserExtensions\.ts)$/
+const VIM = /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@replit\/codemirror-vim\//
 const WORKER_LAZY =
   /\/src\/core\/(?:sync\/engine|mirror|import|htmlImport|export|htmlExport|ai)\.ts$/
 const IMPORT_UI = /\/src\/(?:core\/import(?:Tree|Layout)\.ts|renderer\/src\/ImportDialog\.tsx)$/
@@ -109,6 +110,8 @@ it('the main window loads no Markdown parsing or server rendering before its fir
   expect(modulesOf(chunks, IMPORT_UI)).toEqual([])
   expect(modulesOf([...main.values()], IMPORT_UI).length).toBeGreaterThan(0)
   expect(modulesOf(chunks, /\/src\/renderer\/src\/TemplatePicker\.tsx$/)).toEqual([])
+  expect(modulesOf(chunks, VIM)).toEqual([])
+  expect(modulesOf([...main.values()], VIM)).toEqual(['@replit/codemirror-vim'])
   expect(bytesOf(chunks)).toBeLessThan(MAIN_EAGER_BUDGET)
 })
 
