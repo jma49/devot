@@ -362,6 +362,24 @@ describe('the markers the Rust build saw', () => {
     expect(run('marker-check-target', target).status).toBe(0)
   })
 
+  it('does not look for target folders inside Cargo artifacts', () => {
+    const target = tempDir('devot-app-store-target-')
+    const deps = join(target, 'nested/aarch64-apple-ios/release/deps')
+    mkdirSync(deps, { recursive: true })
+    writeFileSync(
+      join(deps, 'app.d'),
+      depInfo('DEVOT_RELEASE_BUILD=1', 'DEVOT_DISTRIBUTION=app-store'),
+    )
+    const artifacts = ['deps', 'build', 'incremental'].map((name) =>
+      join(target, name, 'aarch64-apple-ios/release/deps'),
+    )
+    for (const artifact of artifacts) mkdirSync(artifact, { recursive: true })
+    const result = run('marker-check-target', target)
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain(deps)
+    for (const artifact of artifacts) expect(result.stdout).not.toContain(artifact)
+  })
+
   it('reports missing or ambiguous target folders without accepting simulator builds', () => {
     const target = tempDir('devot-app-store-target-')
     mkdirSync(join(target, 'aarch64-apple-ios-sim/release/deps'), { recursive: true })

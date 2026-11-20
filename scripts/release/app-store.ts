@@ -21,6 +21,7 @@
 //     DEVOT_DISTRIBUTION=app-store.
 //   node scripts/release/app-store.ts marker-check-target <target>
 //     Lists iPhone release folders and checks the direct target folder, or the only nested one.
+//     The workflow writes directly there; a stale cached non-App-Store build fails marker checks safely.
 //
 //   node scripts/release/app-store.ts check-bundle <Info.plist as JSON> <short> <build>
 //     Checks the archived app is the iPhone and iPad App Store build with iCloud and that version.
@@ -263,10 +264,11 @@ function main(args: string[]) {
       const candidates: string[] = []
       const visit = (folder: string) => {
         for (const entry of readdirSync(folder, { withFileTypes: true })) {
-          if (!entry.isDirectory()) continue
+          if (!entry.isDirectory() || entry.name === 'build' || entry.name === 'incremental')
+            continue
           const path = join(folder, entry.name)
           if (path.endsWith('/aarch64-apple-ios/release/deps')) candidates.push(path)
-          else visit(path)
+          else if (entry.name !== 'deps') visit(path)
         }
       }
       visit(deps)
