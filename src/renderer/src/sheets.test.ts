@@ -3,7 +3,7 @@ import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Core } from './core-client'
 import { IMPORT_SCANNING } from './importer'
-import { useSheets } from './sheets'
+import { backupsTransition, useSheets } from './sheets'
 import { droppedImport } from './dropImport'
 import { renderHook, settle, unmountAll } from '../../../tests/support/render-hook'
 import { mockTauri } from '../../../tests/support/tauri-events'
@@ -43,6 +43,23 @@ const scanning = (id: number) =>
   )
 
 describe('useSheets', () => {
+  it('names the queued, visible and restoring Backups transitions', () => {
+    tauri = mockTauri(answer)
+    const waiting = backupsTransition({ phase: 'closed' }, 'request')
+    expect(waiting).toEqual({ phase: 'waiting' })
+    const open = backupsTransition(waiting, 'show')
+    expect(open).toEqual({ phase: 'open' })
+    expect(backupsTransition(open, 'request')).toBe(open)
+    const restoring = backupsTransition(open, 'restore')
+    expect(restoring).toEqual({ phase: 'restoring' })
+    expect(backupsTransition(restoring, 'close')).toBe(restoring)
+    expect(backupsTransition(restoring, 'request')).toBe(restoring)
+    const failed = backupsTransition(restoring, 'failed')
+    expect(failed).toEqual({ phase: 'open' })
+    expect(backupsTransition(failed, 'close')).toEqual({ phase: 'closed' })
+    expect(backupsTransition(waiting, 'close')).toEqual({ phase: 'closed' })
+    expect(backupsTransition({ phase: 'closed' }, 'show')).toEqual({ phase: 'closed' })
+  })
   it('refuses drops during Backups and waits for an in-flight conversion before restore', async () => {
     tauri = mockTauri((cmd) => {
       if (cmd === 'backup_restore') throw new Error('E_RESTORE_TEST')

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react'
 import type { ImportScan } from '../../core'
 import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
 import type { Core } from './core-client'
@@ -17,6 +24,48 @@ import { saveEdits } from './saveGuards'
 import type { Selection } from './Sidebar'
 import { track } from './usage'
 import { listenHere, unlistenLater } from './windowEvents'
+
+type BackupsState =
+  | { phase: 'closed' }
+  | { phase: 'waiting' }
+  | { phase: 'open' }
+  | { phase: 'restoring' }
+type BackupsEvent = 'request' | 'show' | 'close' | 'restore' | 'failed'
+
+export function backupsTransition(state: BackupsState, event: BackupsEvent): BackupsState {
+  switch (event) {
+    case 'request':
+      return state.phase === 'closed' ? { phase: 'waiting' } : state
+    case 'show':
+      return state.phase === 'waiting' ? { phase: 'open' } : state
+    case 'close':
+      return state.phase === 'restoring' ? state : { phase: 'closed' }
+    case 'restore':
+      return { phase: 'restoring' }
+    case 'failed':
+      return state.phase === 'restoring' ? { phase: 'open' } : state
+  }
+}
+
+function backupsStore() {
+  let state: BackupsState = { phase: 'closed' }
+  const listeners = new Set<() => void>()
+  return {
+    get: () => state,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    transition: (event: BackupsEvent) => {
+      const next = backupsTransition(state, event)
+      if (next === state) return
+      state = next
+      for (const listener of listeners) listener()
+    },
+  }
+}
 
 /**
  * The main window's sheets: imports, each waiting its turn, and Backups. One shows at a time: no
@@ -37,15 +86,19 @@ export function useSheets({
     ((next: Selection, options?: { clearFilter?: boolean }) => void) | undefined
   >
 }) {
-  const [backupsOpen, setBackupsOpen] = useState(false)
+  const [backups] = useState(backupsStore)
+  const backupsState = useSyncExternalStore(backups.subscribe, backups.get)
+  const transitionBackups = backups.transition
   const [backupNotice, setBackupNotice] = useState<string>()
   const importJobs = useRef<ImportJob[]>([])
   const [importJob, setImportJob] = useState<ImportJob>()
   const [importKey, setImportKey] = useState(0)
   const importShown = useRef(false)
-  const backupsPhase = useRef<'closed' | 'open' | 'restoring'>('closed')
   const dropWork = useRef<Promise<void>>(Promise.resolve())
-  const dropsAllowed = useCallback(() => backupsPhase.current === 'closed', [])
+  const dropsAllowed = useCallback(
+    () => backups.get().phase === 'closed' || backups.get().phase === 'waiting',
+    [backups],
+  )
   const runDrop = useCallback(
     (work: () => Promise<void>): Promise<boolean> => {
       if (!dropsAllowed()) return Promise.resolve(false)
@@ -55,7 +108,6 @@ export function useSheets({
     },
     [dropsAllowed],
   )
-  const backupsWanted = useRef(false)
   // Sessions taken (their scan arrived) or closed: later events for them are ignored.
   const seenImports = useRef(new Set<number>())
   const shownImport = useRef<number | null>(null)
@@ -69,22 +121,18 @@ export function useSheets({
 
   /** Shows the next sheet unless one is up: an import job first (its result stays until closed; an import ends by showing its notebook), then Backups if asked meanwhile. */
   const nextSheet = useCallback(() => {
-    if (importShown.current || backupsPhase.current !== 'closed') return
+    if (importShown.current || !dropsAllowed()) return
     const c = coreRef.current
     const job = c ? importJobs.current.shift() : undefined
     if (!c || !job) {
-      if (backupsWanted.current) {
-        backupsWanted.current = false
-        backupsPhase.current = 'open'
-        setBackupsOpen(true)
-      }
+      transitionBackups('show')
       return
     }
     importShown.current = true
     shownImport.current = job.id
     setImportKey((k) => k + 1)
     setImportJob(job)
-  }, [coreRef])
+  }, [coreRef, dropsAllowed, transitionBackups])
 
   const enqueueImport = useCallback(
     (scan: ImportScan, input?: Parameters<typeof runImport>[5]) => {
@@ -177,14 +225,12 @@ export function useSheets({
   }
 
   const showBackups = useCallback(() => {
-    backupsWanted.current = true
+    transitionBackups('request')
     nextSheet()
-  }, [nextSheet])
+  }, [nextSheet, transitionBackups])
 
   const closeBackups = () => {
-    if (backupsPhase.current === 'restoring') return
-    setBackupsOpen(false)
-    backupsPhase.current = 'closed'
+    transitionBackups('close')
     nextSheet()
   }
 
@@ -301,7 +347,7 @@ export function useSheets({
   }, [nextSheet, enqueueImport])
 
   const restore = async (id: string) => {
-    backupsPhase.current = 'restoring'
+    transitionBackups('restore')
     try {
       await dropWork.current
       await core?.stopImport()
@@ -324,7 +370,7 @@ export function useSheets({
       }
       window.location.reload()
     } catch (error) {
-      backupsPhase.current = 'open'
+      transitionBackups('failed')
       throw error
     }
   }
@@ -332,7 +378,7 @@ export function useSheets({
   return {
     importJob,
     importKey,
-    backupsOpen,
+    backupsOpen: backupsState.phase === 'open' || backupsState.phase === 'restoring',
     backupNotice,
     setBackupNotice,
     nextSheet,
