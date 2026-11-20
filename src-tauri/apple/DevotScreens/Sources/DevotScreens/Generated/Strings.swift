@@ -238,10 +238,6 @@ public enum L10n {
     fill(text("aiSettings.otherModelField", "Model ID for {provider}"), ["provider": p0])
   }
 
-  public static func aiSettingsUseModelId(id p0: String) -> String {
-    fill(text("aiSettings.useModelId", "Use “{id}” as a model ID"), ["id": p0])
-  }
-
   public static func aiSettingsNotSetUpGroup(provider p0: String) -> String {
     fill(text("aiSettings.notSetUpGroup", "{provider} · not set up"), ["provider": p0])
   }

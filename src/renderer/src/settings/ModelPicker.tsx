@@ -226,8 +226,11 @@ function PickerPanel(
   }, [])
   useLayoutEffect(() => {
     if (panel.current) placePickerPanel(panel.current)
-    search.current?.focus()
   }, [])
+  // The search field mounts again when Other Model ID closes, so focus follows it there too.
+  useLayoutEffect(() => {
+    if (!typing) search.current?.focus()
+  }, [typing])
 
   const sections = pickerSections({ view, target, catalogs, recent: props.recent, rail, query })
   const rows = choosableRows(sections)
@@ -241,10 +244,10 @@ function PickerPanel(
     if (!ready(row.provider)) return props.setUp(row.provider)
     if (row.kind === 'other') {
       setTyping(row.provider)
-      setTyped('')
+      setTyped(query.trim())
       return
     }
-    props.pick({ provider: row.provider, model: row.kind === 'useId' ? row.id : row.model })
+    props.pick({ provider: row.provider, model: row.model })
   }
 
   const moveRail = (id: AiProviderId) => {
@@ -262,7 +265,6 @@ function PickerPanel(
       e.stopPropagation()
       if (typing) {
         setTyping(undefined)
-        search.current?.focus()
         return
       }
       return props.close()
@@ -529,14 +531,6 @@ function RowContent(props: {
       </>
     )
   }
-  if (row.kind === 'useId') {
-    return (
-      <>
-        {check}
-        <span className="picker-name">{format(t('aiSettings.useModelId'), { id: row.id })}</span>
-      </>
-    )
-  }
   const name =
     row.name ??
     (() => {
@@ -602,7 +596,13 @@ function Note(props: {
       <p>{t(hint)}</p>
       {note.state === 'keyUnavailable' ? null : (
         <button type="button" className="button button-default" onClick={props.onSetUp}>
-          {t(cli ? 'aiSettings.checkAgain' : 'aiSettings.addKey')}
+          {t(
+            cli
+              ? 'aiSettings.checkAgain'
+              : note.state === 'keyUnknown'
+                ? 'aiSettings.changeKey'
+                : 'aiSettings.addKey',
+          )}
         </button>
       )}
     </div>

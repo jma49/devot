@@ -124,7 +124,7 @@ export function reasoningLevels(
     : { levels: [], fallback: null }
 }
 
-/** A stored level the new model does not take is dropped; with the model unknown it is kept. */
+/** A stored level is kept only when the new model is listed and takes it: an unlisted model hides the Reasoning column, so a kept level could not be seen or changed. */
 function keptReasoning(
   catalogs: Catalogs,
   choice: ModelChoice,
@@ -132,8 +132,7 @@ function keptReasoning(
 ): string | null {
   if (level === null) return null
   const model = chosenModel(catalogs, choice)
-  if (!model) return level
-  return model.reasoning.includes(level) ? level : null
+  return model?.reasoning.includes(level) ? level : null
 }
 
 function withProvider(
@@ -182,7 +181,12 @@ export function chooseReasoning(
   level: string | null,
 ): AiSettingsView {
   if (target === 'suggest') {
-    const named = view.suggestModel ?? { provider: view.active, model: '', reasoning: null }
+    // A level picked while following the Model setting names that model, so the row shows what was pinned.
+    const named = view.suggestModel ?? {
+      provider: view.active,
+      model: providerModel(view, view.active).model,
+      reasoning: null,
+    }
     return { ...view, suggestModel: { ...named, reasoning: level } }
   }
   return withProvider(view, view.active, providerModel(view, view.active).model, level)
@@ -236,7 +240,6 @@ export type PickerRow =
       recent?: number
     }
   | { kind: 'other'; provider: AiProviderId }
-  | { kind: 'useId'; provider: AiProviderId; id: string }
 
 /** What the picker lists under the rail's provider when it has no models to show. */
 export type ProviderNote =
@@ -295,7 +298,7 @@ export function pickerSections(input: PickerInput): PickerSection[] {
     if (sections.length === 0) {
       sections.push({
         title: null,
-        rows: [{ kind: 'useId', provider: rail, id: input.query.trim() }],
+        rows: [{ kind: 'other', provider: rail }],
       })
     }
     return sections

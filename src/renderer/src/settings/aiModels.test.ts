@@ -182,10 +182,17 @@ describe('the picker rows', () => {
     ])
   })
 
-  it('offers a query that matches nothing as a model ID of the rail provider', () => {
+  it('offers Other Model ID of the rail provider for a query that matches nothing', () => {
     expect(sections({ query: ' my-model ' })).toEqual([
-      { title: null, rows: [{ kind: 'useId', provider: 'codexCli', id: 'my-model' }] },
+      { title: null, rows: [{ kind: 'other', provider: 'codexCli' }] },
     ])
+  })
+
+  it('drops a level the new model may not take, and any level for a model not listed', () => {
+    const high = chooseReasoning(settings(), 'main', 'high')
+    expect(
+      choose(high, 'main', catalogs, { provider: 'codexCli', model: 'typed-id' }).cli?.codexCli,
+    ).toMatchObject({ model: 'typed-id', reasoning: null })
   })
 
   it('says why a provider that is not set up lists nothing', () => {
@@ -281,9 +288,10 @@ describe('choosing', () => {
   it('picks a level for the target', () => {
     expect(chooseReasoning(settings(), 'main', 'high').cli?.codexCli.reasoning).toBe('high')
     expect(chooseReasoning(settings(), 'main', null).cli?.codexCli.reasoning).toBeNull()
+    // While following the Model setting, a level names that model rather than an empty one.
     expect(chooseReasoning(settings(), 'suggest', 'low').suggestModel).toEqual({
       provider: 'codexCli',
-      model: '',
+      model: 'gpt-6.1-sol',
       reasoning: 'low',
     })
   })

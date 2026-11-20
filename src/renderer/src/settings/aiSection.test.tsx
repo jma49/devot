@@ -174,6 +174,25 @@ describe('Settings > AI', () => {
     expect(options()).toEqual(expect.arrayContaining([expect.stringContaining('O Small')]))
   })
 
+  it('puts focus back in the search field when Escape leaves Other Model ID, so a second Escape closes the picker', async () => {
+    await pane()
+    await click(modelButton('Model'))
+    const other = [...host.querySelectorAll('.model-picker [role="option"]')].find(
+      (o) => o.textContent === 'Other Model ID…',
+    )
+    await click(other)
+    const escape = () =>
+      act(async () => {
+        document.activeElement?.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+        )
+      })
+    await escape()
+    expect(document.activeElement?.getAttribute('role')).toBe('combobox')
+    await escape()
+    expect(host.querySelector('.model-picker')).toBeNull()
+  })
+
   it('saves the model picked, with its provider, and shows Default (Medium) first for its reasoning', async () => {
     await pane()
     await click(modelButton('Model'))

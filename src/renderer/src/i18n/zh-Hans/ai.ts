@@ -60,7 +60,6 @@ export const messages: Record<keyof typeof en, string> = {
   'aiSettings.tier.best': '最强',
   'aiSettings.otherModel': '其他模型 ID…',
   'aiSettings.otherModelField': '{provider} 的模型 ID',
-  'aiSettings.useModelId': '使用“{id}”作为模型 ID',
   'aiSettings.notSetUpGroup': '{provider} · 尚未设置',
   'aiSettings.blocked.title': '{provider} 尚未设置',
   'aiSettings.blocked.key': '添加密钥后，Devot 会列出可用的模型。',

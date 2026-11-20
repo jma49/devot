@@ -61,7 +61,6 @@ export const messages = {
   'aiSettings.tier.best': 'best',
   'aiSettings.otherModel': 'Other Model ID…',
   'aiSettings.otherModelField': 'Model ID for {provider}',
-  'aiSettings.useModelId': 'Use “{id}” as a model ID',
   'aiSettings.notSetUpGroup': '{provider} · not set up',
   'aiSettings.blocked.title': '{provider} is not set up',
   'aiSettings.blocked.key': 'Add a key and Devot lists the models it can use.',

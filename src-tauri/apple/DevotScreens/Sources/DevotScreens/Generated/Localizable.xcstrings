@@ -3282,23 +3282,6 @@
         }
       }
     },
-    "aiSettings.useModelId" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use “{id}” as a model ID"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用“{id}”作为模型 ID"
-          }
-        }
-      }
-    },
     "aiSuggest.failed" : {
       "extractionState" : "manual",
       "localizations" : {
