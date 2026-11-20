@@ -56,7 +56,7 @@ import { keptDrawingsChanged } from '../preview/keptDrawings'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
 import { useStable } from '../stable'
-import { importDroppedFiles, importPluginFiles, routeImport } from './importFiles'
+import { importDroppedFiles, importPluginFiles } from './importFiles'
 
 const ImportDetails = lazy(() =>
   import('./ImportDetails').then((m) => ({ default: m.ImportDetails })),
@@ -336,7 +336,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     )
     if (result.made > 0 && result.problems.length > 0)
       setNotification({ kind: 'import', notes: result.made, problems: result.problems })
-    return result
+    return { ids: result.ids, failed: result.failed }
   })
 
   const act = useCallback(
