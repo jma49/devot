@@ -69,12 +69,18 @@ final class NoteColumns: UIViewController {
     private func keepTabsRoom() {
         var room: CGFloat = 0
         if let tabs = tabBarController, !tabs.isTabBarHidden, view.window != nil {
-            let bar = tabs.tabBar.convert(tabs.tabBar.bounds, to: view)
-            let given = view.safeAreaInsets.top - additionalSafeAreaInsets.top
-            if bar.minY < view.bounds.midY { room = max(0, bar.maxY - given) }
+            room = Self.tabsRoom(
+                tabs: tabs.tabBar.convert(tabs.tabBar.bounds, to: view), in: view.bounds,
+                given: view.safeAreaInsets.top - additionalSafeAreaInsets.top)
         }
         guard additionalSafeAreaInsets.top != room else { return }
         additionalSafeAreaInsets.top = room
+    }
+
+    /// The top inset to add so the safe area clears tabs floating over the top; none for tabs at the foot.
+    static func tabsRoom(tabs: CGRect, in bounds: CGRect, given: CGFloat) -> CGFloat {
+        guard !tabs.isEmpty, tabs.minY < bounds.midY else { return 0 }
+        return max(0, tabs.maxY - bounds.minY - given)
     }
 
     private func fit(width: CGFloat, traits: UITraitCollection) {

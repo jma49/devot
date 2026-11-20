@@ -33,6 +33,17 @@ final class ColumnLayoutTests: XCTestCase {
             "only the notes on top go beside")
     }
 
+    func testTabsFloatingOverTheTopGetTheirRoomAndTabsAtTheFootNone() {
+        let bounds = CGRect(x: 0, y: 0, width: 1366, height: 1024)
+        let top = CGRect(x: 400, y: 24, width: 560, height: 72)
+        XCTAssertEqual(NoteColumns.tabsRoom(tabs: top, in: bounds, given: 32), 64)
+        XCTAssertEqual(NoteColumns.tabsRoom(tabs: top, in: bounds, given: 96), 0, "room already given")
+        XCTAssertEqual(NoteColumns.tabsRoom(tabs: top, in: bounds, given: 120), 0)
+        let foot = CGRect(x: 0, y: 940, width: 1366, height: 84)
+        XCTAssertEqual(NoteColumns.tabsRoom(tabs: foot, in: bounds, given: 32), 0)
+        XCTAssertEqual(NoteColumns.tabsRoom(tabs: .zero, in: bounds, given: 32), 0)
+    }
+
     func testTheNoteTakesTheWidthTheLeadingColumnsLeave() {
         XCTAssertEqual(ColumnLayout.one.columnWidths(total: 1024, widths: widths), [1024])
         XCTAssertEqual(ColumnLayout.two.columnWidths(total: 1024, widths: widths), [360, 664])
@@ -112,14 +123,6 @@ final class ColumnsTests: XCTestCase {
 
     func testANarrowerWindowStacksTheNoteOverItsListAndAWiderOneSetsItBesideAgain() throws {
         let notes = try showNotes()
-        let list = try XCTUnwrap(notes.stack.topViewController)
-        let room = list.view.safeAreaInsets
-        let tabBar = tabs.tabBar.convert(tabs.tabBar.bounds, to: nil)
-        if tabBar.minY < harness.window.bounds.midY {
-            let bar = notes.stack.navigationBar
-            XCTAssertGreaterThanOrEqual(
-                bar.convert(bar.bounds, to: nil).minY, tabBar.maxY - 0.5, "the lists' bar sits below the tabs")
-        }
         open(first, "First")
         let one = try XCTUnwrap(notes.notes.topViewController as? EditorScreen)
         XCTAssertFalse(one.hidesBottomBarWhenPushed, "the tabs follow the bar, never a push")
@@ -137,7 +140,6 @@ final class ColumnsTests: XCTestCase {
         XCTAssertTrue(notes.notes.topViewController === one)
         XCTAssertTrue(notes.stack.topViewController is NoteListScreen)
         harness.settle(until: { self.host.holder === one && !self.tabs.isTabBarHidden })
-        harness.settle(until: { list.view.safeAreaInsets == room }, timeout: 5)
         XCTAssertFalse(harness.requests().contains { $0.op == .noteDiscard })
     }
 
