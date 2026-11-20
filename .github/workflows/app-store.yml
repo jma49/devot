@@ -170,12 +170,7 @@ jobs:
             echo "::error::E_APP_STORE_ARCHIVE: the build made no single .xcarchive."
             exit 1
           fi
-          deps=$(find src-tauri/target -type d -path '*/aarch64-apple-ios/release/deps')
-          if [ -z "$deps" ] || [ "$(wc -l <<< "$deps")" -ne 1 ]; then
-            echo "::error::E_APP_STORE_MARKER: the build left no single iPhone release build folder."
-            exit 1
-          fi
-          node scripts/release/app-store.ts marker-check "$deps"
+          node scripts/release/app-store.ts marker-check-target src-tauri/target
           app=$(find "$archive/Products/Applications" -maxdepth 1 -name '*.app' -type d)
           checks=$RUNNER_TEMP/checks
           mkdir "$checks"
