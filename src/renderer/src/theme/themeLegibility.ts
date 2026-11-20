@@ -19,7 +19,7 @@ type Tokens = Readonly<Record<string, string>>
 
 const AA = 4.5
 const AAA = 7
-/** Colored text (syntax, alerts, statuses) stops sooner, so a theme's palette is not washed toward white or black. */
+/** Colored text (syntax, alerts) stops sooner, so a theme's palette is not washed toward white or black. */
 const COLORED = 6
 
 /** Text drawn on the app's surfaces, on a selected row and on the editor's active line. */
@@ -30,12 +30,7 @@ const TEXT = [
   'text-tertiary',
   'text-hover',
   'text-selected',
-  'text-destructive',
   'accent-text',
-  'status-active',
-  'status-hold',
-  'status-done',
-  'status-dropped',
 ]
 const TEXT_GROUPS = ['syntax-', 'alert-']
 
@@ -69,9 +64,7 @@ function read(value: string | undefined): Rgba | undefined {
   }
 }
 
-const isColored = (name: string) =>
-  ['syntax-', 'alert-', 'status-'].some((group) => name.startsWith(group)) ||
-  name === 'text-destructive'
+const isColored = (name: string) => TEXT_GROUPS.some((group) => name.startsWith(group))
 
 const textTokens = (tokens: Record<string, string>) => [
   ...TEXT.filter((name) => name in tokens),
@@ -215,13 +208,5 @@ export function legibleColors(colors: Tokens, appearance: Appearance): Record<st
     out[name] = toHex(readableKeepingHue(own.rgb, ownGrounds, direction, floor), own.alpha)
   }
 
-  const fill = read(merged()['accent-fill'])
-  const onFill = read(merged()['accent-on-fill'])
-  if (fill && onFill && contrastRatio(onFill.rgb, fill.rgb) < AA) {
-    const toward = contrastRatio([255, 255, 255], fill.rgb) > contrastRatio([0, 0, 0], fill.rgb)
-    out['accent-on-fill'] = toHex(
-      readableKeepingHue(onFill.rgb, [fill.rgb], toward ? 'lighter' : 'darker', AA),
-    )
-  }
   return out
 }
