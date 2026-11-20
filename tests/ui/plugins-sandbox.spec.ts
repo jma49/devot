@@ -114,6 +114,7 @@ test('runs each plugin in its own sandboxed frame with an opaque origin, never i
 
 test('cannot reach Tauri or the main window', async ({ page }) => {
   const frame = await pluginFrame(page, 'com.example.probe')
+  await body(page).blur()
   const before = await page.evaluate(() => window.devotIpcCalls.length)
   const reached = await frame.evaluate(() => {
     const g = globalThis as Record<string, unknown>
