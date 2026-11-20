@@ -39,13 +39,11 @@ function tidy(page: Document, pageUrl: string): void {
     return href.startsWith('#') || (href.includes('#') && href.replace(/#.*$/, '') === here)
   }
   const unwrap = (element: Element) => element.replaceWith(...element.childNodes)
-  // Footnote markers such as [1] point into the page's own reference list.
-  for (const link of page.querySelectorAll('a[href]')) {
-    if (!samePage(link) || !/^\[?\s*(\d+|[a-z])\s*\]?$/i.test(link.textContent?.trim() ?? ''))
-      continue
-    const sup = link.closest('sup')
-    ;(sup && sup.textContent?.trim() === link.textContent?.trim() ? sup : link).remove()
-  }
+  // A footnote marker such as [1] stays as text: the reference list it points to is clipped too, but its link would lead nowhere in a note.
+  for (const link of page.querySelectorAll('a[href]'))
+    if (samePage(link) && /^\[?\s*(\d+|[a-z])\s*\]?$/i.test(link.textContent?.trim() ?? ''))
+      unwrap(link)
+  for (const anchor of page.querySelectorAll('a:not([href])')) unwrap(anchor)
   // A heading's permalink.
   for (const link of page.querySelectorAll(':is(h1,h2,h3,h4,h5,h6) a[href]'))
     if (samePage(link)) unwrap(link)
@@ -93,8 +91,23 @@ function tidy(page: Document, pageUrl: string): void {
       code.append(...pre.childNodes)
       pre.append(code)
     }
-    if (named) code.className = `language-${named.toLowerCase()}`
+    if (!named) continue
+    code.className = `language-${named.toLowerCase()}`
+    const label = pre.previousElementSibling
+    if (label?.textContent?.trim().toLowerCase() === named.toLowerCase()) label.remove()
   }
+}
+
+/** Copies what an empty component draws in its open shadow root, such as a code block, into the clone. */
+function showComponents(source: Document, page: Document): void {
+  const originals = source.body.querySelectorAll('*')
+  const copies = page.body.querySelectorAll('*')
+  originals.forEach((element, index) => {
+    const copy = copies[index]
+    if (!element.shadowRoot || !copy || element.childNodes.length) return
+    for (const node of element.shadowRoot.children)
+      if (!node.matches('style, script, link, slot')) copy.append(node.cloneNode(true))
+  })
 }
 
 function srcsetUrls(value: string): string[] {
@@ -124,6 +137,7 @@ export function extract(source: Document, sourceUrl: string, mode: Mode): Clip {
   const url = new URL(sourceUrl)
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('E_CLIP_URL')
   const page = source.cloneNode(true) as Document
+  showComponents(source, page)
   const base = new URL(
     source.querySelector('base[href]')?.getAttribute('href') || sourceUrl,
     sourceUrl,
@@ -209,5 +223,11 @@ export function pageTitle(
     source.querySelector('meta[property="og:site_name"]')?.getAttribute('content')?.trim() ||
     article?.siteName ||
     ''
-  return cleanTitle(ogTitle || article?.title || source.title, site)
+  return cleanTitle(decodeEntities(ogTitle || article?.title || source.title), site)
+}
+
+/** Some sites escape their title twice, which leaves entities such as `&lt;` in the attribute value. */
+function decodeEntities(text: string): string {
+  if (!/&(#\d+|#x[\da-f]+|[a-z]+\d*);/i.test(text)) return text
+  return new DOMParser().parseFromString(text, 'text/html').documentElement.textContent ?? text
 }

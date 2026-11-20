@@ -25,6 +25,7 @@ it.each([
   ['Lighthouse — Site', '', '', 'Lighthouse'],
   ['Browser title', 'Article headline', 'Site', 'Article headline'],
   ['Lighthouse', '', '', 'Lighthouse'],
+  ['Article', '&amp;lt;article&amp;gt; element', '', '<article> element'],
 ])('chooses a clean article title from %s', (title, og, site, expected) => {
   document.head.innerHTML = `<title>${title}</title><meta property="og:title" content="${og}"><meta property="og:site_name" content="${site}">`
   document.body.innerHTML = `<article><h1>${title}</h1><p>${prose}</p></article>`
@@ -85,11 +86,13 @@ it.each(['srcset', 'data-srcset'])(
   },
 )
 
-it('drops footnote markers and heading permalinks, unwraps linked images and keeps figure captions', () => {
+it('keeps footnote markers as text, drops heading permalinks, unwraps linked images and keeps figure captions', () => {
   document.head.innerHTML = ''
-  document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}<sup class="reference"><a href="#cite_note-1">[1]</a></sup> and <a href="${url}#cite_note-2">[b]</a> but <a href="/one">[3]</a></p><h2><a href="#findings">Findings</a></h2><p>${prose}</p><figure><a href="/wiki/File:Photo.jpg"><img src="/photo.jpg"></a><figcaption>The team at <a href="/camp">camp</a></figcaption></figure></article>`
+  document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}<sup class="reference"><a href="#cite_note-1">[1]</a></sup> and <a href="${url}#cite_note-2">[b]</a> but <a href="/one">[3]</a></p><h2><a href="#findings">Findings</a></h2><p>${prose}</p><figure><a href="/wiki/File:Photo.jpg"><img src="/photo.jpg"></a><figcaption>The team at <a href="/camp">camp</a></figcaption></figure><p><a name="note-1">[1]</a> A note.</p></article>`
   const { markdown } = extract(document, url, 'article')
-  expect(markdown).not.toMatch(/\[1\]|\[b\]|cite_note/)
+  expect(markdown).not.toMatch(/cite_note|\]\(\)/)
+  expect(markdown).toContain('\\[1] and \\[b] but')
+  expect(markdown).toContain('\\[1] A note.')
   expect(markdown).toContain('[\\[3\\]](https://example.org/one)')
   expect(markdown).toContain('## Findings\n')
   expect(markdown).toContain(
@@ -103,10 +106,26 @@ it.each([
   ['<pre class="brush: html notranslate"><code>&lt;p&gt;</code></pre>', 'html'],
   ['<pre><code class="language-rust">fn main() {}</code></pre>', 'rust'],
   ['<pre lang="Python">print(1)</pre>', 'python'],
+  [
+    '<div class="code-example"><div class="example-header"><span>html</span></div><pre class="brush: html">&lt;p&gt;</pre></div>',
+    'html',
+  ],
 ])('keeps the language of %s', (block, language) => {
   document.head.innerHTML = ''
   document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}</p>${block}<p>${prose}</p></article>`
-  expect(extract(document, url, 'article').markdown).toMatch(new RegExp('```' + language + '\\n'))
+  const { markdown } = extract(document, url, 'article')
+  expect(markdown).toMatch(new RegExp('```' + language + '\\n'))
+  expect(markdown).not.toMatch(new RegExp('^' + language + '$', 'im'))
+})
+
+it('clips code a page draws inside a component', () => {
+  document.head.innerHTML = ''
+  document.body.innerHTML = `<article><h1>Expedition</h1><p>${prose}</p><code-example class="brush: js"></code-example><p>${prose}</p></article>`
+  const shadow = document.querySelector('code-example')!.attachShadow({ mode: 'open' })
+  shadow.innerHTML = '<style>pre { color: red }</style><pre><code>let a = 1</code></pre>'
+  const { markdown } = extract(document, url, 'article')
+  expect(markdown).toContain('```js\nlet a = 1\n```')
+  expect(markdown).not.toContain('color: red')
 })
 
 it.each([
