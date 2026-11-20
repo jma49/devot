@@ -4980,6 +4980,10 @@ button.model-popup[aria-disabled='true'] {
   gap: var(--space-5);
 }
 
+.ai-provider-row .setting-text {
+  flex: 1;
+}
+
 .ai-first-run-note {
   color: var(--color-text-secondary);
 }
