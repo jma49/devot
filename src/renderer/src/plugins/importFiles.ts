@@ -1,5 +1,4 @@
 import { effectivePermissions, type InstalledPlugin } from '../../../core/plugins'
-import type { Core } from '../core-client'
 import { imageName, importableName } from '../dropImport'
 import { stopsImport } from './contributions'
 import type { PluginHost } from './host'
@@ -45,7 +44,9 @@ export async function importPluginFiles(
   format: string,
   files: readonly ImportFile[],
   host: Pick<PluginHost, 'convertImport'>,
-  core: Pick<Core, 'capture'>,
+  core: {
+    capture: (title: string, markdown: string, destination: string | null) => Promise<string>
+  },
   destination: string | null,
   allowed: () => boolean,
   failed: (error: unknown) => void,

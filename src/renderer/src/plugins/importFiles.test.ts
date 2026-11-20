@@ -37,7 +37,7 @@ describe('plugin file imports', () => {
       .mockRejectedValueOnce(new Error('E_BAD_FILE'))
       .mockRejectedValueOnce(new Error('E_PLUGIN_STOPPED'))
     const capture = vi.fn<(...args: unknown[]) => Promise<string>>().mockResolvedValue('note-id')
-    const failed = vi.fn()
+    const failed = vi.fn<(error: unknown) => void>()
     expect(
       await importPluginFiles(
         plugin(),
