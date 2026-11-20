@@ -123,7 +123,7 @@ export function useAppCommands({
 }) {
   const { workspaceNode, inTrash, inTemplates, multiIds, selectedNotes, listedIds, listedSet } =
     view
-  const { shownSelection, canBoard, boardShown, canGallery, galleryShown } = view
+  const { shownSelection, canBoard, boardShown, canGallery, galleryShown, tableShown } = view
   const { selectedIsTemplate, tree, sortButtonRef, listOrder } = view
   const { sidebarShown, focus, toggleFocus } = panes
   const {
@@ -172,6 +172,7 @@ export function useAppCommands({
       boardShown,
       canGallery,
       galleryShown,
+      tableShown,
       canGoBack: backAt !== undefined,
       canGoForward: forwardAt !== undefined,
       hasNext: nextId !== undefined,

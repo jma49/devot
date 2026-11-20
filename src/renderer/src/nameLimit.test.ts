@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { limitEdit } from './nameLimit'
+import { limitEdit, pastedName } from './nameLimit'
 
 describe('name fields stop at a limit in code points', () => {
   it('leaves an edit within the limit alone', () => {
@@ -24,5 +24,17 @@ describe('name fields stop at a limit in code points', () => {
 
   it('cuts text that is already too long at the end', () => {
     expect(limitEdit('abcdef', 'abcdefg', 4)).toEqual({ value: 'abcd', caret: null })
+  })
+})
+
+describe('pasting text of several lines into a name field', () => {
+  it('takes its first line with text, never the lines run together', () => {
+    expect(pastedName('type: line\ntitle: Visitors\n')).toBe('type: line')
+    expect(pastedName('\r\n  ideas  \r\nmore')).toBe('ideas')
+    expect(pastedName('\n \n')).toBe('')
+  })
+
+  it('leaves text on one line to paste as it is', () => {
+    expect(pastedName('reading list')).toBeUndefined()
   })
 })

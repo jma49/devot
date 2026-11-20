@@ -344,9 +344,28 @@ describe('list layouts', () => {
     expect(layoutOf(withLayout(boards, 'all|', 'list'), 'all|')).toBe('list')
     const gallery = withLayout(boards, 'all|', 'gallery')
     expect(layoutOf(gallery, 'all|')).toBe('gallery')
-    expect(gallery).toEqual({ boards: [], galleries: ['all|'] })
-    expect(withLayout(gallery, 'all|', 'board')).toEqual({ boards: ['all|'], galleries: [] })
-    expect(withLayout(gallery, 'all|', 'list')).toEqual({ boards: [], galleries: [] })
+    expect(gallery).toEqual({ boards: [], galleries: ['all|'], tables: [] })
+    expect(withLayout(gallery, 'all|', 'board')).toEqual({
+      boards: ['all|'],
+      galleries: [],
+      tables: [],
+    })
+    expect(withLayout(gallery, 'all|', 'list')).toEqual({ boards: [], galleries: [], tables: [] })
+    const table = withLayout(gallery, 'all|', 'table')
+    expect(layoutOf(table, 'all|')).toBe('table')
+    expect(table).toEqual({ boards: [], galleries: [], tables: ['all|'] })
+  })
+
+  it('shows a table where a gallery can show, and reads back only such views', () => {
+    const view = `filter:status:active|${BOOK}`
+    const shown = withLayout(undefined, view, 'table')
+    expect(layoutOf(shown, view)).toBe('table')
+    expect(withLayout(shown, 'trash', 'table')).toBe(shown)
+    const state: LastState = { ...full, tables: ['all|', view] }
+    expect(parseLastState(serializeLastState(state))).toEqual(state)
+    const raw = JSON.parse(serializeLastState(full)) as Record<string, unknown>
+    const mixed = JSON.stringify({ ...raw, tables: ['all|', 3, 'trash', 'search|{}', 'all|'] })
+    expect(parseLastState(mixed)?.tables).toEqual(['all|'])
   })
 
   it('shows a status view as a gallery, never as a board', () => {

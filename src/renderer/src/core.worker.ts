@@ -41,6 +41,7 @@ import { createIdGenerator } from '../../core/ids'
 import { createNoteService } from '../../core/notes/service'
 import { observeWrites } from '../../core/observeWrites'
 import type { DrawingAppearance } from '../../core/plugins/drawings'
+import type { Properties, PropertyValue } from '../../core/propertyTypes'
 import {
   createPieceRenderer,
   createPreviewRegistry,
@@ -305,6 +306,21 @@ const coreApi = {
       found[id] = (await renderCardPreview(markdown, labels)).children
     }
     return found
+  },
+  /** The table layout's properties of `ids` that have front matter, by note ID. */
+  properties: async (ids: string[]) => {
+    const [{ readProperties }, heads] = await Promise.all([
+      import('../../core/properties'),
+      required().frontMatterHeads(ids),
+    ])
+    const found: Record<string, Properties> = {}
+    for (const id in heads) found[id] = readProperties(heads[id]!)
+    return found
+  },
+  /** A table cell's write; the Yjs update is for the editor's replica of the note. */
+  setProperty: async (id: string, key: string, value: PropertyValue) => {
+    const { withProperty } = await import('../../core/properties')
+    return required().rewriteBody(id, (markdown) => withProperty(markdown, key, value))
   },
   extract: (sourceId: string, markdown: string, title?: string) =>
     required().extract(sourceId, markdown, title),

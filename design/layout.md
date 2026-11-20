@@ -120,6 +120,15 @@ Its keyline is `size.phone-grouped-pad-x` (16) from a card's edge: section heade
 - **Caption:** one line 6 (`space.3`) under the sheet on the inner keyline, 11 (`font-size.caption`) in tertiary, the board card's meta line led by the marks: the pin, the status mark in its colour, the time, the task ring and count as on a board card, then the tag dots at the line's end.
   The title is not repeated, as the page shows it.
 
+## Table
+
+- The header and every row are `size.table-row-height` (32) tall, a 1 px `color.line.hairline` under each.
+- The title column is `size.table-title-width` (240) wide and every other `size.table-column-width` (160); cells are padded 8 (`space.4`), the title cell from the outer keyline (`size.list-keyline-outer`).
+- **Header:** 11 (`font-size.caption`) semibold in secondary, on `color.surface.list`, with a chevron for the sorted column; it and the title column stay put on the list's surface while the rest scrolls.
+- **Cells:** body text in primary, the title semibold; numbers end-aligned; a date in the list's date format; a checkbox at the start; a list as chips in `font-size.footnote` on `color.fill.card` at `radius.pill`.
+- **States:** under the pointer a row takes `color.fill.row-selected-inactive` mixed into the list's surface, selected the accent wash at `opacity.list-selected`, and the focused cell the inset `color.focus.ring` ring.
+- **Editing:** the cell's input fills it, 4 (`space.2`) inside, with the field style and the focus ring.
+
 ## One stroke rule
 
 A control or block in a note is filled or outlined, never both, and a dashed border is not used at rest. A rendered table (hairline edge) and a callout (tinted edge) are the only bordered blocks; the table box behind Edit mode's source is fill only, like code.

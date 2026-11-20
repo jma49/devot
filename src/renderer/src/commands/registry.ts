@@ -679,6 +679,13 @@ export const COMMANDS = [
     keys: [],
   },
   {
+    id: 'view.toggleTable',
+    label: 'command.showTable',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
+  {
     id: 'view.historyBar',
     label: 'command.showHistoryBar',
     group: 'view',

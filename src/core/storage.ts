@@ -230,6 +230,16 @@ export interface NoteBody {
   bodyMd: string
 }
 
+/** The start of a note whose body opens with a front matter fence, for reading its properties. */
+export interface NoteHead {
+  id: string
+  /** At most MAX_HEAD_CHARS characters of the body. */
+  head: string
+}
+
+/** How much of a note `getHeads` reads: front matter longer than this has no properties in the table layout. */
+export const MAX_HEAD_CHARS = 8_192
+
 /** The most notebooks one `putBooks` call takes (the Tauri command refuses more). */
 export const MAX_PUT_BOOKS = 5_000
 
@@ -255,6 +265,8 @@ export interface StorageAdapter {
   openNote(id: string): Promise<OpenedRecord | null>
   /** One read for many notes (at most MAX_BODY_IDS), trashed ones included; purged and unknown IDs are left out. */
   getBodies(ids: readonly string[]): Promise<NoteBody[]>
+  /** The heads of `ids` (at most MAX_BODY_IDS) whose body opens with `---`, in their order, trashed notes included; purged and unknown IDs are left out. */
+  getHeads(ids: readonly string[]): Promise<NoteHead[]>
   /** Live notes meeting every condition, best matches first, each with its excerpt; at most `limit`. */
   searchNotes(query: NoteQuery, limit: number): Promise<NoteSummary[]>
   /**

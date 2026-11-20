@@ -28,6 +28,7 @@ import type {
   StorageAdapter,
   TagRecord,
 } from '../../../core'
+import { MAX_HEAD_CHARS } from '../../../core/storage'
 import { checkUpload, fileUri, type FileMeta } from '../../../core/files'
 import { noteLinks } from '../../../core/links'
 import { checkNote } from '../../../core/noteLimits'
@@ -258,6 +259,14 @@ export const memoryStorage: StorageAdapter = {
     return ids.flatMap((id) => {
       const n = storedNote(id)
       return n && n.purgedAt === undefined ? [{ id, title: n.title, bodyMd: n.bodyMd }] : []
+    })
+  },
+  async getHeads(ids) {
+    return ids.flatMap((id) => {
+      const n = storedNote(id)
+      return n && n.purgedAt === undefined && n.bodyMd.startsWith('---')
+        ? [{ id, head: [...n.bodyMd].slice(0, MAX_HEAD_CHARS).join('') }]
+        : []
     })
   },
   async searchNotes(query, limit) {
