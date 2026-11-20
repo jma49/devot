@@ -19,6 +19,9 @@ export interface RelayHost {
   close(): Promise<void>
 }
 
+export const corruptToken = (token: string) =>
+  token.slice(0, -2) + (token.endsWith('AA') ? 'BA' : 'AA')
+
 export interface Received {
   message: Record<string, unknown>
   payload: Uint8Array

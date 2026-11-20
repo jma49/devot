@@ -10,6 +10,7 @@ import {
 import {
   bytes,
   connect,
+  corruptToken,
   createVault,
   enroll,
   enrolled,
@@ -149,7 +150,7 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
         const vault = await createVault(host)
         const url = socketUrl(host, vault.vault)
         const token = vault.first.token
-        const forged = token.slice(0, -2) + (token.endsWith('AA') ? 'BB' : 'AA')
+        const forged = corruptToken(token)
         expect(await upgradeStatus(url, [SUBPROTOCOL])).toBe(401)
         expect(await upgradeStatus(url, socketProtocols(forged))).toBe(401)
         expect(await upgradeStatus(url, ['devot-token.' + token])).toBe(400)
@@ -556,6 +557,19 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
       const offer = toBase64Url(bytes(86, 3))
       const proof = toBase64Url(bytes(40, 4))
 
+      it('does not reserve an ID for a rejected token or reopen it after a valid token', async () => {
+        const vault = await createVault(host)
+        const id = randomId()
+        const body = { vault: vault.vault, offer }
+        for (const [token, status] of [
+          [corruptToken(vault.first.token), 401],
+          [vault.first.token, 200],
+          [vault.first.token, 409],
+        ] as const) {
+          expect(await pairingRequest(host, id, 'pair', body, token)).toMatchObject({ status })
+        }
+      })
+
       it('hands the sealed offer out once and the confirmation to the device that opened it', async () => {
         const vault = await createVault(host, 'mac')
         const id = randomId()
@@ -616,7 +630,7 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
           status: 401,
         })
         expect(
-          await pairingRequest(host, id, 'pair', body, `${vault.first.token.slice(0, -2)}AA`),
+          await pairingRequest(host, id, 'pair', body, corruptToken(vault.first.token)),
         ).toMatchObject({ status: 401 })
         expect(
           await pairingRequest(host, id, 'pair', { vault: randomId(), offer }, vault.first.token),
