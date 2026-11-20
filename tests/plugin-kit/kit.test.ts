@@ -192,12 +192,12 @@ describe('devot-plugin', () => {
     expect(read.manifest).toMatchObject({
       id: 'com.example.word-tools',
       name: 'Word Tools',
-      apiVersion: 2,
+      apiVersion: 3,
       contributes: { slashMenu: [{ command: 'upper-case' }] },
     })
     const checked = io(cwd)
     expect(run(['validate', 'word-tools'], checked.given)).toBe(0)
-    expect(checked.out[0]).toBe('com.example.word-tools 0.1.0: valid for plugin API 2, 3 files')
+    expect(checked.out[0]).toBe('com.example.word-tools 0.1.0: valid for plugin API 3, 3 files')
     const packed = io(cwd)
     expect(run(['pack', 'word-tools'], packed.given)).toBe(0)
     const zipped = unzip(readFileSync(join(cwd, 'com.example.word-tools-0.1.0.zip')))

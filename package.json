@@ -40,6 +40,7 @@
     "smoke:quit": "bash scripts/smoke/quit-saves.sh",
     "tokens": "node scripts/tokens/build.ts",
     "plugin-kit:build": "esbuild plugin-kit/src/main.ts --bundle --platform=node --format=esm --target=node22 --banner:js=\"#!/usr/bin/env node\" --outfile=plugin-kit/dist/devot-plugin.js",
+    "plugin-enex:build": "esbuild plugins/enex/source.ts --bundle --platform=browser --format=iife --target=es2023 --minify --legal-comments=inline --banner:js='/* oxlint-disable -- Generated dependency bundle; lint source.ts instead. */' --outfile=plugins/enex/main.js && oxfmt plugins/enex/main.js",
     "app-icon": "sh scripts/app-icon/build.sh",
     "grammars": "node scripts/preview/grammars.ts && oxfmt src/core/preview/grammars.ts",
     "tokens:check": "node scripts/tokens/build.ts --check",
@@ -98,6 +99,7 @@
     "yjs": "13.6.33"
   },
   "devDependencies": {
+    "@noble/hashes": "1.8.0",
     "@playwright/test": "1.64.0",
     "@sentry/cli": "3.8.0",
     "@tauri-apps/cli": "2.12.1",
@@ -110,6 +112,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "better-sqlite3": "13.0.3",
+    "character-entities": "2.0.2",
     "esbuild": "0.28.2",
     "fast-check": "4.10.2",
     "happy-dom": "21.0.4",
@@ -117,6 +120,7 @@
     "miniflare": "4.20260730.0",
     "oxfmt": "0.72.0",
     "oxlint": "1.87.0",
+    "saxes": "6.0.0",
     "typescript": "7.0.2",
     "vite": "8.3.4",
     "vitest": "5.0.3"

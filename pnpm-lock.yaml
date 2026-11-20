@@ -316,6 +316,9 @@ importers:
         specifier: 13.6.33
         version: 13.6.33
     devDependencies:
+      '@noble/hashes':
+        specifier: 1.8.0
+        version: 1.8.0
       '@playwright/test':
         specifier: 1.64.0
         version: 1.64.0
@@ -352,6 +355,9 @@ importers:
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3
+      character-entities:
+        specifier: 2.0.2
+        version: 2.0.2
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -373,6 +379,9 @@ importers:
       oxlint:
         specifier: 1.87.0
         version: 1.87.0
+      saxes:
+        specifier: 6.0.0
+        version: 6.0.0
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -1033,6 +1042,10 @@ packages:
   '@mozilla/readability@0.6.0':
     resolution: {integrity: sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==}
     engines: {node: '>=14.0.0'}
+
+  '@noble/hashes@1.8.0':
+    resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
+    engines: {node: ^14.21.3 || >=16}
 
   '@oxc-project/types@0.153.0':
     resolution: {integrity: sha512-jSNrRIyvPVLL5E1z/tS5zLAprosGz/FuI1PWwEOz59j3E4TTTzSpqKb/RDGqJhhW0QHYISGXxq582wGx6T11Tw==}
@@ -2882,6 +2895,10 @@ packages:
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
 
+  saxes@6.0.0:
+    resolution: {integrity: sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA==}
+    engines: {node: '>=v12.22.7'}
+
   scheduler@0.28.0:
     resolution: {integrity: sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==}
 
@@ -3164,6 +3181,9 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
+
+  xmlchars@2.2.0:
+    resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
 
   y-codemirror.next@0.3.6:
     resolution: {integrity: sha512-GnmVXhTe+UtoFbbaSdwhq6gdAQZdIY9az0Xj6HR2J4PO6Yw4w3xaaSssU+6T72WhXAI0wf9FbuY2s0Ms+WrexA==}
@@ -3829,6 +3849,8 @@ snapshots:
       '@chevrotain/types': 13.2.0
 
   '@mozilla/readability@0.6.0': {}
+
+  '@noble/hashes@1.8.0': {}
 
   '@oxc-project/types@0.153.0': {}
 
@@ -5817,6 +5839,10 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
+  saxes@6.0.0:
+    dependencies:
+      xmlchars: 2.2.0
+
   scheduler@0.28.0: {}
 
   semver@7.8.5: {}
@@ -6080,6 +6106,8 @@ snapshots:
       - utf-8-validate
 
   ws@8.21.0: {}
+
+  xmlchars@2.2.0: {}
 
   y-codemirror.next@0.3.6(@codemirror/state@6.7.6)(@codemirror/view@6.43.14)(yjs@13.6.33):
     dependencies:
