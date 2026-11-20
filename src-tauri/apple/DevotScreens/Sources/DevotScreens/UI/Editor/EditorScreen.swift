@@ -145,6 +145,26 @@ final class EditorScreen: WebHolderScreen {
 
     required init?(coder: NSCoder) { nil }
 
+    override func viewDidLayoutSubviews() {
+        let frame = view.bounds.inset(by: UIEdgeInsets(top: barDrop, left: 0, bottom: 0, right: 0))
+        if webContainer.frame != frame {
+            webContainer.frame = frame
+            cover.frame = frame
+        }
+        super.viewDidLayoutSubviews()
+    }
+
+    /// The page keeps the bar's room at the window's safe area; under an iPad's floating tabs the bar
+    /// sits lower, so the page moves down with it rather than run its title under the bar's buttons.
+    private var barDrop: CGFloat {
+        guard let window = view.window, let navigation = navigationController, !navigation.isNavigationBarHidden
+        else { return 0 }
+        let bar = navigation.navigationBar
+        let barTop = bar.convert(bar.bounds, to: window).minY
+        let ownTop = view.convert(view.bounds, to: window).minY
+        return max(0, barTop - window.safeAreaInsets.top - ownTop)
+    }
+
     override func loadView() {
         view = UIView()
         view.backgroundColor = Tokens.Color.phoneBackground

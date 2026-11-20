@@ -60,6 +60,8 @@ On an iPad (`DevotTabBarController.usesColumns`), Notes and Library hold their s
 - A list shown beside the note never asks the page to let it go; a note's column left empty (the note trashed, its new note refused) shows No Note Selected and asks it then.
 - The page is the size of the screen that shows it: the note's column beside the lists, the window otherwise; while it rests it keeps the size the next note opens at, so a move never resizes it.
 - The tab bar stays beside the lists; a note pushed over its list in the one stack takes it away, as on the iPhone.
+  Under the iPad's floating tabs the note's bar sits lower than the window's safe area, where the page keeps its bar's room, so the editor lowers the page by the difference (`barDrop`) and the title never runs under the bar's buttons.
+- A route into a tab lays it out first, so a note it opens goes to the note's column even when the tab last laid out narrower.
 - The editor's Lists button (`sidebar.left`) and Control-Command-S slide the lists away so the note has the width, and back.
 
 ### Keyboard, pointer and Apple Pencil

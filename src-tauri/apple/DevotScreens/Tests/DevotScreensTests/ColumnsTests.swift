@@ -96,6 +96,10 @@ final class ColumnsTests: XCTestCase {
         XCTAssertEqual(host.webView.bounds.width, notes.notes.view.bounds.width, "the page is the column's width")
         XCTAssertLessThan(host.webView.bounds.width, harness.window.bounds.width)
         XCTAssertFalse(tabs.isTabBarHidden, "the tabs stay beside a note")
+        let bar = notes.notes.navigationBar
+        XCTAssertEqual(
+            one.webContainer.convert(one.webContainer.bounds, to: nil).minY + harness.window.safeAreaInsets.top,
+            bar.convert(bar.bounds, to: nil).minY, accuracy: 0.5, "the page keeps its bar's room where the bar is")
 
         open(second, "Second")
         let two = try XCTUnwrap(notes.notes.topViewController as? EditorScreen)
