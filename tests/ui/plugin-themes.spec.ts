@@ -7,6 +7,17 @@ import { changeEditorSettingsElsewhere, expect, openApp, openSettings, test } fr
 
 test.use({ colorScheme: 'light' })
 
+// Icons, tag colors, buttons and the destructive red keep Devot's colors under every theme.
+const OWN_COLORS = [
+  'status-active-mark',
+  'icon-tile-general',
+  'tag-red',
+  'accent-fill',
+  'focus-ring',
+  'fill-destructive',
+  'text-destructive',
+]
+
 const theme = (
   plugin: string,
   pluginName: string,
@@ -22,10 +33,8 @@ const theme = (
   appearance,
   colors: {
     'surface-editor': editor,
-    'accent-fill': '#8839ef',
     'not-a-token': '#000000',
-    'status-active-mark': '#ff00ff',
-    'icon-tile-general': '#ff00ff',
+    ...Object.fromEntries(OWN_COLORS.map((name) => [name, '#ff00ff'])),
   },
 })
 
@@ -90,12 +99,13 @@ test('draws the chosen plugin theme over the window’s theme, in light, dark an
     ),
   ).toBe('')
   await expect(page.locator('html')).toHaveAttribute('data-plugin-theme', `${CAT}/latte`)
-  // Icons keep Devot's colors under every theme.
   expect(
-    await page.evaluate(() =>
-      ['--color-status-active-mark', '--color-icon-tile-general'].map((name) =>
-        getComputedStyle(document.documentElement).getPropertyValue(name).trim(),
-      ),
+    await page.evaluate(
+      (names) =>
+        names.map((name) =>
+          getComputedStyle(document.documentElement).getPropertyValue(`--color-${name}`).trim(),
+        ),
+      OWN_COLORS,
     ),
   ).not.toContain('#ff00ff')
   await page.emulateMedia({ colorScheme: 'dark' })
