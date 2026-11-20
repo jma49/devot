@@ -9,7 +9,7 @@ export const KUBAI_VIEWBOX = '2 -1 27 27'
 
 /**
  * The Devot icons Kubai draws (https://icons.kubai.design, MIT). Kubai draws objects, so the bare
- * marks (chevrons, check, plus, the status circles and the tag dot) stay Lucide's.
+ * marks (chevrons, check, plus, the unset status's dashed ring and the tag dot) stay Lucide's.
  */
 export const KUBAI_ICONS: Readonly<Partial<Record<IconName, string>>> = catalog.symbols
 

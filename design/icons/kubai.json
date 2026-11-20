@@ -160,6 +160,14 @@
     "settings.appearanceMode": "sun",
     "phone.settings.appearance": "sun",
     "settings.noteFont": "type",
-    "note.pinned": "pin"
+    "note.pinned": "pin",
+    "status.active": "play",
+    "status.onHold": "pause",
+    "status.completed": "circle-check",
+    "status.dropped": "circle-x",
+    "phone.status.active": "play",
+    "phone.status.onHold": "pause",
+    "phone.status.completed": "circle-check",
+    "phone.status.dropped": "circle-x"
   }
 }

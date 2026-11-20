@@ -36,8 +36,8 @@ describe('the Kubai icon set', () => {
     )
   })
 
-  it('leaves the bare marks and the status circles to Lucide', () => {
-    for (const name of ['check', 'nav.back', 'tag', 'status.completed', 'stepper.more'])
+  it('leaves the bare marks, the unset status and the tag dot to Lucide', () => {
+    for (const name of ['check', 'nav.back', 'tag', 'status.none', 'stepper.more'])
       expect(catalog.symbols).not.toHaveProperty(name)
   })
 
