@@ -106,7 +106,6 @@ export function chosenModel(catalogs: Catalogs, choice: ModelChoice): AiCatalogM
   return id === null ? undefined : load.models.find((m) => m.id === id)
 }
 
-/** The name a choice shows: the model's own, the ID when the list does not hold it, or null for the provider's unnamed default. */
 /** Cloud models as last seen in their provider's list, by the choice that named them (`provider/model`). */
 export type KnownModels = Readonly<Record<string, AiCatalogModel>>
 
@@ -136,6 +135,7 @@ export function rememberChoices(
   return next
 }
 
+/** The name a choice shows: the model's own, the ID when the list does not hold it, or null for the provider's unnamed default. */
 export function choiceName(
   catalogs: Catalogs,
   choice: ModelChoice,
