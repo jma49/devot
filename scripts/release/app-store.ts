@@ -19,6 +19,8 @@
 //   node scripts/release/app-store.ts marker-check <target>/aarch64-apple-ios/release/deps
 //     Checks from rustc's dep-info that the Rust build read DEVOT_RELEASE_BUILD=1 and
 //     DEVOT_DISTRIBUTION=app-store.
+//   node scripts/release/app-store.ts marker-check-target <target>
+//     Lists iPhone release folders and checks the direct target folder, or the only nested one.
 //
 //   node scripts/release/app-store.ts check-bundle <Info.plist as JSON> <short> <build>
 //     Checks the archived app is the iPhone and iPad App Store build with iCloud and that version.
@@ -255,8 +257,35 @@ function main(args: string[]) {
     console.log('Set DEVOT_ICLOUD for the iPhone app.')
     return
   }
-  if (command === 'marker-check' && rest.length === 1) {
-    const deps = rest[0]!
+  if ((command === 'marker-check' || command === 'marker-check-target') && rest.length === 1) {
+    let deps = rest[0]!
+    if (command === 'marker-check-target') {
+      const candidates: string[] = []
+      const visit = (folder: string) => {
+        for (const entry of readdirSync(folder, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue
+          const path = join(folder, entry.name)
+          if (path.endsWith('/aarch64-apple-ios/release/deps')) candidates.push(path)
+          else visit(path)
+        }
+      }
+      visit(deps)
+      candidates.sort()
+      console.log(`iPhone release build folders under ${deps}:`)
+      console.log(candidates.length ? candidates.join('\n') : '(none)')
+      const direct = join(deps, 'aarch64-apple-ios/release/deps')
+      const selected = candidates.includes(direct)
+        ? direct
+        : candidates.length === 1
+          ? candidates[0]
+          : undefined
+      if (!selected)
+        throw new Error(
+          '::error::E_APP_STORE_MARKER: the build left no unambiguous iPhone release build folder.',
+        )
+      deps = selected
+      console.log(`Checking Rust build markers in ${deps}`)
+    }
     const infos = readdirSync(deps)
       .filter((file) => file.endsWith('.d'))
       .map((file) => readFileSync(join(deps, file), 'utf8'))
@@ -282,7 +311,7 @@ function main(args: string[]) {
     return
   }
   throw new Error(
-    '::error::E_APP_STORE_USAGE: version <version> <run number> <run attempt> | project-settings <project.pbxproj> | icloud-settings <project.pbxproj> | marker-check <deps dir> | check-bundle <info.json> <short> <build> | privacy-check <privacy.json> <symbols> <strings>',
+    '::error::E_APP_STORE_USAGE: version <version> <run number> <run attempt> | project-settings <project.pbxproj> | icloud-settings <project.pbxproj> | marker-check <deps dir> | marker-check-target <target dir> | check-bundle <info.json> <short> <build> | privacy-check <privacy.json> <symbols> <strings>',
   )
 }
 

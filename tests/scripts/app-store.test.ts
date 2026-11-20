@@ -334,4 +334,48 @@ describe('the markers the Rust build saw', () => {
       '::error::E_APP_STORE_MARKER: the Rust build read DEVOT_DISTRIBUTION unset',
     )
   })
+
+  it('prefers the direct iPhone release folder over nested build folders and prints both', () => {
+    const target = tempDir('devot-app-store-target-')
+    const direct = join(target, 'aarch64-apple-ios/release/deps')
+    const nested = join(target, 'other/aarch64-apple-ios/release/deps')
+    for (const deps of [direct, nested]) mkdirSync(deps, { recursive: true })
+    writeFileSync(
+      join(direct, 'app.d'),
+      depInfo('DEVOT_RELEASE_BUILD=1', 'DEVOT_DISTRIBUTION=app-store'),
+    )
+    writeFileSync(join(nested, 'app.d'), depInfo('DEVOT_DISTRIBUTION'))
+    const result = run('marker-check-target', target)
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain(direct)
+    expect(result.stdout).toContain(nested)
+  })
+
+  it('checks a single nested target folder', () => {
+    const target = tempDir('devot-app-store-target-')
+    const deps = join(target, 'nested/aarch64-apple-ios/release/deps')
+    mkdirSync(deps, { recursive: true })
+    writeFileSync(
+      join(deps, 'app.d'),
+      depInfo('DEVOT_RELEASE_BUILD=1', 'DEVOT_DISTRIBUTION=app-store'),
+    )
+    expect(run('marker-check-target', target).status).toBe(0)
+  })
+
+  it('reports missing or ambiguous target folders without accepting simulator builds', () => {
+    const target = tempDir('devot-app-store-target-')
+    mkdirSync(join(target, 'aarch64-apple-ios-sim/release/deps'), { recursive: true })
+    const empty = run('marker-check-target', target)
+    expect(empty.status).toBe(1)
+    expect(empty.stdout).toContain('(none)')
+    expect(empty.stderr).toContain('E_APP_STORE_MARKER')
+    const candidates = ['first', 'second'].map((name) =>
+      join(target, name, 'aarch64-apple-ios/release/deps'),
+    )
+    for (const deps of candidates) mkdirSync(deps, { recursive: true })
+    const ambiguous = run('marker-check-target', target)
+    expect(ambiguous.status).toBe(1)
+    for (const deps of candidates) expect(ambiguous.stdout).toContain(deps)
+    expect(ambiguous.stderr).toContain('E_APP_STORE_MARKER')
+  })
 })
