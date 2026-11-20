@@ -120,6 +120,8 @@ export const messages: Record<keyof typeof en, string> = {
   'editorSettings.toolbar': '工具栏',
   'editorSettings.toolbarHint': '是否在选中的文字上方和当前表格行上方显示工具栏。',
   'editorSettings.lineNumbers': '行号',
+  'editorSettings.vimMode': 'Vim 模式',
+  'editorSettings.vimModeHint': '使用 Vim 键位。按 i 插入文本，按 Escape 返回普通模式。',
   'editorSettings.lineNumbersHint': '是否在编辑器左侧显示行号。',
   'editorSettings.highlightActiveLine': '高亮当前行',
   'editorSettings.highlightActiveLineHint': '是否高亮光标所在的行。',

@@ -51,7 +51,12 @@ function refs(overrides: Partial<NoteEditorRefs> = {}): NoteEditorRefs {
   }
 }
 
-function noteState(body: string, editorRefs: NoteEditorRefs, placeChanged = () => {}) {
+function noteState(
+  body: string,
+  editorRefs: NoteEditorRefs,
+  placeChanged = () => {},
+  settings = DEFAULT_EDITOR_SETTINGS,
+) {
   const doc = new Y.Doc()
   const text = doc.getText('body')
   text.insert(0, body)
@@ -64,7 +69,7 @@ function noteState(body: string, editorRefs: NoteEditorRefs, placeChanged = () =
         noteId: 'n1',
         doc,
         text,
-        settings: { ...DEFAULT_EDITOR_SETTINGS },
+        settings: { ...settings },
         frame: document.createElement('div'),
         scroller: document.createElement('div'),
         images: { extension: [], choose: () => {} },
@@ -80,6 +85,31 @@ function noteState(body: string, editorRefs: NoteEditorRefs, placeChanged = () =
 }
 
 describe('noteExtensions', () => {
+  it('keeps composition-ending Escape out of Vim before handling ordinary Escape', async () => {
+    const { getCM } = await import('@replit/codemirror-vim')
+    const { state } = noteState('text', refs(), undefined, {
+      ...DEFAULT_EDITOR_SETTINGS,
+      vimMode: true,
+    })
+    const view = new EditorView({ state, parent: document.body })
+    const press = (key: string, fields: KeyboardEventInit = {}) =>
+      view.contentDOM.dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...fields }),
+      )
+    try {
+      await vi.waitFor(() => expect(getCM(view)).not.toBeNull())
+      press('i')
+      expect(getCM(view)!.state.vim?.insertMode).toBe(true)
+      press('Escape', { isComposing: true })
+      expect(getCM(view)!.state.vim?.insertMode).toBe(true)
+      press('Escape', { keyCode: 229 })
+      expect(getCM(view)!.state.vim?.insertMode).toBe(true)
+      press('Escape')
+      expect(getCM(view)!.state.vim?.insertMode).toBe(false)
+    } finally {
+      view.destroy()
+    }
+  })
   it('opens a note link through the opener the editor has when the link is opened', () => {
     const editorRefs = refs()
     const { state } = noteState('text', editorRefs)

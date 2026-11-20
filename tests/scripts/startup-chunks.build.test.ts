@@ -13,6 +13,7 @@ const MARKDOWN_STACK =
   /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:unified|remark-[^/]+|micromark[^/]*|mdast-util-[^/]+|hast-util-from-html|hast-util-to-mdast|parse5|yaml)\/|\/src\/core\/(?:import|htmlImport|templates|frontMatter)\.ts$/
 const SERVER_RENDERING =
   /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?react-dom\/(?:server|cjs\/react-dom-server)/
+const VIM = /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@replit\/codemirror-vim\//
 const WORKER_LAZY =
   /\/src\/core\/(?:sync\/engine|mirror|import|htmlImport|export|htmlExport|ai)\.ts$/
 const IMPORT_UI = /\/src\/(?:core\/import(?:Tree|Layout)\.ts|renderer\/src\/ImportDialog\.tsx)$/
@@ -98,6 +99,8 @@ it('the main window loads no Markdown parsing or server rendering before its fir
   expect(modulesOf(chunks, IMPORT_UI)).toEqual([])
   expect(modulesOf([...main.values()], IMPORT_UI).length).toBeGreaterThan(0)
   expect(modulesOf(chunks, /\/src\/renderer\/src\/TemplatePicker\.tsx$/)).toEqual([])
+  expect(modulesOf(chunks, VIM)).toEqual([])
+  expect(modulesOf([...main.values()], VIM)).toEqual(['@replit/codemirror-vim'])
   expect(bytesOf(chunks)).toBeLessThan(MAIN_EAGER_BUDGET)
 })
 

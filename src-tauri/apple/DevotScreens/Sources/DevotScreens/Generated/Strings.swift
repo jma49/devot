@@ -2222,6 +2222,18 @@ public enum L10n {
     text("counts.words", "Words")
   }
 
+  public static func countsVimNormal() -> String {
+    text("counts.vimNormal", "NORMAL")
+  }
+
+  public static func countsVimInsert() -> String {
+    text("counts.vimInsert", "INSERT")
+  }
+
+  public static func countsVimVisual() -> String {
+    text("counts.vimVisual", "VISUAL")
+  }
+
   public static func countsCharacters() -> String {
     text("counts.characters", "Characters")
   }
@@ -7124,6 +7136,14 @@ public enum L10n {
 
   public static func editorSettingsLineNumbers() -> String {
     text("editorSettings.lineNumbers", "Line Numbers")
+  }
+
+  public static func editorSettingsVimMode() -> String {
+    text("editorSettings.vimMode", "Vim Mode")
+  }
+
+  public static func editorSettingsVimModeHint() -> String {
+    text("editorSettings.vimModeHint", "Use Vim keybindings. Press i to insert text and Escape to return to normal mode.")
   }
 
   public static func editorSettingsLineNumbersHint() -> String {

@@ -185,6 +185,7 @@ pub struct EditorSettings {
     pub tab_width: u64,
     pub list_marker: ListMarker,
     pub spell_check: bool,
+    pub vim_mode: bool,
     pub highlight_active_line: bool,
     /// An adjustment of the sheet's wash from its design value
     /// (Settings > Appearance > Glass Transparency): 0 is the design, -100 opaque,
@@ -274,6 +275,7 @@ impl Default for EditorSettings {
             tab_width: 2,
             list_marker: ListMarker::Star,
             spell_check: true,
+            vim_mode: false,
             highlight_active_line: false,
             window_transparency: 0,
             material_transparency: 0,
@@ -411,6 +413,7 @@ impl EditorSettings {
             "tabWidth" => self.tab_width = whole(value, TAB_WIDTH_MIN, TAB_WIDTH_MAX)?,
             "listMarker" => self.list_marker = choice(value)?,
             "spellCheck" => self.spell_check = flag(value)?,
+            "vimMode" => self.vim_mode = flag(value)?,
             "highlightActiveLine" => self.highlight_active_line = flag(value)?,
             "windowTransparency" => {
                 self.window_transparency =
@@ -821,8 +824,33 @@ mod tests {
     }
 
     #[test]
+    fn vim_mode_accepts_only_flags_and_round_trips() {
+        let settings = EditorSettings::default()
+            .with(&patch(json!({ "vimMode": true })))
+            .unwrap();
+        assert!(settings.vim_mode);
+        assert_eq!(
+            serde_json::to_value(&settings).unwrap()["vimMode"],
+            json!(true)
+        );
+        assert!(
+            !settings
+                .with(&patch(json!({ "vimMode": false })))
+                .unwrap()
+                .vim_mode
+        );
+        for value in [Value::Null, json!(1), json!("true")] {
+            assert_eq!(
+                settings.with(&patch(json!({ "vimMode": value }))),
+                Err(INVALID)
+            );
+        }
+    }
+
+    #[test]
     fn defaults_are_roomy_and_helpful() {
         let d = EditorSettings::default();
+        assert!(!d.vim_mode);
         assert!(!d.line_numbers && !d.highlight_active_line);
         assert_eq!(d.line_wrapping, LineWrapping::UnwrapAtCursor);
         assert!(!d.readable_width && d.spell_check);
@@ -947,6 +975,7 @@ mod tests {
                 "tabWidth": 2,
                 "listMarker": "*",
                 "spellCheck": true,
+                "vimMode": false,
                 "highlightActiveLine": false,
                 "windowTransparency": 0,
                 "pasteUrl": "link",

@@ -48,6 +48,7 @@ import { pasteUrlStyle } from './paste'
 import { registryKeys } from './registryKeys'
 import { toolbarOff } from './toolbarState'
 import { keepCaretInColumn, keepCaretLine, wrappingModes } from './unwrap'
+import { vimMode } from './vim'
 
 const MAC =
   typeof navigator !== 'undefined' &&
@@ -257,7 +258,10 @@ const whitespaceTheme = EditorView.theme({
 const trailingWhitespace = [highlightTrailingWhitespace(), whitespaceTheme]
 const invisibles = [highlightWhitespace(), whitespaceTheme]
 
+const vimOn = vimMode()
+
 const PARTS = {
+  vim: (s: EditorSettings): Extension => (s.vimMode ? vimOn : []),
   gutter: (s: EditorSettings): Extension =>
     s.lineNumbers ? [gutterOn, s.highlightActiveLine ? activeLineGutter : []] : [],
   activeLine: (s: EditorSettings): Extension => (s.highlightActiveLine ? activeLine : []),
@@ -292,6 +296,7 @@ const PARTS = {
 type Part = keyof typeof PARTS
 
 const READS: Readonly<Record<Part, readonly (keyof EditorSettings)[]>> = {
+  vim: ['vimMode'],
   gutter: ['lineNumbers', 'highlightActiveLine'],
   activeLine: ['highlightActiveLine'],
   wrapping: ['lineWrapping'],

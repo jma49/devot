@@ -38,6 +38,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - One caption style for the sidebar and the list (`.section-header`, `.list-section`): caption size (11), semibold, tertiary text, no icon.
 - The editor footer (`.editor-counts`, words and characters) is caption size (11) in tertiary text, right-aligned and inset `space.10` from the content column's edge, with no rule above it; focus mode does not narrow it to the reading column, so it keeps the window's bottom-right corner.
   A note with a word goal shows its words as `340 / 1,500` in the same style, with the goal in the item's tooltip.
+  Vim Mode adds its localized NORMAL, INSERT or VISUAL label before the counts in the same caption style and spacing.
   Notices (`.notices`) sit in the bottom-right corner as glass popovers (`radius.glass-popover`, `size.glass-popover-inset`) and rise clear of `.editor-counts` and `.history-bar` whenever either is shown.
 - Footnotes on screen start with a 48 pt hairline (`size.footnote-rule`) on the text's edge, with text at footnote size (12) in secondary. Print keeps the full-width rule.
 
