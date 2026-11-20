@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-// A typed endpoint or model is kept when the pane is left without leaving the field first.
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AiSettingsChange, AiSettingsView } from '../../../core/aiProvider'
 import { invoke } from '../ipc'
 import { AiSection } from './AiSection'
 
@@ -10,25 +10,112 @@ vi.mock('../ipc', () => ({ invoke: vi.fn<() => Promise<unknown>>() }))
 vi.stubGlobal('DEVOT_UI_TEST', true)
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 
-const provider = { endpoint: '', model: '', defaultEndpoint: '', defaultModel: '', key: 'unset' }
-const stored = { active: 'openai', suggestOnIdle: false, anthropic: provider, openai: provider }
+const http = {
+  endpoint: '',
+  model: '',
+  defaultEndpoint: 'https://api.example.test/v1',
+  defaultModel: '',
+  key: 'unset',
+  reasoning: null,
+} as const
+const tool = (state: 'ready' | 'signedOut' | 'notInstalled') => ({
+  state,
+  model: '',
+  reasoning: null,
+})
 
+const codexModels = {
+  state: 'ready',
+  defaultModel: 'gpt-5.5',
+  models: [
+    {
+      id: 'gpt-5.5',
+      name: 'GPT-5.5',
+      tier: 'best',
+      reasoning: ['low', 'medium', 'high'],
+      defaultReasoning: 'medium',
+    },
+    {
+      id: 'gpt-5.5-mini',
+      name: 'GPT-5.5 Mini',
+      tier: 'fast',
+      reasoning: [],
+      defaultReasoning: null,
+    },
+  ],
+}
+const claudeModels = {
+  state: 'ready',
+  defaultModel: null,
+  models: [{ id: 'haiku', name: 'Haiku', tier: 'fast', reasoning: [], defaultReasoning: null }],
+}
+const openaiModels = {
+  state: 'ready',
+  defaultModel: null,
+  models: [
+    { id: 'o-small', name: 'O Small', tier: 'fast', reasoning: [], defaultReasoning: null },
+    { id: 'o-large', name: 'O Large', tier: null, reasoning: [], defaultReasoning: null },
+  ],
+}
+
+let stored: AiSettingsView
 let host: HTMLDivElement
 let root: Root
+type Answer = (command: string, args: Record<string, unknown>) => unknown
 
-beforeEach(() => {
+function rust(answer: Answer = () => undefined) {
   vi.mocked(invoke).mockImplementation(async (command, args) => {
+    const own = answer(command, (args ?? {}) as Record<string, unknown>)
+    if (own !== undefined) return own
     if (command === 'ai_settings_get') return stored
+    if (command === 'settings_ai_access_summary') return { notebooks: 3, allowed: 1 }
     if (command === 'ai_settings_set') {
-      const { settings } = args as { settings: typeof stored }
-      return {
-        ...settings,
-        anthropic: { ...provider, ...settings.anthropic },
-        openai: { ...provider, ...settings.openai },
+      const change = (args as { settings: AiSettingsChange }).settings
+      stored = {
+        ...stored,
+        active: change.active,
+        suggestOnIdle: change.suggestOnIdle,
+        anthropic: { ...stored.anthropic, ...change.anthropic },
+        openai: { ...stored.openai, ...change.openai },
+        suggestModel: change.suggestModel ?? null,
+        ...(stored.cli
+          ? {
+              cli: {
+                claudeCli: { ...stored.cli.claudeCli, ...change.claudeCli },
+                codexCli: { ...stored.cli.codexCli, ...change.codexCli },
+              },
+            }
+          : {}),
       }
+      return stored
+    }
+    if (command === 'ai_models') {
+      const { providers } = args as { providers: string[] }
+      const all: Record<string, unknown> = {
+        codexCli: codexModels,
+        claudeCli: claudeModels,
+        openai: openaiModels,
+      }
+      return Object.fromEntries(providers.map((p) => [p, all[p]]))
+    }
+    if (command === 'ai_key_set') {
+      stored = { ...stored, openai: { ...stored.openai, key: 'set' } }
+      return stored
     }
     return undefined
   })
+}
+
+beforeEach(() => {
+  stored = {
+    active: 'codexCli',
+    suggestOnIdle: false,
+    anthropic: http,
+    openai: http,
+    cli: { codexCli: tool('ready'), claudeCli: tool('ready') },
+    suggestModel: null,
+  }
+  rust()
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -38,530 +125,198 @@ afterEach(() => {
   act(() => root.unmount())
   host.remove()
   vi.mocked(invoke).mockReset()
-  Reflect.deleteProperty(document, 'visibilityState')
+  localStorage.clear()
 })
+
+const settle = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
 
 async function pane() {
   await act(async () => root.render(<AiSection />))
+  await settle()
 }
 
-const field = (part: 'endpoint' | 'model') =>
-  host.querySelector<HTMLInputElement>(`input[id$="openai-${part}"]`)!
-
-function type(part: 'endpoint' | 'model', value: string) {
-  const input = field(part)
-  act(() => {
-    input.focus()
-    for (let end = 1; end <= value.length; end += 1) {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        input,
-        value.slice(0, end),
-      )
-      input.dispatchEvent(new Event('input', { bubbles: true }))
-    }
-  })
-}
-
-const saved = () =>
+const calls = (command: string) =>
   vi
     .mocked(invoke)
-    .mock.calls.filter(([command]) => command === 'ai_settings_set')
-    .map(([, args]) => (args as { settings: typeof stored }).settings.openai)
+    .mock.calls.filter(([c]) => c === command)
+    .map(([, args]) => args as Record<string, unknown>)
 
-describe('the AI pane', () => {
-  it('saves nothing while a field is typed into', async () => {
-    await pane()
-    type('endpoint', 'http://localhost:11434')
-    expect(saved()).toEqual([])
+const modelButton = (label: string) =>
+  [...host.querySelectorAll<HTMLButtonElement>('button.model-popup')].find((b) =>
+    b.getAttribute('aria-label')?.startsWith(`${label}:`),
+  )!
+
+const click = (el: Element | null | undefined) =>
+  act(async () => {
+    el!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   })
 
-  it('keeps a typed field when it is closed', async () => {
+const options = () =>
+  [...host.querySelectorAll('.model-picker [role="option"]')].map((o) => o.textContent)
+
+const railButton = (name: string) =>
+  [...host.querySelectorAll<HTMLButtonElement>('.model-picker-rail-button')].find((b) =>
+    b.getAttribute('aria-label')?.startsWith(name),
+  )
+
+describe('Settings > AI', () => {
+  it('lists the local tools’ models when it opens, and a cloud provider’s only once that provider is opened', async () => {
+    stored = { ...stored, openai: { ...http, key: 'set' } }
     await pane()
-    type('endpoint', 'http://localhost:11434')
-    type('model', 'llama3')
-    await act(async () => root.render(<></>))
-    expect(saved().at(-1)).toEqual({ endpoint: 'http://localhost:11434', model: 'llama3' })
+    expect(calls('ai_models')).toEqual([{ providers: ['claudeCli', 'codexCli'], refresh: false }])
+    await click(modelButton('Model'))
+    expect(options()).toEqual(
+      expect.arrayContaining([expect.stringContaining('GPT-5.5'), 'Other Model ID…']),
+    )
+    await click(railButton('OpenAI-compatible'))
+    await settle()
+    expect(calls('ai_models').at(-1)).toEqual({ providers: ['openai'], refresh: false })
+    expect(options()).toEqual(expect.arrayContaining([expect.stringContaining('O Small')]))
   })
 
-  it('keeps a typed field when the app goes to the background', async () => {
+  it('puts focus back in the search field when Escape leaves Other Model ID, so a second Escape closes the picker', async () => {
     await pane()
-    type('model', 'llama3')
-    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
-    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
-    expect(saved()).toEqual([{ endpoint: '', model: 'llama3' }])
-  })
-
-  it('saves an unchanged pane never', async () => {
-    await pane()
-    await act(async () => root.render(<></>))
-    expect(saved()).toEqual([])
-  })
-
-  it('sends a save only once the one before answered, with what is asked then', async () => {
-    const answers: Array<() => void> = []
-    const events: string[] = []
-    const respond = vi.mocked(invoke).getMockImplementation()!
-    vi.mocked(invoke).mockImplementation((command, args) => {
-      if (command !== 'ai_settings_set') return respond(command, args)
-      const { settings } = args as { settings: typeof stored }
-      events.push(`sent ${settings.active}`)
-      return new Promise((resolve) => {
-        answers.push(() => {
-          events.push(`answered ${settings.active}`)
-          resolve(respond(command, args))
-        })
+    await click(modelButton('Model'))
+    const other = [...host.querySelectorAll('.model-picker [role="option"]')].find(
+      (o) => o.textContent === 'Other Model ID…',
+    )
+    await click(other)
+    const escape = () =>
+      act(async () => {
+        document.activeElement?.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+        )
       })
-    })
-    await pane()
-    type('endpoint', 'http://192.168.1.4:11434')
-    await act(async () => field('endpoint').blur())
-    expect(events).toEqual(['sent openai'])
-    const active = host.querySelector<HTMLSelectElement>('select[id$="active"]')!
-    act(() => {
-      active.value = 'anthropic'
-      active.dispatchEvent(new Event('change', { bubbles: true }))
-    })
-    await act(async () => {
-      for (const answer of answers.splice(0).reverse()) answer()
-    })
-    await act(async () => {
-      for (const answer of answers.splice(0)) answer()
-    })
-    expect(events).toEqual([
-      'sent openai',
-      'answered openai',
-      'sent anthropic',
-      'answered anthropic',
-    ])
-    expect(saved().at(-1)).toEqual({
-      endpoint: 'http://192.168.1.4:11434',
-      model: '',
-    })
-    expect(active.value).toBe('anthropic')
+    await escape()
+    expect(document.activeElement?.getAttribute('role')).toBe('combobox')
+    await escape()
+    expect(host.querySelector('.model-picker')).toBeNull()
   })
 
-  it('shows a choice made while a save runs, and a second tap undoes it', async () => {
-    const answers: Array<() => void> = []
-    const respond = vi.mocked(invoke).getMockImplementation()!
-    vi.mocked(invoke).mockImplementation((command, args) => {
-      if (command !== 'ai_settings_set') return respond(command, args)
-      return new Promise((resolve) => answers.push(() => resolve(respond(command, args))))
-    })
+  it('saves the model picked, with its provider, and shows Default (Medium) first for its reasoning', async () => {
     await pane()
-    type('endpoint', 'http://192.168.1.4:11434')
-    await act(async () => field('endpoint').blur())
-    const active = host.querySelector<HTMLSelectElement>('select[id$="active"]')!
-    act(() => {
-      active.value = 'anthropic'
-      active.dispatchEvent(new Event('change', { bubbles: true }))
-    })
-    expect(active.value).toBe('anthropic')
-    const toggle = host.querySelector<HTMLInputElement>('input[type="checkbox"]')!
-    act(() => toggle.click())
-    expect(toggle.checked).toBe(true)
-    act(() => toggle.click())
-    expect(toggle.checked).toBe(false)
-    while (answers.length > 0) await act(async () => answers.shift()!())
-    const sent = vi
-      .mocked(invoke)
-      .mock.calls.filter(([command]) => command === 'ai_settings_set')
-      .map(([, args]) => (args as { settings: typeof stored }).settings)
-      .map((settings) => ({ active: settings.active, suggestOnIdle: settings.suggestOnIdle }))
-    expect(sent.at(-1)).toEqual({ active: 'anthropic', suggestOnIdle: false })
-    expect(active.value).toBe('anthropic')
-    expect(toggle.checked).toBe(false)
-  })
-
-  it('shows On This Mac CLI tools, selects one, refreshes status, and saves a CLI model override', async () => {
-    let viewState = {
-      active: 'claudeCli',
-      suggestOnIdle: false,
-      anthropic: provider,
-      openai: provider,
-      cli: {
-        claudeCli: { state: 'ready', model: '' },
-        codexCli: { state: 'signedOut', model: '' },
-      },
-    }
-    type SettingsPayload = typeof stored & {
-      claudeCli?: { model: string }
-      codexCli?: { model: string }
-    }
-    vi.mocked(invoke).mockImplementation(async (command, args) => {
-      if (command === 'ai_settings_get') return viewState
-      if (command === 'ai_settings_set') {
-        const { settings } = args as { settings: SettingsPayload }
-        viewState = {
-          ...viewState,
-          active: settings.active,
-          suggestOnIdle: settings.suggestOnIdle,
-          anthropic: { ...provider, ...settings.anthropic },
-          openai: { ...provider, ...settings.openai },
-          cli: {
-            claudeCli: {
-              ...viewState.cli.claudeCli,
-              model: settings.claudeCli?.model ?? viewState.cli.claudeCli.model,
-            },
-            codexCli: {
-              ...viewState.cli.codexCli,
-              model: settings.codexCli?.model ?? viewState.cli.codexCli.model,
-            },
-          },
-        }
-        return viewState
-      }
-      if (command === 'ai_cli_refresh') {
-        viewState = {
-          ...viewState,
-          cli: {
-            ...viewState.cli,
-            codexCli: { ...viewState.cli.codexCli, state: 'ready' },
-          },
-        }
-        return viewState
-      }
-      return undefined
-    })
-
-    await pane()
-    const refreshBtn = [...host.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Refresh',
-    )!
-    await act(async () => refreshBtn.click())
-    expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === 'ai_cli_refresh')).toBe(true)
-
-    const useCodex = host.querySelector<HTMLButtonElement>('button[aria-label="Use Codex"]')!
-    expect(useCodex.getAttribute('aria-disabled')).toBe('false')
-    await act(async () => useCodex.click())
-    expect(host.querySelector<HTMLSelectElement>('select[id$="active"]')!.value).toBe('codexCli')
-
-    const codexModel = host.querySelector<HTMLInputElement>('input[aria-label="Codex model"]')!
-    act(() => {
-      codexModel.focus()
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        codexModel,
-        'gpt-5.4',
-      )
-      codexModel.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    await act(async () => codexModel.blur())
-    const lastSet = vi
-      .mocked(invoke)
-      .mock.calls.filter(([cmd]) => cmd === 'ai_settings_set')
-      .at(-1)?.[1] as { settings: { active: string; codexCli: { model: string } } }
-    expect(lastSet.settings.active).toBe('codexCli')
-    expect(lastSet.settings.codexCli).toEqual({ model: 'gpt-5.4' })
-  })
-
-  it('reconciles active provider after Save Key and Remove Key without re-posting stale active', async () => {
-    let viewState = {
-      active: 'claudeCli',
-      suggestOnIdle: false,
-      anthropic: { ...provider, key: 'unset' },
-      openai: { ...provider, key: 'unset' },
-      cli: {
-        claudeCli: { state: 'ready', model: '' },
-        codexCli: { state: 'notInstalled', model: '' },
-      },
-    }
-    vi.mocked(invoke).mockImplementation(async (command) => {
-      if (command === 'ai_settings_get') return viewState
-      if (command === 'ai_key_set') {
-        viewState = {
-          ...viewState,
-          active: 'anthropic',
-          anthropic: { ...provider, key: 'set' },
-        }
-        return viewState
-      }
-      if (command === 'ai_key_clear') {
-        viewState = {
-          ...viewState,
-          active: 'claudeCli',
-          anthropic: { ...provider, key: 'unset' },
-        }
-        return viewState
-      }
-      return viewState
-    })
-
-    await pane()
-    const active = host.querySelector<HTMLSelectElement>('select[id$="active"]')!
-    expect(active.value).toBe('claudeCli')
-
-    const keyInput = host.querySelector<HTMLInputElement>(
-      'input[aria-label="API key for Claude (Anthropic)"]',
-    )!
-    act(() => {
-      keyInput.focus()
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        keyInput,
-        'sk-ant-test',
-      )
-      keyInput.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-
-    const anthropicSection = keyInput.closest('section')!
-    const saveKey = [...anthropicSection.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Save Key',
-    )!
-    await act(async () => saveKey.click())
-    expect(active.value).toBe('anthropic')
-    expect(
-      host
-        .querySelector<HTMLButtonElement>('button[aria-label="Use Claude Code"]')
-        ?.getAttribute('aria-disabled'),
-    ).toBe('false')
-
-    await act(async () => field('endpoint').blur())
-    const removeKey = [...anthropicSection.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Remove Key',
-    )!
-    await act(async () => removeKey.click())
-    expect(active.value).toBe('claudeCli')
-    expect(
-      host.querySelector<HTMLButtonElement>('button[aria-label="Claude Code is active"]'),
-    ).not.toBeNull()
-
-    await act(async () => root.render(<></>))
-    expect(vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === 'ai_settings_set')).toEqual([])
-  })
-
-  it('keeps validation errors visible when Refresh is clicked directly after an invalid model draft', async () => {
-    let viewState = {
-      active: 'claudeCli',
-      suggestOnIdle: false,
-      anthropic: provider,
-      openai: provider,
-      cli: {
-        claudeCli: { state: 'ready', model: '' },
-        codexCli: { state: 'signedOut', model: '' },
-      },
-    }
-    const callOrder: string[] = []
-    vi.mocked(invoke).mockImplementation(async (command, args) => {
-      callOrder.push(command)
-      if (command === 'ai_settings_get') return viewState
-      if (command === 'ai_settings_set') {
-        const { settings } = args as { settings: { codexCli?: { model: string } } }
-        if (settings.codexCli?.model.startsWith('-')) {
-          throw new Error('E_AI_MODEL_INVALID')
-        }
-        return viewState
-      }
-      if (command === 'ai_cli_refresh') {
-        viewState = {
-          ...viewState,
-          cli: {
-            ...viewState.cli,
-            codexCli: { ...viewState.cli.codexCli, state: 'ready' },
-          },
-        }
-        return viewState
-      }
-      return undefined
-    })
-
-    await pane()
-    const codexModel = host.querySelector<HTMLInputElement>('input[aria-label="Codex model"]')!
-    act(() => {
-      codexModel.focus()
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        codexModel,
-        '-bad',
-      )
-      codexModel.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-
-    const refreshBtn = [...host.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Refresh',
-    )!
-    await act(async () => refreshBtn.click())
-
-    expect(callOrder).toEqual(['ai_settings_get', 'ai_settings_set', 'ai_cli_refresh'])
-    expect(codexModel.value).toBe('')
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-      'The AI settings could not be saved.',
+    await click(modelButton('Model'))
+    const gpt = [...host.querySelectorAll('.model-picker [role="option"]')].find(
+      (o) => o.textContent?.startsWith('GPT-5.5') && !o.textContent.includes('Mini'),
     )
+    await click(gpt)
+    await settle()
+    expect(calls('ai_settings_set').at(-1)?.['settings']).toMatchObject({
+      active: 'codexCli',
+      codexCli: { model: 'gpt-5.5' },
+    })
+    await click(modelButton('Model'))
+    const levels = [...host.querySelectorAll('.model-picker-level')].map((b) => b.textContent)
+    expect(levels).toEqual(['Default (Medium)', 'Low', 'Medium', 'High'])
   })
 
-  it('reconciles active provider refs when unmounted while Save Key is pending so unmount does not post stale active', async () => {
-    const viewState = {
+  it('hides the Reasoning column for a model without levels', async () => {
+    stored = {
+      ...stored,
       active: 'claudeCli',
-      suggestOnIdle: false,
-      anthropic: { ...provider, key: 'unset' },
-      openai: { ...provider, key: 'unset' },
-      cli: {
-        claudeCli: { state: 'ready', model: '' },
-        codexCli: { state: 'notInstalled', model: '' },
-      },
+      cli: { ...stored.cli!, claudeCli: { ...tool('ready'), model: 'haiku' } },
     }
-    let finishKey!: (next: typeof viewState) => void
-    vi.mocked(invoke).mockImplementation((command) => {
-      if (command === 'ai_settings_get') return Promise.resolve(viewState)
-      if (command === 'ai_key_set') {
-        return new Promise((resolve) => {
-          finishKey = resolve
-        })
-      }
-      return Promise.resolve(viewState)
-    })
-
     await pane()
-    const keyInput = host.querySelector<HTMLInputElement>(
-      'input[aria-label="API key for Claude (Anthropic)"]',
-    )!
-    act(() => {
-      keyInput.focus()
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        keyInput,
-        'sk-ant-test',
-      )
-      keyInput.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    const anthropicSection = keyInput.closest('section')!
-    const saveKey = [...anthropicSection.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Save Key',
-    )!
-    act(() => {
-      saveKey.click()
-    })
-
-    await act(async () => root.render(<></>))
-    finishKey({
-      ...viewState,
-      active: 'anthropic',
-      anthropic: { ...provider, key: 'set' },
-    })
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 0))
-    })
-
-    expect(vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === 'ai_settings_set')).toEqual([])
+    await click(modelButton('Model'))
+    expect(host.querySelector('.model-picker-reasoning')).toBeNull()
   })
 
-  it('keeps validation errors visible when blur fails with an invalid model before clicking Refresh', async () => {
-    let viewState = {
-      active: 'claudeCli',
-      suggestOnIdle: false,
-      anthropic: provider,
-      openai: provider,
-      cli: {
-        claudeCli: { state: 'ready', model: '' },
-        codexCli: { state: 'signedOut', model: '' },
-      },
+  it('says under Suggest When I Pause why suggestions would not come, and when they are ready', async () => {
+    stored = {
+      ...stored,
+      suggestOnIdle: true,
+      cli: { ...stored.cli!, claudeCli: tool('notInstalled') },
+      suggestModel: { provider: 'claudeCli', model: '', reasoning: null },
     }
-    vi.mocked(invoke).mockImplementation(async (command, args) => {
-      if (command === 'ai_settings_get') return viewState
-      if (command === 'ai_settings_set') {
-        const { settings } = args as { settings: { codexCli?: { model: string } } }
-        if (settings.codexCli?.model.startsWith('-')) throw new Error('E_AI_MODEL_INVALID')
-        return viewState
-      }
-      if (command === 'ai_cli_refresh') {
-        viewState = {
-          ...viewState,
-          cli: { ...viewState.cli, codexCli: { state: 'ready', model: '' } },
-        }
-        return viewState
-      }
-      return undefined
-    })
-
     await pane()
-    const codexModel = host.querySelector<HTMLInputElement>('input[aria-label="Codex model"]')!
-    act(() => {
-      codexModel.focus()
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        codexModel,
-        '-bad',
-      )
-      codexModel.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    await act(async () => codexModel.blur())
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-      'The AI settings could not be saved.',
-    )
-
-    const refreshBtn = [...host.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Refresh',
-    )!
-    await act(async () => refreshBtn.click())
-    expect(
-      host
-        .querySelector<HTMLButtonElement>('button[aria-label="Use Codex"]')
-        ?.getAttribute('aria-disabled'),
-    ).toBe('false')
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-      'The AI settings could not be saved.',
-    )
+    const status = () => host.querySelector('.ai-suggest-status')?.textContent
+    expect(status()).toBe('No suggestions: Claude Code is not installed.')
+    stored = { ...stored, cli: { ...stored.cli!, claudeCli: tool('ready') } }
+    act(() => root.unmount())
+    root = createRoot(host)
+    await pane()
+    expect(status()).toMatch(/^Ready: /)
   })
 
-  it('keeps validation errors visible when blur fails concurrently with clicking Refresh', async () => {
-    let viewState = {
-      active: 'claudeCli',
-      suggestOnIdle: false,
-      anthropic: provider,
-      openai: provider,
-      cli: {
-        claudeCli: { state: 'ready', model: '' },
-        codexCli: { state: 'signedOut', model: '' },
-      },
-    }
-    const callOrder: string[] = []
-    let rejectSave!: (err: unknown) => void
-    vi.mocked(invoke).mockImplementation((command) => {
-      callOrder.push(command)
-      if (command === 'ai_settings_get') return Promise.resolve(viewState)
-      if (command === 'ai_settings_set') {
-        return new Promise((_resolve, reject) => {
-          rejectSave = reject
-        })
-      }
-      if (command === 'ai_cli_refresh') {
-        viewState = {
-          ...viewState,
-          cli: { ...viewState.cli, codexCli: { state: 'ready', model: '' } },
-        }
-        return Promise.resolve(viewState)
-      }
-      return Promise.resolve(undefined)
-    })
-
+  it('offers a cloud suggestion model while a local tool answers the Model setting', async () => {
     await pane()
-    const codexModel = host.querySelector<HTMLInputElement>('input[aria-label="Codex model"]')!
-    act(() => {
-      codexModel.focus()
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        codexModel,
-        '-bad',
-      )
-      codexModel.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    const refreshBtn = [...host.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Refresh',
-    )!
-    act(() => {
-      codexModel.blur()
-      refreshBtn.click()
-    })
-    await act(async () => {
-      await Promise.resolve()
-    })
-    await act(async () => {
-      rejectSave(new Error('E_AI_MODEL_INVALID'))
-      await new Promise((r) => setTimeout(r, 0))
-    })
+    expect(host.textContent).toContain('A cloud model with a key keeps suggestions quick.')
+    await click(modelButton('Suggestion Model'))
+    expect(options()[0]).toContain('Same as Model')
+    expect(railButton('OpenAI-compatible')).toBeDefined()
+  })
 
-    expect(callOrder).toEqual(['ai_settings_get', 'ai_settings_set', 'ai_cli_refresh'])
-    expect(codexModel.value).toBe('')
-    expect(
-      host
-        .querySelector<HTMLButtonElement>('button[aria-label="Use Codex"]')
-        ?.getAttribute('aria-disabled'),
-    ).toBe('false')
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-      'The AI settings could not be saved.',
+  it('shows Try It’s answer under the model, and drops an answer for a model no longer chosen', async () => {
+    let answer: (value: unknown) => void = () => undefined
+    rust((command) =>
+      command === 'ai_try' ? new Promise((resolve) => (answer = resolve)) : undefined,
     )
+    await pane()
+    await click(modelButton('Model'))
+    await click(host.querySelector('.model-picker-try'))
+    expect(host.querySelector('.ai-try-result')?.textContent).toMatch(/^Asking /)
+    await act(async () => answer({ provider: 'codexCli', model: '', elapsedMs: 1250 }))
+    await settle()
+    expect(host.querySelector('.ai-try-result')?.textContent).toBe('Answered in 1.3 s.')
+  })
+
+  it('leads with the providers to set up when nothing can answer, and checks a new key by listing its models', async () => {
+    stored = {
+      ...stored,
+      active: 'openai',
+      cli: { codexCli: tool('notInstalled'), claudeCli: tool('signedOut') },
+    }
+    await pane()
+    expect(host.textContent).toContain('Choose How Devot Reaches AI')
+    expect(host.querySelector('button.model-popup')).toBeNull()
+    HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+      this.setAttribute('open', '')
+    }
+    await click(host.querySelector('button[aria-label="Add a key for OpenAI-compatible"]'))
+    const sheet = host.querySelector('dialog.ai-key-sheet')!
+    const input = sheet.querySelector<HTMLInputElement>('input[type="password"]')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        'sk-test',
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => {
+      sheet
+        .querySelector('form')!
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+    await settle()
+    expect(calls('ai_key_set')).toEqual([{ provider: 'openai', key: 'sk-test' }])
+    expect(calls('ai_models').at(-1)).toEqual({ providers: ['openai'], refresh: true })
+    expect(sheet.querySelector('.ai-key-check')?.textContent).toBe('Key works · 2 models found.')
+  })
+
+  it('keeps the newer list when an older answer for the same tools comes late', async () => {
+    const answers: Array<(value: unknown) => void> = []
+    rust((command) => {
+      if (command === 'ai_cli_refresh') return stored
+      if (command !== 'ai_models') return undefined
+      return new Promise((resolve) => answers.push(resolve))
+    })
+    await pane()
+    await click(host.querySelector('.ai-providers-toggle'))
+    await click(host.querySelector('button[aria-label="Check Codex again"]'))
+    await settle()
+    expect(calls('ai_models').at(-1)).toEqual({
+      providers: ['claudeCli', 'codexCli'],
+      refresh: true,
+    })
+    await act(async () => answers[1]!({ codexCli: codexModels, claudeCli: claudeModels }))
+    const old = {
+      ...codexModels,
+      models: [{ ...codexModels.models[1]!, id: 'old', name: 'Old Model' }],
+    }
+    await act(async () => answers[0]!({ codexCli: old, claudeCli: claudeModels }))
+    await settle()
+    await click(modelButton('Model'))
+    expect(options().join()).toContain('GPT-5.5')
+    expect(options().join()).not.toContain('Old Model')
   })
 })

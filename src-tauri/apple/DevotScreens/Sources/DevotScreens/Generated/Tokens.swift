@@ -3717,6 +3717,11 @@ public enum Tokens {
     public static let noticeTextMinWidth: CGFloat = 220
     public static let noticeMaxWidth: CGFloat = 440
     public static let pickerMinHeight: CGFloat = 200
+    public static let modelPickerWidth: CGFloat = 520
+    public static let modelPickerHeight: CGFloat = 320
+    public static let modelPickerRail: CGFloat = 50
+    public static let modelPickerReasoning: CGFloat = 150
+    public static let providerMark: CGFloat = 24
     public static let popoverMargin: CGFloat = 8
     public static let switchWidth: CGFloat = 38
     public static let switchHeight: CGFloat = 22

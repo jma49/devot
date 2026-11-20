@@ -4718,6 +4718,323 @@ button.note-info-row:focus-visible {
   margin-left: 0;
 }
 
+/* Settings > AI. A provider's monogram: neutral, so no provider's colours stand for it. */
+.provider-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  border-radius: var(--radius-mark);
+  background: var(--color-fill-control);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+:is(.model-picker-rail, .ai-provider-row) .provider-mark {
+  width: var(--size-provider-mark);
+  height: var(--size-provider-mark);
+  font-size: var(--font-size-caption);
+}
+
+.ai-state-dot {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-capsule);
+  background: var(--color-text-tertiary);
+}
+
+.ai-state-dot[data-dot='ok'] {
+  background: var(--color-status-done-mark);
+}
+
+.ai-state-dot[data-dot='warn'] {
+  background: var(--color-status-hold-mark);
+}
+
+.ai-model-row .setting-text {
+  min-width: 0;
+}
+
+/* The Model pop-up: the capsule of a Settings pop-up (.select), opening the model picker. */
+button.model-popup {
+  max-width: 100%;
+  height: var(--size-settings-control);
+  padding: 0 calc(var(--size-settings-control) + var(--space-2)) 0 var(--space-3);
+  border-radius: calc(var(--size-settings-control) / 2);
+  background: var(--color-fill-control);
+  transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+button.model-popup:hover,
+button.model-popup[aria-expanded='true'] {
+  background: var(--color-fill-tool-hover);
+}
+
+button.model-popup[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+}
+
+.model-popup .select-chevron {
+  top: 50%;
+  translate: 0 -50%;
+}
+
+.model-popup-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-popup-sub {
+  flex: none;
+  color: var(--color-text-secondary);
+}
+
+/* Try It's answer and the suggestion status swap at once (design/motion.md, rule 2). */
+.ai-try-result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.model-picker-anchor > .model-picker {
+  width: var(--size-model-picker-width);
+  max-width: calc(100vw - 2 * var(--size-popover-margin));
+}
+
+.model-picker-body {
+  display: flex;
+  height: min(var(--size-model-picker-height), var(--picker-room, 100vh));
+  min-height: 0;
+}
+
+.model-picker-rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: var(--size-model-picker-rail);
+  padding: var(--space-2) 0;
+  border-right: 1px solid var(--color-line-hairline);
+}
+
+.model-picker-rail-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-glass-menu-row);
+  background: none;
+}
+
+.model-picker-rail-button:hover {
+  background: var(--color-fill-hover);
+}
+
+.model-picker-rail-button[aria-pressed='true'] {
+  background: var(--color-fill-row-selected);
+}
+
+.model-picker-rail-button .ai-state-dot {
+  position: absolute;
+  right: var(--space-1);
+  bottom: var(--space-1);
+}
+
+.model-picker-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 var(--space-2);
+}
+
+.model-picker-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.model-picker-group {
+  padding: var(--space-4) var(--space-4) var(--space-1);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+}
+
+.model-picker-check {
+  display: inline-flex;
+  flex: none;
+  width: var(--size-icon-sm);
+  color: var(--color-accent-text);
+}
+
+.model-picker-other {
+  color: var(--color-text-secondary);
+}
+
+.model-tier {
+  flex: none;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-capsule);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+}
+
+.model-tier[data-tier='best'] {
+  color: var(--color-accent-text);
+}
+
+.model-picker-note {
+  margin: 0;
+  padding: var(--space-6) var(--space-4);
+  color: var(--color-text-secondary);
+}
+
+.model-picker-note p {
+  margin: 0 0 var(--space-4);
+}
+
+.model-picker-note-title {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.model-picker-reasoning {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: var(--size-model-picker-reasoning);
+  padding: var(--space-2);
+  border-left: 1px solid var(--color-line-hairline);
+}
+
+.model-picker-caption {
+  margin: var(--space-2) var(--space-4) var(--space-3);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+}
+
+.model-picker-level {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: var(--space-9);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: start;
+}
+
+.model-picker-level:hover {
+  background: var(--color-fill-hover);
+}
+
+.model-picker-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  border-top: 1px solid var(--color-line-hairline);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.model-picker-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.model-picker-try {
+  padding: var(--space-1) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+}
+
+.model-picker-try:hover {
+  background: var(--color-fill-hover);
+}
+
+.ai-provider-row {
+  gap: var(--space-5);
+}
+
+.ai-first-run-note {
+  color: var(--color-text-secondary);
+}
+
+.ai-providers-toggle {
+  width: 100%;
+  margin: 0 0 var(--space-4);
+  padding: 0 var(--space-7);
+}
+
+.ai-providers-toggle .settings-block-title {
+  margin: 0;
+  padding: 0;
+}
+
+.ai-key-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+}
+
+.ai-key-field .settings-text {
+  width: 100%;
+}
+
+.ai-key-check {
+  min-height: var(--space-7);
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.ai-key-check[data-phase='failed'] {
+  color: var(--color-status-dropped);
+}
+
+.ai-key-models {
+  margin: 0 0 var(--space-4);
+  padding: 0 0 0 var(--space-7);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.ai-key-endpoint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-7);
+}
+
+.ai-key-sheet .ai-key-remove {
+  margin-right: auto;
+}
+
 /* A path has no spaces to break at. */
 .integration-confirm .confirm-detail {
   overflow-wrap: anywhere;

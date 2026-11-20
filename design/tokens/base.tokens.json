@@ -2438,6 +2438,46 @@
       },
       "$description": "A dropdown list is as tall as half the window, but never shorter than this (it scrolls past it)."
     },
+    "model-picker-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 520,
+        "unit": "px"
+      },
+      "$description": "The width of Settings > AI's model picker: the provider rail, the models and the reasoning column."
+    },
+    "model-picker-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 320,
+        "unit": "px"
+      },
+      "$description": "The height of the model picker's columns; its list scrolls inside them."
+    },
+    "model-picker-rail": {
+      "$type": "dimension",
+      "$value": {
+        "value": 50,
+        "unit": "px"
+      },
+      "$description": "The width of the model picker's provider rail."
+    },
+    "model-picker-reasoning": {
+      "$type": "dimension",
+      "$value": {
+        "value": 150,
+        "unit": "px"
+      },
+      "$description": "The width of the model picker's Reasoning column."
+    },
+    "provider-mark": {
+      "$type": "dimension",
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      },
+      "$description": "A provider's monogram in the model picker's rail and in Settings > AI's provider rows."
+    },
     "popover-margin": {
       "$type": "dimension",
       "$value": {
