@@ -1,5 +1,12 @@
 # Editor settings
 
+Vim Mode is a device-local boolean preference, off by default, available in Editing settings on desktop and iPhone.
+Its CodeMirror compartment installs Vim keybindings at highest precedence and reconfigures the open view without replacing its document or undo history.
+Vim is built-in rather than a plugin because the plugin sandbox cannot reach the editor's key handling.
+The Vim module loads its keybinding library only when enabled, leaving its compartment empty until loading completes and discarding any answer after the setting is disabled or the view is destroyed.
+Normal mode uses Vim commands, i enters insert mode, and Escape returns to normal mode; disabling Vim Mode restores ordinary typing immediately.
+The counts footer names the current Vim mode as NORMAL, INSERT or VISUAL, updating immediately as the keyboard changes mode and clearing when Vim is disabled.
+
 Part of the [architecture overview](../architecture.md).
 
 - **What:** Settings > Editing and Settings > Preview (the Settings window has a 200 px navigation column, `size.settings-nav-width`, under a capsule search field, with a row and a coloured tile per pane: General, Editing, Preview, Appearance, Keyboard, Mirror, Sync, AI, License, Integrations, Plugins and Usage; Back and Forward share one capsule in its toolbar; each pane's sections have a 13 px semibold title above a card, an optional footnote under it, and each setting a label, a grey description and its capsule control on the right).
@@ -9,7 +16,9 @@ Part of the [architecture overview](../architecture.md).
   Text Appearance: font size (10 to 32 px; also Cmd+=, Cmd+- and Cmd+0 in the main window, the registry's `view.font*` commands), font family (System, SF Mono, Menlo, Monaco or Courier New), font weight (normal or 300 to 700), line height (1.2 to 2.0 offered, 1.0 to 2.5 accepted; 1.5 by default), showing invisible characters and highlighting trailing whitespace (`color.trailing-space`).
   Preview holds the preview's font size (10 to 32 px, 15 by default) and synced scrolling in split mode (see Split mode).
   General holds the default notebook for new notes.
-  Settings search (`settings/search.ts`) finds panes and single settings by every word typed, and a result opens its pane; the iPhone searches only the panes it lists and the rows it shows, including the rows only it has.
+  Settings search (`settings/search.ts`) finds panes and single settings by every word typed, and a Mac result opens its pane, scrolls to the matching setting and focuses its control (or the row when it has no enabled control).
+  Arrow keys highlight search results while a query is active, Enter opens the highlighted result and Escape clears the query; input-method composition owns its keys.
+  The iPhone searches only the panes it lists and the rows it shows, including the rows only it has.
   The AI pane saves a typed endpoint or model when the field is left, when the pane closes and when the app goes to the background, never per keystroke; an iPhone tab switch leaves the field first.
   The same store also holds Settings > Appearance's Glass Transparency, Material Transparency and Gradient (see Native look).
   The roomy defaults (line height 1.5, tab size 2, `*` bullets, links for pasted URLs, spell checking on, no active-line highlight) apply only to settings the user never set: Rust writes only the values the user set, so a default that changes later still reaches everything else.

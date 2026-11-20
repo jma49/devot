@@ -43,6 +43,7 @@ import type {
   BookRecord,
   CompactableVersion,
   NoteBody,
+  NoteHead,
   NoteTagRecord,
   NoteQuery,
   NoteRecord,
@@ -57,7 +58,7 @@ import type {
   TextCondition,
   TrashedNote,
 } from '../../src/core/storage'
-import { MAX_BODY_IDS, MAX_PUT_BOOKS } from '../../src/core/storage'
+import { MAX_BODY_IDS, MAX_HEAD_CHARS, MAX_PUT_BOOKS } from '../../src/core/storage'
 import { tempDir } from './temp-dirs'
 
 /**
@@ -356,6 +357,9 @@ export const LIST_SQL = {
   /** Titles and bodies of the notes among `@ids` (a JSON array) that are not purged, in the order asked. */
   bodies: `SELECT n.id, n.title, n.body_md AS bodyMd FROM json_each(@ids) j JOIN notes n ON n.id = j.value
      WHERE n.purged_at IS NULL ORDER BY j.key`,
+  /** The start (`@chars`) of each of `@ids` that opens with a front matter fence. */
+  heads: `SELECT n.id, substr(n.body_md, 1, @chars) AS head FROM json_each(@ids) j JOIN notes n ON n.id = j.value
+     WHERE n.purged_at IS NULL AND substr(n.body_md, 1, 3) = '---' ORDER BY j.key`,
   /**
    * Backlinks (`@id`, `@excludeBook`, `@limit`): the list's index in its order, keeping the notes
    * the link index has as linking to the note, so it stops at a page and reads no row.
@@ -483,15 +487,14 @@ export function searchStatement(
 }
 
 /**
- * Re-indexes one stale note (`@rowid`): takes out the text the index holds for it, puts in what
- * the note holds now. A note that is not stale is indexed as it is and left alone: inserting its
- * row again would count it twice. A save only marks its note stale (schema v29); a search and a
- * purge catch the index up first. The same statements as the Rust store's (storage/search.rs,
+ * Re-indexes one stale note (`@rowid`) by rowid, without tokenizing its old text.
+ * A note that is not stale is left alone; searches and purges catch up first.
+ * The same statements as the Rust store's (storage/search.rs,
  * CATCH_UP_SQL; a test compares them).
  */
 export const CATCH_UP_SQL = [
-  `INSERT INTO notes_fts (notes_fts, rowid, title, body_md)
-       SELECT 'delete', rowid, title, body_md FROM search_stale WHERE rowid = @rowid AND title IS NOT NULL`,
+  `DELETE FROM notes_fts WHERE rowid = @rowid
+          AND EXISTS (SELECT 1 FROM search_stale WHERE rowid = @rowid)`,
   `INSERT INTO notes_fts (rowid, title, body_md)
        SELECT rowid, title, body_md FROM notes WHERE rowid = @rowid
           AND EXISTS (SELECT 1 FROM search_stale WHERE rowid = @rowid)`,
@@ -705,6 +708,7 @@ export interface SqliteAdapter extends StorageAdapter, AiStorage, SyncStore {
 }
 
 export interface OpenOptions {
+  trace?: (sql: string) => void
   /**
    * Brings an older schema up to date (the default). Without it, a database
    * whose schema is not exactly this build's is refused, and a missing file
@@ -731,7 +735,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const migrate = open.migrate ?? true
   let db: Database.Database
   try {
-    db = new Database(path, { fileMustExist: !migrate })
+    db = new Database(path, {
+      fileMustExist: !migrate,
+      verbose: open.trace ? (message) => open.trace?.(String(message)) : undefined,
+    })
   } catch (error) {
     throw new Error(openFailureCode(error, path, migrate), { cause: error })
   }
@@ -799,6 +806,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   )
   const summaries = db.prepare<[{ ids: string }], SummaryRow>(LIST_SQL.summaries)
   const bodyRows = db.prepare<[{ ids: string }], NoteBody>(LIST_SQL.bodies)
+  const headRows = db.prepare<[{ ids: string; chars: number }], NoteHead>(LIST_SQL.heads)
   const get = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL')
   const bodyMd = db.prepare<[string], { body_md: string }>('SELECT body_md FROM notes WHERE id = ?')
   const imageTextOf = db.prepare<[string], { text: string }>(
@@ -1102,26 +1110,55 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   // Bodies are read for the notes returned only, never for every match.
   const bodyOf = (id: string) => bodyMd.get(id)?.body_md ?? ''
 
-  const purgeWith = (id: string, at: number, hlc: string, here: boolean) =>
+  const purgeRows = (id: string, at: number, hlc: string, here: boolean) => {
+    if (here && liveWithText.get(id)) throw new Error('E_NOTE_NOT_TRASHED')
+    const rowid = rowidOf.get(id)?.rowid
+    searchSecureDelete.run(1n)
+    purge.run({ id, at, hlc })
+    if (rowid !== undefined) catchUpNote(rowid)
+    searchSecureDelete.run(0n)
+    dropLinks.run(id)
+    if (here) {
+      catchUp()
+      handOverFiles.run({ id, hlc })
+      dropFiles.run(id)
+    }
+    dropNoteLinks.run(id)
+    dropDrawings.run({ noteId: id })
+    dropAgentWrites.run({ noteId: id })
+    if (here) dropRevisions.run(id)
+    return rowid !== undefined
+  }
+
+  const compactPurged = () => {
+    searchSecureDelete.run(1n)
+    db.prepare("INSERT INTO notes_fts (notes_fts) VALUES ('optimize')").run()
+    searchSecureDelete.run(0n)
+    db.prepare("DELETE FROM sync_state WHERE key = 'searchCompactionPending'").run()
+  }
+  const compactSyncPurges = () => {
+    if (db.prepare("SELECT 1 FROM sync_state WHERE key = 'searchCompactionPending'").get()) {
+      db.transaction(compactPurged).immediate()
+    }
+  }
+  compactSyncPurges()
+
+  const purgeWith = (
+    ids: readonly string[],
+    at: number,
+    hlc: string,
+    here: boolean,
+    deferCompaction = false,
+  ) =>
     db
       .transaction(() => {
-        const rowid = rowidOf.get(id)?.rowid
-        searchSecureDelete.run(1n)
-        purge.run({ id, at, hlc })
-        if (rowid !== undefined) catchUpNote(rowid)
-        searchSecureDelete.run(0n)
-        dropLinks.run(id)
-        // Attachments another note still shows pass to it; the rest go. A purge from sync leaves
-        // them: the other device's file records decide, and its heir's link may not be here yet.
-        if (here) {
-          catchUp()
-          handOverFiles.run({ id, hlc })
-          dropFiles.run(id)
+        let changed = false
+        for (const id of ids) changed = purgeRows(id, at, hlc, here) || changed
+        if (changed) {
+          if (deferCompaction) {
+            syncSetState.run({ key: 'searchCompactionPending', value: '1' })
+          } else compactPurged()
         }
-        dropNoteLinks.run(id)
-        dropDrawings.run({ noteId: id })
-        dropAgentWrites.run({ noteId: id })
-        if (here) dropRevisions.run(id)
       })
       .immediate()
 
@@ -1164,6 +1201,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       return opened
     },
     getBodies: async (ids) => bodyRows.all({ ids: JSON.stringify(ids) }),
+    getHeads: async (ids) => headRows.all({ ids: JSON.stringify(ids), chars: MAX_HEAD_CHARS }),
     async putNote(note) {
       // What the app's note_put refuses, this refuses too.
       const links = noteLinks(note.bodyMd)
@@ -1259,8 +1297,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     },
     listTrash: async () => trash.all(),
     async purgeNote(id, at, hlc) {
-      if (liveWithText.get(id)) throw new Error('E_NOTE_NOT_TRASHED')
-      purgeWith(id, at, hlc, true)
+      purgeWith([id], at, hlc, true)
+    },
+    async purgeNotes(ids, at, hlc) {
+      if (ids.length > 0) purgeWith(ids, at, hlc, true)
     },
     async syncPending(after, limit) {
       return syncPending.all({ after, limit })
@@ -1320,9 +1360,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     async syncReset() {
       syncReset.run()
     },
-    async syncPurge(id, at, hlc) {
-      purgeWith(id, at, hlc, false)
+    async syncPurge(id, at, hlc, deferCompaction = false) {
+      purgeWith([id], at, hlc, false, deferCompaction)
     },
+    syncCompactPurges: async () => compactSyncPurges(),
     async putRevision(revision) {
       putRevision.run({
         ...revision,

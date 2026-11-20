@@ -31,6 +31,7 @@ export function editingMethods(
   | 'applyUpdate'
   | 'setBody'
   | 'setBodyFrom'
+  | 'rewriteBody'
   | 'fill'
   | 'insertAt'
   | 'applyAiEdit'
@@ -55,6 +56,13 @@ export function editingMethods(
         if (note.doc.getText(BODY).toString() !== lineFeeds(expected)) return false
         replaceBody(note, lineFeeds(markdown))
         return true
+      }),
+
+    rewriteBody: (id, rewrite) =>
+      using(id, (note) => {
+        const markdown = lineFeeds(rewrite(note.doc.getText(BODY).toString()))
+        if (overBytes(markdown, MAX_BODY_BYTES)) throw new Error('E_NOTE_BODY_TOO_LARGE')
+        return collected(note, () => replaceBody(note, markdown))
       }),
 
     fill: (id, { title, markdown }) =>

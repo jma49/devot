@@ -6,6 +6,7 @@ import {
   MAX_BODY_BYTES,
   MAX_BODY_IDS,
   MAX_BODY_VERSION,
+  MAX_HEAD_CHARS,
   MAX_NOTE_LINKS,
   MAX_TITLE_CHARS,
   MAX_WRITER_NAME_CHARS,
@@ -39,6 +40,11 @@ it('uses the limits note_put checks', () => {
 
 it('batches body reads within what notes_bodies takes', () => {
   expect(rustConst('MAX_BODY_IDS')).toBe(MAX_BODY_IDS)
+})
+
+it('reads front matter heads as long as notes_heads cuts them', () => {
+  const store = readFileSync('src-tauri/src/storage/notes.rs', 'utf8')
+  expect(rustConst('MAX_HEAD_CHARS', store)).toBe(MAX_HEAD_CHARS)
 })
 
 it('derives the agent_writes rows within what note_put and agent_writes_list take', () => {

@@ -9,9 +9,10 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
+use super::catalog::{Catalog, Tier};
 use super::keychain::{KeyStore, MemoryKeys};
-use super::provider::{GenerateRequest, Message, ProviderId, Role, Stop};
-use super::settings::{AiSettings, FILE, SettingsStore};
+use super::provider::{GenerateRequest, Message, ProviderId, Purpose, Role, Stop};
+use super::settings::{AiSettings, FILE, Omittable, SettingsStore, SuggestModel};
 use super::{Ai, KeyState, Snapshot, StreamKey, Streams};
 use crate::licence::Gate;
 
@@ -92,7 +93,9 @@ fn read_request(stream: &mut std::net::TcpStream) -> Seen {
         .filter_map(|l| l.split_once(':'))
         .map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_string()))
         .collect();
-    let length: usize = headers["content-length"].parse().unwrap();
+    let length: usize = headers
+        .get("content-length")
+        .map_or(0, |length| length.parse().unwrap());
     while raw.len() < head_end + length {
         let n = stream.read(&mut chunk).unwrap();
         raw.extend_from_slice(&chunk[..n]);
@@ -101,7 +104,11 @@ fn read_request(stream: &mut std::net::TcpStream) -> Seen {
         method,
         path,
         headers,
-        body: serde_json::from_slice(&raw[head_end..head_end + length]).unwrap(),
+        body: if length == 0 {
+            Value::Null
+        } else {
+            serde_json::from_slice(&raw[head_end..head_end + length]).unwrap()
+        },
     }
 }
 
@@ -223,6 +230,7 @@ fn ask() -> GenerateRequest {
         ],
         max_tokens: Some(256),
         timeout_secs: None,
+        purpose: Purpose::Main,
     }
 }
 
@@ -916,6 +924,8 @@ struct StubCli {
     states: Mutex<super::cli::CliStates>,
     probes: Mutex<usize>,
     runs: Mutex<Vec<(ProviderId, String, bool)>>,
+    reasoning: Mutex<Vec<Option<String>>>,
+    listings: Mutex<usize>,
     reply: Mutex<Result<(String, Vec<String>), &'static str>>,
 }
 
@@ -928,6 +938,8 @@ impl StubCli {
             }),
             probes: Mutex::new(0),
             runs: Mutex::new(Vec::new()),
+            reasoning: Mutex::new(Vec::new()),
+            listings: Mutex::new(0),
             reply: Mutex::new(Ok(("cli-model".into(), vec!["Hel".into(), "lo".into()]))),
         })
     }
@@ -939,15 +951,28 @@ impl super::cli::CliBackend for StubCli {
         *self.states.lock().unwrap()
     }
 
+    fn models(&self, id: ProviderId) -> Result<Vec<super::catalog::CatalogModel>, &'static str> {
+        *self.listings.lock().unwrap() += 1;
+        match id {
+            ProviderId::ClaudeCli => Ok(super::catalog::claude_code()),
+            _ => Err("E_AI_CLI_MISSING"),
+        }
+    }
+
     fn run(
         &self,
         id: ProviderId,
-        model: &str,
+        choice: super::cli::CliChoice<'_>,
         request: &super::provider::Prepared<'_>,
         _timeout: Duration,
         cancelled: &dyn Fn() -> bool,
         on_text: &mut dyn FnMut(&str) -> bool,
     ) -> Result<super::cli::CliDone, &'static str> {
+        let model = choice.model;
+        self.reasoning
+            .lock()
+            .unwrap()
+            .push(choice.reasoning.map(str::to_string));
         self.runs
             .lock()
             .unwrap()
@@ -1055,10 +1080,14 @@ fn concurrent_refresh_cli_is_never_overwritten_by_earlier_probe() {
             }
         }
 
+        fn models(&self, _: ProviderId) -> Result<Vec<super::catalog::CatalogModel>, &'static str> {
+            Err("E_AI_CLI_MISSING")
+        }
+
         fn run(
             &self,
             _: ProviderId,
-            _: &str,
+            _: super::cli::CliChoice<'_>,
             _: &super::provider::Prepared<'_>,
             _: Duration,
             _: &dyn Fn() -> bool,
@@ -1289,4 +1318,580 @@ fn a_cancel_after_a_stream_ended_stops_no_later_stream() {
         .register(&ended)
         .expect("a late cancel is not an early one");
     assert!(!again.load(Ordering::SeqCst));
+}
+
+const ANTHROPIC_MODELS: &str = r#"{"data":[{"id":"claude-opus-5-5","display_name":"Claude Opus 5.5","capabilities":{"effort":{"supported":true,"low":{"supported":true},"high":{"supported":true},"max":{"supported":true}}}}],"has_more":false}"#;
+const OPENAI_MODELS: &str = r#"{"object":"list","data":[{"id":"gpt-x","object":"model"}]}"#;
+
+fn ready(catalog: Option<&Catalog>) -> Vec<String> {
+    match catalog {
+        Some(Catalog::Ready { models, .. }) => models.iter().map(|m| m.id.clone()).collect(),
+        other => panic!("not a list: {other:?}"),
+    }
+}
+
+const HTTP: [ProviderId; 2] = [ProviderId::Anthropic, ProviderId::Openai];
+
+/// An app whose Anthropic provider talks to `anthropic` and OpenAI-compatible one to `openai`, both with keys.
+fn two_servers(anthropic: &Mock, openai: &Mock) -> Setup {
+    let app = setup(ProviderId::Anthropic, &anthropic.base);
+    let mut settings = app.ai.settings.get();
+    settings.openai.endpoint = openai.base.clone();
+    app.ai.set_settings(settings).unwrap();
+    app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    app.ai.set_key(ProviderId::Openai, KEY).unwrap();
+    app
+}
+
+#[test]
+fn each_provider_lists_its_models_and_one_that_fails_leaves_the_others() {
+    let anthropic = Mock::replying(200, ANTHROPIC_MODELS);
+    let openai = Mock::replying(500, "{}");
+    let app = two_servers(&anthropic, &openai);
+
+    let catalogs = app.ai.models(&HTTP, false).unwrap();
+    let Some(Catalog::Ready {
+        models,
+        default_model,
+    }) = &catalogs.anthropic
+    else {
+        panic!("{:?}", catalogs.anthropic);
+    };
+    assert_eq!(models[0].id, "claude-opus-5-5");
+    assert_eq!(models[0].tier, Some(Tier::Best));
+    assert_eq!(models[0].reasoning, ["low", "high", "max"]);
+    assert_eq!(*default_model, Some("claude-sonnet-5-5"));
+    assert_eq!(
+        catalogs.openai,
+        Some(Catalog::Failed {
+            code: "E_AI_PROVIDER_UNAVAILABLE"
+        })
+    );
+    assert_eq!((catalogs.claude_cli, catalogs.codex_cli), (None, None));
+
+    let seen = anthropic.seen.lock().unwrap();
+    assert_eq!(
+        (seen[0].method.as_str(), seen[0].path.as_str()),
+        ("GET", "/v1/models?limit=1000")
+    );
+    assert_eq!(seen[0].headers["x-api-key"], KEY);
+    assert_eq!(seen[0].headers["anthropic-version"], "2023-06-01");
+    let seen = openai.seen.lock().unwrap();
+    assert_eq!(
+        (seen[0].method.as_str(), seen[0].path.as_str()),
+        ("GET", "/models")
+    );
+    assert_eq!(seen[0].headers["authorization"], format!("Bearer {KEY}"));
+}
+
+#[test]
+fn no_model_list_is_asked_for_without_a_key() {
+    let server = Mock::replying(200, ANTHROPIC_MODELS);
+    let app = setup(ProviderId::Anthropic, &server.base);
+    let catalogs = app.ai.models(&HTTP, true).unwrap();
+    let missing = Some(Catalog::Failed {
+        code: "E_AI_KEY_MISSING",
+    });
+    assert_eq!(
+        (&catalogs.anthropic, &catalogs.openai),
+        (&missing, &missing)
+    );
+    assert_eq!(server.hits(), 0);
+}
+
+#[test]
+fn a_model_list_is_kept_until_a_refresh_or_a_new_key_and_a_failure_is_not_kept() {
+    let anthropic = Mock::replying(200, ANTHROPIC_MODELS);
+    let openai = Mock::start(vec![
+        (500, "{}".into(), vec![]),
+        (200, OPENAI_MODELS.into(), vec![]),
+    ]);
+    let app = two_servers(&anthropic, &openai);
+
+    let first = app.ai.models(&HTTP, false).unwrap();
+    assert!(matches!(first.openai, Some(Catalog::Failed { .. })));
+    let second = app.ai.models(&HTTP, false).unwrap();
+    assert_eq!(ready(second.anthropic.as_ref()), ["claude-opus-5-5"]);
+    assert_eq!(ready(second.openai.as_ref()), ["gpt-x"]);
+    assert_eq!((anthropic.hits(), openai.hits()), (1, 2));
+
+    app.ai.models(&HTTP, false).unwrap();
+    assert_eq!((anthropic.hits(), openai.hits()), (1, 2));
+    app.ai.models(&HTTP, true).unwrap();
+    assert_eq!((anthropic.hits(), openai.hits()), (2, 3));
+    app.ai
+        .set_key(ProviderId::Anthropic, "another-key-0123456789")
+        .unwrap();
+    app.ai.models(&HTTP, false).unwrap();
+    assert_eq!(anthropic.hits(), 3);
+}
+
+#[test]
+fn a_model_list_fetched_for_one_server_is_not_shown_for_another() {
+    let first = Mock::replying(200, ANTHROPIC_MODELS);
+    let app = setup(ProviderId::Anthropic, &first.base);
+    app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    app.ai.models(&[ProviderId::Anthropic], false).unwrap();
+    assert_eq!(first.hits(), 1);
+
+    let second = Mock::replying(200, r#"{"data":[{"id":"claude-haiku-5-5"}]}"#);
+    let mut settings = app.ai.settings.get();
+    settings.anthropic.endpoint = second.base.clone();
+    app.ai.set_settings(settings).unwrap();
+    app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    let catalogs = app.ai.models(&[ProviderId::Anthropic], false).unwrap();
+    assert_eq!(ready(catalogs.anthropic.as_ref()), ["claude-haiku-5-5"]);
+    assert_eq!(second.hits(), 1);
+}
+
+#[test]
+fn command_line_tools_list_their_models_until_they_are_probed_again() {
+    use super::CliState;
+    let dir = tempfile::tempdir().unwrap();
+    let cli = StubCli::new(CliState::Ready, CliState::NotInstalled);
+    let ai = Ai::new(
+        SettingsStore::new(&dir.path().join(FILE)),
+        Arc::new(MemoryKeys::default()),
+        Gate::open(),
+    )
+    .with_cli(Arc::clone(&cli) as Arc<dyn super::cli::CliBackend>);
+
+    let both = [ProviderId::ClaudeCli, ProviderId::CodexCli];
+    let catalogs = ai.models(&both, false).unwrap();
+    assert_eq!((&catalogs.anthropic, &catalogs.openai), (&None, &None));
+    assert_eq!(
+        ready(catalogs.claude_cli.as_ref()),
+        ["opus", "sonnet", "haiku", "fable"]
+    );
+    assert_eq!(
+        catalogs.codex_cli,
+        Some(Catalog::Failed {
+            code: "E_AI_CLI_MISSING"
+        })
+    );
+    assert_eq!(*cli.listings.lock().unwrap(), 2);
+    ai.models(&both, false).unwrap();
+    assert_eq!(*cli.listings.lock().unwrap(), 3);
+    ai.refresh_cli();
+    ai.models(&both, false).unwrap();
+    assert_eq!(*cli.listings.lock().unwrap(), 5);
+}
+
+#[test]
+fn a_reasoning_level_goes_to_each_provider_in_its_own_field() {
+    for c in contracts() {
+        let mock = Mock::replying(200, (c.ok)("Hi").to_string());
+        let app = setup(c.id, &mock.base);
+        app.keys.set(c.id, KEY).unwrap();
+        app.ai.generate(&ask()).unwrap();
+        let mut settings = app.ai.settings.get();
+        let entry = match c.id {
+            ProviderId::Anthropic => &mut settings.anthropic,
+            _ => &mut settings.openai,
+        };
+        entry.reasoning = Omittable::new(Some("high".into()));
+        app.ai.set_settings(settings).unwrap();
+        app.ai.generate(&ask()).unwrap();
+
+        let seen = mock.seen.lock().unwrap();
+        let effort = |body: &Value| match c.id {
+            ProviderId::Anthropic => body["output_config"]["effort"].clone(),
+            _ => body["reasoning_effort"].clone(),
+        };
+        assert_eq!(effort(&seen[0].body), Value::Null, "{:?}", c.id);
+        assert_eq!(effort(&seen[1].body), "high", "{:?}", c.id);
+    }
+}
+
+#[test]
+fn a_suggestion_goes_to_the_suggestion_model_when_one_is_set() {
+    let reply = (contracts()[0].ok)("Hi").to_string();
+    let mock = Mock::replying(200, reply);
+    let app = setup(ProviderId::Anthropic, &mock.base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+    let suggest = || {
+        let mut request = ask();
+        request.purpose = Purpose::Suggest;
+        request
+    };
+    app.ai.generate(&suggest()).unwrap();
+
+    let mut settings = app.ai.settings.get();
+    settings.suggest_model = Omittable::new(Some(SuggestModel {
+        provider: ProviderId::Anthropic,
+        model: "model-fast".into(),
+        reasoning: Some("low".into()),
+    }));
+    app.ai.set_settings(settings).unwrap();
+    assert_eq!(app.ai.generate(&suggest()).unwrap().model, "model-fast");
+    app.ai.generate(&ask()).unwrap();
+    let mut named = suggest();
+    named.provider = Some(ProviderId::Anthropic);
+    app.ai.generate(&named).unwrap();
+
+    let seen = mock.seen.lock().unwrap();
+    let sent: Vec<(&str, &Value)> = seen
+        .iter()
+        .map(|s| {
+            (
+                s.body["model"].as_str().unwrap(),
+                &s.body["output_config"]["effort"],
+            )
+        })
+        .collect();
+    assert_eq!(
+        sent,
+        [
+            ("model-x", &Value::Null),
+            ("model-fast", &json!("low")),
+            ("model-x", &Value::Null),
+            ("model-x", &Value::Null),
+        ]
+    );
+}
+
+#[test]
+fn a_suggestion_model_on_a_command_line_tool_gets_its_reasoning() {
+    use super::CliState;
+    let mock = Mock::replying(500, "{}");
+    let app = setup(ProviderId::Anthropic, &mock.base);
+    let cli = StubCli::new(CliState::Ready, CliState::Ready);
+    let ai = Ai::new(
+        SettingsStore::new(&app._dir.path().join(FILE)),
+        Arc::clone(&app.keys) as Arc<dyn KeyStore>,
+        Gate::open(),
+    )
+    .with_cli(Arc::clone(&cli) as Arc<dyn super::cli::CliBackend>);
+    let mut settings = ai.settings.get();
+    settings.codex_cli.model = "gpt-codex".into();
+    settings.suggest_model = Omittable::new(Some(SuggestModel {
+        provider: ProviderId::CodexCli,
+        model: String::new(),
+        reasoning: Some("xhigh".into()),
+    }));
+    ai.set_settings(settings).unwrap();
+
+    let mut request = ask();
+    request.purpose = Purpose::Suggest;
+    let generated = ai.generate(&request).unwrap();
+    assert_eq!(generated.provider, ProviderId::CodexCli);
+    assert_eq!(
+        cli.runs.lock().unwrap()[0],
+        (ProviderId::CodexCli, "gpt-codex".into(), false)
+    );
+    assert_eq!(*cli.reasoning.lock().unwrap(), [Some("xhigh".to_string())]);
+    assert_eq!(mock.hits(), 0);
+}
+
+#[test]
+fn settings_show_each_reasoning_level_and_the_suggestion_model() {
+    let app = setup(ProviderId::Anthropic, "https://api.example.com");
+    let before = app.ai.snapshot();
+    assert_eq!(
+        (before.anthropic.reasoning, before.suggest_model),
+        (None, None)
+    );
+    let mut settings = app.ai.settings.get();
+    settings.anthropic.reasoning = Omittable::new(Some("max".into()));
+    let suggest = SuggestModel {
+        provider: ProviderId::Openai,
+        model: "small".into(),
+        reasoning: None,
+    };
+    settings.suggest_model = Omittable::new(Some(suggest.clone()));
+    let after = app.ai.set_settings(settings).unwrap();
+    assert_eq!(after.anthropic.reasoning.as_deref(), Some("max"));
+    assert_eq!(after.openai.reasoning, None);
+    assert_eq!(after.suggest_model, Some(suggest));
+    let json = serde_json::to_value(&after).unwrap();
+    assert_eq!(json["suggestModel"]["provider"], "openai");
+    assert_eq!(json["anthropic"]["reasoning"], "max");
+}
+
+#[test]
+fn try_it_sends_only_its_fixed_prompt_and_times_the_answer() {
+    let reply = (contracts()[0].ok)("OK").to_string();
+    let mock = Mock::replying(200, reply);
+    let app = setup(ProviderId::Openai, &mock.base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+
+    let tried = app
+        .ai
+        .try_model(ProviderId::Anthropic, "model-y", Some("max"))
+        .unwrap();
+    assert_eq!(tried.provider, ProviderId::Anthropic);
+    assert_eq!(tried.model, "model-y");
+    assert!(tried.elapsed_ms < 60_000);
+    let json = serde_json::to_value(&tried).unwrap();
+    assert!(json["elapsedMs"].is_u64());
+
+    let seen = mock.seen.lock().unwrap();
+    assert_eq!(seen.len(), 1);
+    let body = &seen[0].body;
+    assert_eq!(body["model"], "model-y");
+    assert_eq!(body["output_config"]["effort"], "max");
+    assert_eq!(body.get("system"), None);
+    assert_eq!(
+        body["messages"],
+        json!([{"role": "user", "content": super::TRY_PROMPT}])
+    );
+}
+
+#[test]
+fn try_it_refuses_a_bad_model_or_level_and_reports_a_failure_as_a_code() {
+    let mock = Mock::replying(401, "{}");
+    let app = setup(ProviderId::Anthropic, &mock.base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+    let ai = &app.ai;
+    assert_eq!(
+        ai.try_model(ProviderId::Anthropic, "-x", None),
+        Err("E_AI_MODEL_INVALID")
+    );
+    assert_eq!(
+        ai.try_model(ProviderId::Anthropic, "model-y", Some("HIGH")),
+        Err("E_AI_REASONING_INVALID")
+    );
+    assert_eq!(mock.hits(), 0);
+    assert_eq!(
+        ai.try_model(ProviderId::Anthropic, "model-y", None),
+        Err("E_AI_AUTH_FAILED")
+    );
+    assert_eq!(
+        ai.try_model(ProviderId::Openai, "", None),
+        Err("E_AI_MODEL_MISSING")
+    );
+    assert_eq!(
+        ai.try_model(ProviderId::Openai, "gpt-x", None),
+        Err("E_AI_KEY_MISSING")
+    );
+}
+
+/// Counts keychain reads, so a test can show that no secret was read.
+#[derive(Default)]
+struct CountingKeys {
+    keys: MemoryKeys,
+    reads: Mutex<usize>,
+}
+
+impl KeyStore for CountingKeys {
+    fn has(&self, provider: ProviderId) -> Result<bool, &'static str> {
+        self.keys.has(provider)
+    }
+
+    fn get(&self, provider: ProviderId) -> Result<Option<String>, &'static str> {
+        *self.reads.lock().unwrap() += 1;
+        self.keys.get(provider)
+    }
+
+    fn set(&self, provider: ProviderId, key: &str) -> Result<(), &'static str> {
+        self.keys.set(provider, key)
+    }
+
+    fn clear(&self, provider: ProviderId) -> Result<(), &'static str> {
+        self.keys.clear(provider)
+    }
+}
+
+#[test]
+fn a_model_list_is_asked_only_of_the_providers_named() {
+    let anthropic = Mock::replying(200, ANTHROPIC_MODELS);
+    let openai = Mock::replying(200, OPENAI_MODELS);
+    let app = two_servers(&anthropic, &openai);
+
+    let catalogs = app.ai.models(&[ProviderId::Openai], false).unwrap();
+    assert_eq!(ready(catalogs.openai.as_ref()), ["gpt-x"]);
+    assert_eq!(catalogs.anthropic, None);
+    assert_eq!((anthropic.hits(), openai.hits()), (0, 1));
+    assert_eq!(
+        serde_json::to_value(&catalogs).unwrap(),
+        json!({"openai": {"state": "ready", "defaultModel": null, "models": [
+            {"id": "gpt-x", "name": "gpt-x", "tier": null, "reasoning": [], "defaultReasoning": null}
+        ]}})
+    );
+
+    assert_eq!(app.ai.models(&[], false), Err("E_AI_REQUEST_INVALID"));
+    assert_eq!(
+        app.ai
+            .models(&[ProviderId::Openai, ProviderId::Openai], false),
+        Err("E_AI_REQUEST_INVALID")
+    );
+    let unknown: Result<ProviderId, _> = serde_json::from_value(json!("gemini"));
+    assert!(unknown.is_err());
+}
+
+#[test]
+fn a_provider_without_a_key_lists_nothing_and_reads_no_secret() {
+    let server = Mock::replying(200, ANTHROPIC_MODELS);
+    let dir = tempfile::tempdir().unwrap();
+    let store = SettingsStore::new(&dir.path().join(FILE));
+    let mut settings = store.get();
+    settings.anthropic.endpoint = server.base.clone();
+    store.set(settings).unwrap();
+    let keys = Arc::new(CountingKeys::default());
+    let ai = Ai::new(store, Arc::clone(&keys) as Arc<dyn KeyStore>, Gate::open());
+
+    let catalogs = ai.models(&HTTP, true).unwrap();
+    assert_eq!(
+        catalogs.anthropic,
+        Some(Catalog::Failed {
+            code: "E_AI_KEY_MISSING"
+        })
+    );
+    assert_eq!(*keys.reads.lock().unwrap(), 0);
+    ai.snapshot();
+    assert_eq!(*keys.reads.lock().unwrap(), 0, "Settings reads no secret");
+
+    ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    let catalogs = ai.models(&[ProviderId::Anthropic], true).unwrap();
+    assert_eq!(ready(catalogs.anthropic.as_ref()), ["claude-opus-5-5"]);
+    assert_eq!(*keys.reads.lock().unwrap(), 1);
+}
+
+#[test]
+fn a_list_read_under_settings_since_changed_is_not_fetched() {
+    let server = Mock::replying(200, ANTHROPIC_MODELS);
+    let app = setup(ProviderId::Anthropic, &server.base);
+    app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    let read_before = app.ai.settings.get();
+
+    let mut moved = app.ai.settings.get();
+    moved.anthropic.endpoint = format!("{}/other", server.base);
+    app.ai.set_settings(moved).unwrap();
+    assert!(
+        app.keys.has(ProviderId::Anthropic).unwrap(),
+        "same origin keeps the key"
+    );
+    let epoch_after = app.ai.catalog_epoch.load(Ordering::SeqCst);
+
+    assert_eq!(
+        app.ai
+            .catalog(ProviderId::Anthropic, &read_before, epoch_after, true),
+        Catalog::Failed {
+            code: "E_AI_SETTINGS_CHANGED"
+        }
+    );
+    assert_eq!(server.hits(), 0);
+}
+
+#[test]
+fn a_list_fetched_before_a_change_is_returned_but_never_cached() {
+    let server = Mock::replying(200, ANTHROPIC_MODELS);
+    let app = setup(ProviderId::Anthropic, &server.base);
+    app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    let settings = app.ai.settings.get();
+    let stale = app.ai.catalog_epoch.load(Ordering::SeqCst);
+    app.ai.forget_catalogs();
+
+    let catalog = app
+        .ai
+        .catalog(ProviderId::Anthropic, &settings, stale, false);
+    assert_eq!(ready(Some(&catalog)), ["claude-opus-5-5"]);
+    assert!(app.ai.catalogs.lock().unwrap().is_empty());
+    app.ai.models(&[ProviderId::Anthropic], false).unwrap();
+    assert_eq!(server.hits(), 2);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_key_cleared_by_a_save_that_then_fails_is_no_longer_listed_from_the_cache() {
+    use std::os::unix::fs::PermissionsExt;
+    let server = Mock::replying(200, ANTHROPIC_MODELS);
+    let app = setup(ProviderId::Anthropic, &server.base);
+    app.ai.set_key(ProviderId::Anthropic, KEY).unwrap();
+    app.ai.models(&[ProviderId::Anthropic], false).unwrap();
+    assert_eq!(server.hits(), 1);
+
+    let folder = app._dir.path();
+    let mut moved = app.ai.settings.get();
+    moved.anthropic.endpoint = "https://elsewhere.example.com".into();
+    std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let saved = app.ai.set_settings(moved);
+    std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(saved.unwrap_err(), "E_AI_SETTINGS_WRITE_FAILED");
+    assert!(!app.keys.has(ProviderId::Anthropic).unwrap());
+
+    let catalogs = app.ai.models(&[ProviderId::Anthropic], false).unwrap();
+    assert_eq!(
+        catalogs.anthropic,
+        Some(Catalog::Failed {
+            code: "E_AI_KEY_MISSING"
+        })
+    );
+    assert_eq!(server.hits(), 1);
+}
+
+#[test]
+fn a_command_line_tool_without_its_backend_is_unavailable() {
+    let app = setup(ProviderId::Anthropic, "https://api.example.com");
+    let catalogs = app
+        .ai
+        .models(&[ProviderId::ClaudeCli, ProviderId::CodexCli], false)
+        .unwrap();
+    let unavailable = Some(Catalog::Failed {
+        code: "E_AI_PROVIDER_UNAVAILABLE",
+    });
+    assert_eq!(
+        (&catalogs.claude_cli, &catalogs.codex_cli),
+        (&unavailable, &unavailable)
+    );
+}
+
+#[test]
+fn an_empty_suggestion_model_is_its_providers_model_setting() {
+    let reply = (contracts()[0].ok)("Hi").to_string();
+    let mock = Mock::replying(200, reply);
+    let app = setup(ProviderId::Openai, &mock.base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+    let mut settings = app.ai.settings.get();
+    settings.anthropic.model = "model-main".into();
+    settings.suggest_model = Omittable::Set(SuggestModel {
+        provider: ProviderId::Anthropic,
+        model: String::new(),
+        reasoning: None,
+    });
+    app.ai.set_settings(settings).unwrap();
+
+    let mut request = ask();
+    request.purpose = Purpose::Suggest;
+    let generated = app.ai.generate(&request).unwrap();
+    assert_eq!(generated.provider, ProviderId::Anthropic);
+    let seen = mock.seen.lock().unwrap();
+    assert_eq!(seen[0].path, "/v1/messages");
+    assert_eq!(seen[0].body["model"], "model-main");
+}
+
+#[test]
+fn a_suggestion_model_without_a_key_fails_and_never_falls_back() {
+    let reply = (contracts()[0].ok)("Hi").to_string();
+    let mock = Mock::replying(200, reply);
+    let app = setup(ProviderId::Anthropic, &mock.base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+    let mut settings = app.ai.settings.get();
+    settings.suggest_model = Omittable::Set(SuggestModel {
+        provider: ProviderId::Openai,
+        model: "small".into(),
+        reasoning: None,
+    });
+    app.ai.set_settings(settings).unwrap();
+
+    let mut request = ask();
+    request.purpose = Purpose::Suggest;
+    assert_eq!(app.ai.generate(&request).unwrap_err(), "E_AI_KEY_MISSING");
+    assert_eq!(mock.hits(), 0);
+}
+
+#[test]
+fn try_it_answers_the_model_it_was_asked_for() {
+    use super::CliState;
+    let dir = tempfile::tempdir().unwrap();
+    let cli = StubCli::new(CliState::Ready, CliState::Ready);
+    let ai = Ai::new(
+        SettingsStore::new(&dir.path().join(FILE)),
+        Arc::new(MemoryKeys::default()),
+        Gate::open(),
+    )
+    .with_cli(Arc::clone(&cli) as Arc<dyn super::cli::CliBackend>);
+    let tried = ai.try_model(ProviderId::ClaudeCli, " opus ", None).unwrap();
+    assert_eq!(tried.model, "opus");
+    assert_eq!(cli.runs.lock().unwrap()[0].1, "opus");
 }

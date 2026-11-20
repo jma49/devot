@@ -230,6 +230,16 @@ export interface NoteBody {
   bodyMd: string
 }
 
+/** The start of a note whose body opens with a front matter fence, for reading its properties. */
+export interface NoteHead {
+  id: string
+  /** At most MAX_HEAD_CHARS characters of the body. */
+  head: string
+}
+
+/** How much of a note `getHeads` reads: front matter longer than this has no properties in the table layout. */
+export const MAX_HEAD_CHARS = 8_192
+
 /** The most notebooks one `putBooks` call takes (the Tauri command refuses more). */
 export const MAX_PUT_BOOKS = 5_000
 
@@ -255,6 +265,8 @@ export interface StorageAdapter {
   openNote(id: string): Promise<OpenedRecord | null>
   /** One read for many notes (at most MAX_BODY_IDS), trashed ones included; purged and unknown IDs are left out. */
   getBodies(ids: readonly string[]): Promise<NoteBody[]>
+  /** The heads of `ids` (at most MAX_BODY_IDS) whose body opens with `---`, in their order, trashed notes included; purged and unknown IDs are left out. */
+  getHeads(ids: readonly string[]): Promise<NoteHead[]>
   /** Live notes meeting every condition, best matches first, each with its excerpt; at most `limit`. */
   searchNotes(query: NoteQuery, limit: number): Promise<NoteSummary[]>
   /**
@@ -272,6 +284,8 @@ export interface StorageAdapter {
   listTrash(): Promise<TrashedNote[]>
   /** Final: no later write restores it. An attachment another non-purged note still shows passes to that note, a live one before one in the Trash, then the smallest ID. */
   purgeNote(id: string, at: number, hlc: string): Promise<void>
+  /** As purgeNote, atomically for every ID, compacting the search index once. */
+  purgeNotes(ids: readonly string[], at: number, hlc: string): Promise<void>
   /** A compare-and-set on the body: written only while the stored body is at `note.bodyVersion`, then moved to the next version. Otherwise refused with E_NOTE_BODY_STALE; the writer merges the stored body (Yjs) and writes again. Metadata merges per field (newer HLC wins). Records outside the limits are refused (checkNote in noteLimits.ts). A purged note is left alone. */
   putNote(note: NoteRecord): Promise<void>
   /** putNote for a note whose body and Yjs state are the ones stored at `note.bodyVersion`: the fields alone are written, merged and compared as putNote does, and the version moves on (another process reads a moved version as a write to take in). The body, its state and its links stay as stored. E_NOTE_NOT_FOUND for a note storage does not have. */

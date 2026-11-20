@@ -47,10 +47,20 @@ export function usePanes({
   const [sidebarHidden, setSidebarHidden] = useState(() => sidebarStore.load())
   // A narrow window hides the sidebar until Show Sidebar asks; the request lasts until the window crosses the threshold again. Neither is stored.
   const narrow = useNarrowWindow()
-  const [narrowRequest, setNarrowRequest] = useState<'none' | 'shown'>('none')
-  if (!narrow && narrowRequest !== 'none') setNarrowRequest('none')
-  const sidebarOff = narrow ? narrowRequest !== 'shown' : sidebarHidden
+  const [narrowRequest, setNarrowRequest] = useState(false)
+  if (!narrow && narrowRequest) setNarrowRequest(false)
+  const sidebarOff = narrow ? !narrowRequest : sidebarHidden
   const sidebarShown = !focus && !sidebarOff
+  const dismissSidebar = (event: { target: EventTarget | null }) => {
+    if (
+      narrow &&
+      sidebarShown &&
+      event.target instanceof Element &&
+      event.target.closest('.window > .list, .window > .content')
+    ) {
+      setNarrowRequest(false)
+    }
+  }
   // Hide/show fades and slides the panes (paneMotion.ts): positions are measured before the change renders and played back after layout.
   // Panes are inert from the first frame of a hide, so the keyboard leaves them as it did when they vanished at once.
   const [panesSeen, setPanesSeen] = useState({ focus, sidebarOff })
@@ -78,7 +88,7 @@ export function usePanes({
   const toggleSidebar = () => {
     if (sidebarShown) {
       const hadKeyboard = areaOf(document.activeElement) === 'sidebar'
-      if (narrow) setNarrowRequest('none')
+      if (narrow) setNarrowRequest(false)
       else {
         sidebarStore.save(true)
         setSidebarHidden(true)
@@ -86,14 +96,17 @@ export function usePanes({
       if (hadKeyboard) requestFocus({ kind: 'area', area: 'list' })
       return
     }
-    if (document.activeElement?.closest('.sidebar-toggle')) {
+    if (
+      document.activeElement?.closest('.sidebar-toggle') ||
+      (narrow && areaOf(document.activeElement) === 'list')
+    ) {
       requestFocus({ kind: 'area', area: 'sidebar' })
     }
     if (focus) {
       focusStore.save(false)
       setFocus(false)
     }
-    if (narrow) setNarrowRequest('shown')
+    if (narrow) setNarrowRequest(true)
     else {
       sidebarStore.save(false)
       setSidebarHidden(false)
@@ -108,6 +121,7 @@ export function usePanes({
     narrow,
     sidebarOff,
     sidebarShown,
+    dismissSidebar,
     toggleSidebar,
   }
 }

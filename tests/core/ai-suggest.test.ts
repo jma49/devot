@@ -30,6 +30,7 @@ const provider = (key: AiProviderView['key'] = 'set', model = 'claude-sonnet-5-5
   defaultEndpoint: 'https://api.anthropic.com',
   defaultModel: model,
   key,
+  reasoning: null,
 })
 
 function setup(view: Partial<AiSettingsView> = {}, licensed = () => true) {
@@ -57,6 +58,7 @@ function setup(view: Partial<AiSettingsView> = {}, licensed = () => true) {
     suggestOnIdle: false,
     anthropic: provider(),
     openai: provider('unset', ''),
+    suggestModel: null,
     ...view,
   }
   const suggester = createSuggester({
@@ -128,5 +130,18 @@ describe('next edit suggestions', () => {
     expect(content).not.toContain('SECRET')
     expect(content).toContain('CARET')
     expect(content.length).toBeLessThan(SUGGEST_BEFORE_CHARS + SUGGEST_AFTER_CHARS + 100)
+  })
+
+  it('ask for the suggestion model, and wait for it to be ready when Settings names one', async () => {
+    const { books, notes, suggester, sent, change } = setup()
+    const shared = await books.create('Shared', null)
+    await books.setAiAccess(shared, true)
+    const note = await notes.create('Plan', shared)
+    change({ suggestModel: { provider: 'openai', model: 'small', reasoning: 'low' } })
+    await expect(suggester.suggest(note, CONTEXT, 'key')).rejects.toThrow('E_AI_KEY_MISSING')
+    expect(sent).toEqual([])
+    change({ suggestModel: { provider: 'anthropic', model: '', reasoning: null } })
+    await suggester.suggest(note, CONTEXT, 'key')
+    expect(sent.map((input) => [input.provider, input.purpose])).toEqual([[undefined, 'suggest']])
   })
 })

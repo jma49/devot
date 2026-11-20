@@ -4,6 +4,8 @@ Part of the [architecture overview](../architecture.md).
 
 Search covers live notes (never the Trash) through the FTS5 trigram index (`src/core/search.ts`, `notes_search`).
 A search for a word of three characters or more first re-indexes the notes saved since they were indexed, so it finds what they hold now (see [Data model](data-model.md), FTS5).
+The contentless-delete index (`contentless_delete=1`) requires SQLite 3.43 or newer.
+The Rust store ships bundled rusqlite SQLite 3.54.1; the better-sqlite3 store ships SQLite 3.53.4.
 
 - **Syntax:** words and `"quoted phrases"` must all appear in the title or body (case-insensitive substrings).
   Qualifiers narrow the search: `title:` and `body:` (text in that part only), `book:` or `in:` (the notebook and its sub-notebooks, like selecting it in the sidebar), `tag:`, `#name` (the tag when one has that name, found when the query is resolved, otherwise the text `#name`, so `#include` still finds code; `#"two words"` for a name with spaces, and a quoted `"#name"` is always text), `status:` or `is:` (an ID such as `on_hold` or a name such as `"On Hold"`, in any case, with spaces, hyphens or underscores), `bookId:` and `tagId:` (the same by ID, a UUID; `bookId:` also includes sub-notebooks) and `pinned:` (`true`, `yes` or `1`; `false`, `no` or `0`; any case).
@@ -42,6 +44,10 @@ A search for a word of three characters or more first re-indexes the notes saved
   Shift+Opt+Cmd+F searches every note; while it does, nothing in the sidebar shows as selected (the notebook, All Notes or filter shows again once the search is cleared, and a row pressed meanwhile shows its own view: a notebook comes without the hidden filter, a filter covers every note rather than the hidden notebook).
   Escape or the clear button empties the field and returns to searching every note.
   Typing a search in the Trash shows All Notes.
+- **Desktop query delay:** typing waits 40 ms when a positive indexed text term drives the search and there are no short text terms or hashtag clauses; other queries wait 120 ms.
+  Return runs a pending query immediately, except when it accepts a suggestion or belongs to an input method; preedit is not searched.
+  With no query waiting to run, Return moves focus to the list.
+  Only answers to the current query and scope replace the results, and a superseded queued full-text query does not run.
 - **On the iPhone** (`docs/specs/iphone-screens.md`, Search): the Search tab searches every note, with the scopes All and Titles; Titles reads each plain word as a `title:` clause and leaves qualifiers, quotes and minus signs as typed.
   There is no This notebook scope: a notebook's row before a query fills the field with its `in:` clause instead.
   Recent searches are kept on the iPhone alone, and a saved search in the Library opens the Search tab with its query run.

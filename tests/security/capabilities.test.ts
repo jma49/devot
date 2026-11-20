@@ -188,12 +188,14 @@ describe('Tauri command permissions', () => {
     const settings = capabilities().filter((c) => c.windows.includes('settings'))
     // It hears changes made in the main window (Cmd+= and Cmd+-) as events.
     expect(settings.flatMap(permissionIds).sort()).toEqual([
-      // Settings > AI sets the endpoints and models, refreshes detected CLIs, and puts keys in; none comes back out.
+      // Settings > AI sets the endpoints and models, lists models, tries one, refreshes detected CLIs, and puts keys in; none comes back out.
       'allow-ai-cli-refresh',
       'allow-ai-key-clear',
       'allow-ai-key-set',
+      'allow-ai-models',
       'allow-ai-settings-get',
       'allow-ai-settings-set',
+      'allow-ai-try',
       // Settings > General > App Language, and Restart Now to show it.
       'allow-app-language-get',
       'allow-app-language-restart',
@@ -334,6 +336,7 @@ describe('Tauri command permissions', () => {
       'allow-sync-state-put',
       'allow-sync-reset',
       'allow-sync-note-purge',
+      'allow-sync-purges-compact',
     ]) {
       expect(windowsWith(run)).toEqual(['main'])
     }
@@ -467,6 +470,8 @@ describe('Tauri command permissions', () => {
       'books_put',
       'files_copy',
       'note_drawings_put',
+      'notes_heads',
+      'notes_purge',
       'notes_trash_list',
       'revisions_compact',
       'revisions_compactable',
@@ -488,6 +493,10 @@ describe('Tauri command permissions', () => {
       .flatMap(permissionIds)
     const missing = reached.filter((c) => !granted.includes(`allow-${c.replaceAll('_', '-')}`))
     expect(missing).toEqual([])
+  })
+
+  it('lets only main windows purge Trash as a batch', () => {
+    expect(windowsWith('allow-notes-purge')).toEqual(['main'])
   })
 
   it('lets the quick capture window take a capture link, hand over its note and close, and nothing more', () => {
@@ -533,7 +542,14 @@ describe('Tauri command permissions', () => {
     expect(windowsWith('allow-ai-stream')).toEqual(['main'])
     expect(windowsWith('allow-ai-stream-cancel')).toEqual(['main'])
     expect(windowsWith('allow-ai-settings-get')).toEqual(['main', 'settings'])
-    for (const command of ['settings-set', 'key-set', 'key-clear', 'cli-refresh']) {
+    for (const command of [
+      'settings-set',
+      'key-set',
+      'key-clear',
+      'cli-refresh',
+      'models',
+      'try',
+    ]) {
       expect(windowsWith(`allow-ai-${command}`)).toEqual(['settings'])
     }
   })

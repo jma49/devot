@@ -45,7 +45,8 @@
     "i18n:apple": "node scripts/i18n/apple.ts && node scripts/i18n/rust.ts",
     "i18n:apple:check": "node scripts/i18n/apple.ts --check && node scripts/i18n/rust.ts --check",
     "bench": "node scripts/bench/run.ts",
-    "bench:app": "bash scripts/bench/app.sh"
+    "bench:app": "bash scripts/bench/app.sh",
+    "bench:large": "node scripts/bench/large-notes.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",
@@ -60,6 +61,7 @@
     "@lezer/highlight": "1.2.5",
     "@lezer/markdown": "1.8.1",
     "@plantuml/core": "1.2026.9",
+    "@replit/codemirror-vim": "6.3.0",
     "@sentry/browser": "11.6.0",
     "@tauri-apps/api": "2.12.2",
     "comlink": "4.4.2",

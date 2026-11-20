@@ -87,6 +87,15 @@ const order = (html: string, texts: string[]) =>
   texts.map((text) => [text, html.indexOf(`>${text}<`)] as const)
 
 describe('Sidebar sections', () => {
+  it('puts the provided sidebar control in the titlebar', () => {
+    const html = render(sectionStore(memoryStorage(), 'main'), [book], {
+      headerAction: <button aria-label="Hide Sidebar">Toggle</button>,
+    })
+    expect(html).toMatch(
+      /data-devot-part="sidebar-titlebar"[^>]*><button aria-label="Hide Sidebar">Toggle<\/button><\/div>/,
+    )
+  })
+
   it('render in the order: All Notes, Pinned, Templates, Notebooks, Status, Tags, Trash', () => {
     const html = render(sectionStore(memoryStorage(), 'main'))
     const found = order(html, [

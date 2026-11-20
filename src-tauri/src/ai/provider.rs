@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::catalog::CatalogModel;
+
 pub const DEFAULT_MAX_TOKENS: u32 = 4096;
 pub const MAX_MAX_TOKENS: u32 = 32_000;
 pub const MAX_MESSAGES: usize = 100;
@@ -20,6 +22,12 @@ pub enum ProviderId {
 
 impl ProviderId {
     pub const HTTP: [ProviderId; 2] = [ProviderId::Anthropic, ProviderId::Openai];
+    pub const ALL: [ProviderId; 4] = [
+        ProviderId::Anthropic,
+        ProviderId::Openai,
+        ProviderId::ClaudeCli,
+        ProviderId::CodexCli,
+    ];
 
     pub fn is_cli(self) -> bool {
         matches!(self, ProviderId::ClaudeCli | ProviderId::CodexCli)
@@ -49,6 +57,15 @@ pub struct Message {
     pub content: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Purpose {
+    #[default]
+    Main,
+    /// A next edit suggestion: the suggestion model answers when Settings names one.
+    Suggest,
+}
+
 /// What a caller asks for. `provider` is the active one when absent.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -63,6 +80,8 @@ pub struct GenerateRequest {
     /// A shorter limit than the default for a request whose answer is worth little late.
     #[serde(default)]
     pub timeout_secs: Option<u32>,
+    #[serde(default)]
+    pub purpose: Purpose,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -136,11 +155,22 @@ pub trait Provider: Sync {
     fn default_endpoint(&self) -> &'static str;
     /// None when the user has to name a model.
     fn default_model(&self) -> Option<&'static str>;
-    fn build(&self, endpoint: &str, model: &str, key: &str, request: &Prepared) -> WireRequest;
+    /// `reasoning` is a level the user chose; None leaves it to the model.
+    fn build(
+        &self,
+        endpoint: &str,
+        model: &str,
+        key: &str,
+        reasoning: Option<&str>,
+        request: &Prepared,
+    ) -> WireRequest;
     /// The status is 2xx; any other status is `status_error`'s.
     fn parse(&self, body: &[u8]) -> Result<Completion, &'static str>;
     /// Takes one server-sent event's data into `into`, and returns the text it adds.
     fn event(&self, data: &str, into: &mut Partial) -> Result<String, &'static str>;
+    /// A `GET` of the models the key may use; its body is empty.
+    fn models_request(&self, endpoint: &str, key: &str) -> WireRequest;
+    fn parse_models(&self, body: &[u8]) -> Result<Vec<CatalogModel>, &'static str>;
 }
 
 pub fn provider(id: ProviderId) -> Option<&'static dyn Provider> {

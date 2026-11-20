@@ -1340,6 +1340,7 @@ mod tests {
     fn import(id: u64) -> Link {
         Link::Import {
             scan: crate::import::Scan {
+                vault: None,
                 id,
                 name: String::new(),
                 kind: crate::import::Kind::Files,

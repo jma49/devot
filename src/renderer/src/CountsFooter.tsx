@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { EditorCounts } from './editor/counts'
+import type { VimEditingMode } from './editor/vim'
 import { formatNumber } from './format'
 import { currentLocale, format, t } from './i18n'
 
@@ -20,13 +21,25 @@ export function wordsText(counts: EditorCounts, locale: string): string {
   })
 }
 
-export function CountsFooter(props: { counts: EditorCounts | null }) {
-  const { counts } = props
-  if (!counts) return <p className="editor-counts" />
+export function CountsFooter(props: { counts: EditorCounts | null; vimMode?: VimEditingMode }) {
+  const { counts, vimMode } = props
+  const mode = vimMode ? (
+    <span className="vim-mode">
+      {t(
+        vimMode === 'insert'
+          ? 'counts.vimInsert'
+          : vimMode === 'visual'
+            ? 'counts.vimVisual'
+            : 'counts.vimNormal',
+      )}
+    </span>
+  ) : null
+  if (!counts) return <p className="editor-counts">{mode}</p>
   const locale = currentLocale()
   const { selection } = counts
   return (
     <p className="editor-counts">
+      {mode}
       <span
         title={
           counts.goal === undefined
@@ -44,6 +57,8 @@ export function CountsFooter(props: { counts: EditorCounts | null }) {
 }
 
 export interface CountsStore {
+  getVimMode(): VimEditingMode
+  setVimMode(mode: VimEditingMode): void
   get(): EditorCounts | null
   set(counts: EditorCounts): void
   subscribe(listener: () => void): () => void
@@ -52,8 +67,14 @@ export interface CountsStore {
 /** Holds the counts outside React state, so a new count renders the footer and not the window. */
 export function countsStore(): CountsStore {
   let current: EditorCounts | null = null
+  let vimMode: VimEditingMode = null
   const listeners = new Set<() => void>()
   return {
+    getVimMode: () => vimMode,
+    setVimMode(mode) {
+      vimMode = mode
+      for (const listener of [...listeners]) listener()
+    },
     get: () => current,
     set(counts) {
       current = counts
@@ -68,5 +89,6 @@ export function countsStore(): CountsStore {
 
 export function LiveCountsFooter(props: { store: CountsStore }) {
   const counts = useSyncExternalStore(props.store.subscribe, props.store.get)
-  return <CountsFooter counts={counts} />
+  const vimMode = useSyncExternalStore(props.store.subscribe, props.store.getVimMode)
+  return <CountsFooter counts={counts} vimMode={vimMode} />
 }
