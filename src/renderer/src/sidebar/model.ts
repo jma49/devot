@@ -1,4 +1,4 @@
-import type { Ref } from 'react'
+import type { ReactNode, Ref } from 'react'
 import type { BookNode } from '../../../core/books'
 import type { NoteStatus, TagColor, TagColorValue, TagRecord } from '../../../core/storage'
 import type { NoteFilter } from '../../../core/tags'
@@ -72,6 +72,7 @@ export function subtree(tree: BookNode[], id: string): Set<string> {
 }
 
 export interface SidebarProps {
+  headerAction?: ReactNode
   total: number
   tree: BookNode[]
   counts: ReadonlyMap<string, number>

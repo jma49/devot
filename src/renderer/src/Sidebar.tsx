@@ -142,7 +142,9 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
       onKeyDown={onRowsKey}
     >
       {/* The traffic lights sit here; the bar drags the window. */}
-      <div className="titlebar" data-devot-part="sidebar-titlebar" data-tauri-drag-region />
+      <div className="titlebar" data-devot-part="sidebar-titlebar" data-tauri-drag-region>
+        {props.headerAction}
+      </div>
       {ws ? workspaceTitle(view, ws) : null}
       <ul className="sources">
         <li>

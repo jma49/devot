@@ -134,6 +134,9 @@ export const messages = {
   'editorSettings.toolbarHint':
     'Whether the toolbar shows over selected text and above the current table row.',
   'editorSettings.lineNumbers': 'Line Numbers',
+  'editorSettings.vimMode': 'Vim Mode',
+  'editorSettings.vimModeHint':
+    'Use Vim keybindings. Press i to insert text and Escape to return to normal mode.',
   'editorSettings.lineNumbersHint': 'Whether to show line numbers to the left of the editor.',
   'editorSettings.highlightActiveLine': 'Highlight Active Line',
   'editorSettings.highlightActiveLineHint': 'Whether to highlight the line the cursor is on.',

@@ -381,9 +381,59 @@ describe('sync between two devices', () => {
     expect(row?.note?.purged).toBe(true)
     const kept = await b.storage.listRevisions(id)
     expect(kept.map((r) => r.value)).toContain(MERGE)
+    expect((await b.storage.syncState())['searchCompactionPending']).toBeUndefined()
+    expect(
+      b.storage.db.prepare("SELECT rowid FROM notes_fts WHERE notes_fts MATCH 'shred'").all(),
+    ).toEqual([])
+    b.storage.db.exec(
+      "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+    )
+    expect(b.storage.db.prepare("SELECT term FROM purge_vocab WHERE term = 'shr'").all()).toEqual(
+      [],
+    )
     // A purge is final: an edit B still had in memory does not bring the note back.
     await settle(b, a)
     expect(await a.note(id)).toBeNull()
+  })
+
+  it('compacts applied purges even when the pull fails before saving its cursor', async () => {
+    let fail = false
+    let failed = false
+    const { a, b } = await pair({
+      b: {
+        engine: { retryBaseMs: 60_000, idleMs: 60_000, everyMs: 60_000 },
+        engineSync: (storage) =>
+          new Proxy(storage, {
+            get: (target, key, receiver) =>
+              key === 'syncPurge'
+                ? async (...args: Parameters<SqliteAdapter['syncPurge']>) => {
+                    await target.syncPurge(...args)
+                    if (fail) {
+                      failed = true
+                      throw new Error('E_STORAGE_IO')
+                    }
+                  }
+                : Reflect.get(target, key, receiver),
+          }),
+      },
+    })
+    const id = await a.notes.create('Secret')
+    await a.notes.setBody(id, 'qxjzvwkpfyb\n')
+    await settle(a, b)
+    b.storage.catchUpSearchIndex()
+    await a.notes.trash(id)
+    await a.notes.purge(id)
+    await a.sync()
+    fail = true
+    await b.engine.syncNow()
+    expect(failed).toBe(true)
+    expect((await b.storage.syncState())['searchCompactionPending']).toBeUndefined()
+    b.storage.db.exec(
+      "CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')",
+    )
+    expect(b.storage.db.prepare("SELECT term FROM purge_vocab WHERE term = 'qxj'").all()).toEqual(
+      [],
+    )
   })
 
   it('syncs notebooks and tags with the notes in them', async () => {

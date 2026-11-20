@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { getIndentUnit } from '@codemirror/language'
 import {
   cursorCharLeft,
@@ -21,6 +22,7 @@ import {
 } from '@codemirror/search'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, type Command } from '@codemirror/view'
+import { getCM } from '@replit/codemirror-vim'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_EDITOR_SETTINGS, type EditorSettings } from '../../../core/editorSettings'
 import { shortcutCodeMirror } from '../commands/keys'
@@ -42,6 +44,35 @@ const attrs = (state: EditorState) =>
   )
 
 describe('editor setup from the settings', () => {
+  it('reconfigures Vim normal mode on the same view, including an empty document', async () => {
+    const plain = { ...DEFAULT_EDITOR_SETTINGS }
+    const enabled = { ...plain, vimMode: true }
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'alpha', extensions: editorSetup(plain) }),
+    })
+    const press = (key: string) =>
+      view.contentDOM.dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+      )
+    try {
+      expect(press('x')).toBe(true)
+      view.dispatch({ effects: reconfigureSetup(plain, enabled) })
+      await vi.waitFor(() => expect(getCM(view)).not.toBeNull())
+      expect(press('x')).toBe(false)
+      expect(view.state.doc.toString()).toBe('lpha')
+      press('i')
+      expect(getCM(view)?.state.vim?.insertMode).toBe(true)
+      press('Escape')
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '' } })
+      press('x')
+      expect(view.state.doc.toString()).toBe('')
+      view.dispatch({ effects: reconfigureSetup(enabled, plain) })
+      expect(press('x')).toBe(true)
+    } finally {
+      view.destroy()
+    }
+  })
+
   it('wraps lines as the line wrapping mode says', () => {
     const wrapClass = (state: EditorState) =>
       state

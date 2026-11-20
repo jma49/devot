@@ -1230,7 +1230,7 @@ button {
   font: inherit;
   font-size: var(--font-size-footnote);
   column-gap: var(--size-sidebar-footer-gap);
-  height: var(--size-sidebar-footer);
+  min-height: var(--size-sidebar-footer);
   padding-inline: calc(var(--size-sidebar-row-padding) - var(--size-capsule-edge))
     var(--size-sidebar-footer-end-sm);
   border: var(--size-capsule-edge) solid var(--color-line-glass-edge);
@@ -1240,6 +1240,10 @@ button {
 
 .footer-toggle:hover {
   background: var(--color-fill-tool-hover);
+}
+
+.window:not([data-narrow]) .footer-toggle {
+  height: var(--size-sidebar-footer);
 }
 
 .footer-toggle .icon {
@@ -1270,6 +1274,11 @@ button {
   flex: 1;
   text-align: start;
   min-width: 0;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.window:not([data-narrow]) .footer-saved {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2659,7 +2668,7 @@ div.card-placeholder {
   padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
 }
 
-/* The editor keeps room for two split panes (and its toolbar): the list gives way first, then the sidebar below size.sidebar-collapse-width. A narrow window whose sidebar was asked for squeezes the editor instead. */
+/* The list gives way first, then the sidebar; the editor keeps room for two split panes and its toolbar. */
 .content {
   flex: 1;
   min-width: calc(var(--size-pane-min-width) * 2);
@@ -2671,8 +2680,15 @@ div.card-placeholder {
   );
 }
 
-.window[data-narrow]:not([data-sidebar-hidden]) .content {
-  min-width: 0;
+.window[data-narrow] > .sidebar {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  max-width: calc(var(--size-list-min-width) - var(--size-sidebar-inset) * 2);
+}
+
+.window[data-narrow]:not([data-sidebar-hidden]) .list-header .sidebar-toggle {
+  visibility: hidden;
 }
 
 /* Beside a board or a gallery the editor gives way only to the width its toolbar and header need; the board's columns scroll sideways instead. */
@@ -3133,7 +3149,7 @@ div.card-placeholder {
   width: 0;
 }
 
-.window[data-sidebar-hidden] .list-header .window-inset {
+.window:is([data-sidebar-hidden], [data-narrow]) .list-header .window-inset {
   width: calc(var(--size-window-controls-inset) - var(--space-1));
 }
 

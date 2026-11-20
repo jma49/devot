@@ -146,10 +146,10 @@ for (const width of [1280, 800]) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 700 })
-    // A window under 1000 px hides the sidebar until it is asked for.
-    if (width < 1000) await page.getByRole('button', { name: 'Show Sidebar' }).click()
     const name = 'W'.repeat(200)
     await createNote(page, 'Loose')
+    // Editing the note dismisses the narrow overlay; ask for it when returning to notebooks.
+    if (width < 1000) await page.getByRole('button', { name: 'Show Sidebar' }).click()
     await createBook(page, name)
 
     const picker = bookPicker(page)
@@ -180,6 +180,7 @@ for (const width of [1280, 800]) {
     }
 
     await page.getByRole('button', { name: /All Notes/ }).click()
+    if (width < 1000) await page.getByRole('button', { name: 'Hide Sidebar' }).click()
     await noteRows(page).first().click()
     await expect(picker).toHaveAttribute('data-value', '')
     await detailsStayTight()
@@ -189,7 +190,9 @@ for (const width of [1280, 800]) {
     await expect(picker.locator('.popup-value')).toHaveAttribute('title', name)
     await detailsStayTight()
 
+    if (width < 1000) await page.getByRole('button', { name: 'Show Sidebar' }).click()
     await book(page, 'W{200}').click()
+    if (width < 1000) await page.getByRole('button', { name: 'Hide Sidebar' }).click()
     const headline = header(page)
     await expect(headline).toHaveText(name)
     await expect(headline).toHaveAttribute('title', name)

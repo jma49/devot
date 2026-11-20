@@ -552,6 +552,7 @@ export function NoteWindow() {
                 onText={openText.changed}
                 onFind={setEditorFind}
                 onCounts={countsShown ? editorCounts.set : undefined}
+                onVimMode={editorCounts.setVimMode}
                 links={{
                   find: findLinkTargets,
                   create: createLinkedNote,
