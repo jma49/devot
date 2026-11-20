@@ -91,6 +91,9 @@ final class NoteColumns: UIViewController {
     }
 
     func setControllers(_ all: [UIViewController], animated: Bool) {
+        // A tab a route just selected has not laid out: a push into its one stack would still be
+        // animating when its columns take the note, which then stays in the narrow one.
+        view.window?.layoutIfNeeded()
         guard all != controllers else { return }
         distribute(all, animated: animated)
     }

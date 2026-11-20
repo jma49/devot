@@ -153,6 +153,23 @@ final class ColumnsTests: XCTestCase {
         harness.settle(until: { self.harness.requests().contains { $0.op == .noteDiscard } })
     }
 
+    func testTodayFromAnotherTabOpensBesideTheNotesListItLaidOutNarrower() throws {
+        let notes = try showNotes()
+        resize(CGSize(width: 834, height: 1194))
+        XCTAssertEqual(notes.layout, .one)
+        tabs.select(.library)
+        resize(CGSize(width: 1366, height: 1024))
+        XCTAssertEqual(notes.layout, .one, "a tab out of sight keeps the layout it last had")
+        harness.deliver(#"{"v":1,"notice":"route","route":"today"}"#)
+        harness.answer(.noteToday, .ok(.object(["id": .string(first)])))
+        harness.answerTitles([first: "2026-11-19"])
+        harness.settle(until: { notes.notes.topViewController is EditorScreen }, timeout: 5)
+        harness.settle()
+        XCTAssertEqual((notes.notes.topViewController as? EditorScreen)?.noteId, first)
+        XCTAssertTrue(notes.stack.topViewController is NoteListScreen, "the list keeps its column")
+        XCTAssertEqual(notes.stack.viewControllers.count, 1)
+    }
+
     func testTheLibraryShowsItsListBetweenItAndTheNote() throws {
         tabs.select(.library)
         harness.settle()
