@@ -4,6 +4,7 @@
 // The Mac's native menus (`native.ts`) are Rust's alone, so they stay out of what the page parses.
 import * as ai from './ai'
 import * as app from './app'
+import * as browserExtensions from './browserExtensions'
 import * as commands from './commands'
 import * as editor from './editor'
 import * as files from './files'
@@ -19,9 +20,12 @@ import * as sidebar from './sidebar'
 import * as sync from './sync'
 import * as widget from './widget'
 
+export * as clipper from './clipper'
+
 export const areas = {
   ai,
   app,
+  browserExtensions,
   commands,
   editor,
   files,
@@ -38,7 +42,7 @@ export const areas = {
   widget,
 }
 
-export const en = {
+export const startup = {
   ...ai.messages,
   ...app.messages,
   ...commands.messages,
@@ -56,6 +60,8 @@ export const en = {
   ...sync.messages,
   ...widget.messages,
 } as const
+
+export const en = /* @__PURE__ */ Object.assign({}, startup, browserExtensions.messages)
 
 export type MessageKey = keyof typeof en
 export type Messages = Record<MessageKey, string>

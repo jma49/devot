@@ -5,6 +5,21 @@ import { enPhone } from './phone'
 import { zhHans, zhHansPhone } from './zh-Hans'
 
 describe('i18n', () => {
+  it('registers settings-only English fallbacks without loading them in other windows', async () => {
+    vi.resetModules()
+    const i18n = await import('.')
+    expect(() => i18n.englishText('browserExtensions.hint')).toThrow('E_I18N_MESSAGE_UNLOADED')
+    i18n.registerMessages({})
+    expect(() => i18n.t('browserExtensions.hint')).toThrow('E_I18N_MESSAGE_UNLOADED')
+    i18n.registerMessages({ 'browserExtensions.hint': en['browserExtensions.hint'] })
+    expect(i18n.t('browserExtensions.hint')).toBe(en['browserExtensions.hint'])
+    await i18n.setLocale('zh-hans')
+    expect(i18n.t('browserExtensions.hint')).toBe(zhHans['browserExtensions.hint'])
+    expect(i18n.englishText('browserExtensions.hint')).toBe(en['browserExtensions.hint'])
+    await i18n.setLocale('xx')
+    expect(i18n.t('browserExtensions.hint')).toBe(en['browserExtensions.hint'])
+  })
+
   it('falls back to English for unsupported languages', () => {
     expect(resolveLocale(['fr-FR', 'de'])).toBe('en')
     expect(resolveLocale([])).toBe('en')

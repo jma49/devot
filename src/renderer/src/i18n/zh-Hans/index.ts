@@ -1,6 +1,7 @@
 import type { Messages } from '../en'
 import * as ai from './ai'
 import * as app from './app'
+import * as browserExtensions from './browserExtensions'
 import * as commands from './commands'
 import * as editor from './editor'
 import * as files from './files'
@@ -17,10 +18,12 @@ import * as sync from './sync'
 import * as widget from './widget'
 
 export { zhHansPhone } from './phoneWording'
+export * as clipper from './clipper'
 
 export const zhHans: Messages = {
   ...ai.messages,
   ...app.messages,
+  ...browserExtensions.messages,
   ...commands.messages,
   ...editor.messages,
   ...files.messages,

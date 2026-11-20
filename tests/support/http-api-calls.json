@@ -94,6 +94,18 @@
     }
   },
   {
+    "name": "attach an image",
+    "method": "POST",
+    "target": "/v1/notes/{note}/files",
+    "body": { "name": "photo.png", "type": "image/png", "data": "iVBORw0KGgo=" },
+    "status": 201,
+    "call": {
+      "op": "notes.files.create",
+      "note": "{note}",
+      "args": { "name": "photo.png", "type": "image/png", "data": "iVBORw0KGgo=" }
+    }
+  },
+  {
     "name": "move a note to the Trash",
     "method": "DELETE",
     "target": "/v1/notes/{note}",

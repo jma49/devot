@@ -690,6 +690,42 @@ public enum L10n {
     fill(text("change.bookNameInvalid", "A notebook name is one line of at most {max} characters."), ["max": p0])
   }
 
+  public static func browserExtensionsTitle() -> String {
+    text("browserExtensions.title", "Browser Extensions")
+  }
+
+  public static func browserExtensionsHint() -> String {
+    text("browserExtensions.hint", "Only registered extensions may use this API. Copy the origin from the clipper settings. Changes apply immediately.")
+  }
+
+  public static func browserExtensionsEmpty() -> String {
+    text("browserExtensions.empty", "No browser extensions registered.")
+  }
+
+  public static func browserExtensionsOrigin() -> String {
+    text("browserExtensions.origin", "Extension origin")
+  }
+
+  public static func browserExtensionsPlaceholder() -> String {
+    text("browserExtensions.placeholder", "chrome-extension://… or moz-extension://…")
+  }
+
+  public static func browserExtensionsAdd() -> String {
+    text("browserExtensions.add", "Add Extension")
+  }
+
+  public static func browserExtensionsRemove() -> String {
+    text("browserExtensions.remove", "Remove")
+  }
+
+  public static func browserExtensionsRemoveOrigin(origin p0: String) -> String {
+    fill(text("browserExtensions.removeOrigin", "Remove {origin}"), ["origin": p0])
+  }
+
+  public static func browserExtensionsInvalid() -> String {
+    text("browserExtensions.invalid", "Enter up to eight extension origins, without a trailing slash, path or port.")
+  }
+
   public static func commandSelectAllNotes() -> String {
     text("command.selectAllNotes", "Select All Notes")
   }

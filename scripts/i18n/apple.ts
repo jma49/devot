@@ -27,6 +27,7 @@ export const INFO_PLIST_KEYS = {
 } as const
 /** The Mac's native menus, which Rust reads (scripts/i18n/rust.ts); the iPhone has none of them. */
 const MAC_NATIVE_PREFIX = 'native.'
+const BROWSER_EXTENSION_PREFIX = 'clipper.'
 
 const CATALOG = 'src/renderer/src/i18n/en'
 /** Each translation's catalog folder and iPhone wording, by its string catalog language. */
@@ -277,7 +278,9 @@ async function loadCatalog(root: string): Promise<{
 export async function appleStrings(root: string): Promise<[string, string][]> {
   const { messages: all, wording, translations } = await loadCatalog(root)
   const messages = Object.fromEntries(
-    Object.entries(all).filter(([key]) => !key.startsWith(MAC_NATIVE_PREFIX)),
+    Object.entries(all).filter(
+      ([key]) => !key.startsWith(MAC_NATIVE_PREFIX) && !key.startsWith(BROWSER_EXTENSION_PREFIX),
+    ),
   )
   const { swift, xcstrings } = compileStrings(messages, wording, translations)
   const share = compileStrings(

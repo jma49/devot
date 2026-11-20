@@ -33,6 +33,11 @@ const catalog = JSON.parse(xcstrings) as {
 const english = (key: string) => catalog.strings[key]!.localizations.en.stringUnit.value
 
 describe('the Swift string catalog', () => {
+  it('leaves browser-only clipper keys out of every generated Apple output', async () => {
+    const outputs = await appleStrings('.')
+    for (const [, content] of outputs) expect(content).not.toMatch(/clipper[.A-Z]/)
+  })
+
   it('writes every catalog key once, in Strings.swift and in the string catalog', () => {
     const keys = Object.keys(en)
     expect(keys.length).toBeGreaterThan(1000)

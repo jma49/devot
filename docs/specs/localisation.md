@@ -16,10 +16,13 @@ Part of the [architecture overview](../architecture.md).
   A new English key gets its translation in the same change.
   A translation is a separate chunk that `setLocale` loads before the window renders, so a window parses only the English catalog and the one it shows ([startup chunks](../../tests/scripts/startup-chunks.build.test.ts)).
   The slash menu matches the English label as well as the shown one, so `/code` works in every language.
+  The English startup catalog leaves out Settings-only browser-extension registration messages.
+  Their Settings component registers the English fallback when its window loads, while the complete source catalog still supplies key types and native generation.
 - Placeholders (`{title}`) are filled with `format` in one pass, never with `String.replace`, whose replacement patterns (`$$`, `$&`, `$'`) would garble a title holding them; a policy test refuses `.replace('{`.
   A sentence is never built from pieces in code: each variant (with or without a count, a key or a scope) is its own catalog entry.
   No message has a `{code}` slot or names an error code; the code goes to the log ([quality](quality.md)).
 - The iPhone's native screens read the same catalog: `pnpm i18n:apple` (`scripts/i18n/apple.ts`) writes `Generated/Strings.swift` and `Generated/Localizable.xcstrings` under `src-tauri/apple/DevotScreens/Sources/DevotScreens/`, both committed, and `pnpm i18n:apple:check` fails CI when they are stale.
+  The browser-only `clipper.` area is excluded from all Apple outputs; the Rust generator already reads only the separate `native.` area.
   Each key is one static function of `enum L10n`, named in camel case (`phone.tab.notes` is `L10n.phoneTabNotes()`), that takes the message's placeholders as labelled `String` arguments in the order they appear.
   The text is the iPhone's wording where it has its own (`src/renderer/src/i18n/phone.ts`), which may use only the message's own placeholders.
   `L10n` looks the key up in the string catalog with the English as its fallback, then fills the placeholders in one pass as `format` does; the catalog keeps `{name}` placeholders as they are, so a translation is written as on the page.
