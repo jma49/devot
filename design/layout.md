@@ -228,6 +228,14 @@ Exceptions to these rules, each chosen on purpose:
 - **The notebook pill's icon:** it is `size.icon-sm` (14), not the 10 px of the pill's other glyphs.
   A line icon is drawn larger to carry the weight of the filled 10 px marks beside it (the status icon, a tag's dot).
 
+## Chinese type
+
+The interface keeps one type scale in every language, and Chinese gets three adjustments, because a Han glyph fills its whole em where a Latin letter does not.
+The note title's negative tracking (`note.heading.glass.title-tracking`) is 0, so its characters do not touch.
+Prose that runs over several lines (setting descriptions, dialog and sheet details, notices, empty-state hints) takes a line height of 1.5 instead of 1.4.
+Nothing is set under caption size (11): `font-size.caption2` (10) reads as caption size.
+They hang off the page's `lang` (`:root:lang(zh)`), so English and its layout are unchanged.
+
 ## Note type scale
 
 Tokens: `note.heading.glass.*`, `note.space.*`. Size / line height:
