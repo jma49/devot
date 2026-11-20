@@ -73,6 +73,8 @@ struct TranscriptionSheet: View {
                     .font(.subheadline)
                     .lineLimit(1)
             }
+            // The status beside it wraps; the language's name never truncates.
+            .fixedSize()
             .accessibilityLabel(L10n.phoneTranscribeLanguage())
             .accessibilityValue(model.language.name)
             .disabled(model.phase == .finishing || model.phase == .ended)
