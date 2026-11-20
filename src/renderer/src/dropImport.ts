@@ -34,7 +34,7 @@ export function droppedImport(
   }
   const byPath = new Map<string, File>()
   for (const file of files) {
-    const path = file.name.normalize('NFC')
+    const path = file.name
     const code =
       !path ||
       path.startsWith('.') ||

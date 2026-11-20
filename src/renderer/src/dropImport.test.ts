@@ -1,10 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
 import { droppedImport } from './dropImport'
 import { MAX_FILE_BYTES } from '../../core/files'
+import { resolveImagePath } from '../../core/import'
 
 const file = (name: string, text = '# Dropped') => new File([text], name)
 
 describe('dropped imports', () => {
+  it('preserves decomposed file paths so written image and note links find the browser files', async () => {
+    const picture = 'photo\u0301.png'
+    const note = 'cafe\u0301.md'
+    const put = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    const png = new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], picture)
+    const job = droppedImport([file(note), png], put)
+    expect(job.scan.files[0]?.path).toBe(note)
+    expect(job.scan.images[0]?.path).toBe(picture)
+    expect(await job.source.read(note)).toBe('# Dropped')
+    await job.source.attach(resolveImagePath(note, picture)!, { id: 'file-id', noteId: 'note-id' })
+    expect(put).toHaveBeenCalledOnce()
+  })
   it('rejects malformed UTF-8 like the native note reader and strips a BOM', async () => {
     const job = droppedImport(
       [new File([new Uint8Array([255])], 'bad.md'), file('bom.md', '\ufeff# Note')],

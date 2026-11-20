@@ -186,6 +186,32 @@ test('unsupported dropped files show a notice and clear the drop highlight', asy
   await expect(page.locator('.drop-import')).toHaveCount(0)
 })
 
+test('decomposed filenames preserve image and note links in dropped files', async ({ page }) => {
+  await open(page)
+  await page.locator('.window[data-ready]').waitFor()
+  await page.locator('.window').evaluate((element) => {
+    const data = new DataTransfer()
+    data.items.add(new File(['# Start\n\n[[cafe\u0301]]\n\n![Photo](photo\u0301.png)'], 'Start.md'))
+    data.items.add(new File(['# Target'], 'cafe\u0301.md'))
+    data.items.add(
+      new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'photo\u0301.png', {
+        type: 'image/png',
+      }),
+    )
+    element.dispatchEvent(
+      new DragEvent('drop', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        dataTransfer: data,
+      }),
+    )
+  })
+  await expect(body(page)).toContainText('devot://file/')
+  await expect(body(page)).toContainText('devot://note/')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 const HTML_FILES: Record<string, string> = {
   'page.html':
     '<html><head><title>Saved page</title><script>alert(1)</script></head>' +
