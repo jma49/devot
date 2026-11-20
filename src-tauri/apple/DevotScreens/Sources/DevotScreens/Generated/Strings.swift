@@ -5962,6 +5962,14 @@ public enum L10n {
     fill(text("batch.failedOther", "Could not change {count} notes."), ["count": p0])
   }
 
+  public static func batchTrashedOne(count p0: String) -> String {
+    fill(text("batch.trashedOne", "Moved {count} note to the Trash."), ["count": p0])
+  }
+
+  public static func batchTrashedOther(count p0: String) -> String {
+    fill(text("batch.trashedOther", "Moved {count} notes to the Trash."), ["count": p0])
+  }
+
   public static func noteListPinned() -> String {
     text("noteList.pinned", "Pinned")
   }

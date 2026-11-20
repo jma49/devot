@@ -398,6 +398,7 @@ export const sizes = {
   "motion.duration.phone-search-field": "160ms",
   "motion.duration.phone-chevron": "320ms",
   "motion.duration.phone-toast": "4000ms",
+  "motion.duration.notice-undo": "5000ms",
   "motion.easing.phone-push": "cubic-bezier(0.23, 1, 0.32, 1)",
   "motion.easing.phone-enter": "cubic-bezier(0.33, 1, 0.68, 1)",
   "motion.easing.phone-pair": "cubic-bezier(0.65, 0, 0.35, 1)",

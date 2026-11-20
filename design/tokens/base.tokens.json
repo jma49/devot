@@ -3102,6 +3102,11 @@
         "$value": { "value": 4000, "unit": "ms" },
         "$description": "How long the undo toast stays.",
         "$type": "duration"
+      },
+      "notice-undo": {
+        "$value": { "value": 5000, "unit": "ms" },
+        "$description": "How long a Mac notice that offers Undo stays while the pointer and the keyboard are elsewhere.",
+        "$type": "duration"
       }
     },
     "easing": {
