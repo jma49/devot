@@ -77,6 +77,7 @@ Part of the [design system](design-system.md).
   Dropped on a notebook they move there, on a tag they get it, on a status they get it, on the Trash they move to the Trash; the row under them shows as a drop target.
   Templates drop only on notebooks and the Trash; the Trash's rows do not drag.
   Every window turns Tauri's own drag and drop off (`dragDropEnabled: false` in `tauri.conf.json`, `disable_drag_drop_handler()` on windows built in Rust): on the Mac it answers every drag itself, so WebKit, and with it the page, never sees `dragover` or `drop`, and files dropped from the Finder reach the page as an HTML drop too.
+  Loose file imports use capture-phase HTML drops in the main window, ahead of the editor's text handling, while image-only editor drops remain attachments.
 - Quick tagging (`src/renderer/src/QuickTagPopover.tsx`, `quickTag.ts`): the command `note.quickTag` (T, rebindable; only outside the editor and text fields, and only with one note open) or a click on "+ Tag" opens a pop-up at the tag row: a field, matching tags with counts (recent first when empty; recents are tag IDs in this device's localStorage, never synced or logged), "Create …" for a new name, and swatches for the tag being created.
   Return applies and stays open, Escape closes and gives the keyboard back.
   A new tag clears the field and its colour only once it is made; a refused one keeps both to try again, and Return does nothing while it is being made.

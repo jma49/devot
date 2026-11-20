@@ -587,6 +587,7 @@ export function App() {
     loadHeadlines,
   })
   const linkNotice = useAppDeepLinks({
+    library,
     ready: restored && core !== undefined,
     core,
     coreRef,
@@ -594,6 +595,9 @@ export function App() {
     commands,
     licenceLink,
     startImport,
+    enqueueImport: sheets.enqueueImport,
+    pluginImports: plugins,
+    drops: sheets,
     showLibrary: viewChanges.showLibrary,
     showLibraryRef,
     select,

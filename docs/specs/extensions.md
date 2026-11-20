@@ -54,6 +54,8 @@ Part of the [architecture overview](../architecture.md).
   - **UI:** a plugin shows its frame only from one of its commands (`ui.show`), in a sheet titled with its name, with Close; the frames stay in that sheet while it is closed, so showing one never reloads it.
     Closing tells the plugin (`ui.hidden`).
   - **Plugin kit** (ADR 0024): `plugin-kit/` holds the API's types and the `devot-plugin` command (`new`, `validate`, `pack`), bundled from the app's manifest rules (`pnpm plugin-kit:build`); its tests in `tests/plugin-kit/` keep it in step with the runtime and the package limits.
+    Loose file drops also match enabled, permitted import formats by extension, case-insensitively, after built-in Markdown, HTML and image handling.
+    The picker and drop path share batch conversion, rich-result import, diagnostics and the import permission, enforce the same 20-file limit and selected format's UTF-8 size limit, and a drop opens the first imported note.
   - **Rich imports** (API 3 protocol addition): any plugin with the `import` permission and an import format can return multiple notes, HTML, tags, dates, base64 attachments and diagnostics through `import.convert`, not just the first-party `.enex` converter.
     This expands the result payload without changing the `devot: 1` message envelope (`PLUGIN_PROTOCOL_VERSION`); API 1 and 2 retain their single-note Markdown result and cannot return arrays or the new fields (ADR 0020).
     An API 3 result is one converted note or an array of zero to 5,000 notes; an array imports into a notebook named after the file, while a single note keeps the previous destination behaviour.

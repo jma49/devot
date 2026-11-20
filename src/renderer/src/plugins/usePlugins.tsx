@@ -55,7 +55,8 @@ import { pluginRenderersChanged } from './rendererRevision'
 import { keptDrawingsChanged } from '../preview/keptDrawings'
 import { setPluginDrawer } from '../preview/pluginDrawing'
 import { failureText, logFailure } from '../failure'
-import { importBatch } from './importBatch'
+import { useStable } from '../stable'
+import { importDroppedFiles, importPluginFiles } from './importFiles'
 
 const ImportDetails = lazy(() =>
   import('./ImportDetails').then((m) => ({ default: m.ImportDetails })),
@@ -298,6 +299,46 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     return given
   }, [plugins])
 
+  const convertFiles = useStable(
+    async (
+      pluginId: string,
+      formatId: string,
+      files: { name: string; text: string }[],
+      destination: string | null,
+      notify = true,
+    ) => {
+      const { core: c, app: w, plugins: installed } = latest.current
+      const plugin = installed.find((item) => item.manifest.id === pluginId)
+      if (!c || !host || !plugin) throw new Error('E_PLUGIN_STOPPED')
+      if (notify) setNotification(undefined)
+      const {
+        ids,
+        made,
+        problems,
+        error: importError,
+      } = await importPluginFiles(plugin, formatId, files, host, c, destination, editingAllowed)
+      for (const problem of problems) logFailure(problem.code, 'W_PLUGIN_IMPORT_SKIPPED')
+      if (made > 0) w.imported()
+      const failed = Boolean(importError || (made === 0 && files.length > 0))
+      if (notify && failed) fail(pluginId, importError ?? new Error('E_IMPORT_FAILED'))
+      else if (notify && made > 0 && problems.length > 0)
+        setNotification({ kind: 'import', notes: made, problems })
+      return { ids, failed, made, problems }
+    },
+  )
+
+  const importDropped = useStable(async (files: File[], destination: string | null) => {
+    setNotification(undefined)
+    const result = await importDroppedFiles(
+      files,
+      latest.current.plugins,
+      (plugin, formatId, read) => convertFiles(plugin, formatId, read, destination, false),
+    )
+    if (result.made > 0 && result.problems.length > 0)
+      setNotification({ kind: 'import', notes: result.made, problems: result.problems })
+    return { ids: result.ids, failed: result.failed }
+  })
+
   const act = useCallback(
     async (action: PluginAction) => {
       const { core: c, app: w } = latest.current
@@ -311,21 +352,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
           if (!c) return
           const files = await pickImportFiles(action.plugin, action.id)
           if (!files) return
-          setNotification(undefined)
-          const {
-            made,
-            problems,
-            error: importError,
-          } = await importBatch(files, async (file) => {
-            const converted = await host.convertImport(action.plugin, action.id, file)
-            return c.importConverted(file.name, converted, w.importBook())
-          })
-          for (const problem of problems) logFailure(problem.code, 'W_PLUGIN_IMPORT_SKIPPED')
-          if (made > 0) w.imported()
-          if (importError || (made === 0 && files.length > 0))
-            fail(action.plugin, importError ?? new Error('E_IMPORT_FAILED'))
-          else if (made > 0 && problems.length > 0)
-            setNotification({ kind: 'import', notes: made, problems })
+          await convertFiles(action.plugin, action.id, files, w.importBook())
         } else {
           const open = w.openNote()
           if (!c || !open) return
@@ -340,7 +367,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         fail(action.plugin, error)
       }
     },
-    [host, fail],
+    [host, fail, convertFiles],
   )
 
   const slash = useMemo(() => slashCommands(plugins), [plugins])
@@ -475,5 +502,5 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     </div>
   ) : null
 
-  return { entries, act, sheet, notice }
+  return { entries, act, sheet, notice, installed: plugins, importDropped }
 }

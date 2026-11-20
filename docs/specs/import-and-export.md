@@ -5,6 +5,29 @@ Part of the [Markdown dialect](markdown-dialect.md).
 
 ## Import
 
+### Drag and drop
+
+Dropping loose Markdown or HTML files into the main window imports copies into the notebook shown, or the default notebook when another view is shown, and opens the first successfully imported note without a confirmation sheet.
+Drops and command-line handoffs import one at a time.
+Drops are refused while Backups is open or restoring, and a restore waits for already accepted drop work, including plugin conversion, to finish before replacing the database.
+A window highlight marks file drops; unsupported files or a failed import with no imported note produce a notice.
+Images dropped alongside notes can satisfy relative image links by filename; browser drops provide no folder paths.
+Image-only drops over the editor remain attachments to the open note, and internal note and notebook drags keep their existing behavior.
+The renderer reads browser files directly and stores validated attachment bytes using the IDs allocated by core import, without creating or finishing a Rust import session.
+The normal import size limits and editing write gate apply.
+Directory drops use WebKit's entry reader, reading batches until empty, and open the same preview sheet as a picked folder.
+A single root has paths relative to that root; several roots get unique case-insensitive folder prefixes and each becomes a notebook.
+Only Markdown, supported images and a detected vault's canvas files are scanned, as for the native folder picker; hidden entries and unrelated file types are ignored.
+Vault settings use the same defaults and validation as native folder scans.
+The notebook shown when the folder is dropped is its destination, or the sheet asks as usual when no notebook is shown.
+Loose files mixed with directories are imported and opened separately, while directories wait for confirmation in the sheet.
+Loose files matching an enabled plugin's permitted import format use that plugin's converter and open the first captured note in the same destination as other loose files.
+Built-in Markdown and HTML handling takes priority over plugin extensions, and supported images retain their attachment behavior.
+Plugin drops share the picker's limit of 20 UTF-8 files and the selected format's size limit (5 MiB by default), including API 3 multi-note results, metadata, attachments and diagnostics; a failed or unsupported drop shows the same notice as other dropped files.
+Cancelling or closing an unstarted dropped import releases its browser files without finishing a native session.
+
+### File picker
+
 File > Import has three items: Markdown Files… (`.md`, `.markdown`), Markdown Folder… (one or more folders of Markdown files) and HTML Files… (`.html`, `.htm`).
 A notebook's context menu has the same three items in its Import submenu: the web view starts them with `import_pick(kind, bookId)` (Rust checks both), and the session's READY payload carries that notebook as `destination`, so the sheet skips choosing one (a folder's tree offers Import into it; picked files import at once).
 If the notebook is gone by then, the sheet asks as usual.

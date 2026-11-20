@@ -33,6 +33,185 @@ const SCAN = {
 }
 const PATHS = SCAN.files.map((f) => f.path)
 
+async function dropFiles(
+  page: Page,
+  target: string,
+  files: { name: string; text: string; type?: string }[],
+) {
+  await page.locator(target).evaluate((element, entries) => {
+    const data = new DataTransfer()
+    for (const file of entries)
+      data.items.add(new File([file.text], file.name, { type: file.type ?? 'text/markdown' }))
+    const bounds = element.getBoundingClientRect()
+    const options = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      dataTransfer: data,
+      clientX: bounds.left + 5,
+      clientY: bounds.top + 5,
+    }
+    element.dispatchEvent(new DragEvent('dragover', options))
+    element.dispatchEvent(new DragEvent('drop', options))
+  }, files)
+}
+
+async function dropFolder(page: Page, name = 'Dropped folder') {
+  await page.locator('.window[data-ready]').waitFor()
+  await page.evaluate((rootName) => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      DataTransferItem.prototype,
+      'webkitGetAsEntry',
+    )
+    Object.defineProperty(DataTransferItem.prototype, 'webkitGetAsEntry', {
+      configurable: true,
+      value: () => ({
+        name: rootName,
+        isDirectory: true,
+        isFile: false,
+        createReader: () => {
+          let read = false
+          return {
+            readEntries: (done: (entries: unknown[]) => void) => {
+              const entries = read
+                ? []
+                : [
+                    {
+                      name: 'Imported notes',
+                      isDirectory: true,
+                      isFile: false,
+                      createReader: () => {
+                        let sent = false
+                        return {
+                          readEntries: (accept: (entries: unknown[]) => void) => {
+                            const found = sent
+                              ? []
+                              : [
+                                  {
+                                    name: 'Inside.md',
+                                    isDirectory: false,
+                                    isFile: true,
+                                    file: (take: (file: File) => void) =>
+                                      take(
+                                        new File(
+                                          ['# Inside\n\nFrom a dropped folder.'],
+                                          'Inside.md',
+                                        ),
+                                      ),
+                                  },
+                                ]
+                            sent = true
+                            accept(found)
+                          },
+                        }
+                      },
+                    },
+                  ]
+              read = true
+              done(entries)
+            },
+          }
+        },
+      }),
+    })
+    try {
+      const data = new DataTransfer()
+      data.items.add(new File([], rootName))
+      const options = { bubbles: true, cancelable: true, composed: true, dataTransfer: data }
+      window.dispatchEvent(new DragEvent('dragover', options))
+      window.dispatchEvent(new DragEvent('drop', options))
+    } finally {
+      if (descriptor)
+        Object.defineProperty(DataTransferItem.prototype, 'webkitGetAsEntry', descriptor)
+      else Reflect.deleteProperty(DataTransferItem.prototype, 'webkitGetAsEntry')
+    }
+  }, name)
+}
+
+test('dropped folders preview before importing a new notebook', async ({ page }) => {
+  await open(page)
+  await dropFolder(page)
+  await expect(dialog(page)).toContainText('Found 1 Markdown file')
+  await expect(dialog(page)).toContainText('Imported notes')
+  await expect(book(page, 'Imported notes')).toHaveCount(0)
+  await confirm(page)
+  await expect(dialog(page)).toContainText('Imported 1 note')
+  await button(page, 'Done').click()
+  await expect(book(page, 'Imported notes')).toBeVisible()
+  await noteRows(page).filter({ hasText: 'Inside' }).click()
+  await expect(body(page)).toContainText('From a dropped folder.')
+  expect(await calls(page, 'import_finish')).toEqual([])
+})
+
+test('cancelling a dropped folder imports nothing and releases only browser files', async ({
+  page,
+}) => {
+  await open(page)
+  await dropFolder(page, 'Cancelled folder')
+  await expect(dialog(page)).toContainText('Found 1 Markdown file')
+  await button(page, 'Cancel').click()
+  await expect(dialog(page)).toHaveCount(0)
+  await expect(book(page, 'Imported notes')).toHaveCount(0)
+  await expect(noteRows(page).filter({ hasText: 'Inside' })).toHaveCount(0)
+  expect(await calls(page, 'import_finish')).toEqual([])
+})
+
+test('dropped Markdown imports and opens, including over the editor, without finishing a Rust session', async ({
+  page,
+}) => {
+  await open(page)
+  await page.locator('.window[data-ready]').waitFor()
+  await dropFiles(page, '.window', [
+    { name: 'Dropped.md', text: '# Dropped\n\nFirst dropped body.' },
+  ])
+  await expect(body(page)).toContainText('First dropped body.')
+  await dropFiles(page, '.cm-content', [
+    { name: 'Second.md', text: '# Second\n\nSecond dropped body.' },
+  ])
+  await expect(body(page)).toContainText('Second dropped body.')
+  const original = page.getByRole('option', { name: /^Dropped Just now/ })
+  await expect(original).toBeVisible()
+  await original.click()
+  await expect(body(page)).not.toContainText('Second dropped body.')
+  expect(await calls(page, 'import_finish')).toEqual([])
+})
+
+test('unsupported dropped files show a notice and clear the drop highlight', async ({ page }) => {
+  await open(page)
+  await page.locator('.window[data-ready]').waitFor()
+  await dropFiles(page, '.window', [
+    { name: 'archive.zip', text: 'unsupported', type: 'application/zip' },
+  ])
+  await expect(page.getByRole('alert')).toContainText('These files could not be imported.')
+  await expect(page.locator('.drop-import')).toHaveCount(0)
+})
+
+test('decomposed filenames preserve image and note links in dropped files', async ({ page }) => {
+  await open(page)
+  await page.locator('.window[data-ready]').waitFor()
+  await page.locator('.window').evaluate((element) => {
+    const data = new DataTransfer()
+    data.items.add(new File(['# Start\n\n[[cafe\u0301]]\n\n![Photo](photo\u0301.png)'], 'Start.md'))
+    data.items.add(new File(['# Target'], 'cafe\u0301.md'))
+    data.items.add(
+      new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'photo\u0301.png', {
+        type: 'image/png',
+      }),
+    )
+    element.dispatchEvent(
+      new DragEvent('drop', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        dataTransfer: data,
+      }),
+    )
+  })
+  await expect(body(page)).toContainText('devot://file/')
+  await expect(body(page)).toContainText('devot://note/')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 const HTML_FILES: Record<string, string> = {
   'page.html':
     '<html><head><title>Saved page</title><script>alert(1)</script></head>' +
@@ -116,6 +295,16 @@ const calls = (page: Page, cmd: string) =>
 
 const scanning = (page: Page, id = 7, name = 'Vault') =>
   send(page, 'devot:import-scanning', { id, name, kind: 'folder' })
+
+test('file drops are refused while Backups is open', async ({ page }) => {
+  await open(page)
+  await showBackups(page)
+  await expect(backups(page)).toBeVisible()
+  await dropFiles(page, '.window', [{ name: 'Blocked.md', text: '# Blocked' }])
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(noteRows(page)).toHaveCount(0)
+  await expect(backups(page)).toBeVisible()
+})
 
 test('vault metadata enables conventions and identifies the source without preventing opt-out', async ({
   page,

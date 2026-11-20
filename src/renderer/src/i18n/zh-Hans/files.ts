@@ -1,6 +1,8 @@
 import type { messages as en } from '../en/files'
 
 export const messages: Record<keyof typeof en, string> = {
+  'import.dropHint': '拖放文件以导入并打开',
+  'import.dropFailed': '无法导入这些文件。',
   'pageSetup.title': '页面设置',
   'pageSetup.paper': '纸张',
   'pageSetup.paper.a4': 'A4',

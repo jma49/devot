@@ -68,6 +68,64 @@ const tools = testPlugin(
   TOOLS,
 )
 
+const rich = testPlugin(
+  'com.example.rich',
+  ['import'],
+  {
+    importFormats: [
+      { id: 'rich', title: 'Rich Files', extensions: ['rich'], maxFileBytes: 6 * 1024 * 1024 },
+    ],
+  },
+  `devot.importer.handle('rich', () => [
+  { title: 'Rich first', html: '<p>Imported <strong>rich</strong> body</p><img src="attachment:0">', tags: ['dropped'], createdAt: 123000, updatedAt: 456000,
+    attachments: [{ name: 'photo.png', mime: 'image/png', data: 'iVBORw0KGgo=' }] },
+  { title: 'Rich second', markdown: 'Second converted note' }
+])`,
+)
+rich.manifest['apiVersion'] = 3
+
+test('dropping a large API 3 format imports rich arrays and opens the first note', async ({
+  page,
+}) => {
+  await pluginFrame(page, 'com.example.rich')
+  await page.locator('.window[data-ready]').waitFor()
+  await page.locator('.window').evaluate((element) => {
+    const data = new DataTransfer()
+    data.items.add(new File(['x'.repeat(5 * 1024 * 1024 + 1)], 'Bundle.rich'))
+    element.dispatchEvent(
+      new DragEvent('drop', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        dataTransfer: data,
+      }),
+    )
+  })
+  await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue('Rich first')
+  await expect(body(page)).toContainText('Imported **rich** body')
+  await expect(body(page)).toContainText('devot://file/')
+  await expect(noteRows(page)).toHaveCount(2)
+  await expect
+    .poll(async () => (await savedNotes(page)).map((note) => note.title).sort())
+    .toEqual(['Rich first', 'Rich second'])
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
+test('dropping a plugin import format converts and opens its captured note', async ({ page }) => {
+  await page.locator('.window[data-ready]').waitFor()
+  await page.locator('.window').evaluate((element) => {
+    const data = new DataTransfer()
+    data.items.add(new File(['converted from a drop'], 'Dropped.shout'))
+    const options = { bubbles: true, cancelable: true, composed: true, dataTransfer: data }
+    element.dispatchEvent(new DragEvent('dragover', options))
+    element.dispatchEvent(new DragEvent('drop', options))
+  })
+  await expect(body(page)).toContainText('CONVERTED FROM A DROP')
+  await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue('Dropped')
+  expect(await calls(page, 'plugin_import_pick')).toEqual([])
+  expect(await calls(page, 'import_finish')).toEqual([])
+})
+
 const denied = testPlugin(
   'com.example.denied',
   ['commands', 'preview'],
@@ -105,7 +163,7 @@ async function paletteRun(page: Page, label: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await servePlugins(page, [tools, denied, off])
+  await servePlugins(page, [tools, rich, denied, off])
   await page.addInitScript(() => {
     const w = window
     w.devotIpcMocks = {
