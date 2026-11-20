@@ -52,6 +52,7 @@ export function EditorHost(props: {
     null,
   )
   const commands = useRef<NoteCommands | null>(null)
+  const shownNote = useRef<string | null>(null)
   const typedIn = useRef<string | null>(null)
   const focusing = useRef<Focusing | null>(null)
   const [asking, setAsking] = useState<Focusing | null>(null)
@@ -92,6 +93,7 @@ export function EditorHost(props: {
         focusing.current?.settle(false)
         // A screen took the page, so the one a held write was asked on has gone.
         closeGate()
+        shownNote.current = noteId
         setShown((before) => ({ noteId, turn: (before?.turn ?? 0) + 1 }))
         setVisible(true)
       },
@@ -111,6 +113,12 @@ export function EditorHost(props: {
       find: (action, query) => commands.current?.find(action, query) ?? NO_FIND_COUNT,
       insets: setFootInset,
       duplicate: async () => (await commands.current?.duplicate()) ?? null,
+      attach: async (noteId, attachment) => {
+        const note = commands.current
+        if (!note) throw new Error('E_SCREENS_NO_NOTE')
+        if (shownNote.current !== noteId) throw new Error('E_SCREENS_NOTE_NOT_SHOWN')
+        return note.attach(attachment)
+      },
       focus: (typed) =>
         new Promise<boolean>((resolve) => {
           const noteId = typedIn.current

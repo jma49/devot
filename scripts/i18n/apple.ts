@@ -1,5 +1,5 @@
 // Writes Strings.swift and Localizable.xcstrings for the iPhone's native screens from the English
-// catalog and its translations, in the iPhone's wording, the Share Extension's own pair from the `share` area, a string catalog each for the Shortcuts and widget extensions from the `intent` and `widget` areas, and SettingsIndex.swift from Settings' search entries. `--check` fails instead of writing when they are stale (CI runs it).
+// catalog and its translations, in the iPhone's wording, the Share Extension's own pair from the `share` area, a string catalog each for the Shortcuts and widget extensions from the `intent` and `widget` areas, and SettingsIndex.swift from Settings' search entries, and the app's permission prompts in InfoPlist.xcstrings. `--check` fails instead of writing when they are stale (CI runs it).
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -19,6 +19,12 @@ export const APP_INTENTS_XCSTRINGS = 'src-tauri/gen/apple/devot_Intents/Localiza
 const INTENT_PREFIX = 'intent.'
 export const WIDGET_XCSTRINGS = 'src-tauri/gen/apple/devot_Widget/Localizable.xcstrings'
 const WIDGET_PREFIX = 'widget.'
+export const INFO_PLIST_XCSTRINGS = 'src-tauri/gen/apple/devot_iOS/InfoPlist.xcstrings'
+/** The system's permission prompts, by their Info.plist key; Info.plist holds the English too. */
+export const INFO_PLIST_KEYS = {
+  NSCameraUsageDescription: 'phone.usage.camera',
+  NSMicrophoneUsageDescription: 'phone.usage.microphone',
+} as const
 /** The Mac's native menus, which Rust reads (scripts/i18n/rust.ts); the iPhone has none of them. */
 const MAC_NATIVE_PREFIX = 'native.'
 
@@ -171,6 +177,31 @@ export function compileStrings(
   return { swift, xcstrings }
 }
 
+/** The app's `InfoPlist.xcstrings`: each of `INFO_PLIST_KEYS` under its Info.plist key. */
+export function compileInfoPlistStrings(
+  messages: Catalog,
+  translations: Readonly<Record<string, Partial<Catalog>>>,
+): string {
+  const strings: Record<string, unknown> = {}
+  for (const [plistKey, key] of Object.entries(INFO_PLIST_KEYS).sort(([a], [b]) =>
+    a < b ? -1 : 1,
+  )) {
+    const english = messages[key]
+    if (english === undefined) throw new Error(`E_I18N_INFO_PLIST_KEY ${key}`)
+    const localizations: Record<string, unknown> = {
+      en: { stringUnit: { state: 'translated', value: english } },
+    }
+    for (const [language, catalog] of Object.entries(translations)) {
+      const translated = catalog[key]
+      if (translated !== undefined) {
+        localizations[language] = { stringUnit: { state: 'translated', value: translated } }
+      }
+    }
+    strings[plistKey] = { extractionState: 'manual', localizations }
+  }
+  return xcodeJson({ sourceLanguage: 'en', strings, version: '1.0' })
+}
+
 interface IndexEntry {
   readonly pane: string
   readonly label: string
@@ -277,6 +308,7 @@ export async function appleStrings(root: string): Promise<[string, string][]> {
     [SHARE_XCSTRINGS, share.xcstrings],
     [APP_INTENTS_XCSTRINGS, intents.xcstrings],
     [WIDGET_XCSTRINGS, widget.xcstrings],
+    [INFO_PLIST_XCSTRINGS, compileInfoPlistStrings(messages, translations)],
   ]
 }
 

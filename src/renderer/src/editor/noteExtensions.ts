@@ -20,6 +20,7 @@ import { tallyNote } from '../noteTally'
 import { previewLabels } from '../preview/Preview'
 import type { ShowAiMenu, StartAiEdit } from './aiMenu'
 import type { ShowAlertMenu } from './alertMenu'
+import { attachContent, type AttachContent } from './attachContent'
 import { authorshipMarks } from './authorship'
 import { authorshipUndo } from './authorshipUndo'
 import { reviewPreview } from './reviewPreview'
@@ -221,7 +222,7 @@ export interface ShownNote {
   settings: ReturnType<typeof useEditorSettings>
   frame: HTMLElement
   scroller: HTMLElement
-  images: { extension: Extension; choose: (view: EditorView) => void }
+  images: { extension: Extension; choose: (view: EditorView) => void; attach: AttachContent }
   /** Kept up to date as the selection moves, the editor scrolls and edits move the top line. */
   place: EditorPlace
   placeChanged: () => void
@@ -253,6 +254,7 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
     parseToView,
     EditorView.perLineTextDirection.of(true),
     images.extension,
+    attachContent.of(images.attach),
     pasteUrls,
     pasteChooser(linkFetcher),
     pastePlainKeys(),

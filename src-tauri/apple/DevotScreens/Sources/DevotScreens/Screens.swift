@@ -91,6 +91,9 @@ final class Screens: SettingsBridge {
             guard let self else { return }
             switch intent {
             case .newNote(let bookId): pushNewNote(bookId)
+            case .capture(let noteId, let kind):
+                guard let screen = shownNavigation?.topViewController as? EditorScreen, screen.noteId == noteId else { return }
+                screen.beginCapture(kind)
             default: root.tabs.lists.perform(intent)
             }
         }

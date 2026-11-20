@@ -10,6 +10,7 @@
 		04E4DAFCC4D866473652700D /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F22CF8122C77E706CCFBC883 /* Security.framework */; };
 		08B3E11AD773EB5010495F66 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 09063CC32A7D2BA3819D47EA /* Metal.framework */; };
 		0C31024A8AC849D51D98982A /* DevotIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFD4600EB1DBB7E9DF5CFC5 /* DevotIntents.swift */; };
+		7A3C51E09B2D4F6681E4C2BA /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7A3C51E09B2D4F6681E4C2B9 /* InfoPlist.xcstrings */; };
 		24B2F731AF1E4CDB2337D23B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2F5C8E1C7E33291D34CA1314 /* PrivacyInfo.xcprivacy */; };
 		25E1B8ED4EDF843EC9036A8F /* DevotShareInbox in Frameworks */ = {isa = PBXBuildFile; productRef = E3384A62F9AA0E5A06965BE0 /* DevotShareInbox */; };
 		25FF7C6AD89BDF46F6776971 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2A194DD75CE5B8478FEF87CA /* MetalKit.framework */; };
@@ -135,6 +136,7 @@
 		2B0B2A1ED77BBB41889FE10E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2C3D99D819860AF0C43834C3 /* exit.rs */ = {isa = PBXFileReference; path = exit.rs; sourceTree = "<group>"; };
 		2C4043602B0201FE44AE742A /* pairing.rs */ = {isa = PBXFileReference; path = pairing.rs; sourceTree = "<group>"; };
+		7A3C51E09B2D4F6681E4C2B9 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		2F5C8E1C7E33291D34CA1314 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		3234BC2ED5E59513882463C6 /* devot_Share.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = devot_Share.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3269E28C6B028060825C4499 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
@@ -541,6 +543,7 @@
 				4EDEA6D83A668A5CC2E485D6 /* devot_iOS-local.entitlements */,
 				F584E20712D9A153E50D9D2B /* devot_iOS.entitlements */,
 				2B0B2A1ED77BBB41889FE10E /* Info.plist */,
+				7A3C51E09B2D4F6681E4C2B9 /* InfoPlist.xcstrings */,
 				B7DEA7859D9821290A94C1BA /* PrivacyInfo.xcprivacy */,
 			);
 			path = devot_iOS;
@@ -1042,6 +1045,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9A4A08D4EDBF06F8EFBE279B /* Assets.xcassets in Resources */,
+				7A3C51E09B2D4F6681E4C2BA /* InfoPlist.xcstrings in Resources */,
 				34A54B2346DC51B4E3B0211F /* LaunchScreen.storyboard in Resources */,
 				3A01A734AA75AC6EEE68CBDC /* PrivacyInfo.xcprivacy in Resources */,
 				ECF71358197693DC8F914453 /* assets in Resources */,
