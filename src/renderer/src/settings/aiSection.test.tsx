@@ -187,6 +187,36 @@ describe('Settings > AI', () => {
     expect(calls('ai_models')).toEqual([{ providers: ['claudeCli', 'codexCli'], refresh: false }])
   })
 
+  it('names no provider for the Model setting while the first check decides which one it is', async () => {
+    const checked = { ...stored, active: 'claudeCli' as const }
+    stored = {
+      ...stored,
+      active: 'anthropic',
+      activePending: true,
+      cli: { codexCli: tool('checking'), claudeCli: tool('checking') },
+    }
+    let answer: (view: AiSettingsView) => void = () => undefined
+    rust((command) =>
+      command === 'ai_cli_refresh'
+        ? new Promise<AiSettingsView>((resolve) => {
+            answer = resolve
+          })
+        : undefined,
+    )
+    await pane()
+    const row = () => host.querySelector('[data-setting="aiSettings.model"]')
+    expect(row()?.querySelector('.setting-description')?.textContent).toBe('Checking…')
+    expect(row()?.textContent).not.toContain('Claude (Anthropic)')
+    expect(modelButton('Model')?.getAttribute('aria-disabled')).toBe('true')
+    expect(modelButton('Model')?.querySelector('.model-popup-name')?.textContent).toBe('Checking…')
+
+    stored = checked
+    await act(async () => answer(checked))
+    await settle()
+    expect(row()?.textContent).toContain('Claude Code · Ready')
+    expect(modelButton('Model')?.getAttribute('aria-disabled')).toBeNull()
+  })
+
   it('lists the local tools’ models when it opens, and a cloud provider’s only once that provider is opened', async () => {
     stored = { ...stored, openai: { ...http, key: 'set' } }
     await pane()

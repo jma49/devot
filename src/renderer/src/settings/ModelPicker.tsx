@@ -19,6 +19,7 @@ import {
   choosableRows,
   isCurrentRow,
   mainChoice,
+  choicePending,
   pickerSections,
   providerState,
   aiProviders,
@@ -134,12 +135,16 @@ export function ModelPicker(props: ModelPickerProps) {
   const button = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = usePickerOpen(box)
   const choice = targetChoice(view, target)
+  const pending = choicePending(view, target)
+  const disabled = props.disabled || pending
   const following = target === 'suggest' && view.suggestModel === null
-  const name = modelLabel(catalogs, props.known, view, target)
+  const name = pending
+    ? t('aiSettings.cliChecking')
+    : modelLabel(catalogs, props.known, view, target)
   const levels = shownModel(catalogs, props.known, choice)?.reasoning ?? []
   const sub = following
     ? t('aiSettings.sameAsModel')
-    : levels.length > 0
+    : !pending && levels.length > 0
       ? choice.reasoning === null
         ? t('aiSettings.defaultReasoning')
         : levelName(choice.reasoning)
@@ -162,22 +167,22 @@ export function ModelPicker(props: ModelPickerProps) {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-describedby={props.describedBy}
-        aria-disabled={props.disabled || undefined}
+        aria-disabled={disabled || undefined}
         aria-label={format(t('aiSettings.modelValue'), {
           label: t(props.label),
           model: sub ? `${name} · ${sub}` : name,
           provider,
         })}
         onClick={() => {
-          if (!props.disabled) show(!open)
+          if (!disabled) show(!open)
         }}
         onKeyDown={(e) => {
-          if (e.key !== 'ArrowDown' || open || props.disabled) return
+          if (e.key !== 'ArrowDown' || open || disabled) return
           e.preventDefault()
           show(true)
         }}
       >
-        <ProviderMark provider={choice.provider} />
+        {pending ? null : <ProviderMark provider={choice.provider} />}
         <span className="model-popup-name">{name}</span>
         {sub ? <span className="model-popup-sub">{sub}</span> : null}
         <span className="select-chevron" aria-hidden="true">

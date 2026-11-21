@@ -23,6 +23,7 @@ import {
   aiProviders,
   choiceName,
   choose,
+  choicePending,
   cliChecking,
   chooseReasoning,
   isFirstRun,
@@ -533,7 +534,8 @@ export function AiSection() {
       )
     }
     const main = mainChoice(view)
-    const mainState = providerState(view, main.provider)
+    const mainPending = choicePending(view, 'main')
+    const mainState = mainPending ? 'checking' : providerState(view, main.provider)
     const status = suggestStatus(view, {
       licensed,
       allowedNotebooks: summary?.allowed,
@@ -553,10 +555,12 @@ export function AiSection() {
               </span>
               <span id={`${ids}-model-status`} className="setting-description client-state">
                 <StateDot state={mainState} />
-                {format(t('aiSettings.providerStatus'), {
-                  provider: t(PROVIDER_NAMES[main.provider]),
-                  status: t(STATE_NAMES[mainState]),
-                })}
+                {mainPending
+                  ? t('aiSettings.cliChecking')
+                  : format(t('aiSettings.providerStatus'), {
+                      provider: t(PROVIDER_NAMES[main.provider]),
+                      status: t(STATE_NAMES[mainState]),
+                    })}
               </span>
               {tryLine('main')}
             </div>
