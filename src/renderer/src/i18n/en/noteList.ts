@@ -113,6 +113,8 @@ export const messages = {
   'batch.removeTag': 'Remove Tag from Selected Notes\u2026',
   'batch.failedOne': 'Could not change {count} note.',
   'batch.failedOther': 'Could not change {count} notes.',
+  'batch.trashedOne': 'Moved {count} note to the Trash.',
+  'batch.trashedOther': 'Moved {count} notes to the Trash.',
   'noteList.pinned': 'Pinned',
   'noteList.others': 'Notes',
   'noteList.related': 'Related by Meaning',

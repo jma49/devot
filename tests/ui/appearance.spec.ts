@@ -281,13 +281,25 @@ test('the Animations choice reduces motion always, as the system asks, or never'
 })
 
 test.describe('the Icon style choice in Settings', () => {
-  test('starts with SF Symbols and draws Lucide SVGs once chosen, whatever the theme', async ({
+  test('starts with Lucide when no style was ever chosen', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.devotEditorSettings = { iconStyle: undefined }
+    })
+    await openSettings(page, 'Appearance')
+    const cards = page.getByRole('radiogroup', { name: 'Icon style' })
+    await expect(cards.getByRole('radio', { name: 'Lucide' })).toBeChecked()
+    await expect(page.locator('.settings-nav-row svg.lucide').first()).toBeVisible()
+    await expect(page.locator('.settings-nav-row [data-symbol]')).toHaveCount(0)
+  })
+
+  test('draws SF Symbols when chosen and Lucide SVGs once switched, whatever the theme', async ({
     page,
   }) => {
     await openSettings(page, 'Appearance')
     const cards = page.getByRole('radiogroup', { name: 'Icon style' })
     await expect(cards.getByRole('radio', { name: 'SF Symbols' })).toBeChecked()
-    await expect(cards.locator('svg')).toHaveCount(3)
+    await expect(cards.locator('svg')).toHaveCount(6)
+    await expect(cards.locator('svg[data-kubai]')).toHaveCount(2)
     await expect(cards.locator('[data-symbol]')).toHaveCount(3)
     await expect(page.locator('.settings-nav-row [data-symbol]').first()).toBeVisible()
     await expect(page.locator('.settings-nav-row svg')).toHaveCount(0)
@@ -303,5 +315,23 @@ test.describe('the Icon style choice in Settings', () => {
     await changeEditorSettingsElsewhere(page, { iconStyle: 'sfSymbols' })
     await expect(page.locator('.settings-nav-row svg')).toHaveCount(0)
     await expect(page.locator('.settings-nav-row [data-symbol]').first()).toBeVisible()
+  })
+
+  test('draws Kubai glyphs once chosen, keeping Lucide marks where Kubai has none', async ({
+    page,
+  }) => {
+    await openSettings(page, 'Appearance')
+    const cards = page.getByRole('radiogroup', { name: 'Icon style' })
+    await cards.getByText('Kubai', { exact: true }).click()
+    await expect(cards.getByRole('radio', { name: 'Kubai' })).toBeChecked()
+    await expect.poll(() => settingsCalls(page)).toEqual([{ iconStyle: 'kubai' }])
+    const nav = page.locator('.settings-nav-row svg[data-kubai]').first()
+    await expect(nav).toBeVisible()
+    await expect(page.locator('.settings-nav-row [data-symbol]')).toHaveCount(0)
+    const box = await nav.boundingBox()
+    expect(box?.width).toBeGreaterThan(10)
+    expect(box?.width).toBeLessThan(30)
+    // Its light tone is painted by kubaiGlyphs.css, not by style attributes.
+    await expect(nav.locator('path.ki-p1').first()).not.toHaveCSS('fill', 'rgb(0, 0, 0)')
   })
 })

@@ -1,8 +1,17 @@
+// @vitest-environment happy-dom
 import { history, undo } from '@codemirror/commands'
 import { EditorSelection, EditorState } from '@codemirror/state'
-import type { EditorView } from '@codemirror/view'
+import { EditorView } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
-import { acceptSpec, ghostField, showGhost } from './ghostText'
+import {
+  acceptSpec,
+  ghostField,
+  ghostText,
+  showGhost,
+  suggestAt,
+  waitingField,
+  type GhostSource,
+} from './ghostText'
 
 function shown(doc: string, caret: number, text: string): EditorState {
   const base = EditorState.create({
@@ -56,5 +65,63 @@ describe('the ghost text', () => {
     } as unknown as EditorView
     expect(undo(view)).toBe(true)
     expect(state.doc.toString()).toBe('We plan')
+  })
+})
+
+function asking() {
+  let answer: (text: string | null) => void = () => {}
+  let sent: () => void = () => {}
+  const source: GhostSource = {
+    suggest: (_context, _trigger, onSent) => {
+      sent = onSent
+      return new Promise((resolve) => (answer = resolve))
+    },
+    cancel: () => {},
+    failed: () => {},
+  }
+  const view = new EditorView({
+    state: EditorState.create({
+      doc: 'We plan',
+      selection: { anchor: 7 },
+      extensions: ghostText(source),
+    }),
+  })
+  return { view, answer: (text: string | null) => answer(text), sent: () => sent() }
+}
+
+describe('the waiting mark', () => {
+  it('shows only once the request leaves, and goes with the answer', async () => {
+    const { view, answer, sent } = asking()
+    expect(suggestAt(view)).toBe(true)
+    expect(view.state.field(waitingField)).toBeNull()
+    sent()
+    expect(view.state.field(waitingField)).toBe(7)
+    expect(view.contentDOM.querySelector('.cm-ghost-waiting')).not.toBeNull()
+    answer(' to ship.')
+    await expect.poll(() => view.state.field(ghostField)).toEqual({ pos: 7, text: ' to ship.' })
+    expect(view.state.field(waitingField)).toBeNull()
+    expect(view.contentDOM.querySelector('.cm-ghost-waiting')).toBeNull()
+    view.destroy()
+  })
+
+  it('goes when the user types, and a late answer shows nothing', async () => {
+    const { view, answer, sent } = asking()
+    suggestAt(view)
+    sent()
+    view.dispatch({ changes: { from: 7, insert: '!' }, selection: { anchor: 8 } })
+    expect(view.state.field(waitingField)).toBeNull()
+    answer(' to ship.')
+    await Promise.resolve()
+    expect(view.state.field(ghostField)).toBeNull()
+    view.destroy()
+  })
+
+  it('goes with Escape', () => {
+    const { view, sent } = asking()
+    suggestAt(view)
+    sent()
+    view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(view.state.field(waitingField)).toBeNull()
+    view.destroy()
   })
 })

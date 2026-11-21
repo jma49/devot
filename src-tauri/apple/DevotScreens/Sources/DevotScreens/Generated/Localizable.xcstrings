@@ -3809,6 +3809,23 @@
         }
       }
     },
+    "appearanceSettings.iconStyleKubai" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kubai"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kubai"
+          }
+        }
+      }
+    },
     "appearanceSettings.iconStyleLucide" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5726,6 +5743,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "将所选笔记移到废纸篓"
+          }
+        }
+      }
+    },
+    "batch.trashedOne" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved {count} note to the Trash."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已将 {count} 篇笔记移到废纸篓。"
+          }
+        }
+      }
+    },
+    "batch.trashedOther" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved {count} notes to the Trash."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已将 {count} 篇笔记移到废纸篓。"
           }
         }
       }

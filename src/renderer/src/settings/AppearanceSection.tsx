@@ -92,6 +92,7 @@ const THEME_LABELS: Readonly<Record<ThemeChoice, MessageKey>> = {
 const ICON_STYLE_LABELS: Readonly<Record<IconStyleChoice, MessageKey>> = {
   sfSymbols: 'appearanceSettings.iconStyleSfSymbols',
   lucide: 'appearanceSettings.iconStyleLucide',
+  kubai: 'appearanceSettings.iconStyleKubai',
 }
 
 const ICON_SAMPLES: readonly IconName[] = ['notes.all', 'note.pinned', 'search']

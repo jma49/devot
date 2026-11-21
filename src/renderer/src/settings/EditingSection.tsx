@@ -20,6 +20,7 @@ import { useEditorSettings } from '../editorSettings'
 import { currentLocale, t, type MessageKey } from '../i18n'
 import {
   NumberStepper,
+  SegmentChoice,
   Select,
   Setting,
   SettingsSection,
@@ -198,40 +199,28 @@ export function EditingSection() {
         <Setting
           label="editorSettings.listMarker"
           description={t('editorSettings.listMarkerHint')}
-          htmlFor={id('marker')}
           descriptionId={id('marker-hint')}
         >
-          <Select
-            id={id('marker')}
+          <SegmentChoice<ListMarker>
+            label="editorSettings.listMarker"
+            describedBy={id('marker-hint')}
             value={settings.listMarker}
-            aria-describedby={id('marker-hint')}
-            onChange={(e) => change({ listMarker: e.currentTarget.value as ListMarker })}
-          >
-            {LIST_MARKERS.map((m) => (
-              <option key={m} value={m}>
-                {t(MARKER_LABELS[m])}
-              </option>
-            ))}
-          </Select>
+            choices={LIST_MARKERS.map((m) => ({ value: m, label: t(MARKER_LABELS[m]) }))}
+            onChange={(listMarker) => change({ listMarker })}
+          />
         </Setting>
         <Setting
           label="editorSettings.indentUnit"
           description={t('editorSettings.indentUnitHint')}
-          htmlFor={id('indent')}
           descriptionId={id('indent-hint')}
         >
-          <Select
-            id={id('indent')}
+          <SegmentChoice<IndentUnitId>
+            label="editorSettings.indentUnit"
+            describedBy={id('indent-hint')}
             value={settings.indentUnit}
-            aria-describedby={id('indent-hint')}
-            onChange={(e) => change({ indentUnit: e.currentTarget.value as IndentUnitId })}
-          >
-            {INDENT_UNITS.map((u) => (
-              <option key={u} value={u}>
-                {t(INDENT_LABELS[u])}
-              </option>
-            ))}
-          </Select>
+            choices={INDENT_UNITS.map((u) => ({ value: u, label: t(INDENT_LABELS[u]) }))}
+            onChange={(indentUnit) => change({ indentUnit })}
+          />
         </Setting>
         <Setting
           label="editorSettings.tabWidth"

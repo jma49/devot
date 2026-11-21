@@ -15,6 +15,11 @@ allowBuilds:
   # like); the install script would only download it again.
   '@sentry/cli': false
 
+# The Kubai two-tone glyphs come from 0.13.1, a day old when they were generated; it only feeds
+# scripts/icons/kubai.ts, and the glyphs it writes are reviewed in the diff.
+minimumReleaseAgeExclude:
+  - kubai-icons@0.13.1
+
 # remark-math pulls katex in through micromark-extension-math (unused by
 # Devot, which renders math with temml); keep it on a patched release.
 overrides:

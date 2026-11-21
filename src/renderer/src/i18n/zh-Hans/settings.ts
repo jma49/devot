@@ -250,6 +250,7 @@ export const messages: Record<keyof typeof en, string> = {
   'appearanceSettings.iconStyle': '图标风格',
   'appearanceSettings.iconStyleSfSymbols': 'SF Symbols',
   'appearanceSettings.iconStyleLucide': 'Lucide',
+  'appearanceSettings.iconStyleKubai': 'Kubai',
   'appearanceSettings.systemAccent': '使用系统强调色',
   'appearanceSettings.systemAccentHint': '按钮、链接和选中内容跟随“系统设置”中选择的强调色。',
   'appearanceSettings.animations': '动画',

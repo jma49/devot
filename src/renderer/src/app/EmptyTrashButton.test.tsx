@@ -28,7 +28,7 @@ describe('the Empty Trash button', () => {
     expect(html).toContain('class="tool list-create"')
     expect(html).toContain('aria-label="Empty Trash"')
     expect(html).toContain('title="Empty Trash"')
-    expect(html).toContain('data-symbol="xmark.bin"')
+    expect(html).toContain('lucide-archive-x')
     expect(html).not.toContain('>Empty Trash<')
     expect(html).not.toContain('aria-disabled="true"')
   })

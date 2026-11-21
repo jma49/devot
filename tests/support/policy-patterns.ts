@@ -73,8 +73,8 @@ export function isColorExempt(path: string, line: string): boolean {
 export const TEMP_FOLDER_REFERENCE =
   /\btmpdir\b|\bTMPDIR\b|['"`]\/tmp\b|\bprocess\.env(?:\.|\[['"])(?:TMP|TEMP)\b/
 
-/** The generated design tokens are the one place colours are written out. */
-const GENERATED_TOKENS = /theme\/tokens\.(css|ts)$/
+/** The generated design tokens are the one place colours are written out, besides the shading generated into Kubai's icon artwork. */
+const GENERATED_TOKENS = /theme\/tokens\.(css|ts)$|icons\/kubaiGlyphs\.(css|ts)$/
 
 export function isColorChecked(path: string): boolean {
   return (

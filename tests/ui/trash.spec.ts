@@ -54,6 +54,37 @@ test('moves a note to the Trash and restores it with its metadata', async ({ pag
   await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
 })
 
+test('Undo in the notice brings a note just moved to the Trash back and opens it', async ({
+  page,
+}) => {
+  await createNote(page, 'Second thoughts', 'Body')
+  await trashOpenNote(page)
+  const notice = page.getByRole('status').filter({ hasText: 'Moved 1 note to the Trash.' })
+  await expect(notice).toBeVisible()
+  await notice.getByRole('button', { name: 'Undo' }).click()
+  await expect(notice).toHaveCount(0)
+  await expect(trashRow(page)).toHaveText(/0$/)
+  await expect(noteRows(page).filter({ hasText: 'Second thoughts' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Second thoughts')
+})
+
+test('the Trash notice counts every note a batch moved', async ({ page }) => {
+  await createNote(page, 'One')
+  await createNote(page, 'Two')
+  await noteRows(page).filter({ hasText: 'One' }).click()
+  await noteRows(page)
+    .filter({ hasText: 'Two' })
+    .click({ modifiers: ['Meta'] })
+  await page.keyboard.press('Meta+Backspace')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Moved 2 notes to the Trash.' }),
+  ).toBeVisible()
+  await expect(trashRow(page)).toHaveText(/2$/)
+})
+
 test('emptying the Trash asks first; Cancel and Escape keep everything', async ({ page }) => {
   await createNote(page, 'One')
   await trashOpenNote(page)

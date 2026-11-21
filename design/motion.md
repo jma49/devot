@@ -24,6 +24,8 @@ Motion never carries meaning alone: the final state must say everything without 
 
 Native menus and other system-drawn things keep the system's motion.
 
+Moving notes to the Trash on the Mac shows a notice with Undo in the notices' corner, with the notices' own motion (rule 3); it stays `motion.duration.notice-undo` while the pointer and the keyboard are elsewhere, and a later move replaces its count at once (rule 2).
+Undo puts the notes back at once and opens the note when there was one (rule 2).
 Plugin import completion and skipped-item counts replace the notice text at once (rule 2), without movement.
 Show Skipped opens a modal results sheet with the dialog motion (rule 3); choosing its note closes the sheet and selects the note without moving the content (rule 2).
 
@@ -158,6 +160,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
   Providers and Keys turns its chevron over `motion.duration.toggle` (rule 3) and its rows show and go at once; Custom Endpoint in the key sheet does the same.
   The key sheet is a modal dialog with the dialog motion, and its saving, checking and found-models phases swap in place (rule 2); the first-run card gives way to the pane at once when a provider is ready.
   Reduced motion follows the picker's and the dialog's rules and stops the chevron turning.
+- **A next edit suggestion on its way:** rule 2. Three static dots in the ghost text's colour show after the caret once the request has left, and the ghost text replaces them at once when it comes; a change, a caret move or Escape takes them away at once. They never pulse: a wait of many seconds would turn a loop into noise beside the caret.
 - **AI Tools in Settings > Integrations:** rule 2. Allow AI Tools and Start in the Background are switches with the switch's own motion; Access is a pop-up; the Notebooks count, the no-access footnote, the Status text, its Quit Devot button and a reachability alert replace what was there at once. Choose… opens the main window's picker as that picker always opens. Quit Devot goes through the quit handshake and the windows close as in any quit.
 - **The background menu bar item:** native, placed and removed by the system, with no motion of ours. A Devot that starts in the background shows no window and so plays nothing; its main window, once opened, opens as at launch.
 - **Dragging:** a drop line fades in and a column's or row's highlight eases over `motion.duration.quick`.

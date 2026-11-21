@@ -168,6 +168,7 @@ jobs:
       - run: pnpm deps:audit
       - run: pnpm tokens:check
       - run: pnpm i18n:apple:check
+      - run: pnpm icons:kubai:check
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
