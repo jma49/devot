@@ -171,6 +171,9 @@ export const messages = {
   'aiEdit.discard': 'Discard',
   'aiEdit.cancel': 'Cancel',
   'aiEdit.close': 'Close',
+  'aiEdit.allowAccess': 'Allow AI Access',
+  'aiEdit.reason.accessOff':
+    'This note\u2019s notebook does not allow AI access yet. Allow it to edit the selection with AI; you can turn it off again from the notebook\u2019s menu.',
   'aiEdit.reason.access':
     'AI can only use notes in a notebook with Allow AI Access on. Turn it on in the notebook\u2019s menu.',
   'aiEdit.reason.licence': 'AI needs a Devot license. Add one in Settings > License.',
@@ -219,9 +222,10 @@ export const messages = {
   'askNotes.again': 'Ask Another',
   'askNotes.retry': 'Try Again',
   'askNotes.close': 'Close',
+  'askNotes.chooseNotebooks': 'Choose Notebooks\u2026',
   'askNotes.untitled': 'Untitled',
   'askNotes.reason.access':
-    'No notebook allows AI access yet. Turn on Allow AI Access for the notebooks Ask Your Notes may read, from a notebook\u2019s context menu.',
+    'No notebook allows AI access yet. Choose the notebooks Ask Your Notes may read.',
   'askNotes.reason.noSources':
     'No note in the notebooks that allow AI access matches the question. Try other words.',
   'askNotes.reason.other': 'The question could not be answered.',

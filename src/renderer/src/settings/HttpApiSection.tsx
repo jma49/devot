@@ -291,7 +291,7 @@ export function HttpApiSection() {
               ))}
             </Select>
           </Setting>
-          <Setting label="httpApi.token" description={t('httpApi.tokenHint')}>
+          <Setting label="httpApi.token" description={t('httpApi.tokenHint')} stacked>
             {shown !== undefined ? (
               <pre className="integration-config" aria-label={t('httpApi.token')}>
                 <code>{shown}</code>

@@ -151,7 +151,9 @@ const WINDOWS: &[&str] = &[
     "note_window_close_cancel",
     "main_window_new",
     "main_windows_changed",
-    "main_window_show",
+    "ai_access_picker_open",
+    "ai_access_picker_take",
+    "ai_access_picker_closed",
 ];
 
 /// Licence, purchases and updates.

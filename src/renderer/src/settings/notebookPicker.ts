@@ -1,15 +1,9 @@
-import { CHOOSE_AI_ACCESS } from '../aiAccess'
 import { errorCode } from '../backups'
-import { showMainWindow } from './window'
+import { invoke } from '../ipc'
 
-/** Opens the AI access picker in the main window: the flag in the storage both windows share asks it to. */
+/** Opens the AI access picker, which lives in the main window: Rust focuses or opens one and tells it. */
 export function openNotebookPicker() {
-  try {
-    localStorage.setItem(CHOOSE_AI_ACCESS, '1')
-  } catch {
-    // Without the shared storage the main window still opens; the picker is one menu away.
-  }
-  void showMainWindow().catch((e: unknown) =>
-    console.warn('W_MAIN_WINDOW_SHOW_FAILED', errorCode(e)),
+  void invoke('ai_access_picker_open').catch((e: unknown) =>
+    console.warn('W_AI_ACCESS_PICKER_OPEN_FAILED', errorCode(e)),
   )
 }

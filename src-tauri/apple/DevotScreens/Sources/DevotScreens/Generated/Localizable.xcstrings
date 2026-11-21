@@ -630,6 +630,23 @@
         }
       }
     },
+    "aiEdit.allowAccess" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow AI Access"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许 AI 访问"
+          }
+        }
+      }
+    },
     "aiEdit.asking" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -983,6 +1000,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 只能使用开启了“允许 AI 访问”的笔记本中的笔记。请在笔记本的菜单中打开它。"
+          }
+        }
+      }
+    },
+    "aiEdit.reason.accessOff" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This note’s notebook does not allow AI access yet. Allow it to edit the selection with AI; you can turn it off again from the notebook’s menu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这条笔记所在的笔记本还没有允许 AI 访问。允许后即可用 AI 编辑所选内容；之后也可以在笔记本的菜单中关闭。"
           }
         }
       }
@@ -4387,6 +4421,23 @@
         }
       }
     },
+    "askNotes.chooseNotebooks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Notebooks…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择笔记本…"
+          }
+        }
+      }
+    },
     "askNotes.citation" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4495,13 +4546,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No notebook allows AI access yet. Turn on Allow AI Access for the notebooks Ask Your Notes may read, from a notebook’s context menu."
+            "value" : "No notebook allows AI access yet. Choose the notebooks Ask Your Notes may read."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "还没有笔记本允许 AI 访问。请在笔记本的右键菜单中，为可供“问问笔记”读取的笔记本打开“允许 AI 访问”。"
+            "value" : "还没有笔记本允许 AI 访问。请选择“问问笔记”可以读取的笔记本。"
           }
         }
       }
@@ -20611,13 +20662,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Off, images still link to the attachments folder, but no copies are written there."
+            "value" : "Copies images and other attachments into the mirror folder. When off, images still link to the attachments folder, but no copies are written there."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "关闭时，图片仍链接到附件文件夹，但不会在那里写入副本。"
+            "value" : "把图片等附件复制到镜像文件夹中。关闭时，图片仍链接到附件文件夹，但不会在那里写入副本。"
           }
         }
       }

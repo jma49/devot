@@ -189,6 +189,7 @@ describe('Tauri command permissions', () => {
     // It hears changes made in the main window (Cmd+= and Cmd+-) as events.
     expect(settings.flatMap(permissionIds).sort()).toEqual([
       // Settings > AI sets the endpoints and models, lists models, tries one, refreshes detected CLIs, and puts keys in; none comes back out.
+      'allow-ai-access-picker-open',
       'allow-ai-cli-refresh',
       'allow-ai-key-clear',
       'allow-ai-key-set',
@@ -230,7 +231,6 @@ describe('Tauri command permissions', () => {
       'allow-licence-remove',
       'allow-licence-set',
       // Settings > Integrations offers the AI access picker, which lives in the main window.
-      'allow-main-window-show',
       'allow-mcp-access-get',
       'allow-mcp-access-set',
       'allow-mirror-choose',

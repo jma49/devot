@@ -107,11 +107,6 @@ export async function aiAccessSummary(): Promise<AiAccessSummary> {
   return summary
 }
 
-/** Focuses a main window, or opens one: the AI access picker opens there. */
-export function showMainWindow(): Promise<void> {
-  return invoke('main_window_show')
-}
-
 export type CliToolState = 'installed' | 'absent' | 'other' | 'unavailable'
 
 export interface CliToolStatus {

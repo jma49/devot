@@ -28,7 +28,8 @@ type Phase =
   | { kind: 'prompt' }
   | { kind: 'asking'; streamed: string }
   | { kind: 'review'; proposal: AiProposal }
-  | { kind: 'failed'; code: string }
+  /** `bookId`: the notebook the refused request read the note in, if it was read. */
+  | { kind: 'failed'; code: string; bookId?: string | null | undefined }
 
 /**
  * Edit with AI: asks the active provider for a rewrite of the selection (a preset at once, a custom instruction once
@@ -43,6 +44,8 @@ export function AiEditSheet(props: {
   onClose: () => void
   /** AI is not in the licence: the sheet says so and asks nothing. */
   locked?: boolean
+  /** Turns on AI access for a notebook; resolves with whether it was turned on. */
+  onAllowAccess?: (bookId: string) => Promise<boolean>
 }) {
   const { core, generator, noteId, start, locked = false } = props
   const dialog = useRef<HTMLDialogElement>(null)
@@ -93,10 +96,12 @@ export function AiEditSheet(props: {
       activeAbort.current = controller
       setPhase({ kind: 'asking', streamed: '' })
       setRejected(new Set())
+      let book: string | null | undefined
       // The notebook as the core has it now: the note may have moved since the list was loaded.
       core
         .read(noteId)
         .then(({ bookId }) => {
+          book = bookId
           if (mine !== attempt.current || controller.signal.aborted) {
             throw new Error('E_AI_CANCELLED')
           }
@@ -122,7 +127,7 @@ export function AiEditSheet(props: {
             const code = errorCode(e)
             // Only this sheet's own abort is quiet; Rust ending the stream is a failure to show.
             if (code === 'E_AI_CANCELLED' && controller.signal.aborted) return
-            setPhase({ kind: 'failed', code: logFailure(code, 'W_AI_EDIT_FAILED') })
+            setPhase({ kind: 'failed', code: logFailure(code, 'W_AI_EDIT_FAILED'), bookId: book })
           },
         )
     },
@@ -161,6 +166,20 @@ export function AiEditSheet(props: {
 
   const send = () => {
     if (prompt.trim() !== '') ask({ prompt })
+  }
+
+  const refusedBook =
+    phase.kind === 'failed' && phase.code === 'E_AI_ACCESS_DENIED' ? phase.bookId : undefined
+  const allowAccess =
+    props.onAllowAccess && typeof refusedBook === 'string' ? props.onAllowAccess : undefined
+  const allow = async (bookId: string) => {
+    if (!allowAccess) return
+    const mine = attempt.current
+    setBusy(true)
+    const allowed = await allowAccess(bookId)
+    if (!mounted.current || mine !== attempt.current) return
+    setBusy(false)
+    if (allowed) again()
   }
 
   const title =
@@ -245,8 +264,8 @@ export function AiEditSheet(props: {
           ) : null}
         </>
       ) : failure ? (
-        <p role="alert" className="sheet-error">
-          {failure.message}
+        <p role="alert" className={allowAccess ? 'sheet-detail' : 'sheet-error'}>
+          {allowAccess ? t('aiEdit.reason.accessOff') : failure.message}
         </p>
       ) : proposal ? (
         <>
@@ -341,6 +360,16 @@ export function AiEditSheet(props: {
             <button type="button" className="button" disabled={busy} onClick={close}>
               {proposal ? t('aiEdit.discard') : t('aiEdit.close')}
             </button>
+            {allowAccess && typeof refusedBook === 'string' ? (
+              <button
+                type="button"
+                className="button button-default"
+                disabled={busy}
+                onClick={() => void allow(refusedBook)}
+              >
+                {t('aiEdit.allowAccess')}
+              </button>
+            ) : null}
             {proposal ? (
               <button
                 type="button"

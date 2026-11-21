@@ -531,7 +531,7 @@ export function SyncSection() {
       {relayRow(t('syncSettings.relayJoinHint'))}
     </>
   ) : (
-    <Setting label="syncSettings.setup" description={t('syncSettings.setupHint')}>
+    <Setting label="syncSettings.setup" description={t('syncSettings.setupHint')} stacked>
       <div className="settings-buttons">
         <button
           ref={firstButton}
