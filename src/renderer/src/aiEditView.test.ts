@@ -74,5 +74,10 @@ describe('why there is no proposal', () => {
     expect(auth.retry).toBe(false)
 
     expect(aiSuggestFailure('E_AI_CLI_MISSING')).toContain('not installed')
+
+    const checking = aiEditFailure('E_AI_CLI_CHECKING')
+    expect(checking.message).toContain('still checking')
+    expect(checking.retry).toBe(true)
+    expect(aiSuggestFailure('E_AI_CLI_CHECKING')).not.toContain('sign-in')
   })
 })

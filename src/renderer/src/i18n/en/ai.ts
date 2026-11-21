@@ -181,6 +181,8 @@ export const messages = {
   'aiEdit.reason.noKey': 'No AI provider is set up. Add a key in Settings > AI.',
   'aiEdit.reason.cliMissing':
     'The selected AI tool is not installed on this Mac. Check Settings > AI.',
+  'aiEdit.reason.checking':
+    'Devot is still checking the AI tool on this Mac. Try again in a moment.',
   'aiEdit.reason.noModel': 'The AI provider has no model set. Choose one in Settings > AI.',
   'aiEdit.reason.auth': 'The AI provider refused the key or needs sign-in. Check Settings > AI.',
   'aiEdit.reason.rateLimited':

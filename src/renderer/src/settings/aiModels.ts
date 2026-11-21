@@ -420,7 +420,7 @@ export type SuggestStatus =
   | {
       kind: 'provider'
       provider: AiProviderId
-      code: Exclude<ReturnType<typeof providerReady>, 'ready'>
+      code: Exclude<ReturnType<typeof providerReady>, 'ready' | 'E_AI_CLI_CHECKING'>
     }
   | { kind: 'ready'; choice: ModelChoice }
 
@@ -435,6 +435,7 @@ export function suggestStatus(
   if (choicePending(view, 'suggest') || providerState(view, choice.provider) === 'checking')
     return { kind: 'checking' }
   const ready = providerReady(view, 'suggest')
+  if (ready === 'E_AI_CLI_CHECKING') return { kind: 'checking' }
   if (ready !== 'ready') return { kind: 'provider', provider: choice.provider, code: ready }
   return { kind: 'ready', choice }
 }
