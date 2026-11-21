@@ -19,6 +19,9 @@ import type { Element, ElementContent, Properties, Root, RootContent } from 'has
 import { textOf } from './hastText'
 import { fromHtml } from 'hast-util-from-html'
 import { toHtml } from 'hast-util-to-html'
+import { find, svg as svgSchema } from 'property-information'
+import { allowsSvgAttribute, allowsSvgElement, foreignObjectText } from './diagramSvg'
+import { withoutRemoteCss } from './diagramCss'
 import { FILE_URL } from './export'
 import { fragmentId } from './preview/headingIds'
 import { drawCodeMarks } from './preview/code'
@@ -48,20 +51,6 @@ const WEB_URL = /^https?:/i
 const LOCAL_SRC = /^(?!data:|https?:|devot:)/i
 const HEADING = /^h[1-6]$/
 
-const DROPPED_SVG = new Set([
-  'script',
-  'foreignObject',
-  'iframe',
-  'image',
-  'use',
-  'feImage',
-  'set',
-  'animate',
-  'animateMotion',
-  'animateTransform',
-  'discard',
-])
-
 const el = (tagName: string, properties: Properties, children: ElementContent[] = []): Element => ({
   type: 'element',
   tagName,
@@ -88,18 +77,26 @@ function drawing(markup: string): Element | null {
   const clean = (node: Element): Element => {
     const properties: Properties = {}
     for (const [key, value] of Object.entries(node.properties)) {
-      if (/^on/i.test(key)) continue
-      if (/^(?:href|xLinkHref)$/.test(key) && !String(value).startsWith('#')) continue
-      properties[key] = value
+      const name = /^data[A-Z]/.test(key)
+        ? key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
+        : find(svgSchema, key).attribute
+      if (!allowsSvgAttribute(node.tagName, name, name === 'style' ? '' : String(value))) continue
+      properties[name.startsWith('data-') ? name : key] =
+        name === 'style' ? withoutRemoteCss(String(value)) : value
     }
     const children = node.children.flatMap((child): ElementContent[] => {
       // A style element's text is written out as it is, so a `<` in it
       // (`</style>` in a diagram's CSS) would end it: CSS reads `\3c ` as `<`.
       if (child.type === 'text' && node.tagName === 'style') {
-        return [{ ...child, value: child.value.replace(/</g, '\\3c ') }]
+        return [{ ...child, value: withoutRemoteCss(child.value).replace(/</g, '\\3c ') }]
       }
       if (child.type === 'text') return [child]
-      if (child.type !== 'element' || DROPPED_SVG.has(child.tagName)) return []
+      if (child.type !== 'element') return []
+      if (child.tagName === 'foreignObject') {
+        const label = foreignObjectText(textOf(child), child.properties)
+        return [el('text', label.attributes, [txt(label.text)])]
+      }
+      if (!allowsSvgElement(child.tagName)) return []
       return [clean(child)]
     })
     return { ...node, properties, children }

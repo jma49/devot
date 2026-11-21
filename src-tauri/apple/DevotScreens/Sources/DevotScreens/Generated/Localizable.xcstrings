@@ -1021,6 +1021,23 @@
         }
       }
     },
+    "aiEdit.reason.checking" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devot is still checking the AI tool on this Mac. Try again in a moment."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devot 还在检查这台 Mac 上的 AI 工具，请稍后再试。"
+          }
+        }
+      }
+    },
     "aiEdit.reason.cliMissing" : {
       "extractionState" : "manual",
       "localizations" : {

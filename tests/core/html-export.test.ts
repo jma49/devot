@@ -202,7 +202,7 @@ describe('HTML pages', () => {
     expect(drawn.html).toContain('<div class="island island-mermaid"><svg')
     expect(drawn.html).toContain('<style>.node{fill:#eee}</style>')
     expect(drawn.html).toContain('<rect class="node" width="5" height="5" style="stroke: red">')
-    expect(drawn.html).toContain('<a><text>A</text></a>')
+    expect(drawn.html).not.toContain('<a><text>A</text></a>')
     expect(drawn.html).not.toMatch(/<script|foreignObject|<use|onload|evil\.example/i)
     expect(drawn.html).not.toMatch(/feImage|<set|<animate/i)
     const source = await page()
@@ -227,6 +227,22 @@ describe('HTML pages', () => {
     expect(drawing).toContain(
       "<style>.a{content:'\\3c /style>\\3c img src=x onerror=alert(1)>'} .b{} \\3c /STYLE ></style>",
     )
+  })
+
+  it('drops unknown SVG markup and attributes and remote CSS in the second cleaning', async () => {
+    const { html } = await page({
+      island: () =>
+        '<svg xmlns="http://www.w3.org/2000/svg"><foo><rect/></foo><a><text>link</text></a><animate/><set/><rect unknown="yes" onload="bad()" href="javascript:bad()" xlink:href="javascript:bad()" style="fill:red;stroke:url(https://evil.example/x)"/><style>.node{fill:red;stroke:url(https://evil.example/x)}</style></svg>',
+    })
+    expect(html).not.toMatch(/<foo|<a>|<animate|<set|unknown=|onload|javascript:|evil\.example/)
+    expect(html).toContain('fill:red')
+  })
+
+  it('keeps an empty SVG and falls back for an empty drawing', async () => {
+    expect(
+      (await page({ island: () => '<svg xmlns="http://www.w3.org/2000/svg"/>' })).html,
+    ).toContain('<svg')
+    expect((await page({ island: () => '' })).html).toContain('language-mermaid')
   })
 
   it('turns embeds into links and swatches into inline colours', async () => {
