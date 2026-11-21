@@ -38,7 +38,8 @@ The Mac app is a signed, notarised download for macOS 15 or later, on Apple Sili
 Current builds are signed and notarised, and require macOS 15 or later on Apple Silicon or Intel.
 Devot checks for updates automatically; use **Devot > Check for Updates…** to check now.
 
-**iPhone and iPad:** Devot is on the App Store. The iPad runs the same screens, in columns when the window is wide.
+**iPhone and iPad:** Devot is on the App Store.
+The iPad runs the same screens, in columns when the window is wide.
 
 ## Features
 
@@ -261,7 +262,7 @@ pnpm check    # everything CI runs
 ```
 
 How releases are made: [`docs/releasing.md`](docs/releasing.md). Architecture and decisions: [`docs/architecture.md`](docs/architecture.md), an overview that links a spec for each area in [`docs/specs/`](docs/specs/).
-How this repository describes Devot for search, directories and answer engines: [`llms.txt`](llms.txt) and [`seo/README.md`](seo/README.md).
+How this repository describes Devot for search, directories and answer engines: [`llms.txt`](llms.txt) and [`docs/seo/README.md`](docs/seo/README.md).
 
 ## Contributing
 

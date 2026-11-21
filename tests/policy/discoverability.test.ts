@@ -2,8 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { expect, it } from 'vitest'
 
-// One sentence, shared by the package metadata, the README and llms.txt, so a
-// later edit cannot leave GitHub quoting a macOS-only app.
+// GitHub, package.json and llms.txt must quote the same line.
 const ONE_LINER =
   'Local-first Markdown notes for Mac and iPhone: live preview, end-to-end encrypted sync, plugins, themes and MCP for AI tools.'
 
@@ -13,7 +12,8 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
 }
 const readme = readFileSync('README.md', 'utf8')
 const llms = readFileSync('llms.txt', 'utf8')
-const manifest = JSON.parse(readFileSync('seo/submission-manifest.json', 'utf8')) as {
+const cargo = readFileSync('src-tauri/Cargo.toml', 'utf8')
+const manifest = JSON.parse(readFileSync('docs/seo/submission-manifest.json', 'utf8')) as {
   product: { name: string; url: string; domain: string; contact_email: string | null }
   copy: {
     tagline_40c: string
@@ -33,9 +33,9 @@ const manifest = JSON.parse(readFileSync('seo/submission-manifest.json', 'utf8')
   }
   assets: { favicon_64: string | null; screenshots_in_repo: string[] }
   agent_and_mcp: { mcp_endpoint: string | null; github_repo: string }
-  todo: string[]
+  open_questions: string
 }
-const store = JSON.parse(readFileSync('seo/store/app-store.en.json', 'utf8')) as {
+const store = JSON.parse(readFileSync('docs/seo/store/app-store.en.json', 'utf8')) as {
   name: string
   subtitle: string
   keywords: string
@@ -50,11 +50,12 @@ function walk(dir: string): string[] {
   })
 }
 
-const seoFiles = walk('seo')
+const seoFiles = walk('docs/seo')
 const prose = [llms, ...seoFiles.map((file) => readFileSync(file, 'utf8'))].join('\n')
 
 it('shares one product line and the product site', () => {
   expect(pkg.description).toBe(ONE_LINER)
+  expect(cargo).toContain(`description = "${ONE_LINER}"`)
   expect(pkg.homepage).toBe('https://devot.online')
   expect(readme).toContain(ONE_LINER)
   expect(readme).toContain('https://devot.online')
@@ -64,19 +65,16 @@ it('shares one product line and the product site', () => {
   expect(llms).toContain('docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md')
 })
 
-it('quotes only the two prices ADR 0014 records', () => {
+it('keeps unconfirmed prices out of llms.txt and in the ADR record', () => {
   const adr = readFileSync(
     'docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md',
     'utf8',
   )
+  expect(llms).toContain('https://devot.online/#pricing')
+  expect(llms).not.toMatch(/US\$\d/)
   expect(adr).toContain('US$29.90')
   expect(adr).toContain('US$29.99')
-  expect(llms).toContain('US$29.90')
-  expect(llms).toContain('US$29.99')
-  expect([...llms.matchAll(/US\$(\d+\.\d{2})/g)].map((match) => match[1])).toEqual([
-    '29.90',
-    '29.99',
-  ])
+  expect(readFileSync('docs/seo/kb/brand-ssot.md', 'utf8')).toContain('US$29.90')
   expect(manifest.taxonomy.prices_recorded_in_repo).toEqual({
     mac_licence_website_usd: 29.9,
     app_store_devot_pro_usd: 29.99,
@@ -96,9 +94,10 @@ it('keeps directory copy inside the length limits', () => {
   expect(manifest.copy.tagline_60c.length).toBeLessThanOrEqual(60)
   expect(manifest.copy.mcp_description_100c.length).toBeLessThanOrEqual(100)
   expect(manifest.copy.description_160c.length).toBeLessThanOrEqual(160)
-  expect(manifest.copy.description_500c.length).toBeGreaterThanOrEqual(510)
+  expect(manifest.copy.description_500c.length).toBeLessThanOrEqual(500)
   expect(manifest.copy.key_features.length).toBeGreaterThanOrEqual(4)
-  expect(manifest.todo.some((line) => line.startsWith('TODO:'))).toBe(true)
+  expect(manifest.open_questions).toBe('docs/seo/kb/open-questions.md')
+  expect(readFileSync(manifest.open_questions, 'utf8')).toContain('TODO:')
   expect(existsSync(manifest.assets.favicon_64 ?? '')).toBe(true)
   for (const shot of manifest.assets.screenshots_in_repo) expect(existsSync(shot)).toBe(true)
 })
@@ -118,6 +117,7 @@ it('keeps the App Store paste within Apple limits and off the website checkout',
   expect(store.description.length).toBeLessThanOrEqual(4000)
   expect(store.description).toContain('one-time')
   expect(store.description).toContain('iPad')
+  expect(store.description).not.toMatch(/licen[cs]e key/i)
   const listing = `${store.keywords}\n${store.promotionalText}\n${store.description}`
   expect(listing).not.toMatch(/https?:|29\.90|licence\.devot\.online/)
   for (const keyword of store.keywords.split(',')) {
@@ -141,8 +141,8 @@ it('leaves private pages out of the index', () => {
 it('uses no em dashes or hype in the new discoverability copy', () => {
   expect(prose).not.toMatch(/\u2014|\u2013/)
   expect(prose).not.toMatch(/\b(unleash|revolutionize|seamless|game-changing)\b/i)
-  expect(readFileSync('seo/kb/open-questions.md', 'utf8')).toContain('TODO:')
-  expect(readFileSync('seo/kb/brand-ssot.md', 'utf8')).toContain('FSL-1.1-MIT')
+  expect(readFileSync('docs/seo/kb/open-questions.md', 'utf8')).toContain('TODO:')
+  expect(readFileSync('docs/seo/kb/brand-ssot.md', 'utf8')).toContain('FSL-1.1-MIT')
 })
 
 it('links only files that exist from the discoverability notes', () => {

@@ -17,8 +17,7 @@ A build from source checks no licence.
 Each release becomes MIT two years after it is published.
 Versions up to v1.0.4 stay MIT.
 
-Prices recorded in [ADR 0014](https://github.com/jma49/devot/blob/main/docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md): the Mac licence on the website is US$29.90, and Devot Pro on the App Store is US$29.99.
-The owner should confirm both still match Stripe and App Store Connect before a directory quotes them.
+The live price is at [https://devot.online/#pricing](https://devot.online/#pricing).
 
 ## Platforms
 
@@ -53,7 +52,7 @@ The owner should confirm both still match Stripe and App Store Connect before a 
 - [README](https://github.com/jma49/devot/blob/main/README.md): features, download and MCP setup.
 - [Architecture](https://github.com/jma49/devot/blob/main/docs/architecture.md): boundaries and the spec index.
 - [Licences](https://github.com/jma49/devot/blob/main/docs/adr/0006-source-available-and-sold-once.md): trial, one-time licence and source licence.
-- [App Store products](https://github.com/jma49/devot/blob/main/docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md): Devot Pro, the trial product and the recorded prices.
-- [Brand facts](https://github.com/jma49/devot/blob/main/seo/kb/brand-ssot.md): the same facts, with sources.
+- [App Store products](https://github.com/jma49/devot/blob/main/docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md): Devot Pro and the trial product.
+- [Brand facts](https://github.com/jma49/devot/blob/main/docs/seo/kb/brand-ssot.md): the same facts, with sources.
 - [Performance baseline](https://github.com/jma49/devot/blob/main/docs/benchmarks/README.md): local measurements, with the machine and the load noted.
 - [Security](https://github.com/jma49/devot/blob/main/SECURITY.md): how to report a vulnerability.

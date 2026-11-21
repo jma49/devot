@@ -5,7 +5,7 @@ They do not change the app.
 Facts come from the README, the architecture overview and the ADRs.
 Anything not settled there is a TODO in [`kb/open-questions.md`](kb/open-questions.md).
 
-- [`../llms.txt`](../llms.txt): the repository summary for agents. The public summary stays at [https://devot.online/llms.txt](https://devot.online/llms.txt), in the site repository.
+- [`../../llms.txt`](../../llms.txt): the repository summary for agents. The public summary stays at [https://devot.online/llms.txt](https://devot.online/llms.txt), in the site repository.
 - [`kb/brand-ssot.md`](kb/brand-ssot.md): one place for product facts and boundaries.
 - [`kb/pages-index.md`](kb/pages-index.md): which page may quote which fact.
 - [`kb/open-questions.md`](kb/open-questions.md): questions only the owner can close.
