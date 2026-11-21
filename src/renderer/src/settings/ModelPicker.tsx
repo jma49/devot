@@ -35,6 +35,7 @@ import {
   type RecentModel,
   shownModel,
 } from './aiModels'
+import { PROVIDER_MARK_PATHS } from './providerMarks'
 
 export const PROVIDER_NAMES: Record<AiProviderId, MessageKey> = {
   anthropic: 'aiSettings.provider.anthropic',
@@ -51,14 +52,6 @@ export const STATE_NAMES: Record<ProviderState, MessageKey> = {
   signedOut: 'aiSettings.cliSignedOut',
   notInstalled: 'aiSettings.cliNotInstalled',
   checking: 'aiSettings.cliChecking',
-}
-
-/** Initials, not words: the mark stands beside the provider's name and is hidden from speech. */
-const MONOGRAMS: Record<AiProviderId, string> = {
-  codexCli: 'Cx',
-  claudeCli: 'CC',
-  anthropic: 'A',
-  openai: 'O',
 }
 
 const LEVELS: Readonly<Record<string, MessageKey>> = {
@@ -85,7 +78,9 @@ export function ProviderMark(props: { provider: AiProviderId; state?: ProviderSt
       data-state={props.state}
       aria-hidden="true"
     >
-      {MONOGRAMS[props.provider]}
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d={PROVIDER_MARK_PATHS[props.provider]} />
+      </svg>
     </span>
   )
 }

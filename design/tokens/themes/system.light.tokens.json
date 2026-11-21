@@ -570,7 +570,11 @@
         },
         "plugins": { "$value": "{color.tile.plugins}", "$type": "color" },
         "usage": { "$value": "{color.tile.usage}", "$type": "color" },
-        "license": { "$value": "{color.tile.license}", "$type": "color" }
+        "license": { "$value": "{color.tile.license}", "$type": "color" },
+        "codex": { "$value": "{color.tile.codex}", "$type": "color" },
+        "claude-code": { "$value": "{color.tile.claude-code}", "$type": "color" },
+        "anthropic": { "$value": "{color.tile.anthropic}", "$type": "color" },
+        "openai": { "$value": "{color.tile.openai}", "$type": "color" }
       },
       "tile-foreground": {
         "$value": "{color.tile.foreground}",
