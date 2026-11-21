@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import { budgetScale } from './tests/support/budget.ts'
+import { testSelection } from './tests/support/test-selection.ts'
 
 const include = ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}']
 // Benchmarks and real builds: about half the suite's time in a few dozen files. `pnpm test` and CI
@@ -12,6 +13,12 @@ const ci = Boolean(process.env['CI'])
 // slower machine get the budgets' factor (tests/support/budget.ts). On CI two tests ran out of the
 // defaults under load.
 const timeScale = budgetScale(process.env)
+// A CI shard runs exactly the files scripts/ci/vitest-plan.ts gave it, each in its usual project.
+const selected = testSelection(import.meta.dirname, process.env)
+const isBuild = (file: string) => file.endsWith('.build.test.ts')
+const isBench = (file: string) => file.endsWith('.bench.test.ts')
+const pick = (patterns: string[], kind: (file: string) => boolean) =>
+  selected ? selected.filter(kind) : patterns
 
 export default defineConfig({
   define: { DEVOT_SPIKES: 'false' },
@@ -22,10 +29,12 @@ export default defineConfig({
     // Capped so a local run leaves the machine usable; DEVOT_TEST_WORKERS
     // raises the cap. CI keeps Vitest's default.
     ...(ci ? {} : { maxWorkers: Number(process.env['DEVOT_TEST_WORKERS'] ?? 3) }),
-    // Every time check's measurement, for the budgets' evidence (tests/support/budget-report.ts).
+    // Every time check's measurement, for the budgets' evidence (tests/support/budget-report.ts), and
+    // each file's time, for the CI shard plan (scripts/ci/vitest-timings.ts).
     ...(process.env['GITHUB_ACTIONS'] === 'true'
       ? {
-          reporters: ['default', 'github-actions', './tests/support/budget-report.ts'],
+          reporters: ['default', 'github-actions', './tests/support/budget-report.ts', 'json'],
+          outputFile: { json: 'test-results/vitest-report.json' },
         }
       : {}),
     // Node's own localStorage warns in every worker; tests that need one install it (tests/support/local-storage.ts).
@@ -39,13 +48,19 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'fast',
-          include,
+          include: pick(include, (file) => !isBuild(file) && !isBench(file)),
           exclude: [...builds, ...benches],
           sequence: { groupOrder: 0 },
         },
       },
-      { extends: true, test: { name: 'build', include: builds, sequence: { groupOrder: 1 } } },
-      { extends: true, test: { name: 'slow', include: benches, sequence: { groupOrder: 2 } } },
+      {
+        extends: true,
+        test: { name: 'build', include: pick(builds, isBuild), sequence: { groupOrder: 1 } },
+      },
+      {
+        extends: true,
+        test: { name: 'slow', include: pick(benches, isBench), sequence: { groupOrder: 2 } },
+      },
     ],
   },
 })

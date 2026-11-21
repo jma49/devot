@@ -114,7 +114,14 @@ it('pnpm check runs the dependency audit', () => {
 
 it('every pnpm step of the CI web jobs is a step of pnpm check', () => {
   // `pnpm test:ui` makes the UI tests' build itself when CI has not (tests/support/ui-servers.ts).
-  const steps = commands(job('web-checks') + job('unit-tests') + job('ui-build') + job('ui'))
+  const steps = commands(
+    job('lint') +
+      job('typecheck') +
+      job('web-checks') +
+      job('unit-tests') +
+      job('ui-build') +
+      job('ui'),
+  )
     .filter(
       (c) => c.startsWith('pnpm ') && !/^pnpm (install|exec|ui:build|test:ui:build)\b/.test(c),
     )
@@ -642,27 +649,38 @@ it('the updater plugin is not a phone dependency', () => {
   expect(plugin).toBeLessThan(nextTable)
 })
 
-it('a pull request without web changes still gets a policy run with all of Vitest', () => {
+it('a pull request without web changes still gets the type check, lint and the Vitest it needs', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
   expect(trigger).not.toMatch(/paths-ignore/)
-  // Vitest also reads Rust sources, migrations and capabilities, so a Rust-only change still runs all of it.
-  expect(commands(job('policy-check'))).toEqual(
-    expect.arrayContaining(['pnpm format:check', 'pnpm test']),
-  )
+  // The Vitest plan, not the web flag, decides what Vitest runs: a Rust change runs all of it.
+  expect(job('unit-plan')).not.toMatch(/^ {4}if:/m)
+  expect(job('unit-tests')).toMatch(/^ {4}if: needs\.unit-plan\.outputs\.unit != 'false'$/m)
+  expect(job('lint')).not.toMatch(/^ {4}if:/m)
+  expect(commands(job('lint'))).toEqual([
+    'pnpm install --frozen-lockfile',
+    'pnpm format:check',
+    'pnpm lint',
+  ])
+  expect(job('typecheck')).toMatch(/^ {4}if: needs\.changes\.outputs\.docs_only != 'true'$/m)
+  expect(commands(job('typecheck'))).toContain('pnpm typecheck')
+  expect(commands(job('unit-tests'))).toContain('pnpm test')
 })
 
 it('every job runs unless the change detection said it is not needed', () => {
   // Missing or unexpected outputs must run everything, never skip everything.
-  expect(job('policy-check')).toContain("needs.changes.outputs.web != 'true'")
   expect(job('web-checks')).toContain("needs.changes.outputs.web != 'false'")
   expect(job('rust-check')).toContain("needs.changes.outputs.rust != 'false'")
   expect(job('deny')).toContain("needs.changes.outputs.rust != 'false'")
-  expect(workflow).not.toMatch(/outputs\.(web|rust) == /)
+  expect(workflow).not.toMatch(/outputs\.(web|rust|unit) == /)
+  // Without a plan, one shard runs every test (an empty file list selects all of them).
+  expect(job('unit-tests')).toContain(
+    `fromJSON(needs.unit-plan.outputs.unit_matrix || '{"include":[{"shard":1,"shards":1,"files":[]}]}')`,
+  )
 })
 
 it('documentation-only pull requests skip heavy jobs but still report every required gate', () => {
   expect(job('web-checks')).toContain("needs.changes.outputs.docs_only != 'true'")
-  expect(job('unit-tests')).toContain("needs.changes.outputs.docs_only != 'true'")
+  expect(job('typecheck')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('ui')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('ui-build')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('rust-check')).toContain("needs.changes.outputs.docs_only != 'true'")
@@ -673,24 +691,23 @@ it('documentation-only pull requests skip heavy jobs but still report every requ
 })
 
 type Step = { if?: string; run?: string; uses?: string; with?: Record<string, string> }
-const policySteps = () =>
-  (parse(workflow) as { jobs: Record<string, { if?: string; steps: Step[] }> }).jobs[
-    'policy-check'
-  ]!
+const jobSteps = (name: string) =>
+  (parse(workflow) as { jobs: Record<string, { if?: string; steps: Step[] }> }).jobs[name]!
 
 it('documentation-only pull requests still run the format check and the tests that read the docs', () => {
   // README.md, CLAUDE.md, the design notes and the README images are read by policy and token tests.
   for (const file of ['README.md', 'CLAUDE.md', 'design/layout.md', 'docs/images/x.png']) {
     expect(docsOnly([file])).toBe(true)
   }
-  const policy = policySteps()
-  expect(policy.if).toBe("needs.changes.outputs.web != 'true'")
-  const runs = (condition: string) =>
-    policy.steps.filter((s) => s.if === condition).map((s) => s.run)
-  expect(policy.steps.find((s) => s.run === 'pnpm format:check')?.if).toBeUndefined()
-  expect(runs("needs.changes.outputs.docs_only == 'true'")).toEqual(['pnpm test:policy'])
-  expect(runs("needs.changes.outputs.docs_only != 'true'")).toEqual(
-    expect.arrayContaining(['pnpm lint', 'pnpm typecheck', 'pnpm test']),
+  const lint = jobSteps('lint')
+  expect(lint.steps.find((s) => s.run === 'pnpm format:check')?.if).toBeUndefined()
+  expect(lint.steps.find((s) => s.run === 'pnpm lint')?.if).toBe(
+    "needs.changes.outputs.docs_only != 'true'",
+  )
+  // The plan runs every test that reads files for any change, the policy and token tests among them.
+  const plan = commands(job('unit-plan'))
+  expect(plan.some((c) => c.includes('| node scripts/ci/vitest-plan.ts >> "$GITHUB_OUTPUT"'))).toBe(
+    true,
   )
   const policyRun = scripts['test:policy']?.split(' ') ?? []
   expect(policyRun.slice(0, 2)).toEqual(['vitest', 'run'])
@@ -698,7 +715,16 @@ it('documentation-only pull requests still run the format check and the tests th
 })
 
 it('uses the setup caches only where the job installs those dependencies', () => {
-  for (const name of ['policy-check', 'web-checks', 'unit-tests', 'ui-build', 'ui', 'rust-check']) {
+  for (const name of [
+    'lint',
+    'typecheck',
+    'web-checks',
+    'unit-plan',
+    'unit-tests',
+    'ui-build',
+    'ui',
+    'rust-check',
+  ]) {
     expect(job(name)).toMatch(/actions\/setup-node@[^\n]*\n(?: {8,}.*\n)*? {10}cache: pnpm/)
   }
   const rust = job('rust-check')
@@ -775,8 +801,9 @@ it('caches the WebKit download per Playwright version, restored by every shard a
 
 it('keeps the generated Swift tokens and strings current, and compiles them for the iPhone', () => {
   expect(commands(job('web-checks'))).toEqual(
-    expect.arrayContaining(['pnpm tokens:check', 'pnpm i18n:apple:check', 'pnpm lint']),
+    expect.arrayContaining(['pnpm tokens:check', 'pnpm i18n:apple:check']),
   )
+  expect(commands(job('lint'))).toContain('pnpm lint')
   expect(scripts['lint']).toContain('node scripts/tokens/swift-literals.ts')
   expect(
     commands(job('ios-check')).filter(
@@ -857,46 +884,91 @@ it('the UI shard plan knows nearly every spec and no removed one', () => {
   expect(Object.keys(durations).filter((spec) => !specs.includes(spec))).toEqual([])
 })
 
-it('the web check fails when the quick checks, the UI build, a UI shard, the macOS tests or the change detection fails', () => {
-  // `web` is a required check that sums up the jobs and runs even when they were skipped,
-  // so a skipped job cannot read as passing a failed one. A failed UI build skips every shard.
-  const web = job('web')
-  expect(web).toMatch(/^ {4}needs: \[changes, web-checks, unit-tests, ui-build, ui, mac-tests\]$/m)
-  expect(web).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
-  for (const need of ['changes', 'web-checks', 'unit-tests', 'ui-build', 'ui', 'mac-tests']) {
-    expect(web).toContain(`needs.${need}.result`)
+const webNeeds = [
+  'changes',
+  'lint',
+  'typecheck',
+  'web-checks',
+  'unit-plan',
+  'unit-tests',
+  'ui-build',
+  'ui',
+  'mac-tests',
+]
+const policyNeeds = ['changes', 'lint', 'typecheck', 'unit-plan', 'unit-tests']
+
+it('the web and policy checks fail when any job they sum up, its plan or the change detection fails', () => {
+  // `web` and `policy` are required checks that sum up the jobs and run even when they were
+  // skipped, so a skipped job cannot read as passing a failed one. A failed UI build skips every
+  // UI shard and a failed plan every unit test shard, so the gates read those results too.
+  for (const [gate, needs] of [
+    ['web', webNeeds],
+    ['policy', policyNeeds],
+  ] as const) {
+    const text = job(gate)
+    expect(text).toMatch(new RegExp(`^ {4}needs: \\[${needs.join(', ')}\\]$`, 'm'))
+    expect(text).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
+    for (const need of needs) expect(text).toContain(`needs.${need}.result`)
+    expect(text).toMatch(/failure\|cancelled/)
   }
-  expect(web).toMatch(/failure\|cancelled/)
 })
 
-it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI_BUILD', 'UI', 'MAC'])(
-  'the required gate rejects failed or cancelled %s results',
-  (need) => {
-    const config = parse(workflow) as {
-      jobs: { web: { steps: { run: string }[] } }
-    }
-    const command = config.jobs.web.steps[0]!.run
-    const summary = join(tempDir('devot-ci-summary-'), 'summary.md')
-    const env = {
-      ...process.env,
-      GITHUB_STEP_SUMMARY: summary,
-      CHANGES: 'success',
-      CHECKS: 'success',
-      TESTS: 'success',
-      UI_BUILD: 'success',
-      UI: 'success',
-      MAC: 'success',
-    }
-    for (const result of ['success', 'skipped', 'failure', 'cancelled']) {
-      const run = spawnSync('bash', ['-e', '-c', command], {
-        env: { ...env, [need]: result },
-        encoding: 'utf8',
-      })
-      expect(run.stderr).toBe('')
-      expect(run.status).toBe(result === 'failure' || result === 'cancelled' ? 1 : 0)
-    }
-  },
-)
+const gateEnv = {
+  web: ['CHANGES', 'LINT', 'TYPECHECK', 'CHECKS', 'PLAN', 'TESTS', 'UI_BUILD', 'UI', 'MAC'],
+  policy: ['CHANGES', 'LINT', 'TYPECHECK', 'PLAN', 'TESTS'],
+} as const
+
+it.each(
+  (Object.entries(gateEnv) as [keyof typeof gateEnv, readonly string[]][]).flatMap(
+    ([gate, names]) => names.map((need) => [gate, need] as const),
+  ),
+)('the required %s gate rejects failed or cancelled %s results', (gate, need) => {
+  const config = parse(workflow) as {
+    jobs: Record<string, { steps: { run: string; env: Record<string, string> }[] }>
+  }
+  const step = config.jobs[gate]!.steps[0]!
+  expect(Object.keys(step.env).sort()).toEqual([...gateEnv[gate]].sort())
+  const summary = join(tempDir('devot-ci-summary-'), 'summary.md')
+  const env: Record<string, string | undefined> = { ...process.env, GITHUB_STEP_SUMMARY: summary }
+  for (const name of gateEnv[gate]) env[name] = 'success'
+  for (const result of ['success', 'skipped', 'failure', 'cancelled']) {
+    const run = spawnSync('bash', ['-e', '-c', step.run], {
+      env: { ...env, [need]: result },
+      encoding: 'utf8',
+    })
+    expect(run.stderr).toBe('')
+    expect(run.status).toBe(result === 'failure' || result === 'cancelled' ? 1 : 0)
+  }
+})
+
+it('shards Vitest by recorded durations, which main refreshes after its full runs', () => {
+  const plan = job('unit-plan')
+  expect(plan).toContain('restore-keys: ci-durations-')
+  expect(plan).toContain('node scripts/ci/vitest-plan.ts --full </dev/null')
+  expect(job('changes')).toContain('restore-keys: ci-durations-')
+  expect(job('changes')).toContain('DEVOT_UI_DURATIONS="$HOME/ci-durations/ui.json"')
+  expect(job('unit-tests')).toContain('DEVOT_TEST_FILES: ${{ toJSON(matrix.files) }}')
+  expect(job('unit-tests')).toContain('path: test-results/vitest-report.json')
+  expect(read('vitest.config.ts')).toContain(
+    "outputFile: { json: 'test-results/vitest-report.json' }",
+  )
+  const timings = job('unit-timings')
+  expect(timings).toMatch(
+    /^ {4}if: \$\{\{ !cancelled\(\) && github\.event_name == 'push' && github\.ref == 'refs\/heads\/main' \}\}$/m,
+  )
+  expect(timings).toContain('node scripts/ci/vitest-timings.ts ~/ci-durations/vitest.json')
+  expect(timings).toContain('node scripts/ci/ui-timings.ts ~/ci-durations/ui.json')
+  expect(timings).toContain('key: ci-durations-${{ github.run_id }}')
+  // A missing measurement never blocks a merge.
+  expect(timings).toMatch(/^ {4}continue-on-error: true$/m)
+  for (const gate of ['web', 'policy', 'rust']) expect(job(gate)).not.toContain('unit-timings')
+})
+
+it('lint, the type check, the generated-file checks, the builds and the tests start together', () => {
+  for (const name of ['lint', 'typecheck', 'web-checks', 'unit-plan', 'ui-build', 'rust-check']) {
+    expect(job(name)).toMatch(/^ {4}needs: changes$/m)
+  }
+})
 
 it('CI runs on every pull request, merge queue entry, main push and manual run, with no label gate', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
@@ -1028,12 +1100,12 @@ it('changed-code.sh runs both jobs for the bundled welcome Markdown, which the U
   expect(changedCode(['src/renderer/src/welcome/markdown-example.md'])).toBe('web=true rust=true')
 })
 
-it('changed-code.sh sends relay changes to the policy job, which checks and tests the relay', () => {
+it('changed-code.sh sends relay changes to the policy jobs, which check and test the relay', () => {
   expect(changedCode(['relay/src/vault.ts', 'relay/wrangler.toml'])).toBe('web=false rust=false')
   expect(changedCode(['relay/src/vault.ts', 'src/core/sync/protocol.ts'])).toBe(
     'web=true rust=true',
   )
-  expect(commands(job('policy-check'))).toEqual(
+  expect(commands(job('lint') + job('typecheck') + job('unit-tests'))).toEqual(
     expect.arrayContaining(['pnpm lint', 'pnpm typecheck', 'pnpm test']),
   )
   expect(scripts['typecheck']).toContain('relay/tsconfig.json')

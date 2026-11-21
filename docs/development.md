@@ -62,7 +62,7 @@ The UI shards test the bundle, not Vite's dev server: a page of the bundle loads
 
 Pull requests merge through GitHub's merge queue: once a pull request's own CI is green, add it to the queue (Merge when ready). The queue merges it onto the newest `main` together with the pull requests ahead of it, runs the full CI on that commit (`merge_group`), and moves `main` to it only when that run passes, so a pull request no longer has to be brought up to date by hand and several merges share one full run. A newer push to a pull request or to `main` cancels the older run. The queue itself is a repository setting (Settings, Rules, a ruleset on `main` with Require merge queue, merge method Squash, and the required checks `web`, `rust`, `policy` and `title`).
 
-The `changes` job is the path filter. It writes `docs_only=true` when every changed path is documentation, and the expensive jobs then skip; `policy-check` still runs the format check and `pnpm test:policy`, whose tests read the docs. The `web`, `rust` and `policy` jobs always run as small gates, so the required checks are still reported instead of staying pending.
+The `changes` job is the path filter. It writes `docs_only=true` when every changed path is documentation, and the expensive jobs then skip; `lint` still runs the format check, and the Vitest plan still runs the tests that read the docs. The `web`, `rust` and `policy` jobs always run as small gates, so the required checks are still reported instead of staying pending.
 It also writes `iphone_ui`, true only when a pull request touches the native screens, the phone page or the iPhone app project, which decides whether `iphone-build` builds the XCUITest runner and an `iphone-ui` shard launches the app.
 It writes `iphone_ui_shards`, the shards that run: the smoke shard alone for a pull request, every shard for the merge queue, main and manual runs.
 It writes `screens` and `storekit`, true only when a pull request touches what the Swift packages' own tests read, which decide whether `ios-app` and the StoreKit tests of `mac-tests` run.
@@ -87,6 +87,33 @@ git diff --no-renames --name-only main...HEAD | node scripts/ci/ui-plan.ts
 ```
 
 An empty file array runs the complete selected project. Invalid project names, malformed selections and missing or cross-project spec paths fail before tests start.
+
+### Targeted unit tests
+
+Lint (with the format check), the type check, the generated-file checks (`Quick checks`), the UI tests' build, the Rust jobs and the Vitest plan each start as soon as the `changes` job ends, so none waits on another.
+`unit-plan` runs `scripts/ci/vitest-plan.ts`, which writes the Vitest files each `unit-tests` shard runs; a shard gets its exact list in `DEVOT_TEST_FILES` (`tests/support/test-selection.ts`), and each file keeps its usual project, so the builds and benchmarks in a shard still run after its other tests.
+A pull request runs the tests that import one of its files, through Vitest's own module graph (the one `vitest related` reads), and the changed test files themselves.
+It also runs every test that reaches a file outside `src/` that reads or runs other files (`READS_FILES`), since what those tests read is not an import: the policy, token and script tests, the builds and the tests that read the Rust sources all run for every change.
+`RUNTIME_READERS` names the few helpers that read only what their callers make at run time, such as the test database, so their many tests run only when the graph reaches them.
+A change to anything outside `src/`, `tests/` (but `tests/support/` and `tests/fixtures/`), `scripts/` (but the planner), the relay, the Workers, the clipper, the plugin kit, the plugins, `design/` and `docs/` runs every test: configuration, the lockfile, CI and Rust among them.
+So does a removed or renamed file, whose old importers the graph can no longer find.
+Main, the merge queue and manual runs always run every test, so a missed edge still fails on main.
+
+The plan balances the shards by each file's recorded time, slowest first, at about 180 seconds of recorded work per shard and at most four shards; a file without a recorded time costs as much as the median one, and without any times the files are split evenly by count.
+After a full run on `main`, `unit-timings` reads each shard's JSON report (`test-results/vitest-report.json`, uploaded as `vitest-report-<shard>`) and the UI shards' reports into `~/ci-durations/vitest.json` and `ui.json`, over the last ones, and saves them in the Actions cache as `ci-durations-<run ID>`.
+`unit-plan` and `changes` restore the newest such cache; without one they fall back to the committed `scripts/ci/vitest-durations.json` and `scripts/ci/ui-durations.json`.
+Refresh the committed Vitest baseline from a full local run when it falls far behind:
+
+```sh
+pnpm vitest run --reporter=json --outputFile=/tmp/vitest-report.json
+node scripts/ci/vitest-timings.ts scripts/ci/vitest-durations.json /tmp/vitest-report.json
+```
+
+To see what a branch would run:
+
+```sh
+git diff --no-renames --name-only main...HEAD | node scripts/ci/vitest-plan.ts
+```
 
 ### smoke:quit
 
