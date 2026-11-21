@@ -14,14 +14,15 @@ const SIMPLIFIED_CHINESE = '\u7b80\u4f53\u4e2d\u6587'
 
 let host: HTMLDivElement
 let root: Root
-let stored: { chosen: string; running: string; available: boolean }
+let stored: { chosen: string; shown: string; available: boolean }
 
 beforeEach(() => {
-  stored = { chosen: 'system', running: 'system', available: true }
+  stored = { chosen: 'system', shown: 'en', available: true }
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     if (command === 'app_language_get') return stored
     if (command === 'app_language_set') {
-      stored = { ...stored, chosen: (args as { language: string }).language }
+      const chosen = (args as { language: string }).language
+      stored = { ...stored, chosen, shown: chosen === 'system' ? 'en' : chosen }
       return stored
     }
     return undefined
@@ -42,10 +43,6 @@ async function show() {
 }
 
 const select = () => host.querySelector('select')!
-const restart = () =>
-  [...host.querySelectorAll('button')].find(
-    (b) => b.textContent === t('generalSettings.restartNow'),
-  )
 
 async function choose(value: string) {
   await act(async () => {
@@ -64,13 +61,13 @@ describe('languageName', () => {
 
 describe('asLanguageState', () => {
   it('takes only the three choices', () => {
-    expect(asLanguageState({ chosen: 'zh-Hans', running: 'system', available: true })).toEqual({
+    expect(asLanguageState({ chosen: 'zh-Hans', shown: 'zh-Hans', available: true })).toEqual({
       chosen: 'zh-Hans',
-      running: 'system',
+      shown: 'zh-Hans',
       available: true,
     })
-    expect(asLanguageState({ chosen: 'fr', running: 'system', available: true })).toBeNull()
-    expect(asLanguageState({ chosen: 'en', running: 'en' })).toBeNull()
+    expect(asLanguageState({ chosen: 'fr', shown: 'en', available: true })).toBeNull()
+    expect(asLanguageState({ chosen: 'en', shown: 'en' })).toBeNull()
     expect(asLanguageState(null)).toBeNull()
   })
 })
@@ -78,22 +75,20 @@ describe('asLanguageState', () => {
 describe('LanguageSetting', () => {
   it('offers the system and each shipped language, the stored one chosen', async () => {
     stored.chosen = 'en'
-    stored.running = 'en'
     await show()
     expect([...select().options].map((o) => o.value)).toEqual(['system', 'en', 'zh-Hans'])
     expect(select().value).toBe('en')
-    expect(restart()).toBeUndefined()
   })
 
-  it('saves a choice and offers a restart until the running language matches it', async () => {
+  it('saves a choice, which shows at once, so it offers no restart', async () => {
     await show()
     await choose('zh-Hans')
     expect(invoke).toHaveBeenCalledWith('app_language_set', { language: 'zh-Hans' })
-    expect(host.textContent).toContain(t('generalSettings.languagePending'))
-    await act(async () => restart()!.click())
-    expect(invoke).toHaveBeenCalledWith('app_language_restart')
+    expect(select().value).toBe('zh-Hans')
+    expect(host.textContent).toContain(t('generalSettings.languageHint'))
+    expect(host.querySelectorAll('button')).toHaveLength(0)
     await choose('system')
-    expect(restart()).toBeUndefined()
+    expect(select().value).toBe('system')
   })
 
   it('puts the old choice back and says so when the change is refused', async () => {

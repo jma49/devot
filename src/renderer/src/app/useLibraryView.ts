@@ -16,7 +16,8 @@ import { writerLabel } from '../authorshipLabels'
 import { boardColumns, boardOrder, boardStatuses } from '../board'
 import type { Core } from '../core-client'
 import { useEditorSetting } from '../editorSettings'
-import { currentLocale, format, t } from '../i18n'
+import { format, t } from '../i18n'
+import { useLocale } from '../liveLocale'
 import {
   isBoardView,
   isGalleryView,
@@ -187,16 +188,19 @@ export function useLibraryView({
         : 'list'
   const boardDropped = useEditorSetting('boardDropped')
   const boardStatusList = useMemo(() => boardStatuses(boardDropped), [boardDropped])
-  const locales = useMemo(() => sortLocales(navigator.languages, currentLocale()), [])
+  const locale = useLocale()
+  const locales = useMemo(() => sortLocales(navigator.languages, locale), [locale])
   const sortButtonRef = useRef<HTMLButtonElement>(null)
   const showOrder = listOrder.show
+  const sortLabel = format(t('sort.current'), { order: orderLabel(order) })
+  const sortChip = orderChip(order)
   const sortButton = useMemo(
     () => ({
-      label: format(t('sort.current'), { order: orderLabel(order) }),
-      chip: orderChip(order),
+      label: sortLabel,
+      chip: sortChip,
       onOpen: (anchor: HTMLElement) => void showOrder(anchor),
     }),
-    [order, showOrder],
+    [sortLabel, sortChip, showOrder],
   )
   const groups = useNoteGroups(notes, books, libraryBook?.id ?? null, activeFilter, order, locales)
   // A card moved shows in its new column at once, until the lists have the change.

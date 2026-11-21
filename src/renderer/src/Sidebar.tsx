@@ -30,6 +30,7 @@ import { keepFocusOnMenu, useMenus } from './sidebar/useMenus'
 import { useRowKeys } from './sidebar/useRowKeys'
 import { useRowElements, type SidebarView } from './sidebar/view'
 import { workspaceTitle } from './sidebar/workspaceTitle'
+import { useLocale } from './liveLocale'
 
 export { agentFilter, STATUSES } from './sidebar/model'
 export type { Selection, SidebarMenus, SidebarSavedSearch, SidebarWorkspace } from './sidebar/model'
@@ -37,6 +38,7 @@ export { stepSidebarRow } from './sidebar/useRowKeys'
 
 /** Renders again only when its props change: its owner keeps them the same while nothing it shows changes (typing in a note renders no sidebar). */
 export const Sidebar = memo(function Sidebar(props: SidebarProps) {
+  useLocale()
   useKeymap()
   const { width: sidebarWidth, edge: resizeEdge } = usePaneResize(SIDEBAR_PANE)
   const { tree, selection, renaming } = props

@@ -5,11 +5,21 @@ use objc2::runtime::AnyObject;
 use objc2_foundation::{NSArray, NSBundle, NSString, NSUserDefaults};
 
 const KEY: &str = "AppleLanguages";
+const GLOBAL_DOMAIN: &str = "NSGlobalDomain";
 
 /// None while the app follows the system's languages.
 pub fn app_languages() -> Option<Vec<String>> {
-    let id = NSBundle::mainBundle().bundleIdentifier()?;
-    let domain = NSUserDefaults::standardUserDefaults().persistentDomainForName(&id)?;
+    languages_in(&NSBundle::mainBundle().bundleIdentifier()?)
+}
+
+/// The languages set in System Settings, read afresh: the process's own list
+/// (`NSLocale.preferredLanguages`) holds the app's choice as it was at launch.
+pub fn system_languages() -> Option<Vec<String>> {
+    languages_in(&NSString::from_str(GLOBAL_DOMAIN))
+}
+
+fn languages_in(domain: &NSString) -> Option<Vec<String>> {
+    let domain = NSUserDefaults::standardUserDefaults().persistentDomainForName(domain)?;
     let value = domain.objectForKey(&NSString::from_str(KEY))?;
     let list = value.downcast_ref::<NSArray>()?;
     Some(
@@ -20,7 +30,7 @@ pub fn app_languages() -> Option<Vec<String>> {
     )
 }
 
-/// Takes effect from the next launch: the system reads its languages once per process.
+/// The system's own panels read it from the next launch: they take their languages once per process.
 pub fn set_app_languages(tags: Option<&[&str]>) {
     let defaults = NSUserDefaults::standardUserDefaults();
     let key = NSString::from_str(KEY);

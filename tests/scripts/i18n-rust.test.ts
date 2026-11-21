@@ -39,6 +39,12 @@ describe("the Mac's native text for Rust", () => {
     expect(rust).toContain(
       "pub struct Native {\n    pub a: &'static str,\n    pub b: &'static str,\n}",
     )
+    expect(rust).toContain(
+      'pub const FIELDS: [&\'static str; 2] = [\n        "a",\n        "b",\n    ];',
+    )
+    expect(rust).toContain(
+      "pub fn texts(&self) -> [&'static str; 2] {\n        [\n            self.a,\n            self.b,\n        ]",
+    )
     expect(rust).toContain('pub static EN: Native = Native {\n    a: "A",\n    b: "B",\n};')
     expect(rust).toContain('pub static ZH_HANS: Native = Native {\n    a: "X",\n    b: "B",\n};')
   })

@@ -1,6 +1,6 @@
 // The entry of export.html (see cliExport.ts).
 import { runExport } from './cliExport'
-import { resolveLocale, setLocale } from './i18n'
+import { resolveLocale, setLocale, shownLanguages } from './i18n'
 
-await setLocale(resolveLocale(navigator.languages))
+await setLocale(resolveLocale(shownLanguages()))
 void runExport()

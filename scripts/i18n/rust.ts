@@ -37,7 +37,7 @@ export function rustString(text: string): string {
 const placeholders = (text: string) =>
   [...text.matchAll(/(?<!\{)\{(\w+)\}(?!\})/g)].map((match) => match[1]!).sort()
 
-/** `Native`, a field per key of `english`, and one static per language; a missing translation is English. */
+/** `Native`, a field per key of `english` and its `texts()` in that order, and one static per language; a missing translation is English. */
 export function compileNative(
   english: Catalog,
   translations: Readonly<Record<string, Partial<Catalog>>>,
@@ -65,6 +65,20 @@ export function compileNative(
     ')]',
     'pub struct Native {',
     ...names.map((name) => `    pub ${name}: &'static str,`),
+    '}',
+    '',
+    'impl Native {',
+    "    /// Each field's name, in the order of `texts()`.",
+    `    pub const FIELDS: [&'static str; ${names.length}] = [`,
+    ...names.map((name) => `        "${name}",`),
+    '    ];',
+    '',
+    "    /// Every text, in field order, so one language's text finds its counterpart in another.",
+    `    pub fn texts(&self) -> [&'static str; ${names.length}] {`,
+    '        [',
+    ...names.map((name) => `            self.${name},`),
+    '        ]',
+    '    }',
     '}',
     '',
     ...block('EN', english),

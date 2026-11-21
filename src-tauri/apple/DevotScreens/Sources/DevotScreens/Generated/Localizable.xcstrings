@@ -13771,23 +13771,6 @@
         }
       }
     },
-    "generalSettings.languagePending" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restart Devot to show the language you chose."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新启动 Devot 以使用所选的语言。"
-          }
-        }
-      }
-    },
     "generalSettings.listDates" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13937,23 +13920,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法打开数据文件夹。"
-          }
-        }
-      }
-    },
-    "generalSettings.restartNow" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restart Now"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "立即重新启动"
           }
         }
       }

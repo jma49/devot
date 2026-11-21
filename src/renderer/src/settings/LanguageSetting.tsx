@@ -6,7 +6,6 @@ import {
   APP_LANGUAGES,
   appLanguage,
   languageName,
-  restartForLanguage,
   setAppLanguage,
   type AppLanguage,
   type LanguageState,
@@ -44,7 +43,6 @@ export function LanguageSetting() {
       },
     )
   }
-  const pending = state.chosen !== state.running
 
   return (
     <SettingsSection title="generalSettings.languageGroup">
@@ -55,9 +53,7 @@ export function LanguageSetting() {
       ) : null}
       <Setting
         label="generalSettings.language"
-        description={t(
-          pending ? 'generalSettings.languagePending' : 'generalSettings.languageHint',
-        )}
+        description={t('generalSettings.languageHint')}
         htmlFor={`${ids}-language`}
         descriptionId={`${ids}-language-hint`}
       >
@@ -73,11 +69,6 @@ export function LanguageSetting() {
             </option>
           ))}
         </Select>
-        {pending ? (
-          <button type="button" className="button" onClick={() => restartForLanguage().catch(fail)}>
-            {t('generalSettings.restartNow')}
-          </button>
-        ) : null}
       </Setting>
     </SettingsSection>
   )

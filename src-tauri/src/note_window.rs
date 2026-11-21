@@ -311,6 +311,9 @@ pub fn open(app: &AppHandle, id: &str) -> Result<(), &'static str> {
     if let Some(stored) = &stored {
         builder = builder.initialization_script(crate::editor_settings::initial_script(stored));
     }
+    if let Some(language) = crate::app_language::initial_script() {
+        builder = builder.initialization_script(language);
+    }
     let remembered = app
         .try_state::<NoteWindows>()
         .and_then(|windows| windows.frame(id))

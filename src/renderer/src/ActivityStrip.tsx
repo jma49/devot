@@ -5,6 +5,7 @@ import { errorCode } from '../../core/errors'
 import type { HeadlineLoader } from './headlines'
 import { countOf, dayDate } from './format'
 import { format, t } from './i18n'
+import { useLocale } from './liveLocale'
 
 /** The days of `days` from today back, shown for a strip read on an earlier day too: a day since then had no activity, or the row would have been read again. */
 export function stripDays(days: readonly StripDay[], now: number): StripDay[] {
@@ -58,6 +59,7 @@ export const ActivityStrip = memo(function ActivityStrip(props: {
   now: number
   locale: string
 }) {
+  useLocale()
   const days = stripDays(props.days, props.now)
   const active = days.filter((d) => d.edits > 0).length
   if (active === 0) return null

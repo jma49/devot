@@ -41,22 +41,46 @@ export function resolveLocale(preferred: readonly string[]): string {
   return SOURCE_LOCALE
 }
 
+/**
+ * The languages this window shows, most preferred first: the one the Mac app shows now, which it
+ * sets before the page loads (`app_language.rs`), else the web view's own.
+ */
+export function shownLanguages(): readonly string[] {
+  const shown = (globalThis as { devotLanguage?: unknown }).devotLanguage
+  if (typeof shown === 'string') return [shown]
+  return (
+    (globalThis as { navigator?: { languages?: readonly string[] } }).navigator?.languages ?? []
+  )
+}
+
 let active: Partial<Messages> = english
 let activeLocale = SOURCE_LOCALE
+let requested = 0
+const listeners = new Set<() => void>()
 
-/** Loads `locale`'s catalog the first time, then makes it the active one. */
+/** Loads `locale`'s catalog the first time, then makes it the active one; a later call wins. */
 export async function setLocale(locale: string): Promise<void> {
+  const request = ++requested
   const load = translations[locale]
   if (load && !catalogs[locale]) {
     const { messages, phone } = await load()
     catalogs[locale] = messages
     phoneWordings[locale] = phone
   }
+  if (request !== requested) return
+  const before = activeLocale
   active = catalogs[locale] ?? english
   activeLocale = catalogs[locale] ? locale : SOURCE_LOCALE
   // WebKit picks Han glyphs, line breaks and VoiceOver's voice by the page's language.
   const page = (globalThis as { document?: { documentElement: { lang: string } } }).document
   if (page) page.documentElement.lang = LANGUAGE_TAGS[activeLocale] ?? SOURCE_LOCALE
+  if (activeLocale !== before) for (const listener of [...listeners]) listener()
+}
+
+/** Calls `listener` after each change of the active locale; returns what stops it. */
+export function subscribeLocale(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
 }
 
 /** Sentences shown one after another: a space apart, but none after Chinese full-width punctuation. */

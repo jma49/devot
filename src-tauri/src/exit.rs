@@ -207,10 +207,9 @@ fn decide(exit_code: Option<i32>, exiting: bool, held: bool) -> Decision {
 
 /// Exits for the quit of `round`: false, doing nothing, unless that quit is still held.
 fn exit_now(app: &AppHandle, round: u64) -> bool {
-    // Restart to Update restarts into the update it installed (see `updates`); Settings' Restart
-    // Now into the language just chosen (`app_language`).
+    // Restart to Update restarts into the update it installed (see `updates`).
     #[cfg(desktop)]
-    let restart = crate::updates::on_exit(app) || crate::app_language::on_exit();
+    let restart = crate::updates::on_exit(app);
     #[cfg(mobile)]
     let restart = false;
     if !app.state::<ExitGate>().exit(round, restart) {
@@ -451,7 +450,6 @@ pub fn app_exit_cancel(
         // The notice that says why lives in the window that could not save, hidden in menu bar mode.
         crate::menu_bar::reveal_window(&app, window.label());
         crate::updates::restart_called_off(&app);
-        crate::app_language::restart_called_off();
     }
     #[cfg(mobile)]
     let _ = window;

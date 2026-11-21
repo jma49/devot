@@ -89,6 +89,7 @@ import { setWriteFocus } from './editor/write'
 import type { Core } from './core-client'
 import type { ScrollPane } from './preview/scrollSync'
 import { clampSelection, clampTop } from './lastState'
+import { useLocale } from './liveLocale'
 
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
 const RESTORE = 'restore'
@@ -481,6 +482,21 @@ export function NoteEditor({
     view.dispatch({ effects: writeSlot.reconfigure(writeFor(write, core)) })
     if (scroller && top) scrollToTop(view, scroller, top)
   }, [write, core, hidden])
+
+  // Widgets, hints and tooltips made their text when drawn: a new locale draws the note again, keeping
+  // its state (text, selection, undo) and the line at the top.
+  const locale = useLocale()
+  const drawnIn = useRef(locale)
+  useEffect(() => {
+    const view = editor.current?.view
+    if (drawnIn.current === locale) return
+    drawnIn.current = locale
+    if (!view) return
+    const scroller = box.current?.scroller
+    const top = scroller && !hidden ? editorTop(view, scroller) : undefined
+    view.setState(view.state)
+    if (scroller && top) scrollToTop(view, scroller, top)
+  }, [locale, hidden])
 
   useEffect(() => {
     if (locked.current === lock) return

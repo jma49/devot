@@ -329,9 +329,7 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
     reviewPreview,
     yCollab(text, null, { undoManager: false }),
     yjsHistory(note.restoring, note.restoredWrites),
-    EditorView.contentAttributes.of({
-      'aria-label': t('note.bodyLabel'),
-    }),
+    EditorView.contentAttributes.of(() => ({ 'aria-label': t('note.bodyLabel') })),
     editorLayoutWatch,
     countsReporter(
       (counts) => refs.countsReport.current?.(counts),

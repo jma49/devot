@@ -7402,14 +7402,6 @@ public enum L10n {
     text("generalSettings.language.system", "Same as System")
   }
 
-  public static func generalSettingsLanguagePending() -> String {
-    text("generalSettings.languagePending", "Restart Devot to show the language you chose.")
-  }
-
-  public static func generalSettingsRestartNow() -> String {
-    text("generalSettings.restartNow", "Restart Now")
-  }
-
   public static func generalSettingsLanguageFailed() -> String {
     text("generalSettings.languageFailed", "The language could not be changed.")
   }

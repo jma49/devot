@@ -48,6 +48,7 @@ import {
   type TableSettings,
 } from './table'
 import { sizes } from './theme/tokens'
+import { useLocale } from './liveLocale'
 
 export type PropertyLoader = (ids: string[]) => Promise<Record<string, Properties>>
 
@@ -291,6 +292,7 @@ interface Editing {
  * writes the note's front matter. Only the rows near the part that shows render.
  */
 export const NoteTable = memo(function NoteTable(props: NoteTableProps) {
+  useLocale()
   const { notes, selected, onSelect, onWrite } = props
   const locale = currentLocale()
   const collator = useMemo(

@@ -65,6 +65,9 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
     if let Some(store) = crate::data_folder::this_build_web_data_store() {
         builder = builder.data_store_identifier(store);
     }
+    if let Some(language) = crate::app_language::initial_script() {
+        builder = builder.initialization_script(language);
+    }
     let builder = builder
         .title(strings::native().settings_title)
         .theme(theme)

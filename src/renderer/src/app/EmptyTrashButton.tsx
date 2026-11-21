@@ -1,5 +1,6 @@
 import { t } from '../i18n'
 import { ToolIcon } from '../icons/Icon'
+import { useLocale } from '../liveLocale'
 
 /** The Trash list's action, shaped like New Note; aria-disabled keeps the keyboard on it. */
 export function EmptyTrashButton({
@@ -9,6 +10,7 @@ export function EmptyTrashButton({
   disabled: boolean
   onClick: () => void
 }) {
+  useLocale()
   return (
     <button
       type="button"

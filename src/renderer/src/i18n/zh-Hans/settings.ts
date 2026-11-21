@@ -27,10 +27,8 @@ export const messages: Record<keyof typeof en, string> = {
   'generalSettings.languageGroup': '语言',
   'generalSettings.language': '应用语言',
   'generalSettings.languageHint':
-    'Devot 的窗口、菜单和对话框使用的语言。更改在 Devot 重新启动后生效。',
+    'Devot 的窗口、菜单和对话框使用的语言。少数由系统添加的项目会在下次打开 Devot 时跟着改变。',
   'generalSettings.language.system': '跟随系统',
-  'generalSettings.languagePending': '重新启动 Devot 以使用所选的语言。',
-  'generalSettings.restartNow': '立即重新启动',
   'generalSettings.languageFailed': '无法更改语言。',
   'generalSettings.defaultNotebook': '默认笔记本',
   'generalSettings.defaultNotebookHint': '当前视图没有笔记本时，新笔记放入的笔记本。',

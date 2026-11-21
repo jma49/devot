@@ -12,7 +12,7 @@ use tauri::{AppHandle, Manager, Wry};
 
 pub const ACTION_EVENT: &str = "devot://plugin-action";
 pub const SETTINGS_ID: &str = "devot.plugins.settings";
-const ITEM_PREFIX: &str = "devot.plugin.";
+pub const ITEM_PREFIX: &str = "devot.plugin.";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

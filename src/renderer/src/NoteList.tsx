@@ -46,6 +46,7 @@ import { useRowMotion } from './rowMotion'
 import { scrollRowIntoView } from './listScroll'
 import { ListHeader } from './ListHeader'
 import { usePendingFocus } from './pendingFocus'
+import { useLocale } from './liveLocale'
 
 interface Props {
   /**
@@ -139,6 +140,7 @@ function spacer(key: string, height: number) {
 
 /** Renders again only when its props change (its owner keeps them the same while nothing it shows changes), and then only the rows that changed. */
 export const NoteList = memo(function NoteList(props: Props) {
+  useLocale()
   const { title, scope, pinned, selected, onSelect, onCreate, tags, sortButtonRef } = props
   const related = props.related ?? NO_NOTES
   const notes = useMemo(

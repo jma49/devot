@@ -15,14 +15,14 @@ import { startBackdropPainter } from './theme/backdropWindow'
 import { startMotion } from './motionPreference'
 import { startSidebarSurround } from './sidebarSurround'
 import { applyMotionScale } from './motionTiming'
-import { resolveLocale, setLocale, t } from './i18n'
+import { Localised, localiseTitle, startLocale } from './liveLocale'
 import { watchCompositions } from './ime'
 import { SettingsWindow } from './settings/SettingsWindow'
 import './theme/tokens.css'
 import './app.css'
 
-await setLocale(resolveLocale(navigator.languages))
-document.title = t('settings.title')
+await startLocale()
+localiseTitle('settings.title')
 // Before any key handler: the key that ends a composition is the input method's.
 watchCompositions(window)
 startEditorSettings()
@@ -45,6 +45,6 @@ if (!root) throw new Error('E_RENDERER_ROOT_MISSING')
 
 createRoot(root).render(
   <StrictMode>
-    <SettingsWindow />
+    <Localised render={() => <SettingsWindow />} />
   </StrictMode>,
 )
