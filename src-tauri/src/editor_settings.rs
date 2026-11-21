@@ -984,7 +984,7 @@ mod tests {
                 "inlineImages": true,
                 "appearance": "system",
                 "systemAccent": false,
-                "iconStyle": "sfSymbols",
+                "iconStyle": "lucide",
                 "toolbar": true,
                 "scrollPastEnd": true,
                 "showCounts": true,
