@@ -190,6 +190,7 @@ export function AiEditSheet(props: {
   const proposal = phase.kind === 'review' ? phase.proposal : undefined
   const changes = proposal?.parts.flatMap((p, i) => (p.kind === 'change' ? [i] : [])) ?? []
   const taken = changes.filter((i) => !rejected.has(i)).length
+  const unchanged = proposal !== undefined && changes.length === 0
   const failure = phase.kind === 'failed' ? aiEditFailure(phase.code) : undefined
   const rows = proposal ? proposalRows(proposal.parts) : []
   // The lines of each change, for a check box to describe the change it takes.
@@ -270,11 +271,11 @@ export function AiEditSheet(props: {
       ) : proposal ? (
         <>
           <p className="sheet-detail" role="status">
-            {format(t('aiEdit.review'), { model: proposal.model })}
+            {format(t(changes.length === 0 ? 'aiEdit.noChanges' : 'aiEdit.review'), {
+              model: proposal.model,
+            })}
           </p>
-          {changes.length === 0 ? (
-            <p className="sheet-detail">{t('aiEdit.noChanges')}</p>
-          ) : (
+          {changes.length === 0 ? null : (
             <section
               ref={diff}
               className="ai-edit-diff diff"
@@ -357,8 +358,13 @@ export function AiEditSheet(props: {
                 {t('aiEdit.retry')}
               </button>
             ) : null}
-            <button type="button" className="button" disabled={busy} onClick={close}>
-              {proposal ? t('aiEdit.discard') : t('aiEdit.close')}
+            <button
+              type="button"
+              className={unchanged ? 'button button-default' : 'button'}
+              disabled={busy}
+              onClick={close}
+            >
+              {proposal && !unchanged ? t('aiEdit.discard') : t('aiEdit.close')}
             </button>
             {allowAccess && typeof refusedBook === 'string' ? (
               <button
@@ -370,7 +376,7 @@ export function AiEditSheet(props: {
                 {t('aiEdit.allowAccess')}
               </button>
             ) : null}
-            {proposal ? (
+            {proposal && !unchanged ? (
               <button
                 type="button"
                 className="button button-default"

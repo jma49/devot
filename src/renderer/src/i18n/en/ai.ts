@@ -164,7 +164,7 @@ export const messages = {
   'aiEdit.changes': 'Proposed changes',
   'aiEdit.takeChange': 'Apply this change',
   'aiEdit.takeChangeOf': 'Apply change {index} of {count}',
-  'aiEdit.noChanges': 'The proposal leaves the selection as it is.',
+  'aiEdit.noChanges': '{model} proposes no changes: the selection stays as it is.',
   'aiEdit.accept': 'Accept',
   'aiEdit.acceptSome': 'Accept Selected',
   'aiEdit.retry': 'Try Again',

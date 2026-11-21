@@ -610,8 +610,8 @@ public enum L10n {
     fill(text("aiEdit.takeChangeOf", "Apply change {index} of {count}"), ["index": p0, "count": p1])
   }
 
-  public static func aiEditNoChanges() -> String {
-    text("aiEdit.noChanges", "The proposal leaves the selection as it is.")
+  public static func aiEditNoChanges(model p0: String) -> String {
+    fill(text("aiEdit.noChanges", "{model} proposes no changes: the selection stays as it is."), ["model": p0])
   }
 
   public static func aiEditAccept() -> String {

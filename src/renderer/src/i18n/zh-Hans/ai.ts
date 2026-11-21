@@ -158,7 +158,7 @@ export const messages: Record<keyof typeof en, string> = {
   'aiEdit.changes': '建议的修改',
   'aiEdit.takeChange': '应用此修改',
   'aiEdit.takeChangeOf': '应用第 {index} 处修改（共 {count} 处）',
-  'aiEdit.noChanges': '这份建议没有改动选中的内容。',
+  'aiEdit.noChanges': '{model} 没有提出修改，选中的内容保持不变。',
   'aiEdit.accept': '接受',
   'aiEdit.acceptSome': '接受所选',
   'aiEdit.retry': '重试',
