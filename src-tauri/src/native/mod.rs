@@ -112,7 +112,7 @@ pub fn configure_main_window(app: &tauri::App) {
     #[cfg(target_os = "macos")]
     {
         use tauri::Emitter;
-        macos::give_format_menu_keys_priority(crate::strings::native().menu_format);
+        macos::give_format_menu_keys_priority();
         let handle = app.handle().clone();
         macos::observe_accent_changes(move || {
             if handle.emit(ACCENT_EVENT, macos::system_accent()).is_err() {
@@ -135,6 +135,14 @@ pub fn preferred_languages() -> Vec<String> {
     Vec::new()
 }
 
+/// The languages set for the whole system, most preferred first, as they are now; none off macOS.
+pub fn system_languages() -> Vec<String> {
+    #[cfg(target_os = "macos")]
+    return macos::system_languages().unwrap_or_else(preferred_languages);
+    #[cfg(not(target_os = "macos"))]
+    Vec::new()
+}
+
 /// The languages chosen for this app alone, most preferred first; none while it follows the
 /// system, and always none off macOS.
 pub fn app_languages() -> Option<Vec<String>> {
@@ -144,7 +152,7 @@ pub fn app_languages() -> Option<Vec<String>> {
     None
 }
 
-/// Sets the app's own languages (none follows the system) for the next launch; false off macOS.
+/// Sets the app's own languages (none follows the system); false off macOS.
 pub fn set_app_languages(tags: Option<&[&str]>) -> bool {
     #[cfg(target_os = "macos")]
     {

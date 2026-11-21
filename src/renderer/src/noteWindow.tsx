@@ -5,9 +5,9 @@ import { createRoot } from 'react-dom/client'
 import { startShortcutSettings } from './commands/shortcutSettings'
 import { startCrashReporting } from './crash'
 import { editorSettings, startEditorSettings, subscribeEditorSettings } from './editorSettings'
-import { resolveLocale, setLocale } from './i18n'
 import { watchCompositions } from './ime'
 import { invoke } from './ipc'
+import { Localised, startLocale } from './liveLocale'
 import { forwardConsole, forwardUncaught, type LogEntry } from './log'
 import { startMotion } from './motionPreference'
 import { applyMotionScale } from './motionTiming'
@@ -32,7 +32,7 @@ if (sentryDsn) {
     .catch(() => console.warn('W_CRASH_REPORTING_START_FAILED'))
 }
 
-await setLocale(resolveLocale(navigator.languages))
+await startLocale()
 // Before any key handler: the key that ends a composition is the input method's.
 watchCompositions(window)
 startEditorSettings()
@@ -53,6 +53,6 @@ if (!root) throw new Error('E_RENDERER_ROOT_MISSING')
 
 createRoot(root).render(
   <StrictMode>
-    <NoteWindow />
+    <Localised render={() => <NoteWindow />} />
   </StrictMode>,
 )

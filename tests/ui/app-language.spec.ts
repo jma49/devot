@@ -1,3 +1,4 @@
+import { zhHans } from '../../src/renderer/src/i18n/zh-Hans'
 import { expect, test } from './fixtures'
 
 const SIMPLIFIED_CHINESE = '\u7b80\u4f53\u4e2d\u6587'
@@ -9,14 +10,13 @@ test.beforeEach(async ({ page }) => {
     w.devotIpcMocks = {
       app_language_set: ({ language }: { language: string }) => {
         chosen = language
-        return { chosen, running: 'system', available: true }
+        return { chosen, shown: chosen === 'system' ? 'en' : chosen, available: true }
       },
-      app_language_restart: null,
     }
   })
 })
 
-test('General picks the app language, and offers a restart until it shows', async ({ page }) => {
+test('General picks the app language, which shows at once without a restart', async ({ page }) => {
   await page.goto('/settings.html')
   const language = page.getByLabel('App Language')
   await expect(language).toHaveValue('system')
@@ -25,18 +25,22 @@ test('General picks the app language, and offers a restart until it shows', asyn
     'English',
     SIMPLIFIED_CHINESE,
   ])
-  const restart = page.getByRole('button', { name: 'Restart Now' })
-  await expect(restart).toHaveCount(0)
 
   await language.selectOption('zh-Hans')
-  await expect(page.getByText('Restart Devot to show the language you chose.')).toBeVisible()
-  await restart.click()
   await expect
     .poll(() => page.evaluate(() => window.devotIpcCalls.map((c) => c.cmd)))
-    .toContain('app_language_restart')
-
-  await language.selectOption('system')
-  await expect(restart).toHaveCount(0)
+    .toContain('app_language_set')
+  // Rust announces the language to every window, this one too.
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new CustomEvent('devot:app-language-changed', {
+        detail: { chosen: 'zh-Hans', shown: 'zh-Hans', available: true },
+      }),
+    ),
+  )
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hans')
+  await expect(page.getByLabel(zhHans['generalSettings.language'])).toHaveValue('zh-Hans')
+  await expect(page.getByRole('button', { name: /Restart/ })).toHaveCount(0)
 })
 
 test('a build that cannot set its own language does not offer one', async ({ page }) => {
@@ -44,7 +48,7 @@ test('a build that cannot set its own language does not offer one', async ({ pag
     const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
-      app_language_get: { chosen: 'system', running: 'system', available: false },
+      app_language_get: { chosen: 'system', shown: 'en', available: false },
     }
   })
   await page.goto('/settings.html')

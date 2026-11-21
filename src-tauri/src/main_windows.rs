@@ -283,6 +283,9 @@ pub(crate) fn build(
     if let Some(stored) = &stored {
         builder = builder.initialization_script(crate::editor_settings::initial_script(stored));
     }
+    if let Some(language) = crate::app_language::initial_script() {
+        builder = builder.initialization_script(language);
+    }
     let window = builder.build().map_err(|_| "E_MAIN_WINDOW_FAILED")?;
     crate::native::main_window_built(&window);
     #[cfg(target_os = "macos")]

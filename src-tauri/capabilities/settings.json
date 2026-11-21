@@ -31,7 +31,6 @@
     "allow-crash-reports-set",
     "allow-app-language-get",
     "allow-app-language-set",
-    "allow-app-language-restart",
     "allow-update-status",
     "allow-update-check",
     "allow-settings-mcp-setup",

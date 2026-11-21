@@ -57,6 +57,7 @@ import { useRowMotion } from './rowMotion'
 import { usePendingFocus } from './pendingFocus'
 import { useStable } from './stable'
 import { sizes } from './theme/tokens'
+import { useLocale } from './liveLocale'
 
 interface Props {
   view: string
@@ -133,6 +134,7 @@ const gridTop = (outer: HTMLElement, inner: HTMLElement) =>
  * their thumbnails are read.
  */
 export const NoteGallery = memo(function NoteGallery(props: Props) {
+  useLocale()
   const { notes, selected, selection, onSelection, onSelect } = props
   const order = useMemo(() => notes.map((n) => n.id), [notes])
   const indexOf = useMemo(() => new Map(order.map((id, i) => [id, i])), [order])
@@ -583,6 +585,7 @@ interface CardProps {
 }
 
 export const GalleryCard = memo(function GalleryCard(props: CardProps) {
+  useLocale()
   const { note: n, events } = props
   const id = n.id
   const ref = useCallback((el: HTMLLIElement) => events.setCard(id, el), [events, id])

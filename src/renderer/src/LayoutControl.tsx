@@ -4,6 +4,7 @@ import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 import type { ListLayout } from './lastState'
 import { useSegmentSlide } from './segmentSlide'
+import { useLocale } from './liveLocale'
 
 const LAYOUTS: { layout: ListLayout; icon: IconName; label: MessageKey; title: MessageKey }[] = [
   { layout: 'list', icon: 'layout.list', label: 'layout.list', title: 'command.showList' },
@@ -34,6 +35,7 @@ export function LayoutControl(props: {
   onChange: (layout: ListLayout, keyboard: boolean) => void
   takesKeyboard?: () => boolean
 }) {
+  useLocale()
   const pressed = useRef<HTMLButtonElement>(null)
   const group = useRef<HTMLDivElement>(null)
   const shown = LAYOUTS.filter((l) => props.layouts.includes(l.layout))

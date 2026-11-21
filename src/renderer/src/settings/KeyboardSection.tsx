@@ -18,12 +18,13 @@ import { COMMANDS, command, type CommandId, type CommandScope } from '../command
 import { changeShortcuts, useKeymap, useShortcutOverrides } from '../commands/shortcutSettings'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { Icon } from '../icons/Icon'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { format, t, type MessageKey } from '../i18n'
 import { isImeKey } from '../ime'
 import { MoreMenu, SettingsSection } from './controls'
 import { GROUP_LABELS, groupedShortcuts } from './shortcutSearch'
 import { ToolbarEnd } from './toolbar'
 import { failureText, logFailure } from '../failure'
+import { useLocale } from '../liveLocale'
 
 const SCOPES: Readonly<Record<Exclude<CommandScope, 'window'>, MessageKey>> = {
   editor: 'shortcuts.scope.editor',
@@ -78,9 +79,10 @@ export function KeyboardSection() {
   const [error, setError] = useState<string>()
   useKeyLayout()
   const ids = useId()
+  const locale = useLocale()
   const list = useMemo(
-    () => new Intl.ListFormat(currentLocale(), { style: 'long', type: 'conjunction' }),
-    [],
+    () => new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }),
+    [locale],
   )
   const keysText = (keys: readonly string[]) =>
     keys.length === 0 ? t('shortcuts.none') : list.format(keys.map(shortcutLabel))

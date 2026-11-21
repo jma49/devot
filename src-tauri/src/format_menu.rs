@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn groups_inline_formats_headings_blocks_and_alerts() {
-        let english = strings::for_languages(&["en"]);
+        let english = strings::Language::English.native();
         let shape: Vec<String> = FORMAT_MENU
             .iter()
             .map(|entry| match entry {

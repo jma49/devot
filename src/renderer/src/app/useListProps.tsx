@@ -13,13 +13,15 @@ import { useStable } from '../stable'
 import type { BookRecord, TagRecord } from '../../../core/storage'
 import type { useSearch } from '../useSearch'
 import type { ViewState } from './useLibraryView'
+import { useLocale } from '../liveLocale'
 
 const LAYOUTS_WITH_BOARD: readonly ListLayout[] = ['list', 'board', 'gallery', 'table']
 const LAYOUTS_WITHOUT_BOARD: readonly ListLayout[] = ['list', 'gallery', 'table']
 
 function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
-  // Re-render on keymap changes: the tooltip names the key in effect.
+  // Re-render on keymap and locale changes: the tooltip names the key in effect.
   useKeymap()
+  useLocale()
   return (
     <>
       <span className="window-inset" aria-hidden="true" data-tauri-drag-region />
@@ -101,6 +103,7 @@ export function useListProps({
   )
   const changeQueryStable = useStable((next: string) => changeQuery(next))
   const clearSearchStable = useStable(() => clearSearch())
+  const searchPlaceholder = inView ? t('search.placeholder') : t('search.placeholderAll')
   const filterField = useMemo(
     () => (
       <SearchField
@@ -110,7 +113,7 @@ export function useListProps({
         onClear={clearSearchStable}
         onSubmit={submitSearch}
         onOptions={editing ? openSearchFieldMenu : undefined}
-        placeholder={inView ? t('search.placeholder') : t('search.placeholderAll')}
+        placeholder={searchPlaceholder}
         books={books}
         tags={tags}
       />
@@ -118,7 +121,7 @@ export function useListProps({
     [
       searchField,
       query,
-      inView,
+      searchPlaceholder,
       editing,
       books,
       tags,

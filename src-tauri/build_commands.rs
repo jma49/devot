@@ -132,7 +132,6 @@ const SETTINGS: &[&str] = &[
     "crash_reports_set",
     "app_language_get",
     "app_language_set",
-    "app_language_restart",
 ];
 
 /// Quick capture, note windows, background running and the main windows.

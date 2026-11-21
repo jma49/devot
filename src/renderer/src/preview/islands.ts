@@ -4,6 +4,7 @@
 // that need the page's layout engine (Mermaid measures text as it draws).
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import type { Appearance } from '../icons/symbols'
+import { currentLocale } from '../i18n'
 
 /** The attribute a worker-side renderer puts on an element the page draws (preview/index.ts). */
 export const ISLAND_ATTRIBUTE = 'data-devot-island'
@@ -348,7 +349,8 @@ export function createIslandMounter(
       // A pane that is hidden has no width: what is drawn stays until it is shown.
       const width = follows ? (drawingWidth(el.clientWidth) ?? known?.width) : undefined
       const revision = island?.revision?.(context) ?? ''
-      const key = `${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${revision}\n${source}`
+      // Drawings carry labels (a diagram's name): a new locale draws them again.
+      const key = `${currentLocale()}\n${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${revision}\n${source}`
       // A failure that may pass waits out its backoff; a source that changed
       // starts over at once.
       if (known?.key === key && (!known.retry || known.retryAt > Date.now())) continue

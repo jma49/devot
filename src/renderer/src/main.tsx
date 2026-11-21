@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { invoke } from './ipc'
 import { App } from './App'
 import { isPhoneLayout, phoneDevice } from './phone/navigation'
-import { resolveLocale, setIPhoneWording, setLocale, setPhoneDevice } from './i18n'
+import { setIPhoneWording, setPhoneDevice } from './i18n'
+import { Localised, startLocale } from './liveLocale'
 import { watchCompositions } from './ime'
 import { startCrashReporting } from './crash'
 import { startCore } from './core-client'
@@ -34,7 +35,7 @@ if (sentryDsn) {
     .catch(() => console.warn('W_CRASH_REPORTING_START_FAILED'))
 }
 
-await setLocale(resolveLocale(navigator.languages))
+await startLocale()
 setIPhoneWording(isPhoneLayout(navigator.userAgent))
 setPhoneDevice(phoneDevice(navigator.userAgent, navigator.maxTouchPoints))
 // Before any key handler: the key that ends a composition is the input method's.
@@ -66,12 +67,16 @@ if (!root) throw new Error('E_RENDERER_ROOT_MISSING')
 
 createRoot(root).render(
   <StrictMode>
-    {isPhoneLayout(navigator.userAgent) ? (
-      <Suspense>
-        <PhoneApp />
-      </Suspense>
-    ) : (
-      <App />
-    )}
+    <Localised
+      render={() =>
+        isPhoneLayout(navigator.userAgent) ? (
+          <Suspense>
+            <PhoneApp />
+          </Suspense>
+        ) : (
+          <App />
+        )
+      }
+    />
   </StrictMode>,
 )

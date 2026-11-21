@@ -273,7 +273,6 @@ pub fn run() {
             crash::crash_reports_set,
             app_language::app_language_get,
             app_language::app_language_set,
-            app_language::app_language_restart,
             settings::settings_open_licence,
             #[cfg(desktop)]
             mcp_clients::settings_mcp_setup,

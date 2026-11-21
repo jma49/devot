@@ -201,8 +201,7 @@ export async function mockTauri(page: Page): Promise<void> {
               problem: null,
             }
           if (cmd === 'background_state') return { mode: 'normal' }
-          if (cmd === 'app_language_get')
-            return { chosen: 'system', running: 'system', available: true }
+          if (cmd === 'app_language_get') return { chosen: 'system', shown: 'en', available: true }
           if (cmd === 'http_api_get')
             return {
               enabled: false,
