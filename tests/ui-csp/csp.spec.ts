@@ -812,3 +812,12 @@ test('local PlantUML and Markmap diagrams render under the production policy', a
   await expect(map.locator('path').first()).toHaveAttribute('stroke-width', /[1-9]/)
   expect(await violations(page)).toEqual([])
 })
+
+test('Kubai icons paint their shading under the policy', async ({ page }) => {
+  await start(page)
+  await changeEditorSettingsElsewhere(page, { iconStyle: 'kubai' })
+  const glyph = page.locator('svg[data-kubai]').first()
+  await expect(glyph).toBeVisible()
+  await expect(glyph.locator('stop').first()).not.toHaveCSS('stop-color', 'rgb(0, 0, 0)')
+  expect(await violations(page)).toEqual([])
+})

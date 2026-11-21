@@ -8230,6 +8230,10 @@ public enum L10n {
     text("appearanceSettings.iconStyleLucide", "Lucide")
   }
 
+  public static func appearanceSettingsIconStyleKubai() -> String {
+    text("appearanceSettings.iconStyleKubai", "Kubai")
+  }
+
   public static func appearanceSettingsSystemAccent() -> String {
     text("appearanceSettings.systemAccent", "Use the System Accent Color")
   }

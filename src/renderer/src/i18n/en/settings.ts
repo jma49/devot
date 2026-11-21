@@ -278,6 +278,7 @@ export const messages = {
   'appearanceSettings.iconStyle': 'Icon style',
   'appearanceSettings.iconStyleSfSymbols': 'SF Symbols',
   'appearanceSettings.iconStyleLucide': 'Lucide',
+  'appearanceSettings.iconStyleKubai': 'Kubai',
   'appearanceSettings.systemAccent': 'Use the System Accent Color',
   'appearanceSettings.systemAccentHint':
     'Buttons, links and selections follow the accent color chosen in System Settings.',

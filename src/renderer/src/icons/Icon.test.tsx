@@ -85,6 +85,7 @@ describe('iconElement', () => {
     }
     return Object.assign(el, {
       setAttribute: vi.fn<() => void>(),
+      removeAttribute: vi.fn<() => void>(),
       style: { setProperty: vi.fn<() => void>() },
     })
   }

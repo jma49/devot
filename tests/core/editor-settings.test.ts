@@ -433,13 +433,13 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ systemAccent: true }).systemAccent).toBe(true)
   })
 
-  it('reads the icon style as SF Symbols or Lucide, and anything else as SF Symbols', () => {
-    expect(ICON_STYLES).toEqual(['sfSymbols', 'lucide'])
+  it('reads the icon style as SF Symbols, Lucide or Kubai, and anything else as SF Symbols', () => {
+    expect(ICON_STYLES).toEqual(['sfSymbols', 'lucide', 'kubai'])
     for (const iconStyle of ICON_STYLES) {
       expect(parseEditorSettings({ iconStyle }).iconStyle).toBe(iconStyle)
       expect(checkEditorSettingsPatch({ iconStyle })).toEqual({ iconStyle })
     }
-    for (const iconStyle of ['Lucide', 'sf', '', 1, null, true]) {
+    for (const iconStyle of ['Lucide', 'Kubai', 'sf', '', 1, null, true]) {
       expect(parseEditorSettings({ iconStyle }).iconStyle).toBe('sfSymbols')
       expect(() => checkEditorSettingsPatch({ iconStyle })).toThrow('E_EDITOR_SETTINGS_INVALID')
     }
