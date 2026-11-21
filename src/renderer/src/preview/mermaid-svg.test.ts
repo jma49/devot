@@ -43,8 +43,8 @@ describe('a drawing taken from the frame', () => {
     ])
       expect(svg.getElementsByTagName(name)).toHaveLength(0)
     expect(svg.outerHTML).not.toContain('tracker')
-    expect(svg.querySelector('a')?.getAttribute('href')).toBe('#n')
-    expect(svg.getElementsByTagName('feGaussianBlur')).toHaveLength(1)
+    expect(svg.querySelector('a')).toBeNull()
+    expect(svg.getElementsByTagName('feGaussianBlur')).toHaveLength(0)
   })
 
   it('gives each import of the same markup ids of its own', () => {
@@ -54,7 +54,7 @@ describe('a drawing taken from the frame', () => {
       '<defs><marker id="devot-mermaid-7-arrow"/><g id="devot-mermaid-7-sym"/>' +
       '<marker id="devot-mermaid-7_flowchart-v2-pointEnd"/></defs>' +
       '<path marker-end="url(#devot-mermaid-7-arrow)"/>' +
-      '<textPath href="#devot-mermaid-7-sym"/><g id="devot-mermaid-70"/></svg>'
+      '<g mask="url(#devot-mermaid-7-sym)"/><g id="devot-mermaid-70"/></svg>'
     const copies = [importSvg(markup), importSvg(markup)]
     const [one, two] = copies.map((c) => c.svg.getAttribute('id')!)
     expect(one).not.toBe(two)
@@ -68,7 +68,7 @@ describe('a drawing taken from the frame', () => {
       const refs = [
         ...Array.from(svg.querySelectorAll('*'), (el) => [
           el.getAttribute('marker-end')?.match(/url\(#([^)]+)\)/)?.[1],
-          el.getAttribute('href')?.slice(1),
+          el.getAttribute('mask')?.match(/url\(#([^)]+)\)/)?.[1],
         ]).flat(),
       ].filter((ref): ref is string => ref !== undefined)
       expect(refs).toHaveLength(2)
@@ -78,5 +78,27 @@ describe('a drawing taken from the frame', () => {
       expect(selected).toContain('devot-mermaid-70')
       for (const id of selected) expect(id === 'devot-mermaid-70' || id.startsWith(own)).toBe(true)
     }
+  })
+
+  it('refuses unobserved elements and attributes, including namespaced links', () => {
+    const { svg } = importSvg(
+      drawing(
+        '<foo><rect/></foo><animate/><set/><a><text>link</text></a>' +
+          '<rect xmlns:xlink="http://www.w3.org/1999/xlink" onload="bad()" unknown="yes" href="javascript:bad()" xlink:href="javascript:bad()" style="fill:red;stroke:url(https://evil.example/x)"/>' +
+          '<text xml:space="preserve"> A  B </text>',
+      ),
+    )
+    expect(svg.querySelectorAll('foo, animate, set, a')).toHaveLength(0)
+    const rect = svg.querySelector('rect')!
+    expect(Array.from(rect.attributes, (attr) => attr.name)).toEqual(['style'])
+    expect(rect.getAttribute('style')).not.toContain('url')
+    expect(rect.getAttribute('style')).toContain('red')
+    expect(svg.querySelector('text')?.getAttribute('xml:space')).toBe('preserve')
+  })
+
+  it('accepts an empty SVG and rejects empty, malformed and non-SVG answers', () => {
+    expect(importSvg(drawing('')).svg.children).toHaveLength(0)
+    for (const markup of ['', '<svg', '<p/>', '<svg xmlns="https://evil.example"/>'])
+      expect(() => importSvg(markup)).toThrow('E_MERMAID_SVG')
   })
 })

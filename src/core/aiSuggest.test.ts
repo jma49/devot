@@ -127,6 +127,16 @@ describe('the reply', () => {
     ).toBe('1. Pack the bags. Fill the tank.')
   })
 
+  it('starts with a space after a sentence mark, as the model may leave it out', () => {
+    expect(cleanSuggestion('then we rest.', ctx('We drive,'), false)).toBe(' then we rest.')
+    expect(cleanSuggestion('Then we rest.', ctx('We drive.'), false)).toBe(' Then we rest.')
+    expect(cleanSuggestion(' then we rest.', ctx('We drive,'), false)).toBe(' then we rest.')
+    expect(cleanSuggestion('\u7136\u540e\u4f11\u606f\u3002', ctx('We drive,'), false)).toBe(
+      '\u7136\u540e\u4f11\u606f\u3002',
+    )
+    expect(cleanSuggestion('5 km', ctx('About 1.'), false)).toBe('5 km')
+  })
+
   it('is capped in length', () => {
     expect(cleanSuggestion('x'.repeat(SUGGEST_MAX_CHARS + 10), ctx('a'), false)).toHaveLength(
       SUGGEST_MAX_CHARS,
@@ -194,6 +204,26 @@ describe('the provider', () => {
         }),
       ),
     ).toBe('E_AI_CLI_MISSING')
+  })
+
+  it('is still being checked while the local tools have not answered', () => {
+    const checking = {
+      claudeCli: { state: 'checking', model: '', reasoning: null },
+      codexCli: { state: 'checking', model: '', reasoning: null },
+    } as const
+    expect(providerReady(settings({ active: 'claudeCli', cli: checking }))).toBe(
+      'E_AI_CLI_CHECKING',
+    )
+    expect(providerReady(settings({ activePending: true }, 'unset'))).toBe('E_AI_CLI_CHECKING')
+    expect(
+      providerReady(
+        settings({
+          activePending: true,
+          suggestModel: { provider: 'openai', model: '', reasoning: null },
+        }),
+        'suggest',
+      ),
+    ).toBe('ready')
   })
 
   it('for a suggestion is the suggestion model when Settings names one', () => {
