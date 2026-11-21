@@ -331,6 +331,11 @@ button {
   display: inline-flex;
 }
 
+/* Kubai's light tone as a wash of the icon's colour, so it reads on dark surfaces and on a selected row's accent too. */
+.icon-kubai {
+  --kd-b: color-mix(in srgb, currentColor 32%, transparent);
+}
+
 .icon-fill-solid {
   fill: currentColor;
 }

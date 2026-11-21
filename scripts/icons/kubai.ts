@@ -1,8 +1,8 @@
-// Writes the Kubai glyphs Devot draws (design/icons/kubai.json) from the kubai-icons package: their SVG content, and a stylesheet for their paint. `--check` fails instead of writing when either is stale.
+// Writes the Kubai two-tone glyphs Devot draws (design/icons/kubai.json) from the kubai-icons package: their SVG content, and a stylesheet for their paint. `--check` fails instead of writing when either is stale.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import * as kubai from 'kubai-icons'
+import * as kubai from 'kubai-icons/duotone'
 
 export const GLYPHS_TS = 'src/renderer/src/icons/kubaiGlyphs.ts'
 export const GLYPHS_CSS = 'src/renderer/src/icons/kubaiGlyphs.css'
@@ -46,7 +46,7 @@ export function render(catalog: { symbols: Record<string, string> }): { ts: stri
       throw new Error(`E_KUBAI_UNSAFE_MARKUP ${name}`)
     // The window's CSP refuses style attributes, so each paint becomes a class; the data attributes only drive Kubai's hover motion.
     const content = markup
-      .replace(/ data-(?:n|under|over)="[^"]*"/g, '')
+      .replace(/ data-(?:l|n|under|over)="[^"]*"/g, '')
       .replace(/ style="([^"]*)"/g, (_, paint: string) => {
         if (!paints.has(paint)) paints.set(paint, `ki-p${paints.size}`)
         return ` class="${paints.get(paint)}"`
