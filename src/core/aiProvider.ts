@@ -182,6 +182,8 @@ export interface AiSettingsView {
   cli?: AiCliViews
   /** Null: suggestions use the Model setting. */
   suggestModel: AiSuggestModel | null
+  /** `active` is only the stored fallback until the local tools' first check answers. */
+  activePending?: true
 }
 
 /** What Settings changes: the key goes in through its own command, and a field left out keeps its stored value. */
@@ -249,10 +251,8 @@ function asProviderView(value: unknown): AiProviderView | undefined {
 
 export function asAiSettingsView(value: unknown): AiSettingsView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { active, suggestOnIdle, anthropic, openai, cli, suggestModel } = value as Record<
-    string,
-    unknown
-  >
+  const { active, suggestOnIdle, anthropic, openai, cli, suggestModel, activePending } =
+    value as Record<string, unknown>
   const a = asProviderView(anthropic)
   const o = asProviderView(openai)
   if (!isProvider(active) || !a || !o) return undefined
@@ -262,6 +262,7 @@ export function asAiSettingsView(value: unknown): AiSettingsView | undefined {
     anthropic: a,
     openai: o,
     suggestModel: asSuggestModel(suggestModel),
+    ...(activePending === true ? { activePending: true as const } : {}),
   }
   if (cli === undefined) return view
   const parsedCli = asCliViews(cli)

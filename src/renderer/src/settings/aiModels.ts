@@ -86,6 +86,10 @@ export function mainChoice(view: AiSettingsView): ModelChoice {
   return { provider: view.active, ...providerModel(view, view.active) }
 }
 
+/** The target's provider waits on the local tools' first check, so neither it nor its state is known yet. */
+export const choicePending = (view: AiSettingsView, target: PickerTarget): boolean =>
+  view.activePending === true && (target === 'main' || view.suggestModel === null)
+
 /** The model suggestions use: the suggestion model, or the Model setting when none is named. */
 export function suggestChoice(view: AiSettingsView): ModelChoice {
   const named = view.suggestModel
@@ -428,7 +432,8 @@ export function suggestStatus(
   if (!context.licensed) return { kind: 'licence' }
   if (context.allowedNotebooks === 0) return { kind: 'noNotebooks' }
   const choice = suggestChoice(view)
-  if (providerState(view, choice.provider) === 'checking') return { kind: 'checking' }
+  if (choicePending(view, 'suggest') || providerState(view, choice.provider) === 'checking')
+    return { kind: 'checking' }
   const ready = providerReady(view, 'suggest')
   if (ready !== 'ready') return { kind: 'provider', provider: choice.provider, code: ready }
   return { kind: 'ready', choice }

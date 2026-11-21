@@ -163,7 +163,7 @@ describe('NoteRow', () => {
   it('shows the status as an icon with an accessible name, and no text', () => {
     const html = row({ note: note({ status: 'active' }) })
     expect(html).toMatch(
-      /<span class="row-status status-active" role="img" aria-label="Active"[^>]*><span class="icon/,
+      /<span class="row-status status-active" role="img" aria-label="Active"[^>]*><(?:span class="icon|svg)/,
     )
     expect(html).not.toMatch(/row-status[^>]*>Active</)
     expect(row()).not.toContain('row-status')

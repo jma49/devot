@@ -19,6 +19,26 @@
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
 }
 
+/* Chinese (design/layout.md, Chinese type): Han glyphs fill the em, so they take no negative tracking, more leading in prose and nothing under caption size. */
+:root:lang(zh) {
+  --note-heading-glass-title-tracking: 0;
+  --font-size-caption2: var(--font-size-caption);
+}
+
+:lang(zh)
+  :is(
+    .setting-description,
+    .settings-note,
+    .settings-section .settings-card > p,
+    .confirm-detail,
+    .sheet-detail,
+    .notice-text,
+    .empty-pane-hint,
+    .list-empty-tip
+  ) {
+  line-height: 1.5;
+}
+
 :root[data-motion='reduced'] {
   --popover-enter-scale: 1;
   --popover-exit-scale: 1;
@@ -315,6 +335,11 @@ button {
 
 .icon-host {
   display: inline-flex;
+}
+
+/* Kubai's light tone as a wash of the icon's colour, so it reads on dark surfaces and on a selected row's accent too. */
+.icon-kubai {
+  --kd-b: color-mix(in srgb, currentColor 32%, transparent);
 }
 
 .icon-fill-solid {
@@ -7097,6 +7122,22 @@ button.model-popup[aria-disabled='true'] {
   background: var(--color-fill-control);
   color: var(--color-text-primary);
   transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+/* A setting's segments: capsules the height of the pop-ups beside them. */
+.setting-control .segmented {
+  border-radius: var(--radius-capsule);
+}
+
+.setting-control .segment {
+  width: auto;
+  min-width: var(--size-settings-control);
+  height: calc(var(--size-settings-control) - 2 * var(--space-1));
+  padding-inline: var(--space-6);
+  border-radius: var(--radius-capsule);
+  white-space: nowrap;
+  font: inherit;
+  font-size: var(--font-size-body);
 }
 
 .select:hover:not(:has(select:disabled)) {

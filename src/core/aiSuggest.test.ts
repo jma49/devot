@@ -103,6 +103,30 @@ describe('the reply', () => {
     expect(cleanSuggestion(`${han} and mor`, ctx('x'), true)).toBe(`${han} and`)
   })
 
+  it('stops after two sentences, as a pause wants a line rather than a passage', () => {
+    expect(
+      cleanSuggestion(' We left at nine. The road was empty! Then it rained.', ctx('So'), false),
+    ).toBe(' We left at nine. The road was empty!')
+    const stop = '\u3002'
+    const han = (n: number) => '\u8fd9\u662f'.repeat(n)
+    expect(
+      cleanSuggestion(`${han(1)}${stop}${han(2)}${stop}${han(3)}${stop}`, ctx('x'), false),
+    ).toBe(`${han(1)}${stop}${han(2)}${stop}`)
+  })
+
+  it('stops at the end of its paragraph', () => {
+    expect(cleanSuggestion(' the coast.\n\nNext day we', ctx('We drove'), false)).toBe(
+      ' the coast.',
+    )
+    expect(cleanSuggestion('\n\n- next\n\nmore', ctx('- first\n'), false)).toBe('- next')
+  })
+
+  it('does not count a numbered list marker as the end of a sentence', () => {
+    expect(
+      cleanSuggestion('1. Pack the bags. Fill the tank. Leave early.', ctx('Plan:\n'), false),
+    ).toBe('1. Pack the bags. Fill the tank.')
+  })
+
   it('is capped in length', () => {
     expect(cleanSuggestion('x'.repeat(SUGGEST_MAX_CHARS + 10), ctx('a'), false)).toHaveLength(
       SUGGEST_MAX_CHARS,
@@ -243,6 +267,15 @@ describe('the suggester', () => {
     const h = harness()
     expect(await h.suggester.suggest('n1', CTX, 'key')).toBe(' to ship.')
     expect(h.sent).toHaveLength(1)
+  })
+
+  it('says when a request leaves, and never for one left unsent', async () => {
+    const h = harness()
+    let sent = 0
+    expect(await h.suggester.suggest('n1', CTX, 'idle', () => (sent += 1))).toBeNull()
+    expect(sent).toBe(0)
+    expect(await h.suggester.suggest('n1', CTX, 'key', () => (sent += 1))).toBe(' to ship.')
+    expect(sent).toBe(1)
   })
 
   it('sends nothing, and says why, when the notebook does not allow AI access', async () => {

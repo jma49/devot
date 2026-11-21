@@ -24,3 +24,12 @@ it('the notebook glyphs load through one dynamic import', () => {
   ).toEqual([])
   expect(sources.filter(([, text]) => text.includes("import('./lucideNotebook')")).length).toBe(1)
 })
+
+it('the Kubai glyphs load through one dynamic import', () => {
+  expect(
+    sources
+      .filter(([, text]) => /(?:from|import) '[^']*kubaiGlyphs'/.test(text))
+      .map(([file]) => file),
+  ).toEqual([])
+  expect(sources.filter(([, text]) => text.includes("import('./kubaiGlyphs')")).length).toBe(1)
+})

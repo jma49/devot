@@ -90,6 +90,9 @@ pub struct Snapshot {
     pub cli: Option<CliViews>,
     /// Absent: next edit suggestions use the Model setting.
     pub suggest_model: Option<SuggestModel>,
+    /// `active` is only the stored fallback: a local tool not checked yet may take its place.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub active_pending: bool,
 }
 
 /// The models of each provider asked for; one that could not list them carries its own failure code.
@@ -314,39 +317,43 @@ impl Ai {
     }
 
     /// Without `probe`, a local tool not checked yet counts as not ready.
+    /// The provider the Model setting resolves to, and whether that waits on the local tools' first check.
     fn effective_active(
         &self,
         stored: &StoredSettings,
         anthropic_key: KeyState,
         probe: bool,
-    ) -> ProviderId {
+    ) -> (ProviderId, bool) {
         #[cfg(not(desktop))]
         {
             let _ = (anthropic_key, probe);
-            if stored.settings.active.is_cli() {
+            let active = if stored.settings.active.is_cli() {
                 ProviderId::Anthropic
             } else {
                 stored.settings.active
-            }
+            };
+            (active, false)
         }
         #[cfg(desktop)]
         {
-            if !stored.explicit_active
-                && anthropic_key == KeyState::Unset
-                && let Some(states) = if probe {
-                    self.cli_states()
-                } else {
-                    self.cached_cli_states()
-                }
-            {
-                if states.claude_cli == CliState::Ready {
-                    return ProviderId::ClaudeCli;
-                }
-                if states.codex_cli == CliState::Ready {
-                    return ProviderId::CodexCli;
-                }
+            if stored.explicit_active || anthropic_key != KeyState::Unset {
+                return (stored.settings.active, false);
             }
-            stored.settings.active
+            let states = if probe {
+                self.cli_states()
+            } else {
+                self.cached_cli_states()
+            };
+            match states {
+                Some(states) if states.claude_cli == CliState::Ready => {
+                    (ProviderId::ClaudeCli, false)
+                }
+                Some(states) if states.codex_cli == CliState::Ready => {
+                    (ProviderId::CodexCli, false)
+                }
+                Some(_) => (stored.settings.active, false),
+                None => (stored.settings.active, self.cli.is_some()),
+            }
         }
     }
 
@@ -377,7 +384,7 @@ impl Ai {
             }
         };
         let anthropic = view(ProviderId::Anthropic);
-        let active = self.effective_active(&stored, anthropic.key, probe);
+        let (active, active_pending) = self.effective_active(&stored, anthropic.key, probe);
         #[cfg(any(desktop, test))]
         let states = if probe {
             self.cli_states()
@@ -409,6 +416,7 @@ impl Ai {
             #[cfg(any(desktop, test))]
             cli,
             suggest_model: settings.suggest_model.get().cloned(),
+            active_pending,
         }
     }
 
@@ -684,7 +692,10 @@ impl Ai {
                 reasoning: suggest.reasoning.clone(),
             };
         }
-        stored_choice(self.effective_active(stored, self.key_state(ProviderId::Anthropic), true))
+        stored_choice(
+            self.effective_active(stored, self.key_state(ProviderId::Anthropic), true)
+                .0,
+        )
     }
 
     fn prepare<'a>(

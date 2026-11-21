@@ -176,6 +176,26 @@ test('asks after a pause when the user turned that on, and only then', async ({ 
   await expect.poll(() => savedBody(page)).toBe('We plan to we to ship.')
 })
 
+test('shows three dots after the caret while a request is on its way, and the answer in their place', async ({
+  page,
+}) => {
+  await ready(page, [{ hold: true }], 'We plan')
+  const waiting = page.locator('.cm-ghost-waiting')
+  await expect(waiting).toHaveCount(0)
+  await page.keyboard.press(SUGGEST_KEY)
+  await expect(waiting).toBeVisible()
+  await page.evaluate(() => window.devotRelease?.(' to ship.'))
+  await expect(ghost(page)).toHaveText(' to ship.')
+  await expect(waiting).toHaveCount(0)
+  await expect.poll(() => savedBody(page)).toBe('We plan')
+})
+
+test('keeps a long answer to two sentences', async ({ page }) => {
+  await ready(page, [' to ship. It is ready. Then we rest. And more.'], 'We plan')
+  await page.keyboard.press(SUGGEST_KEY)
+  await expect(ghost(page)).toHaveText(' to ship. It is ready.')
+})
+
 test('Escape then Tab leaves the editor while a pause’s request is on its way, unseen', async ({
   page,
 }) => {

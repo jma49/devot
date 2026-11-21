@@ -21,6 +21,16 @@ import {
   type SymbolWeight,
 } from './symbols'
 import { keptSymbols } from './keptSymbols'
+import {
+  KUBAI_ICONS,
+  kubaiGlyphs,
+  kubaiInstanceId,
+  KUBAI_VIEWBOX,
+  kubaiContent,
+  kubaiMarkup,
+  loadKubaiGlyphs,
+  subscribeKubaiGlyphs,
+} from './kubai'
 
 const cache = createSymbolCache((name, pointSize, weight) =>
   invoke<string>('symbol_png', { name, pointSize, weight }),
@@ -225,6 +235,49 @@ export function NotebookLucideIcon({
   )
 }
 
+/** A Kubai glyph; it paints nothing until its chunk is in, and Lucide's if that chunk cannot load. */
+function KubaiGlyph({
+  name,
+  glyph,
+  size,
+  weight,
+  className,
+}: {
+  name: IconName
+  glyph: string
+  size: IconSize
+  weight?: SymbolWeight | undefined
+  className?: string | undefined
+}) {
+  const loaded = useSyncExternalStore(subscribeKubaiGlyphs, kubaiGlyphs, kubaiGlyphs)
+  const [id] = useState(kubaiInstanceId)
+  useEffect(() => {
+    if (loaded.phase === 'loading') void loadKubaiGlyphs()
+  }, [loaded.phase])
+  if (loaded.phase === 'failed')
+    return <LucideGlyph name={name} size={size} weight={weight} className={className} />
+  const classes = `icon-${size}${className ? ` ${className}` : ''}`
+  const content = loaded.phase === 'ready' ? loaded.glyphs[glyph] : undefined
+  if (content === undefined)
+    return (
+      <span className={`icon ${classes}`} data-kubai={glyph} data-pending="" aria-hidden="true" />
+    )
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox={KUBAI_VIEWBOX}
+      width={BOXES[size]}
+      height={BOXES[size]}
+      fill="none"
+      overflow="visible"
+      className={`icon-svg icon-kubai ${classes}`}
+      data-kubai={glyph}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: kubaiContent(content, id) }}
+    />
+  )
+}
+
 /** Drawn in `style`, whatever the icon-style setting is (the Appearance settings' samples). */
 export function StyledIcon({
   style,
@@ -239,7 +292,12 @@ export function StyledIcon({
   weight?: SymbolWeight
   className?: string
 }) {
-  if (style === 'lucide')
+  const kubai = style === 'kubai' ? KUBAI_ICONS[name] : undefined
+  if (kubai !== undefined)
+    return (
+      <KubaiGlyph name={name} glyph={kubai} size={size} weight={weight} className={className} />
+    )
+  if (style !== 'sfSymbols')
     return <LucideGlyph name={name} size={size} weight={weight} className={className} />
   return (
     <SymbolIcon
@@ -251,7 +309,7 @@ export function StyledIcon({
   )
 }
 
-/** Drawn in the chosen icon style (Settings > Appearance); `className` reaches the SF Symbol's span or the Lucide SVG. */
+/** Drawn in the chosen icon style (Settings > Appearance); `className` reaches the SF Symbol's span or the SVG. */
 export function Icon(props: {
   name: IconName
   size: IconSize
@@ -386,13 +444,52 @@ export function lucideMarkup(Glyph: LucideIcon, size: number, className: string)
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${classes}" aria-hidden="true">${children}</svg>`
 }
 
+function kubaiElement(span: HTMLSpanElement, name: IconName, glyph: string, box: number) {
+  const id = kubaiInstanceId()
+  const draw = () => {
+    const loaded = kubaiGlyphs()
+    const content = loaded.phase === 'ready' ? loaded.glyphs[glyph] : undefined
+    if (content === undefined) return false
+    span.className = 'icon-host'
+    span.removeAttribute('style')
+    delete span.dataset['pending']
+    span.innerHTML = kubaiMarkup(content, box, 'icon-svg icon-kubai', id)
+    return true
+  }
+  if (draw()) return
+  span.className = 'icon'
+  span.style.width = `${box}px`
+  span.style.height = `${box}px`
+  span.dataset['kubai'] = glyph
+  span.dataset['pending'] = ''
+  span.setAttribute('aria-hidden', 'true')
+  void loadKubaiGlyphs().then(() => {
+    if (!draw()) lucideInto(span, name, box)
+  })
+}
+
+function lucideInto(span: HTMLSpanElement, name: IconName, box: number) {
+  const fill = LUCIDE_FILLS[name]
+  span.className = 'icon-host'
+  span.removeAttribute('style')
+  delete span.dataset['pending']
+  span.innerHTML = lucideMarkup(
+    LUCIDE_ICONS[name],
+    box,
+    `icon-svg${fill ? ` icon-fill-${fill}` : ''}`,
+  )
+}
+
 export function iconElement(name: IconName, box: number): HTMLElement {
   const span = document.createElement('span')
-  if (editorSettings().iconStyle === 'lucide') {
-    const Glyph = LUCIDE_ICONS[name]
-    const fill = LUCIDE_FILLS[name]
-    span.className = 'icon-host'
-    span.innerHTML = lucideMarkup(Glyph, box, `icon-svg${fill ? ` icon-fill-${fill}` : ''}`)
+  const { iconStyle } = editorSettings()
+  const kubai = iconStyle === 'kubai' ? KUBAI_ICONS[name] : undefined
+  if (kubai !== undefined && kubaiGlyphs().phase !== 'failed') {
+    kubaiElement(span, name, kubai, box)
+    return span
+  }
+  if (iconStyle !== 'sfSymbols') {
+    lucideInto(span, name, box)
     return span
   }
   const symbol = symbolFor(name)

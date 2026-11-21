@@ -14,7 +14,7 @@ export function BookIcon(props: { icon: string | null; color: TagColor | null; s
     return (
       <NotebookLucideIcon glyph={glyph} size={props.size} className={bookIconClass(props.color)} />
     )
-  if (props.icon === null && style === 'lucide')
+  if (props.icon === null && style !== 'sfSymbols')
     return <Icon name="notebook" size={props.size} className={bookIconClass(props.color)} />
   return (
     <SymbolIcon

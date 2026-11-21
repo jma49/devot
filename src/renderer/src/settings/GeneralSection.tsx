@@ -16,7 +16,14 @@ import {
 import { checkForUpdates, startUpdateStatus, updateStatusText, useUpdateStatus } from '../updates'
 import { cliToolFailure } from './cliTool'
 import { LanguageSetting } from './LanguageSetting'
-import { Select, Setting, SettingsSection, SettingToggle, useSettingsChange } from './controls'
+import {
+  SegmentChoice,
+  Select,
+  Setting,
+  SettingsSection,
+  SettingToggle,
+  useSettingsChange,
+} from './controls'
 import {
   cliToolStatus,
   installCliTool,
@@ -164,18 +171,18 @@ export function GeneralSection() {
           <Setting
             label="generalSettings.listDates"
             description={t('generalSettings.listDatesHint')}
-            htmlFor={`${ids}-dates`}
             descriptionId={`${ids}-dates-hint`}
           >
-            <Select
-              id={`${ids}-dates`}
+            <SegmentChoice<ListDatesStyle>
+              label="generalSettings.listDates"
+              describedBy={`${ids}-dates-hint`}
               value={listDates}
-              aria-describedby={`${ids}-dates-hint`}
-              onChange={(e) => change({ listDates: e.currentTarget.value as ListDatesStyle })}
-            >
-              <option value="relative">{t('generalSettings.listDates.relative')}</option>
-              <option value="absolute">{t('generalSettings.listDates.absolute')}</option>
-            </Select>
+              choices={[
+                { value: 'relative', label: t('generalSettings.listDates.relative') },
+                { value: 'absolute', label: t('generalSettings.listDates.absolute') },
+              ]}
+              onChange={(style) => change({ listDates: style })}
+            />
           </Setting>
           <SettingToggle
             label="generalSettings.boardDropped"
