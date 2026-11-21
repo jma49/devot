@@ -237,19 +237,42 @@ pub async fn settings_ai_access_summary(db: State<'_, Db>) -> Result<AiAccessSum
     Ok(ai_access_summary(&books))
 }
 
-/// Focuses a main window (shown again if hidden, unminimised if needed), or opens one:
-/// Settings asks for the AI access picker, which lives in the main window.
+/// Tells the frontmost main window that Settings asked for the AI access picker (`ai_access_picker_open`).
+pub const AI_ACCESS_PICKER_EVENT: &str = "devot://ai-access-picker";
+
+/// Whether Settings asked for the AI access picker and no main window has taken the ask yet.
+/// Rust holds it because a main window that is still opening hears no event: it takes the ask once it listens.
+#[derive(Default)]
+pub struct AiAccessPicker(std::sync::atomic::AtomicBool);
+
+impl AiAccessPicker {
+    fn ask(&self) {
+        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn take(&self) -> bool {
+        self.0.swap(false, std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+/// Opens the AI access picker, which lives in the main window: focuses one (shown again if hidden,
+/// unminimised if needed) and tells it, or opens one, which takes the ask once it listens.
 #[tauri::command]
-pub fn main_window_show(app: AppHandle) -> Result<(), String> {
+pub fn ai_access_picker_open(
+    app: AppHandle,
+    picker: State<'_, AiAccessPicker>,
+) -> Result<(), String> {
+    picker.ask();
     #[cfg(desktop)]
     crate::background::opened(&app);
-    let Some(window) =
-        crate::main_windows::front_label(&app).and_then(|label| app.get_webview_window(&label))
-    else {
+    let Some(label) = crate::main_windows::front_label(&app) else {
         #[cfg(desktop)]
         return crate::main_windows::open(&app).map_err(String::from);
         // A phone's one window cannot be reopened from here.
         #[cfg(mobile)]
+        return Err("E_MAIN_WINDOW_MISSING".to_owned());
+    };
+    let Some(window) = app.get_webview_window(&label) else {
         return Err("E_MAIN_WINDOW_MISSING".to_owned());
     };
     if window
@@ -260,12 +283,40 @@ pub fn main_window_show(app: AppHandle) -> Result<(), String> {
     {
         log::warn!("W_MAIN_WINDOW_FOCUS_FAILED");
     }
+    if app
+        .emit_to(label.as_str(), AI_ACCESS_PICKER_EVENT, ())
+        .is_err()
+    {
+        log::warn!("W_AI_ACCESS_PICKER_UNSENT");
+    }
     Ok(())
+}
+
+/// Whether Settings asked for the AI access picker since a main window last took the ask.
+#[tauri::command]
+pub fn ai_access_picker_take(
+    window: tauri::WebviewWindow,
+    picker: State<'_, AiAccessPicker>,
+) -> Result<bool, String> {
+    if !crate::main_windows::is_main(window.label()) {
+        return Err("E_AI_ACCESS_PICKER_WINDOW".to_owned());
+    }
+    Ok(picker.take())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_ai_access_picker_ask_is_taken_once() {
+        let picker = AiAccessPicker::default();
+        assert!(!picker.take());
+        picker.ask();
+        picker.ask();
+        assert!(picker.take());
+        assert!(!picker.take());
+    }
     use std::ffi::OsStr;
 
     #[cfg(desktop)]

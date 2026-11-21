@@ -39,6 +39,8 @@ export type EditorMenuEntry =
 export interface TestWindow {
   devotIpcCalls: IpcCall[]
   devotIpcMocks?: Record<string, unknown>
+  /** Whether Settings asked for the AI access picker (`ai_access_picker_take`). */
+  devotAiAccessAsked?: boolean
   /** What the relay answers a storage reading with (sync-settings.spec.ts). */
   devotUsage?: unknown
   /** App functions the UI tests' build puts on the main window (main.tsx). */
@@ -180,6 +182,11 @@ export async function mockTauri(page: Page): Promise<void> {
           if (cmd === 'ai_stream_cancel') return false
           // One notebook, allowed: Integrations shows no prompt unless a test says otherwise.
           if (cmd === 'settings_ai_access_summary') return { notebooks: 1, allowed: 1 }
+          if (cmd === 'ai_access_picker_take') {
+            const asked = w.devotAiAccessAsked === true
+            w.devotAiAccessAsked = false
+            return asked
+          }
 
           // No link from another app waits at launch (deep-links.spec.ts, quick-capture.spec.ts), and no plugin is installed
           // (plugins.ts) or offered (plugin-catalog.spec.ts).

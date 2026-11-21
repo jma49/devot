@@ -4,7 +4,7 @@
 // sub-notebook needs its own switch.
 import type { BookNode } from '../../core/books'
 
-/** Set in the storage both windows share, so Settings can ask the main window to open the picker. */
+/** Heard by the main window when Settings asks for the picker (UI tests send it themselves). */
 export const CHOOSE_AI_ACCESS = 'devot:choose-ai-access'
 
 export interface AiAccessChange {

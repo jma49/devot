@@ -161,6 +161,7 @@
     "allow-note-window-close-cancel",
     "allow-main-window-new",
     "allow-main-windows-changed",
+    "allow-ai-access-picker-take",
     "allow-note-relay-send",
     "allow-plugins-list",
     "allow-plugin-offer-open",

@@ -42,7 +42,7 @@
     "allow-background-state",
     "allow-background-quit",
     "allow-settings-ai-access-summary",
-    "allow-main-window-show",
+    "allow-ai-access-picker-open",
     "allow-ai-settings-get",
     "allow-ai-settings-set",
     "allow-ai-key-set",

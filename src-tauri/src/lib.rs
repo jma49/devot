@@ -289,7 +289,8 @@ pub fn run() {
             #[cfg(desktop)]
             background::background_idle_answer,
             settings::settings_ai_access_summary,
-            settings::main_window_show,
+            settings::ai_access_picker_open,
+            settings::ai_access_picker_take,
             #[cfg(desktop)]
             cli_tool::cli_tool_status,
             #[cfg(desktop)]
@@ -411,6 +412,7 @@ pub fn run() {
         .manage(deep_link::DeepLinks::default())
         .manage(cli_append::Appends::default())
         .manage(main_windows::MainWindows::default())
+        .manage(settings::AiAccessPicker::default())
         .on_page_load(|webview, payload| {
             deep_link::on_page_load(webview, payload);
             cli_append::on_page_load(webview, payload);

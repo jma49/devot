@@ -77,11 +77,11 @@ async function createBook(page: Page, name: string) {
   await expect(bookRow(page, name)).toBeVisible()
 }
 
-/** What Settings > Integrations' Choose… leaves for the main window before focusing it. */
+/** What Settings' Choose… asks Rust for, which then tells the main window. */
 const askForAiAccessPicker = (page: Page) =>
   page.evaluate(() => {
-    localStorage.setItem('devot:choose-ai-access', '1')
-    window.dispatchEvent(new Event('focus'))
+    window.devotAiAccessAsked = true
+    window.dispatchEvent(new CustomEvent('devot:choose-ai-access'))
   })
 
 async function writeNote(page: Page, text: string) {

@@ -612,14 +612,17 @@ test('AI Tools says plainly, before any Connect, that Devot may start in the bac
 test('Notebooks in AI Tools opens the notebook picker in the main window', async ({ page }) => {
   await page.addInitScript(() => {
     const w = window
-    w.devotIpcMocks = { main_window_show: null }
+    w.devotIpcMocks = { ai_access_picker_open: null }
   })
   await openSettings(page, 'Integrations')
   const aiTools = page.getByRole('region', { name: 'AI Tools' })
   await expect(aiTools).toContainText('1 of 1 notebooks allow AI access.')
   await aiTools.getByRole('button', { name: 'Choose\u2026' }).click()
-  expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
-  expect(await page.evaluate(() => localStorage.getItem('devot:choose-ai-access'))).toBe('1')
+  expect(await calls(page, 'ai_access_picker_open')).toEqual([
+    { cmd: 'ai_access_picker_open', args: {} },
+  ])
+  // Settings stays open: the main window opens the picker.
+  await expect(aiTools).toBeVisible()
 })
 
 test('AI Tools shows when Devot runs in the background, and Quit Devot asks Rust to quit', async ({
@@ -1142,7 +1145,7 @@ test('Integrations says under AI Tools when no notebook allows AI access, and op
     w.devotIpcMocks = {
       settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 3, allowed: 0 },
-      main_window_show: null,
+      ai_access_picker_open: null,
     }
   }, setupWith())
   await openSettings(page, 'Integrations')
@@ -1155,9 +1158,9 @@ test('Integrations says under AI Tools when no notebook allows AI access, and op
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.locator('dialog[open]')).toHaveCount(0)
   await aiTools.getByRole('button', { name: 'Choose\u2026' }).click()
-  expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
-  // The main window reads this flag when it gains focus.
-  expect(await page.evaluate(() => localStorage.getItem('devot:choose-ai-access'))).toBe('1')
+  expect(await calls(page, 'ai_access_picker_open')).toEqual([
+    { cmd: 'ai_access_picker_open', args: {} },
+  ])
 })
 
 test('the AI access notice goes once a notebook allows access', async ({ page }) => {

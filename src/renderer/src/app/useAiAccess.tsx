@@ -4,10 +4,14 @@ import { CHOOSE_AI_ACCESS, inverseChanges, type AiAccessChange } from '../aiAcce
 import { AiAccessDialog } from '../AiAccessDialog'
 import { AiAccessNotice } from '../AiAccessNotice'
 import { errorCode } from '../backups'
+import { invoke } from '../ipc'
 import type { Core } from '../core-client'
 import { LICENCE_REQUIRED } from '../licence'
 import { saveEdits } from '../saveGuards'
 import { useStable } from '../stable'
+import { keepListening, listenHere } from '../windowEvents'
+
+const AI_ACCESS_PICKER_EVENT = 'devot://ai-access-picker'
 
 /** Allow AI Access for several notebooks at once: the picker, the writes and the notice that undoes them. */
 export function useAiAccess({
@@ -75,29 +79,37 @@ export function useAiAccess({
     applyAiAccess(inverseChanges(result.changes))
   })
 
-  // Settings > Integrations leaves a flag in the storage both windows share,
-  // then focuses the main window (opening one if needed): the picker opens here.
-  const check = useStable(() => {
-    try {
-      if (localStorage.getItem(CHOOSE_AI_ACCESS) === null) return
-      localStorage.removeItem(CHOOSE_AI_ACCESS)
-    } catch {
-      return
-    }
+  // Settings asks Rust for the picker, which tells the frontmost main window, or holds the ask
+  // for a main window that is still opening: each takes it once it listens.
+  const asked = useStable(() => {
     if (editing) setAiAccessPicker(true)
     else setChangeNotice(LICENCE_REQUIRED)
   })
   useEffect(() => {
     // Before the core is ready there is no notebook tree to pick from.
     if (!core) return
-    check()
-    window.addEventListener('focus', check)
-    document.addEventListener('visibilitychange', check)
-    return () => {
-      window.removeEventListener('focus', check)
-      document.removeEventListener('visibilitychange', check)
+    const take = () => {
+      void invoke<boolean>('ai_access_picker_take')
+        .then((ask) => {
+          if (ask && !listening.stopped()) asked()
+        })
+        .catch((e: unknown) => console.warn('W_AI_ACCESS_PICKER_TAKE_FAILED', errorCode(e)))
     }
-  }, [core, check])
+    window.addEventListener(CHOOSE_AI_ACCESS, take)
+    const listening = keepListening(
+      DEVOT_UI_TEST ? Promise.resolve([]) : listenHere(AI_ACCESS_PICKER_EVENT, take),
+    )
+    // Listening first, then asking what waits: no ask is lost between.
+    listening.ready
+      .catch(() => console.warn('W_AI_ACCESS_PICKER_LISTEN_FAILED'))
+      .then(() => {
+        if (!listening.stopped()) take()
+      })
+    return () => {
+      listening.stop()
+      window.removeEventListener(CHOOSE_AI_ACCESS, take)
+    }
+  }, [core, asked])
   const notice = aiAccessResult ? (
     <AiAccessNotice
       changes={aiAccessResult.changes}
