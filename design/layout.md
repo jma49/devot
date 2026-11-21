@@ -228,6 +228,14 @@ Exceptions to these rules, each chosen on purpose:
 - **The notebook pill's icon:** it is `size.icon-sm` (14), not the 10 px of the pill's other glyphs.
   A line icon is drawn larger to carry the weight of the filled 10 px marks beside it (the status icon, a tag's dot).
 
+## Interface text
+
+Interface prose wraps so that no line ends on a lone word, or in Chinese a lone character and its punctuation.
+Short or centred text (a dialog's question, a sheet's title, an empty state) balances its lines (`text-wrap: balance`).
+Running text (a dialog's detail, a notice, a setting's description, a Settings footnote or note) keeps the last line from being a stub (`text-wrap: pretty`).
+A web view without these keeps ordinary wrapping, so nothing depends on them.
+`tests/policy/interface-text-wrap.test.ts` lists the rules that carry them.
+
 ## Chinese type
 
 The interface keeps one type scale in every language, and Chinese gets three adjustments, because a Han glyph fills its whole em where a Latin letter does not.

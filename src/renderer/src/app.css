@@ -2168,10 +2168,12 @@ button {
 .list-empty-message {
   font-size: var(--font-size-title3);
   font-weight: var(--font-weight-semibold);
+  text-wrap: balance;
 }
 
 .list-empty-tip {
   font-size: var(--font-size-footnote);
+  text-wrap: balance;
 }
 
 .list-capped {
@@ -4667,11 +4669,13 @@ button.note-info-row:focus-visible {
   margin: 0 0 var(--space-2);
   overflow-wrap: anywhere;
   font-weight: var(--font-weight-semibold);
+  text-wrap: balance;
 }
 
 .confirm-detail {
   margin: 0 0 var(--space-7);
   color: var(--color-text-secondary);
+  text-wrap: pretty;
 }
 
 .client-state {
@@ -5172,16 +5176,19 @@ button.model-popup[aria-disabled='true'] {
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-title3);
   font-weight: var(--font-weight-bold);
+  text-wrap: balance;
 }
 
 .sheet-detail {
   margin: 0 0 var(--space-6);
   color: var(--color-text-secondary);
+  text-wrap: pretty;
 }
 
 .sheet-error {
   margin: 0 0 var(--space-6);
   color: var(--color-status-dropped);
+  text-wrap: pretty;
 }
 
 .backup-list {
@@ -6184,6 +6191,7 @@ button.model-popup[aria-disabled='true'] {
 .notice-text {
   min-width: 0;
   margin-right: var(--space-4);
+  text-wrap: pretty;
 }
 
 .settings {
@@ -6543,6 +6551,7 @@ button.model-popup[aria-disabled='true'] {
 /* Prose in a card reads like a row's description. */
 .settings-section .settings-card > p {
   font-size: var(--font-size-caption);
+  text-wrap: pretty;
 }
 
 .settings-footnote {
@@ -6561,6 +6570,7 @@ button.model-popup[aria-disabled='true'] {
 
 .settings-footnote > span {
   line-height: var(--size-settings-footnote-line);
+  text-wrap: pretty;
 }
 
 .settings-footnote > :is(.icon, .icon-svg) {
@@ -7167,6 +7177,7 @@ button.model-popup[aria-disabled='true'] {
 .setting-description {
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
+  text-wrap: pretty;
 }
 
 .setting-control {
@@ -7317,6 +7328,7 @@ button.model-popup[aria-disabled='true'] {
   margin: 0 0 var(--space-7);
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
+  text-wrap: pretty;
 }
 
 /* A typed value in Settings: a capsule like the pop-ups beside it. */
@@ -9680,6 +9692,7 @@ dialog[open].sheet.import {
   font-size: var(--font-size-caption);
   line-height: 1.4;
   text-align: center;
+  text-wrap: balance;
 }
 
 .empty-pane-card {
