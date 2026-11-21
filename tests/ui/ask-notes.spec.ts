@@ -154,3 +154,19 @@ test('sends nothing when no notebook allows AI access, and says why', async ({ p
   await page.keyboard.press('Escape')
   await expect(sheet(page)).toBeHidden()
 })
+
+test('offers the notebook picker when no notebook allows AI access', async ({ page }) => {
+  await fakeProvider(page, [])
+  await page.reload()
+  await notebook(page, 'Private', false)
+  await note(page, 'Plans', 'secret plans')
+
+  await openAsk(page)
+  await question(page).fill('What are the plans?')
+  await sheet(page).getByRole('button', { name: 'Ask' }).click()
+  await sheet(page).getByRole('button', { name: 'Choose Notebooks\u2026' }).click()
+  await expect(sheet(page)).toBeHidden()
+  const picker = page.getByRole('dialog', { name: 'Allow AI Access' })
+  await expect(picker.getByRole('checkbox', { name: /^Private\b/ })).toBeVisible()
+  expect(await requests(page)).toEqual([])
+})

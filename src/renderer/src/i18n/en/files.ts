@@ -174,7 +174,7 @@ title: Daily Report {{date}}
     'A file changed in another app goes back into its note. If the note changed in Devot too, Devot keeps its version and the file is kept under a new name.',
   'mirror.includeAttachments': 'Include Attachments',
   'mirror.includeAttachmentsHint':
-    'Off, images still link to the attachments folder, but no copies are written there.',
+    'Copies images and other attachments into the mirror folder. When off, images still link to the attachments folder, but no copies are written there.',
   'mirror.size': 'Size on disk: {size}',
   'mirror.paused': 'The mirror is paused. It resumes once its folder can be written again.',
   'mirror.pausedMissing':

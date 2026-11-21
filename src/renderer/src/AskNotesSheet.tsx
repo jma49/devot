@@ -38,6 +38,8 @@ export function AskNotesSheet(props: {
   onClose: () => void
   /** AI is not in the licence: the sheet says so and asks nothing. */
   locked?: boolean
+  /** Opens the picker of notebooks AI may read, in place of this sheet. */
+  onChooseNotebooks?: () => void
 }) {
   const { storage, generator, locked = false } = props
   const dialog = useRef<HTMLDialogElement>(null)
@@ -92,6 +94,9 @@ export function AskNotesSheet(props: {
   const cited = citedSources(parts)
   const uncited = answer?.sources.filter((s) => !cited.includes(s)) ?? []
   const failure = phase.kind === 'failed' ? askFailure(phase.code) : undefined
+  const choose = props.onChooseNotebooks
+  const choosable =
+    choose !== undefined && phase.kind === 'failed' && phase.code === 'E_AI_ACCESS_DENIED'
 
   const answerSection = (
     <section
@@ -235,14 +240,30 @@ export function AskNotesSheet(props: {
                 {t('askNotes.retry')}
               </button>
             ) : null}
-            {!locked ? (
+            {!locked && !choosable ? (
               <button type="button" className="button" onClick={askAnother}>
                 {t('askNotes.again')}
               </button>
             ) : null}
-            <button type="button" className="button button-default" onClick={close}>
+            <button
+              type="button"
+              className={choosable ? 'button' : 'button button-default'}
+              onClick={close}
+            >
               {t('askNotes.close')}
             </button>
+            {choosable ? (
+              <button
+                type="button"
+                className="button button-default"
+                onClick={() => {
+                  close()
+                  choose()
+                }}
+              >
+                {t('askNotes.chooseNotebooks')}
+              </button>
+            ) : null}
           </>
         )}
       </div>

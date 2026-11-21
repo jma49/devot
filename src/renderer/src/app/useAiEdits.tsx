@@ -18,12 +18,16 @@ export function useAiEdits({
   inTrash,
   applyToOpenNote,
   openNote,
+  allowAiAccess,
+  chooseNotebooks,
 }: {
   core: Core | undefined
   selected: string | undefined
   inTrash: boolean
   applyToOpenNote: (noteId: string, update: Uint8Array) => void
   openNote: (noteId: string) => void
+  allowAiAccess: (bookId: string) => Promise<boolean>
+  chooseNotebooks: () => void
 }) {
   // Every AI request goes through the access rule, with the notebooks as the core has them.
   const aiGenerator = useMemo(
@@ -75,6 +79,7 @@ export function useAiEdits({
         generator={aiGenerator}
         onOpen={openNote}
         onClose={() => setAsking(false)}
+        onChooseNotebooks={chooseNotebooks}
         locked={!licenceEntitlements.has('aiProviders')}
       />
     ) : null
@@ -87,6 +92,7 @@ export function useAiEdits({
         start={aiEditing.start}
         onApply={(update) => applyToOpenNote(aiEditing.noteId, update)}
         onClose={() => setAiEditing(undefined)}
+        onAllowAccess={allowAiAccess}
         locked={!licenceEntitlements.has('aiProviders')}
       />
     ) : null
