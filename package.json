@@ -2,8 +2,8 @@
   "name": "devot",
   "version": "0.0.0",
   "private": true,
-  "description": "A local-first Markdown note-taking app for macOS.",
-  "homepage": "https://github.com/jma49/devot#readme",
+  "description": "Local-first Markdown notes for Mac and iPhone: live preview, end-to-end encrypted sync, plugins, themes and MCP for AI tools.",
+  "homepage": "https://devot.online",
   "bugs": {
     "url": "https://github.com/jma49/devot/issues"
   },
