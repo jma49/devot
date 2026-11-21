@@ -94,6 +94,8 @@ export const messages: Record<keyof typeof en, string> = {
   'batch.removeTag': '从所选笔记移除标签…',
   'batch.failedOne': '有 {count} 篇笔记无法更改。',
   'batch.failedOther': '有 {count} 篇笔记无法更改。',
+  'batch.trashedOne': '已将 {count} 篇笔记移到废纸篓。',
+  'batch.trashedOther': '已将 {count} 篇笔记移到废纸篓。',
   'noteList.pinned': '已置顶',
   'noteList.others': '笔记',
   'noteList.related': '意思相关',

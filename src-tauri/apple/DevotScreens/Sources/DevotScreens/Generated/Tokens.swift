@@ -3881,6 +3881,7 @@ public enum Tokens {
     public static let phoneSearchField: TimeInterval = 0.16
     public static let phoneChevron: TimeInterval = 0.32
     public static let phoneToast: TimeInterval = 4
+    public static let noticeUndo: TimeInterval = 5
   }
 
   public enum Easing {
