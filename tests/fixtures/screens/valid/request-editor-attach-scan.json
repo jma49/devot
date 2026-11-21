@@ -1,0 +1,17 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 970,
+    "op": "editor.attach",
+    "args": {
+      "noteId": "01890a5d-ac96-774b-bcce-b302099a8057",
+      "images": [
+        {
+          "name": "scan-1.jpg",
+          "data": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBD"
+        }
+      ]
+    }
+  }
+}

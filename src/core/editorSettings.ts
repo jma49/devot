@@ -20,7 +20,7 @@ export type PasteUrlStyle = 'plain' | 'autolink' | 'link' | 'choose'
 export type LineWrappingMode = 'off' | 'all' | 'prose' | 'unwrapAtCursor'
 export type AppearanceChoice = 'system' | 'light' | 'dark'
 export type ThemeChoice = 'default' | 'ivory' | GradientTheme
-export type IconStyleChoice = 'sfSymbols' | 'lucide'
+export type IconStyleChoice = 'sfSymbols' | 'lucide' | 'kubai'
 export type GradientTheme = 'dawn' | 'tide' | 'sage' | 'ember'
 
 export type ListDatesStyle = 'relative' | 'absolute'
@@ -48,6 +48,7 @@ export interface EditorSettings {
   tabWidth: number
   listMarker: ListMarker
   spellCheck: boolean
+  vimMode: boolean
   highlightActiveLine: boolean
   /** How see-through the sheet is, from its design wash: 0 is the design, -100 opaque, 100 twice as see-through. */
   windowTransparency: number
@@ -134,6 +135,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   tabWidth: 2,
   listMarker: '*',
   spellCheck: true,
+  vimMode: false,
   highlightActiveLine: false,
   windowTransparency: 0,
   materialTransparency: 0,
@@ -146,7 +148,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   lightTheme: 'default',
   darkTheme: 'default',
   systemAccent: false,
-  iconStyle: 'sfSymbols',
+  iconStyle: 'lucide',
   toolbar: true,
   scrollPastEnd: true,
   showCounts: true,
@@ -240,7 +242,7 @@ export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
 export const GRADIENT_THEMES: readonly GradientTheme[] = ['dawn', 'tide', 'sage', 'ember']
 export const THEMES: readonly ThemeChoice[] = ['default', 'ivory', ...GRADIENT_THEMES]
-export const ICON_STYLES: readonly IconStyleChoice[] = ['sfSymbols', 'lucide']
+export const ICON_STYLES: readonly IconStyleChoice[] = ['sfSymbols', 'lucide', 'kubai']
 /** The gradient themes keep the default palette, accent included. */
 export const themeFollowsSystemAccent = (theme: ThemeChoice): boolean => theme !== 'ivory'
 export const gradientThemeChosen = (
@@ -308,6 +310,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   tabWidth: wholeIn(TAB_WIDTH_MIN, TAB_WIDTH_MAX),
   listMarker: oneOf(LIST_MARKERS),
   spellCheck: isFlag,
+  vimMode: isFlag,
   highlightActiveLine: isFlag,
   windowTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),
   materialTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),

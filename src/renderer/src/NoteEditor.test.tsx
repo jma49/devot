@@ -114,3 +114,40 @@ describe('New Note in the editor', () => {
     expect(takesTyping()).toBe(true)
   })
 })
+
+describe('a native capture in the editor', () => {
+  const PNG = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  ])
+
+  it('puts a scan’s pages on lines of their own at the caret, and a transcript as typed', async () => {
+    const { storage } = await import('./core-client')
+    const put = vi.spyOn(storage, 'putFile').mockResolvedValue(undefined)
+    const { show, handleRef, view } = editorOver({ a: 'Before after' })
+    await show('a')
+    act(() => view().dispatch({ selection: { anchor: 7 } }))
+    const refused = await handleRef.current!.attach({
+      images: [new File([PNG], 'scan-1.png')],
+      text: '',
+    })
+    expect(refused).toStrictEqual([])
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(view().state.doc.toString()).toMatch(
+      /^Before \n!\[scan-1\]\(devot:\/\/file\/[^)]+\)\nafter$/,
+    )
+    act(() => view().dispatch({ selection: { anchor: view().state.doc.length } }))
+    await handleRef.current!.attach({ images: [], text: ' Said aloud.' })
+    expect(view().state.doc.toString()).toMatch(/after Said aloud\.$/)
+  })
+
+  it('reports an image storage refuses and inserts nothing for it', async () => {
+    const { show, handleRef, view } = editorOver({ a: 'Text' })
+    await show('a')
+    const refused = await handleRef.current!.attach({
+      images: [new File([new Uint8Array([1, 2, 3])], 'scan-1.jpg')],
+      text: '',
+    })
+    expect(refused).toStrictEqual(['E_FILE_TYPE_REFUSED'])
+    expect(view().state.doc.toString()).toBe('Text')
+  })
+})

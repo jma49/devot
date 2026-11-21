@@ -70,7 +70,7 @@ test('the Simplified Chinese scoped empty search keeps its action readable', asy
     Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN'] })
     window.devotIpcMocks = {
       ...window.devotIpcMocks,
-      app_language_get: { chosen: 'zh-Hans', running: 'zh-Hans', available: true },
+      app_language_get: { chosen: 'zh-Hans', shown: 'zh-Hans', available: true },
     }
   })
   await reloadApp(page)

@@ -122,7 +122,7 @@ export interface PluginHost {
     plugin: string,
     format: string,
     file: { name: string; text: string },
-  ): Promise<Converted>
+  ): Promise<Converted | Converted[]>
   convertExport(plugin: string, format: string, note: OpenNote): Promise<string>
   /** The user closed the plugin's panel. */
   hidden(plugin: string): void
@@ -414,6 +414,7 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
       return checkResult(
         'import.convert',
         await request(plugin, 'import.convert', { format, name: file.name, text: file.text }),
+        wanted.get(plugin)?.manifest.apiVersion ?? 1,
       )
     },
 

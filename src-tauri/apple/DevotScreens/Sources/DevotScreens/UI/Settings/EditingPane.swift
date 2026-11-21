@@ -9,6 +9,7 @@ struct EditingPane: View {
         Form {
             Section {
                 flag("toolbar")
+                flag("vimMode")
                 flag("lineNumbers")
                 flag("highlightActiveLine")
                 choice("lineWrapping", Self.wrapping)

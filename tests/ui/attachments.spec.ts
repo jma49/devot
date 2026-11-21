@@ -19,9 +19,10 @@ async function sendFiles(
   page: Page,
   kind: 'paste' | 'drop',
   files: { name: string; type: string; bytes: number[]; size?: number }[],
+  withUri = false,
 ) {
   await body(page).evaluate(
-    (el, { kind: action, files: list }) => {
+    (el, { kind: action, files: list, withUri: uri }) => {
       const w = window
       const target = el
       const data = new w.DataTransfer()
@@ -30,8 +31,9 @@ async function sendFiles(
         bytes.set(f.bytes)
         data.items.add(new w.File([bytes], f.name, { type: f.type }))
       }
+      if (uri) data.items.add('https://example.com/image.png', 'text/uri-list')
       const rect = target.getBoundingClientRect()
-      const init = { bubbles: true, cancelable: true }
+      const init = { bubbles: true, cancelable: true, composed: true }
       const event =
         action === 'paste'
           ? new w.ClipboardEvent('paste', { ...init, clipboardData: data })
@@ -43,7 +45,7 @@ async function sendFiles(
             })
       target.dispatchEvent(event)
     },
-    { kind, files },
+    { kind, files, withUri },
   )
 }
 
@@ -92,6 +94,14 @@ test('dropping images inserts one link per image', async ({ page }) => {
   await expect.poll(async () => (await stored(page)).length).toBe(2)
   await expect(body(page)).toContainText('![a](devot://file/')
   await expect(body(page)).toContainText('![b](devot://file/')
+})
+
+test('image drops with an accompanying URI still attach to the open note', async ({ page }) => {
+  await newNote(page)
+  await sendFiles(page, 'drop', [{ name: 'Shot.png', type: 'image/png', bytes: PNG }], true)
+  await expect(body(page)).toContainText('![Shot](devot://file/')
+  await expect.poll(async () => (await stored(page)).length).toBe(1)
+  await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
 test('a pasted image is one undo step, apart from the typing around it', async ({ page }) => {

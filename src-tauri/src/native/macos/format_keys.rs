@@ -27,7 +27,7 @@ use super::responds;
 /// no key is offered. The windows it serves are the main windows `native::main_window_built` lists
 /// (the Format menu acts on the frontmost one). Must run on the main thread; the monitor lives for
 /// the rest of the process.
-pub fn give_format_menu_keys_priority(menu_title: &'static str) {
+pub fn give_format_menu_keys_priority() {
     let Some(mtm) = MainThreadMarker::new() else {
         log::warn!("W_FORMAT_KEY_MONITOR_NOT_MAIN_THREAD");
         return;
@@ -37,7 +37,7 @@ pub fn give_format_menu_keys_priority(menu_title: &'static str) {
         // of the call.
         let key = unsafe { event.as_ref() };
         let taken = catch_unwind(AssertUnwindSafe(|| {
-            offer_to_format_menu(mtm, menu_title, key)
+            offer_to_format_menu(mtm, crate::strings::native().menu_format, key)
         }))
         .unwrap_or(false);
         if taken {

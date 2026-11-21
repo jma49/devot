@@ -196,9 +196,8 @@ describe('Tauri command permissions', () => {
       'allow-ai-settings-get',
       'allow-ai-settings-set',
       'allow-ai-try',
-      // Settings > General > App Language, and Restart Now to show it.
+      // Settings > General > App Language.
       'allow-app-language-get',
-      'allow-app-language-restart',
       'allow-app-language-set',
       'allow-background-quit',
       'allow-background-state',
@@ -336,6 +335,7 @@ describe('Tauri command permissions', () => {
       'allow-sync-state-put',
       'allow-sync-reset',
       'allow-sync-note-purge',
+      'allow-sync-purges-compact',
     ]) {
       expect(windowsWith(run)).toEqual(['main'])
     }
@@ -469,6 +469,8 @@ describe('Tauri command permissions', () => {
       'books_put',
       'files_copy',
       'note_drawings_put',
+      'notes_heads',
+      'notes_purge',
       'notes_trash_list',
       'revisions_compact',
       'revisions_compactable',
@@ -490,6 +492,10 @@ describe('Tauri command permissions', () => {
       .flatMap(permissionIds)
     const missing = reached.filter((c) => !granted.includes(`allow-${c.replaceAll('_', '-')}`))
     expect(missing).toEqual([])
+  })
+
+  it('lets only main windows purge Trash as a batch', () => {
+    expect(windowsWith('allow-notes-purge')).toEqual(['main'])
   })
 
   it('lets the quick capture window take a capture link, hand over its note and close, and nothing more', () => {

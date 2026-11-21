@@ -7,7 +7,12 @@ Part of the [architecture overview](../architecture.md).
   The locale follows the system's preferred languages: `resolveLocale` takes the first tag with a catalog, matching `zh`, `zh-Hans`, `zh-CN` and `zh-SG` to Simplified Chinese and passing over Traditional Chinese tags (`zh-Hant`, `zh-TW`, `zh-HK`, `zh-MO`).
   Settings > General > App Language picks Same as System, English or Simplified Chinese for Devot alone, each language named in itself (`Intl.DisplayNames`, Foundation's `Locale` on the iPhone) so a reader lost in the other one finds theirs.
   The choice is the app's own `AppleLanguages` default, which macOS's System Settings (Language & Region > Applications) and iOS Settings (Devot > Language) write as well, so the web view, the native menus and the iPhone's screens all read it and Devot keeps no copy of its own.
-  It shows from the next launch: on the Mac Settings offers Restart Now (`app_language_restart`, which quits as Quit does, every window saving first, and launches again), and a quit called off forgets the restart; the iPhone says the language changes the next time Devot opens.
+  On the Mac it shows at once, with no restart: `app_language_set` writes the default, works out the language shown (the choice, or for Same as System the system's list as System Settings holds it now, since the process's own list keeps its launch value), switches `strings::native()`, relabels the menu bar, the menu bar icons and Devot's own window titles in place, and announces `devot://app-language-changed` to every window.
+  The menus are relabelled by text: `strings::translate` finds an item's text among the catalog's fields (`Native::texts()`, generated) and takes the same field in the new language, so a plugin's items, which no field holds, are left to the plugin menus' own rebuild; window titles are left out of that lookup, since `Note` is a note window's title and the Format menu's alert.
+  Each window then loads that catalog (`setLocale`) and renders again in place (`liveLocale.tsx`): its root renders afresh, so every component renders with its state kept, and what skips renders or keeps text it made follows the locale itself (a `memo` component and a component whose element is kept read `useLocale`; a memo keyed on its strings; the preview renders again with the new labels; islands draw again; the editor draws its note again with `setState`, keeping text, selection, undo and the line at the top).
+  A window opened later starts in the shown language, which Rust sets before its page loads (`window.devotLanguage`, `shownLanguages`).
+  A few items AppKit itself adds (in the Edit and Window menus, the Services menu's services) and the system's panels follow from the next launch, as the hint under the setting says.
+  The iPhone says the language changes the next time Devot opens, as iOS reopens an app whose language changes in Settings.
   A list set elsewhere whose first language Devot does not ship reads as Same as System.
   `setLocale` also sets the page's `lang` to the catalog's language (`en`, `zh-Hans`), which WebKit uses to pick Han glyphs, break lines and choose VoiceOver's voice.
   The web view reports a language only when the bundle declares it, so both apps list every shipped language in `CFBundleLocalizations` (`src-tauri/Info.plist` for the Mac, `devot_iOS/Info.plist` and `project.yml` for the iPhone); a policy test checks all three.
@@ -16,10 +21,13 @@ Part of the [architecture overview](../architecture.md).
   A new English key gets its translation in the same change.
   A translation is a separate chunk that `setLocale` loads before the window renders, so a window parses only the English catalog and the one it shows ([startup chunks](../../tests/scripts/startup-chunks.build.test.ts)).
   The slash menu matches the English label as well as the shown one, so `/code` works in every language.
+  The English startup catalog leaves out Settings-only browser-extension registration messages.
+  Their Settings component registers the English fallback when its window loads, while the complete source catalog still supplies key types and native generation.
 - Placeholders (`{title}`) are filled with `format` in one pass, never with `String.replace`, whose replacement patterns (`$$`, `$&`, `$'`) would garble a title holding them; a policy test refuses `.replace('{`.
   A sentence is never built from pieces in code: each variant (with or without a count, a key or a scope) is its own catalog entry.
   No message has a `{code}` slot or names an error code; the code goes to the log ([quality](quality.md)).
 - The iPhone's native screens read the same catalog: `pnpm i18n:apple` (`scripts/i18n/apple.ts`) writes `Generated/Strings.swift` and `Generated/Localizable.xcstrings` under `src-tauri/apple/DevotScreens/Sources/DevotScreens/`, both committed, and `pnpm i18n:apple:check` fails CI when they are stale.
+  The browser-only `clipper.` area is excluded from all Apple outputs; the Rust generator already reads only the separate `native.` area.
   Each key is one static function of `enum L10n`, named in camel case (`phone.tab.notes` is `L10n.phoneTabNotes()`), that takes the message's placeholders as labelled `String` arguments in the order they appear.
   The text is the iPhone's wording where it has its own (`src/renderer/src/i18n/phone.ts`), which may use only the message's own placeholders.
   `L10n` looks the key up in the string catalog with the English as its fallback, then fills the placeholders in one pass as `format` does; the catalog keeps `{name}` placeholders as they are, so a translation is written as on the page.
@@ -30,7 +38,7 @@ Part of the [architecture overview](../architecture.md).
   Swift never inlines a user-facing string, and Swift tests write CJK with `\u{...}` escapes.
 - The Mac's native menus, dialogs, file panel titles and window titles come from the catalog's `native` area (`en/native.ts` and its translations), which stays out of the page's catalog and the iPhone's string catalogs, since neither shows it.
   `pnpm i18n:apple` also writes `src-tauri/src/strings_catalog.rs` (`scripts/i18n/rust.ts`, committed, checked by `pnpm i18n:apple:check`): a `Native` struct with a field per key in snake case (`native.formatHeading1` is `format_heading_1`) and one static per language, every non-ASCII character escaped so the file holds no CJK.
-  `strings::native()` picks the language once per run from the system's preferred languages (`NSLocale.preferredLanguages`) by the rules of `resolveLocale`, so the menu bar and the page always show the same language; off macOS it is English.
+  `strings::native()` starts in the system's preferred languages (`NSLocale.preferredLanguages`) by the rules of `resolveLocale`, so the menu bar and the page always show the same language, and follows Settings' choice from then on (`strings::show`); off macOS it is English.
   The Edit, Window and app menus' standard items take their titles from the same area.
   The `devot` command's output stays English, as a terminal tool's does, and so does the suffix of a kept-aside mirror file, which every device must read back the same.
 - Dates, numbers and lists use `Intl`.

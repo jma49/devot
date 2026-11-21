@@ -48,6 +48,8 @@ it('the scan covers CSS, TSX and TS but not the generated tokens or tests', () =
   const skipped = [
     `${UI_ROOT}/theme/tokens.css`,
     `${UI_ROOT}/theme/tokens.ts`,
+    `${UI_ROOT}/icons/kubaiGlyphs.css`,
+    `${UI_ROOT}/icons/kubaiGlyphs.ts`,
     `${UI_ROOT}/editor/theme.test.ts`,
     `${UI_ROOT}/App.test.tsx`,
     `${UI_ROOT}/logo.svg`,

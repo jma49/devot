@@ -8,6 +8,7 @@ import { readWrites, type AgentWrite } from '../../core/authorship'
 import { BODY } from '../../core/notes'
 import { undoneWrites } from './editor/authorshipUndo'
 import { imageFiles, storeImages } from './attachments'
+import { asBlockAt, type AttachContent } from './editor/attachContent'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
@@ -50,6 +51,7 @@ import {
 import { shadowContainer } from './editor/shadowFrame'
 import { reconfigureSetup } from './editor/settings'
 import { recount, type EditorCounts } from './editor/counts'
+import type { VimEditingMode } from './editor/vim'
 import { setToolbarFocus } from './editor/toolbarState'
 import { releaseParsedNote } from './editor/markdown'
 import { keepUndo, noteState } from './editor/undo'
@@ -87,6 +89,7 @@ import { setWriteFocus } from './editor/write'
 import type { Core } from './core-client'
 import type { ScrollPane } from './preview/scrollSync'
 import { clampSelection, clampTop } from './lastState'
+import { useLocale } from './liveLocale'
 
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
 const RESTORE = 'restore'
@@ -101,7 +104,7 @@ function attachImages(
   noteId: string,
   text: Y.Text,
   refused: (codes: string[]) => void,
-): { extension: Extension; choose: (view: EditorView) => void } {
+): { extension: Extension; choose: (view: EditorView) => void; attach: AttachContent } {
   const insert = (view: EditorView, pos: number, files: File[]) => {
     const anchor = anchorAt(text, Math.min(pos, view.state.doc.length))
     void storeImages(noteId, files).then(async (stored) => {
@@ -128,6 +131,15 @@ function attachImages(
     input.addEventListener('cancel', () => input.remove())
     document.body.appendChild(input)
     input.click()
+  }
+  const attach: AttachContent = async (view, { images, text: typed }) => {
+    const pos = Math.min(view.state.selection.main.head, view.state.doc.length)
+    const anchor = anchorAt(text, pos)
+    const stored = images.length > 0 ? await storeImages(noteId, images) : null
+    const links = stored?.links ? asBlockAt(view.state.doc, pos, stored.links) : ''
+    const markdown = links + typed
+    if (markdown) await insertAtAnchor(core, noteId, anchor, markdown)
+    return stored?.refused ?? []
   }
   const extension = EditorView.domEventHandlers({
     paste(event, view) {
@@ -167,7 +179,7 @@ function attachImages(
       return true
     },
   })
-  return { extension, choose }
+  return { extension, choose, attach }
 }
 
 interface Shown {
@@ -224,6 +236,7 @@ interface Props {
   onPlace?: (noteId: string, place: EditorPlace) => void
   /** Words and characters of the note and the selection, once typing pauses; nothing is counted without it. */
   onCounts?: ((counts: EditorCounts) => void) | undefined
+  onVimMode?: ((mode: VimEditingMode) => void) | undefined
   /** The line the caret is on, when it moves to another or the note changes under it. */
   onCaretLine?: ((line: number) => void) | undefined
   onNewFromSelection?: (() => void) | undefined
@@ -269,6 +282,7 @@ export function NoteEditor({
   initialPlace,
   onPlace,
   onCounts,
+  onVimMode,
   onCaretLine,
   onNewFromSelection,
   onAiEdit,
@@ -306,6 +320,7 @@ export function NoteEditor({
   const placeAsked = useRef(initialPlace)
   const placeReport = useRef(onPlace)
   const countsReport = useRef(onCounts)
+  const vimModeReport = useRef(onVimMode)
   const caretLineReport = useRef(onCaretLine)
   const fromSelection = useRef(onNewFromSelection)
   const aiEdit = useRef(onAiEdit)
@@ -412,6 +427,7 @@ export function NoteEditor({
     placeAsked.current = initialPlace
     placeReport.current = onPlace
     countsReport.current = onCounts
+    vimModeReport.current = onVimMode
     caretLineReport.current = onCaretLine
     focusOnOpen.current = autoFocus
     focusOnlyIfFree.current = autoFocusIfFree
@@ -466,6 +482,21 @@ export function NoteEditor({
     view.dispatch({ effects: writeSlot.reconfigure(writeFor(write, core)) })
     if (scroller && top) scrollToTop(view, scroller, top)
   }, [write, core, hidden])
+
+  // Widgets, hints and tooltips made their text when drawn: a new locale draws the note again, keeping
+  // its state (text, selection, undo) and the line at the top.
+  const locale = useLocale()
+  const drawnIn = useRef(locale)
+  useEffect(() => {
+    const view = editor.current?.view
+    if (drawnIn.current === locale) return
+    drawnIn.current = locale
+    if (!view) return
+    const scroller = box.current?.scroller
+    const top = scroller && !hidden ? editorTop(view, scroller) : undefined
+    view.setState(view.state)
+    if (scroller && top) scrollToTop(view, scroller, top)
+  }, [locale, hidden])
 
   useEffect(() => {
     if (locked.current === lock) return
@@ -574,6 +605,7 @@ export function NoteEditor({
       imageHandlers,
       locked,
       countsReport,
+      vimModeReport,
       caretLineReport,
     }
     const show = (state: Uint8Array, handedOver = false) => {

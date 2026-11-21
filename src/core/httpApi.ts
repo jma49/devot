@@ -13,6 +13,8 @@ import {
 } from './append'
 import { AUTHORSHIP_ID, cleanWriterName, newWriter, type Writer } from './authorship'
 import { NOTE_STATUSES, type NoteStatus } from './storage'
+import type { StorageAdapter } from './storage'
+import { checkUpload, fileUri } from './files'
 
 export const HTTP_API_OPS = [
   'notebooks.list',
@@ -24,6 +26,7 @@ export const HTTP_API_OPS = [
   'notes.update',
   'notes.append',
   'notes.trash',
+  'notes.files.create',
 ] as const
 export type HttpApiOp = (typeof HTTP_API_OPS)[number]
 
@@ -34,6 +37,7 @@ export const HTTP_API_WRITES: readonly HttpApiOp[] = [
   'notes.update',
   'notes.append',
   'notes.trash',
+  'notes.files.create',
 ]
 
 /** The notes a write changes when it changes nothing else (no note made or trashed, no tag made); undefined for any other write. */
@@ -181,9 +185,29 @@ const noteJson = (note: AiNote) => ({
 })
 
 /** The JSON a call answers with; a failure throws its code (E_NOTE_NOT_FOUND for anything AI may not see). */
-export async function runHttpApiCall(ai: AiService, call: HttpApiCall): Promise<unknown> {
+export async function runHttpApiCall(
+  ai: AiService,
+  call: HttpApiCall,
+  files?: { storage: Pick<StorageAdapter, 'putFile'>; newId: () => string },
+): Promise<unknown> {
   const { args } = call
   switch (call.op) {
+    case 'notes.files.create': {
+      const note = noteId(call)
+      await ai.read(note)
+      if (!files) throw new Error('E_HTTP_API_UNAVAILABLE')
+      if (new TextEncoder().encode(JSON.stringify(args)).length > 2 * 1024 * 1024)
+        throw new Error('E_HTTP_BODY_TOO_LARGE')
+      const encoded = text(args, 'data')
+      if (encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded))
+        throw new Error('E_FILE_BODY_INVALID')
+      if (encoded && btoa(atob(encoded)) !== encoded) throw new Error('E_FILE_BODY_INVALID')
+      const data = Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))
+      const meta = { id: files.newId(), noteId: note, name: text(args, 'name') }
+      if (checkUpload(meta, data) !== text(args, 'type')) throw new Error('E_FILE_TYPE_REFUSED')
+      await files.storage.putFile(meta, data)
+      return { id: meta.id, url: fileUri(meta.id) }
+    }
     case 'notebooks.list':
       return { notebooks: await ai.notebooks() }
     case 'notebooks.create': {

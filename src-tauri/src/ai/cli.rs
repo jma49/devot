@@ -54,12 +54,21 @@ pub enum CliState {
     SignedOut,
     #[default]
     NotInstalled,
+    /// Only in a settings view, before the first probe has answered.
+    Checking,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CliStates {
     pub claude_cli: CliState,
     pub codex_cli: CliState,
+}
+
+impl CliStates {
+    pub const CHECKING: Self = Self {
+        claude_cli: CliState::Checking,
+        codex_cli: CliState::Checking,
+    };
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1181,10 +1190,18 @@ mod tests {
     use std::process::ExitStatus;
 
     #[cfg(unix)]
+    // Written by a child shell, never through a descriptor of this process: a test running a process
+    // on another thread would inherit that descriptor across its fork, and Linux refuses to run a file
+    // open for writing (ETXTBSY), so the script would sometimes fail to start.
     fn write_script(dir: &Path, name: &str, body: &str) -> PathBuf {
         let path = dir.join(name);
-        std::fs::write(&path, format!("#!/bin/sh\n{body}")).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let written = Command::new("/bin/sh")
+            .args(["-c", r#"printf '%s' "$1" > "$2" && chmod 755 "$2""#, "sh"])
+            .arg(format!("#!/bin/sh\n{body}"))
+            .arg(&path)
+            .status()
+            .unwrap();
+        assert!(written.success());
         path
     }
 

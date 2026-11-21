@@ -1,0 +1,13 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_NOTE_ID_INVALID",
+  "message": {
+    "v": 1,
+    "id": 978,
+    "op": "editor.attach",
+    "args": {
+      "noteId": "not-a-note",
+      "text": "a"
+    }
+  }
+}

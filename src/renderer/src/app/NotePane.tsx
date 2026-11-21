@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Inspector } from '../outline/Inspector'
 import { LazyHistory } from '../LazyHistory'
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react'
@@ -17,7 +17,7 @@ import type { AiEditStart } from '../editor/aiMenu'
 import type { EditorHandle } from '../editor/handle'
 import type { FindTarget } from '../find/target'
 import type { useFind } from '../find/useFind'
-import type { HeadlineLoader } from '../headlines'
+import { displayTitle, useHeadlines, type HeadlineLoader } from '../headlines'
 import type { useHistoryBar } from '../HistoryBar'
 import { t } from '../i18n'
 import { ToolIcon } from '../icons/Icon'
@@ -165,6 +165,11 @@ export function NotePane({
   const { selectedNote, activeFilter, sidebarTagged, searching } = view
   const { backAt, forwardAt, step, editNote, takesKeyboard, closeUnopenable, select } = open
   const { title, switching, takePreopened, setEditorLoading } = opening
+  const untitled = useMemo(
+    () => (selectedNote && title === '' ? [selectedNote] : []),
+    [selectedNote, title],
+  )
+  const headline = useHeadlines(loadHeadlines, untitled).get(selectedNote?.id ?? '')
   const { findLinkTargets, createLinkedNote, discardLinkedNote, noteFromSelection } = making
   const { noteFromLink, setPicking, recentTemplates, setNoteDates } = making
   const { shownBuiltIn, pickBuiltIn, editBuiltInCopy } = making
@@ -303,7 +308,7 @@ export function NotePane({
             ref={titleRef}
             className="title"
             aria-label={t('note.titleLabel')}
-            placeholder={t('note.untitled')}
+            placeholder={displayTitle('', headline)}
             value={title}
             readOnly={switching || !editing}
             onChange={(e) => rename(e.target.value)}
@@ -436,6 +441,7 @@ export function NotePane({
               initialPlace={takeEditorPlace(selected)}
               onPlace={editorPlaced}
               onCounts={countsShown ? editorCounts.set : undefined}
+              onVimMode={editorCounts.setVimMode}
               onCaretLine={caretLine.set}
               onNewFromSelection={
                 inTrash || !editing ? undefined : () => void noteFromSelection(selected)

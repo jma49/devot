@@ -65,6 +65,9 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
     if let Some(store) = crate::data_folder::this_build_web_data_store() {
         builder = builder.data_store_identifier(store);
     }
+    if let Some(language) = crate::app_language::initial_script() {
+        builder = builder.initialization_script(language);
+    }
     let builder = builder
         .title(strings::native().settings_title)
         .theme(theme)
@@ -312,6 +315,11 @@ mod tests {
     #[test]
     fn add_licence_opens_settings_at_the_licence_pane() {
         assert_eq!(page_at(LICENCE_PANE), "settings.html?pane=licence");
+    }
+
+    #[test]
+    fn plugin_settings_opens_settings_at_the_plugins_pane() {
+        assert_eq!(page_at(PLUGINS_PANE), "settings.html?pane=plugins");
     }
 
     #[test]

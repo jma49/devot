@@ -72,6 +72,7 @@ describe('navigation keys', () => {
 describe('the pane Settings opens on when asked', () => {
   it('is the pane the page address names, and only a pane', () => {
     expect(paneFromQuery('?pane=licence')).toBe('licence')
+    expect(paneFromQuery('?pane=plugins')).toBe('plugins')
     expect(paneFromQuery('?pane=nothing')).toBeUndefined()
     expect(paneFromQuery('')).toBeUndefined()
   })

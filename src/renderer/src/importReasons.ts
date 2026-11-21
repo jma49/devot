@@ -3,6 +3,11 @@
 import type { MessageKey } from './i18n'
 
 const REASONS: Record<string, MessageKey> = {
+  E_IMPORT_ATTACHMENT_UNSUPPORTED: 'import.reason.attachmentType',
+  E_IMPORT_ATTACHMENT_INVALID: 'import.reason.attachmentInvalid',
+  E_IMPORT_ATTACHMENT_MISSING: 'import.reason.attachmentMissing',
+  E_IMPORT_ATTACHMENT_STORAGE: 'import.reason.attachmentStorage',
+  E_IMPORT_ENCRYPTED: 'import.reason.encrypted',
   E_IMPORT_FILE_TOO_LARGE: 'import.reason.tooLarge',
   E_FILE_SIZE_INVALID: 'import.reason.size',
   E_IMPORT_NOT_UTF8: 'import.reason.notUtf8',

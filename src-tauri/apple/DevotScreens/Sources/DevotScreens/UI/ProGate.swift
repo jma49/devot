@@ -18,6 +18,8 @@ enum WriteIntent: Equatable {
     case setDates(noteId: String, createdAt: Double?, updatedAt: Double?)
     /// A front matter row's value given to the note, from Note Info's Apply.
     case applyFrontMatter(noteId: String, field: FrontMatter.Field, value: String)
+    /// A scan or a transcription into the note: it writes once it ends, so the gate asks before it starts.
+    case capture(noteId: String, kind: CaptureKind)
 }
 
 /// The short Pro sheet's kinds, as `requireEditing.ts` names them.

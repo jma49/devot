@@ -1,4 +1,4 @@
-// The `devot` global a plugin's script runs with (ADR 0005), for plugin API version 2.
+// The `devot` global a plugin's script runs with (ADR 0005), for plugin API version 3.
 // Every promise rejects with an Error whose `code` names the refusal, such as E_PLUGIN_PERMISSION_DENIED.
 
 export type JsonValue =
@@ -13,6 +13,16 @@ export interface DevotNote {
   title: string
   markdown: string
 }
+
+/** API 3: attachment URLs are `attachment:0`, `attachment:1`, in array order. */
+export type DevotConvertedNote = {
+  title: string
+  tags?: string[]
+  createdAt?: number
+  updatedAt?: number
+  attachments?: { name: string; mime: string; data: string }[]
+  diagnostics?: string[]
+} & ({ markdown: string; html?: never } | { html: string; markdown?: never })
 
 export interface DevotSelection {
   /** UTF-16 offsets in the note's Markdown; equal at the caret. */
@@ -107,7 +117,15 @@ export interface DevotApi {
     edit(id: string, edit: (source: string) => string | null | Promise<string | null>): void
   }
   readonly importer: {
-    handle(id: string, convert: (file: DevotFile) => DevotNote | Promise<DevotNote>): void
+    handle(
+      id: string,
+      convert: (
+        file: DevotFile,
+      ) =>
+        | DevotConvertedNote
+        | DevotConvertedNote[]
+        | Promise<DevotConvertedNote | DevotConvertedNote[]>,
+    ): void
   }
   readonly exporter: {
     handle(id: string, convert: (note: DevotNote) => string | Promise<string>): void
@@ -168,7 +186,7 @@ export type DevotPermission =
   | 'notes.read'
   | 'themes'
 
-/** A theme file (API 2): colors by token, each named as its CSS variable after `--color-`, as `#rrggbb` or `#rrggbbaa`. Icon tokens (`status-*-mark`, `icon-tile-*`, `tag-icon-*`, `phone-status-tile-*`) are not applied: icons keep Devot's colors. A text or selection color with less contrast than Devot's own is raised to it, keeping its hue. */
+/** A theme file (API 2): colors by token, each named as its CSS variable after `--color-`, as `#rrggbb` or `#rrggbbaa`. Icon, tag, status, destructive and button tokens (`status-*`, `icon-tile-*`, `tag-*`, `phone-status-tile-*`, `phone-action-*`, `*destructive*`, `accent-fill`, `accent-hover`, `accent-on-fill`, `focus-ring`, `switch-handle`, `phone-on-action`) are not applied: they keep Devot's colors. A text or selection color with less contrast than Devot's own is raised to it, keeping its hue. */
 export interface DevotThemeFile {
   colors: Record<string, string>
 }
@@ -208,7 +226,7 @@ export interface DevotManifest {
       /** Only with `output: 'svg'`: the drawing offers Edit, which calls `devot.preview.edit`. */
       editable?: boolean
     }[]
-    importFormats?: { id: string; title: string; extensions: string[] }[]
+    importFormats?: { id: string; title: string; extensions: string[]; maxFileBytes?: number }[]
     exportFormats?: { id: string; title: string; extension: string }[]
     settings?: DevotSetting[]
     /** Needs `themes` (API 2): colors drawn over the theme chosen for that appearance in Settings > Appearance. */

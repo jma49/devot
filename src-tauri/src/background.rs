@@ -10,9 +10,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow, Window, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow, Window, WindowEvent, Wry};
 
 use crate::{exit, http_api, menu_bar, strings};
 
@@ -138,7 +138,7 @@ pub fn menu_bar_icon_changed(app: &AppHandle, shown: bool) {
     }
 }
 
-fn show_icon(app: &AppHandle) -> tauri::Result<()> {
+fn icon_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let status = MenuItemBuilder::with_id(STATUS_ID, strings::native().background_menu_status)
         .enabled(false)
         .build(app)?;
@@ -149,7 +149,7 @@ fn show_icon(app: &AppHandle) -> tauri::Result<()> {
     let settings =
         MenuItemBuilder::with_id(SETTINGS_ID, strings::native().background_settings).build(app)?;
     let quit = MenuItemBuilder::with_id(QUIT_ID, strings::native().quit).build(app)?;
-    let menu = MenuBuilder::new(app)
+    MenuBuilder::new(app)
         .item(&status)
         .item(&idle)
         .separator()
@@ -157,15 +157,31 @@ fn show_icon(app: &AppHandle) -> tauri::Result<()> {
         .item(&settings)
         .separator()
         .item(&quit)
-        .build()?;
+        .build()
+}
+
+fn show_icon(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(menu_bar::icon())
         .icon_as_template(true)
         .tooltip(strings::native().background_status)
-        .menu(&menu)
+        .menu(&icon_menu(app)?)
         .show_menu_on_left_click(true)
         .build(app)?;
     Ok(())
+}
+
+/// The app's language changed (`app_language`): the icon's menu and tooltip follow.
+pub fn relabel(app: &AppHandle) {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else {
+        return;
+    };
+    let relabelled = icon_menu(app)
+        .and_then(|menu| tray.set_menu(Some(menu)))
+        .and_then(|()| tray.set_tooltip(Some(strings::native().background_status)));
+    if relabelled.is_err() {
+        log::warn!("W_BACKGROUND_ICON_RELABEL_FAILED");
+    }
 }
 
 /// The item's menu; false for any other. Settings keeps it in the background: it can say so there.

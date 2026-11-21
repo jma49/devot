@@ -81,6 +81,25 @@ test('tags a note, reuses tags, filters and removes them', async ({ page }) => {
   await expect(noteRows(page)).toHaveCount(1)
 })
 
+test('pasting several lines into the tag field takes the first, not the lines run together', async ({
+  page,
+}) => {
+  await createNote(page, 'Chart')
+  const field = page.getByRole('combobox', { name: 'Add Tag' })
+  await field.focus()
+  await field.evaluate((el) => {
+    const w = window
+    const data = new w.DataTransfer()
+    data.setData('text/plain', 'type: line\ntitle: Visitors\n')
+    el.dispatchEvent(
+      new w.ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
+    )
+  })
+  await expect(field).toHaveValue('type: line')
+  await field.press('Enter')
+  await expect(sidebar(page).getByRole('button', { name: /^type: line 1$/ })).toBeVisible()
+})
+
 test('declining a tag delete keeps the tag and returns focus to its row', async ({ page }) => {
   await createNote(page, 'One')
   await addTag(page, 'keep')

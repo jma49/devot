@@ -1,6 +1,8 @@
 import type { messages as en } from '../en/files'
 
 export const messages: Record<keyof typeof en, string> = {
+  'import.dropHint': '拖放文件以导入并打开',
+  'import.dropFailed': '无法导入这些文件。',
   'pageSetup.title': '页面设置',
   'pageSetup.paper': '纸张',
   'pageSetup.paper.a4': 'A4',
@@ -274,6 +276,11 @@ title: 日报 {{date}}
   'import.reason.outside': '在导入的文件夹之外',
   'import.reason.tag': '未添加标签：不是有效的标签名',
   'import.reason.type': '不是支持的图片格式',
+  'import.reason.attachmentType': '不支持此附件类型',
+  'import.reason.attachmentInvalid': '附件数据无效',
+  'import.reason.attachmentMissing': '找不到附件数据',
+  'import.reason.attachmentStorage': '无法保存附件',
+  'import.reason.encrypted': '无法导入加密内容',
   'import.reason.path': '隐藏文件或路径无效',
   'import.reason.unreadable': '无法读取',
   'import.reason.tooDeep': '嵌套的文件夹层级太多',

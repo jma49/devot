@@ -86,20 +86,20 @@ public enum L10n {
     text("aiSettings.suggestOnIdle", "Suggest When I Pause")
   }
 
-  public static func aiSettingsSuggestOnIdleHint(before p0: String, after p1: String) -> String {
-    fill(text("aiSettings.suggestOnIdleHint", "Off, a suggestion is asked for only when you use Suggest Next Edit. On, one is also asked for a moment after you stop typing. Each request sends at most {before} characters before the caret and {after} after it, from notes in a notebook with Allow AI Access on."), ["before": p0, "after": p1])
+  public static func aiSettingsLede() -> String {
+    text("aiSettings.lede", "Devot sends text only when you start an AI action, and only from notebooks that allow AI access.")
   }
 
-  public static func aiSettingsActiveTitle() -> String {
-    text("aiSettings.activeTitle", "Active Provider")
+  public static func aiSettingsModelTitle() -> String {
+    text("aiSettings.modelTitle", "Model")
   }
 
-  public static func aiSettingsActive() -> String {
-    text("aiSettings.active", "Provider")
+  public static func aiSettingsModelValue(label p0: String, model p1: String, provider p2: String) -> String {
+    fill(text("aiSettings.modelValue", "{label}: {model}, {provider}"), ["label": p0, "model": p1, "provider": p2])
   }
 
-  public static func aiSettingsActiveHint() -> String {
-    text("aiSettings.activeHint", "The provider AI features use.")
+  public static func aiSettingsProviderStatus(provider p0: String, status p1: String) -> String {
+    fill(text("aiSettings.providerStatus", "{provider} · {status}"), ["provider": p0, "status": p1])
   }
 
   public static func aiSettingsProviderAnthropic() -> String {
@@ -118,14 +118,6 @@ public enum L10n {
     text("aiSettings.provider.codexCli", "Codex")
   }
 
-  public static func aiSettingsLocalTitle() -> String {
-    text("aiSettings.localTitle", "On This Mac")
-  }
-
-  public static func aiSettingsLocalFootnote() -> String {
-    text("aiSettings.localFootnote", "Devot detects Claude Code and Codex installed on this Mac and uses your existing sign-in, with no API key needed. Tools run without file access or extensions, and receive only notes from notebooks with Allow AI Access on.")
-  }
-
   public static func aiSettingsCliReady() -> String {
     text("aiSettings.cliReady", "Ready")
   }
@@ -138,52 +130,316 @@ public enum L10n {
     text("aiSettings.cliNotInstalled", "Not installed")
   }
 
-  public static func aiSettingsCliUse() -> String {
-    text("aiSettings.cliUse", "Use")
+  public static func aiSettingsCliChecking() -> String {
+    text("aiSettings.cliChecking", "Checking…")
   }
 
-  public static func aiSettingsCliActive() -> String {
-    text("aiSettings.cliActive", "Active")
+  public static func aiSettingsCliUse() -> String {
+    text("aiSettings.cliUse", "Use")
   }
 
   public static func aiSettingsCliUseLabel(provider p0: String) -> String {
     fill(text("aiSettings.cliUseLabel", "Use {provider}"), ["provider": p0])
   }
 
-  public static func aiSettingsCliActiveLabel(provider p0: String) -> String {
-    fill(text("aiSettings.cliActiveLabel", "{provider} is active"), ["provider": p0])
-  }
-
-  public static func aiSettingsCliModelLabel(provider p0: String) -> String {
-    fill(text("aiSettings.cliModelLabel", "{provider} model"), ["provider": p0])
-  }
-
-  public static func aiSettingsCliModelHint() -> String {
-    text("aiSettings.cliModelHint", "Optional model override. Leave empty for the tool’s default.")
-  }
-
-  public static func aiSettingsCliModelDefault() -> String {
-    text("aiSettings.cliModelDefault", "Default")
-  }
-
-  public static func aiSettingsCliRefreshTitle() -> String {
-    text("aiSettings.cliRefreshTitle", "Installed Tools")
-  }
-
-  public static func aiSettingsCliRefreshHint() -> String {
-    text("aiSettings.cliRefreshHint", "Check again after installing or signing in to Claude Code or Codex.")
-  }
-
-  public static func aiSettingsCliRefresh() -> String {
-    text("aiSettings.cliRefresh", "Refresh")
-  }
-
-  public static func aiSettingsCliRefreshing() -> String {
-    text("aiSettings.cliRefreshing", "Checking…")
-  }
-
   public static func aiSettingsCliRefreshed() -> String {
     text("aiSettings.cliRefreshed", "Checked installed AI tools.")
+  }
+
+  public static func aiSettingsStatusNeedsKey() -> String {
+    text("aiSettings.status.needsKey", "Needs an API key")
+  }
+
+  public static func aiSettingsStatusKeyUnknown() -> String {
+    text("aiSettings.status.keyUnknown", "The Keychain could not be read")
+  }
+
+  public static func aiSettingsStatusKeyUnavailable() -> String {
+    text("aiSettings.status.keyUnavailable", "The Keychain cannot be used")
+  }
+
+  public static func aiSettingsDefaultModel() -> String {
+    text("aiSettings.defaultModel", "Default")
+  }
+
+  public static func aiSettingsDefaultModelNamed(model p0: String) -> String {
+    fill(text("aiSettings.defaultModelNamed", "Default ({model})"), ["model": p0])
+  }
+
+  public static func aiSettingsReasoning() -> String {
+    text("aiSettings.reasoning", "Reasoning")
+  }
+
+  public static func aiSettingsDefaultReasoning() -> String {
+    text("aiSettings.defaultReasoning", "Default")
+  }
+
+  public static func aiSettingsDefaultReasoningNamed(level p0: String) -> String {
+    fill(text("aiSettings.defaultReasoningNamed", "Default ({level})"), ["level": p0])
+  }
+
+  public static func aiSettingsLevelNone() -> String {
+    text("aiSettings.level.none", "None")
+  }
+
+  public static func aiSettingsLevelMinimal() -> String {
+    text("aiSettings.level.minimal", "Minimal")
+  }
+
+  public static func aiSettingsLevelLow() -> String {
+    text("aiSettings.level.low", "Low")
+  }
+
+  public static func aiSettingsLevelMedium() -> String {
+    text("aiSettings.level.medium", "Medium")
+  }
+
+  public static func aiSettingsLevelHigh() -> String {
+    text("aiSettings.level.high", "High")
+  }
+
+  public static func aiSettingsLevelXhigh() -> String {
+    text("aiSettings.level.xhigh", "Extra High")
+  }
+
+  public static func aiSettingsLevelMax() -> String {
+    text("aiSettings.level.max", "Max")
+  }
+
+  public static func aiSettingsPicker() -> String {
+    text("aiSettings.picker", "Choose a Model")
+  }
+
+  public static func aiSettingsPickerSearch() -> String {
+    text("aiSettings.pickerSearch", "Search all models")
+  }
+
+  public static func aiSettingsPickerModels() -> String {
+    text("aiSettings.pickerModels", "Models")
+  }
+
+  public static func aiSettingsPickerProviders() -> String {
+    text("aiSettings.pickerProviders", "Providers")
+  }
+
+  public static func aiSettingsRecent() -> String {
+    text("aiSettings.recent", "Recent")
+  }
+
+  public static func aiSettingsTierFast() -> String {
+    text("aiSettings.tier.fast", "fast")
+  }
+
+  public static func aiSettingsTierBest() -> String {
+    text("aiSettings.tier.best", "best")
+  }
+
+  public static func aiSettingsOtherModel() -> String {
+    text("aiSettings.otherModel", "Other Model ID…")
+  }
+
+  public static func aiSettingsOtherModelField(provider p0: String) -> String {
+    fill(text("aiSettings.otherModelField", "Model ID for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsNotSetUpGroup(provider p0: String) -> String {
+    fill(text("aiSettings.notSetUpGroup", "{provider} · not set up"), ["provider": p0])
+  }
+
+  public static func aiSettingsBlockedTitle(provider p0: String) -> String {
+    fill(text("aiSettings.blocked.title", "{provider} is not set up"), ["provider": p0])
+  }
+
+  public static func aiSettingsBlockedKey() -> String {
+    text("aiSettings.blocked.key", "Add a key and Devot lists the models it can use.")
+  }
+
+  public static func aiSettingsBlockedSignedOut() -> String {
+    text("aiSettings.blocked.signedOut", "Sign in to it in Terminal, then Check Again.")
+  }
+
+  public static func aiSettingsBlockedNotInstalled() -> String {
+    text("aiSettings.blocked.notInstalled", "Install it on this Mac, then Check Again.")
+  }
+
+  public static func aiSettingsModelsLoading() -> String {
+    text("aiSettings.modelsLoading", "Listing models…")
+  }
+
+  public static func aiSettingsModelsFailed() -> String {
+    text("aiSettings.modelsFailed", "The models could not be listed.")
+  }
+
+  public static func aiSettingsTryAgain() -> String {
+    text("aiSettings.tryAgain", "Try Again")
+  }
+
+  public static func aiSettingsAddKey() -> String {
+    text("aiSettings.addKey", "Add Key…")
+  }
+
+  public static func aiSettingsChangeKey() -> String {
+    text("aiSettings.changeKey", "Change Key…")
+  }
+
+  public static func aiSettingsAddKeyLabel(provider p0: String) -> String {
+    fill(text("aiSettings.addKeyLabel", "Add a key for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsChangeKeyLabel(provider p0: String) -> String {
+    fill(text("aiSettings.changeKeyLabel", "Change the key for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsCheckAgain() -> String {
+    text("aiSettings.checkAgain", "Check Again")
+  }
+
+  public static func aiSettingsCheckAgainLabel(provider p0: String) -> String {
+    fill(text("aiSettings.checkAgainLabel", "Check {provider} again"), ["provider": p0])
+  }
+
+  public static func aiSettingsTryIt() -> String {
+    text("aiSettings.tryIt", "Try It")
+  }
+
+  public static func aiSettingsTrying(model p0: String) -> String {
+    fill(text("aiSettings.trying", "Asking {model}…"), ["model": p0])
+  }
+
+  public static func aiSettingsTried(seconds p0: String) -> String {
+    fill(text("aiSettings.tried", "Answered in {seconds} s."), ["seconds": p0])
+  }
+
+  public static func aiSettingsTryFailed() -> String {
+    text("aiSettings.tryFailed", "No answer came.")
+  }
+
+  public static func aiSettingsSameAsModel() -> String {
+    text("aiSettings.sameAsModel", "Same as Model")
+  }
+
+  public static func aiSettingsNotebooks() -> String {
+    text("aiSettings.notebooks", "Notebooks")
+  }
+
+  public static func aiSettingsNotebooksCount(allowed p0: String, notebooks p1: String) -> String {
+    fill(text("aiSettings.notebooksCount", "{allowed} of {notebooks} notebooks allow AI access."), ["allowed": p0, "notebooks": p1])
+  }
+
+  public static func aiSettingsChooseNotebooks() -> String {
+    text("aiSettings.chooseNotebooks", "Choose…")
+  }
+
+  public static func aiSettingsSuggestHint() -> String {
+    text("aiSettings.suggestHint", "Ghost text appears a moment after you stop typing at the end of a line. Tab accepts it.")
+  }
+
+  public static func aiSettingsSuggestFootnote(before p0: String, after p1: String) -> String {
+    fill(text("aiSettings.suggestFootnote", "Each request sends at most {before} characters before the caret and {after} after it."), ["before": p0, "after": p1])
+  }
+
+  public static func aiSettingsSuggestModel() -> String {
+    text("aiSettings.suggestModel", "Suggestion Model")
+  }
+
+  public static func aiSettingsSuggestModelHint() -> String {
+    text("aiSettings.suggestModelHint", "A fast model keeps suggestions quick.")
+  }
+
+  public static func aiSettingsSuggestModelLocalHint() -> String {
+    text("aiSettings.suggestModelLocalHint", "A tool on this Mac answers slowly. A cloud model with a key keeps suggestions quick.")
+  }
+
+  public static func aiSettingsSuggestReady(model p0: String) -> String {
+    fill(text("aiSettings.suggest.ready", "Ready: {model} suggests in notebooks that allow AI access."), ["model": p0])
+  }
+
+  public static func aiSettingsSuggestLicence() -> String {
+    text("aiSettings.suggest.licence", "No suggestions: AI needs a Devot license.")
+  }
+
+  public static func aiSettingsSuggestNoNotebooks() -> String {
+    text("aiSettings.suggest.noNotebooks", "No suggestions: no notebook allows AI access.")
+  }
+
+  public static func aiSettingsSuggestNoKey(provider p0: String) -> String {
+    fill(text("aiSettings.suggest.noKey", "No suggestions: {provider} has no key."), ["provider": p0])
+  }
+
+  public static func aiSettingsSuggestNoModel(provider p0: String) -> String {
+    fill(text("aiSettings.suggest.noModel", "No suggestions: choose a model for {provider}."), ["provider": p0])
+  }
+
+  public static func aiSettingsSuggestCliMissing(provider p0: String) -> String {
+    fill(text("aiSettings.suggest.cliMissing", "No suggestions: {provider} is not installed."), ["provider": p0])
+  }
+
+  public static func aiSettingsSuggestSignedOut(provider p0: String) -> String {
+    fill(text("aiSettings.suggest.signedOut", "No suggestions: sign in to {provider}."), ["provider": p0])
+  }
+
+  public static func aiSettingsProvidersTitle() -> String {
+    text("aiSettings.providersTitle", "Providers and Keys")
+  }
+
+  public static func aiSettingsProvidersSummary(ready p0: String, other p1: String) -> String {
+    fill(text("aiSettings.providersSummary", "{ready} ready · {other} not set up"), ["ready": p0, "other": p1])
+  }
+
+  public static func aiSettingsFirstRunTitle() -> String {
+    text("aiSettings.firstRunTitle", "Choose How Devot Reaches AI")
+  }
+
+  public static func aiSettingsFirstRunFootnote() -> String {
+    text("aiSettings.firstRunFootnote", "Claude Code and Codex use your existing sign-in, with no key. They run without file access or extensions.")
+  }
+
+  public static func aiSettingsFirstRunNoTools() -> String {
+    text("aiSettings.firstRunNoTools", "No AI tool was found on this Mac. Add a key, or install Claude Code or Codex and Check Again.")
+  }
+
+  public static func aiSettingsAddKeyTitle(provider p0: String) -> String {
+    fill(text("aiSettings.addKeyTitle", "Add Key for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsChangeKeyTitle(provider p0: String) -> String {
+    fill(text("aiSettings.changeKeyTitle", "Change Key for {provider}"), ["provider": p0])
+  }
+
+  public static func aiSettingsKeySheetDetail() -> String {
+    text("aiSettings.keySheetDetail", "Requests go from this Mac straight to the provider, with your own key, kept in the macOS Keychain.")
+  }
+
+  public static func aiSettingsKeyPlaceholder() -> String {
+    text("aiSettings.keyPlaceholder", "Paste a key")
+  }
+
+  public static func aiSettingsCustomEndpoint() -> String {
+    text("aiSettings.customEndpoint", "Custom Endpoint")
+  }
+
+  public static func aiSettingsCheckingKey() -> String {
+    text("aiSettings.checkingKey", "Checking the key…")
+  }
+
+  public static func aiSettingsKeyWorksOne(count p0: String) -> String {
+    fill(text("aiSettings.keyWorksOne", "Key works · {count} model found."), ["count": p0])
+  }
+
+  public static func aiSettingsKeyWorksOther(count p0: String) -> String {
+    fill(text("aiSettings.keyWorksOther", "Key works · {count} models found."), ["count": p0])
+  }
+
+  public static func aiSettingsKeyCheckFailed() -> String {
+    text("aiSettings.keyCheckFailed", "The key was saved, but no models could be listed.")
+  }
+
+  public static func aiSettingsEndpointFailed() -> String {
+    text("aiSettings.endpointFailed", "The endpoint could not be saved.")
+  }
+
+  public static func aiSettingsDone() -> String {
+    text("aiSettings.done", "Done")
   }
 
   public static func aiSettingsEndpoint() -> String {
@@ -690,6 +946,42 @@ public enum L10n {
     fill(text("change.bookNameInvalid", "A notebook name is one line of at most {max} characters."), ["max": p0])
   }
 
+  public static func browserExtensionsTitle() -> String {
+    text("browserExtensions.title", "Browser Extensions")
+  }
+
+  public static func browserExtensionsHint() -> String {
+    text("browserExtensions.hint", "Only registered extensions may use this API. Copy the origin from the clipper settings. Changes apply immediately.")
+  }
+
+  public static func browserExtensionsEmpty() -> String {
+    text("browserExtensions.empty", "No browser extensions registered.")
+  }
+
+  public static func browserExtensionsOrigin() -> String {
+    text("browserExtensions.origin", "Extension origin")
+  }
+
+  public static func browserExtensionsPlaceholder() -> String {
+    text("browserExtensions.placeholder", "chrome-extension://… or moz-extension://…")
+  }
+
+  public static func browserExtensionsAdd() -> String {
+    text("browserExtensions.add", "Add Extension")
+  }
+
+  public static func browserExtensionsRemove() -> String {
+    text("browserExtensions.remove", "Remove")
+  }
+
+  public static func browserExtensionsRemoveOrigin(origin p0: String) -> String {
+    fill(text("browserExtensions.removeOrigin", "Remove {origin}"), ["origin": p0])
+  }
+
+  public static func browserExtensionsInvalid() -> String {
+    text("browserExtensions.invalid", "Enter up to eight extension origins, without a trailing slash, path or port.")
+  }
+
   public static func commandSelectAllNotes() -> String {
     text("command.selectAllNotes", "Select All Notes")
   }
@@ -812,6 +1104,10 @@ public enum L10n {
 
   public static func commandShowGallery() -> String {
     text("command.showGallery", "Show as Gallery")
+  }
+
+  public static func commandShowTable() -> String {
+    text("command.showTable", "Show as Table")
   }
 
   public static func commandAlertNote() -> String {
@@ -2222,6 +2518,18 @@ public enum L10n {
     text("counts.words", "Words")
   }
 
+  public static func countsVimNormal() -> String {
+    text("counts.vimNormal", "NORMAL")
+  }
+
+  public static func countsVimInsert() -> String {
+    text("counts.vimInsert", "INSERT")
+  }
+
+  public static func countsVimVisual() -> String {
+    text("counts.vimVisual", "VISUAL")
+  }
+
   public static func countsCharacters() -> String {
     text("counts.characters", "Characters")
   }
@@ -2752,6 +3060,14 @@ public enum L10n {
 
   public static func editorOverwriteOff() -> String {
     text("editor.overwriteOff", "Overwrite mode off")
+  }
+
+  public static func importDropHint() -> String {
+    text("import.dropHint", "Drop files to import and open")
+  }
+
+  public static func importDropFailed() -> String {
+    text("import.dropFailed", "These files could not be imported.")
   }
 
   public static func pageSetupTitle() -> String {
@@ -3396,6 +3712,26 @@ public enum L10n {
 
   public static func importReasonType() -> String {
     text("import.reason.type", "Not a supported image format")
+  }
+
+  public static func importReasonAttachmentType() -> String {
+    text("import.reason.attachmentType", "Attachment type not supported")
+  }
+
+  public static func importReasonAttachmentInvalid() -> String {
+    text("import.reason.attachmentInvalid", "Attachment data is not valid")
+  }
+
+  public static func importReasonAttachmentMissing() -> String {
+    text("import.reason.attachmentMissing", "Attachment data was not found")
+  }
+
+  public static func importReasonAttachmentStorage() -> String {
+    text("import.reason.attachmentStorage", "Attachment could not be stored")
+  }
+
+  public static func importReasonEncrypted() -> String {
+    text("import.reason.encrypted", "Encrypted content cannot be imported")
   }
 
   public static func importReasonPath() -> String {
@@ -4818,6 +5154,26 @@ public enum L10n {
     fill(text("plugins.failed", "{name} could not finish."), ["name": p0])
   }
 
+  public static func pluginsImportedWithSkips(notes p0: String, skipped p1: String) -> String {
+    fill(text("plugins.importedWithSkips", "Imported {notes} notes; {skipped} items skipped."), ["notes": p0, "skipped": p1])
+  }
+
+  public static func pluginsShowSkipped() -> String {
+    text("plugins.showSkipped", "Show Skipped")
+  }
+
+  public static func pluginsSkippedTitle() -> String {
+    text("plugins.skippedTitle", "Skipped import items")
+  }
+
+  public static func pluginsSkippedContent() -> String {
+    text("plugins.skippedContent", "Note content")
+  }
+
+  public static func pluginsSkippedNote(title p0: String) -> String {
+    fill(text("plugins.skippedNote", "In note “{title}”"), ["title": p0])
+  }
+
   public static func pluginsTrialEnded() -> String {
     text("plugins.trialEnded", "Your Devot trial has ended, so a plugin cannot change notes. Add a license in Settings > License.")
   }
@@ -5606,6 +5962,14 @@ public enum L10n {
     fill(text("batch.failedOther", "Could not change {count} notes."), ["count": p0])
   }
 
+  public static func batchTrashedOne(count p0: String) -> String {
+    fill(text("batch.trashedOne", "Moved {count} note to the Trash."), ["count": p0])
+  }
+
+  public static func batchTrashedOther(count p0: String) -> String {
+    fill(text("batch.trashedOther", "Moved {count} notes to the Trash."), ["count": p0])
+  }
+
   public static func noteListPinned() -> String {
     text("noteList.pinned", "Pinned")
   }
@@ -5854,6 +6218,10 @@ public enum L10n {
     text("layout.gallery", "Gallery")
   }
 
+  public static func layoutTable() -> String {
+    text("layout.table", "Table")
+  }
+
   public static func galleryResize() -> String {
     text("gallery.resize", "Resize Gallery")
   }
@@ -5872,6 +6240,134 @@ public enum L10n {
 
   public static func galleryImage() -> String {
     text("gallery.image", "Image from the web")
+  }
+
+  public static func tableResize() -> String {
+    text("table.resize", "Resize Table")
+  }
+
+  public static func tableTitle() -> String {
+    text("table.title", "Title")
+  }
+
+  public static func tableStatus() -> String {
+    text("table.status", "Status")
+  }
+
+  public static func tableTags() -> String {
+    text("table.tags", "Tags")
+  }
+
+  public static func tableUpdated() -> String {
+    text("table.updated", "Date Updated")
+  }
+
+  public static func tableTypeText() -> String {
+    text("table.type.text", "Text")
+  }
+
+  public static func tableTypeNumber() -> String {
+    text("table.type.number", "Number")
+  }
+
+  public static func tableTypeCheckbox() -> String {
+    text("table.type.checkbox", "Checkbox")
+  }
+
+  public static func tableTypeDate() -> String {
+    text("table.type.date", "Date")
+  }
+
+  public static func tableTypeList() -> String {
+    text("table.type.list", "List")
+  }
+
+  public static func tableColumnHeader(column p0: String, type p1: String) -> String {
+    fill(text("table.columnHeader", "{column}, {type}"), ["column": p0, "type": p1])
+  }
+
+  public static func tableSortedAscending() -> String {
+    text("table.sortedAscending", "Sorted ascending")
+  }
+
+  public static func tableSortedDescending() -> String {
+    text("table.sortedDescending", "Sorted descending")
+  }
+
+  public static func tableFiltered() -> String {
+    text("table.filtered", "Filtered")
+  }
+
+  public static func tableSortAscending() -> String {
+    text("table.sortAscending", "Sort Ascending")
+  }
+
+  public static func tableSortDescending() -> String {
+    text("table.sortDescending", "Sort Descending")
+  }
+
+  public static func tableClearSort() -> String {
+    text("table.clearSort", "Clear Sort")
+  }
+
+  public static func tableFilterFilled() -> String {
+    text("table.filterFilled", "Show Only Filled")
+  }
+
+  public static func tableFilterEmpty() -> String {
+    text("table.filterEmpty", "Show Only Empty")
+  }
+
+  public static func tableFilterChecked() -> String {
+    text("table.filterChecked", "Show Only Checked")
+  }
+
+  public static func tableFilterUnchecked() -> String {
+    text("table.filterUnchecked", "Show Only Unchecked")
+  }
+
+  public static func tableClearFilter() -> String {
+    text("table.clearFilter", "Clear Filter")
+  }
+
+  public static func tableHideColumn() -> String {
+    text("table.hideColumn", "Hide Column")
+  }
+
+  public static func tableShowAllColumns() -> String {
+    text("table.showAllColumns", "Show All Columns")
+  }
+
+  public static func tableAddProperty() -> String {
+    text("table.addProperty", "Add Property")
+  }
+
+  public static func tablePropertyName() -> String {
+    text("table.propertyName", "Property name")
+  }
+
+  public static func tablePropertyInvalid() -> String {
+    text("table.propertyInvalid", "Use up to 64 characters, other than title, tags, status or notebook.")
+  }
+
+  public static func tableEditCell(column p0: String) -> String {
+    fill(text("table.editCell", "Edit {column}"), ["column": p0])
+  }
+
+  public static func tableNoMatches() -> String {
+    text("table.noMatches", "No Notes Match the Table Filters")
+  }
+
+  public static func tableClearFilters() -> String {
+    text("table.clearFilters", "Clear Filters")
+  }
+
+  public static func tableWriteFailed() -> String {
+    text("table.writeFailed", "The property could not be saved.")
+  }
+
+  public static func tableFrontMatterInvalid() -> String {
+    text("table.frontMatterInvalid", "The note’s front matter is not valid YAML, so it was left unchanged.")
   }
 
   public static func noteCreateTag(name p0: String) -> String {
@@ -5940,6 +6436,26 @@ public enum L10n {
 
   public static func phoneTabSearch() -> String {
     text("phone.tab.search", "Search")
+  }
+
+  public static func phoneColumnsNoNote() -> String {
+    text("phone.columns.noNote", "No Note Selected")
+  }
+
+  public static func phoneColumnsNoList() -> String {
+    text("phone.columns.noList", "Choose a List")
+  }
+
+  public static func phoneColumnsHide() -> String {
+    text("phone.columns.hide", "Hide Lists")
+  }
+
+  public static func phoneColumnsShow() -> String {
+    text("phone.columns.show", "Show Lists")
+  }
+
+  public static func phoneKeySettings() -> String {
+    text("phone.key.settings", "Open Settings")
   }
 
   public static func phoneActivityPeriod() -> String {
@@ -6698,6 +7214,94 @@ public enum L10n {
     text("phone.ai.suggestHint", "Sends nearby text when you pause typing")
   }
 
+  public static func phoneCaptureMenu() -> String {
+    text("phone.capture.menu", "Scan or Transcribe")
+  }
+
+  public static func phoneCaptureScan() -> String {
+    text("phone.capture.scan", "Scan Document")
+  }
+
+  public static func phoneCaptureTranscribe() -> String {
+    text("phone.capture.transcribe", "Transcribe Speech")
+  }
+
+  public static func phoneCaptureScanPage(number p0: String) -> String {
+    fill(text("phone.capture.scanPage", "Scan {number}"), ["number": p0])
+  }
+
+  public static func phoneCaptureTextFailed() -> String {
+    text("phone.capture.textFailed", "The transcript couldn’t be added to the note, so it was copied instead.")
+  }
+
+  public static func phoneCaptureScanFailed() -> String {
+    text("phone.capture.scanFailed", "Some scanned pages could not be added to the note.")
+  }
+
+  public static func phoneTranscribeTitle() -> String {
+    text("phone.transcribe.title", "Transcribe")
+  }
+
+  public static func phoneTranscribeCancel() -> String {
+    text("phone.transcribe.cancel", "Cancel")
+  }
+
+  public static func phoneTranscribeInsert() -> String {
+    text("phone.transcribe.insert", "Insert")
+  }
+
+  public static func phoneTranscribeLanguage() -> String {
+    text("phone.transcribe.language", "Language")
+  }
+
+  public static func phoneTranscribeEnglish() -> String {
+    text("phone.transcribe.english", "English")
+  }
+
+  public static func phoneTranscribeChinese() -> String {
+    text("phone.transcribe.chinese", "Chinese (Mandarin)")
+  }
+
+  public static func phoneTranscribePreparing() -> String {
+    text("phone.transcribe.preparing", "Getting ready…")
+  }
+
+  public static func phoneTranscribeDownloading() -> String {
+    text("phone.transcribe.downloading", "Downloading the speech model…")
+  }
+
+  public static func phoneTranscribeListening() -> String {
+    text("phone.transcribe.listening", "Listening")
+  }
+
+  public static func phoneTranscribeHint() -> String {
+    text("phone.transcribe.hint", "Start speaking and your words appear here. Everything stays on this iPhone.")
+  }
+
+  public static func phoneTranscribeFinishing() -> String {
+    text("phone.transcribe.finishing", "Finishing…")
+  }
+
+  public static func phoneTranscribeMicDenied() -> String {
+    text("phone.transcribe.micDenied", "Devot can’t use the microphone. Allow it in Settings > Privacy & Security > Microphone.")
+  }
+
+  public static func phoneTranscribeUnsupported() -> String {
+    text("phone.transcribe.unsupported", "Transcription in this language isn’t available on this iPhone.")
+  }
+
+  public static func phoneTranscribeFailed() -> String {
+    text("phone.transcribe.failed", "Transcription stopped. The words heard so far are kept.")
+  }
+
+  public static func phoneUsageCamera() -> String {
+    text("phone.usage.camera", "Devot uses the camera to scan documents into your notes.")
+  }
+
+  public static func phoneUsageMicrophone() -> String {
+    text("phone.usage.microphone", "Devot uses the microphone to turn what you say into text in your notes, on this device.")
+  }
+
   public static func settingsTitle() -> String {
     text("settings.title", "Settings")
   }
@@ -6804,14 +7408,6 @@ public enum L10n {
 
   public static func generalSettingsLanguageSystem() -> String {
     text("generalSettings.language.system", "Same as System")
-  }
-
-  public static func generalSettingsLanguagePending() -> String {
-    text("generalSettings.languagePending", "Restart Devot to show the language you chose.")
-  }
-
-  public static func generalSettingsRestartNow() -> String {
-    text("generalSettings.restartNow", "Restart Now")
   }
 
   public static func generalSettingsLanguageFailed() -> String {
@@ -7124,6 +7720,14 @@ public enum L10n {
 
   public static func editorSettingsLineNumbers() -> String {
     text("editorSettings.lineNumbers", "Line Numbers")
+  }
+
+  public static func editorSettingsVimMode() -> String {
+    text("editorSettings.vimMode", "Vim Mode")
+  }
+
+  public static func editorSettingsVimModeHint() -> String {
+    text("editorSettings.vimModeHint", "Use Vim keybindings. Press i to insert text and Escape to return to normal mode.")
   }
 
   public static func editorSettingsLineNumbersHint() -> String {
@@ -7616,6 +8220,10 @@ public enum L10n {
 
   public static func appearanceSettingsIconStyleLucide() -> String {
     text("appearanceSettings.iconStyleLucide", "Lucide")
+  }
+
+  public static func appearanceSettingsIconStyleKubai() -> String {
+    text("appearanceSettings.iconStyleKubai", "Kubai")
   }
 
   public static func appearanceSettingsSystemAccent() -> String {

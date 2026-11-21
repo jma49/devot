@@ -216,7 +216,9 @@ describe('the App Store workflow', () => {
 
   it('checks the archive is for the iPhone and the iPad, with iCloud, its version and a privacy manifest for what it calls', () => {
     const check = step('Check and hand over the archive')
-    expect(check).toContain('node scripts/release/app-store.ts marker-check "$deps"')
+    expect(check).toContain(
+      'node scripts/release/app-store.ts marker-check-target src-tauri/target',
+    )
     expect(check).toContain(
       'node scripts/release/app-store.ts check-bundle "$checks/info.json" "$SHORT" "$BUILD"',
     )

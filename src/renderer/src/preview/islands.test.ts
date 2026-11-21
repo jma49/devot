@@ -104,6 +104,33 @@ function testIsland() {
 const settle = () => new Promise((r) => setTimeout(r, 0))
 
 describe('createIslandMounter', () => {
+  it.each([true, false])(
+    'keeps a previous root only when its update accepts it (%s)',
+    async (accept) => {
+      const { island, requests, live } = testIsland()
+      const mounter = createIslandMounter(createIslandRegistry([island]))
+      const el = islandElement('a')
+      const replace = vi.spyOn(el, 'replaceChildren')
+      const update = vi.fn<(previous: Node) => boolean>(() => accept)
+      const host = hostOf([el])
+      mounter.mount(host, { appearance: 'light' })
+      requests[0]!.land({ update })
+      await settle()
+      const previous = el.shown[0]
+      expect(update).not.toHaveBeenCalled()
+      el.source = 'b'
+      mounter.mount(host, { appearance: 'light' })
+      requests[1]!.land({ update })
+      await settle()
+      expect(update).toHaveBeenCalledExactlyOnceWith(previous)
+      expect(replace).toHaveBeenCalledTimes(accept ? 1 : 2)
+      expect(el.shown[0] === previous).toBe(accept)
+      expect(live()).toBe(1)
+      mounter.dispose()
+      expect(live()).toBe(0)
+    },
+  )
+
   it('releases the shown drawing when a newer one lands after quick re-requests', async () => {
     const { island, requests, live } = testIsland()
     const mounter = createIslandMounter(createIslandRegistry([island]))

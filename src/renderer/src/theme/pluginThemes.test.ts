@@ -51,7 +51,6 @@ describe('readPluginThemes', () => {
           ...nord,
           colors: {
             'chart-series-1': '#eceff4',
-            'status-active': '#2e3440',
             'status-active-mark': '#88c0d0',
             'status-dropped-mark': '#bf616a',
             'icon-tile-general': '#81a1c1',
@@ -65,7 +64,40 @@ describe('readPluginThemes', () => {
     })
     expect(read.themes[0]?.colors).toEqual({
       'chart-series-1': '#eceff4',
-      'status-active': '#2e3440',
+    })
+  })
+
+  it("leaves buttons, tag colors, statuses and the destructive red in Devot's colors", () => {
+    const read = readPluginThemes({
+      themes: [
+        {
+          ...nord,
+          colors: {
+            'chart-series-1': '#eceff4',
+            'accent-text': '#385982',
+            'accent-fill': '#88c0d0',
+            'accent-hover': '#81a1c1',
+            'accent-on-fill': '#2e3440',
+            'focus-ring': '#b48ead',
+            'switch-handle': '#d8dee9',
+            'fill-destructive': '#b48ead',
+            'fill-destructive-tile': '#bf616a33',
+            'text-destructive': '#bf616a',
+            'text-on-destructive': '#2e3440',
+            'tag-red': '#bf616a',
+            'tag-text-yellow': '#ebcb8b',
+            'status-done': '#a3be8c',
+            'phone-destructive': '#bf616a',
+            'phone-action-trash': '#bf616a',
+            'phone-on-action': '#2e3440',
+          },
+        },
+      ],
+      chosen: {},
+    })
+    expect(read.themes[0]?.colors).toEqual({
+      'chart-series-1': '#eceff4',
+      'accent-text': '#385982',
     })
   })
 
@@ -80,11 +112,20 @@ describe('readPluginThemes', () => {
       'status-dropped-mark',
       'status-hold-mark',
     ])
-    expect(icons.filter((t) => t.startsWith('icon-tile-'))).toHaveLength(14)
+    expect(icons.filter((t) => t.startsWith('icon-tile-'))).toHaveLength(18)
+    expect(icons).toEqual(
+      expect.arrayContaining([
+        'icon-tile-codex',
+        'icon-tile-claude-code',
+        'icon-tile-anthropic',
+        'icon-tile-openai',
+      ]),
+    )
     expect(icons.filter((t) => t.startsWith('tag-icon-'))).toHaveLength(8)
     expect(icons.filter((t) => t.startsWith('phone-status-tile-'))).toHaveLength(5)
     for (const token of icons) expect(THEME_COLORS.has(token)).toBe(false)
-    expect(THEME_COLORS.has('accent-fill')).toBe(true)
+    expect(THEME_COLORS.has('accent-text')).toBe(true)
+    expect(THEME_COLORS.has('accent-fill')).toBe(false)
   })
 
   it('drops a choice of a theme it does not list, or of the other appearance', () => {

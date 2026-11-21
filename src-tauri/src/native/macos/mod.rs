@@ -36,7 +36,7 @@ pub use format_keys::{
     give_format_menu_keys_priority, self_test_format_menu_keys, self_test_marked_text,
 };
 pub(crate) use icloud::{holds_icloud_container, receive_icloud_notices};
-pub use languages::{app_languages, set_app_languages};
+pub use languages::{app_languages, set_app_languages, system_languages};
 pub use pasteboard::{
     PasteboardImage, clear_clipboard_if_unchanged, pasteboard_image, read_clipboard_text,
     self_test_image_pasteboard, write_clipboard_image, write_clipboard_text, write_image,

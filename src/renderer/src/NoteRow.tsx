@@ -15,6 +15,7 @@ import { tagColorStyle } from './tagColorStyle'
 import { TagDot } from './TagDot'
 import { chipClass } from './TagEditor'
 import { WriterLabel } from './WriterLabel'
+import { useLocale } from './liveLocale'
 
 export const STATUS_ICONS: Readonly<Record<NoteStatus, IconName>> = {
   none: 'status.none',
@@ -111,6 +112,7 @@ export interface RowProps {
 }
 
 export const NoteRow = memo(function NoteRow(props: RowProps) {
+  useLocale()
   const { note: n, events, highlight } = props
   const id = n.id
   const ref = useCallback((el: HTMLLIElement | null) => events.setRow(id, el), [events, id])

@@ -104,7 +104,8 @@ Part of the [architecture overview](../architecture.md).
   AI edit proposals have no table: a proposal lives in the Edit with AI sheet until it is accepted or discarded, and an accepted one follows the same rule as import and MCP, a text diff applied as Yjs operations (see AI > Edit with AI).
 - FTS5 uses the `trigram` tokenizer, so Chinese substring search works.
   Triggers keep the index in step with `notes`; a write puts a note's text in again only when its title or its Markdown changed (schema v15), so a notebook, status, pin or Trash change costs no indexing.
-  A save no longer indexes anything itself (schema v29): the triggers only mark the note stale in `search_stale`, keeping the text the index holds for it, since FTS5 takes a row of external content out of the index only given the text it was indexed with.
+  A save no longer indexes anything itself (schema v29): the triggers only mark the note stale in `search_stale`.
+  Schema v32 uses a contentless-delete table and keeps only rowids in `search_stale`, so catch-up deletes the indexed row without tokenizing its old text.
   The store re-indexes stale notes later (`CATCH_UP_SQL`, the same statements in both stores): the database thread does it once writes have been quiet for 5 s (60 s at the latest while writes never pause), 50 ms of notes at a time between other jobs, and a search that reads the index (a word of three characters or more) and a purge first catch up every stale note, so they read what the notes hold now.
   `CATCH_UP_SQL` leaves a note that is not stale alone, since inserting a row the index already holds counts it twice and fails FTS5's integrity check: a purge of an indexed note with no title and no text changes nothing, so it leaves no stale row.
   A burst of saves of one note costs one re-index; saving a 1 MB note went from about 72 ms to 12 ms on better-sqlite3 (`tests/core/search-catch-up.bench.test.ts`).
@@ -117,8 +118,17 @@ Part of the [architecture overview](../architecture.md).
   Its purge also runs its own attachment hand-over against that index without catching it up, so an attachment can be deleted instead of handed over when another note was edited to show it since the last catch-up.
   That purge only marks the purged note's text stale, and the newer process's catch-up later removes it with FTS5 `secure-delete` off, so its trigrams stay in the index pages.
   Both need a process that was already open during the upgrade, since an older build refuses to open a file with a newer schema.
-  A contentless index (`contentless_delete=1`) would need no copy of the old text, but its deletes only leave tombstones, so a purged note's trigrams would stay in the file's pages until the whole index is rewritten.
-  Rebuild Search Index stays one `'rebuild'` statement and empties `search_stale` in the same transaction.
+  Contentless rowid deletes leave tombstones even with FTS5 `secure-delete` enabled, so a purge also runs FTS5 `optimize` to compact away deleted postings before committing.
+  This can compact the whole index and makes a purge more expensive; normal saves and catch-up do not compact it.
+  Empty Trash purges at most 500 IDs per transaction and compacts once at the end of each batch; every tombstone in a batch shares its timestamp and clock, and a refusal or failure rolls back that batch.
+  `notes_purge` refuses more than 500 IDs with `E_PURGE_TOO_MANY`; Empty Trash relays each committed batch before starting the next, so a later failure leaves earlier purges announced.
+  Synced purges persist a `searchCompactionPending` marker in their transaction and defer compaction until the pull ends, including a failed pull; opening the store completes any compaction a crash left pending.
+  Snapshots complete pending compaction on their source connection and pin a clean read transaction before copying, so a backup cannot retain a committed synced purge's postings.
+  Compaction errors refuse a normal backup; restore preserves an unverified raw safety copy of the live database and WAL before replacing it when compaction fails, including an invalid FTS format reported as `SQLITE_ERROR`.
+  Busy, locked and interrupted compaction instead aborts restore without a raw copy or replacement.
+  Pending purge compaction is derived cleanup, not a licensed content write; an expired trial cannot block it.
+  Blank drafts compact too: zero current token counts cannot establish that no old deletion tombstones remain.
+  Rebuild Search Index uses `'delete-all'` followed by insertion from every `notes` row, empties `search_stale`, and checks internal FTS integrity and the indexed row count in the same cancellable transaction.
 - Markdown export (see Export and print) writes notes and notebooks as Markdown files that import back as they were.
 
 ## Schema and migrations
@@ -130,8 +140,7 @@ Part of the [architecture overview](../architecture.md).
 - A fixture database is kept for every released schema version and must upgrade cleanly (`src-tauri/tests/fixtures/schema-v<N>.sqlite`: 18 for v1.0.4, 19 for the v1.0.5 betas, 23 for v1.1.0, each with live, trashed and purged notes, notebooks, a tag, an attachment, a link and versions, made as `schema-fixtures.sql` there says, and v23 with sync state, records of every kind and an agent write as `schema-v23.sql` says; v1 from before).
 - Pragmas: WAL, `synchronous = FULL`, `foreign_keys = ON`, a 5 s busy timeout (so another process and the app can share the file), and `secure_delete = ON` (overflow pages too, unlike `FAST`), so a note deleted for good leaves no readable text in free pages, which every later backup would copy.
   A purge also takes the note's text out of the search index's pages (FTS5 `secure-delete`, on only for the purge: on for every change it would make indexing a long note's edit about 30 times slower).
-  That is the text the index holds, which for a stale note is the copy in `search_stale`, also overwritten as its row goes.
-  Other changes only mark a note's old text deleted in the index, so earlier text of a purged note stays there until FTS5 merges its segment.
+  Purge compaction also removes earlier deleted versions from the index; ordinary catch-up leaves those postings until FTS5 merges their segments.
   Pages freed before a version that set these keep their text until reused; frames in the write-ahead log keep it until the log restarts after a checkpoint (backups read the database, not the log).
 - Checkpoints: `wal_autocheckpoint = 4000` pages (SQLite's 1000 pages ran inside every second save of a big note) and `journal_size_limit = 64 MiB`; the database thread runs a PASSIVE checkpoint after 3 s without a job once something was written (a search that caught the index up counts, and the change watch's looks are not jobs here), again while a reader holds part of the WAL back or another connection is checkpointing, and at quit for at most 2 s.
 - Every write transaction begins `IMMEDIATE` (the Rust store sets it on its connection; the better-sqlite3 adapter uses `.immediate()`): it takes the write lock first, so it waits out the other writer for the busy timeout.
@@ -233,7 +242,7 @@ Part of the [architecture overview](../architecture.md).
   A write reported while a notebook change or a batch reloads the lists waits for the last such reload to finish and then dates its note, as the reloaded rows may have been read before it (`src/renderer/src/app/useLibraryLists.ts`).
   A note trashed or purged is relayed as `gone` (`purged` when it was deleted for good), so its note window turns read-only and says why; a note put back from the Trash is relayed as `back`, and its note window turns editable again.
   A note window's note is live, trashed or purged (`nextLife` in `src/renderer/src/noteWindow/noteLife.ts`): only `gone` and `back` move it, and a purge is final.
-  Empty Trash relays each note as soon as it is purged, so a purge that fails later in the run still leaves the windows of the notes before it told.
+  Empty Trash relays each purged note after its batch commits; a failed batch changes nothing and relays nothing.
   A save changes a few notes in their places, so only those move in the sorted lists, and the sidebar's counts are taken again only when a note's notebook, status, tags or pin changed (`src/renderer/src/app/useListedNotes.ts`); a large library is not sorted again for each save.
   `tests/core/note-windows.property.test.ts` types into one note in two windows at random, with deliveries late and reordered and saves at any time, and checks that both windows and the stored note end with every edit either made; `tests/core/lineage.test.ts` checks that two windows' edits keep the note's lineage.
 - **The note relay** (`src-tauri/src/note_relay.rs`, `note_relay_send`): the page hands Rust what its core sends (Yjs data stays the base64 the worker coded, never decoded), and Rust checks it (a note ID, base64 within a Yjs state's limit, a title within the title limit, an HLC) and passes it to the windows that may show the note: every main window, and the note's own window; each page listens on its own window only.

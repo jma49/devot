@@ -12,6 +12,9 @@ Import and export are in [import-and-export.md](import-and-export.md), the `devo
   **Word goal:** a top-level `word-goal` key holding a whole number of words (1 to 10,000,000; quotes, `,` and `_` are allowed) sets the note's goal, and the editor footer shows its words toward it (`340 / 1,500`) while nothing is selected.
   The editor reads it from the first 16 KiB of the note with a line scan (`src/core/wordGoal.ts`), not the YAML parser, at each pause in typing; any other value sets no goal.
   It lives in the note's own text, so it syncs, exports and imports with it, and the preview shows it as any other property.
+  **Properties:** the table layout reads each other top-level key whose value is text, a number, true or false, a day, nothing or a list of those as a property of the note (`readProperties` in `src/core/properties.ts`, the YAML core schema, so a day stays its text); `title`, `tags`, `status` and `notebook` are left out, as Devot's own fields, and so is a nested map.
+  Front matter that closes past its first 8 KiB has no properties.
+  Writing a property rewrites only the lines of its key (the last, if a key is repeated) or adds it at the end of the front matter, keeping the other lines, comments and the body as written, and adds front matter to a note that has none; a value is at most 2,000 characters, and a list at most 100 items.
 - Alerts: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`.
 - Math: `$…$` and `$$…$$`.
   Inline math is a run of dollars closed by a run as long, read like a code span: nothing inside it is Markdown and a backslash escapes no dollar in it; the editor reads it as the preview's remark-math does (`InlineMath` in `src/renderer/src/editor/markdown.ts`), and a formula with a space at either end, once one is trimmed from both, is text (`$5 and $6`, `isInlineTex` in `src/core/preview/math.ts`, which Write mode shares).

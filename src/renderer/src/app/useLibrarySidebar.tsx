@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { NoteStatus, TagColor, TagColorValue } from '../../../core'
 import { bookWithDescendants } from '../../../core/books'
 import type { NoteFilter } from '../../../core/tags'
@@ -38,6 +38,7 @@ export function useLibrarySidebar({
   openToday,
   askEmptyTrash,
   menus,
+  headerAction,
 }: {
   core: Core | undefined
   editing: boolean
@@ -55,6 +56,7 @@ export function useLibrarySidebar({
   openToday: () => Promise<void>
   askEmptyTrash: () => void
   menus: RefObject<SidebarMenus | null>
+  headerAction: ReactNode
 }) {
   const { notes, books, tags, templates, trash } = lists
   const { counts, workspaceNode, sidebarTree, searchingAll, libraryBook, inTrash, inTemplates } =
@@ -160,6 +162,7 @@ export function useLibrarySidebar({
   )
   const sidebar = (
     <Sidebar
+      headerAction={headerAction}
       total={workspaceNode ? (counts.get(workspaceNode.id) ?? 0) : notes.length}
       tree={sidebarTree}
       counts={counts}

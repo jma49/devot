@@ -2,6 +2,7 @@
 //! to its own limits: `src/core/ai.ts`). The calls and their arguments are the contract with the
 //! core (`src/core/httpApi.ts`); `tests/support/http-api-calls.json` holds both sides to it.
 
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -35,6 +36,7 @@ pub enum Op {
     NotesUpdate,
     NotesAppend,
     NotesTrash,
+    NotesFilesCreate,
 }
 
 impl Op {
@@ -49,6 +51,7 @@ impl Op {
             Op::NotesUpdate => "notes.update",
             Op::NotesAppend => "notes.append",
             Op::NotesTrash => "notes.trash",
+            Op::NotesFilesCreate => "notes.files.create",
         }
     }
 
@@ -61,17 +64,25 @@ impl Op {
                 | Op::NotesUpdate
                 | Op::NotesAppend
                 | Op::NotesTrash
+                | Op::NotesFilesCreate
         )
     }
 
     pub fn creates(self) -> bool {
-        matches!(self, Op::NotebooksCreate | Op::NotesCreate)
+        matches!(
+            self,
+            Op::NotebooksCreate | Op::NotesCreate | Op::NotesFilesCreate
+        )
     }
 
     pub fn takes_body(self) -> bool {
         matches!(
             self,
-            Op::NotebooksCreate | Op::NotesCreate | Op::NotesUpdate | Op::NotesAppend
+            Op::NotebooksCreate
+                | Op::NotesCreate
+                | Op::NotesUpdate
+                | Op::NotesAppend
+                | Op::NotesFilesCreate
         )
     }
 }
@@ -148,18 +159,25 @@ pub fn route(method: &str, path: &str) -> Result<(Op, Option<String>), Refusal> 
         },
         _ => {
             let rest = path.strip_prefix("/v1/notes/").ok_or(NOT_FOUND)?;
-            let (id, op) = match rest.strip_suffix("/append") {
-                Some(id) if method == "POST" => (id, Op::NotesAppend),
-                Some(_) => return Err(NO_METHOD),
-                None => (
-                    rest,
-                    match method {
-                        "GET" => Op::NotesRead,
-                        "PATCH" => Op::NotesUpdate,
-                        "DELETE" => Op::NotesTrash,
-                        _ => return Err(NO_METHOD),
-                    },
-                ),
+            let (id, op) = if let Some(id) = rest.strip_suffix("/files") {
+                if method != "POST" {
+                    return Err(NO_METHOD);
+                }
+                (id, Op::NotesFilesCreate)
+            } else {
+                match rest.strip_suffix("/append") {
+                    Some(id) if method == "POST" => (id, Op::NotesAppend),
+                    Some(_) => return Err(NO_METHOD),
+                    None => (
+                        rest,
+                        match method {
+                            "GET" => Op::NotesRead,
+                            "PATCH" => Op::NotesUpdate,
+                            "DELETE" => Op::NotesTrash,
+                            _ => return Err(NO_METHOD),
+                        },
+                    ),
+                }
             };
             if !valid_note_id(id) {
                 return Err(Refusal::new(404, "E_NOTE_NOT_FOUND"));
@@ -175,6 +193,15 @@ struct NewNote {
     title: String,
     markdown: String,
     notebook: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct NewFile {
+    name: String,
+    #[serde(rename = "type")]
+    mime: String,
+    data: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -416,6 +443,26 @@ pub fn call(
         return Err(BAD_QUERY);
     }
     let args = match op {
+        Op::NotesFilesCreate => {
+            if body.len() > 2 * 1024 * 1024 {
+                return Err(Refusal::new(413, "E_HTTP_BODY_TOO_LARGE"));
+            }
+            let new: NewFile = parse(body)?;
+            let data = base64::engine::general_purpose::STANDARD
+                .decode(&new.data)
+                .map_err(|_| Refusal::new(400, "E_FILE_BODY_INVALID"))?;
+            let upload = crate::commands::files::Upload {
+                id: note.clone().ok_or(BAD_BODY)?,
+                note_id: note.clone().ok_or(BAD_BODY)?,
+                name: new.name.clone(),
+            };
+            let mime = crate::commands::files::validate_upload(&upload, &data)
+                .map_err(|code| Refusal::new(400, code))?;
+            if mime != new.mime {
+                return Err(Refusal::new(400, "E_FILE_TYPE_REFUSED"));
+            }
+            args(&new)?
+        }
         Op::NotebooksList | Op::TagsList | Op::NotesRead | Op::NotesTrash => {
             Value::Object(Default::default())
         }

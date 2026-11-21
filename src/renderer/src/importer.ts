@@ -38,8 +38,9 @@ export async function runImport(
   destination: string | null,
   onProgress: (done: number, total: number) => void,
   choices: ImportChoices = DEFAULT_CHOICES,
+  input?: { source: ImportSource; cleanup: () => Promise<void> },
 ): Promise<ImportReport | null> {
-  const source: ImportSource = {
+  const source: ImportSource = input?.source ?? {
     read: (path) => invoke<string>('import_read', { id: scan.id, path }),
     attach: (path, file) =>
       invoke<null>('import_attach', {
@@ -59,6 +60,7 @@ export async function runImport(
       choices,
     )
   } finally {
-    await finishImport(scan.id)
+    if (input) await input.cleanup()
+    else await finishImport(scan.id)
   }
 }

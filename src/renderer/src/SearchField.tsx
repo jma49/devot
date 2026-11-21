@@ -27,6 +27,7 @@ import {
 } from './searchPills'
 import { tagColorStyle } from './tagColorStyle'
 import { TagDot } from './TagDot'
+import { useLocale } from './liveLocale'
 
 const SYNTAX = [
   { example: 'word  "a phrase"  \'a phrase\'', note: 'search.help.text' },
@@ -79,6 +80,7 @@ export const SearchField = forwardRef<
   { value, onChange, onClear, onSubmit, onOptions, placeholder, icon = 'search', books, tags },
   ref,
 ) {
+  useLocale()
   const box = useRef<HTMLDivElement>(null)
   const helpButton = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)

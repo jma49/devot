@@ -787,6 +787,12 @@ test('General offers the notebooks as the default for new notes', async ({ page 
 const editor = (page: Page) => page.getByRole('region', { name: 'Editing' })
 const checkbox = (page: Page, name: string) => editor(page).getByRole('switch', { name })
 const select = (page: Page, name: string) => editor(page).getByRole('combobox', { name })
+const segments = (page: Page, name: string) =>
+  editor(page).getByRole('group', { name }).getByRole('button')
+const chosen = (page: Page, name: string) =>
+  editor(page)
+    .getByRole('group', { name })
+    .locator('.segment[aria-pressed="true"]:not(.segment-thumb)')
 const appearance = (page: Page) => page.getByRole('tabpanel', { name: 'Appearance' })
 const fontSize = (page: Page) =>
   appearance(page).getByRole('spinbutton', { name: 'Editor Font Size' })
@@ -869,8 +875,8 @@ test('every editor setting has a labelled control showing its stored value', asy
   await expect(editor(page).getByRole('spinbutton', { name: 'Cursor Scroll Margin' })).toHaveValue(
     '40',
   )
-  await expect(select(page, 'Unordered List Bullet')).toHaveValue('+')
-  await expect(select(page, 'Indent Unit')).toHaveValue('tab')
+  await expect(chosen(page, 'Unordered List Bullet')).toHaveText('+')
+  await expect(chosen(page, 'Indent Unit')).toHaveText('Tab')
   await expect(select(page, 'Tab Size')).toHaveValue('8')
   await expect(select(page, 'Paste URL as Link')).toHaveValue('autolink')
   await expect(checkbox(page, 'Spellcheck')).not.toBeChecked()
@@ -892,16 +898,8 @@ test('every editor setting has a labelled control showing its stored value', asy
     '600',
     '700',
   ])
-  await expect(select(page, 'Indent Unit').getByRole('option')).toHaveText([
-    '2 spaces',
-    '4 spaces',
-    'Tab',
-  ])
-  await expect(select(page, 'Unordered List Bullet').getByRole('option')).toHaveText([
-    '*',
-    '-',
-    '+',
-  ])
+  await expect(segments(page, 'Indent Unit')).toHaveText(['2 spaces', '4 spaces', 'Tab'])
+  await expect(segments(page, 'Unordered List Bullet')).toHaveText(['*', '-', '+'])
   await expect(select(page, 'Paste URL as Link').getByRole('option')).toHaveText([
     'Plain text',
     'Autolink <URL>',
@@ -924,8 +922,8 @@ test('the new defaults show for settings never set', async ({ page }) => {
   await expect(checkbox(page, 'Scroll Past End')).toBeChecked()
   await expect(checkbox(page, 'Highlight Active Line')).not.toBeChecked()
   await expect(checkbox(page, 'Spellcheck')).toBeChecked()
-  await expect(select(page, 'Unordered List Bullet')).toHaveValue('*')
-  await expect(select(page, 'Indent Unit')).toHaveValue('spaces2')
+  await expect(chosen(page, 'Unordered List Bullet')).toHaveText('*')
+  await expect(chosen(page, 'Indent Unit')).toHaveText('2 spaces')
   await expect(select(page, 'Tab Size')).toHaveValue('2')
   await expect(select(page, 'Line Height')).toHaveValue('1.5')
   await expect(select(page, 'Paste URL as Link')).toHaveValue('link')
@@ -958,8 +956,8 @@ test('each control stores its change at once', async ({ page }) => {
   await checkbox(page, 'Spellcheck').uncheck()
   await checkbox(page, 'Show Invisible Characters').check()
   await checkbox(page, 'Highlight Trailing Whitespace').check()
-  await select(page, 'Unordered List Bullet').selectOption('+')
-  await select(page, 'Indent Unit').selectOption('4 spaces')
+  await segments(page, 'Unordered List Bullet').filter({ hasText: '+' }).click()
+  await segments(page, 'Indent Unit').filter({ hasText: '4 spaces' }).click()
   await select(page, 'Tab Size').selectOption('4')
   await select(page, 'Paste URL as Link').selectOption('Autolink <URL>')
   await select(page, 'Font Weight').selectOption('500')
@@ -986,7 +984,24 @@ test('each control stores its change at once', async ({ page }) => {
       { lineHeight: 1.6 },
     ])
   await expect(checkbox(page, 'Line Numbers')).toBeChecked()
-  await expect(select(page, 'Unordered List Bullet')).toHaveValue('+')
+  await expect(chosen(page, 'Unordered List Bullet')).toHaveText('+')
+})
+
+test('Note List Dates is two segments that store the pick at once', async ({ page }) => {
+  await openEditor(page)
+  await page.getByRole('tab', { name: 'General', exact: true }).click()
+  const dates = page.getByRole('group', { name: 'Note List Dates' })
+  await expect(dates.getByRole('button')).toHaveText(['Relative', 'Absolute'])
+  await expect(dates.getByRole('button', { name: 'Relative' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await dates.getByRole('button', { name: 'Absolute' }).click()
+  await expect.poll(() => setCalls(page)).toEqual([{ listDates: 'absolute' }])
+  await expect(dates.getByRole('button', { name: 'Absolute' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
 })
 
 test('the readable width setting is off limits while lines do not wrap, and says why', async ({
@@ -1213,6 +1228,7 @@ test('search waits for an async setting and cancels targeting when the query cha
                 enabled: false,
                 port: 27484,
                 scope: 'read',
+                extensionOrigins: [],
                 listening: null,
                 problem: null,
                 token: 'unset',

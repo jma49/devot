@@ -105,3 +105,109 @@ Another candidate is to process the existing stale-index queue after idle saves,
 If caught up before a query, the observed warm timings suggest an upper bound of 97–98% less foreground search latency, but this moves work rather than reducing indexing CPU and is not an implemented or measured fix.
 
 The unscaled sync-push budget also fails at the unchanged base on a slower Linux container; set `DEVOT_BUDGET_SCALE` for that environment.
+
+## Contentless-delete before and after
+
+The sections above preserve the benchmark-only PR #1048 baseline and candidate discussion from main.
+The following measurements cover the implemented contentless-delete follow-up.
+Both full runs used the same quiet eight-core machine sequentially, with thirty runs per size and sixty observations for search and sync.
+Before is origin/main `f54903150bce17e37638b1881831587cf7136e77`, load average 1.64; after is merged head `6bf0f47df86583b18e10e233641485a1d50c21c0`, load average 1.05.
+The before artifact reports `+dirty` solely because its worktree had an untracked dependency-directory symlink; no tracked files differed from main.
+The original JSON fields remain the #1048 baseline; `contentlessDelete.before` and `contentlessDelete.after` retain these fresh full runs.
+All values are milliseconds, p50 / p95.
+
+| Size   | Path                        |  Before p50 / p95 |   After p50 / p95 |
+| ------ | --------------------------- | ----------------: | ----------------: |
+| 100 KB | Cold open                   |     0.370 / 0.768 |     0.365 / 0.755 |
+| 100 KB | Edit + save                 |     2.780 / 5.488 |     1.947 / 4.815 |
+| 100 KB | Search after save           |   10.256 / 13.929 |     6.247 / 8.354 |
+| 100 KB | Warm search                 |     0.463 / 0.884 |     0.468 / 0.692 |
+| 100 KB | Client sync (no encryption) |     4.124 / 6.328 |     3.825 / 5.726 |
+| 100 KB | Paste + save                |     2.468 / 5.352 |     2.419 / 3.590 |
+| 100 KB | Relay upload                |     1.947 / 3.940 |     2.115 / 4.005 |
+| 100 KB | Relay download              |     1.414 / 3.181 |     1.831 / 3.232 |
+| 1 MB   | Cold open                   |     2.614 / 4.214 |     2.591 / 3.787 |
+| 1 MB   | Edit + save                 |   22.569 / 29.651 |   21.896 / 26.512 |
+| 1 MB   | Search after save           |   75.932 / 86.843 |   51.357 / 55.969 |
+| 1 MB   | Warm search                 |     1.976 / 2.303 |     1.954 / 2.141 |
+| 1 MB   | Client sync (no encryption) |   21.833 / 26.076 |   22.098 / 25.786 |
+| 1 MB   | Paste + save                |   19.865 / 30.099 |   17.760 / 20.997 |
+| 1 MB   | Relay upload                |    7.871 / 15.185 |    9.045 / 13.493 |
+| 1 MB   | Relay download              |    9.401 / 18.278 |    8.887 / 14.621 |
+| 5 MB   | Cold open                   |   17.936 / 22.176 |   18.893 / 22.533 |
+| 5 MB   | Edit + save                 | 101.476 / 152.497 | 102.993 / 122.693 |
+| 5 MB   | Search after save           | 408.783 / 483.332 | 293.565 / 353.365 |
+| 5 MB   | Warm search                 |    8.843 / 11.957 |    9.087 / 10.471 |
+| 5 MB   | Client sync (no encryption) | 103.437 / 148.713 | 103.518 / 129.910 |
+| 5 MB   | Paste + save                | 120.734 / 165.546 | 113.529 / 137.118 |
+| 5 MB   | Relay upload                |   29.869 / 49.863 |   35.889 / 46.209 |
+| 5 MB   | Relay download              |   28.426 / 45.640 |   31.734 / 54.067 |
+
+Search-after-save improves 32.4% p50 / 35.6% p95 at 1 MB and 28.2% / 26.9% at 5 MB.
+Unchanged paths fluctuate in both directions; these runs establish a catch-up gain, not an across-the-board speedup.
+Schema v32 rebuilds every note's index entry once and replaces stale text snapshots with rowids.
+Repair uses `delete-all`, reinsertion, internal `integrity-check` without rank and a row-count check, under the existing cancellable transaction.
+Search and attachment handover use MATCH, rowid and BM25; excerpts and body checks still read `notes`, never contentless column values.
+FTS5 accepts `secure-delete` on the new table, but rowid deletion still leaves tombstones and failed the existing byte-scan purge test without compaction.
+Purge therefore also runs FTS5 `optimize` inside its transaction before disabling secure deletion; this can compact the entire index, a deliberate permanent-deletion cost rather than a cost on each edit.
+Rust and TypeScript tests check MATCH, `fts5vocab` and raw database bytes after purge, including stale text in the TypeScript test.
+
+### Migration cost
+
+`DEVOT_FTS_MIGRATION_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-contentless-migration.bench.test.ts --silent=false` measures five fresh file-backed v31 stores per fixture, WAL and synchronous FULL, including the v32 rebuild and commit but excluding fixture setup and post-migration optimization/vacuum.
+The typical notes use deterministic short `libraryBody` fixtures; the large note uses `sampleNote(5_000_000)` (5,149,729 bytes).
+Index sizes sum FTS shadow-table pages through `dbstat`, with optimized indexes before and after and vacuum after; all five runs returned identical sizes.
+
+| Library              | Migration p50 / p95 (ms) | Sampled peak RSS delta p50 / p95 (KiB) | Before index bytes | After index bytes |       Difference |
+| -------------------- | -----------------------: | -------------------------------------: | -----------------: | ----------------: | ---------------: |
+| 1,000 typical notes  |           7.297 / 11.578 |                                  0 / 0 |            438,272 |           438,272 |                0 |
+| 10,000 typical notes |          70.074 / 74.945 |                             768 / 1152 |          4,165,632 |         4,177,920 | +12,288 (+0.30%) |
+| One 5 MB note        |        178.222 / 186.973 |                             256 / 5376 |          9,482,240 |         9,482,240 |                0 |
+
+These are clean-index sizes, not a bound on tombstones accumulated between merges or on peak migration disk/WAL space.
+An already-running worker thread samples whole-process RSS every 1 ms while the main thread executes synchronous SQLite; delta is relative to RSS immediately before migration, includes a final sample, and excludes worker startup.
+This is sampled resident growth, not SQLite allocation high-water or total app memory; zero means existing resident pages sufficed, not zero allocations, and sub-millisecond peaks can be missed.
+The 10,000-note p95 stays well below one second, so rebuilding stays inside the migration.
+The normal first-launch main window is built only after migration: `tauri.conf.json:18` disables automatic window creation, `lib.rs:500` opens the store before `lib.rs:655` builds the window, and `storage/db.rs:187–197` waits for `Store::open` to finish before returning.
+`storage/open.rs:191–192` runs migrations and pending purge recovery before that return; `main_windows.rs:286` constructs the window afterward, with no migration progress window in this path.
+
+### Purge cost
+
+`DEVOT_FTS_PURGE_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-purge-cost.bench.test.ts --silent=false` measures 20 fresh file-backed stores per case after two warmups, WAL and synchronous FULL.
+Every sample copies a closed, fully indexed and optimized seed database outside timing; fixture setup, database opening, cloning and correctness checks are excluded.
+The libraries contain 10,000 deterministic short `libraryBody` notes, or one `sampleNote(5_000_000)` plus one retained typical note.
+The large-note case purges the 5 MB note itself.
+There are no attachments or pending index changes in these fixtures; purge cost with a stale backlog or attachments is not measured here.
+Timing includes the real note service's `purge` or `emptyTrash` call, including storage transactions and, for Empty Trash, listing the 100 trashed notes.
+The benchmark is opt-in and uses the identical fixture and service path on base `bf53e90d`, initial contentless-delete commit `a0c6f70e`, and the batched implementation.
+
+Milliseconds, **p50 / p95**:
+
+| Case                              | Base external-content | Initial contentless-delete | Batched contentless-delete |
+| --------------------------------- | --------------------: | -------------------------: | -------------------------: |
+| One note in a 10,000-note library |         2.783 / 3.780 |            65.844 / 96.947 |            53.155 / 57.732 |
+| Purge the 5 MB note               |     198.613 / 257.232 |            75.137 / 90.566 |            54.951 / 58.472 |
+| Empty Trash: 100 of 10,000 notes  |     177.947 / 287.230 |        4497.734 / 5476.375 |          134.566 / 137.964 |
+
+The original `emptyTrash` loop called `purgeNote` 100 times, so the initial contentless-delete implementation optimized 100 times in separate transactions.
+Empty Trash now sends its IDs through the wire to `notes_purge` in batches of at most 500, which purges each batch in one transaction and runs FTS5 `optimize` once at its end, matching the TypeScript adapter.
+The batch shares one timestamp and HLC, preserves attachment handover and revision deletion, refuses live non-empty notes, and rolls back every purge on any failure.
+Per-note notifications are sent only after each batch commits; a failed batch sends none, while earlier committed batches remain purged and announced.
+Rust and TypeScript tests cover empty batches, missing and duplicate IDs, refusals, database-error rollback, retained matches, vocabulary removal and byte scans including older indexed versions.
+Batching removes the multi-second Empty Trash regression and brings its measured p95 below 250 ms and below the base.
+Single-note purge in a 10,000-note library still costs about 19 times the base p50 because it must compact the index to remove tombstones; batching cannot amortize a singleton, though its measured p95 is below 60 ms.
+The byte-removal guarantee is retained rather than replacing compaction with a bounded merge that might leave deleted postings behind.
+
+### Incoming sync purges
+
+`DEVOT_PURGE_REVIEW_BENCH=1 pnpm exec vitest run --project slow tests/core/fts-purge-review.bench.test.ts --silent=false` measures 20 pulls after two warmups against copies of an optimized 10,000-note file-backed library, using WAL and synchronous FULL.
+Each pull receives 100 encoded tombstones through the real sync engine, including decoding, preserving merge revisions and storage commits; fixture setup, opening the database and connecting are outside timing.
+On reviewed commit `7cb8d072`, each synced purge optimized separately: **4942.812 / 5117.352 ms p50 / p95**.
+Deferring optimization until the end of the pull reduces this to **374.803 / 435.553 ms**, a 92.4% / 91.5% reduction.
+The remaining time includes per-record transactions and merge-version writes, not just FTS maintenance.
+Synced purges now persist a compaction-pending marker atomically with the deletion; a `finally` completes compaction after every pull, including failures, and opening the store recovers a marker left by a crash.
+Tests verify vocabulary, MATCH and database bytes through the deferred sync path, recovery after reopening and compaction failures; the two-device engine tests retain sync's existing local merge revision while removing the purged index terms.
+
+Blank-draft compaction is retained for correctness: zero current token counts do not prove that old deletion tombstones are absent.
+With sync batching and unconditional compaction, the same benchmark measured never-typed draft discard at **1.010 / 2.355 ms p50 / p95**, versus **0.783 / 2.218 ms** on reviewed commit `7cb8d072`.
+These optimized-seed timings are not a bound on full-index compaction in a fragmented library.

@@ -97,7 +97,7 @@ final class EditorScreenTests: XCTestCase {
         page = FakePage()
         webView = RecordingWebView(frame: window.bounds)
         host = WebViewHost(webView: webView)
-        host.windowSize(window.bounds.size)
+        host.fit(window.bounds.size)
         window.addSubview(host.stage)
         host.stage.addSubview(webView)
         list = UIViewController()
@@ -325,7 +325,7 @@ final class EditorScreenTests: XCTestCase {
 
         let folded = CGSize(width: window.bounds.height, height: window.bounds.width)
         window.frame = CGRect(origin: .zero, size: folded)
-        host.windowSize(folded)
+        host.fit(folded)
         navigation.popViewController(animated: true)
         settleTransition()
         XCTAssertNil(one.snapshot, "a still of the old size never shows over the new one")
@@ -405,19 +405,23 @@ final class EditorScreenTests: XCTestCase {
         EditorNote(id: id, bookId: nil, status: status, pinned: pinned, tagIds: [], createdAt: 1, updatedAt: 2)
     }
 
-    func testTheBarsCarryMoreModeAndInfoAndTheToolbarBackForwardFindAndAI() throws {
+    func testTheBarsCarryMoreModeAndInfoAndTheToolbarBackForwardFindCaptureAndAI() throws {
         let screen = editor(first)
         push(screen)
         XCTAssertEqual(screen.navigationItem.rightBarButtonItems, [screen.moreItem, screen.modeItem, screen.infoItem])
         XCTAssertEqual(screen.moreItem.accessibilityLabel, L10n.noteMore())
         XCTAssertFalse(navigation.isToolbarHidden)
         let items = try XCTUnwrap(screen.toolbarItems)
-        XCTAssertEqual(items.count, 5)
+        XCTAssertEqual(items.count, 6)
         XCTAssertEqual(
             Array(items.prefix(3)), [screen.backItem, screen.forwardItem, screen.findItem],
             "Back, Forward and Find stand together, so the system draws them on one glass")
-        XCTAssertFalse([screen.backItem, screen.forwardItem, screen.findItem, screen.aiItem].contains(items[3]))
-        XCTAssertEqual(items[4], screen.aiItem, "a flexible space sets AI apart on its own glass")
+        XCTAssertFalse(
+            [screen.backItem, screen.forwardItem, screen.findItem, screen.captureItem, screen.aiItem].contains(items[3]))
+        XCTAssertEqual(
+            Array(items.suffix(2)), [screen.captureItem, screen.aiItem],
+            "a flexible space sets Scan or Transcribe and AI apart on their own glass")
+        XCTAssertEqual(screen.captureItem.accessibilityLabel, L10n.phoneCaptureMenu())
         XCTAssertFalse(screen.forwardItem.isEnabled)
         screen.showMode(.preview)
         XCTAssertTrue(screen.aiItem.isHidden)
@@ -441,6 +445,82 @@ final class EditorScreenTests: XCTestCase {
             screen.moreMenu().compactMap { $0 as? UIMenu }.flatMap(\.children).compactMap { $0 as? UIMenu }.first)
         XCTAssertEqual(statuses.children.compactMap { ($0 as? UIAction)?.state == .on ? $0.title : nil }, [NoteStatus.active.name])
         XCTAssertTrue(page.writes.isEmpty, "a menu writes nothing until an item is chosen")
+    }
+
+    func testTheCaptureMenuAsksTheGateBeforeAScanOrATranscriptionStarts() {
+        let screen = editor(first)
+        push(screen)
+        let actions = screen.captureMenu().compactMap { $0 as? UIAction }
+        let expected = DocumentScanner.isSupported
+            ? [L10n.phoneCaptureScan(), L10n.phoneCaptureTranscribe()] : [L10n.phoneCaptureTranscribe()]
+        XCTAssertEqual(actions.map(\.title), expected, "Scan Document only where the camera can scan")
+        XCTAssertTrue(page.writes.isEmpty, "a menu starts nothing until an item is chosen")
+        screen.askCapture(.transcribe)
+        XCTAssertEqual(page.writes, [.capture(noteId: first, kind: .transcribe)])
+    }
+
+    func testTranscribeRaisesASheetOnlyItsButtonsCloseThatListensInTheRememberedLanguage() throws {
+        let listener = FakeListener()
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "devot.tests.transcribe"))
+        defaults.removePersistentDomain(forName: "devot.tests.transcribe")
+        defaults.set(TranscriptionLanguage.chinese.rawValue, forKey: TranscriptionLanguage.storeKey)
+        var actions = page.actions
+        actions.listener = { listener }
+        actions.defaults = defaults
+        let screen = EditorScreen(noteId: first, title: "Plans", tab: .notes, host: host, actions: actions)
+        push(screen)
+        screen.beginCapture(.transcribe)
+        settle(until: { screen.presentedViewController != nil && !listener.starts.isEmpty })
+        let sheet = try XCTUnwrap(screen.presentedViewController)
+        XCTAssertTrue(sheet.isModalInPresentation, "a drag down never drops what was heard")
+        XCTAssertEqual(sheet.sheetPresentationController?.detents.map(\.identifier), [.medium, .large])
+        XCTAssertEqual(listener.starts.map(\.identifier), ["zh-CN"])
+        screen.beginCapture(.transcribe)
+        XCTAssertEqual(listener.starts.count, 1, "a second capture waits until the sheet has gone")
+        sheet.dismiss(animated: false)
+        defaults.removePersistentDomain(forName: "devot.tests.transcribe")
+    }
+
+    func testANewNotesScreenOffersNoCaptureBeforeItsNoteIsMade() {
+        let screen = EditorScreen(newNoteIn: nil, tab: .notes, host: host, actions: page.actions)
+        XCTAssertTrue(screen.captureMenu().isEmpty)
+    }
+
+    func testAScanGoesToTheNoteOnePageAMessageInOrderWithNumberedNames() throws {
+        let screen = editor(first)
+        push(screen)
+        let pages = [Data([0xFF, 0xD8, 1]), Data([0xFF, 0xD8, 2])]
+        screen.attachScan(ScannedPages(pages: pages, failed: 0), to: first)
+        let sent = page.ops(.editorAttach)
+        XCTAssertEqual(sent.count, 2)
+        for (index, args) in sent.enumerated() {
+            XCTAssertEqual(args["noteId"], .string(first))
+            let image = try XCTUnwrap(args["images"]?.array?.first)
+            XCTAssertEqual(image["name"], .string(ScanEncoding.name(page: index + 1)))
+            XCTAssertEqual(image["data"], .string(pages[index].base64EncodedString()))
+            XCTAssertNil(args["text"])
+        }
+        XCTAssertNil(screen.presentedViewController, "every page went in, so nothing is reported")
+    }
+
+    func testAScanThePageRefusesStopsAndSaysSo() {
+        let screen = editor(first)
+        push(screen)
+        page.answers[.editorAttach] = .object(["refused": .array([.string("E_FILE_TYPE_REFUSED")])])
+        screen.attachScan(ScannedPages(pages: [Data([1])], failed: 0), to: first)
+        settle(until: { screen.presentedViewController is UIAlertController })
+        XCTAssertEqual((screen.presentedViewController as? UIAlertController)?.message, L10n.phoneCaptureScanFailed())
+    }
+
+    func testATranscriptGoesToTheNoteInPiecesAMessageTakes() {
+        let screen = editor(first)
+        push(screen)
+        let text = String(repeating: "word ", count: EditorScreen.maxAttachedText / 5 + 10)
+        screen.attachText(text, to: first)
+        let sent = page.ops(.editorAttach).compactMap { $0["text"]?.string }
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertEqual(sent.joined(), text)
+        XCTAssertTrue(sent.allSatisfy { $0.count <= EditorScreen.maxAttachedText })
     }
 
     func testForwardOpensTheNotePoppedLastOffTheScreen() {

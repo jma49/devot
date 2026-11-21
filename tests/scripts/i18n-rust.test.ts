@@ -21,6 +21,7 @@ describe("the Mac's native text for Rust", () => {
     expect(fieldName('native.formatHeading1')).toBe('format_heading_1')
     expect(fieldName('native.exportAllHtml')).toBe('export_all_html')
     expect(() => fieldName('menu.file')).toThrow('E_I18N_RUST_KEY')
+    expect(() => fieldName('clipper.appName')).toThrow('E_I18N_RUST_KEY')
   })
 
   it('escapes every character outside printable ASCII, so the file holds no CJK', () => {
@@ -37,6 +38,12 @@ describe("the Mac's native text for Rust", () => {
     )
     expect(rust).toContain(
       "pub struct Native {\n    pub a: &'static str,\n    pub b: &'static str,\n}",
+    )
+    expect(rust).toContain(
+      'pub const FIELDS: [&\'static str; 2] = [\n        "a",\n        "b",\n    ];',
+    )
+    expect(rust).toContain(
+      "pub fn texts(&self) -> [&'static str; 2] {\n        [\n            self.a,\n            self.b,\n        ]",
     )
     expect(rust).toContain('pub static EN: Native = Native {\n    a: "A",\n    b: "B",\n};')
     expect(rust).toContain('pub static ZH_HANS: Native = Native {\n    a: "X",\n    b: "B",\n};')

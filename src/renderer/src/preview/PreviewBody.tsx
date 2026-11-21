@@ -42,7 +42,7 @@ import { loadImagesFrom, useLoadedImageHosts } from '../remoteImages'
 import { NoteHover } from './NoteHover'
 import type { TextStore } from '../textStore'
 import type { FindTarget } from '../find/target'
-import { format, t } from '../i18n'
+import { format, subscribeLocale, t } from '../i18n'
 import { useAppearance } from '../icons/Icon'
 import { shownTheme, subscribeAppearance } from '../theme/appearance'
 import {
@@ -192,12 +192,11 @@ export function Preview({
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
   const loadRemoteImages = useEditorSetting('loadRemoteImages')
   const loadedHosts = useLoadedImageHosts()
+  const remoteFrom = t('image.remoteFrom')
+  const remoteLoad = t('image.remoteLoad')
   const remoteImages = useMemo(
-    () =>
-      loadRemoteImages
-        ? undefined
-        : { loadedHosts, from: t('image.remoteFrom'), load: t('image.remoteLoad') },
-    [loadRemoteImages, loadedHosts],
+    () => (loadRemoteImages ? undefined : { loadedHosts, from: remoteFrom, load: remoteLoad }),
+    [loadRemoteImages, loadedHosts, remoteFrom, remoteLoad],
   )
   const [refusedLink, setRefusedLink] = useState<string>()
   const appearance = useAppearance()
@@ -575,6 +574,7 @@ export function Preview({
   })
   useEffect(() => text.subscribe(() => render.current?.(input.current)), [text])
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
+  useEffect(() => subscribeLocale(() => render.current?.(input.current)), [])
   useInsertionEffect(() => {
     renderAgain.current = () => render.current?.(input.current)
   })

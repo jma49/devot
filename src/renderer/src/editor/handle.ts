@@ -6,6 +6,7 @@ import type { ImageSize } from '../../../core/images'
 import type { CommandId } from '../commands/registry'
 import { imageMenuTarget, type ImageMenuTarget, type ImageSource } from '../imageMenu'
 import { moveRange, moveSelection, selectedText } from './extract'
+import { attachContent, type Attachment } from './attachContent'
 import { formatCommand, type FormatId } from './formats'
 import { acceptSpec, suggestAt } from './ghostText'
 import { imageAt, viewImageAt } from './images'
@@ -39,6 +40,8 @@ export interface EditorHandle {
   remeasure: () => void
   format: (id: FormatId) => void
   insert: (id: InsertId) => void
+  /** A native capture's images and text at the caret, as one undo step; the codes of images refused. */
+  attach: (attachment: Attachment) => Promise<readonly string[]>
   text: () => string
   /** Caret to the start of line `line` (1-based), scrolled to the view's top (outline entry) or middle (Go to Line). */
   goToLine: (line: number, where?: 'start' | 'center', focus?: boolean) => void
@@ -149,6 +152,11 @@ export function editorHandle(
     insert: (id) => {
       ready.focus()
       insertCommand(id)(ready)
+    },
+    attach: async (attachment) => {
+      const attach = ready.state.facet(attachContent)
+      if (!attach) throw new Error('E_EDITOR_ATTACH_UNAVAILABLE')
+      return attach(ready, attachment)
     },
     text: () => ready.state.doc.toString(),
     goToLine: (line, where = 'start', focus = true) => {

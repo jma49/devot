@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
+import { mkdir } from 'node:fs/promises'
+import { changeEditorSettingsElsewhere, expect, test, openApp, openSettings } from './fixtures'
 
 // Rust sends `devot://editor-settings-changed` to every window; the page re-sends it as
 // `devot:editor-settings-changed`, which these tests send to stand in for a change from the Settings window.
@@ -405,4 +406,117 @@ test('the line numbers sit on the pane itself unless lines do not wrap', async (
   await expect(page.locator('.cm-gutters')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await changed(page, { lineNumbers: true, lineWrapping: 'off' })
   await expect(page.locator('.cm-gutters')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+test('Vim settings enable normal and insert modes and reconfigure the live editor', async ({
+  page,
+}) => {
+  await openSettings(page, 'Editing')
+  const toggle = page.getByRole('switch', { name: 'Vim Mode', exact: true })
+  await expect(toggle).not.toBeChecked()
+  await toggle.click()
+  await expect(toggle).toBeChecked()
+  await expect.poll(() => page.evaluate(() => window.devotEditorSettings?.['vimMode'])).toBe(true)
+  const shots = process.env['DEVOT_VIM_SHOTS']
+  if (shots) {
+    await mkdir(shots, { recursive: true })
+    await page.screenshot({ path: `${shots}/settings-vim-on.png` })
+  }
+  const stored = await page.evaluate(() => window.devotEditorSettings)
+  await page.addInitScript((settings) => {
+    window.devotEditorSettings = settings
+  }, stored)
+  await openApp(page)
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Title' }).fill('Vim keyboard editing')
+  await expect(page.locator('.cm-scroller')).toHaveClass(/cm-vimMode/)
+  await expect(page.locator('.vim-mode')).toHaveText('NORMAL')
+  const noteBody = page.getByRole('textbox', { name: 'Note body' })
+  await noteBody.click()
+  await page.keyboard.press('i')
+  await expect(page.locator('.vim-mode')).toHaveText('INSERT')
+  await page.keyboard.type('First line to delete\nKeep this line\nVim commands edit this note')
+  await page.keyboard.press('Escape')
+  await page.keyboard.type('gg')
+  await expect(page.locator('.vim-mode')).toHaveText('NORMAL')
+  await expect(page.locator('.editor-counts')).toContainText('Words 12')
+  await expect(page.locator('.note-summary')).toContainText('12 words')
+  await expect(page.locator('.row-excerpt')).toContainText('First line to delete')
+  await expect(page.locator('.cm-fat-cursor').first()).toBeVisible()
+  if (shots) await page.screenshot({ path: `${shots}/vim-normal-mode.png` })
+  await page.keyboard.press('x')
+  await expect(noteBody).toContainText('irst line to delete')
+  await page.keyboard.type('dd')
+  await expect(noteBody).not.toContainText('line to delete')
+  await page.keyboard.press('i')
+  await expect(page.locator('.vim-mode')).toHaveText('INSERT')
+  await page.keyboard.type('Edited with Vim: ')
+  await expect(page.locator('.editor-counts')).toContainText('Words 11')
+  await expect(page.locator('.note-summary')).toContainText('11 words')
+  await expect(page.locator('.row-excerpt')).toContainText('Edited with Vim: Keep this line')
+  if (shots) await page.screenshot({ path: `${shots}/vim-insert-mode.png` })
+  await page.keyboard.press('Escape')
+  await expect(noteBody).toContainText('Edited with Vim: Keep this line')
+  await expect(page.locator('.editor-counts')).toContainText('Words 11')
+  await expect(page.locator('.note-summary')).toContainText('11 words')
+  await expect(page.locator('.row-excerpt')).toContainText('Edited with Vim: Keep this line')
+  await expect(page.locator('.vim-mode')).toHaveText('NORMAL')
+  if (shots) await page.screenshot({ path: `${shots}/vim-after-edit.png` })
+  await page.keyboard.press('v')
+  await expect(page.locator('.vim-mode')).toHaveText('VISUAL')
+  await page.keyboard.press('Escape')
+  await page.locator('.cm-editor').evaluate((el) => {
+    el.dataset['vimProbe'] = 'same'
+  })
+  await changeEditorSettingsElsewhere(page, { vimMode: false })
+  await expect(page.locator('.cm-fat-cursor')).toHaveCount(0)
+  await expect(page.locator('.vim-mode')).toHaveCount(0)
+  await page.keyboard.type('xi')
+  await expect(noteBody).toContainText('xi')
+  await expect(page.locator('.cm-editor')).toHaveAttribute('data-vim-probe', 'same')
+})
+
+test('ordinary typing also settles counts and the note list preview after an edit', async ({
+  page,
+}) => {
+  await newNote(page, '')
+  await page.getByRole('textbox', { name: 'Title' }).fill('Ordinary keyboard editing')
+  await body(page).click()
+  await page.keyboard.type('First line to delete\nKeep this line\nVim commands edit this note')
+  await expect(page.locator('.editor-counts')).toContainText('Words 12')
+  await expect(page.locator('.note-summary')).toContainText('12 words')
+  await expect(page.locator('.row-excerpt')).toContainText('First line to delete')
+  await page.locator('.cm-line').first().click()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Shift+End')
+  await page.keyboard.press('Delete')
+  await page.keyboard.press('Delete')
+  await page.keyboard.type('Edited with Vim: ')
+  await expect(page.locator('.editor-counts')).toContainText('Words 11')
+  await expect(page.locator('.note-summary')).toContainText('11 words')
+  await expect(page.locator('.row-excerpt')).toContainText('Edited with Vim: Keep this line')
+})
+
+test('Vim half-page and centering commands scroll the note viewport', async ({ page }) => {
+  await newNote(page, Array.from({ length: 200 }, (_, i) => `Line ${i + 1}`).join('\n'))
+  await changed(page, { vimMode: true })
+  await expect(page.locator('.vim-mode')).toHaveText('NORMAL')
+  await body(page).click()
+  await page.keyboard.type('gg')
+  const viewport = page.locator('.editor-scroll')
+  await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeLessThan(3)
+  const height = await viewport.evaluate((el) => el.clientHeight)
+  await page.keyboard.press('Control+d')
+  await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(height / 3)
+  await page.keyboard.press('Control+u')
+  await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeLessThan(3)
+  await page.keyboard.type('100G')
+  await expect(page.locator('.cm-line').filter({ hasText: /^Line 100$/ })).toBeInViewport()
+  await page.keyboard.type('zz')
+  await expect
+    .poll(async () => {
+      const caret = await page.locator('.cm-fat-cursor').first().boundingBox()
+      const box = await viewport.boundingBox()
+      return caret && box ? Math.abs(caret.y - (box.y + box.height / 2)) : Infinity
+    })
+    .toBeLessThan(40)
 })

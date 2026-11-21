@@ -7,6 +7,7 @@ import { writeClipboardText } from '../clipboard'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { UI_ATTRIBUTE, type ShownPiece } from './dom'
+import { useLocale } from '../liveLocale'
 
 const FEEDBACK_MS = 1500
 
@@ -57,6 +58,7 @@ const ICONS = { idle: 'code.copy', copied: 'code.copied', failed: 'code.copyFail
 
 // Kept from rendering again with the preview: each button's icon reads the appearance.
 const CopyButton = memo(function CopyButton({ block }: { block: HTMLElement }) {
+  useLocale()
   const [state, setState] = useState<State>('idle')
   useEffect(() => {
     if (state === 'idle') return

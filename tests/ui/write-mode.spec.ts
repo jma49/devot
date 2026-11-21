@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { COMPOSITION_END_KEY_MS } from '../../src/renderer/src/ime'
 import { expect, test, openApp } from './fixtures'
 import { expectSource, inEditMode } from './writeSource'
 
@@ -81,7 +82,7 @@ function charBox(page: Page, lineIndex: number, chars: string, nth = 0) {
 function compose(page: Page, lineIndex: number, col: number, parts: string[]) {
   return body(page).evaluate(
     async (content, asked) => {
-      const { line, column, steps } = asked
+      const { line, column, steps, endKeyMs } = asked
       const w = window
       const el = content
       const frame = () => new Promise<void>((resolve) => w.requestAnimationFrame(() => resolve()))
@@ -124,11 +125,14 @@ function compose(page: Page, lineIndex: number, col: number, parts: string[]) {
         )
         await frame()
       }
+      const endedAt = w.performance.now()
       el.dispatchEvent(new w.CompositionEvent('compositionend', { ...init, data: typed }))
       await frame()
       await frame()
+      // Later commands are ordinary keys, not the key that accepted the composition.
+      while (w.performance.now() - endedAt < endKeyMs) await frame()
     },
-    { line: lineIndex, column: col, steps: parts },
+    { line: lineIndex, column: col, steps: parts, endKeyMs: COMPOSITION_END_KEY_MS },
   )
 }
 

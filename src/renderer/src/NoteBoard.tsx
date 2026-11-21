@@ -60,6 +60,7 @@ import { BOARD_PANE, fittedBoardWidth } from './paneWidth'
 import { useRowMotion } from './rowMotion'
 import { usePendingFocus } from './pendingFocus'
 import { useStable } from './stable'
+import { useLocale } from './liveLocale'
 
 interface Props {
   view: string
@@ -141,6 +142,7 @@ const takesNotes = (event: DragEvent) => event.dataTransfer.types.includes(DRAG_
  * between cards and columns.
  */
 export const NoteBoard = memo(function NoteBoard(props: Props) {
+  useLocale()
   const { notes, statuses, selected, selection, onSelection, onSelect } = props
   const columns = useMemo(() => boardColumns(notes, statuses), [notes, statuses])
   const order = useMemo(() => boardOrder(columns), [columns])
@@ -730,6 +732,7 @@ interface CardProps {
 
 /** One note on the board: its title (an untitled note's first line), when it changed, its task progress and its tags as dots. */
 const BoardCard = memo(function BoardCard(props: CardProps) {
+  useLocale()
   const { note: n, events } = props
   const id = n.id
   const ref = useCallback((el: HTMLLIElement) => events.setCard(id, el), [events, id])

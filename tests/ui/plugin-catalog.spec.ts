@@ -102,6 +102,38 @@ test('offers an update and says when Devot is too old', async ({ page }) => {
   await expect(later.getByRole('button')).toHaveCount(0)
 })
 
+test('centres each row’s button, state, switch and Remove… on the plugin’s name', async ({
+  page,
+}) => {
+  await fakeRust(page, [offered('install')])
+  await openSettings(page, 'Plugins')
+  await official(page).getByRole('button', { name: 'Install Charts' }).click()
+  await page
+    .getByRole('dialog', { name: 'Install “Charts”?' })
+    .getByRole('button', { name: 'Install' })
+    .click()
+  const installed = page
+    .getByRole('list', { name: 'Installed plugins' })
+    .getByRole('listitem')
+    .first()
+  const middle = async (l: import('@playwright/test').Locator) => {
+    const box = await l.boundingBox()
+    return box!.y + box!.height / 2
+  }
+  const offeredRow = official(page).getByRole('listitem').first()
+  await expect(offeredRow).toContainText('Installed')
+  const rows = [
+    [offeredRow.locator('.setting-label'), offeredRow.locator('.plugin-offer-state')],
+    [installed.locator('.setting-label'), installed.getByRole('button', { name: 'Remove Charts' })],
+    [installed.locator('.setting-label'), installed.getByRole('switch')],
+  ] as const
+  for (const [label, control] of rows)
+    expect(Math.abs((await middle(control)) - (await middle(label)))).toBeLessThanOrEqual(1)
+  const remove = await installed.getByRole('button', { name: 'Remove Charts' }).boundingBox()
+  const toggle = await installed.getByRole('switch').boundingBox()
+  expect(remove!.x + remove!.width).toBeLessThanOrEqual(toggle!.x)
+})
+
 test('says when the list cannot be loaded and tries again', async ({ page }) => {
   await fakeRust(page, { error: 'E_PLUGIN_INDEX_UNAVAILABLE' })
   await openSettings(page, 'Plugins')

@@ -139,6 +139,7 @@ pub enum Appearance {
 pub enum IconStyle {
     SfSymbols,
     Lucide,
+    Kubai,
 }
 
 /// The page applies it (the tokens read `data-theme` on the root element), picking `light_theme`
@@ -185,6 +186,7 @@ pub struct EditorSettings {
     pub tab_width: u64,
     pub list_marker: ListMarker,
     pub spell_check: bool,
+    pub vim_mode: bool,
     pub highlight_active_line: bool,
     /// An adjustment of the sheet's wash from its design value
     /// (Settings > Appearance > Glass Transparency): 0 is the design, -100 opaque,
@@ -274,6 +276,7 @@ impl Default for EditorSettings {
             tab_width: 2,
             list_marker: ListMarker::Star,
             spell_check: true,
+            vim_mode: false,
             highlight_active_line: false,
             window_transparency: 0,
             material_transparency: 0,
@@ -286,7 +289,7 @@ impl Default for EditorSettings {
             light_theme: Theme::Default,
             dark_theme: Theme::Default,
             system_accent: false,
-            icon_style: IconStyle::SfSymbols,
+            icon_style: IconStyle::Lucide,
             toolbar: true,
             scroll_past_end: true,
             show_counts: true,
@@ -411,6 +414,7 @@ impl EditorSettings {
             "tabWidth" => self.tab_width = whole(value, TAB_WIDTH_MIN, TAB_WIDTH_MAX)?,
             "listMarker" => self.list_marker = choice(value)?,
             "spellCheck" => self.spell_check = flag(value)?,
+            "vimMode" => self.vim_mode = flag(value)?,
             "highlightActiveLine" => self.highlight_active_line = flag(value)?,
             "windowTransparency" => {
                 self.window_transparency =
@@ -821,8 +825,33 @@ mod tests {
     }
 
     #[test]
+    fn vim_mode_accepts_only_flags_and_round_trips() {
+        let settings = EditorSettings::default()
+            .with(&patch(json!({ "vimMode": true })))
+            .unwrap();
+        assert!(settings.vim_mode);
+        assert_eq!(
+            serde_json::to_value(&settings).unwrap()["vimMode"],
+            json!(true)
+        );
+        assert!(
+            !settings
+                .with(&patch(json!({ "vimMode": false })))
+                .unwrap()
+                .vim_mode
+        );
+        for value in [Value::Null, json!(1), json!("true")] {
+            assert_eq!(
+                settings.with(&patch(json!({ "vimMode": value }))),
+                Err(INVALID)
+            );
+        }
+    }
+
+    #[test]
     fn defaults_are_roomy_and_helpful() {
         let d = EditorSettings::default();
+        assert!(!d.vim_mode);
         assert!(!d.line_numbers && !d.highlight_active_line);
         assert_eq!(d.line_wrapping, LineWrapping::UnwrapAtCursor);
         assert!(!d.readable_width && d.spell_check);
@@ -867,7 +896,7 @@ mod tests {
         assert_eq!(d.light_theme, Theme::Default);
         assert_eq!(d.dark_theme, Theme::Default);
         assert!(!d.system_accent);
-        assert_eq!(d.icon_style, IconStyle::SfSymbols);
+        assert_eq!(d.icon_style, IconStyle::Lucide);
     }
 
     #[test]
@@ -947,6 +976,7 @@ mod tests {
                 "tabWidth": 2,
                 "listMarker": "*",
                 "spellCheck": true,
+                "vimMode": false,
                 "highlightActiveLine": false,
                 "windowTransparency": 0,
                 "pasteUrl": "link",
@@ -954,7 +984,7 @@ mod tests {
                 "inlineImages": true,
                 "appearance": "system",
                 "systemAccent": false,
-                "iconStyle": "sfSymbols",
+                "iconStyle": "lucide",
                 "toolbar": true,
                 "scrollPastEnd": true,
                 "showCounts": true,
@@ -1516,12 +1546,13 @@ mod tests {
     }
 
     #[test]
-    fn reads_an_unknown_stored_icon_style_as_sf_symbols() {
+    fn reads_an_unknown_stored_icon_style_as_lucide() {
         for (stored, style) in [
             (json!("lucide"), IconStyle::Lucide),
+            (json!("kubai"), IconStyle::Kubai),
             (json!("sfSymbols"), IconStyle::SfSymbols),
-            (json!("other"), IconStyle::SfSymbols),
-            (json!(7), IconStyle::SfSymbols),
+            (json!("other"), IconStyle::Lucide),
+            (json!(7), IconStyle::Lucide),
         ] {
             assert_eq!(
                 EditorSettings::from_stored(&json!({ "iconStyle": stored })).icon_style,

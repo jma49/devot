@@ -1,5 +1,5 @@
 import { fillPlaceholders } from '../../../core/text'
-import { en, type MessageKey, type Messages } from './en'
+import { startup, type MessageKey, type Messages } from './en'
 import { enPhone } from './phone'
 
 export type { MessageKey } from './en'
@@ -13,7 +13,8 @@ interface Translation {
 const translations: Record<string, () => Promise<Translation>> = {
   'zh-hans': () => import('./zh-Hans').then((m) => ({ messages: m.zhHans, phone: m.zhHansPhone })),
 }
-const catalogs: Record<string, Partial<Messages>> = { en }
+const english: Partial<Messages> = startup
+const catalogs: Record<string, Partial<Messages>> = { en: english }
 const phoneWordings: Record<string, Partial<Messages>> = { en: enPhone }
 const known = (locale: string) => locale === 'en' || locale in translations
 
@@ -40,22 +41,46 @@ export function resolveLocale(preferred: readonly string[]): string {
   return SOURCE_LOCALE
 }
 
-let active: Partial<Messages> = en
-let activeLocale = SOURCE_LOCALE
+/**
+ * The languages this window shows, most preferred first: the one the Mac app shows now, which it
+ * sets before the page loads (`app_language.rs`), else the web view's own.
+ */
+export function shownLanguages(): readonly string[] {
+  const shown = (globalThis as { devotLanguage?: unknown }).devotLanguage
+  if (typeof shown === 'string') return [shown]
+  return (
+    (globalThis as { navigator?: { languages?: readonly string[] } }).navigator?.languages ?? []
+  )
+}
 
-/** Loads `locale`'s catalog the first time, then makes it the active one. */
+let active: Partial<Messages> = english
+let activeLocale = SOURCE_LOCALE
+let requested = 0
+const listeners = new Set<() => void>()
+
+/** Loads `locale`'s catalog the first time, then makes it the active one; a later call wins. */
 export async function setLocale(locale: string): Promise<void> {
+  const request = ++requested
   const load = translations[locale]
   if (load && !catalogs[locale]) {
     const { messages, phone } = await load()
     catalogs[locale] = messages
     phoneWordings[locale] = phone
   }
-  active = catalogs[locale] ?? en
+  if (request !== requested) return
+  const before = activeLocale
+  active = catalogs[locale] ?? english
   activeLocale = catalogs[locale] ? locale : SOURCE_LOCALE
   // WebKit picks Han glyphs, line breaks and VoiceOver's voice by the page's language.
   const page = (globalThis as { document?: { documentElement: { lang: string } } }).document
   if (page) page.documentElement.lang = LANGUAGE_TAGS[activeLocale] ?? SOURCE_LOCALE
+  if (activeLocale !== before) for (const listener of [...listeners]) listener()
+}
+
+/** Calls `listener` after each change of the active locale; returns what stops it. */
+export function subscribeLocale(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
 }
 
 /** Sentences shown one after another: a space apart, but none after Chinese full-width punctuation. */
@@ -80,9 +105,22 @@ export function setPhoneDevice(device: 'iPhone' | 'iPad'): void {
   onIPad = device === 'iPad'
 }
 
+/** An area's English fallback loads only in the windows that show it. */
+export function registerMessages(messages: Partial<Messages>): void {
+  Object.assign(english, messages)
+}
+
+export function englishText(key: MessageKey): string {
+  const text = english[key]
+  if (text === undefined) throw new Error('E_I18N_MESSAGE_UNLOADED')
+  return text
+}
+
 export function t(key: MessageKey): string {
   const text =
-    (phoneWording ? phoneWordings[activeLocale]?.[key] : undefined) ?? active[key] ?? en[key]
+    (phoneWording ? phoneWordings[activeLocale]?.[key] : undefined) ??
+    active[key] ??
+    englishText(key)
   return phoneWording && onIPad ? text.replaceAll('iPhone', 'iPad') : text
 }
 

@@ -146,7 +146,8 @@ export interface AiProviderView {
   reasoning: string | null
 }
 
-export type AiCliState = 'ready' | 'signedOut' | 'notInstalled'
+/** `checking`: Settings opened before the tools' first check answered. */
+export type AiCliState = 'ready' | 'signedOut' | 'notInstalled' | 'checking'
 
 export interface AiCliProviderView {
   state: AiCliState
@@ -181,6 +182,8 @@ export interface AiSettingsView {
   cli?: AiCliViews
   /** Null: suggestions use the Model setting. */
   suggestModel: AiSuggestModel | null
+  /** `active` is only the stored fallback until the local tools' first check answers. */
+  activePending?: true
 }
 
 /** What Settings changes: the key goes in through its own command, and a field left out keeps its stored value. */
@@ -208,7 +211,10 @@ function asCliProviderView(value: unknown): AiCliProviderView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { state, model, reasoning } = value as Record<string, unknown>
   if (
-    (state !== 'ready' && state !== 'signedOut' && state !== 'notInstalled') ||
+    (state !== 'ready' &&
+      state !== 'signedOut' &&
+      state !== 'notInstalled' &&
+      state !== 'checking') ||
     typeof model !== 'string'
   ) {
     return undefined
@@ -245,10 +251,8 @@ function asProviderView(value: unknown): AiProviderView | undefined {
 
 export function asAiSettingsView(value: unknown): AiSettingsView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { active, suggestOnIdle, anthropic, openai, cli, suggestModel } = value as Record<
-    string,
-    unknown
-  >
+  const { active, suggestOnIdle, anthropic, openai, cli, suggestModel, activePending } =
+    value as Record<string, unknown>
   const a = asProviderView(anthropic)
   const o = asProviderView(openai)
   if (!isProvider(active) || !a || !o) return undefined
@@ -258,6 +262,7 @@ export function asAiSettingsView(value: unknown): AiSettingsView | undefined {
     anthropic: a,
     openai: o,
     suggestModel: asSuggestModel(suggestModel),
+    ...(activePending === true ? { activePending: true as const } : {}),
   }
   if (cli === undefined) return view
   const parsedCli = asCliViews(cli)

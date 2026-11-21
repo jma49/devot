@@ -16,7 +16,8 @@ import { writerLabel } from '../authorshipLabels'
 import { boardColumns, boardOrder, boardStatuses } from '../board'
 import type { Core } from '../core-client'
 import { useEditorSetting } from '../editorSettings'
-import { currentLocale, format, t } from '../i18n'
+import { format, t } from '../i18n'
+import { useLocale } from '../liveLocale'
 import {
   isBoardView,
   isGalleryView,
@@ -72,6 +73,7 @@ export function useLibraryView({
   const [layouts, setLayouts] = useState<ViewLayouts>(() => ({
     boards: lastState?.boards ?? [],
     galleries: lastState?.galleries ?? [],
+    tables: lastState?.tables ?? [],
   }))
   const tree = useMemo(() => buildBookTree(books), [books])
   useEffect(() => publishNotebooks(choicesFromTree(tree)), [tree])
@@ -176,19 +178,29 @@ export function useLibraryView({
     isGalleryView(libraryView) &&
     (!searching || (searchIn === 'view' && libraryLayout !== 'board'))
   const galleryShown = canGallery && libraryLayout === 'gallery'
-  const shownLayout: ListLayout = boardShown ? 'board' : galleryShown ? 'gallery' : 'list'
+  const tableShown = canGallery && libraryLayout === 'table'
+  const shownLayout: ListLayout = boardShown
+    ? 'board'
+    : galleryShown
+      ? 'gallery'
+      : tableShown
+        ? 'table'
+        : 'list'
   const boardDropped = useEditorSetting('boardDropped')
   const boardStatusList = useMemo(() => boardStatuses(boardDropped), [boardDropped])
-  const locales = useMemo(() => sortLocales(navigator.languages, currentLocale()), [])
+  const locale = useLocale()
+  const locales = useMemo(() => sortLocales(navigator.languages, locale), [locale])
   const sortButtonRef = useRef<HTMLButtonElement>(null)
   const showOrder = listOrder.show
+  const sortLabel = format(t('sort.current'), { order: orderLabel(order) })
+  const sortChip = orderChip(order)
   const sortButton = useMemo(
     () => ({
-      label: format(t('sort.current'), { order: orderLabel(order) }),
-      chip: orderChip(order),
+      label: sortLabel,
+      chip: sortChip,
       onOpen: (anchor: HTMLElement) => void showOrder(anchor),
     }),
-    [order, showOrder],
+    [sortLabel, sortChip, showOrder],
   )
   const groups = useNoteGroups(notes, books, libraryBook?.id ?? null, activeFilter, order, locales)
   // A card moved shows in its new column at once, until the lists have the change.
@@ -220,7 +232,9 @@ export function useLibraryView({
   // In score order, under the search's own results and never again among them; a gallery shows none.
   const related = searchState.related
   const shownRelated = useMemo(() => {
-    if (!results || galleryShown || related?.search !== results.search) return NO_RELATED
+    if (!results || galleryShown || tableShown || related?.search !== results.search) {
+      return NO_RELATED
+    }
     const listed = new Set(shownResults.map((n) => n.id))
     const agentNotes =
       results.search.scope && activeFilter?.kind === 'agent' ? activeFilter.noteIds : undefined
@@ -228,7 +242,7 @@ export function useLibraryView({
       (n) => !listed.has(n.id) && (!agentNotes || agentNotes.has(n.id)),
     )
     return kept.length > 0 ? kept : NO_RELATED
-  }, [results, related, shownResults, galleryShown, activeFilter])
+  }, [results, related, shownResults, galleryShown, tableShown, activeFilter])
   const galleryNotes = useMemo(
     () =>
       searching
@@ -424,6 +438,7 @@ export function useLibraryView({
     boardShown,
     canGallery,
     galleryShown,
+    tableShown,
     shownLayout,
     boardStatusList,
     locales,

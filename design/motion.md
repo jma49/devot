@@ -1,10 +1,16 @@
 # Motion
 
+File-drop feedback appears and disappears immediately as a direct drag target, without movement or animation.
+Dropped folders open the existing import modal with its standard dialog motion after scanning, without a separate transition.
+
 The spec for every motion in Devot. A new or changed interaction is classified here before it is built, and this file changes with the code. `tests/policy/motion-tokens.test.ts` enforces the parts a test can read.
 
 It draws on Apple's [Human Interface Guidelines: Motion](https://developer.apple.com/design/human-interface-guidelines/motion), [Adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass), [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Animate with springs](https://developer.apple.com/videos/play/wwdc2023/10158/). Those give principles, not numbers; the numbers are Devot's tokens.
 
 ## Should it move?
+
+The browser clipper's popup and options page switch views (form, progress, saved, setup) and check results instantly, with no custom motion; its image progress is a native progress bar.
+Adding or removing a registered browser extension in Settings replaces the list immediately with no animation; copying its origin in the clipper options replaces the status text immediately.
 
 Decide in this order; the first match wins.
 
@@ -18,7 +24,15 @@ Motion never carries meaning alone: the final state must say everything without 
 
 Native menus and other system-drawn things keep the system's motion.
 
+Moving notes to the Trash on the Mac shows a notice with Undo in the notices' corner, with the notices' own motion (rule 3); it stays `motion.duration.notice-undo` while the pointer and the keyboard are elsewhere, and a later move replaces its count at once (rule 2).
+Undo puts the notes back at once and opens the note when there was one (rule 2).
+Plugin import completion and skipped-item counts replace the notice text at once (rule 2), without movement.
+Show Skipped opens a modal results sheet with the dialog motion (rule 3); choosing its note closes the sheet and selects the note without moving the content (rule 2).
+
 ## Which motion
+
+The Vim Mode switch uses the existing two-state control feedback; switching editor modes and Vim keyboard commands apply immediately without motion because they follow the keyboard.
+The footer's Vim mode label changes immediately without motion because it follows the keyboard.
 
 | What happens                                       | Motion                  | Duration                                         | Curve                                            |
 | -------------------------------------------------- | ----------------------- | ------------------------------------------------ | ------------------------------------------------ |
@@ -35,6 +49,7 @@ Native menus and other system-drawn things keep the system's motion.
 | Colour meant to be noticed                         | fade                    | `color`                                          | `standard`                                       |
 
 A diagram redrawn for a new pane width (a gantt chart) has no motion: it follows the pane, and the new drawing replaces the old one once the pane has settled.
+An editable plugin drawing refreshed for unchanged block content replaces only its drawing at once (rule 2); its Edit button stays in place, including focus and an in-progress press.
 A diagram in the preview drawn as it comes within a screen of the view has no motion either: it takes its reserved place at once, and one drawn above the view keeps the view where it was.
 A long note's head preview, its remaining pieces and its first eager diagram appear in place without motion, because opening another note is read at once (rule 2).
 The preview's code-copy controls appear without motion after the full content has had a paint opportunity (rule 2).
@@ -65,6 +80,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - New Notebook in the sidebar's Notebooks header stays visible at rest and keeps the standard tool hover, focus and press states (rule 2).
 - Empty Trash in the Trash's search row is the same tool as New Note, with the same press and hover fill.
 - Hiding or showing the sidebar (or entering focus mode): the pane that goes or comes fades and leaves or takes its room at once, and the panes that stay slide to their new places over `motion.duration.slide` (380 ms, `motion.easing.move`). A toolbar's room for the traffic lights opens at once, and the toolbar items it moves slide to their places with the panes.
+  In a narrow window the sidebar floats over the list and only fades; the list and editor keep their positions when it opens or closes.
 - Rows: the sidebar's notebooks and tags that come, go or move fade and slide over `motion.duration.slide` (`motion.easing.move`), and its rows slide 80 px as a workspace opens or closes. A note that comes into or leaves the note list fades in or out where it is, over `motion.duration.insert` (300 ms), while the notes after it slide to their new places over `motion.duration.slide`, as do notes that change order. Only a small change to the list's own data moves (`rowMotion.ts`): another view, scrolling or a section opening never does.
 - Sizes: the image viewer between Fit and Actual Size and a progress bar filling move over `motion.duration.grow` (300 ms, `motion.easing.move`); a tag chip just added grows from `motion.scale.chip-enter` as it fades in.
 - A toolbar button's tooltip shows after the pointer rests `motion.delay.tooltip` (400 ms); it fades in and out over `motion.duration.popover`, without growing.
@@ -116,10 +132,14 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Graph sheet (View > Show Graph):** a modal dialog with the dialog motion; Reduced motion follows the dialog's rule. The graph is laid out before it is drawn and appears at once, with no animated simulation (rule 2): reopening it draws the same picture. Panning and zooming follow the pointer, the trackpad and the keys with no motion of their own (rule 1), and 0 fits it again at once. The pointer over a dot shows its links and neighbours and dims the rest at once (rule 2: a state that follows the pointer). This Note and All Notes is a segmented control with its own slide; the new graph replaces the old at once.
 - **Note embeds in the preview:** rule 2. An embedded note is drawn with the preview, and an edit of that note redraws it in place at once, as a chip's title changes.
 - **Note Info's date picker:** rule 3. It grows from its date row and closes backwards like the card. A month change (the head's buttons, Page Up and Page Down, an arrow past the month's edge) is rule 3 too: the new days slide 16 (`space.7`, `--month-slide-shift`) in from the side they come from while they fade in, over `motion.duration.toggle`. Moving the day within the month and stepping the time are rule 1: no motion. Reduced motion: the picker only fades, and the days fade in place.
-- **List, Board and Gallery:** the new body fades in over `motion.duration.popover`, in the same view only.
+- **List, Board, Gallery and Table:** the new body fades in over `motion.duration.popover`, in the same view only.
 - **Gallery cards:** rule 2. Hover washes the card's cell over `motion.duration.hover`; the selection wash and the focus ring are states, shown at once.
   Cards that change place in the order (a new sort, a note added or gone) slide as rows do (`rowMotion.ts`); resizing the pane reflows them at once (rule 1), the sheets' height following their width.
   A thumbnail is drawn when its page arrives, with no fade, and scrolling has no motion of its own.
+- **Table:** rule 1 and 2. Moving between cells, sorting, filtering, hiding a column and adding one redraw the grid at once, with no slide of rows or columns (a sort can move thousands of rows; it follows the click).
+  Hover washes a row over `motion.duration.hover` on `motion.easing.out`; the selection wash and the focus ring are states, shown at once.
+  A cell's editor opens and closes at once in its cell, and a written value or a checkbox shows at once (rule 2); the alert about invalid front matter appears and goes at once.
+  Scrolling has no motion of its own, and the header and title column stay without moving.
 - **Board cards:** one that changes column flies there on a copy above the columns, as a column would clip it, when both ends can be seen (otherwise it is simply there); the others slide as rows do (`rowMotion.ts`).
   Hover washes a card over `motion.duration.hover` on `motion.easing.out`; the selection wash and the focus ring are states, shown at once (rule 2).
   Resetting the board's width (a double-click or Enter on the edge) takes the fitted width at once, as a drag of the edge does (rule 1).
@@ -138,6 +158,12 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Leave This Vault on a relay vault:** rule 2. Leave This Vault… confirms in a modal dialog with the dialog motion (Reduced motion follows the dialog's rule); nothing on the relay changes, so no key is typed. When Rust answers, the vault's rows give way to the joins at once and the sentence that the vault was left is announced.
 - **Connect and Disconnect in Settings > Integrations:** each confirmation is a modal dialog with the dialog motion; a client row's state line, its dot and its buttons change in place with no motion, as a value that was set does. Reduced motion follows the dialog's rule.
 - **Set Up by Hand in the Clients card:** rule 3 for its chevron, which turns over `motion.duration.toggle`; the configurations show and go at once, as Settings rows do, so nothing below slides. Reduced motion stops the chevron turning.
+- **Settings > AI:** the Model and Suggestion Model pop-ups open the model picker as pickers do (rule 3: it grows from its button and fades, and closes the same way); moving the rail, searching, a reasoning level and the check mark change its rows at once (rule 2).
+  Try It's line, the suggestion status line, a provider's state and the picker's loading or failed note replace what was there at once, with no spinner (rule 2).
+  Providers and Keys turns its chevron over `motion.duration.toggle` (rule 3) and its rows show and go at once; Custom Endpoint in the key sheet does the same.
+  The key sheet is a modal dialog with the dialog motion, and its saving, checking and found-models phases swap in place (rule 2); the first-run card gives way to the pane at once when a provider is ready.
+  Reduced motion follows the picker's and the dialog's rules and stops the chevron turning.
+- **A next edit suggestion on its way:** rule 2. Three static dots in the ghost text's colour show after the caret once the request has left, and the ghost text replaces them at once when it comes; a change, a caret move or Escape takes them away at once. They never pulse: a wait of many seconds would turn a loop into noise beside the caret.
 - **AI Tools in Settings > Integrations:** rule 2. Allow AI Tools and Start in the Background are switches with the switch's own motion; Access is a pop-up; the Notebooks count, the no-access footnote, the Status text, its Quit Devot button and a reachability alert replace what was there at once. Choose… opens the main window's picker as that picker always opens. Quit Devot goes through the quit handshake and the windows close as in any quit.
 - **The background menu bar item:** native, placed and removed by the system, with no motion of ours. A Devot that starts in the background shows no window and so plays nothing; its main window, once opened, opens as at launch.
 - **Dragging:** a drop line fades in and a column's or row's highlight eases over `motion.duration.quick`.
@@ -179,6 +205,16 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Until the page has painted the note, a cover in `color.phone.background` shows the note's title where the page draws it; it fades over `motion.duration.phone-adjust` on `motion.easing.standard`, never before the push's first frame, and after 400 ms regardless.
   A link pushes the linked note the same way over the note it was in, which keeps a still of itself.
   Under Reduce Motion the system decides the push's look, and the cover still fades.
+- **Opening a note beside its list** (an iPad's columns): rule 2.
+  A note opened from a list replaces the one in the note's column with a crossfade over `motion.duration.phone-adjust`, under the same cover as a push; a link inside a note still pushes over it with the system's motion.
+  A notebook or tag opened from the Library's column replaces the middle column the same way.
+  The tab bar stays, and the list's row stays selected.
+  Under Reduce Motion, or with Animations set to Off, the column changes at once.
+- **Hiding and showing the lists** (an iPad's columns): rule 3.
+  The leading columns slide off the leading edge at their own width over `motion.duration.phone-adjust` on `motion.easing.standard`, and the note's column widens with them; the page takes its new width once, not frame by frame.
+  Under Reduce Motion, or with Animations set to Off, they go at once.
+- **A turn, Split View or Stage Manager across the columns' width** (an iPad's columns): rule 2.
+  Screens move between the one stack and the columns without motion, each kept where it was; the note shows under its cover until the page has drawn it at the new width.
 - **Back swipe and pop** (the native screens): rule 1, then rule 3.
   Back, the system's edge swipe and a tab tapped again pop with the system's motion, and the note under the finger is the live one, still scrolling and holding its caret and keyboard.
   A swipe the finger turns back changes nothing.
@@ -247,7 +283,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Title under the bar** (the native screens): rule 2.
   Once the note's own title has scrolled under the system bar, the bar shows it; it goes when the title comes back.
 - **Bottom toolbar and the keyboard** (the native screens): rule 3.
-  A note's screen has the system's bottom toolbar of Back, Forward, Find and, in Edit, AI.
+  A note's screen has the system's bottom toolbar of Back, Forward, Find, Scan or Transcribe and, in Edit, AI.
   Back, Forward and Find stand side by side, so the system draws them on one glass, and a flexible space sets AI apart on its own.
   It hides as the keyboard rises and comes back as it goes, inside the keyboard's own animation: the same duration and curve, never the toolbar's own slide.
   A keyboard raised for a sheet over the note moves neither the toolbar nor the bars.
@@ -265,6 +301,11 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Find, from the toolbar or the More menu, swaps a glass bar in at once in the formatting bar's place: a field, the count, previous, next, and a close circle.
   The count follows each key typed; a count for an older query is dropped.
   Return steps to the next match; Close clears the highlights and swaps the bar out at once.
+- **Scan and transcribe** (the native screens): the system's menu from the toolbar's Scan or Transcribe button, with the system's motion.
+  Scan Document is the system's document camera, presented and dismissed with its own full-screen motion.
+  Transcribe Speech is a system sheet at medium and large height with a grabber, risen and closed with the system's motion; a drag down does not close it.
+  What is heard replaces the transcript in place as it comes, and the status line and its symbol change at once (rule 2); nothing pulses or animates while listening.
+  The pages and the transcript appear in the note at once (rule 2), and an alert for a page or transcript not added is the system's.
 - **Note's More menu** (the native screens): the system's menu from its bar button, with the system's motion.
   Pin, Status, Move to Notebook, Tags, Share, Find in Note, Duplicate and Move to Trash; a write goes through the gate and plays its haptic.
   Move to Trash pops the note's screen once the note is in the Trash, and offers the undo toast over the list; a refused or failed write leaves the screen.
@@ -345,5 +386,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 PlantUML and Markmap drawings replace their previous SVG at once (rule 2), as Mermaid does. Markmap layout animation, pan, zoom and folding are disabled in the static preview and exported pages.
 
 ## Stays instant
+
+The web clipper settings' optional image-host permission prompt uses the browser's native presentation (rule 2); image progress, the saved view and Copy turning into Copied for two seconds replace what was there instantly, as other clipper states do.
 
 Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); on the iPhone, a theme, a colour scheme or a Glass Transparency change in the native screens; text folding (it would animate height inside CodeMirror's measured layout).

@@ -11,15 +11,15 @@ import { startPluginThemes } from './theme/pluginThemes'
 import { startBackdropPainter } from './theme/backdropWindow'
 import { startMotion } from './motionPreference'
 import { applyMotionScale } from './motionTiming'
-import { resolveLocale, setLocale, t } from './i18n'
+import { Localised, localiseTitle, startLocale } from './liveLocale'
 import { watchCompositions } from './ime'
 import { QuickCapture } from './quickCapture/QuickCapture'
 import './theme/tokens.css'
 import './app.css'
 import './quickCapture/quickCapture.css'
 
-await setLocale(resolveLocale(navigator.languages))
-document.title = t('quickCapture.windowTitle')
+await startLocale()
+localiseTitle('quickCapture.windowTitle')
 // Before any key handler: the key that ends a composition is the input method's.
 watchCompositions(window)
 startEditorSettings()
@@ -39,6 +39,6 @@ if (!root) throw new Error('E_RENDERER_ROOT_MISSING')
 
 createRoot(root).render(
   <StrictMode>
-    <QuickCapture />
+    <Localised render={() => <QuickCapture />} />
   </StrictMode>,
 )

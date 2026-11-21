@@ -1047,6 +1047,55 @@ fn desktop_defaults_to_first_ready_cli_when_unconfigured_and_without_anthropic_k
 }
 
 #[test]
+fn settings_open_without_waiting_for_the_first_cli_probe() {
+    use super::CliState;
+    let dir = tempfile::tempdir().unwrap();
+    let cli = StubCli::new(CliState::Ready, CliState::SignedOut);
+    let ai = Ai::new(
+        SettingsStore::new(&dir.path().join(FILE)),
+        Arc::new(MemoryKeys::default()),
+        Gate::open(),
+    )
+    .with_cli(Arc::clone(&cli) as Arc<dyn super::cli::CliBackend>);
+
+    let first = ai.snapshot_unprobed();
+    assert_eq!(*cli.probes.lock().unwrap(), 0);
+    assert_eq!(first.active, ProviderId::Anthropic);
+    assert!(first.active_pending);
+    assert_eq!(
+        first
+            .cli
+            .as_ref()
+            .map(|c| (c.claude_cli.state, c.codex_cli.state)),
+        Some((CliState::Checking, CliState::Checking))
+    );
+
+    let refreshed = ai.refresh_cli();
+    assert_eq!(refreshed.active, ProviderId::ClaudeCli);
+    assert!(!refreshed.active_pending);
+    let again = ai.snapshot_unprobed();
+    assert_eq!(*cli.probes.lock().unwrap(), 1);
+    assert_eq!(again, refreshed);
+}
+
+#[test]
+fn a_chosen_provider_or_a_stored_key_is_never_pending_on_the_first_check() {
+    use super::CliState;
+    let dir = tempfile::tempdir().unwrap();
+    let keys = Arc::new(MemoryKeys::default());
+    let ai = Ai::new(
+        SettingsStore::new(&dir.path().join(FILE)),
+        Arc::clone(&keys) as Arc<dyn super::keychain::KeyStore>,
+        Gate::open(),
+    )
+    .with_cli(StubCli::new(CliState::Ready, CliState::Ready) as Arc<dyn super::cli::CliBackend>);
+    assert!(ai.snapshot_unprobed().active_pending);
+
+    ai.set_key(ProviderId::Anthropic, "sk-ant-test").unwrap();
+    assert!(!ai.snapshot_unprobed().active_pending);
+}
+
+#[test]
 fn concurrent_refresh_cli_is_never_overwritten_by_earlier_probe() {
     use super::CliState;
     use std::sync::mpsc;

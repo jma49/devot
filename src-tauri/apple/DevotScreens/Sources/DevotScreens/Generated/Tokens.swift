@@ -144,6 +144,10 @@ public enum Tokens {
     case iconTilePlugins = "color.icon.tile.plugins"
     case iconTileUsage = "color.icon.tile.usage"
     case iconTileLicense = "color.icon.tile.license"
+    case iconTileCodex = "color.icon.tile.codex"
+    case iconTileClaudeCode = "color.icon.tile.claude-code"
+    case iconTileAnthropic = "color.icon.tile.anthropic"
+    case iconTileOpenai = "color.icon.tile.openai"
     case iconTileForeground = "color.icon.tile-foreground"
     case iconTileForegroundContrast = "color.icon.tile-foreground-contrast"
     case qrGround = "color.qr.ground"
@@ -398,6 +402,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -631,6 +639,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -864,6 +876,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -1097,6 +1113,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -1330,6 +1350,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -1563,6 +1587,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -1796,6 +1824,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -2029,6 +2061,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -2262,6 +2298,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -2495,6 +2535,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -2728,6 +2772,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -2961,6 +3009,10 @@ public enum Tokens {
       case .iconTilePlugins: return RGBA(0xff453a, 1)
       case .iconTileUsage: return RGBA(0xffd60a, 1)
       case .iconTileLicense: return RGBA(0x8e8e93, 1)
+      case .iconTileCodex: return RGBA(0x000000, 1)
+      case .iconTileClaudeCode: return RGBA(0xd97757, 1)
+      case .iconTileAnthropic: return RGBA(0xf0eee6, 1)
+      case .iconTileOpenai: return RGBA(0xffffff, 1)
       case .iconTileForeground: return RGBA(0xffffff, 1)
       case .iconTileForegroundContrast: return RGBA(0x1c1b19, 1)
       case .qrGround: return RGBA(0xffffff, 1)
@@ -3251,6 +3303,10 @@ public enum Tokens {
     public static var iconTilePlugins: UIColor { Theme.current.color(.iconTilePlugins) }
     public static var iconTileUsage: UIColor { Theme.current.color(.iconTileUsage) }
     public static var iconTileLicense: UIColor { Theme.current.color(.iconTileLicense) }
+    public static var iconTileCodex: UIColor { Theme.current.color(.iconTileCodex) }
+    public static var iconTileClaudeCode: UIColor { Theme.current.color(.iconTileClaudeCode) }
+    public static var iconTileAnthropic: UIColor { Theme.current.color(.iconTileAnthropic) }
+    public static var iconTileOpenai: UIColor { Theme.current.color(.iconTileOpenai) }
     public static var iconTileForeground: UIColor { Theme.current.color(.iconTileForeground) }
     public static var iconTileForegroundContrast: UIColor { Theme.current.color(.iconTileForegroundContrast) }
     public static var qrGround: UIColor { Theme.current.color(.qrGround) }
@@ -3642,6 +3698,9 @@ public enum Tokens {
     public static let boardColumnMinWidth: CGFloat = 150
     public static let cardMetaLine: CGFloat = 14
     public static let cardTaskRing: CGFloat = 12
+    public static let tableRowHeight: CGFloat = 32
+    public static let tableTitleWidth: CGFloat = 240
+    public static let tableColumnWidth: CGFloat = 160
     public static let galleryCardMinWidth: CGFloat = 220
     public static let galleryCardMaxWidth: CGFloat = 300
     public static let galleryPageWidth: CGFloat = 480
@@ -3714,6 +3773,11 @@ public enum Tokens {
     public static let noticeTextMinWidth: CGFloat = 220
     public static let noticeMaxWidth: CGFloat = 440
     public static let pickerMinHeight: CGFloat = 200
+    public static let modelPickerWidth: CGFloat = 520
+    public static let modelPickerHeight: CGFloat = 320
+    public static let modelPickerRail: CGFloat = 50
+    public static let modelPickerReasoning: CGFloat = 150
+    public static let providerMark: CGFloat = 24
     public static let popoverMargin: CGFloat = 8
     public static let switchWidth: CGFloat = 38
     public static let switchHeight: CGFloat = 22
@@ -3772,6 +3836,10 @@ public enum Tokens {
     public static let phoneSearchEmpty: CGFloat = 56
     public static let phoneHeatCell: CGFloat = 16
     public static let phoneHeatCellWide: CGFloat = 40
+    public static let padSidebarWidth: CGFloat = 300
+    public static let padListWidth: CGFloat = 360
+    public static let padTwoColumns: CGFloat = 960
+    public static let padThreeColumns: CGFloat = 1280
     public static let phoneHeatGap: CGFloat = 4
     public static let phoneHeatLegend: CGFloat = 11
     public static let phoneSectionHead: CGFloat = 40
@@ -3813,6 +3881,7 @@ public enum Tokens {
     public static let phoneSearchField: TimeInterval = 0.16
     public static let phoneChevron: TimeInterval = 0.32
     public static let phoneToast: TimeInterval = 4
+    public static let noticeUndo: TimeInterval = 5
   }
 
   public enum Easing {

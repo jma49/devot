@@ -18,11 +18,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::image::Image;
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{
     AppHandle, Manager, RunEvent, Runtime, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-    Window,
+    Window, Wry,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 use tokio::sync::oneshot;
@@ -116,19 +116,36 @@ fn apply_now(app: &AppHandle, on: bool) {
     }
 }
 
-fn show_icon(app: &AppHandle) -> tauri::Result<()> {
+fn icon_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let new_note =
         MenuItemBuilder::with_id(NEW_QUICK_NOTE_ID, strings::native().menu_bar_new_quick_note)
             .accelerator(QUICK_CAPTURE_SHORTCUT)
             .build(app)?;
     let open = MenuItemBuilder::with_id(OPEN_ID, strings::native().menu_bar_open).build(app)?;
     let quit = MenuItemBuilder::with_id(QUIT_ID, strings::native().quit).build(app)?;
-    let menu = MenuBuilder::new(app)
+    MenuBuilder::new(app)
         .item(&new_note)
         .item(&open)
         .separator()
         .item(&quit)
-        .build()?;
+        .build()
+}
+
+/// The app's language changed (`app_language`): the icon's menu follows.
+pub fn relabel(app: &AppHandle) {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else {
+        return;
+    };
+    if icon_menu(app)
+        .and_then(|menu| tray.set_menu(Some(menu)))
+        .is_err()
+    {
+        log::warn!("W_MENU_BAR_ICON_RELABEL_FAILED");
+    }
+}
+
+fn show_icon(app: &AppHandle) -> tauri::Result<()> {
+    let menu = icon_menu(app)?;
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon())
         .icon_as_template(true)
@@ -271,6 +288,9 @@ pub fn open_quick_capture<R: Runtime>(app: &AppHandle<R>) {
     // The same WebKit store as the main window (`data_folder`): its notebook list and the draft.
     if let Some(store) = crate::data_folder::this_build_web_data_store() {
         builder = builder.data_store_identifier(store);
+    }
+    if let Some(language) = crate::app_language::initial_script() {
+        builder = builder.initialization_script(language);
     }
     let built = builder
         .title(strings::native().quick_capture_title)

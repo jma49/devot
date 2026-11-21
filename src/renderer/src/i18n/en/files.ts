@@ -9,6 +9,8 @@ export const prefixes = [
 ]
 
 export const messages = {
+  'import.dropHint': 'Drop files to import and open',
+  'import.dropFailed': 'These files could not be imported.',
   'pageSetup.title': 'Page Setup',
   'pageSetup.paper': 'Paper',
   'pageSetup.paper.a4': 'A4',
@@ -289,6 +291,11 @@ title: Daily Report {{date}}
   'import.reason.outside': 'Outside the imported folder',
   'import.reason.tag': 'Tag not added: not a valid tag name',
   'import.reason.type': 'Not a supported image format',
+  'import.reason.attachmentType': 'Attachment type not supported',
+  'import.reason.attachmentInvalid': 'Attachment data is not valid',
+  'import.reason.attachmentMissing': 'Attachment data was not found',
+  'import.reason.attachmentStorage': 'Attachment could not be stored',
+  'import.reason.encrypted': 'Encrypted content cannot be imported',
   'import.reason.path': 'Hidden or not a valid path',
   'import.reason.unreadable': 'Could not be read',
   'import.reason.tooDeep': 'Inside too many nested folders',

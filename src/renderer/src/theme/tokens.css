@@ -218,6 +218,9 @@
   --size-board-column-min-width: 150px;
   --size-card-meta-line: 14px;
   --size-card-task-ring: 12px;
+  --size-table-row-height: 32px;
+  --size-table-title-width: 240px;
+  --size-table-column-width: 160px;
   --size-gallery-card-min-width: 220px;
   --size-gallery-card-max-width: 300px;
   --size-gallery-page-width: 480px;
@@ -290,6 +293,11 @@
   --size-notice-text-min-width: 220px;
   --size-notice-max-width: 440px;
   --size-picker-min-height: 200px;
+  --size-model-picker-width: 520px;
+  --size-model-picker-height: 320px;
+  --size-model-picker-rail: 50px;
+  --size-model-picker-reasoning: 150px;
+  --size-provider-mark: 24px;
   --size-popover-margin: 8px;
   --size-switch-width: 38px;
   --size-switch-height: 22px;
@@ -348,6 +356,10 @@
   --size-phone-search-empty: 56px;
   --size-phone-heat-cell: 16px;
   --size-phone-heat-cell-wide: 40px;
+  --size-pad-sidebar-width: 300px;
+  --size-pad-list-width: 360px;
+  --size-pad-two-columns: 960px;
+  --size-pad-three-columns: 1280px;
   --size-phone-heat-gap: 4px;
   --size-phone-heat-legend: 11px;
   --size-phone-section-head: 40px;
@@ -386,6 +398,7 @@
   --motion-duration-phone-search-field: 160ms;
   --motion-duration-phone-chevron: 320ms;
   --motion-duration-phone-toast: 4000ms;
+  --motion-duration-notice-undo: 5000ms;
   --motion-easing-phone-push: cubic-bezier(0.23, 1, 0.32, 1);
   --motion-easing-phone-enter: cubic-bezier(0.33, 1, 0.68, 1);
   --motion-easing-phone-pair: cubic-bezier(0.65, 0, 0.35, 1);
@@ -539,6 +552,10 @@
   --color-icon-tile-plugins: #ff453a;
   --color-icon-tile-usage: #ffd60a;
   --color-icon-tile-license: #8e8e93;
+  --color-icon-tile-codex: #000000;
+  --color-icon-tile-claude-code: #d97757;
+  --color-icon-tile-anthropic: #f0eee6;
+  --color-icon-tile-openai: #ffffff;
   --color-icon-tile-foreground: #ffffff;
   --color-icon-tile-foreground-contrast: #1c1b19;
   --color-qr-ground: #ffffff;
@@ -771,6 +788,10 @@
     --color-icon-tile-plugins: #ff453a;
     --color-icon-tile-usage: #ffd60a;
     --color-icon-tile-license: #8e8e93;
+    --color-icon-tile-codex: #000000;
+    --color-icon-tile-claude-code: #d97757;
+    --color-icon-tile-anthropic: #f0eee6;
+    --color-icon-tile-openai: #ffffff;
     --color-icon-tile-foreground: #ffffff;
     --color-icon-tile-foreground-contrast: #1c1b19;
     --color-qr-ground: #ffffff;
@@ -1004,6 +1025,10 @@
   --color-icon-tile-plugins: #ff453a;
   --color-icon-tile-usage: #ffd60a;
   --color-icon-tile-license: #8e8e93;
+  --color-icon-tile-codex: #000000;
+  --color-icon-tile-claude-code: #d97757;
+  --color-icon-tile-anthropic: #f0eee6;
+  --color-icon-tile-openai: #ffffff;
   --color-icon-tile-foreground: #ffffff;
   --color-icon-tile-foreground-contrast: #1c1b19;
   --color-qr-ground: #ffffff;
@@ -1236,6 +1261,10 @@
   --color-icon-tile-plugins: #ff453a;
   --color-icon-tile-usage: #ffd60a;
   --color-icon-tile-license: #8e8e93;
+  --color-icon-tile-codex: #000000;
+  --color-icon-tile-claude-code: #d97757;
+  --color-icon-tile-anthropic: #f0eee6;
+  --color-icon-tile-openai: #ffffff;
   --color-icon-tile-foreground: #ffffff;
   --color-icon-tile-foreground-contrast: #1c1b19;
   --color-qr-ground: #ffffff;
@@ -1468,6 +1497,10 @@
   --color-icon-tile-plugins: #ff453a;
   --color-icon-tile-usage: #ffd60a;
   --color-icon-tile-license: #8e8e93;
+  --color-icon-tile-codex: #000000;
+  --color-icon-tile-claude-code: #d97757;
+  --color-icon-tile-anthropic: #f0eee6;
+  --color-icon-tile-openai: #ffffff;
   --color-icon-tile-foreground: #ffffff;
   --color-icon-tile-foreground-contrast: #1c1b19;
   --color-qr-ground: #ffffff;
@@ -1700,6 +1733,10 @@
     --color-icon-tile-plugins: #ff453a;
     --color-icon-tile-usage: #ffd60a;
     --color-icon-tile-license: #8e8e93;
+    --color-icon-tile-codex: #000000;
+    --color-icon-tile-claude-code: #d97757;
+    --color-icon-tile-anthropic: #f0eee6;
+    --color-icon-tile-openai: #ffffff;
     --color-icon-tile-foreground: #ffffff;
     --color-icon-tile-foreground-contrast: #1c1b19;
     --color-qr-ground: #ffffff;
@@ -1933,6 +1970,10 @@
   --color-icon-tile-plugins: #ff453a;
   --color-icon-tile-usage: #ffd60a;
   --color-icon-tile-license: #8e8e93;
+  --color-icon-tile-codex: #000000;
+  --color-icon-tile-claude-code: #d97757;
+  --color-icon-tile-anthropic: #f0eee6;
+  --color-icon-tile-openai: #ffffff;
   --color-icon-tile-foreground: #ffffff;
   --color-icon-tile-foreground-contrast: #1c1b19;
   --color-qr-ground: #ffffff;
@@ -2165,6 +2206,10 @@
   --color-icon-tile-plugins: #ff453a;
   --color-icon-tile-usage: #ffd60a;
   --color-icon-tile-license: #8e8e93;
+  --color-icon-tile-codex: #000000;
+  --color-icon-tile-claude-code: #d97757;
+  --color-icon-tile-anthropic: #f0eee6;
+  --color-icon-tile-openai: #ffffff;
   --color-icon-tile-foreground: #ffffff;
   --color-icon-tile-foreground-contrast: #1c1b19;
   --color-qr-ground: #ffffff;

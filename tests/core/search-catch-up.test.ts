@@ -1,7 +1,8 @@
 // A save only marks its note stale for search (schema v29); a search and a purge catch the index up
 // first, so they read what the notes hold now.
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { NoteRecord } from '../../src/core'
 import { CATCH_UP_SQL, openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
@@ -51,6 +52,42 @@ const found = async (s: SqliteAdapter, term: string) =>
   (await s.searchNotes(words(term), 10)).map((n) => n.id)
 
 describe('the search index', () => {
+  it('upgrades v31 notes and stale rows without retaining deleted or old terms', async () => {
+    const path = join(tempDir('devot-search-upgrade-'), 'devot.sqlite')
+    const legacy = new Database(path)
+    try {
+      for (const file of readdirSync('src-tauri/migrations')
+        .filter((f) => /^00(0\d|[12]\d|3[01])_.*\.sql$/.test(f))
+        .sort()) {
+        legacy.exec(readFileSync(join('src-tauri/migrations', file), 'utf8'))
+      }
+      legacy.pragma('user_version = 31')
+      legacy.exec(`INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at)
+        VALUES ('old', 'Original', '', 'orchard', x'00', 1, 1),
+               ('edited', 'Edited', '', 'obsolete', x'00', 1, 1),
+               ('deleted', 'Deleted', '', 'vanished', x'00', 1, 1);
+        INSERT INTO notes_fts (rowid, title, body_md) SELECT rowid, title, body_md FROM notes;
+        DELETE FROM search_stale;
+        UPDATE notes SET body_md = 'snapshot' WHERE id = 'edited';
+        DELETE FROM notes WHERE id = 'deleted';`)
+    } finally {
+      legacy.close()
+    }
+    const s = sqlite(path)
+    expect(stale(s)).toBe(0)
+    expect(await found(s, 'orchard')).toEqual(['old'])
+    expect(await found(s, 'snapshot')).toEqual(['edited'])
+    expect(await found(s, 'obsolete')).toEqual([])
+    expect(await found(s, 'vanished')).toEqual([])
+    expect(s.db.prepare('PRAGMA table_info(search_stale)').all()).toEqual([
+      expect.objectContaining({ name: 'rowid' }),
+    ])
+    expect(s.db.prepare('SELECT title, body_md FROM notes_fts LIMIT 1').get()).toEqual({
+      title: null,
+      body_md: null,
+    })
+  })
+
   it('runs the same catch-up statements as the Rust store', () => {
     const rust = readFileSync('src-tauri/src/storage/search.rs', 'utf8')
     const block = /const CATCH_UP_SQL: \[&str; 3\] = \[([\s\S]*?)\];/.exec(rust)?.[1] ?? ''
@@ -73,7 +110,7 @@ describe('the search index', () => {
     expect(await found(s, 'relay')).toEqual([])
     expect(await found(s, 'day')).toEqual(['plan'])
     expect(stale(s)).toBe(0)
-    s.db.exec(`INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)`)
+    s.db.exec(`INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')`)
   })
 
   it('is caught up only by a search that reads it', async () => {
@@ -96,10 +133,10 @@ describe('the search index', () => {
     await s.putNote({ ...note('empty', '', ''), deletedAt: 5, deletedHlc: '5' })
     await s.putNote(note('kept', 'Kept', 'Kept'))
     s.catchUpSearchIndex()
-    s.db.exec(`INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)`)
+    s.db.exec(`INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')`)
     await s.purgeNote('empty', 6, '0000000000006-0000-test')
     expect(stale(s)).toBe(0)
-    s.db.exec(`INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)`)
+    s.db.exec(`INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')`)
     expect(await found(s, 'kept')).toEqual(['kept'])
   })
 
@@ -115,7 +152,15 @@ describe('the search index', () => {
     await s.purgeNote('gone', 6, '0000000000006-0000-test')
     expect(stale(s)).toBe(0)
     expect(await found(s, 'kept')).toEqual(['kept'])
-    s.db.exec(`INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)`)
+    s.db.exec(`INSERT INTO notes_fts (notes_fts) VALUES ('integrity-check')`)
+    s.db.exec(`CREATE VIRTUAL TABLE temp.purge_vocab USING fts5vocab(main, notes_fts, 'row')`)
+    const terms = (s.db.prepare('SELECT term FROM purge_vocab').all() as { term: string }[]).map(
+      (row) => row.term,
+    )
+    for (const word of ['qxjzvwkpfyb', 'mbvtrqzhwkd']) {
+      expect(await found(s, word)).toEqual([])
+      for (let i = 0; i < word.length - 2; i++) expect(terms).not.toContain(word.slice(i, i + 3))
+    }
     s.db.pragma('wal_checkpoint(TRUNCATE)')
     s.close()
     open.splice(0)

@@ -1,0 +1,12 @@
+.drop-import {
+  position: fixed;
+  inset: var(--size-editor-keyline);
+  z-index: 100;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-glass-popover);
+  background: var(--color-fill-track);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}

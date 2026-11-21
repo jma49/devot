@@ -40,6 +40,34 @@ const rustConst = (source: string, name: string) => {
 }
 
 describe('the tool list', () => {
+  it('accounts for every HTTP operation with an MCP tool or a documented exclusion', () => {
+    const mappings: Record<string, string> = {
+      'notebooks.list': 'list_notebooks',
+      'notebooks.create': 'create_notebook',
+      'tags.list': 'list_tags',
+      'notes.search': 'search_notes',
+      'notes.read': 'read_note',
+      'notes.create': 'create_note',
+      'notes.update': 'update_note',
+      'notes.append': 'append_to_note',
+      'notes.trash': 'trash_note',
+    }
+    const httpOnly = ['notes.files.create']
+    const calls = JSON.parse(read('tests/support/http-api-calls.json')) as {
+      call: { op: string }
+    }[]
+    expect([...new Set(calls.map(({ call }) => call.op))].sort()).toEqual(
+      [...Object.keys(mappings), ...httpOnly].sort(),
+    )
+    expect(Object.values(mappings).sort()).toEqual(tools.map(({ name }) => name).sort())
+    for (const operation of httpOnly) {
+      expect(read('docs/specs/ai.md')).toContain(`HTTP-only exclusion: \`${operation}\``)
+      expect(read('docs/specs/local-http-api.md')).toContain(
+        `HTTP-only exclusion: \`${operation}\``,
+      )
+    }
+  })
+
   it('has the nine tools, each with its title and annotations', () => {
     expect(tools.map((t) => t.name)).toEqual([
       'list_notebooks',

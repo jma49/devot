@@ -2,6 +2,42 @@
   "$description": "Devot primitives. Themes reference these; components use theme tokens only.",
   "color": {
     "tile": {
+      "codex": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000"
+        },
+        "$description": "A local AI tool's mark in Settings > AI: its maker's black."
+      },
+      "claude-code": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.851, 0.4667, 0.3412],
+          "hex": "#d97757"
+        },
+        "$description": "A local AI tool's mark in Settings > AI: its maker's clay."
+      },
+      "anthropic": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9412, 0.9333, 0.902],
+          "hex": "#f0eee6"
+        },
+        "$description": "A cloud AI provider's mark in Settings > AI: its maker's ivory."
+      },
+      "openai": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff"
+        },
+        "$description": "A cloud AI provider's mark in Settings > AI: white, as its maker shows it."
+      },
       "general": {
         "$type": "color",
         "$value": {
@@ -1890,6 +1926,30 @@
       },
       "$description": "The task ring in a card's meta row: a 1.5 px ring of radius 4.5 drawn on a 12 px box, centred on the meta line."
     },
+    "table-row-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "A row of the table layout, its header too: one line of body text with the note row's padding."
+    },
+    "table-title-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 240,
+        "unit": "px"
+      },
+      "$description": "The table layout's title column, which stays at the start while the others scroll sideways."
+    },
+    "table-column-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 160,
+        "unit": "px"
+      },
+      "$description": "Every other column of the table layout: fields and properties."
+    },
     "gallery-card-min-width": {
       "$type": "dimension",
       "$value": {
@@ -2414,6 +2474,46 @@
       },
       "$description": "A dropdown list is as tall as half the window, but never shorter than this (it scrolls past it)."
     },
+    "model-picker-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 520,
+        "unit": "px"
+      },
+      "$description": "The width of Settings > AI's model picker: the provider rail, the models and the reasoning column."
+    },
+    "model-picker-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 320,
+        "unit": "px"
+      },
+      "$description": "The height of the model picker's columns; its list scrolls inside them."
+    },
+    "model-picker-rail": {
+      "$type": "dimension",
+      "$value": {
+        "value": 50,
+        "unit": "px"
+      },
+      "$description": "The width of the model picker's provider rail."
+    },
+    "model-picker-reasoning": {
+      "$type": "dimension",
+      "$value": {
+        "value": 150,
+        "unit": "px"
+      },
+      "$description": "The width of the model picker's Reasoning column."
+    },
+    "provider-mark": {
+      "$type": "dimension",
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      },
+      "$description": "A provider's monogram in the model picker's rail and in Settings > AI's provider rows."
+    },
     "popover-margin": {
       "$type": "dimension",
       "$value": {
@@ -2802,6 +2902,26 @@
       "$value": { "value": 40, "unit": "px" },
       "$description": "The most a day in the heatmap grows to on an iPad, with its gap and corner in proportion."
     },
+    "pad-sidebar-width": {
+      "$type": "dimension",
+      "$value": { "value": 300, "unit": "px" },
+      "$description": "The Library's column on an iPad that shows three columns."
+    },
+    "pad-list-width": {
+      "$type": "dimension",
+      "$value": { "value": 360, "unit": "px" },
+      "$description": "The list's column on an iPad that shows the note beside its list."
+    },
+    "pad-two-columns": {
+      "$type": "dimension",
+      "$value": { "value": 960, "unit": "px" },
+      "$description": "The narrowest regular-width window that shows the note beside its list."
+    },
+    "pad-three-columns": {
+      "$type": "dimension",
+      "$value": { "value": 1280, "unit": "px" },
+      "$description": "The narrowest regular-width window that shows the Library, its list and the note side by side."
+    },
     "phone-heat-gap": {
       "$type": "dimension",
       "$value": { "value": 4, "unit": "px" },
@@ -3017,6 +3137,11 @@
       "phone-toast": {
         "$value": { "value": 4000, "unit": "ms" },
         "$description": "How long the undo toast stays.",
+        "$type": "duration"
+      },
+      "notice-undo": {
+        "$value": { "value": 5000, "unit": "ms" },
+        "$description": "How long a Mac notice that offers Undo stays while the pointer and the keyboard are elsewhere.",
         "$type": "duration"
       }
     },

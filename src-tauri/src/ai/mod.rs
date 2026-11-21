@@ -90,6 +90,9 @@ pub struct Snapshot {
     pub cli: Option<CliViews>,
     /// Absent: next edit suggestions use the Model setting.
     pub suggest_model: Option<SuggestModel>,
+    /// `active` is only the stored fallback: a local tool not checked yet may take its place.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub active_pending: bool,
 }
 
 /// The models of each provider asked for; one that could not list them carries its own failure code.
@@ -277,11 +280,14 @@ impl Ai {
     }
 
     #[cfg(any(desktop, test))]
+    fn cached_cli_states(&self) -> Option<cli::CliStates> {
+        self.cli_states.lock().ok().and_then(|guard| *guard)
+    }
+
+    #[cfg(any(desktop, test))]
     fn cli_states(&self) -> Option<cli::CliStates> {
         let backend = self.cli.as_ref()?;
-        if let Ok(guard) = self.cli_states.lock()
-            && let Some(cached) = *guard
-        {
+        if let Some(cached) = self.cached_cli_states() {
             return Some(cached);
         }
         let _probe = self.cli_probe.lock().unwrap_or_else(|e| e.into_inner());
@@ -310,34 +316,57 @@ impl Ai {
         self.snapshot()
     }
 
-    fn effective_active(&self, stored: &StoredSettings, anthropic_key: KeyState) -> ProviderId {
+    /// Without `probe`, a local tool not checked yet counts as not ready.
+    /// The provider the Model setting resolves to, and whether that waits on the local tools' first check.
+    fn effective_active(
+        &self,
+        stored: &StoredSettings,
+        anthropic_key: KeyState,
+        probe: bool,
+    ) -> (ProviderId, bool) {
         #[cfg(not(desktop))]
         {
-            let _ = anthropic_key;
-            if stored.settings.active.is_cli() {
+            let _ = (anthropic_key, probe);
+            let active = if stored.settings.active.is_cli() {
                 ProviderId::Anthropic
             } else {
                 stored.settings.active
-            }
+            };
+            (active, false)
         }
         #[cfg(desktop)]
         {
-            if !stored.explicit_active
-                && anthropic_key == KeyState::Unset
-                && let Some(states) = self.cli_states()
-            {
-                if states.claude_cli == CliState::Ready {
-                    return ProviderId::ClaudeCli;
-                }
-                if states.codex_cli == CliState::Ready {
-                    return ProviderId::CodexCli;
-                }
+            if stored.explicit_active || anthropic_key != KeyState::Unset {
+                return (stored.settings.active, false);
             }
-            stored.settings.active
+            let states = if probe {
+                self.cli_states()
+            } else {
+                self.cached_cli_states()
+            };
+            match states {
+                Some(states) if states.claude_cli == CliState::Ready => {
+                    (ProviderId::ClaudeCli, false)
+                }
+                Some(states) if states.codex_cli == CliState::Ready => {
+                    (ProviderId::CodexCli, false)
+                }
+                Some(_) => (stored.settings.active, false),
+                None => (stored.settings.active, self.cli.is_some()),
+            }
         }
     }
 
     pub fn snapshot(&self) -> Snapshot {
+        self.view(true)
+    }
+
+    /// Settings opens on this: the local tools' first check takes seconds, so until it answers they read `Checking`.
+    pub fn snapshot_unprobed(&self) -> Snapshot {
+        self.view(false)
+    }
+
+    fn view(&self, probe: bool) -> Snapshot {
         let stored = self.settings.get_stored();
         let settings = &stored.settings;
         let view = |id: ProviderId| {
@@ -355,9 +384,17 @@ impl Ai {
             }
         };
         let anthropic = view(ProviderId::Anthropic);
-        let active = self.effective_active(&stored, anthropic.key);
+        let (active, active_pending) = self.effective_active(&stored, anthropic.key, probe);
         #[cfg(any(desktop, test))]
-        let cli = self.cli_states().map(|states| CliViews {
+        let states = if probe {
+            self.cli_states()
+        } else {
+            self.cli
+                .as_ref()
+                .map(|_| self.cached_cli_states().unwrap_or(cli::CliStates::CHECKING))
+        };
+        #[cfg(any(desktop, test))]
+        let cli = states.map(|states| CliViews {
             claude_cli: CliProviderView {
                 state: states.claude_cli,
                 model: settings.claude_cli.model.clone(),
@@ -379,6 +416,7 @@ impl Ai {
             #[cfg(any(desktop, test))]
             cli,
             suggest_model: settings.suggest_model.get().cloned(),
+            active_pending,
         }
     }
 
@@ -654,7 +692,10 @@ impl Ai {
                 reasoning: suggest.reasoning.clone(),
             };
         }
-        stored_choice(self.effective_active(stored, self.key_state(ProviderId::Anthropic)))
+        stored_choice(
+            self.effective_active(stored, self.key_state(ProviderId::Anthropic), true)
+                .0,
+        )
     }
 
     fn prepare<'a>(
@@ -1090,7 +1131,7 @@ pub async fn ai_cli_refresh(ai: State<'_, Arc<Ai>>) -> Result<Snapshot, String> 
 /// The bodies of the settings commands, which the iPhone's native Settings call too
 /// (`screens::direct`).
 pub(crate) async fn ai_settings_get_inner(ai: &Arc<Ai>) -> Result<Snapshot, &'static str> {
-    task::coded_with(ai, FAILED, |ai| Ok(ai.snapshot())).await
+    task::coded_with(ai, FAILED, |ai| Ok(ai.snapshot_unprobed())).await
 }
 
 pub(crate) async fn ai_settings_set_inner(

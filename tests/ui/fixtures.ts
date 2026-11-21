@@ -201,13 +201,13 @@ export async function mockTauri(page: Page): Promise<void> {
               problem: null,
             }
           if (cmd === 'background_state') return { mode: 'normal' }
-          if (cmd === 'app_language_get')
-            return { chosen: 'system', running: 'system', available: true }
+          if (cmd === 'app_language_get') return { chosen: 'system', shown: 'en', available: true }
           if (cmd === 'http_api_get')
             return {
               enabled: false,
               port: 27484,
               scope: 'read',
+              extensionOrigins: [],
               listening: null,
               problem: null,
               token: 'unset',
@@ -282,11 +282,11 @@ export async function mockTauri(page: Page): Promise<void> {
             )
             return snapshot
           }
-          // Follow the system unless a test chose otherwise, so the suite's emulated Reduce Motion stays in charge.
+          // Follow the system unless a test chose otherwise, so the suite's emulated Reduce Motion stays in charge; the layout tests measure SF Symbol boxes, so they draw in that style unless a test chose another.
           if (cmd === 'editor_settings_get')
             return {
               revision: w.devotEditorRevision ?? 0,
-              settings: { animations: 'system', ...w.devotEditorSettings },
+              settings: { animations: 'system', iconStyle: 'sfSymbols', ...w.devotEditorSettings },
             }
           if (cmd === 'editor_settings_set') {
             w.devotEditorSettings = {
@@ -296,7 +296,7 @@ export async function mockTauri(page: Page): Promise<void> {
             w.devotEditorRevision = (w.devotEditorRevision ?? 0) + 1
             const next = {
               revision: w.devotEditorRevision,
-              settings: { animations: 'system', ...w.devotEditorSettings },
+              settings: { animations: 'system', iconStyle: 'sfSymbols', ...w.devotEditorSettings },
             }
             const win = window
             win.dispatchEvent(
@@ -660,7 +660,7 @@ export function changeEditorSettingsElsewhere(page: Page, settings: Record<strin
     w.devotEditorRevision = (w.devotEditorRevision ?? 0) + 1
     const detail = {
       revision: w.devotEditorRevision,
-      settings: { animations: 'system', ...stored },
+      settings: { animations: 'system', iconStyle: 'sfSymbols', ...stored },
     }
     w.dispatchEvent(new w.CustomEvent('devot:editor-settings-changed', { detail }))
   }, settings)

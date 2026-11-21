@@ -31,6 +31,17 @@ import {
 } from '../../src/core/editorSettings'
 
 describe('editor settings', () => {
+  it('defaults Vim mode off and accepts only boolean choices', () => {
+    expect(parseEditorSettings(null).vimMode).toBe(false)
+    expect(parseEditorSettings({}).vimMode).toBe(false)
+    expect(parseEditorSettings({ vimMode: true }).vimMode).toBe(true)
+    expect(parseEditorSettings({ vimMode: false }).vimMode).toBe(false)
+    for (const vimMode of [null, 'true', 1, {}]) {
+      expect(parseEditorSettings({ vimMode }).vimMode).toBe(false)
+      expect(() => checkEditorSettingsPatch({ vimMode })).toThrow('E_EDITOR_SETTINGS_INVALID')
+    }
+  })
+
   it('has roomy defaults, the new ones for settings the user never set', () => {
     expect(DEFAULT_EDITOR_SETTINGS).toEqual({
       lineNumbers: false,
@@ -51,6 +62,7 @@ describe('editor settings', () => {
       tabWidth: 2,
       listMarker: '*',
       spellCheck: true,
+      vimMode: false,
       highlightActiveLine: false,
       windowTransparency: 0,
       materialTransparency: 0,
@@ -63,7 +75,7 @@ describe('editor settings', () => {
       lightTheme: 'default',
       darkTheme: 'default',
       systemAccent: false,
-      iconStyle: 'sfSymbols',
+      iconStyle: 'lucide',
       toolbar: true,
       scrollPastEnd: true,
       showCounts: true,
@@ -421,14 +433,14 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ systemAccent: true }).systemAccent).toBe(true)
   })
 
-  it('reads the icon style as SF Symbols or Lucide, and anything else as SF Symbols', () => {
-    expect(ICON_STYLES).toEqual(['sfSymbols', 'lucide'])
+  it('reads the icon style as SF Symbols, Lucide or Kubai, and anything else as Lucide', () => {
+    expect(ICON_STYLES).toEqual(['sfSymbols', 'lucide', 'kubai'])
     for (const iconStyle of ICON_STYLES) {
       expect(parseEditorSettings({ iconStyle }).iconStyle).toBe(iconStyle)
       expect(checkEditorSettingsPatch({ iconStyle })).toEqual({ iconStyle })
     }
-    for (const iconStyle of ['Lucide', 'sf', '', 1, null, true]) {
-      expect(parseEditorSettings({ iconStyle }).iconStyle).toBe('sfSymbols')
+    for (const iconStyle of ['Lucide', 'Kubai', 'sf', '', 1, null, true]) {
+      expect(parseEditorSettings({ iconStyle }).iconStyle).toBe('lucide')
       expect(() => checkEditorSettingsPatch({ iconStyle })).toThrow('E_EDITOR_SETTINGS_INVALID')
     }
   })

@@ -4,6 +4,7 @@
 // that need the page's layout engine (Mermaid measures text as it draws).
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import type { Appearance } from '../icons/symbols'
+import { currentLocale } from '../i18n'
 
 /** The attribute a worker-side renderer puts on an element the page draws (preview/index.ts). */
 export const ISLAND_ATTRIBUTE = 'data-devot-island'
@@ -25,6 +26,8 @@ export interface IslandContext {
 
 export interface IslandContent {
   node: Node
+  /** Refreshes a previous root in place, returning whether it can be kept. */
+  update?: (previous: Node) => boolean
   dispose?: () => void
   /**
    * The content stands in for a failure that may pass (not an error in the
@@ -211,11 +214,13 @@ export function createIslandMounter(
 
   const put = ({ el, slot, content }: Landed) => {
     slot.pending = undefined
+    const previous = slot.shown?.node
+    if (previous && content.update?.(previous)) content.node = previous
     slot.shown?.dispose?.()
     slot.shown = content
     const style = styleOf(el)
     if (style) style.minHeight = ''
-    el.replaceChildren(content.node)
+    if (content.node !== previous) el.replaceChildren(content.node)
     if (content.retry === true) failed(slot)
     else {
       slot.retry = false
@@ -354,7 +359,8 @@ export function createIslandMounter(
           (context.eagerFirstMermaid === 'cached' &&
             island?.cached?.(source, { ...context, width }) === true))
       const revision = island?.revision?.(context) ?? ''
-      const key = `${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${revision}\n${source}`
+      // Drawings carry labels (a diagram's name): a new locale draws them again.
+      const key = `${currentLocale()}\n${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${revision}\n${source}`
       // A failure that may pass waits out its backoff; a source that changed
       // starts over at once.
       if (known?.key === key && (!known.retry || known.retryAt > Date.now())) {

@@ -37,12 +37,41 @@ UIApplication (tao's app delegate, unchanged)
 
 ### At a regular width
 
-The iPad and an unfolded iPhone Duo run the same screens in the phone layout (ADR 0014), so nothing is drawn only for them, but a regular width keeps the screens from stretching.
+The iPad and an unfolded iPhone Duo run the same screens as the iPhone (ADR 0014), and a regular width keeps them from stretching.
+An iPad wide enough lays a tab's stack out in columns (Columns, below); nothing else is drawn only for it.
 
 - Every native list keeps to the system's readable width at a regular width (`keepingReadable`, `readableList` in `ListScreen.swift`), so cards and rows sit in a centred column instead of spanning a landscape screen; a compact width, such as an iPhone in portrait or a narrow Split View pane, keeps its margins.
 - The Settings pages keep to the same width: `keepToTheReadableWidth` makes the sides safe area, read from the navigation stack's readable guide, and the grouped list insets its rows from it while its background runs on.
 - A note wider than `size.reading-width` inside its side safe area centres its column (`.phone-note-scroll`), and the editor cover's title follows, so a note on an iPad reads as a page instead of lines across the screen.
 - Activity's heatmap grows with its card at a regular width, days, gaps and corners in proportion, up to `size.phone-heat-cell-wide` a day, so the fifteen weeks span the card.
+
+### Columns
+
+On an iPad (`DevotTabBarController.usesColumns`), Notes and Library hold their stack in `NoteColumns`, which lays it out by its width (`ColumnLayout`).
+
+- At a regular width of at least `size.pad-two-columns` (960), the lists stay in the first column, `size.pad-list-width` (360) wide, and the notes on top of the stack go to the note's column beside them.
+  The Library at `size.pad-three-columns` (1280) gives its root a column of `size.pad-sidebar-width` (300), the notebook, tag or saved list it opened the next, and the note the rest, as the Mac's sidebar, list and note do.
+  Narrower, or at a compact width (Split View, Slide Over, an iPad mini in portrait, iPhone Duo), the tab is the iPhone's one stack.
+- The stack's order stays the record: routes, a launch and a save read and set `controllers`, and a change of layout moves screens between the columns' stacks without animation, never making or dropping one.
+  While screens move (`rearranging`) no new note is discarded and the page keeps its note.
+- A note opened from a list takes the place of the note shown; one opened from a note (a link, Forward, a copy) is pushed over it, so Back returns to it.
+  New Note takes the place of the note shown, and its list selects its row.
+  The lists' columns lay out at a compact width, with their margins.
+- A list shown beside the note never asks the page to let it go; a note's column left empty (the note trashed, its new note refused) shows No Note Selected and asks it then.
+- The page is the size of the screen that shows it: the note's column beside the lists, the window otherwise; while it rests it keeps the size the next note opens at, so a move never resizes it.
+- UIKit gives `NoteColumns`, a container of its own, the room of the tabs floating over its top only after they next hide and show, so the columns add the difference to their safe area (`keepTabsRoom`) and their bars never sit under the tabs.
+- The tab bar stays beside the lists; a note pushed over its list in the one stack takes it away, as on the iPhone, through `followBar` rather than `hidesBottomBarWhenPushed`, whose hidden tabs leave the safe area short after the note moves beside the lists.
+  Under the iPad's floating tabs the note's bar sits lower than the window's safe area, where the page keeps its bar's room, so the editor lowers the page by the difference (`barDrop`) and the title never runs under the bar's buttons.
+- A route or a launch lays the tab out first (by its parent's width while it is out of the window), so a note it opens goes to the note's column even when the tab last laid out narrower.
+- The editor's Lists button (`sidebar.left`) and Control-Command-S slide the lists away so the note has the width, and back.
+
+### Keyboard, pointer and Apple Pencil
+
+- The tab bar holds the app's keys and an editor its note's, as `keyCommands`, so a held Command lists them by name: New Note (Command-N), Open Today's Note (Option-Command-T), Search All Notes (Shift-Command-F), Settings (Command-comma); Find in Note (Command-F), with Next and Previous Match (Command-G, Shift-Command-G) and Escape while finding, Toggle Editor and Preview (Command-E), Note Info (Option-Command-I), Back and Forward (Command-[ and Command-]) and the lists (Control-Command-S).
+  They are the Mac's keys for the same commands; the page keeps every key they leave, its formatting ones included.
+- On an iPad a list or a note's screen takes the keys while no field has them (`takeKeysIfFree`), so the keys answer before anything is tapped; the lists' rows take focus, so the arrows and Tab move through them.
+- The bars' buttons, the lists' rows and the editor's glass buttons take the pointer's hover; rows show focus as they show a press.
+- Apple Pencil writes in the editor and in the native fields with Scribble, which WebKit and UIKit bring; a double tap on the Pencil turns between Edit and Preview unless the person's setting ignores it.
 
 ## Install and the kill switch
 
@@ -400,6 +429,7 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 | `note.setDates { noteId, createdAt?, updatedAt? }` | Swift → page | a Note Info date picker, in milliseconds; created after modified is `E_SCREENS_DATES_ORDER`                             |
 | `note.applyFrontMatter { noteId, field, value }`   | Swift → page | Note Info's Apply on a front matter row: `field` is `title`, `status` or `tags`, the tags a JSON list of names          |
 | `note.addTag { noteId, name }`                     | Swift → page | the tags picker's new tag: the core makes or finds the tag, puts it on the note and answers `{ tagId }`                 |
+| `editor.attach { noteId, images?, text? }`         | Swift → page | a scan's page or a transcript for the note the capture began on, at its caret; answers `{ refused }`, the image codes   |
 | `editor.note { id, bookId, status, … }`            | page → Swift | the shown note's notebook, status, pin, tags and dates, again after each change, for More, the pickers and Info         |
 | `editor.picker { noteId, picker }`                 | page → Swift | a chip under the title: Swift opens the `notebook`, `status` or `tags` picker                                           |
 | `editor.haptic { kind }`                           | page → Swift | a haptic the editor would play, played from Swift while a note's screen is up                                           |
@@ -429,6 +459,26 @@ When the app is about to leave the front (`UIScene.willDeactivateNotification`) 
 - A row whose title, status or tags differ from the note's shows the note's value and Apply, which goes through the gate as `WriteIntent.applyFrontMatter`; the editor screen reads Note Info again when the note's title, status or tags change while the sheet is up.
 - Rust checks `note.applyFrontMatter`: a title of at most 1000 characters, a known status, and at most 200 tag names that each pass `note.addTag`'s check; the page takes only what `frontMatterChange` would have offered.
 - `editor.insets` takes a bottom of at most 4096 pt, a duration of at most 2 s and a curve of at most 7, each finite and not negative (`E_SCREENS_ARGS_INVALID`).
+
+### Scan and transcribe
+
+- The toolbar's Scan or Transcribe button (`plus.circle`, after the flexible space and before AI) opens the system's menu of Scan Document and Transcribe Speech; Scan Document shows only where `VNDocumentCameraViewController.isSupported`.
+- Each goes through the gate first as `WriteIntent.capture`, since it writes once it ends: a locked tap raises the gate's sheet, and an unlock continues the capture on the same note's screen.
+- Scan Document presents the system's document camera (VisionKit), which finds the page's edges, straightens it and lets pages be retaken.
+  Each page is scaled to at most 2400 px on its long side and kept as a JPEG at quality 0.75 off the main thread (`ScanEncoding`), named `Scan <n>.jpg` from the catalog.
+  The pages go one `editor.attach` each, in order, so a message stays far under 4 MiB, and each lands at the caret after the one before, on lines of its own.
+  They are ordinary image attachments, so search reads their words on the device as it reads any image's (`docs/specs/search.md`, Text in images).
+- Transcribe Speech raises a sheet at medium height (`TranscriptionSheet`) that only Cancel and Insert close, so a stray drag down never drops what was heard.
+  It listens with the system's on-device speech model (`SpeechAnalyzer` with `SpeechTranscriber`, `SystemSpeechListener`): the audio never leaves the device and nothing is recorded or kept, and the model is the system's, fetched once per language and shared with other apps, so the app carries none of it.
+  The language is English (the device's English locale, else `en-US`) or Chinese (`zh-CN`), picked in the sheet, remembered, and at first the app's language; switching keeps the words heard and listens again.
+  What is heard shows as it comes: a final result is settled, a volatile one is replaced by the next.
+  Insert stops the microphone, waits for the model's last words, and sends the whole transcript at the caret, in pieces of at most 100,000 characters.
+  A refused microphone, a language the device cannot transcribe, or an error stops listening with a message, and the words already heard can still be inserted.
+- The sheet's state is one `TranscriptionPhase` changed in `TranscriptionModel` only, and each listening session's answers are checked against the turn that started it, so a language switched mid-start or a cancel drops what the session before still sends.
+- `editor.attach` names the note the capture began on; the page refuses it with `E_SCREENS_NOTE_NOT_SHOWN` when another note is shown by then, and with `E_LICENCE_REQUIRED` when editing has locked since.
+  Rust takes at most 4 images, each checked as `share.capture`'s are, and at most 100,000 characters of text, and refuses a message with neither.
+- A page that was not added (refused, or the message failed) ends the scan with an alert; a transcript that was not added is copied to the clipboard and an alert says so.
+- The camera and microphone prompts are `NSCameraUsageDescription` and `NSMicrophoneUsageDescription` in the app's `Info.plist`, translated in `devot_iOS/InfoPlist.xcstrings`, which `pnpm i18n:apple` writes from the catalog's `phone.usage` keys.
 
 ### The page scrolls as one document
 
