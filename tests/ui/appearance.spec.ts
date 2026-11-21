@@ -281,7 +281,18 @@ test('the Animations choice reduces motion always, as the system asks, or never'
 })
 
 test.describe('the Icon style choice in Settings', () => {
-  test('starts with SF Symbols and draws Lucide SVGs once chosen, whatever the theme', async ({
+  test('starts with Lucide when no style was ever chosen', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.devotEditorSettings = { iconStyle: undefined }
+    })
+    await openSettings(page, 'Appearance')
+    const cards = page.getByRole('radiogroup', { name: 'Icon style' })
+    await expect(cards.getByRole('radio', { name: 'Lucide' })).toBeChecked()
+    await expect(page.locator('.settings-nav-row svg.lucide').first()).toBeVisible()
+    await expect(page.locator('.settings-nav-row [data-symbol]')).toHaveCount(0)
+  })
+
+  test('draws SF Symbols when chosen and Lucide SVGs once switched, whatever the theme', async ({
     page,
   }) => {
     await openSettings(page, 'Appearance')

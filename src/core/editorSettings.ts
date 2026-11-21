@@ -148,7 +148,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   lightTheme: 'default',
   darkTheme: 'default',
   systemAccent: false,
-  iconStyle: 'sfSymbols',
+  iconStyle: 'lucide',
   toolbar: true,
   scrollPastEnd: true,
   showCounts: true,

@@ -289,7 +289,7 @@ impl Default for EditorSettings {
             light_theme: Theme::Default,
             dark_theme: Theme::Default,
             system_accent: false,
-            icon_style: IconStyle::SfSymbols,
+            icon_style: IconStyle::Lucide,
             toolbar: true,
             scroll_past_end: true,
             show_counts: true,
@@ -896,7 +896,7 @@ mod tests {
         assert_eq!(d.light_theme, Theme::Default);
         assert_eq!(d.dark_theme, Theme::Default);
         assert!(!d.system_accent);
-        assert_eq!(d.icon_style, IconStyle::SfSymbols);
+        assert_eq!(d.icon_style, IconStyle::Lucide);
     }
 
     #[test]
@@ -1546,13 +1546,13 @@ mod tests {
     }
 
     #[test]
-    fn reads_an_unknown_stored_icon_style_as_sf_symbols() {
+    fn reads_an_unknown_stored_icon_style_as_lucide() {
         for (stored, style) in [
             (json!("lucide"), IconStyle::Lucide),
             (json!("kubai"), IconStyle::Kubai),
             (json!("sfSymbols"), IconStyle::SfSymbols),
-            (json!("other"), IconStyle::SfSymbols),
-            (json!(7), IconStyle::SfSymbols),
+            (json!("other"), IconStyle::Lucide),
+            (json!(7), IconStyle::Lucide),
         ] {
             assert_eq!(
                 EditorSettings::from_stored(&json!({ "iconStyle": stored })).icon_style,
