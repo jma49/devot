@@ -291,6 +291,7 @@ pub fn run() {
             settings::settings_ai_access_summary,
             settings::ai_access_picker_open,
             settings::ai_access_picker_take,
+            settings::ai_access_picker_closed,
             #[cfg(desktop)]
             cli_tool::cli_tool_status,
             #[cfg(desktop)]

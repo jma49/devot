@@ -240,18 +240,30 @@ pub async fn settings_ai_access_summary(db: State<'_, Db>) -> Result<AiAccessSum
 /// Tells the frontmost main window that Settings asked for the AI access picker (`ai_access_picker_open`).
 pub const AI_ACCESS_PICKER_EVENT: &str = "devot://ai-access-picker";
 
-/// Whether Settings asked for the AI access picker and no main window has taken the ask yet.
-/// Rust holds it because a main window that is still opening hears no event: it takes the ask once it listens.
+/// Settings' ask for the AI access picker. `asked`: no main window has taken it yet; Rust holds it because a main
+/// window that is still opening hears no event, and takes it once it listens. `shown`: a picker Settings asked for is
+/// open, so Settings comes back to the front when it closes.
 #[derive(Default)]
-pub struct AiAccessPicker(std::sync::atomic::AtomicBool);
+pub struct AiAccessPicker {
+    asked: std::sync::atomic::AtomicBool,
+    shown: std::sync::atomic::AtomicBool,
+}
 
 impl AiAccessPicker {
     fn ask(&self) {
-        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.asked.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
     fn take(&self) -> bool {
-        self.0.swap(false, std::sync::atomic::Ordering::SeqCst)
+        let asked = self.asked.swap(false, std::sync::atomic::Ordering::SeqCst);
+        if asked {
+            self.shown.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        asked
+    }
+
+    fn closed(&self) -> bool {
+        self.shown.swap(false, std::sync::atomic::Ordering::SeqCst)
     }
 }
 
@@ -304,6 +316,27 @@ pub fn ai_access_picker_take(
     Ok(picker.take())
 }
 
+/// The picker closed: Settings, if it asked for the picker and is still open, comes back to the front.
+#[tauri::command]
+pub fn ai_access_picker_closed(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    picker: State<'_, AiAccessPicker>,
+) -> Result<(), String> {
+    if !crate::main_windows::is_main(window.label()) {
+        return Err("E_AI_ACCESS_PICKER_WINDOW".to_owned());
+    }
+    if !picker.closed() {
+        return Ok(());
+    }
+    if let Some(settings) = app.get_webview_window(LABEL)
+        && settings.show().and(settings.set_focus()).is_err()
+    {
+        log::warn!("W_SETTINGS_FOCUS_FAILED");
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,6 +349,17 @@ mod tests {
         picker.ask();
         assert!(picker.take());
         assert!(!picker.take());
+    }
+
+    #[test]
+    fn only_a_picker_settings_asked_for_returns_to_settings_once() {
+        let picker = AiAccessPicker::default();
+        assert!(!picker.closed());
+        picker.ask();
+        assert!(!picker.closed());
+        assert!(picker.take());
+        assert!(picker.closed());
+        assert!(!picker.closed());
     }
     use std::ffi::OsStr;
 

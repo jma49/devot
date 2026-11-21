@@ -153,6 +153,7 @@ const WINDOWS: &[&str] = &[
     "main_windows_changed",
     "ai_access_picker_open",
     "ai_access_picker_take",
+    "ai_access_picker_closed",
 ];
 
 /// Licence, purchases and updates.

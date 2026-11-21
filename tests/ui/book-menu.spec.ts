@@ -424,6 +424,14 @@ test('Choose… in Settings opens the picker in the main window, once per ask', 
   await expect(picker.getByRole('checkbox')).toHaveCount(3)
   await picker.getByRole('button', { name: 'Cancel' }).click()
   await expect(picker).toHaveCount(0)
+  // Rust brings Settings back to the front, as it asked for the picker.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.devotIpcCalls.filter((c) => c.cmd === 'ai_access_picker_closed').length,
+      ),
+    )
+    .toBe(1)
 
   // An event whose ask another main window took opens nothing here.
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('devot:choose-ai-access')))

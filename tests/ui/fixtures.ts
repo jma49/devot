@@ -182,6 +182,7 @@ export async function mockTauri(page: Page): Promise<void> {
           if (cmd === 'ai_stream_cancel') return false
           // One notebook, allowed: Integrations shows no prompt unless a test says otherwise.
           if (cmd === 'settings_ai_access_summary') return { notebooks: 1, allowed: 1 }
+          if (cmd === 'ai_access_picker_closed') return null
           if (cmd === 'ai_access_picker_take') {
             const asked = w.devotAiAccessAsked === true
             w.devotAiAccessAsked = false

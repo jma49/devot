@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { BookNode } from '../../../core/books'
 import { CHOOSE_AI_ACCESS, inverseChanges, type AiAccessChange } from '../aiAccess'
 import { AiAccessDialog } from '../AiAccessDialog'
@@ -12,6 +12,12 @@ import { useStable } from '../stable'
 import { keepListening, listenHere } from '../windowEvents'
 
 const AI_ACCESS_PICKER_EVENT = 'devot://ai-access-picker'
+
+const returnToSettings = () => {
+  void invoke('ai_access_picker_closed').catch((e: unknown) =>
+    console.warn('W_AI_ACCESS_PICKER_CLOSED_FAILED', errorCode(e)),
+  )
+}
 
 /** Allow AI Access for several notebooks at once: the picker, the writes and the notice that undoes them. */
 export function useAiAccess({
@@ -94,8 +100,20 @@ export function useAiAccess({
   // for a main window that is still opening: each takes it once it listens.
   const asked = useStable(() => {
     if (editing) setAiAccessPicker(true)
-    else setChangeNotice(LICENCE_REQUIRED)
+    else {
+      setChangeNotice(LICENCE_REQUIRED)
+      returnToSettings()
+    }
   })
+  // Settings, when it asked for the picker, comes back to the front once the picker closes.
+  const pickerShown = useRef(false)
+  useEffect(() => {
+    if (aiAccessPicker) pickerShown.current = true
+    else if (pickerShown.current) {
+      pickerShown.current = false
+      returnToSettings()
+    }
+  }, [aiAccessPicker])
   useEffect(() => {
     // Before the core is ready there is no notebook tree to pick from.
     if (!core) return

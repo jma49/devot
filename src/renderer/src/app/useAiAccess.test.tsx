@@ -10,10 +10,14 @@ import { useAiAccess } from './useAiAccess'
 vi.hoisted(() => vi.stubGlobal('DEVOT_UI_TEST', false))
 
 /** Rust's side: whether Settings asked, and the main window's listener for its event. */
-const rust = vi.hoisted(() => ({ asked: false, heard: [] as (() => void)[] }))
+const rust = vi.hoisted(() => ({ asked: false, closed: 0, heard: [] as (() => void)[] }))
 
 vi.mock('../ipc', () => ({
   invoke: vi.fn<(cmd: string) => Promise<boolean>>(async (cmd) => {
+    if (cmd === 'ai_access_picker_closed') {
+      rust.closed += 1
+      return false
+    }
     if (cmd !== 'ai_access_picker_take') throw new Error('E_UNEXPECTED_COMMAND')
     const asked = rust.asked
     rust.asked = false
@@ -34,6 +38,7 @@ vi.mock('../windowEvents', async (actual) => ({
 afterEach(() => {
   unmountAll()
   rust.asked = false
+  rust.closed = 0
   rust.heard = []
 })
 
@@ -86,6 +91,7 @@ it('says the change is locked, and opens no picker, when Settings asks while not
   expect(hook.current.dialog).toBeNull()
   expect(setChangeNotice).toHaveBeenCalledWith(LICENCE_REQUIRED)
   expect(rust.asked).toBe(false)
+  expect(rust.closed).toBe(1)
 })
 
 it('opens the picker once per ask', async () => {
@@ -94,6 +100,8 @@ it('opens the picker once per ask', async () => {
   expect(hook.current.dialog).not.toBeNull()
   act(() => (hook.current.dialog as ReactElement<{ onCancel: () => void }>).props.onCancel())
   expect(hook.current.dialog).toBeNull()
+  await settle()
+  expect(rust.closed).toBe(1)
   // Another main window took this ask: the event alone opens nothing.
   act(() => {
     for (const heard of rust.heard) heard()
