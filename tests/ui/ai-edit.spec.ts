@@ -348,6 +348,27 @@ test('closes on Escape when AI access is off, and sends nothing', async ({ page 
   await expect(bookRow(page, 'Private').getByRole('img', { name: 'AI access on' })).toHaveCount(0)
 })
 
+test('a proposal that changes nothing says so once, offers no Accept and closes', async ({
+  page,
+}) => {
+  await fakeProvider(page, ['one, two'])
+  await page.reload()
+  await notebook(page, 'Work', true)
+  await note(page, 'one, two')
+  await selectLine(page, 0)
+
+  await fromToolbar(page, 'Proofread')
+  await expect(sheet(page).getByRole('status')).toHaveText(
+    'claude-sonnet-5-5 proposes no changes: the selection stays as it is.',
+  )
+  await expect(sheet(page).getByText(/Review the changes/)).toHaveCount(0)
+  await expect(sheet(page).getByRole('button', { name: 'Accept' })).toHaveCount(0)
+  await expect(sheet(page).getByRole('button', { name: 'Try Again' })).toBeVisible()
+  await sheet(page).getByRole('button', { name: 'Close' }).click()
+  await expect(sheet(page)).toBeHidden()
+  expect(await savedBody(page)).toBe('one, two')
+})
+
 test('asks again after a failure that may pass', async ({ page }) => {
   await fakeProvider(page, [{ error: 'E_AI_TIMEOUT' }, '- one\n- two'])
   await page.reload()

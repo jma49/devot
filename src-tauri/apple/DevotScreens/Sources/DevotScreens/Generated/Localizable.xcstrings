@@ -772,13 +772,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The proposal leaves the selection as it is."
+            "value" : "{model} proposes no changes: the selection stays as it is."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这份建议没有改动选中的内容。"
+            "value" : "{model} 没有提出修改，选中的内容保持不变。"
           }
         }
       }
