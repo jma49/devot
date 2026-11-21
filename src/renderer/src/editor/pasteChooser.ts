@@ -452,7 +452,11 @@ const theme = EditorView.theme({
     whiteSpace: 'pre-wrap',
   },
   '.cm-link-format-preview[data-state="error"]': { color: 'var(--color-text-destructive)' },
-  '.cm-link-format-preview[data-state="loading"]': { color: 'var(--color-text-tertiary)' },
+  '.cm-link-format-preview[data-state="loading"]': {
+    color: 'var(--color-text-tertiary)',
+    animation:
+      'fade-in var(--motion-duration-quick) var(--motion-easing-standard) var(--motion-delay-pending) backwards',
+  },
 })
 
 export function showChooser(view: EditorView): void {
