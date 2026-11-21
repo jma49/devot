@@ -236,6 +236,14 @@ Running text (a dialog's detail, a notice, a setting's description, a Settings f
 A web view without these keeps ordinary wrapping, so nothing depends on them.
 `tests/policy/interface-text-wrap.test.ts` lists the rules that carry them.
 
+## Chinese type
+
+The interface keeps one type scale in every language, and Chinese gets three adjustments, because a Han glyph fills its whole em where a Latin letter does not.
+The note title's negative tracking (`note.heading.glass.title-tracking`) is 0, so its characters do not touch.
+Prose that runs over several lines (setting descriptions, dialog and sheet details, notices, empty-state hints) takes a line height of 1.5 instead of 1.4.
+Nothing is set under caption size (11): `font-size.caption2` (10) reads as caption size.
+They hang off the page's `lang` (`:root:lang(zh)`), so English and its layout are unchanged.
+
 ## Note type scale
 
 Tokens: `note.heading.glass.*`, `note.space.*`. Size / line height:

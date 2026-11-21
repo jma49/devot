@@ -19,6 +19,26 @@
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
 }
 
+/* Chinese (design/layout.md, Chinese type): Han glyphs fill the em, so they take no negative tracking, more leading in prose and nothing under caption size. */
+:root:lang(zh) {
+  --note-heading-glass-title-tracking: 0;
+  --font-size-caption2: var(--font-size-caption);
+}
+
+:lang(zh)
+  :is(
+    .setting-description,
+    .settings-note,
+    .settings-section .settings-card > p,
+    .confirm-detail,
+    .sheet-detail,
+    .notice-text,
+    .empty-pane-hint,
+    .list-empty-tip
+  ) {
+  line-height: 1.5;
+}
+
 :root[data-motion='reduced'] {
   --popover-enter-scale: 1;
   --popover-exit-scale: 1;
