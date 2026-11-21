@@ -288,7 +288,7 @@ test.describe('the Icon style choice in Settings', () => {
     const cards = page.getByRole('radiogroup', { name: 'Icon style' })
     await expect(cards.getByRole('radio', { name: 'SF Symbols' })).toBeChecked()
     await expect(cards.locator('svg')).toHaveCount(6)
-    await expect(cards.locator('svg[data-kubai]')).toHaveCount(3)
+    await expect(cards.locator('svg[data-kubai]')).toHaveCount(2)
     await expect(cards.locator('[data-symbol]')).toHaveCount(3)
     await expect(page.locator('.settings-nav-row [data-symbol]').first()).toBeVisible()
     await expect(page.locator('.settings-nav-row svg')).toHaveCount(0)
@@ -320,7 +320,7 @@ test.describe('the Icon style choice in Settings', () => {
     const box = await nav.boundingBox()
     expect(box?.width).toBeGreaterThan(10)
     expect(box?.width).toBeLessThan(30)
-    // Its gradient stops are painted by kubaiGlyphs.css, not by style attributes.
-    await expect(nav.locator('stop').first()).not.toHaveCSS('stop-color', 'rgb(0, 0, 0)')
+    // Its light tone is painted by kubaiGlyphs.css, not by style attributes.
+    await expect(nav.locator('path.ki-p1').first()).not.toHaveCSS('fill', 'rgb(0, 0, 0)')
   })
 })

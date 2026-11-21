@@ -818,6 +818,6 @@ test('Kubai icons paint their shading under the policy', async ({ page }) => {
   await changeEditorSettingsElsewhere(page, { iconStyle: 'kubai' })
   const glyph = page.locator('svg[data-kubai]').first()
   await expect(glyph).toBeVisible()
-  await expect(glyph.locator('stop').first()).not.toHaveCSS('stop-color', 'rgb(0, 0, 0)')
+  await expect(glyph.locator('path.ki-p1').first()).not.toHaveCSS('fill', 'rgb(0, 0, 0)')
   expect(await violations(page)).toEqual([])
 })

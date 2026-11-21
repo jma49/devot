@@ -44,7 +44,6 @@ describe('the Kubai icon set', () => {
   it('paints through classes, since the window refuses style attributes', () => {
     for (const content of Object.values(KUBAI_GLYPHS)) {
       expect(content).not.toMatch(/ style=|<script|\son\w+=/)
-      expect(content).toContain('__K__')
     }
   })
 })
@@ -57,12 +56,12 @@ describe('a Kubai icon', () => {
     act(() =>
       root.render(
         <>
-          <Icon name="trash" size="md" />
-          <Icon name="trash" size="md" />
+          <Icon name="import.folder" size="md" />
+          <Icon name="import.folder" size="md" />
         </>,
       ),
     )
-    expect(host.querySelector('[data-pending][data-kubai="trash"]')).not.toBeNull()
+    expect(host.querySelector('[data-pending][data-kubai="folder"]')).not.toBeNull()
     await vi.waitFor(() => expect(host.querySelectorAll('svg.icon-kubai')).toHaveLength(2))
     const [first, second] = [...host.querySelectorAll('svg.icon-kubai')]
     expect(first?.classList).toContain('icon-md')

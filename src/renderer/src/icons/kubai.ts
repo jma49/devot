@@ -1,11 +1,8 @@
 import catalog from '../../../../design/icons/kubai.json'
 import type { IconName } from './symbols'
 
-/**
- * Kubai's 31-unit canvas cropped about its glyphs' centre (15.5, 12.5) to 27 units, so their ink
- * fills the box as much as Lucide's does; the drop shadow still paints past it (`overflow`).
- */
-export const KUBAI_VIEWBOX = '2 -1 27 27'
+/** Kubai's two-tone grid. */
+export const KUBAI_VIEWBOX = '0 0 16 16'
 
 /**
  * The Devot icons Kubai draws (https://icons.kubai.design, MIT). Kubai draws objects, so the bare
