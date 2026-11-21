@@ -9,7 +9,7 @@
 // inline style is ever parsed. Scripts, event handlers, foreign objects,
 // external links and CSS that would fetch are dropped.
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
-import { allowsSvgAttribute, allowsSvgElement } from '../../../core/diagramSvg'
+import { allowsSvgAttribute, allowsSvgElement, foreignObjectText } from '../../../core/diagramSvg'
 import { format as fill, t } from '../i18n'
 import { dark, light, sizes, type ThemeColor } from '../theme/tokens'
 import { withoutRemoteCss } from './diagram-css'
@@ -233,6 +233,16 @@ export function importSvg(markup: string): { svg: SVGSVGElement; css: string } {
   const css: string[] = []
 
   const copy = (source: Element): Element | null => {
+    if (source.namespaceURI === SVG_NS && source.localName === 'foreignObject') {
+      const label = foreignObjectText(
+        source.textContent ?? '',
+        Object.fromEntries(Array.from(source.attributes, (attr) => [attr.name, attr.value])),
+      )
+      const text = document.createElementNS(SVG_NS, 'text')
+      for (const [name, value] of Object.entries(label.attributes)) text.setAttribute(name, value)
+      text.textContent = label.text
+      return text
+    }
     if (source.namespaceURI !== SVG_NS || !allowsSvgElement(source.localName)) return null
     if (source.localName === 'style') {
       css.push(withoutRemoteCss(source.textContent ?? ''))

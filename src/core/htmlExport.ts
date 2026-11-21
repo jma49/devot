@@ -20,7 +20,7 @@ import { textOf } from './hastText'
 import { fromHtml } from 'hast-util-from-html'
 import { toHtml } from 'hast-util-to-html'
 import { find, svg as svgSchema } from 'property-information'
-import { allowsSvgAttribute, allowsSvgElement } from './diagramSvg'
+import { allowsSvgAttribute, allowsSvgElement, foreignObjectText } from './diagramSvg'
 import { withoutRemoteCss } from './diagramCss'
 import { FILE_URL } from './export'
 import { fragmentId } from './preview/headingIds'
@@ -91,7 +91,12 @@ function drawing(markup: string): Element | null {
         return [{ ...child, value: withoutRemoteCss(child.value).replace(/</g, '\\3c ') }]
       }
       if (child.type === 'text') return [child]
-      if (child.type !== 'element' || !allowsSvgElement(child.tagName)) return []
+      if (child.type !== 'element') return []
+      if (child.tagName === 'foreignObject') {
+        const label = foreignObjectText(textOf(child), child.properties)
+        return [el('text', label.attributes, [txt(label.text)])]
+      }
+      if (!allowsSvgElement(child.tagName)) return []
       return [clean(child)]
     })
     return { ...node, properties, children }
