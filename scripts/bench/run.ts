@@ -356,6 +356,8 @@ async function startup(browser: Browser, base: string, data: Library) {
 
 interface OpenResult {
   editor: number
+  firstHeading: number
+  firstDiagram: number
   preview: number
   mermaid: number
 }
@@ -381,8 +383,18 @@ async function openOnce(page: Page, title: string, diagrams: number): Promise<Op
         await b.painted()
         return w.performance.now() - t0
       }
-      const [editor, shown, mermaid] = await Promise.all([
+      const [editor, firstHeading, firstDiagram, shown, mermaid] = await Promise.all([
         track(() => body().includes('Benchmark sample')),
+        track(() =>
+          (preview()?.querySelector('h1')?.textContent ?? '').includes('Benchmark sample'),
+        ),
+        count > 0
+          ? track(() => {
+              const targets = preview()?.querySelectorAll('.island-mermaid')
+              const svg = targets?.[0]?.querySelector('svg')
+              return !!targets?.length && !!svg?.children.length
+            }, 30_000)
+          : Promise.resolve(-1),
         track(() => (preview()?.textContent ?? '').includes(end)),
         // Diagrams draw once they are within a screen of the view (islands.ts).
         track(() => {
@@ -395,7 +407,7 @@ async function openOnce(page: Page, title: string, diagrams: number): Promise<Op
           return near.length <= count && near.every((el: Win) => el.querySelector('svg'))
         }, 30_000),
       ])
-      return { editor, preview: shown, mermaid }
+      return { editor, firstHeading, firstDiagram, preview: shown, mermaid }
     },
     { title, diagrams, end: SAMPLE_END },
   )
@@ -440,6 +452,8 @@ async function openAndType(browser: Browser, base: string, bytes: number, label:
     unseen,
     warm: {
       editorMs: summarize(field('editor')),
+      firstHeadingMs: summarize(field('firstHeading')),
+      firstDiagramMs: field('firstDiagram').length > 0 ? summarize(field('firstDiagram')) : null,
       previewMs: summarize(field('preview')),
       mermaidMs: field('mermaid').length > 0 ? summarize(field('mermaid')) : null,
     },

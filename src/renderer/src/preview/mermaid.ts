@@ -9,6 +9,7 @@
 // inline style is ever parsed. Scripts, event handlers, foreign objects,
 // external links and CSS that would fetch are dropped.
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
+import { readFence, type Fence } from '../../../core/fences'
 import { allowsSvgAttribute, allowsSvgElement, foreignObjectText } from '../../../core/diagramSvg'
 import { format as fill, t } from '../i18n'
 import { dark, light, sizes, type ThemeColor } from '../theme/tokens'
@@ -27,6 +28,7 @@ import {
   type FailureReason,
   type FrameMessage,
   type RenderRequest,
+  type WarmRequest,
 } from './mermaid-protocol'
 import { diagramPalette, exportPalette, type DiagramPalette } from './mermaid-theme'
 
@@ -97,6 +99,54 @@ function closeFrame(): void {
 
 const holdFrame = frameLifetime(FRAME_IDLE_MS, closeFrame)
 
+function firstMermaid(markdown: string): string | undefined {
+  let fence: Fence | undefined
+  let source: string[] | undefined
+  let indent = 0
+  for (const line of markdown.split('\n')) {
+    const next = readFence(line, fence).fence
+    if (!fence && next) {
+      const opening = /^(?: {0,3}>[ \t]?)*( {0,3})(?:`{3,}|~{3,})mermaid(?:\s|$)/.exec(line)
+      if (opening) {
+        source = []
+        indent = opening[1]!.length
+      }
+    } else if (source && fence) {
+      if (!next) return `${source.join('\n')}\n`
+      let content = line
+      for (let i = 0; i < fence.depth; i += 1) content = content.replace(/^ {0,3}>[ \t]?/, '')
+      source.push(content.replace(new RegExp(`^ {0,${indent}}`), '').replace(/\r$/, ''))
+    }
+    fence = next
+  }
+  return source ? `${source.join('\n')}\n` : undefined
+}
+
+export function warmMermaid(markdown: string, context: IslandContext): () => void {
+  const source = firstMermaid(markdown)
+  if (source === undefined) return () => {}
+  if (cachedMermaid(source, context)) return () => {}
+  const release = holdFrame()
+  void rendererPort().then(
+    (target) => {
+      target.postMessage({ type: 'warm', kind: 'mermaid' } satisfies WarmRequest)
+    },
+    () => console.warn('W_DIAGRAM_WARM_FAILED'),
+  )
+  return release
+}
+
+function cachedMermaid(source: string, context: IslandContext): boolean {
+  const prefix = drawingKey(source, context.appearance, shownPalette(context.appearance))
+  return drawn.has((key) => key.startsWith(prefix))
+}
+
+export function hasCachedMermaid(source: string, context: IslandContext): boolean {
+  return drawn.has(
+    drawingKey(source, context.appearance, shownPalette(context.appearance), context.width),
+  )
+}
+
 type Answer =
   | { type: 'rendered'; svg: string }
   | { type: 'failed'; reason: FailureReason | 'timeout' }
@@ -133,6 +183,17 @@ const drawn = keptAnswers<Answer>(
     (answer.type === 'failed' && (answer.reason === 'parse' || answer.reason === 'layout')),
 )
 
+function drawingKey(
+  source: string,
+  appearance: IslandContext['appearance'],
+  palette: DiagramPalette,
+  width?: number,
+  kind: DiagramKind = 'mermaid',
+): string {
+  const font = diagramFont()
+  return `${JSON.stringify([kind, appearance, palette, font.fontFamily, font.fontSize, source])}\n${width ?? ''}`
+}
+
 /**
  * Requests wait in one queue for the frame; one whose signal is aborted by
  * the time its turn comes is not sent, so typing in a diagram draws only the
@@ -148,20 +209,15 @@ async function renderInFrame(
 ): Promise<Answer> {
   const font = diagramFont()
   for (;;) {
-    const answer = await drawn(
-      JSON.stringify([kind, appearance, palette, font.fontFamily, font.fontSize, width, source]),
-      () => {
-        const release = holdFrame()
-        const turn = queue.then((): Answer | Promise<Answer> =>
-          signal?.aborted
-            ? { type: 'skipped' }
-            : ask(source, appearance, palette, font, width, kind),
-        )
-        queue = turn
-        turn.then(release, release)
-        return turn
-      },
-    )
+    const answer = await drawn(drawingKey(source, appearance, palette, width, kind), () => {
+      const release = holdFrame()
+      const turn = queue.then((): Answer | Promise<Answer> =>
+        signal?.aborted ? { type: 'skipped' } : ask(source, appearance, palette, font, width, kind),
+      )
+      queue = turn
+      turn.then(release, release)
+      return turn
+    })
     // A skipped answer may have been shared with a request still wanted: ask again.
     if (answer.type !== 'skipped' || signal?.aborted) return answer
   }
@@ -390,6 +446,7 @@ export const mermaidIsland: PreviewIsland = {
   kind: 'mermaid',
   apiVersion: PREVIEW_API_VERSION,
   followsWidth,
+  cached: hasCachedMermaid,
   render,
 }
 

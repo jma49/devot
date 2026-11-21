@@ -11,6 +11,7 @@ export const ISLAND_ATTRIBUTE = 'data-devot-island'
 
 export interface IslandContext {
   appearance: Appearance
+  eagerFirstMermaid?: boolean | 'cached'
   /** The theme on screen, when the appearance alone does not settle an island's colours. */
   theme?: string
   /** Aborted once a newer render for the same element starts, or the element goes. */
@@ -42,6 +43,7 @@ export interface PreviewIsland {
   followsWidth?(source: string): boolean
   /** Changes when drawings of the same source may differ, so each is drawn again at its next mount. */
   revision?(context: IslandContext): string
+  cached?(source: string, context: IslandContext): boolean
   render(source: string, context: IslandContext): Promise<IslandContent>
 }
 
@@ -340,20 +342,31 @@ export function createIslandMounter(
         widths?.unobserve(el)
       }
     }
+    let firstMermaid = true
     for (const el of host.querySelectorAll(`[${ISLAND_ATTRIBUTE}]`)) {
       const kind = el.getAttribute(ISLAND_ATTRIBUTE) ?? ''
+      const first = kind === 'mermaid' && firstMermaid
+      if (kind === 'mermaid') firstMermaid = false
       const source = el.getAttribute('data-island-source') ?? ''
       const island = registry.get(kind)
       const known = slots.get(el)
       const follows = island?.followsWidth?.(source) === true
       // A pane that is hidden has no width: what is drawn stays until it is shown.
       const width = follows ? (drawingWidth(el.clientWidth) ?? known?.width) : undefined
+      const eager =
+        first &&
+        (context.eagerFirstMermaid === true ||
+          (context.eagerFirstMermaid === 'cached' &&
+            island?.cached?.(source, { ...context, width }) === true))
       const revision = island?.revision?.(context) ?? ''
       // Drawings carry labels (a diagram's name): a new locale draws them again.
       const key = `${currentLocale()}\n${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${revision}\n${source}`
       // A failure that may pass waits out its backoff; a source that changed
       // starts over at once.
-      if (known?.key === key && (!known.retry || known.retryAt > Date.now())) continue
+      if (known?.key === key && (!known.retry || known.retryAt > Date.now())) {
+        if (eager) startWaiting(el)
+        continue
+      }
       if (!island) continue
       const slot: Slot = known ?? { key, sizeKey: '', retry: false, attempts: 0, retryAt: 0 }
       slot.width = width
@@ -378,7 +391,7 @@ export function createIslandMounter(
       if (reserved !== undefined && style) style.minHeight = `${reserved}px`
       waiting.set(el, () => render(el, slot, island, source, context, width))
       nearby?.observe(el)
-      if (near.has(el)) startWaiting(el)
+      if (eager || near.has(el)) startWaiting(el)
     }
     arm()
   }

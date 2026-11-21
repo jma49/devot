@@ -46,7 +46,22 @@ export function useModeSwitch({
     const to = modeKeyboard.current
     modeKeyboard.current = undefined
     if (to === 'editor') editorRef.current?.focus()
-    else if (to === 'preview') document.querySelector<HTMLElement>('main .preview')?.focus()
+    else if (to === 'preview') {
+      const focus = () => {
+        const pane = document.querySelector<HTMLElement>('main .preview')
+        pane?.focus()
+        return pane !== null
+      }
+      if (focus()) return
+      const mounted = new MutationObserver(() => {
+        if (focus()) mounted.disconnect()
+      })
+      mounted.observe(document.querySelector('main') ?? document.body, {
+        childList: true,
+        subtree: true,
+      })
+      return () => mounted.disconnect()
+    }
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The pane asked for takes the keyboard once the mode has changed.
   }, [mode, editorRef])
   const [modeSeen, setModeSeen] = useState(mode)

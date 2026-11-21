@@ -399,6 +399,54 @@ describe('createIslandMounter', () => {
         scroller: () => view as unknown as HTMLElement,
       })
 
+    it('eagerly draws only the first Mermaid outside the margin and keeps later diagrams lazy', () => {
+      const { island, requests } = testIsland()
+      const elements = [islandElement('first'), islandElement('second')]
+      for (const el of elements) {
+        const get = el.getAttribute
+        el.getAttribute = (name) => (name === 'data-devot-island' ? 'mermaid' : get.call(el, name))
+      }
+      const mounter = mounterFor({ ...island, kind: 'mermaid' }, scroller())
+      const host = hostOf(elements)
+      mounter.mount(host, { appearance: 'light' })
+      expect(requests).toHaveLength(0)
+      mounter.mount(host, { appearance: 'light', eagerFirstMermaid: true })
+      expect(requests.map((request) => request.source)).toEqual(['first'])
+      mounter.mount(host, { appearance: 'light', eagerFirstMermaid: true })
+      expect(requests).toHaveLength(1)
+      near(elements[1]!)
+      expect(requests.map((request) => request.source)).toEqual(['first', 'second'])
+      mounter.dispose()
+    })
+
+    it.each([400, 800])(
+      'checks the first rendered embedded diagram at its current width %s',
+      (width) => {
+        const { island, requests } = testIsland()
+        const elements = [islandElement('embedded'), islandElement('outer')]
+        for (const el of elements) {
+          const get = el.getAttribute
+          el.getAttribute = (name) =>
+            name === 'data-devot-island' ? 'mermaid' : get.call(el, name)
+          Object.defineProperty(el, 'clientWidth', { value: width + 19 })
+        }
+        const cached = vi.fn<NonNullable<PreviewIsland['cached']>>(
+          (source, context) => source === 'outer' || context.width === 400,
+        )
+        const mounter = mounterFor(
+          { ...island, kind: 'mermaid', followsWidth: () => true, cached },
+          scroller(),
+        )
+        mounter.mount(hostOf(elements), { appearance: 'light', eagerFirstMermaid: 'cached' })
+        expect(cached).toHaveBeenCalledExactlyOnceWith(
+          'embedded',
+          expect.objectContaining({ width }),
+        )
+        expect(requests.map((request) => request.source)).toEqual(width === 400 ? ['embedded'] : [])
+        mounter.dispose()
+      },
+    )
+
     it('draws only the islands within a screen of the view, above or below it, the rest once scrolled near', () => {
       const { island, requests } = testIsland()
       const view = scroller()

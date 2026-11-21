@@ -1,16 +1,32 @@
 // @vitest-environment happy-dom
-import { act } from 'react'
+import { act, type ComponentProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { createPieceRenderer, type PreviewOptions } from '../../../core'
 import { createLivePreviewRenderer } from '../../../core/preview/live'
 import { labels } from '../../../../tests/support/preview-html'
 import type { Core } from '../core-client'
+import { sizes } from '../theme/tokens'
 import type { FindTarget } from '../find/target'
 import { patchPieces, UI_ATTRIBUTE } from './dom'
 import { textStore } from '../textStore'
-import { Preview } from './Preview'
+import { Preview as Body } from './PreviewBody'
+import { PreviewFrame } from './PreviewFrame'
 import type { ScrollPane } from './scrollSync'
+import { warmMermaid } from './mermaid'
+
+function Preview(props: ComponentProps<typeof Body>) {
+  return (
+    <PreviewFrame>
+      <Body {...props} />
+    </PreviewFrame>
+  )
+}
+
+vi.mock('./mermaid', async (original) => ({
+  ...(await original<typeof import('./mermaid')>()),
+  warmMermaid: vi.fn<typeof warmMermaid>(() => () => undefined),
+}))
 
 vi.mock('../ipc', () => ({ invoke: vi.fn<() => Promise<unknown>>() }))
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -29,6 +45,7 @@ const note = (bytes: number, tag: string) => {
 }
 
 type Known = readonly string[]
+type RenderAnswer = Awaited<ReturnType<Core['renderLivePreview']>>
 
 function fakeCore() {
   const asked: Known[] = []
@@ -83,6 +100,9 @@ afterEach(() => {
   const codes = warned.mock.calls.map(([code]) => String(code))
   warned.mockRestore()
   const preview = codes.filter((code) => code.startsWith('W_PREVIEW'))
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   if (preview.length > 0) throw new Error(`preview warned: ${preview.join(', ')}`)
 })
 
@@ -142,6 +162,535 @@ const firstRender = async (renders: Promise<unknown>[]) => {
 }
 
 describe('Preview', () => {
+  it('selects and natively copies the note without a hovered note card', async () => {
+    const id = '0192a6f0-0000-7000-8000-000000000001'
+    const { core, renders } = fakeCore()
+    core.linkTargets = vi.fn<Core['linkTargets']>().mockResolvedValue({
+      [id]: { title: 'Other title', status: 'none', tasks: { done: 0, total: 0 }, tags: [] },
+    })
+    core.excerpts = vi.fn<Core['excerpts']>().mockResolvedValue({ [id]: 'Other excerpt' })
+    const { body } = show(
+      core,
+      `# Source\n\nA **source** [link](devot://note/${id}).\n\nSource tail`,
+      'source',
+    )
+    await firstRender(renders)
+    await act(async () => {
+      body()
+        .querySelector('a')!
+        .dispatchEvent(new PointerEvent('pointerover', { bubbles: true }))
+      await new Promise((resolve) =>
+        setTimeout(resolve, Number.parseFloat(sizes['motion.delay.tooltip']) + 1),
+      )
+    })
+    const card = document.querySelector('[role="tooltip"]')!
+    expect(card.textContent).toContain('Other excerpt')
+    const pane = body().closest('.preview')!
+    act(() => {
+      pane.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true }))
+    })
+    const copy = new Event('copy', { bubbles: true, cancelable: true })
+    act(() => {
+      pane.dispatchEvent(copy)
+    })
+    expect(copy.defaultPrevented).toBe(false)
+    const selection = window.getSelection()!
+    expect(selection.toString()).toContain('Source tail')
+    expect(selection.toString()).not.toContain('Other title')
+    expect(selection.toString()).not.toContain('Other excerpt')
+    const html = document.createElement('div')
+    html.append(selection.getRangeAt(0).cloneContents())
+    expect(html.querySelector('strong')?.textContent).toBe('source')
+    expect(html.querySelector('a')?.getAttribute('href')).toBe(`devot://note/${id}`)
+  })
+  it('stops building the old tail as soon as another note opens', async () => {
+    const { core, renders } = fakeCore()
+    const render = core.renderLivePreview
+    let finish!: (answer: RenderAnswer) => void
+    const short = '# New short note'
+    const pending = new Promise<RenderAnswer>((resolve) => {
+      finish = resolve
+    })
+    core.renderLivePreview = vi
+      .fn<Core['renderLivePreview']>()
+      .mockImplementation((source, ...args) =>
+        source === short ? pending : render(source, ...args),
+      )
+    const { body, render: update } = show(core, note(100_000, 'old-tail'), 'old-tail')
+    await firstRender(renders)
+    const sections = body().querySelectorAll('h2').length
+    update(short, 'short-note')
+    await settle()
+    expect(body().querySelectorAll('h2')).toHaveLength(sections)
+    expect(body().textContent).toContain('old-tail section 1')
+    const pieces = await createPieceRenderer()(short, { labels, loadedEmbeds: [] })
+    await act(async () => finish({ pieces, lines: 1, links: [], tasks: { done: 0, total: 0 } }))
+    await settle()
+    expect(body().textContent).toBe('New short note')
+  }, 60_000)
+
+  it('treats the first nonempty editor body as the opening', async () => {
+    const { core } = fakeCore()
+    const renderer = createPieceRenderer()
+    const live = createLivePreviewRenderer({
+      renderPieces: renderer,
+      renderHead: renderer.head,
+      linkTargets: async () => ({}),
+      onTargetsFailed: () => undefined,
+    })
+    core.renderLivePreview = vi.fn<Core['renderLivePreview']>().mockImplementation(live)
+    const asked = vi.spyOn(core, 'renderLivePreview')
+    const { type } = follow(core, '', 'loading-body')
+    await settle()
+    const markdown = `${note(40_000, 'loaded')}\n\n\`\`\`mermaid\ngraph TD; A-->B\n\`\`\``
+    type(markdown)
+    await settle()
+    const opening = asked.mock.calls.find((call) => call[0] === markdown)
+    expect(opening?.[4]).toBe(8000)
+    expect(vi.mocked(warmMermaid).mock.calls.some(([source]) => source === markdown)).toBe(true)
+    type(`${markdown}\nTyped`)
+    await settle()
+    expect(asked.mock.calls.at(-1)?.[4]).toBeUndefined()
+    expect(
+      vi
+        .mocked(warmMermaid)
+        .mock.calls.filter(([source]) => source.startsWith('## loaded section')),
+    ).toHaveLength(1)
+  }, 60_000)
+
+  it('opens a long note with its head again after visiting a blank note', async () => {
+    const { core } = fakeCore()
+    const asked = vi.spyOn(core, 'renderLivePreview')
+    const markdown = note(40_000, 'return-from-blank')
+    const { render: update } = show(core, markdown, 'return-long')
+    await settle()
+    update('', 'blank-note')
+    await settle()
+    asked.mockClear()
+    update(markdown, 'return-long')
+    await settle()
+    expect(asked.mock.calls[0]?.[4]).toBe(8000)
+  }, 60_000)
+
+  it.each(['ready', 'note', 'error', 'denied'])(
+    'handles Copy following head-only Select All: %s',
+    async (change) => {
+      const copied: { text: string; html: string }[] = []
+      let deny!: (error: Error) => void
+      const refused = new Promise<void>((_, reject) => {
+        deny = reject
+      })
+      vi.stubGlobal(
+        'ClipboardItem',
+        class {
+          constructor(private data: Record<string, Promise<Blob>>) {}
+          getType(type: string): Promise<Blob> {
+            return this.data[type]!
+          }
+        },
+      )
+      const write = vi.spyOn(navigator.clipboard, 'write').mockImplementation(async (items) => {
+        if (change === 'denied') return refused
+        const item = items[0]!
+        const [text, html] = await Promise.all([
+          item.getType('text/plain').then((blob) => blob.text()),
+          item.getType('text/html').then((blob) => blob.text()),
+        ])
+        copied.push({ text, html })
+      })
+      const markdown = `${note(40_000, 'copy')}\n\nTAIL_NEEDLE`
+      const renderer = createPieceRenderer()
+      const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+      const full = await renderer(
+        markdown,
+        { labels, loadedEmbeds: [] },
+        head.pieces.map((piece) => piece.key),
+      )
+      let finish!: (answer: RenderAnswer) => void
+      let fail!: (error: Error) => void
+      const done = new Promise<RenderAnswer>((resolve, reject) => {
+        finish = resolve
+        fail = reject
+      })
+      const { core } = fakeCore()
+      const render = core.renderLivePreview
+      core.renderLivePreview = vi
+        .fn<Core['renderLivePreview']>()
+        .mockResolvedValueOnce({ ...head, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+        .mockReturnValueOnce(done)
+        .mockImplementation(render)
+      const { body, render: update } = show(core, markdown, 'copy-head')
+      await settle()
+      expect(body().textContent).not.toContain('TAIL_NEEDLE')
+      window.getSelection()!.selectAllChildren(body())
+      const pane = body().closest('.preview')!
+      act(() => {
+        pane.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'a',
+            metaKey: true,
+            bubbles: true,
+            cancelable: true,
+          }),
+        )
+      })
+      const copy = new Event('copy', { bubbles: true, cancelable: true })
+      act(() => {
+        pane.dispatchEvent(copy)
+      })
+      expect(write).toHaveBeenCalledOnce()
+      if (change === 'note') update('# Other note', 'other-copy')
+      await act(async () => {
+        if (change === 'error') fail(new Error('E_TEST_FULL'))
+        else finish({ pieces: full, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+      })
+      await settle()
+      if (change === 'denied') {
+        window.getSelection()?.removeAllRanges()
+        await act(async () => deny(new Error('E_TEST_CLIPBOARD_DENIED')))
+        await settle()
+      }
+      expect(copy.defaultPrevented).toBe(true)
+      const wholeText = expect.stringContaining('TAIL_NEEDLE')
+      const wholeHtml = expect.stringContaining('TAIL_NEEDLE')
+      expect(copied).toEqual(change === 'ready' ? [{ text: wholeText, html: wholeHtml }] : [])
+      const fragment = document.createElement('div')
+      fragment.innerHTML = copied[0]?.html ?? ''
+      expect(fragment.querySelector('strong')?.textContent).toBe(
+        change === 'ready' ? 'bold' : undefined,
+      )
+      expect(fragment.querySelector('a')?.getAttribute('href')).toBe(
+        change === 'ready' ? 'https://example.com/1' : undefined,
+      )
+      const warnings = warned.mock.calls
+        .map(([code]) => String(code))
+        .filter((code) => code.startsWith('W_PREVIEW'))
+      expect(warnings).toEqual(
+        change === 'error'
+          ? ['W_PREVIEW_RENDER_FAILED']
+          : change === 'denied'
+            ? ['W_PREVIEW_COPY_FAILED']
+            : [],
+      )
+      const retry = new Event('copy', { bubbles: true, cancelable: true })
+      act(() => {
+        pane.dispatchEvent(retry)
+      })
+      expect(retry.defaultPrevented).toBe(false)
+      expect(write).toHaveBeenCalledOnce()
+      expect(window.getSelection()?.toString().includes('TAIL_NEEDLE')).toBe(
+        change === 'ready' || change === 'denied',
+      )
+      warned.mockClear()
+    },
+    60_000,
+  )
+
+  it('builds a received full answer and selects it synchronously for native Copy', async () => {
+    const markdown = `${note(40_000, 'native-copy')}\n\nTAIL_NEEDLE`
+    const renderer = createPieceRenderer()
+    const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    const pieces = await renderer(markdown, { labels, loadedEmbeds: [] })
+    let finish!: (answer: RenderAnswer) => void
+    const full = new Promise<RenderAnswer>((resolve) => {
+      finish = resolve
+    })
+    const { core } = fakeCore()
+    core.renderLivePreview = vi
+      .fn<Core['renderLivePreview']>()
+      .mockResolvedValueOnce({ ...head, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValueOnce(full)
+    const write = vi.spyOn(navigator.clipboard, 'write')
+    const { body, handles } = show(core, markdown, 'native-copy')
+    await settle()
+    expect(body().textContent).not.toContain('TAIL_NEEDLE')
+    const pane = body().closest('.preview')!
+    act(() => {
+      pane.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true, cancelable: true }),
+      )
+    })
+    const copy = new Event('copy', { bubbles: true, cancelable: true })
+    let copied = false
+    handles.pane!.onLayout?.(() => {
+      if (copied) return
+      copied = true
+      pane.dispatchEvent(copy)
+    })
+    await act(async () => finish({ pieces, lines: 10000, links: [], tasks: { done: 0, total: 0 } }))
+    expect(copied).toBe(true)
+    expect(copy.defaultPrevented).toBe(false)
+    expect(write).not.toHaveBeenCalled()
+    expect(window.getSelection()?.toString()).toContain('TAIL_NEEDLE')
+    const fragment = window.getSelection()!.getRangeAt(0).cloneContents()
+    expect(fragment.querySelector('strong')?.textContent).toBe('bold')
+    expect(fragment.querySelector('a')?.getAttribute('href')).toBe('https://example.com/1')
+  }, 60_000)
+
+  it('adds copy controls only after a paint opportunity and drops a replaced list', async () => {
+    const frames = new Map<number, FrameRequestCallback>()
+    let key = 0
+    const request = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((run) => {
+      frames.set(++key, run)
+      return key
+    })
+    const cancel = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation((id) => {
+      frames.delete(id)
+    })
+    const frame = async () => {
+      const callbacks = [...frames.values()]
+      frames.clear()
+      await act(async () => {
+        for (const callback of callbacks) callback(0)
+      })
+    }
+    try {
+      const { core, renders } = fakeCore()
+      const { body, render } = show(core, '```js\nconst old = 1\n```', 'old-controls')
+      await firstRender(renders)
+      expect(body().querySelector('.code-copy')).toBeNull()
+      await frame()
+      expect(body().querySelector('.code-copy')).toBeNull()
+      render('No code here.', 'new-controls')
+      await act(async () => {
+        for (let i = 0; i < 40; i++) await Promise.resolve()
+      })
+      await frame()
+      await frame()
+      expect(body().textContent).toBe('No code here.')
+      expect(body().querySelector('.code-copy')).toBeNull()
+      render('```js\nconst fresh = 2\n```', 'fresh-controls')
+      await act(async () => {
+        for (let i = 0; i < 40; i++) await Promise.resolve()
+      })
+      await frame()
+      await frame()
+      expect(body().querySelectorAll('.code-copy')).toHaveLength(1)
+    } finally {
+      act(() => root?.unmount())
+      root = undefined
+      request.mockRestore()
+      cancel.mockRestore()
+    }
+  })
+
+  it('waits for space below a heading near the end of the head before reaching it', async () => {
+    const markdown = note(100_000, 'heading-room')
+    const renderer = createPieceRenderer()
+    const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    let finish!: (answer: RenderAnswer) => void
+    const done = new Promise<RenderAnswer>((resolve) => {
+      finish = resolve
+    })
+    const { core } = fakeCore()
+    core.renderLivePreview = vi
+      .fn<Core['renderLivePreview']>()
+      .mockResolvedValueOnce({ ...head, lines: 10000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValueOnce(done)
+    const { body, handles } = show(core, markdown, 'heading-room')
+    await settle()
+    const scroller = body().closest<HTMLElement>('.preview')!
+    const headings = body().querySelectorAll('h2')
+    const heading = headings[headings.length - 1]!
+    const top = (headings.length - 1) * 100
+    vi.spyOn(heading, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, top, 100, 40))
+    vi.spyOn(scroller, 'clientHeight', 'get').mockReturnValue(300)
+    vi.spyOn(scroller, 'scrollHeight', 'get').mockImplementation(
+      () => body().querySelectorAll('h2').length * 100,
+    )
+    const reaching = handles.pane!.reach!(Number(heading.getAttribute('data-source-line')))
+    expect(reaching).toBeInstanceOf(Promise)
+    const pieces = await renderer(
+      markdown,
+      { labels, loadedEmbeds: [] },
+      head.pieces.map((piece) => piece.key),
+    )
+    await act(async () => finish({ pieces, lines: 10000, links: [], tasks: { done: 0, total: 0 } }))
+    await expect(reaching).resolves.toBe(true)
+    expect(scroller.scrollHeight >= top + scroller.clientHeight).toBe(true)
+  }, 60_000)
+
+  it('shows a long note head before asking for its full render, which reuses the head keys', async () => {
+    const markdown = note(40_000, 'head')
+    const renderer = createPieceRenderer()
+    const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    const full = await renderer(
+      markdown,
+      { labels, loadedEmbeds: [] },
+      head.pieces.map((piece) => piece.key),
+    )
+    let complete!: (value: RenderAnswer) => void
+    const pending = new Promise<RenderAnswer>((resolve) => {
+      complete = resolve
+    })
+    const { core } = fakeCore()
+    const asked = vi
+      .fn<Core['renderLivePreview']>()
+      .mockResolvedValueOnce({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValueOnce(pending)
+    core.renderLivePreview = asked
+    const { body, handles, render: update } = show(core, markdown, 'head-sequence')
+    await settle()
+    expect(asked).toHaveBeenCalledTimes(2)
+    expect(asked.mock.calls[0]![4]).toBe(8000)
+    expect(asked.mock.calls[1]![4]).toBeUndefined()
+    expect(asked.mock.calls[1]![2]).toEqual(head.pieces.map((piece) => piece.key))
+    expect(body().textContent).toContain('head section 1')
+    expect(body().textContent).not.toContain('head section 150')
+    expect(handles.pane?.reach).toBeTypeOf('function')
+    expect(handles.pane?.reach?.(1)).toBeUndefined()
+    await act(async () =>
+      complete({
+        pieces: full,
+        partial: false,
+        lines: 1000,
+        links: [],
+        tasks: { done: 0, total: 0 },
+      }),
+    )
+    await settle()
+    expect(content(body())).toBe(await wholeBuild(markdown))
+    asked.mockResolvedValueOnce({ pieces: [], lines: 1, links: [], tasks: { done: 0, total: 0 } })
+    update(`${markdown}\n\nTyped`, 'head-sequence')
+    await settle()
+    expect(asked).toHaveBeenCalledTimes(3)
+    expect(asked.mock.calls[2]![4]).toBeUndefined()
+  }, 60_000)
+
+  it('drops a full answer after a newer note opens over the head', async () => {
+    const markdown = note(40_000, 'previous')
+    const renderer = createPieceRenderer()
+    const head = await renderer.head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    let complete!: (value: RenderAnswer) => void
+    const pending = new Promise<RenderAnswer>((resolve) => {
+      complete = resolve
+    })
+    const { core } = fakeCore()
+    const original = core.renderLivePreview
+    const asked = vi
+      .fn<Core['renderLivePreview']>()
+      .mockResolvedValueOnce({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValueOnce(pending)
+      .mockImplementation(original)
+    core.renderLivePreview = asked
+    const { body, render: update } = show(core, markdown, 'previous-full')
+    await settle()
+    update('# Current note', 'current-full')
+    await act(async () =>
+      complete({
+        pieces: await renderer(markdown, { labels, loadedEmbeds: [] }),
+        lines: 1000,
+        links: [],
+        tasks: { done: 0, total: 0 },
+      }),
+    )
+    await settle()
+    expect(body().textContent).toContain('Current note')
+    expect(body().textContent).not.toContain('previous section')
+    expect(asked).toHaveBeenCalledTimes(3)
+  }, 60_000)
+
+  it.each(['note', 'text', 'unmount'])(
+    'drops a pending head after %s changes',
+    async (change) => {
+      const markdown = note(40_000, 'old')
+      let complete!: (value: RenderAnswer) => void
+      const pending = new Promise<RenderAnswer>((resolve) => {
+        complete = resolve
+      })
+      const { core } = fakeCore()
+      const render = core.renderLivePreview
+      const asked = vi
+        .fn<Core['renderLivePreview']>()
+        .mockReturnValueOnce(pending)
+        .mockImplementation(render)
+      core.renderLivePreview = asked
+      const { render: update, body } = show(core, markdown, `stale-${change}`)
+      await act(async () => {
+        for (let i = 0; i < 30; i++) await Promise.resolve()
+      })
+      if (change === 'unmount')
+        act(() => {
+          root?.unmount()
+          root = undefined
+        })
+      else update('# New text', change === 'note' ? 'different' : `stale-${change}`)
+      const head = await createPieceRenderer().head(
+        markdown,
+        { labels, loadedEmbeds: [] },
+        [],
+        8000,
+      )
+      await act(async () =>
+        complete({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } }),
+      )
+      await settle()
+      expect(body()?.textContent ?? '').toBe(change === 'unmount' ? '' : 'New text')
+      expect(asked).toHaveBeenCalledTimes(change === 'unmount' ? 1 : 2)
+    },
+    60_000,
+  )
+
+  it('does not warm Mermaid ahead of a short preview', async () => {
+    vi.mocked(warmMermaid).mockClear()
+    const { core, renders } = fakeCore()
+    show(core, '# Short\n\n```mermaid\nflowchart LR\nA-->B\n```', 'short-diagram')
+    await firstRender(renders)
+    expect(warmMermaid).not.toHaveBeenCalled()
+  })
+
+  it('waits for the full long-note preview to paint before warming an uncached Mermaid', async () => {
+    vi.mocked(warmMermaid).mockClear()
+    const release = vi.fn<() => void>()
+    const { core } = fakeCore()
+    const markdown = `${note(40_000, 'warming')}\n\n\`\`\`mermaid\nflowchart LR\nA-->B\n\`\`\``
+    const head = await createPieceRenderer().head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    let finish!: (answer: RenderAnswer) => void
+    const full = new Promise<RenderAnswer>((resolve) => {
+      finish = resolve
+    })
+    const render = vi
+      .spyOn(core, 'renderLivePreview')
+      .mockResolvedValueOnce({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } })
+      .mockReturnValue(full)
+    vi.mocked(warmMermaid).mockImplementationOnce(() => {
+      expect(render.mock.calls.map((call) => call[4])).toEqual([8000, undefined])
+      return release
+    })
+    show(core, markdown, 'warming')
+    await settle()
+    expect(warmMermaid).not.toHaveBeenCalled()
+    const pieces = await createPieceRenderer()(markdown, { labels, loadedEmbeds: [] })
+    await act(async () => finish({ pieces, lines: 1000, links: [], tasks: { done: 0, total: 0 } }))
+    await settle()
+    expect(warmMermaid).toHaveBeenCalledOnce()
+    expect(render).toHaveBeenCalledTimes(2)
+    act(() => {
+      root?.unmount()
+      root = undefined
+    })
+    expect(release).toHaveBeenCalledOnce()
+  })
+
+  it.each(['head', 'full'])('recovers after the %s request fails', async (phase) => {
+    const markdown = note(40_000, 'failed')
+    const head = await createPieceRenderer().head(markdown, { labels, loadedEmbeds: [] }, [], 8000)
+    const { core } = fakeCore()
+    const asked = vi.fn<Core['renderLivePreview']>().mockImplementation(core.renderLivePreview)
+    if (phase === 'full')
+      asked.mockResolvedValueOnce({ ...head, lines: 1000, links: [], tasks: { done: 0, total: 0 } })
+    asked.mockRejectedValueOnce(new Error('E_TEST_RENDER'))
+    core.renderLivePreview = asked
+    const { render: update, body } = show(core, markdown, `failed-${phase}`)
+    await settle()
+    expect(warned).toHaveBeenCalledWith('W_PREVIEW_RENDER_FAILED')
+    warned.mockClear()
+    update('# Recovered', `failed-${phase}`)
+    await settle()
+    expect(body().textContent).toBe('Recovered')
+    expect(asked).toHaveBeenCalledTimes(phase === 'head' ? 2 : 3)
+  })
+
   it('builds what a big note shows first at once and the rest later, ending as one whole build', async () => {
     const { core, renders } = fakeCore()
     const markdown = note(200_000, 'big')
@@ -199,14 +748,13 @@ describe('Preview', () => {
     expect(body().querySelectorAll('h2')).toHaveLength(before)
   }, 60_000)
 
-  it('adds copy buttons to what is built while the build goes on', async () => {
+  it('leaves copy controls until the whole preview has been built and can paint', async () => {
     const { core, renders } = fakeCore()
     const markdown = note(100_000, 'big')
     const sections = markdown.split('## ').length - 1
     const { body } = show(core, markdown, 'n1')
     await firstRender(renders)
     const first = body().querySelectorAll('.code-copy').length
-    // A second passes between slices, so each slice is due to add what it built.
     const real = performance.now.bind(performance)
     let skew = 0
     const now = vi.spyOn(performance, 'now').mockImplementation(() => real() + skew)
@@ -222,7 +770,9 @@ describe('Preview', () => {
     } finally {
       now.mockRestore()
     }
-    expect(grewMidway).toBe(true)
+    expect(grewMidway).toBe(false)
+    await settle()
+    expect(body().querySelectorAll('.code-copy')).toHaveLength(sections)
   }, 60_000)
 
   it('shows text split off near the end of what is built in the task of the edit', async () => {

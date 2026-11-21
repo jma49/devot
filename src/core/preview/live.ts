@@ -6,11 +6,12 @@ import { sameFence, type Fence } from '../fences'
 import { noteEmbeds, noteLinks } from '../links'
 import type { TaskProgress } from '../tasks'
 import { createBlockSplitter, type NoteSplit } from './blocks'
-import { PIECE_LENGTH, type PreviewPiece } from './index'
+import { PIECE_LENGTH, type PreviewBatch, type PreviewPiece } from './index'
 import type { NoteLinkTarget, PreviewOptions } from './registry'
 
 export interface LivePreview {
   pieces: PreviewPiece[]
+  partial?: boolean
   tasks: TaskProgress
   lines: number
   /** The notes the text links to, sorted. */
@@ -20,6 +21,12 @@ export interface LivePreview {
 type Targets = Readonly<Record<string, NoteLinkTarget>>
 
 export interface LivePreviewSources {
+  renderHead?: (
+    markdown: string,
+    options: PreviewOptions,
+    known: readonly string[],
+    characters: number,
+  ) => Promise<PreviewBatch>
   renderPieces: (
     markdown: string,
     options: PreviewOptions,
@@ -93,6 +100,7 @@ export function createLivePreviewRenderer(
   options: Omit<PreviewOptions, 'noteLinks'>,
   known: readonly string[],
   scope: string,
+  headCharacters?: number,
 ) => Promise<LivePreview> {
   const kept = new Map<string, Promise<Targets | undefined>>()
   const facts = createSplitFacts(sources.split ?? createBlockSplitter(PIECE_LENGTH))
@@ -123,15 +131,16 @@ export function createLivePreviewRenderer(
     return asked
   }
 
-  return async (markdown, options, known, scope) => {
+  return async (markdown, options, known, scope, headCharacters) => {
     const links = noteLinks(markdown)
     // An embed is a note link too: a note that links none is not searched again for embeds.
     const targets = await targetsFor(links, links.length > 0 ? noteEmbeds(markdown) : [], scope)
-    const pieces = await sources.renderPieces(
-      markdown,
-      targets ? { ...options, noteLinks: targets } : options,
-      known,
-    )
+    const prepared = targets ? { ...options, noteLinks: targets } : options
+    if (headCharacters !== undefined && sources.renderHead) {
+      const batch = await sources.renderHead(markdown, prepared, known, headCharacters)
+      return { ...batch, ...facts(markdown), links }
+    }
+    const pieces = await sources.renderPieces(markdown, prepared, known)
     return { pieces, ...facts(markdown), links }
   }
 }

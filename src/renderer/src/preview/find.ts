@@ -10,6 +10,7 @@ import {
   type FindResult,
 } from '../../../core/find'
 import { NO_MATCHES, seedQuery, type FindChange, type FindTarget } from '../find/target'
+import { whenComplete, type CompletePreview } from './complete'
 
 const MATCH_HIGHLIGHT = 'devot-find'
 const CURRENT_HIGHLIGHT = 'devot-find-current'
@@ -206,16 +207,19 @@ const NOTHING: FindResult = { matches: [], invalid: false, capped: false }
 /** `complete` builds what the preview has not built yet, so find reads the whole note. */
 export function previewFindTarget(
   root: HTMLElement,
-  { complete }: { complete?: () => void } = {},
+  { complete }: { complete?: CompletePreview } = {},
 ): FindTarget {
   const reader = previewTextReader(root)
   let options: FindOptions | null = null
+  let round = 0
   let text: string | null = null
   let result = NOTHING
   let ranges: Range[] = []
   let invalid = false
   let capped = false
   let current: number | null = null
+  let following = false
+  let revealFrame: number | undefined
   const listeners = new Set<(change: FindChange) => void>()
   const notify = () => {
     for (const listener of listeners) listener('status')
@@ -270,21 +274,38 @@ export function previewFindTarget(
       root.scrollTop += rect.top - box.top - box.height / 3
   }
 
+  const stopFollowing = () => {
+    following = false
+    if (revealFrame !== undefined) cancelAnimationFrame(revealFrame)
+    revealFrame = undefined
+  }
+  const revealAfterLayout = () => {
+    if (!following || revealFrame !== undefined) return
+    revealFrame = requestAnimationFrame(() => {
+      revealFrame = undefined
+      if (following) reveal()
+    })
+  }
+  const resize = new ResizeObserver(revealAfterLayout)
+  const intent = ['wheel', 'pointerdown', 'keydown'] as const
+
   const go = (index: number | null) => {
     current = ranges.length === 0 || index === null ? null : (index + ranges.length) % ranges.length
+    following = true
     paint()
     reveal()
     notify()
   }
 
   // The preview re-renders as the note changes: find again, keeping the
-  // current match's place in the list, without scrolling.
+  // current match's place in the list.
   const observer = new MutationObserver((records) => {
     reader.touched(records)
     if (!options) return
     collect(true)
     current = ranges.length === 0 ? null : Math.min(current ?? 0, ranges.length - 1)
     paint()
+    revealAfterLayout()
     notify()
   })
 
@@ -292,16 +313,21 @@ export function previewFindTarget(
     canReplace: false,
     // The preview has no cursor: a step starts from the first (or last) match.
     search(next, step) {
-      complete?.()
-      if (options) reader.touched(observer.takeRecords())
-      else {
-        // Unwatched since the bar last closed: read everything again.
-        reader.forget()
-        observer.observe(root, WATCHED)
-      }
-      options = next
-      collect()
-      go(ranges.length === 0 ? null : step === 'previous' ? ranges.length - 1 : 0)
+      const request = ++round
+      whenComplete(complete, () => {
+        if (request !== round) return
+        if (options) reader.touched(observer.takeRecords())
+        else {
+          reader.forget()
+          observer.observe(root, WATCHED)
+          resize.observe(root)
+          if (root.firstElementChild) resize.observe(root.firstElementChild)
+          for (const event of intent) root.addEventListener(event, stopFollowing, { passive: true })
+        }
+        options = next
+        collect()
+        go(ranges.length === 0 ? null : step === 'previous' ? ranges.length - 1 : 0)
+      })
     },
     next() {
       if (ranges.length) go(current === null ? 0 : current + 1)
@@ -313,6 +339,10 @@ export function previewFindTarget(
     replace() {},
     replaceAll() {},
     clear() {
+      round += 1
+      stopFollowing()
+      resize.disconnect()
+      for (const event of intent) root.removeEventListener(event, stopFollowing)
       if (!options) return
       options = null
       observer.disconnect()

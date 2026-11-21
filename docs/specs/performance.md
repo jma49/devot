@@ -44,7 +44,7 @@ Part of the [architecture overview](../architecture.md).
   Not a registered non-inherited property taken by the `::before` with `inherit`: WebKit resolves the property there but draws no clip from it.
   What remains is the preview's layout at the new width; `content-visibility: auto` on the chunks cut it to about 35 ms, but chunks never laid out take a guessed height (the 600 KB note measured 355,000 px tall instead of 713,000, and a 2.5 MB note grew by a fifth with each resize as chunks came into view), which a restored pixel position, scroll sync to a line in such a chunk and the scroll bar would follow.
   `tests/ui/preview-resize.spec.ts` holds the custom properties a preview block computes unchanged across a resize on every platform, and that frame under 1.5 s.
-- The preview draws a diagram (Mermaid, PlantUML, Markmap) only while it is within one screen of the view, above or below it (an `IntersectionObserver` on the preview pane, `preview/islands.ts`), and keeps a drawing once made; exports and printing draw every diagram themselves (`exporter.ts`).
+- The preview draws a diagram (Mermaid, PlantUML, Markmap) while it is within one screen of the view, above or below it (an `IntersectionObserver` on the preview pane, `preview/islands.ts`), and keeps a drawing once made; the first Mermaid also draws outside that margin, and exports and printing draw every diagram themselves (`exporter.ts`).
   Drawings that land in the same frame go into the page together, with one layout read before and after and one scroll-sync update, instead of one relayout of the whole preview per diagram (#717: a 1 MB note with about 170 diagrams kept WebContent busy for 2.5 minutes).
   A diagram not drawn yet reserves `size.diagram-placeholder`, or the height it was last drawn at for its kind, width and source (the last 500 kept).
   One that lands above the view moves the scroll position by its growth (one across the view's top edge by the share of it above that edge), so what is in view stays put; the move goes through the preview's scroll pane (`shiftScroll`), so synced scrolling does not take it for the user's.
@@ -69,12 +69,32 @@ Part of the [architecture overview](../architecture.md).
   The pieces renderer and the task and line counts read one shared cut (`shareSplitter`), and the cut compares the pieces it keeps as slices, which V8 compares as memory.
   Each edit still does a little work for every piece (keys, cache lookups, heading ids, the list it sends back), so its cost is far smaller but still grows with the count of pieces: on a loaded machine, about 5 ms at 250 KB, 8 ms at 1 MB, 9 ms at 2 MB and 15 ms at 5 MB, against 5, 9, 12 and 47 ms before the shared cut.
   The same benchmark holds an edit in the middle of a 2 MB note's live preview under 25 ms and of a 5 MB note under 30 ms in the core.
+- Opening a different note longer than 32,000 source characters first asks the worker for pieces starting within 8,000 characters, then immediately queues the full preview while the head paints.
+  The head uses the whole note's link and footnote definitions, caches its rendered pieces and returns an explicit partial marker; the full answer reuses those pieces and adds the trailing footnote section.
+  Untransformed tail parses stay with that exact cut and options until its full render, so the tail is not parsed twice; another source, options, failed render or closing the preview discards them.
+  Matching head keys preserve their pieces and DOM in the full answer rather than building the head again.
+  When every piece is already cached with its current cross-piece definitions, the worker returns the complete preview in that first answer, without a second request.
+  Eight thousand characters cover several rich blocks and the first diagram in the benchmark without paying for all later transforms; a safe Markdown piece may extend past the budget.
+  The existing `latestOnly` queue coalesces pending text; request generations, note and text checks drop replaced answers and teardown answers, and typing in the same note still asks only for a full render.
+  An empty editor body while a note loads does not consume its opening; the first nonempty body selects head rendering.
+  Switching note ids resets opening detection even for a blank note, so returning to the previous long note opens its head again.
+  Fenced notes still await their kept-drawing languages before either render, so a kept plugin drawing never flashes as code.
 - A render builds on the page at once the pieces it changed up to `FIRST_CHARACTERS` (20,000 characters of source) past the last piece already built, and leaves the rest waiting (`patchPieces` with `defer`, `buildPending` in `src/renderer/src/preview/dom.ts`); the preview builds them in order in tasks of about 8 ms after it.
   Pieces still waiting are always the last ones, so what is built reads as the note does.
   What needs more of the note builds it first: a scroll-sync or outline jump to a line builds up to that line and a screen past it (nothing when that much is built), a restored scroll position builds until the preview is tall enough, and find, select all (the menu item or Cmd+A), copy and a link to a heading build all of it.
-  Diagrams and copy buttons are added for what is built at once, every 250 ms while the build goes on, and when it ends.
-  Opening a 2 MB note thus builds about 1% of it in the task that shows it (in happy-dom, about 30 ms instead of 3.4 s); `tests/renderer/preview-open.bench.test.ts` holds what that task builds from growing with the note.
+  Outline jumps to built headings are immediate when a pane height remains below them; missing headings or missing space below them await the full answer and build through the target and its following screen, or the end of the note.
+  While only the head has arrived, find and selection await successful full completion before reading the DOM; replaced or failed requests cancel those actions, and Copy following a deferred Select All waits for that selection.
+  Deferred Copy starts a clipboard write during the copy gesture with promised HTML and plain-text representations of the completed selection, offering HTML first to preserve formatting and links in rich paste targets.
+  If that write is refused, the completed preview remains selected for a second native Copy; once the full worker answer exists, Copy builds pending DOM synchronously and uses native copying without the clipboard API.
+  The preview opening lifecycle is one `idle | head | full | failed` union, owning its request identity, full-answer waiter, deferred selection and cancellable build, commit and warm-up work.
+  Note switches, failure and teardown reset that lifecycle together and reject any unfinished completion.
+  The preview's focusable frame mounts synchronously for mode motion, keyboard navigation and pane sizing; its rendering lifecycle loads on demand, outside the main window's startup bundle.
+  Note-info labels remain available without loading that lifecycle.
+  Diagrams are added for what is built at once, every 250 ms while the build goes on, and when it ends.
+  Copy buttons are committed after the full preview's DOM has had a paint opportunity, with a one-second fallback when a hidden window paints no frames; replacement work and teardown cancel the pending commit.
+  `tests/renderer/preview-open.bench.test.ts` holds what that task builds from growing with the note.
   Another note opened in the preview replaces what the last one showed instead of being patched over it, and the worker is asked for all its pieces; the preview reads the note's id with its text when a render starts, so a text that arrives after the switch is not patched over the note before.
+  Switching notes stops the old note's pending DOM slices and copy-control commit at once, keeping its existing DOM unchanged until the new preview arrives.
 - Typing in Split view renders no React component: the preview follows the editor's text store itself (`textStore.ts`) and reads the text only when a render starts, so renders a newer one replaces never read it.
   Copy buttons render only when the list of code blocks changes, and that list is read once for each piece the page builds (a piece left waiting is read when it is built).
   On the page, offsets in the note (`data-task-at`, `data-image-from`, `data-image-to`) count from their piece, and `noteOffset` adds the piece's start when one is read, so typing changes no attribute after the edit; source lines stay the note's, which scroll sync reads.
@@ -116,11 +136,14 @@ Part of the [architecture overview](../architecture.md).
   - The diagram frame, which holds the diagram libraries, is removed 30 s after no diagram is shown and no drawing is asked for (`preview/frameLifetime.ts`); drawings kept on the page come back without it.
     Write mode lets go of a diagram that scrolls out of view, so reading past a note's diagrams for 30 s also removes the frame; scrolling back to one the page no longer keeps (or after a resize or a theme change) loads the libraries again, which takes seconds.
     The frame loads each diagram engine only when a diagram needs it, so the first Mermaid diagram parses the frame and Mermaid (about 5.2 MB) instead of every engine at once (9.3 MB); `tests/scripts/mermaid-frame.build.test.ts` keeps a size budget.
+    A long note's cached first Mermaid can draw with the head, but a cache miss and a short note's eager first diagram wait until the full content has had a paint opportunity.
+    An uncached long-note opening warms the engine just before that deferred eager draw, with its hold released after the draw is queued.
+    The first Mermaid placeholder in the preview draws even beyond the lazy margin once built; all later diagrams still wait until near the viewport, and a hidden pane draws none.
   - Kept on purpose, each bounded by a count: the undo history of the last 10 notes left ([Data model](data-model.md)), the core's last 8 notes, the last 64 diagram drawings, and Write mode's last 200 rendered blocks (`trees`), 1,000 block heights (`heights`) and 500 inline drawings (`drawnInline`).
 - `tests/scripts/startup-chunks.build.test.ts` holds what a window parses before its first paint and what the core worker parses before `init` answers, each under a byte budget.
   The main page loads no Markdown parser and no server renderer, as the core worker parses and converts Markdown.
   The import sheet and its folder layout and tree load only when an import opens.
-  The core worker loads sync, the Markdown mirror, import, export and the AI service on their first use.
+  The core worker loads sync, the Markdown mirror, import, export, the AI service and gallery cards' renderer on their first use.
   A stop, or a later start, made while sync's code loads wins, and starts made while the mirror's code loads make one mirror (`lazyStart.ts`).
   Once the window is idle, warm-up renders a short sample with only the code languages, math and emoji that the open note and the first 20 listed notes use, so the next note opened from the list opens warm without a fixed set of grammars kept in memory.
   The sample is rendered as one the page does not show (`PieceRenderer.sample`): the open note's pieces stay pinned and its next render still reuses the render before.

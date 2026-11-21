@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { FRAME_IDLE_MS } from '../../src/renderer/src/preview/frameLifetime'
-import { expect, test, openApp } from './fixtures'
+import { expect, test, openApp, reloadApp } from './fixtures'
+import { sampleNote, bodyState } from '../../scripts/bench/fixtures'
 
 async function newNote(page: Page, title: string, body = '') {
   const before = await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').count()
@@ -48,6 +49,111 @@ test('switches between edit, split and preview', async ({ page }) => {
   await mode(page, 'Edit').click()
   await expect(preview(page)).toHaveCount(0)
   await expect(body).toBeVisible()
+})
+
+test('opens a rich Split note with the first Mermaid drawn without scrolling and later diagrams lazy', async ({
+  page,
+}) => {
+  const markdown = sampleNote(100_000)
+  await page.evaluate(
+    ({ body, ydoc }) => {
+      const at = Date.now()
+      const note = {
+        id: '0192a6f0-0000-7000-8000-000000000001',
+        title: 'Long rich note',
+        titleHlc: '',
+        bodyMd: body,
+        ydoc,
+        bookId: null,
+        bookHlc: '',
+        status: 'none',
+        statusHlc: '',
+        pinned: false,
+        pinnedHlc: '',
+        createdAt: at,
+        updatedAt: at,
+        deletedAt: null,
+        deletedHlc: '',
+      }
+      localStorage.setItem('devot.test.notes', JSON.stringify([note]))
+    },
+    { body: markdown, ydoc: bodyState(markdown) },
+  )
+  await reloadApp(page)
+  await newNote(page, 'Small first', 'Small text')
+  await mode(page, 'Split').click()
+  await page.getByRole('option', { name: /Long rich note/ }).click()
+  await expect(preview(page).locator('h1')).toHaveText('Benchmark sample')
+  await expect(preview(page).locator('.island-mermaid').first().locator('svg')).toHaveCount(1, {
+    timeout: 30_000,
+  })
+  await expect(preview(page).locator('.island-mermaid')).toHaveCount(8)
+  await expect(preview(page).locator('.island-mermaid').last().locator('svg')).toHaveCount(0)
+  expect(await preview(page).evaluate((el) => el.scrollTop)).toBe(0)
+})
+
+test('Find keeps the first tail match visible as a long preview finishes laying out', async ({
+  page,
+}) => {
+  const markdown = sampleNote(100_000).replace(
+    'End of the sample.',
+    'End of the sample. Tailquartz.',
+  )
+  await page.evaluate(
+    ({ body, ydoc }) => {
+      const at = Date.now()
+      localStorage.setItem(
+        'devot.test.notes',
+        JSON.stringify([
+          {
+            id: '0192a6f0-0000-7000-8000-000000000001',
+            title: 'Tail Find',
+            titleHlc: '',
+            bodyMd: body,
+            ydoc,
+            bookId: null,
+            bookHlc: '',
+            status: 'none',
+            statusHlc: '',
+            pinned: false,
+            pinnedHlc: '',
+            createdAt: at,
+            updatedAt: at,
+            deletedAt: null,
+            deletedHlc: '',
+          },
+        ]),
+      )
+    },
+    { body: markdown, ydoc: bodyState(markdown) },
+  )
+  await reloadApp(page)
+  await page.getByRole('option').filter({ hasText: 'Tail Find' }).click()
+  await mode(page, 'Split').click()
+  await expect(preview(page).locator('h1').first()).toBeVisible()
+  await preview(page).focus()
+  await page.keyboard.press('Meta+f')
+  const find = page.getByRole('search', { name: 'Find in Note' })
+  await find.getByRole('textbox', { name: 'Find', exact: true }).fill('Tailquartz')
+  await expect(find.getByRole('status')).toHaveText('1 of 1')
+  await expect(preview(page).locator('[data-devot-island="mermaid"] svg').first()).toBeAttached()
+  await expect
+    .poll(() =>
+      preview(page).evaluate((root) => {
+        const range = [...(CSS.highlights.get('devot-find-current') ?? [])][0]
+        if (!(range instanceof Range)) return { visible: false, reason: 'no preview match' }
+        const match = range.getBoundingClientRect()
+        const pane = root.getBoundingClientRect()
+        return {
+          visible: match.top >= pane.top && match.bottom <= pane.bottom,
+          match: match.toJSON(),
+          pane: pane.toJSON(),
+          scroll: root.scrollTop,
+          max: root.scrollHeight - root.clientHeight,
+        }
+      }),
+    )
+    .toMatchObject({ visible: true })
 })
 
 test('updates the preview by patching only the nodes that changed', async ({ page }) => {

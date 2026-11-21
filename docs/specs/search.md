@@ -120,6 +120,7 @@ The Rust store ships bundled rusqlite SQLite 3.54.1; the better-sqlite3 store sh
 - **Preview:** Cmd+F in preview mode searches the rendered text (a line break between blocks and at every line break, so a match never runs across two paragraphs, but it does across bold or links) and paints matches with the CSS Custom Highlight API, so the preview's DOM is never changed and its patcher keeps owning every node; the marks follow re-renders.
   Rendered text cannot be edited, so the preview has no replace row; diagrams (islands) are not searched.
   Each piece keeps the text it read, so after a re-render only the pieces a mutation touched are read again (`previewTextReader`), and the matches are updated from the span where the text changed.
+  A requested match stays visible through deferred layout and island resizing until the user scrolls or interacts with the preview; closing Find cancels that reveal.
 - **Split mode:** Cmd+F searches the pane that has the keyboard focus: the preview after a click in it, otherwise the editor.
   The bar stays on that pane until find opens again from the other one.
 

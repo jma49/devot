@@ -6,6 +6,21 @@ import type { DiagramPalette } from './mermaid-theme'
 
 export type DiagramKind = 'mermaid' | 'plantuml' | 'markmap'
 
+export interface WarmRequest {
+  type: 'warm'
+  kind: 'mermaid'
+}
+
+export function isWarmRequest(data: unknown): data is WarmRequest {
+  const request = data as Partial<WarmRequest> | null
+  return (
+    typeof request === 'object' &&
+    request !== null &&
+    request.type === 'warm' &&
+    request.kind === 'mermaid'
+  )
+}
+
 export interface RenderRequest {
   kind?: DiagramKind
   type: 'render'

@@ -57,7 +57,7 @@ import { errorCode } from '../../core/errors'
 import { noteCounts } from '../../core/noteCounts'
 import { noteFrontMatter, noteTally } from '../../core/noteFacts'
 import { createLivePreviewRenderer } from '../../core/preview/live'
-import { renderCardPreview, type CardLabels } from '../../core/preview/card'
+import type { CardLabels } from '../../core/preview/card'
 import { libraryWarmFeatures } from '../../core/preview/warmFeatures'
 import type { SyncEngine, SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent, TransportName } from '../../core/sync/transport'
@@ -148,6 +148,13 @@ const required = () => {
 }
 
 const livePreview = createLivePreviewRenderer({
+  renderHead: (markdown, options, known, characters) =>
+    pieces.head(
+      markdown,
+      { ...withoutDrawnLanguages(options), ...pluginRevisions() },
+      known,
+      characters,
+    ),
   renderPieces: (markdown, options, known) =>
     pieces(markdown, { ...withoutDrawnLanguages(options), ...pluginRevisions() }, known),
   linkTargets: (ids, embeds) => required().linkTargets(ids, embeds),
@@ -301,6 +308,7 @@ const coreApi = {
   taskCounts: (ids: string[]) => required().taskCounts(ids),
   /** Gallery cards' thumbnails: the start of each body as a sanitized tree, by note ID. */
   cardPreviews: async (ids: string[], labels: CardLabels) => {
+    const { renderCardPreview } = await import('../../core/preview/card')
     const found: Record<string, RootContent[]> = {}
     for (const [id, markdown] of Object.entries(await required().cardExcerpts(ids))) {
       found[id] = (await renderCardPreview(markdown, labels)).children
@@ -502,7 +510,8 @@ const coreApi = {
     options: Omit<PreviewOptions, 'noteLinks'>,
     known: string[],
     scope: string,
-  ) => livePreview(markdown, options, known, scope),
+    headCharacters?: number,
+  ) => livePreview(markdown, options, known, scope, headCharacters),
   /** The plugin drawings the note keeps (ADR 0030). */
   noteDrawings: (noteId: string) => {
     const parts = coreParts

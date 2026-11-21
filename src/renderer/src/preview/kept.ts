@@ -4,7 +4,7 @@
  */
 export function keptAnswers<T>(limit: number, keep: (answer: T) => boolean) {
   const answers = new Map<string, Promise<T>>()
-  return (key: string, ask: () => Promise<T>): Promise<T> => {
+  const get = (key: string, ask: () => Promise<T>): Promise<T> => {
     const known = answers.get(key)
     if (known) {
       answers.delete(key)
@@ -22,4 +22,8 @@ export function keptAnswers<T>(limit: number, keep: (answer: T) => boolean) {
     }, forget)
     return answer
   }
+  return Object.assign(get, {
+    has: (key: string | ((key: string) => boolean)) =>
+      typeof key === 'string' ? answers.has(key) : [...answers.keys()].some(key),
+  })
 }

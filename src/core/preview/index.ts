@@ -414,10 +414,21 @@ const KEPT_NOTE_VERSIONS = 2000
 
 export interface PieceRenderer {
   (markdown: string, options: PreviewOptions, known?: readonly string[]): Promise<PreviewPiece[]>
+  head(
+    markdown: string,
+    options: PreviewOptions,
+    known: readonly string[],
+    characters: number,
+  ): Promise<PreviewBatch>
   /** The preview closed: what it showed is kept only within the capacity, as a note left is. */
   forgetShown(): void
   /** Renders as for the preview, but leaves what the preview shows pinned and its render before alone. */
   sample(markdown: string, options: PreviewOptions): Promise<PreviewPiece[]>
+}
+
+export interface PreviewBatch {
+  pieces: PreviewPiece[]
+  partial: boolean
 }
 
 // Past this many blocks changed, counting copies by text is cheaper than comparing.
@@ -491,7 +502,15 @@ export function createPieceRenderer({
     `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
   // The render before, whose keys the pieces it kept take again rather than building them from
   // their whole text.
-  let last: { blocks: Block[]; copies: number[]; keys: string[]; options: string } | undefined
+  let last:
+    | {
+        blocks: Block[]
+        copies: number[]
+        keys: string[]
+        options: string
+        prepared?: (Parsed | undefined)[]
+      }
+    | undefined
 
   // Drops the oldest pieces the note does not show right now, until the others fit. A piece it
   // shows is never dropped, or a note larger than the cache would render whole again on every
@@ -592,6 +611,7 @@ export function createPieceRenderer({
     options: PreviewOptions,
     known: readonly string[] = [],
     showing = true,
+    headCharacters = Number.POSITIVE_INFINITY,
   ) => {
     const opened = closings
     const names = registry.renderers().includes(headingIds)
@@ -622,7 +642,8 @@ export function createPieceRenderer({
         notesKey(block.text) + (i === 0 ? firstKey : bodyKey),
       )
     })
-    if (showing) last = { blocks, copies, keys, options: optionsKey }
+    const current: NonNullable<typeof last> = { blocks, copies, keys, options: optionsKey }
+    if (showing) last = current
     const parserOf = (i: number) => (i === 0 ? processor : bodyProcessor)
 
     const found = keys.map((key) => {
@@ -649,6 +670,8 @@ export function createPieceRenderer({
     }
     const parsed = blocks.map((block, i) => {
       if (found[i]) return undefined
+      if (sameOptions && before?.blocks === blocks && before.prepared?.[i])
+        return before.prepared[i]
       const labels = labelsIn(block.text)
       return parse(
         i,
@@ -726,9 +749,16 @@ export function createPieceRenderer({
       return was.length === now.length && now.every((label) => was.includes(label))
     }
 
+    if (
+      Number.isFinite(headCharacters) &&
+      found.every((entry, i) => entry && entry.context === contextOf(i, entry.labels).key)
+    )
+      headCharacters = Number.POSITIVE_INFINITY
+
     const rendered: Rendered[] = []
     try {
       for (const [i, block] of blocks.entries()) {
+        if (block.offset >= headCharacters) break
         const { labels } = summary(i)
         const context = contextOf(i, labels)
         const entry = found[i]
@@ -743,14 +773,16 @@ export function createPieceRenderer({
         rendered.push(await renderPiece(keys[i]!, block.text, i === 0, pieceOptions, tree, context))
       }
     } finally {
-      if (showing) shown = opened === closings ? new Set(keys) : new Set()
+      if (showing) shown = opened === closings ? new Set(keys.slice(0, rendered.length)) : new Set()
       trim()
     }
+    if (showing && opened === closings && last === current && rendered.length < blocks.length)
+      current.prepared = parsed.map((tree, i) => (i < rendered.length ? undefined : tree))
 
     const have = new Set(known)
     const next = names ? createSlugger() : undefined
     const numbering = createNumbering()
-    const pieces = blocks.map((block, i) => {
+    const pieces = blocks.slice(0, rendered.length).map((block, i) => {
       const { id, nodes, headings, footnotes } = rendered[i]!
       let key = String(id)
       if (next) {
@@ -769,6 +801,8 @@ export function createPieceRenderer({
       if (!have.has(key)) out.nodes = i > 0 && nodes.length > 0 ? [LINE_BREAK, ...nodes] : nodes
       return out
     })
+
+    if (rendered.length < blocks.length) return pieces
 
     // The list of notes ends the note, in the order of their first calls.
     const defining = new Map<string, { piece: number; note: PieceNote }>()
@@ -824,9 +858,21 @@ export function createPieceRenderer({
     return [...pieces, footer]
   }
   return Object.assign(render, {
+    head: async (
+      markdown: string,
+      options: PreviewOptions,
+      known: readonly string[],
+      characters: number,
+    ): Promise<PreviewBatch> => {
+      if (!Number.isSafeInteger(characters) || characters <= 0)
+        throw new Error('E_PREVIEW_HEAD_BUDGET')
+      const pieces = await render(markdown, options, known, true, characters)
+      return { pieces, partial: pieces.length < split(markdown).blocks.length }
+    },
     forgetShown: () => {
       closings += 1
       shown = new Set()
+      if (last) delete last.prepared
       trim()
     },
     sample: (markdown: string, options: PreviewOptions) => render(markdown, options, [], false),

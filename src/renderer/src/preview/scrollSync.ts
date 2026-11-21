@@ -12,6 +12,8 @@
 // them until its layout changes, so scrolling and typing in a long note stay
 // cheap.
 
+import type { CompletePreview } from './complete'
+
 export interface Anchor {
   line: number
   top: number
@@ -79,6 +81,7 @@ export interface ScrollPane {
   readonly element: Scroller
   topLine(): number
   offsetOf(line: number): number
+  reach?: (line: number) => ReturnType<CompletePreview>
   onLayout?(listener: () => void): () => void
   /** The pane moved its own scroll position to keep showing what it showed (content above it grew): that scroll is no lead. */
   onMove?(listener: () => void): () => void
@@ -405,7 +408,7 @@ export function previewScrollPane(
     reach,
     frame = (run) => requestAnimationFrame(run),
     cancel = (handle) => cancelAnimationFrame(handle),
-  }: { reach?: (line: number) => void } & Pick<SyncOptions, 'frame' | 'cancel'> = {},
+  }: Pick<ScrollPane, 'reach'> & Pick<SyncOptions, 'frame' | 'cancel'> = {},
 ): PreviewScrollPane {
   let lines = 1
   let pieces: readonly PreviewPiece[] = []
@@ -617,6 +620,7 @@ export function previewScrollPane(
   return {
     element,
     topLine: () => lineFor(element.scrollTop),
+    ...(reach ? { reach } : {}),
     offsetOf: (line) => {
       reach?.(line)
       return topFor(line)

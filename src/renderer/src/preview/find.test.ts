@@ -159,6 +159,110 @@ describe('previewTextReader', () => {
 })
 
 describe('previewFindTarget', () => {
+  it.each(['resize', 'clear', 'wheel', 'pointerdown', 'keydown', 'empty', 'invalid'])(
+    'keeps a requested match visible during late layout: %s',
+    async (action) => {
+      const { root } = preview([0])
+      let resized: ResizeObserverCallback = () => {}
+      const disconnect = vi.fn<() => void>()
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(callback: ResizeObserverCallback) {
+            resized = callback
+          }
+          observe() {}
+          disconnect = disconnect
+        },
+      )
+      let top = 200
+      const rect = {
+        x: 0,
+        y: 0,
+        left: 0,
+        right: 100,
+        width: 100,
+        top: 0,
+        bottom: 100,
+        height: 100,
+        toJSON() {},
+      }
+      const box = vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(rect)
+      const own = vi.spyOn(Range.prototype, 'getBoundingClientRect').mockImplementation(() => ({
+        ...rect,
+        top: top - root.scrollTop,
+        bottom: top - root.scrollTop + 20,
+      }))
+      const target = previewFindTarget(root)
+      try {
+        target.search({ query: 'cat', regexp: false, caseSensitive: false })
+        const before = root.scrollTop
+        if (action === 'clear') target.clear()
+        if (['wheel', 'pointerdown', 'keydown'].includes(action))
+          root.dispatchEvent(new Event(action))
+        if (action === 'empty' || action === 'invalid')
+          target.search({
+            query: action === 'empty' ? '' : '[',
+            regexp: action === 'invalid',
+            caseSensitive: false,
+          })
+        top += 300
+        resized([], {} as ResizeObserver)
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+        expect(root.scrollTop > before).toBe(action === 'resize')
+      } finally {
+        target.clear()
+        own.mockRestore()
+        box.mockRestore()
+        vi.unstubAllGlobals()
+      }
+    },
+  )
+
+  it.each(['ready', 'cancelled', 'cleared', 'replaced'])(
+    'waits before revealing a tail match: %s',
+    async (state) => {
+      const root = document.createElement('div')
+      root.innerHTML = '<p>Head only</p>'
+      let finish!: (ready: boolean) => void
+      const done = new Promise<boolean>((resolve) => {
+        finish = resolve
+      })
+      const complete = () => done
+      const target = previewFindTarget(root, { complete })
+      const rect = {
+        top: 0,
+        bottom: 100,
+        height: 100,
+        width: 200,
+        left: 0,
+        right: 200,
+        x: 0,
+        y: 0,
+        toJSON() {},
+      }
+      const own = vi
+        .spyOn(Range.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ ...rect, top: 900, bottom: 1000 })
+      const box = vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(rect)
+      try {
+        target.search({ query: 'Tail needle', regexp: false, caseSensitive: false })
+        if (state === 'cleared') target.clear()
+        if (state === 'replaced')
+          target.search({ query: 'Missing', regexp: false, caseSensitive: false })
+        root.innerHTML += '<p>Tail needle</p>'
+        finish(state !== 'cancelled')
+        await done
+        await Promise.resolve()
+        expect(root.scrollTop > 0).toBe(state === 'ready')
+      } finally {
+        target.clear()
+        own.mockRestore()
+        box.mockRestore()
+      }
+    },
+  )
+
   it('counts the matches a fresh search counts as the preview changes', async () => {
     const { root, body } = preview([0, 1, 2, 3, 4])
     const target = previewFindTarget(root)
