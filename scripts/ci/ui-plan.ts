@@ -1,6 +1,7 @@
-import { appendFileSync, existsSync, globSync, readFileSync } from 'node:fs'
+import { appendFileSync, globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readDurations } from './durations.ts'
 import { uiGraph, uiReach, type UiGraph } from './ui-graph.ts'
 
 type Project = 'webkit' | 'webkit-prod-csp'
@@ -206,10 +207,10 @@ export function planUi(
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const changed = readFileSync(0, 'utf8').split('\n').filter(Boolean)
   const available = globSync(['tests/ui/**/*.spec.ts', 'tests/ui-csp/**/*.spec.ts'])
-  const baseline = new URL('./ui-durations.json', import.meta.url)
-  const durations = existsSync(baseline)
-    ? (JSON.parse(readFileSync(baseline, 'utf8')) as Record<string, number>)
-    : {}
+  const durations = readDurations(
+    process.env['DEVOT_UI_DURATIONS'],
+    fileURLToPath(new URL('./ui-durations.json', import.meta.url)),
+  )
   const plan = planUi(
     changed,
     available,

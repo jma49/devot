@@ -7,12 +7,13 @@ name: CI
 #
 # A pull request runs only the jobs its files need: scripts/ci/changed-code.sh
 # says which paths need the web and the Rust jobs, scripts/ci/ui-plan.ts which
-# UI specs run. Without web changes, `policy-check` runs the format check,
-# lint, the type check and all of Vitest, whose tests also read the docs, the
-# Rust sources, migrations and capabilities and run the relay and the licence
-# Worker; for documentation alone, only the format check and the policy and
-# token tests. Every job runs unless the change detection said `false` for it,
-# so missing outputs run everything rather than nothing.
+# UI specs run and scripts/ci/vitest-plan.ts which Vitest files run. Lint, the
+# type check, the generated-file checks, the builds and the test shards each
+# start right after the change detection. Vitest also reads the docs, the Rust
+# sources, migrations and capabilities and runs the relay and the licence and
+# share Workers, so a Rust-only change still runs all of it. Every job runs
+# unless the change detection said `false` for it, so missing outputs run
+# everything rather than nothing.
 #
 # The required checks are `web`, `rust` and `policy`. Their gate jobs always
 # run, so a skipped heavy job cannot leave a required check pending.
@@ -77,6 +78,12 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+      # The UI specs' durations from main's last full run (unit-timings), over the committed baseline.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/ci-durations
+          key: ci-durations-${{ github.run_id }}
+          restore-keys: ci-durations-
       - id: diff
         env:
           EVENT: ${{ github.event_name }}
@@ -85,6 +92,7 @@ jobs:
         # A push to main is compared with main's last run that passed (scripts/ci/main-plan.sh);
         # without one, and in the merge queue or a manual run, everything runs.
         run: |
+          export DEVOT_UI_DURATIONS="$HOME/ci-durations/ui.json"
           if [ "$EVENT" = pull_request ]; then
             git diff --no-renames --name-only HEAD^1 HEAD | sh scripts/ci/changed-code.sh >> "$GITHUB_OUTPUT"
             git diff --no-renames --name-only HEAD^1 HEAD | node scripts/ci/ui-plan.ts >> "$GITHUB_OUTPUT"
@@ -99,14 +107,38 @@ jobs:
             node scripts/ci/ui-plan.ts --full </dev/null >> "$GITHUB_OUTPUT"
           fi
 
-  # Pull requests without web changes: the checks that read the docs, the
-  # Rust side, the relay and the licence Worker, which the web jobs would
-  # otherwise run. Documentation-only changes run only the format check and
-  # the policy and token tests, which read README.md, CLAUDE.md, the design
-  # notes and the README images.
-  policy-check:
+  # Required check for the policy work: the format check, lint, the type check and Vitest, whose
+  # tests also read the docs, the Rust sources, migrations and capabilities and run the relay and
+  # the licence and share Workers. It runs even when those jobs were skipped and fails when any of
+  # them, the plan or the change detection failed or was cancelled.
+  policy:
+    needs: [changes, lint, typecheck, unit-plan, unit-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          LINT: ${{ needs.lint.result }}
+          TYPECHECK: ${{ needs.typecheck.result }}
+          PLAN: ${{ needs.unit-plan.result }}
+          TESTS: ${{ needs.unit-tests.result }}
+        run: |
+          echo "changes=$CHANGES lint=$LINT typecheck=$TYPECHECK unit-plan=$PLAN unit-tests=$TESTS"
+          {
+            printf '### Policy merge gate\n\n| Check | Result |\n| --- | --- |\n'
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Lint' "$LINT" 'Type check' "$TYPECHECK" 'Unit test plan' "$PLAN" 'Unit and integration tests' "$TESTS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for result in "$CHANGES" "$LINT" "$TYPECHECK" "$PLAN" "$TESTS"; do
+            case "$result" in
+              failure|cancelled) exit 1 ;;
+            esac
+          done
+
+  # The format check and lint, for every change: documentation too is formatted.
+  lint:
+    name: Lint
     needs: changes
-    if: needs.changes.outputs.web != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -118,39 +150,26 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
-      - if: needs.changes.outputs.docs_only == 'true'
-        run: pnpm test:policy
       - if: needs.changes.outputs.docs_only != 'true'
         run: pnpm lint
-      - if: needs.changes.outputs.docs_only != 'true'
-        run: pnpm typecheck
-      - if: needs.changes.outputs.docs_only != 'true'
-        run: pnpm test
 
-  # Required check for the policy work. It runs even when policy-check was
-  # skipped and fails when the change detection or policy-check failed.
-  policy:
-    needs: [changes, policy-check]
-    if: ${{ always() }}
+  typecheck:
+    name: Type check
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
-      - env:
-          CHANGES: ${{ needs.changes.result }}
-          POLICY: ${{ needs.policy-check.result }}
-        run: |
-          echo "changes=$CHANGES policy-check=$POLICY"
-          {
-            printf '### Policy merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Policy checks' "$POLICY"
-          } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$POLICY"; do
-            case "$result" in
-              failure|cancelled) exit 1 ;;
-            esac
-          done
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
 
-  # Static checks finish independently of the test suites.
+  # The generated files and the dependency audit, beside lint, the type check, the builds and the tests.
   web-checks:
     name: Quick checks
     needs: changes
@@ -169,16 +188,60 @@ jobs:
       - run: pnpm tokens:check
       - run: pnpm i18n:apple:check
       - run: pnpm icons:kubai:check
-      - run: pnpm format:check
-      - run: pnpm lint
-      - run: pnpm typecheck
+
+  # Which Vitest files run, and in which shard (scripts/ci/vitest-plan.ts). A pull request runs the
+  # tests that reach its files through Vitest's module graph, and every test that reaches a file
+  # that reads or runs other files, since those inputs are not imports; a change to configuration,
+  # the lockfile, test support, CI or Rust runs everything, as do main, the merge queue and manual
+  # runs. Shards balance each file's time from main's last full run, restored from the cache that
+  # unit-timings saves, or else from the committed baseline.
+  unit-plan:
+    name: Unit test plan
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      unit: ${{ steps.plan.outputs.unit }}
+      unit_matrix: ${{ steps.plan.outputs.unit_matrix }}
+    steps:
+      # HEAD^1..HEAD is what a pull request changes, as in the changes job.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 2
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/ci-durations
+          key: ci-durations-${{ github.run_id }}
+          restore-keys: ci-durations-
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          export DEVOT_VITEST_DURATIONS="$HOME/ci-durations/vitest.json"
+          if [ "$EVENT" = pull_request ]; then
+            git diff --no-renames --name-only HEAD^1 HEAD | node scripts/ci/vitest-plan.ts >> "$GITHUB_OUTPUT"
+          else
+            node scripts/ci/vitest-plan.ts --full </dev/null >> "$GITHUB_OUTPUT"
+          fi
 
   unit-tests:
-    name: Unit and integration tests
-    needs: changes
-    if: needs.changes.outputs.web != 'false' && needs.changes.outputs.docs_only != 'true'
+    name: Unit and integration tests (${{ matrix.shard }}/${{ matrix.shards }})
+    needs: [changes, unit-plan]
+    if: needs.unit-plan.outputs.unit != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      DEVOT_TEST_FILES: ${{ toJSON(matrix.files) }}
+    strategy:
+      fail-fast: false
+      # Without a plan, one shard runs every test.
+      matrix: ${{ fromJSON(needs.unit-plan.outputs.unit_matrix || '{"include":[{"shard":1,"shards":1,"files":[]}]}') }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
@@ -188,6 +251,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      # Also after a green run: main's reports refresh the shard durations (unit-timings).
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: vitest-report-${{ matrix.shard }}
+          path: test-results/vitest-report.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   # One build of the UI tests' bundle for every UI shard: a page of the bundle loads a few dozen
   # files where Vite's dev server sends each module, hundreds per page.
@@ -314,34 +385,84 @@ jobs:
       - if: ${{ !cancelled() && needs.changes.outputs.storekit != 'false' }}
         run: sh scripts/ci/devot-store-tests.sh
 
-  # The required web check. It runs even when the jobs it sums up were
-  # skipped (a pull request without web changes) and fails when any of them,
-  # or the change detection, failed or was cancelled. A failed UI build skips
-  # the shards, so the gate reads the build's result too.
+  # The required web check. It runs even when the jobs it sums up were skipped (a pull request
+  # without web changes) and fails when any of them, or the change detection, failed or was
+  # cancelled. A failed UI build skips the shards and a failed plan the unit tests, so the gate
+  # reads their results too.
   web:
-    needs: [changes, web-checks, unit-tests, ui-build, ui, mac-tests]
+    needs: [changes, lint, typecheck, web-checks, unit-plan, unit-tests, ui-build, ui, mac-tests]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - env:
           CHANGES: ${{ needs.changes.result }}
+          LINT: ${{ needs.lint.result }}
+          TYPECHECK: ${{ needs.typecheck.result }}
           CHECKS: ${{ needs.web-checks.result }}
+          PLAN: ${{ needs.unit-plan.result }}
           TESTS: ${{ needs.unit-tests.result }}
           UI_BUILD: ${{ needs.ui-build.result }}
           UI: ${{ needs.ui.result }}
           MAC: ${{ needs.mac-tests.result }}
         run: |
-          echo "changes=$CHANGES web-checks=$CHECKS unit-tests=$TESTS ui-build=$UI_BUILD ui=$UI mac-tests=$MAC"
+          echo "changes=$CHANGES lint=$LINT typecheck=$TYPECHECK web-checks=$CHECKS unit-plan=$PLAN unit-tests=$TESTS ui-build=$UI_BUILD ui=$UI mac-tests=$MAC"
           {
             printf '### Web merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Quick checks' "$CHECKS" 'Unit and integration tests' "$TESTS" 'UI test build' "$UI_BUILD" 'UI regression tests' "$UI" 'macOS tests' "$MAC"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Lint' "$LINT" 'Type check' "$TYPECHECK" 'Quick checks' "$CHECKS" 'Unit test plan' "$PLAN" 'Unit and integration tests' "$TESTS" 'UI test build' "$UI_BUILD" 'UI regression tests' "$UI" 'macOS tests' "$MAC"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$CHECKS" "$TESTS" "$UI_BUILD" "$UI" "$MAC"; do
+          for result in "$CHANGES" "$LINT" "$TYPECHECK" "$CHECKS" "$PLAN" "$TESTS" "$UI_BUILD" "$UI" "$MAC"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac
           done
+
+  # After main's full run, each Vitest file's and UI spec's time from the shards' reports, over the
+  # last ones, for the next runs' shard plans (unit-plan, changes). A failed shard still measured
+  # its files; a cancelled run keeps the last durations.
+  unit-timings:
+    name: Record test durations
+    needs: [unit-tests, ui]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/ci-durations
+          key: ci-durations-${{ github.run_id }}
+          restore-keys: ci-durations-
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: vitest-report-*
+          path: ${{ runner.temp }}/vitest-reports
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: playwright-results-*
+          path: ${{ runner.temp }}/ui-reports
+      - env:
+          UNIT: ${{ needs.unit-tests.result }}
+          UI: ${{ needs.ui.result }}
+        run: |
+          mkdir -p ~/ci-durations
+          [ -f ~/ci-durations/vitest.json ] || cp scripts/ci/vitest-durations.json ~/ci-durations/vitest.json
+          if [ "$UNIT" != skipped ] && ls "$RUNNER_TEMP"/vitest-reports/*/vitest-report.json >/dev/null 2>&1; then
+            node scripts/ci/vitest-timings.ts ~/ci-durations/vitest.json "$RUNNER_TEMP"/vitest-reports/*/vitest-report.json
+          fi
+          if [ "$UI" = success ] && ls "$RUNNER_TEMP"/ui-reports/*/report.json >/dev/null 2>&1; then
+            node scripts/ci/ui-timings.ts ~/ci-durations/ui.json "$RUNNER_TEMP"/ui-reports/*/report.json
+          fi
+          ls -l ~/ci-durations
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/ci-durations
+          key: ci-durations-${{ github.run_id }}
 
   rust-check:
     needs: changes

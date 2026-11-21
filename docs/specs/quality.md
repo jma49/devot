@@ -147,8 +147,10 @@ Every PR must test the logic it changes, which review checks.
   So does a shard whose test passed only on its retry: the failed attempt's screens and trees are the only evidence of the flake, and a green job dropped them.
   A pull request runs it only when it changes `src-tauri/apple/`, `src-tauri/gen/apple/`, `src-tauri/src/native/ios/`, a `screens/` folder, `src/renderer/src/phone/` or the scripts that run it (`scripts/ci/changed-code.sh`); every other run includes it.
 - CI runs on every pull request, every push to main, or when started by hand.
-  A pull request runs only the jobs its changed files need: `scripts/ci/changed-code.sh` says which paths need the web and the Rust jobs, and `scripts/ci/ui-plan.ts` picks the UI specs (docs/development.md, Targeted UI CI).
-  Documentation-only changes run only the format check and the policy and token tests (`pnpm test:policy`), which read the docs; a pull request without web changes runs `policy-check` instead of the web jobs: the format check, lint, the type check and all of Vitest, whose tests also read the Rust sources, migrations and capabilities.
+  A pull request runs only the jobs its changed files need: `scripts/ci/changed-code.sh` says which paths need the web and the Rust jobs, `scripts/ci/ui-plan.ts` picks the UI specs (docs/development.md, Targeted UI CI) and `scripts/ci/vitest-plan.ts` the Vitest files (docs/development.md, Targeted unit tests).
+  Lint, the type check, the generated-file checks, the builds and the test shards run in parallel jobs.
+  Documentation-only changes run the format check and the Vitest tests that read files, the policy and token tests among them; a pull request without web changes still runs lint, the type check and the Vitest its files need, which for a Rust change is all of it, since Vitest also reads the Rust sources, migrations and capabilities.
+  Main and manual runs run every Vitest file, and the shards are balanced by each file's time from main's last full run.
   Every job runs unless the change detection said it is not needed, so missing outputs run everything, and the three required gates always report.
   Pull-request runs cancel an older run for the same PR; main runs never cancel each other.
   Each UI shard uploads its Playwright results (traces of failed tests, and the JSON report the shard durations are refreshed from) as `playwright-results-<project>-<shard>` unless the run was cancelled.
