@@ -173,6 +173,7 @@ export const messages: Record<keyof typeof en, string> = {
   'aiEdit.reason.trialEnded': '试用期已结束，AI 需要 Devot 许可证。请在“设置 > 许可证”中添加。',
   'aiEdit.reason.noKey': '尚未设置 AI 服务商。请在“设置 > AI”中添加密钥。',
   'aiEdit.reason.cliMissing': '这台 Mac 上未安装所选的 AI 工具。请检查“设置 > AI”。',
+  'aiEdit.reason.checking': 'Devot 还在检查这台 Mac 上的 AI 工具，请稍后再试。',
   'aiEdit.reason.noModel': 'AI 服务商尚未设置模型。请在“设置 > AI”中选择。',
   'aiEdit.reason.auth': 'AI 服务商拒绝了密钥或需要登录。请检查“设置 > AI”。',
   'aiEdit.reason.rateLimited': 'AI 服务商正忙或已达到速率限制。请稍后再试。',

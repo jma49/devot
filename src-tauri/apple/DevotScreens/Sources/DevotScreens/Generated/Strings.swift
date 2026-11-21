@@ -662,6 +662,10 @@ public enum L10n {
     text("aiEdit.reason.cliMissing", "The selected AI tool is not installed on this Mac. Check Settings > AI.")
   }
 
+  public static func aiEditReasonChecking() -> String {
+    text("aiEdit.reason.checking", "Devot is still checking the AI tool on this Mac. Try again in a moment.")
+  }
+
   public static func aiEditReasonNoModel() -> String {
     text("aiEdit.reason.noModel", "The AI provider has no model set. Choose one in Settings > AI.")
   }

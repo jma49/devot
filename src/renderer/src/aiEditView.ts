@@ -11,6 +11,7 @@ const REASONS: Record<string, MessageKey> = {
   E_AI_KEY_MISSING: 'aiEdit.reason.noKey',
   E_AI_KEYCHAIN_UNAVAILABLE: 'aiEdit.reason.noKey',
   E_AI_CLI_MISSING: 'aiEdit.reason.cliMissing',
+  E_AI_CLI_CHECKING: 'aiEdit.reason.checking',
   E_AI_MODEL_MISSING: 'aiEdit.reason.noModel',
   E_AI_AUTH_FAILED: 'aiEdit.reason.auth',
   E_AI_RATE_LIMITED: 'aiEdit.reason.rateLimited',
