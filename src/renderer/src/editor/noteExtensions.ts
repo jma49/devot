@@ -292,8 +292,8 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
     editorCompletions({ chooseImageFiles: (target) => imageChooser(target) }),
     templateSlot.of(templateChip(refs.templateShown.current, refs.chooseTemplate)),
     ghostText({
-      suggest: (context, trigger) =>
-        refs.suggestions.current?.suggest(noteId, context, trigger) ??
+      suggest: (context, trigger, sent) =>
+        refs.suggestions.current?.suggest(noteId, context, trigger, sent) ??
         (trigger === 'key'
           ? Promise.reject(new Error('E_AI_ACCESS_DENIED'))
           : Promise.resolve(null)),
