@@ -12,6 +12,7 @@ import type { EditorSettings } from '../../../core/editorSettings'
 import { errorCode } from '../backups'
 import { logFailure } from '../failure'
 import { changeEditorSettings } from '../editorSettings'
+import { useSegmentSlide } from '../segmentSlide'
 import { format, t, type MessageKey } from '../i18n'
 
 /**
@@ -83,6 +84,50 @@ export function Select(props: ComponentProps<'select'>) {
         <Icon name="popup" size="sm" />
       </span>
     </span>
+  )
+}
+
+/** Two to four short choices that take effect at once, as segments rather than a pop-up. */
+export function SegmentChoice<V extends string>({
+  label,
+  describedBy,
+  value,
+  choices,
+  onChange,
+}: {
+  label: MessageKey
+  describedBy?: string | undefined
+  value: V
+  choices: readonly { value: V; label: string }[]
+  onChange: (value: V) => void
+}) {
+  const group = useRef<HTMLDivElement>(null)
+  useSegmentSlide(
+    group,
+    choices.findIndex((choice) => choice.value === value),
+  )
+  return (
+    <div
+      ref={group}
+      className="segmented"
+      role="group"
+      aria-label={t(label)}
+      aria-describedby={describedBy}
+    >
+      {choices.map((choice) => (
+        <button
+          key={choice.value}
+          type="button"
+          className="segment"
+          aria-pressed={choice.value === value}
+          onClick={() => {
+            if (choice.value !== value) onChange(choice.value)
+          }}
+        >
+          {choice.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
