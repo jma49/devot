@@ -57,7 +57,7 @@ import { errorCode } from '../../core/errors'
 import { noteCounts } from '../../core/noteCounts'
 import { noteFrontMatter, noteTally } from '../../core/noteFacts'
 import { createLivePreviewRenderer } from '../../core/preview/live'
-import { renderCardPreview, type CardLabels } from '../../core/preview/card'
+import type { CardLabels } from '../../core/preview/card'
 import { libraryWarmFeatures } from '../../core/preview/warmFeatures'
 import type { SyncEngine, SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent, TransportName } from '../../core/sync/transport'
@@ -308,6 +308,7 @@ const coreApi = {
   taskCounts: (ids: string[]) => required().taskCounts(ids),
   /** Gallery cards' thumbnails: the start of each body as a sanitized tree, by note ID. */
   cardPreviews: async (ids: string[], labels: CardLabels) => {
+    const { renderCardPreview } = await import('../../core/preview/card')
     const found: Record<string, RootContent[]> = {}
     for (const [id, markdown] of Object.entries(await required().cardExcerpts(ids))) {
       found[id] = (await renderCardPreview(markdown, labels)).children

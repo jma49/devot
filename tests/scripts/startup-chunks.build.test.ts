@@ -19,7 +19,7 @@ const EXTENSION_SETTINGS =
   /\/src\/renderer\/src\/(?:settings\/(?:HttpApiSection\.tsx|httpApi\.ts)|i18n\/(?:en|zh-Hans)\/browserExtensions\.ts)$/
 const VIM = /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@replit\/codemirror-vim\//
 const WORKER_LAZY =
-  /\/src\/(?:core\/(?:sync\/engine|mirror|import|htmlImport|export|htmlExport|ai|plugins\/(?:import|protocol))|renderer\/src\/importWorker)\.ts$/
+  /\/src\/(?:core\/(?:sync\/engine|mirror|import|htmlImport|export|htmlExport|ai|preview\/card|plugins\/(?:import|protocol))|renderer\/src\/importWorker)\.ts$/
 const IMPORT_UI = /\/src\/(?:core\/import(?:Tree|Layout)\.ts|renderer\/src\/ImportDialog\.tsx)$/
 
 interface Chunk {
@@ -123,7 +123,7 @@ it('the Settings window loads extension-registration controls and their messages
   ).toBe(true)
 })
 
-it('the core worker loads sync, the mirror, import, export and AI only when they are used', () => {
+it('the core worker loads sync, the mirror, import, export, AI and gallery cards only when they are used', () => {
   const chunks = eager(worker, 'core.worker')
   expect(modulesOf(chunks, WORKER_LAZY)).toEqual([])
   expect(modulesOf(chunks, BROWSER_ONLY)).toEqual([])
