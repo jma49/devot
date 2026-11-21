@@ -1,0 +1,59 @@
+# Devot
+
+> Local-first Markdown notes for Mac and iPhone: live preview, end-to-end encrypted sync, plugins, themes and MCP for AI tools.
+
+This file is the summary for agents reading the source repository.
+The public summary is [https://devot.online/llms.txt](https://devot.online/llms.txt).
+The product site is [https://devot.online](https://devot.online).
+
+Devot keeps notes in a SQLite database on the device.
+Writing, organising and searching work offline, with no Devot account.
+A 30-day trial unlocks every feature.
+After the trial, notes can still be read, searched by keyword, copied and exported.
+Editing, sync, semantic search and AI then need a licence.
+A licence bought once unlocks them on up to three devices at a time, in every version.
+The source is FSL-1.1-MIT.
+A build from source checks no licence.
+Each release becomes MIT two years after it is published.
+Versions up to v1.0.4 stay MIT.
+
+Prices recorded in [ADR 0014](https://github.com/jma49/devot/blob/main/docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md): the Mac licence on the website is US$29.90, and Devot Pro on the App Store is US$29.99.
+The owner should confirm both still match Stripe and App Store Connect before a directory quotes them.
+
+## Platforms
+
+- Mac: macOS 15 or later, Apple Silicon and Intel, one universal app. Signed and notarised builds are on [GitHub Releases](https://github.com/jma49/devot/releases/latest).
+- iPhone and iPad: the App Store build. iOS 26 or later. The iPad runs the same screens, in columns when the window is wide.
+- Languages in the app: English and Simplified Chinese.
+
+## What it does
+
+- Live preview of GitHub-flavoured Markdown, with code, math, Mermaid and PlantUML diagrams, and tables edited from the keyboard.
+- Nestable notebooks, coloured tags, note statuses, pinning, Trash, templates and today's note.
+- Full-text search, including words in attached images, on the device. Related by Meaning uses the system's on-device model.
+- Note links, backlinks and a graph.
+- End-to-end encrypted sync through the owner's iCloud, or through a relay the owner runs. Each note is sealed on the device before it leaves.
+- Share on Web: an encrypted, read-only page with an expiry. The key travels only in the link.
+- Plugins and themes on Mac. The iPhone can display plugin drawings synced from a Mac.
+- MCP on the Mac, inside Devot's own binary, for Claude Code, Codex, Claude Desktop and other clients. Only notebooks the owner marks Allow AI Access are visible.
+
+## Boundaries
+
+- Sync uses no Devot account, and Devot's sync path does not store note text on a Devot server.
+- MCP is not a hosted server. There is no public MCP URL.
+- The iPhone does not run plugins.
+- The Mac download is a Developer ID build from GitHub Releases.
+- A hosted relay for people who do not want to run one is not built.
+
+## Docs
+
+- [Product site](https://devot.online): the public pages.
+- [Docs](https://devot.online/docs): the published guide.
+- [AI tools guide](https://devot.online/docs/ai-tools): connecting an MCP client.
+- [README](https://github.com/jma49/devot/blob/main/README.md): features, download and MCP setup.
+- [Architecture](https://github.com/jma49/devot/blob/main/docs/architecture.md): boundaries and the spec index.
+- [Licences](https://github.com/jma49/devot/blob/main/docs/adr/0006-source-available-and-sold-once.md): trial, one-time licence and source licence.
+- [App Store products](https://github.com/jma49/devot/blob/main/docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md): Devot Pro, the trial product and the recorded prices.
+- [Brand facts](https://github.com/jma49/devot/blob/main/seo/kb/brand-ssot.md): the same facts, with sources.
+- [Performance baseline](https://github.com/jma49/devot/blob/main/docs/benchmarks/README.md): local measurements, with the machine and the load noted.
+- [Security](https://github.com/jma49/devot/blob/main/SECURITY.md): how to report a vulnerability.

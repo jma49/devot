@@ -1,0 +1,79 @@
+{
+  "product": {
+    "name": "Devot",
+    "slug": "devot",
+    "domain": "devot.online",
+    "url": "https://devot.online",
+    "pricing_url": "https://devot.online",
+    "contact_email": null,
+    "contact_page": "https://devot.online/support",
+    "privacy_url": "https://devot.online/privacy",
+    "terms_url": "https://devot.online/terms"
+  },
+  "copy": {
+    "tagline_40c": "Local-first notes on your devices",
+    "tagline_60c": "Local-first Markdown notes for Mac and iPhone",
+    "mcp_description_100c": "Search, read and edit Devot notes on this Mac, only in allowed notebooks.",
+    "awesome_list_bullet": "- [Devot](https://devot.online) - Local-first Markdown notes for Mac and iPhone, with a live preview, end-to-end encrypted sync, plugins, themes and MCP.",
+    "description_160c": "Local-first Markdown notes for Mac and iPhone, kept on the device, with a live preview, encrypted sync, plugins, themes and MCP.",
+    "description_500c": "Devot is a local-first Markdown notes app for Mac and iPhone. Notes stay in a SQLite database on the device. Writing, organising and searching work offline, with no Devot account. A live preview renders GitHub-flavoured Markdown, code, math and diagrams. Plugins and themes run on Mac. The iOS app is on the App Store and also runs on iPad.\n\nSync is end-to-end encrypted through the owner's iCloud or a relay the owner runs, and each note is sealed on the device before it leaves. MCP clients on the Mac can search, read and edit notes, only in notebooks the owner allows. A 30-day trial unlocks every feature. After it, notes can still be read, searched by keyword, copied and exported. A licence bought once unlocks editing, sync, semantic search and AI on up to three devices at a time, in every version. ADR 0014 records the website licence at US$29.90 and App Store Devot Pro at US$29.99. The Mac app is a signed, notarised download from GitHub Releases for macOS 15 or later. The source is FSL-1.1-MIT, and a build from source checks no licence.",
+    "key_features": [
+      "Live Markdown preview on Mac and iPhone, including code, math and diagrams.",
+      "End-to-end encrypted sync through iCloud or a relay the owner runs, with no Devot account.",
+      "MCP on the Mac for Claude Code, Codex and Claude Desktop, only in notebooks the owner allows.",
+      "A 30-day trial, then a one-time licence for up to three devices. On iOS the unlock is the Devot Pro in-app purchase."
+    ]
+  },
+  "taxonomy": {
+    "primary_category": "Notes",
+    "tags": [
+      "markdown",
+      "notes",
+      "local-first",
+      "macos",
+      "iphone",
+      "ipad",
+      "mcp",
+      "end-to-end-encryption"
+    ],
+    "competitors_replaced": [],
+    "pricing_model": "One-time purchase after a 30-day trial",
+    "starting_price_usd": null,
+    "prices_recorded_in_repo": {
+      "mac_licence_website_usd": 29.9,
+      "app_store_devot_pro_usd": 29.99,
+      "source": "docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md"
+    },
+    "free_tier_details": "A 30-day trial includes every feature. After it, notes can still be read, searched by keyword, copied and exported. A build from source checks no licence."
+  },
+  "assets": {
+    "favicon_64": "src-tauri/icons/64x64.png",
+    "logo_square_512": null,
+    "og_image_1200x630": null,
+    "screenshots_in_repo": [
+      "docs/images/hero.webp",
+      "docs/images/organise.webp",
+      "docs/images/write.webp",
+      "docs/images/find.webp"
+    ]
+  },
+  "agent_and_mcp": {
+    "mcp_endpoint": null,
+    "mcp_note": "MCP is a local bridge inside the Mac app, not a hosted server. README, Claude and other MCP clients.",
+    "github_repo": "https://github.com/jma49/devot"
+  },
+  "checked_on": "2026-11-21",
+  "public_pages_checked": [
+    "https://devot.online/support",
+    "https://devot.online/privacy",
+    "https://devot.online/terms"
+  ],
+  "todo": [
+    "TODO: contact_email is unknown. Directories need a role address the owner chooses.",
+    "TODO: confirm US$29.90 and US$29.99 still match Stripe and App Store Connect before submitting.",
+    "TODO: export a 512px logo, a 1200x630 image and 1280x800 screenshots. The screenshot paths are the README images, not those sizes.",
+    "TODO: no App Store URL is recorded in this repository.",
+    "TODO: competitors_replaced is empty. This repository does not name other note apps as a model.",
+    "TODO: support, privacy and terms URLs returned HTTP 200 on 2026-11-21 and are not named in the app source. Confirm they stay canonical."
+  ]
+}

@@ -9,6 +9,7 @@
 [![Latest release](https://img.shields.io/github/v/release/jma49/devot?label=release)](https://github.com/jma49/devot/releases)
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/license-FSL--1.1--MIT-blue)](LICENSE)
 [![Platform: macOS 15+, Apple Silicon and Intel](https://img.shields.io/badge/platform-macOS%2015%2B%20%C2%B7%20Apple%20Silicon%20%26%20Intel-lightgrey)](#download)
+[![devot.online](https://img.shields.io/badge/site-devot.online-black)](https://devot.online)
 [![CI](https://github.com/jma49/devot/actions/workflows/ci.yml/badge.svg)](https://github.com/jma49/devot/actions/workflows/ci.yml)
 
 [Website](https://devot.online) · [Docs](https://devot.online/docs) · [Download](#download) · [Features](#features) · [Plugins](#plugins-on-mac) · [AI tools](#claude-and-other-mcp-clients) · [Development](docs/development.md)
@@ -22,9 +23,14 @@
   </picture>
 </p>
 
+Local-first Markdown notes for Mac and iPhone: live preview, end-to-end encrypted sync, plugins, themes and MCP for AI tools.
+
 Devot keeps your notes in a SQLite database on your Mac or iPhone.
 Writing, organising and searching work offline without a Devot account.
 You choose whether to sync your notes, share a page on the web or use an AI provider.
+The product site is [devot.online](https://devot.online).
+The iOS app is on the App Store and also runs on iPad.
+The Mac app is a signed, notarised download for macOS 15 or later, on Apple Silicon and Intel.
 
 ## Download
 
@@ -32,7 +38,7 @@ You choose whether to sync your notes, share a page on the web or use an AI prov
 Current builds are signed and notarised, and require macOS 15 or later on Apple Silicon or Intel.
 Devot checks for updates automatically; use **Devot > Check for Updates…** to check now.
 
-**iPhone:** Devot is available in the App Store.
+**iPhone and iPad:** Devot is on the App Store. The iPad runs the same screens, in columns when the window is wide.
 
 ## Features
 
@@ -43,7 +49,7 @@ This list follows the current source; see the [release notes](https://github.com
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/organise-dark.webp">
-    <img src="docs/images/organise.webp" alt="Filing a note into a notebook from its header, changing its status and adding a tag.">
+    <img src="docs/images/organise.webp" alt="Devot: filing a note into a notebook from its header, changing its status and adding a tag.">
   </picture>
 </p>
 
@@ -59,7 +65,7 @@ This list follows the current source; see the [release notes](https://github.com
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/write-dark.webp">
-    <img src="docs/images/write.webp" alt="Typing a sentence with inline maths in the Markdown editor while the preview beside it renders the formula.">
+    <img src="docs/images/write.webp" alt="Devot: typing a sentence with inline maths in the Markdown editor while the live preview beside it renders the formula.">
   </picture>
 </p>
 
@@ -78,7 +84,7 @@ This list follows the current source; see the [release notes](https://github.com
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/find-dark.webp">
-    <img src="docs/images/find.webp" alt="Linking a note by typing two square brackets, then searching and opening the linked note, whose preview lists the note that links to it.">
+    <img src="docs/images/find.webp" alt="Devot: linking a note by typing two square brackets, then searching and opening the linked note, whose preview lists the note that links to it.">
   </picture>
 </p>
 
@@ -135,7 +141,7 @@ This list follows the current source; see the [release notes](https://github.com
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/cards-1-dark.webp">
-    <img src="docs/images/cards-1.webp" alt="Themes switching between Tide, Dawn and Sage, beside Focus Mode hiding the note list and bringing it back." width="100%">
+    <img src="docs/images/cards-1.webp" alt="Devot: themes switching between Tide, Dawn and Sage, beside Focus Mode hiding the note list and bringing it back." width="100%">
   </picture>
   <br><sub>Themes · Focus Mode</sub>
 </p>
@@ -143,7 +149,7 @@ This list follows the current source; see the [release notes](https://github.com
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/cards-2-dark.webp">
-    <img src="docs/images/cards-2.webp" alt="Tab moving between the cells of a Markdown table and adding a row, beside the command palette setting a note to Completed." width="100%">
+    <img src="docs/images/cards-2.webp" alt="Devot: Tab moving between the cells of a Markdown table and adding a row, beside the command palette setting a note to Completed." width="100%">
   </picture>
   <br><sub>Tables you edit with Tab · Command palette</sub>
 </p>
@@ -151,7 +157,7 @@ This list follows the current source; see the [release notes](https://github.com
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/cards-3-dark.webp">
-    <img src="docs/images/cards-3.webp" alt="Revision History restoring the earliest version of a note and undoing the restore, beside a new note made from the Daily standup template." width="100%">
+    <img src="docs/images/cards-3.webp" alt="Devot: Revision History restoring the earliest version of a note and undoing the restore, beside a new note made from the Daily standup template." width="100%">
   </picture>
   <br><sub>Revision History · Templates</sub>
 </p>
@@ -255,6 +261,7 @@ pnpm check    # everything CI runs
 ```
 
 How releases are made: [`docs/releasing.md`](docs/releasing.md). Architecture and decisions: [`docs/architecture.md`](docs/architecture.md), an overview that links a spec for each area in [`docs/specs/`](docs/specs/).
+How this repository describes Devot for search, directories and answer engines: [`llms.txt`](llms.txt) and [`seo/README.md`](seo/README.md).
 
 ## Contributing
 
