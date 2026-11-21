@@ -274,9 +274,9 @@ function OfferButton(props: { plugin: OfferedPlugin; busy: boolean; onFetch: () 
         </button>
       )
     case 'installed':
-      return <span className="setting-description">{t('plugins.catalogInstalled')}</span>
+      return <span className="plugin-offer-state">{t('plugins.catalogInstalled')}</span>
     case 'needsNewerApp':
-      return <span className="setting-description">{t('plugins.catalogNeedsApp')}</span>
+      return <span className="plugin-offer-state">{t('plugins.catalogNeedsApp')}</span>
   }
 }
 
@@ -566,6 +566,14 @@ export function PluginsSection() {
                         <Permissions list={p.granted} label="plugins.permissions" />
                       </div>
                       <div className="setting-control">
+                        <button
+                          type="button"
+                          className="button button-quiet"
+                          aria-label={format(t('plugins.removeLabel'), { name: m.name })}
+                          onClick={() => setRemoving(p)}
+                        >
+                          {t('plugins.remove')}
+                        </button>
                         <input
                           type="checkbox"
                           role="switch"
@@ -579,14 +587,6 @@ export function PluginsSection() {
                             )
                           }
                         />
-                        <button
-                          type="button"
-                          className="button"
-                          aria-label={format(t('plugins.removeLabel'), { name: m.name })}
-                          onClick={() => setRemoving(p)}
-                        >
-                          {t('plugins.remove')}
-                        </button>
                       </div>
                     </li>
                     {m.contributes.settings.length > 0 ? (

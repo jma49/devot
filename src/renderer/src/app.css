@@ -2154,10 +2154,12 @@ button {
 .list-empty-message {
   font-size: var(--font-size-title3);
   font-weight: var(--font-weight-semibold);
+  text-wrap: balance;
 }
 
 .list-empty-tip {
   font-size: var(--font-size-footnote);
+  text-wrap: balance;
 }
 
 .list-capped {
@@ -4653,11 +4655,13 @@ button.note-info-row:focus-visible {
   margin: 0 0 var(--space-2);
   overflow-wrap: anywhere;
   font-weight: var(--font-weight-semibold);
+  text-wrap: balance;
 }
 
 .confirm-detail {
   margin: 0 0 var(--space-7);
   color: var(--color-text-secondary);
+  text-wrap: pretty;
 }
 
 .client-state {
@@ -4732,17 +4736,40 @@ button.note-info-row:focus-visible {
   width: var(--size-icon-sm);
   height: var(--size-icon-sm);
   border-radius: var(--radius-mark);
-  background: var(--color-fill-control);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-footnote);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1;
+  box-shadow: inset 0 0 0 0.5px var(--color-line-hairline);
+}
+
+/* A provider's mark on its maker's colour, as the Settings sidebar's tiles: the same in every theme. */
+.provider-mark[data-provider='codexCli'] {
+  background: var(--color-icon-tile-codex);
+  color: var(--color-icon-tile-foreground);
+}
+
+.provider-mark[data-provider='claudeCli'] {
+  background: var(--color-icon-tile-claude-code);
+  color: var(--color-icon-tile-foreground);
+}
+
+.provider-mark[data-provider='anthropic'] {
+  background: var(--color-icon-tile-anthropic);
+  color: var(--color-icon-tile-foreground-contrast);
+}
+
+.provider-mark[data-provider='openai'] {
+  background: var(--color-icon-tile-openai);
+  color: var(--color-icon-tile-foreground-contrast);
+}
+
+.provider-mark svg {
+  width: 72%;
+  height: 72%;
+  fill: currentColor;
 }
 
 :is(.model-picker-rail, .ai-provider-row) .provider-mark {
   width: var(--size-provider-mark);
   height: var(--size-provider-mark);
-  font-size: var(--font-size-caption);
+  border-radius: var(--radius-settings-tile);
 }
 
 .ai-state-dot {
@@ -4982,7 +5009,8 @@ button.model-popup[aria-disabled='true'] {
   background: var(--color-fill-hover);
 }
 
-.ai-provider-row {
+/* .setting's wider gap would hold the name away from its mark. */
+.setting.ai-provider-row {
   gap: var(--space-5);
 }
 
@@ -5158,16 +5186,19 @@ button.model-popup[aria-disabled='true'] {
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-title3);
   font-weight: var(--font-weight-bold);
+  text-wrap: balance;
 }
 
 .sheet-detail {
   margin: 0 0 var(--space-6);
   color: var(--color-text-secondary);
+  text-wrap: pretty;
 }
 
 .sheet-error {
   margin: 0 0 var(--space-6);
   color: var(--color-status-dropped);
+  text-wrap: pretty;
 }
 
 .backup-list {
@@ -6170,6 +6201,7 @@ button.model-popup[aria-disabled='true'] {
 .notice-text {
   min-width: 0;
   margin-right: var(--space-4);
+  text-wrap: pretty;
 }
 
 .settings {
@@ -6529,6 +6561,7 @@ button.model-popup[aria-disabled='true'] {
 /* Prose in a card reads like a row's description. */
 .settings-section .settings-card > p {
   font-size: var(--font-size-caption);
+  text-wrap: pretty;
 }
 
 .settings-footnote {
@@ -6547,6 +6580,7 @@ button.model-popup[aria-disabled='true'] {
 
 .settings-footnote > span {
   line-height: var(--size-settings-footnote-line);
+  text-wrap: pretty;
 }
 
 .settings-footnote > :is(.icon, .icon-svg) {
@@ -7153,6 +7187,7 @@ button.model-popup[aria-disabled='true'] {
 .setting-description {
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
+  text-wrap: pretty;
 }
 
 .setting-control {
@@ -7303,6 +7338,7 @@ button.model-popup[aria-disabled='true'] {
   margin: 0 0 var(--space-7);
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
+  text-wrap: pretty;
 }
 
 /* A typed value in Settings: a capsule like the pop-ups beside it. */
@@ -8485,6 +8521,36 @@ button.popup:focus-visible {
   padding: var(--space-6) 0;
 }
 
+/* A plugin's name sets one line box, and its controls sit on one row centred on that line, whichever control a row has. */
+.plugin-row .setting-label {
+  line-height: var(--space-8);
+}
+
+.plugin-row .setting-control {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--size-settings-control);
+  margin-top: calc((var(--space-8) - var(--size-settings-control)) / 2);
+}
+
+/* Remove… is secondary to the switch beside it: a borderless label until the pointer is on it. */
+.settings-card .plugin-row .button-quiet {
+  padding: 0 var(--space-5);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.settings-card .plugin-row .button-quiet:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-fill-tool-hover);
+  color: var(--color-text-destructive);
+}
+
+.plugin-offer-state {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+}
+
 .plugin-settings {
   padding: 0 0 var(--space-6) var(--space-7);
 }
@@ -8498,6 +8564,7 @@ button.popup:focus-visible {
 .plugin-permissions {
   margin: 0;
   padding-left: var(--space-7);
+  list-style: disc;
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
 }
@@ -9666,6 +9733,7 @@ dialog[open].sheet.import {
   font-size: var(--font-size-caption);
   line-height: 1.4;
   text-align: center;
+  text-wrap: balance;
 }
 
 .empty-pane-card {

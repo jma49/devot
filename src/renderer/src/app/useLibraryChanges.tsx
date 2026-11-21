@@ -6,6 +6,8 @@ import { BatchNotice } from '../BatchNotice'
 import type { Core } from '../core-client'
 import { t } from '../i18n'
 import { saveEdits } from '../saveGuards'
+import { useStable } from '../stable'
+import { TrashNotice } from '../TrashNotice'
 import type { Selection } from '../Sidebar'
 import type { LibraryLists } from './useLibraryLists'
 import type { ViewState } from './useLibraryView'
@@ -34,6 +36,8 @@ export function useLibraryChanges({
   const { library, workspace, workspaceNode, setMulti, setMultiIn } = view
   const [renamingBook, setRenamingBook] = useState<string>()
   const [batchFailed, setBatchFailed] = useState<number>()
+  // Each trash replaces the last one's Undo; `round` restarts the notice's own timer.
+  const [trashed, setTrashed] = useState<{ ids: readonly string[]; round: number }>()
   /** Runs a notebook change, then reloads the lists; a refused change is logged by code and shown in a notice. */
   const changeBooks = async (change: (c: Core) => Promise<unknown>) => {
     if (!core) return
@@ -123,17 +127,34 @@ export function useLibraryChanges({
   const removeTagFromNotes = (ids: readonly string[], tagId: string) =>
     runBatch(ids, { kind: 'removeTag', tagId })
   const trashNotes = async (ids: readonly string[]) => {
-    await runBatch(ids, { kind: 'trash' })
+    setTrashed(undefined)
+    const failed = await batchFailures(ids, { kind: 'trash' })
     setSelected((open) => (open !== undefined && ids.includes(open) ? undefined : open))
     setMultiIn((m) => (m?.selection.ids.some((id) => ids.includes(id)) ? undefined : m))
+    const moved = ids.filter((id) => !failed.includes(id))
+    if (moved.length > 0) setTrashed((last) => ({ ids: moved, round: (last?.round ?? 0) + 1 }))
   }
   const restoreNotes = async (ids: readonly string[]) => {
     await runBatch(ids, { kind: 'restore' })
     setSelected(undefined)
     setMulti(undefined)
   }
+  const undoTrash = async (ids: readonly string[]) => {
+    setTrashed(undefined)
+    const failed = await batchFailures(ids, { kind: 'restore' })
+    const [only] = ids
+    if (ids.length === 1 && only !== undefined && failed.length === 0) setSelected(only)
+  }
+  const dismissTrashed = useStable(() => setTrashed(undefined))
   const batchNotice = batchFailed ? (
     <BatchNotice failed={batchFailed} onDismiss={() => setBatchFailed(undefined)} />
+  ) : trashed ? (
+    <TrashNotice
+      key={trashed.round}
+      count={trashed.ids.length}
+      onUndo={() => void undoTrash(trashed.ids)}
+      onDismiss={dismissTrashed}
+    />
   ) : null
 
   return {

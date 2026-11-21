@@ -25,6 +25,8 @@ Motion never carries meaning alone: the final state must say everything without 
 Native menus and other system-drawn things keep the system's motion.
 
 A line that says something is loading (Settings > Usage, a pasted link's fetched title) holds back for `motion.delay.pending`, then fades in over `motion.duration.quick` (rule 2), so an answer that comes sooner never flashes it.
+Moving notes to the Trash on the Mac shows a notice with Undo in the notices' corner, with the notices' own motion (rule 3); it stays `motion.duration.notice-undo` while the pointer and the keyboard are elsewhere, and a later move replaces its count at once (rule 2).
+Undo puts the notes back at once and opens the note when there was one (rule 2).
 Plugin import completion and skipped-item counts replace the notice text at once (rule 2), without movement.
 Show Skipped opens a modal results sheet with the dialog motion (rule 3); choosing its note closes the sheet and selects the note without moving the content (rule 2).
 
