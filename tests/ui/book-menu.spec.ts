@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, bookPicker, openApp } from './fixtures'
+import { expect, pickMenuItem, shownMenu, test, bookPicker, openApp, reloadApp } from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -407,6 +407,53 @@ test('Move Notebook opens a dialog that lists the tree, disables the notebook an
   await pickMenuItem(page, 'Move Notebook…')
   await dialog.getByRole('option', { name: 'Home' }).click()
   await expect(dialog).toHaveCount(0)
+})
+
+/** What Settings' Choose… asks Rust for, which then tells the frontmost main window. */
+const askFromSettings = (page: Page) =>
+  page.evaluate(() => {
+    window.devotAiAccessAsked = true
+    window.dispatchEvent(new CustomEvent('devot:choose-ai-access'))
+  })
+
+test('Choose… in Settings opens the picker in the main window, once per ask', async ({ page }) => {
+  await setUp(page)
+  const picker = page.getByRole('dialog', { name: 'Allow AI Access' })
+  await askFromSettings(page)
+  await expect(picker).toBeVisible()
+  await expect(picker.getByRole('checkbox')).toHaveCount(3)
+  await picker.getByRole('button', { name: 'Cancel' }).click()
+  await expect(picker).toHaveCount(0)
+  // Rust brings Settings back to the front, as it asked for the picker.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.devotIpcCalls.filter((c) => c.cmd === 'ai_access_picker_closed').length,
+      ),
+    )
+    .toBe(1)
+
+  // An event whose ask another main window took opens nothing here.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('devot:choose-ai-access')))
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.devotIpcCalls.filter((c) => c.cmd === 'ai_access_picker_take').length,
+      ),
+    )
+    .toBeGreaterThan(2)
+  await expect(picker).toHaveCount(0)
+})
+
+test('a main window that opens after Settings asked shows the picker once it is ready', async ({
+  page,
+}) => {
+  await setUp(page)
+  await page.addInitScript(() => {
+    window.devotAiAccessAsked = true
+  })
+  await reloadApp(page)
+  await expect(page.getByRole('dialog', { name: 'Allow AI Access' })).toBeVisible()
 })
 
 test('turns Allow AI Access on for several notebooks at once, with Undo', async ({ page }) => {

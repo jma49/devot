@@ -378,6 +378,8 @@ export function App() {
     inTrash,
     applyToOpenNote,
     openNote: (id) => void select(id),
+    allowAiAccess: aiAccess.allow,
+    chooseNotebooks: aiAccess.pick,
   })
   useCliAppend(core, refresh, applyToOpenNote, dailySettings)
   const historyBar = useHistoryBar({

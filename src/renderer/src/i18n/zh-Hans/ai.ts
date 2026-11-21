@@ -165,6 +165,9 @@ export const messages: Record<keyof typeof en, string> = {
   'aiEdit.discard': '放弃',
   'aiEdit.cancel': '取消',
   'aiEdit.close': '关闭',
+  'aiEdit.allowAccess': '允许 AI 访问',
+  'aiEdit.reason.accessOff':
+    '这条笔记所在的笔记本还没有允许 AI 访问。允许后即可用 AI 编辑所选内容；之后也可以在笔记本的菜单中关闭。',
   'aiEdit.reason.access':
     'AI 只能使用开启了“允许 AI 访问”的笔记本中的笔记。请在笔记本的菜单中打开它。',
   'aiEdit.reason.licence': 'AI 需要 Devot 许可证。请在“设置 > 许可证”中添加。',
@@ -207,9 +210,9 @@ export const messages: Record<keyof typeof en, string> = {
   'askNotes.again': '再问一个',
   'askNotes.retry': '重试',
   'askNotes.close': '关闭',
+  'askNotes.chooseNotebooks': '选择笔记本…',
   'askNotes.untitled': '无标题',
-  'askNotes.reason.access':
-    '还没有笔记本允许 AI 访问。请在笔记本的右键菜单中，为可供“问问笔记”读取的笔记本打开“允许 AI 访问”。',
+  'askNotes.reason.access': '还没有笔记本允许 AI 访问。请选择“问问笔记”可以读取的笔记本。',
   'askNotes.reason.noSources': '允许 AI 访问的笔记本中没有与问题相关的笔记。换个说法试试。',
   'askNotes.reason.other': '无法回答这个问题。',
 }

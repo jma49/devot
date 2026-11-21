@@ -306,8 +306,10 @@ test('a custom instruction takes several lines: Shift+Return breaks the line, Re
   expect(request!.messages[0]!.content).toMatch(/^Shout it\nKeep it short\nNo emoji\n\n<selection>/)
 })
 
-test('sends nothing from a notebook without AI access, and says why', async ({ page }) => {
-  await fakeProvider(page, [])
+test('sends nothing from a notebook without AI access, and allows it in one step', async ({
+  page,
+}) => {
+  await fakeProvider(page, ['Plans, kept short.'])
   await page.reload()
   await notebook(page, 'Private', false)
   await note(page, 'secret plans')
@@ -315,12 +317,35 @@ test('sends nothing from a notebook without AI access, and says why', async ({ p
 
   await fromToolbar(page, 'Summarize')
   await expect(sheet(page).getByRole('alert')).toHaveText(
-    'AI can only use notes in a notebook with Allow AI Access on. Turn it on in the notebook’s menu.',
+    'This note\u2019s notebook does not allow AI access yet. Allow it to edit the selection with AI; you can turn it off again from the notebook\u2019s menu.',
   )
   await expect(sheet(page).getByRole('button', { name: 'Try Again' })).toHaveCount(0)
   expect(await requests(page)).toEqual([])
+
+  await sheet(page).getByRole('button', { name: 'Allow AI Access' }).click()
+  await expect(sheet(page).getByRole('region', { name: 'Proposed changes' })).toContainText(
+    'Plans, kept short.',
+  )
+  expect(await requests(page)).toHaveLength(1)
+  await expect(bookRow(page, 'Private').getByRole('img', { name: 'AI access on' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'now allows AI access' })).toContainText(
+    '1 notebook now allows AI access.',
+  )
+})
+
+test('closes on Escape when AI access is off, and sends nothing', async ({ page }) => {
+  await fakeProvider(page, [])
+  await page.reload()
+  await notebook(page, 'Private', false)
+  await note(page, 'secret plans')
+  await selectLine(page, 0)
+
+  await fromToolbar(page, 'Summarize')
+  await expect(sheet(page).getByRole('button', { name: 'Allow AI Access' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(sheet(page)).toBeHidden()
+  expect(await requests(page)).toEqual([])
+  await expect(bookRow(page, 'Private').getByRole('img', { name: 'AI access on' })).toHaveCount(0)
 })
 
 test('asks again after a failure that may pass', async ({ page }) => {

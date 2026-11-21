@@ -164,7 +164,8 @@ title: 日报 {{date}}
   'mirror.readBackHint':
     '在其他应用中修改的文件会回到对应的笔记里。如果笔记在 Devot 中也改过，Devot 会保留自己的版本，并以新名称保留这个文件。',
   'mirror.includeAttachments': '包括附件',
-  'mirror.includeAttachmentsHint': '关闭时，图片仍链接到附件文件夹，但不会在那里写入副本。',
+  'mirror.includeAttachmentsHint':
+    '把图片等附件复制到镜像文件夹中。关闭时，图片仍链接到附件文件夹，但不会在那里写入副本。',
   'mirror.size': '占用空间：{size}',
   'mirror.paused': '镜像已暂停。文件夹可以再次写入后会自动恢复。',
   'mirror.pausedMissing': '镜像已暂停：找不到它的文件夹。文件夹回来后会自动恢复。',

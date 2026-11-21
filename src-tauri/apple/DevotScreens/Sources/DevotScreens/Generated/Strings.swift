@@ -638,6 +638,14 @@ public enum L10n {
     text("aiEdit.close", "Close")
   }
 
+  public static func aiEditAllowAccess() -> String {
+    text("aiEdit.allowAccess", "Allow AI Access")
+  }
+
+  public static func aiEditReasonAccessOff() -> String {
+    text("aiEdit.reason.accessOff", "This note’s notebook does not allow AI access yet. Allow it to edit the selection with AI; you can turn it off again from the notebook’s menu.")
+  }
+
   public static func aiEditReasonAccess() -> String {
     text("aiEdit.reason.access", "AI can only use notes in a notebook with Allow AI Access on. Turn it on in the notebook’s menu.")
   }
@@ -794,12 +802,16 @@ public enum L10n {
     text("askNotes.close", "Close")
   }
 
+  public static func askNotesChooseNotebooks() -> String {
+    text("askNotes.chooseNotebooks", "Choose Notebooks…")
+  }
+
   public static func askNotesUntitled() -> String {
     text("askNotes.untitled", "Untitled")
   }
 
   public static func askNotesReasonAccess() -> String {
-    text("askNotes.reason.access", "No notebook allows AI access yet. Turn on Allow AI Access for the notebooks Ask Your Notes may read, from a notebook’s context menu.")
+    text("askNotes.reason.access", "No notebook allows AI access yet. Choose the notebooks Ask Your Notes may read.")
   }
 
   public static func askNotesReasonNoSources() -> String {
@@ -3299,7 +3311,7 @@ public enum L10n {
   }
 
   public static func mirrorIncludeAttachmentsHint() -> String {
-    text("mirror.includeAttachmentsHint", "Off, images still link to the attachments folder, but no copies are written there.")
+    text("mirror.includeAttachmentsHint", "Copies images and other attachments into the mirror folder. When off, images still link to the attachments folder, but no copies are written there.")
   }
 
   public static func mirrorSize(size p0: String) -> String {
