@@ -4650,6 +4650,10 @@ public enum L10n {
     text("integrations.confirmAccessOn", "This turns on Allow AI Tools. Notebooks stay closed to AI until you allow them yourself.")
   }
 
+  public static func integrationsConfirmProcess(client p0: String) -> String {
+    fill(text("integrations.confirmProcess", "While {client} is open, it keeps a small Devot process (devot --cli mcp) running to reach your notes. It ends when {client} quits or you disconnect it here."), ["client": p0])
+  }
+
   public static func integrationsConfirmBackground(client p0: String) -> String {
     fill(text("integrations.confirmBackground", "When {client} asks and Devot is not open, Devot may start in the background with no window. You can quit it from its menu bar icon, and turn this off under AI Tools."), ["client": p0])
   }

@@ -48,6 +48,8 @@ export const messages: Record<keyof typeof en, string> = {
     '{client} 运行时可能随时重写这个文件：请先退出它。如果文件在显示这段内容之后发生了变化，Devot 不会改动它。',
   'integrations.confirmAccessOn':
     '这会打开“允许 AI 工具”。在你亲自允许之前，笔记本对 AI 保持关闭。',
+  'integrations.confirmProcess':
+    '{client} 打开期间，会一直运行一个小的 Devot 进程（devot --cli mcp）来读取你的笔记。{client} 退出或你在这里断开连接后，它就会结束。',
   'integrations.confirmBackground':
     '当 {client} 发出请求而 Devot 没有打开时，Devot 可能会在后台启动，不显示窗口。你可以从它的菜单栏图标退出，也可以在“AI 工具”中关闭这项功能。',
   'integrations.confirmDisconnect': '断开 {client} 的连接？',

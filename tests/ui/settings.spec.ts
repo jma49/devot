@@ -338,7 +338,11 @@ test('Connect shows what it will write and where, and writes only once confirmed
   await expect(dialog.locator('code')).toHaveText(CODEX_PREVIEW)
   await expect(dialog).toContainText('If Codex is running it may rewrite this file at any time')
   await expect(dialog).toContainText('This turns on Allow AI Tools.')
-  await expect(dialog).toContainText('Devot may start in the background with no window')
+  await expect(dialog).toContainText(
+    'While Codex is open, it keeps a small Devot process (devot --cli mcp) running to reach your notes. It ends when Codex quits or you disconnect it here.',
+  )
+  // Start in the Background is off until the owner turns it on, so Connect never promises it.
+  await expect(dialog).not.toContainText('Devot may start in the background')
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(dialog).toHaveCount(0)
   expect(await calls(page, 'settings_mcp_connect')).toEqual([])
@@ -607,6 +611,14 @@ test('AI Tools says plainly, before any Connect, that Devot may start in the bac
   const before = await aiTools.boundingBox()
   const client = await page.getByRole('region', { name: 'Clients' }).boundingBox()
   expect(before!.y).toBeLessThan(client!.y)
+})
+
+test('Start in the Background is off on a Devot whose owner never turned it on', async ({
+  page,
+}) => {
+  await openSettings(page, 'Integrations')
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  await expect(aiTools.getByRole('switch', { name: 'Start in the Background' })).not.toBeChecked()
 })
 
 test('Notebooks in AI Tools opens the notebook picker in the main window', async ({ page }) => {

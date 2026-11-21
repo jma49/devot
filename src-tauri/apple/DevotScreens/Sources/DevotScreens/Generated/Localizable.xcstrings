@@ -17749,6 +17749,23 @@
         }
       }
     },
+    "integrations.confirmProcess" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While {client} is open, it keeps a small Devot process (devot --cli mcp) running to reach your notes. It ends when {client} quits or you disconnect it here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{client} 打开期间，会一直运行一个小的 Devot 进程（devot --cli mcp）来读取你的笔记。{client} 退出或你在这里断开连接后，它就会结束。"
+          }
+        }
+      }
+    },
     "integrations.confirmRunning" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -134,10 +134,10 @@ function HandSetup(props: { setup: McpSetup; copy: (title: MessageKey, text: str
 
 type Pending = { action: 'connect' | 'disconnect'; title: MessageKey; status: McpClientStatus }
 
-const CAN_START_IN_BACKGROUND: McpAccessView = {
+const ACCESS_OFF: McpAccessView = {
   enabled: false,
   scope: 'readWrite',
-  backgroundStart: true,
+  backgroundStart: false,
   reachable: false,
   problem: null,
 }
@@ -197,6 +197,9 @@ function ConfirmChange(props: {
       {connecting && !props.access.enabled ? (
         <p className="confirm-detail">{t('integrations.confirmAccessOn')}</p>
       ) : null}
+      {connecting ? (
+        <p className="confirm-detail">{format(t('integrations.confirmProcess'), { client })}</p>
+      ) : null}
       {connecting && props.access.backgroundStart ? (
         <p className="confirm-detail">{format(t('integrations.confirmBackground'), { client })}</p>
       ) : null}
@@ -224,7 +227,7 @@ export function IntegrationsSection() {
   const [pending, setPending] = useState<Pending>()
   const [busy, setBusy] = useState(false)
   const [setupVersion, setSetupVersion] = useState(0)
-  const [access, setAccess] = useState<McpAccessView>(CAN_START_IN_BACKGROUND)
+  const [access, setAccess] = useState<McpAccessView>(ACCESS_OFF)
   // Connecting turns access on in Rust: the section reads it again.
   const [accessChanged, setAccessChanged] = useState(0)
   useEffect(() => {

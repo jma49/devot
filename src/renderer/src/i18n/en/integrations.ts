@@ -48,6 +48,8 @@ export const messages = {
     'If {client} is running it may rewrite this file at any time: quit it first. Devot leaves the file alone if it changed since this was shown.',
   'integrations.confirmAccessOn':
     'This turns on Allow AI Tools. Notebooks stay closed to AI until you allow them yourself.',
+  'integrations.confirmProcess':
+    'While {client} is open, it keeps a small Devot process (devot --cli mcp) running to reach your notes. It ends when {client} quits or you disconnect it here.',
   'integrations.confirmBackground':
     'When {client} asks and Devot is not open, Devot may start in the background with no window. You can quit it from its menu bar icon, and turn this off under AI Tools.',
   'integrations.confirmDisconnect': 'Disconnect {client}?',

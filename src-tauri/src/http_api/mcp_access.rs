@@ -3,6 +3,8 @@
 //! apart from the local HTTP API's settings: the bridge has a token of its own, so turning MCP on
 //! never turns on the HTTP API or lets its token in.
 //! The bridge reads this file itself before it starts anything; it holds nothing secret.
+//! Background starts are kept under `backgroundStartAllowed`, which only the owner's own switch writes:
+//! the `backgroundStart` key of earlier versions held a default that was on, so it is ignored.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -13,6 +15,7 @@ use serde_json::Value;
 use super::token::Scope;
 
 pub const FILE: &str = "mcp-access.json";
+const BACKGROUND_START_KEY: &str = "backgroundStartAllowed";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -24,18 +27,19 @@ pub struct McpAccess {
 
 impl Default for McpAccess {
     /// Off until the user connects a client or turns it on. Notebooks stay closed to AI on their own
-    /// switch, and what a connected client may do there is what MCP has always let it do.
+    /// switch, and what a connected client may do there is what MCP has always let it do. Devot never
+    /// starts in the background until the owner turns that on.
     fn default() -> Self {
         Self {
             enabled: false,
             scope: Scope::ReadWrite,
-            background_start: true,
+            background_start: false,
         }
     }
 }
 
 impl McpAccess {
-    /// On only when the file says exactly so; background starts stop when it says exactly so.
+    /// On only when the file says exactly so, background starts too.
     fn lenient(value: &Value) -> Self {
         let defaults = Self::default();
         Self {
@@ -44,7 +48,8 @@ impl McpAccess {
                 .get("scope")
                 .and_then(|scope| serde_json::from_value(scope.clone()).ok())
                 .unwrap_or(defaults.scope),
-            background_start: value.get("backgroundStart").and_then(Value::as_bool) != Some(false),
+            background_start: value.get(BACKGROUND_START_KEY).and_then(Value::as_bool)
+                == Some(true),
         }
     }
 
@@ -76,7 +81,12 @@ impl McpAccessStore {
 
     pub fn set(&self, access: McpAccess) -> Result<McpAccess, &'static str> {
         let _writing = self.write.lock().map_err(|_| "E_MCP_ACCESS_WRITE_FAILED")?;
-        let json = serde_json::to_vec_pretty(&access).map_err(|_| "E_MCP_ACCESS_WRITE_FAILED")?;
+        let stored = serde_json::json!({
+            "enabled": access.enabled,
+            "scope": access.scope,
+            BACKGROUND_START_KEY: access.background_start,
+        });
+        let json = serde_json::to_vec_pretty(&stored).map_err(|_| "E_MCP_ACCESS_WRITE_FAILED")?;
         crate::atomic_file::write_replacing(&self.path, &json)
             .map_err(|_| "E_MCP_ACCESS_WRITE_FAILED")?;
         Ok(access)
@@ -94,11 +104,39 @@ mod tests {
     }
 
     #[test]
-    fn starts_off_with_background_starts_allowed() {
+    fn starts_off_with_background_starts_off() {
         let (_dir, store) = store();
         assert_eq!(store.get(), McpAccess::default());
         assert!(!store.get().enabled);
-        assert!(store.get().background_start);
+        assert!(!store.get().background_start);
+    }
+
+    #[test]
+    fn an_earlier_versions_background_start_is_not_taken_as_the_owners_choice() {
+        let (dir, store) = store();
+        std::fs::write(
+            dir.path().join(FILE),
+            r#"{"enabled":true,"scope":"readWrite","backgroundStart":true}"#,
+        )
+        .unwrap();
+        assert!(store.get().enabled);
+        assert!(!store.get().background_start);
+    }
+
+    #[test]
+    fn a_background_start_the_owner_turned_on_is_kept() {
+        let (dir, store) = store();
+        let wanted = McpAccess {
+            enabled: true,
+            scope: Scope::ReadWrite,
+            background_start: true,
+        };
+        store.set(wanted).unwrap();
+        let file: Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join(FILE)).unwrap()).unwrap();
+        assert_eq!(file["backgroundStartAllowed"], Value::Bool(true));
+        assert_eq!(file.get("backgroundStart"), None);
+        assert_eq!(store.get(), wanted);
     }
 
     #[test]
@@ -114,11 +152,11 @@ mod tests {
     }
 
     #[test]
-    fn reading_stays_off_and_keeps_starts_unless_the_file_says_exactly_otherwise() {
+    fn reading_stays_off_unless_the_file_says_exactly_otherwise() {
         let (dir, store) = store();
         std::fs::write(
             dir.path().join(FILE),
-            r#"{"enabled":"yes","scope":"admin","backgroundStart":0,"extra":1}"#,
+            r#"{"enabled":"yes","scope":"admin","backgroundStartAllowed":1,"extra":1}"#,
         )
         .unwrap();
         assert_eq!(store.get(), McpAccess::default());
@@ -126,7 +164,7 @@ mod tests {
         assert_eq!(store.get(), McpAccess::default());
         std::fs::write(
             dir.path().join(FILE),
-            r#"{"enabled":true,"scope":"read","backgroundStart":false}"#,
+            r#"{"enabled":true,"scope":"read","backgroundStartAllowed":true}"#,
         )
         .unwrap();
         assert_eq!(
@@ -134,7 +172,7 @@ mod tests {
             McpAccess {
                 enabled: true,
                 scope: Scope::Read,
-                background_start: false
+                background_start: true
             }
         );
     }
