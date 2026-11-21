@@ -17,6 +17,7 @@ import { useKeymap } from '../commands/shortcutSettings'
 import { countsStore, LiveCountsFooter } from '../CountsFooter'
 import { onRestoreElsewhere } from '../backups'
 import { startCore, stopCore, type Core } from '../core-client'
+import { displayTitle, useHeadlines } from '../headlines'
 import { useAlertMenu } from '../editor/alertMenu'
 import { DB_CHANGED, notesLoaded, useExternalChanges } from '../externalChanges'
 import type { FindTarget } from '../find/target'
@@ -128,6 +129,15 @@ export function NoteWindow() {
   const [quickTagOpen, setQuickTagOpen] = useState(false)
   const [mode, setMode] = useState<Mode>(currentDefaultMode)
   const [openText] = useState(() => textStore())
+  const loadHeadlines = useMemo(
+    () => (core ? (ids: string[]) => core.headlines(ids) : undefined),
+    [core],
+  )
+  const untitled = useMemo(
+    () => (noteSummary && title === '' ? [noteSummary] : []),
+    [noteSummary, title],
+  )
+  const headline = useHeadlines(loadHeadlines, untitled).get(noteSummary?.id ?? '')
   const editorRef = useRef<EditorHandle | null>(null)
   const tagInputRef = useRef<HTMLInputElement>(null)
   const panesRef = useRef<HTMLDivElement>(null)
@@ -455,7 +465,7 @@ export function NoteWindow() {
             <input
               className="title"
               aria-label={t('note.titleLabel')}
-              placeholder={t('note.untitled')}
+              placeholder={displayTitle('', headline)}
               value={title}
               readOnly={readOnly}
               onChange={(e) => rename(e.target.value)}

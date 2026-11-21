@@ -30,6 +30,8 @@ export interface GhostSource {
   suggest(
     context: { before: string; after: string },
     trigger: SuggestTrigger,
+    /** The request left: the caret shows it is waiting until the answer or a change drops it. */
+    sent: () => void,
   ): Promise<string | null>
   cancel(): void
   /** The user asked (the key) and got no suggestion. */
@@ -65,6 +67,45 @@ export const ghostField = StateField.define<Ghost | null>({
         : Decoration.none,
     ),
 })
+
+const setWaiting = StateEffect.define<number | null>()
+
+/** Where a sent request will put its suggestion, while it is on its way; a change of the note or the caret drops it. */
+export const waitingField = StateField.define<number | null>({
+  create: () => null,
+  update(at, tr) {
+    for (const effect of tr.effects)
+      if (effect.is(setWaiting) || effect.is(setGhost))
+        at = effect.is(setWaiting) ? effect.value : null
+    return tr.docChanged || tr.selection ? null : at
+  },
+  provide: (field) =>
+    EditorView.decorations.from(field, (at): DecorationSet =>
+      at === null
+        ? Decoration.none
+        : Decoration.set([Decoration.widget({ widget: waitingWidget, side: 1 }).range(at)]),
+    ),
+})
+
+/** Three dots after the caret, drawn rather than typed so they never read as text of the note. */
+class WaitingWidget extends WidgetType {
+  override eq(): boolean {
+    return true
+  }
+
+  override toDOM(): HTMLElement {
+    const el = document.createElement('span')
+    el.className = 'cm-ghost-waiting'
+    el.setAttribute('aria-hidden', 'true')
+    return el
+  }
+
+  override ignoreEvent(): boolean {
+    return true
+  }
+}
+
+const waitingWidget = new WaitingWidget()
 
 class GhostWidget extends WidgetType {
   constructor(readonly text: string) {
@@ -158,12 +199,18 @@ class GhostRequests {
     const settle = () => {
       if (mine !== this.token) return false
       this.pending = null
+      if (this.view.state.field(waitingField, false) !== null)
+        this.view.dispatch({ effects: setWaiting.of(null) })
       return true
+    }
+    const sent = () => {
+      if (mine === this.token) this.view.dispatch({ effects: setWaiting.of(caret) })
     }
     source
       .suggest(
         suggestContext((from, to) => doc.sliceString(from, to), doc.length, caret),
         trigger,
+        sent,
       )
       .then(
         (text) => {
@@ -204,7 +251,8 @@ function dismiss(view: EditorView): boolean {
   const waiting = plugin?.waitingFor ?? null
   if (!shown && !waiting) return false
   plugin?.stop()
-  if (shown) view.dispatch({ effects: setGhost.of(null) })
+  if (shown || view.state.field(waitingField, false) !== null)
+    view.dispatch({ effects: [setGhost.of(null), setWaiting.of(null)] })
   return !!shown || waiting === 'key'
 }
 
@@ -240,14 +288,33 @@ export function suggestAt(view: EditorView): boolean {
   return view.plugin(requests)?.request('key') ?? false
 }
 
+const DOT = 'radial-gradient(circle closest-side, var(--color-text-tertiary) 90%, transparent 100%)'
+
 const theme = EditorView.theme({
   '.cm-ghost-text': {
     color: 'var(--color-text-tertiary)',
     whiteSpace: 'pre-wrap',
     pointerEvents: 'none',
   },
+  // Static, so it reads as a state (design/motion.md, rule 2), in the ghost text's own colour.
+  '.cm-ghost-waiting': {
+    display: 'inline-block',
+    boxSizing: 'content-box',
+    width: '1.1em',
+    // A text's height, so the caret beside it keeps its own; the dots sit on the baseline.
+    height: '1em',
+    // The caret is drawn at the box's start: the padding keeps it clear of the first dot.
+    paddingInlineStart: '0.3em',
+    verticalAlign: '-0.2em',
+    pointerEvents: 'none',
+    backgroundImage: Array(3).fill(DOT).join(', '),
+    backgroundOrigin: 'content-box',
+    backgroundPosition: 'left bottom 0.2em, center bottom 0.2em, right bottom 0.2em',
+    backgroundSize: '0.3em 0.3em',
+    backgroundRepeat: 'no-repeat',
+  },
 })
 
 export function ghostText(source: GhostSource): Extension {
-  return [ghostSource.of(source), ghostField, requests, keys, triggerKeys(), theme]
+  return [ghostSource.of(source), ghostField, waitingField, requests, keys, triggerKeys(), theme]
 }
