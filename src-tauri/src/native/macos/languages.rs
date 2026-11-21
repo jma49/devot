@@ -9,7 +9,8 @@ const GLOBAL_DOMAIN: &str = "NSGlobalDomain";
 
 /// None while the app follows the system's languages.
 pub fn app_languages() -> Option<Vec<String>> {
-    languages_in(&NSBundle::mainBundle().bundleIdentifier()?)
+    let id = NSBundle::mainBundle().bundleIdentifier()?;
+    languages_in(&id)
 }
 
 /// The languages set in System Settings, read afresh: the process's own list
