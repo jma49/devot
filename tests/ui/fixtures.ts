@@ -204,7 +204,7 @@ export async function mockTauri(page: Page): Promise<void> {
             return {
               enabled: false,
               scope: 'readWrite',
-              backgroundStart: true,
+              backgroundStart: false,
               reachable: false,
               problem: null,
             }

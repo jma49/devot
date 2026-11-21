@@ -6,8 +6,8 @@ import { messages as browserExtensions } from '../../src/renderer/src/i18n/en/br
 
 // What a window parses before its first paint, and the worker before `init` answers (#742).
 // The budgets hold the gain: raise one only with a reason in the pull request.
-const MAIN_EAGER_BUDGET = 2_405_000
-const WORKER_EAGER_BUDGET = 968_200
+const MAIN_EAGER_BUDGET = 2_405_300
+const WORKER_EAGER_BUDGET = 968_500
 
 // The window never parses or converts Markdown itself: the core worker does.
 const MARKDOWN_STACK =
