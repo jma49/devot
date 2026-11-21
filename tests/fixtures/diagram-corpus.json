@@ -1,0 +1,209 @@
+[
+  {
+    "name": "flowchart",
+    "kind": "mermaid",
+    "source": "flowchart LR\n  A[Idea] --> B[Draft]\n  B -->|changes| C[Review]"
+  },
+  {
+    "name": "bidirectional-flowchart",
+    "kind": "mermaid",
+    "source": "flowchart LR; A <--> B"
+  },
+  {
+    "name": "class-relationships",
+    "kind": "mermaid",
+    "source": "classDiagram\n  Animal <|-- Duck\n  Car *-- Wheel\n  Team o-- Player"
+  },
+  {
+    "name": "accessible-flowchart",
+    "kind": "mermaid",
+    "source": "flowchart TD\n  accTitle: Release steps\n  accDescr: Capture and review\n  A --> B"
+  },
+  {
+    "name": "sequence",
+    "kind": "mermaid",
+    "source": "sequenceDiagram\n  Alice->>Bob: Hello\n  Bob-->>Alice: Hi"
+  },
+  {
+    "name": "gantt",
+    "kind": "mermaid",
+    "source": "gantt\n  title Plan\n  dateFormat YYYY-MM-DD\n  section Design\n  Study :done, a1, 2026-01-01, 12d\n  Tokens :active, a2, 2026-01-13, 12d\n  section Build\n  Code :b1, 2026-01-25, 12d\n  Check :crit, b2, 2026-02-06, 12d\n  Old :crit, done, b3, 2026-02-18, 12d\n  Fix :crit, active, b4, 2026-03-02, 12d"
+  },
+  {
+    "name": "pie",
+    "kind": "mermaid",
+    "source": "pie title Week\n  \"Writing\" : 40\n  \"Reading\" : 30\n  \"Review\" : 20\n  \"Other\" : 10"
+  },
+  {
+    "name": "git",
+    "kind": "mermaid",
+    "source": "gitGraph\n  commit\n  branch develop\n  commit\n  checkout main\n  merge develop"
+  },
+  {
+    "name": "timeline",
+    "kind": "mermaid",
+    "source": "timeline\n  2025 : First : Second\n  2026 : Third"
+  },
+  {
+    "name": "mindmap",
+    "kind": "mermaid",
+    "source": "mindmap\n  root((Devot))\n    Notes\n      Tags\n    Sync"
+  },
+  {
+    "name": "journey",
+    "kind": "mermaid",
+    "source": "journey\n  section Capture\n    Open app: 5: Me\n  section Refine\n    Add diagram: 2: Me"
+  },
+  { "name": "class", "kind": "mermaid", "source": "classDiagram\n  class title" },
+  {
+    "name": "state",
+    "kind": "mermaid",
+    "source": "stateDiagram-v2\n  [*] --> Active\n  state Active {\n    [*] --> Draft\n    Draft --> Done\n    Done --> [*]\n  }\n  Active --> [*]"
+  },
+  {
+    "name": "er",
+    "kind": "mermaid",
+    "source": "---\nconfig:\n  theme: redux-color\n---\nerDiagram\n  NOTE ||--o{ TAG : has\n  NOTE {\n    string title\n  }"
+  },
+  {
+    "name": "quadrant",
+    "kind": "mermaid",
+    "source": "quadrantChart\n  x-axis Low --> High\n  y-axis Low --> High\n  Draft: [0.3, 0.6]"
+  },
+  {
+    "name": "xychart",
+    "kind": "mermaid",
+    "source": "xychart-beta\n  x-axis [Jan, Feb, Mar]\n  y-axis 0 --> 10\n  bar [3, 6, 4]\n  line [2, 5, 8]"
+  },
+  {
+    "name": "sankey",
+    "kind": "mermaid",
+    "source": "sankey-beta\n\nIdeas,Drafts,12\nDrafts,Published,8\nDrafts,Archived,4"
+  },
+  {
+    "name": "requirement",
+    "kind": "mermaid",
+    "source": "requirementDiagram\n  requirement capture {\n    id: 1\n    text: capture notes\n    risk: low\n    verifymethod: test\n  }\n  element editor {\n    type: application\n  }\n  editor - satisfies -> capture"
+  },
+  {
+    "name": "c4",
+    "kind": "mermaid",
+    "source": "C4Context\n  Person(writer, \"Writer\")\n  System(notes, \"Notes\", \"Capture ideas\")\n  Rel(writer, notes, \"Writes\")"
+  },
+  {
+    "name": "block",
+    "kind": "mermaid",
+    "source": "block-beta\n  columns 2\n  draft[\"Draft\"] review[\"Review\"]\n  draft --> review"
+  },
+  {
+    "name": "kanban",
+    "kind": "mermaid",
+    "source": "kanban\n  todo[Todo]\n    draft[Draft]\n  done[Done]\n    ship[Ship]"
+  },
+  {
+    "name": "architecture",
+    "kind": "mermaid",
+    "source": "architecture-beta\n  group app(cloud)[App]\n  service api(server)[API] in app\n  service db(database)[Storage] in app\n  api:R -- L:db"
+  },
+  {
+    "name": "packet",
+    "kind": "mermaid",
+    "source": "packet-beta\n  0-7: \"Header\"\n  8-31: \"Payload\""
+  },
+  {
+    "name": "radar",
+    "kind": "mermaid",
+    "source": "radar-beta\n  axis Writing, Reading, Review\n  curve week{4, 3, 5}\n  max 5"
+  },
+  {
+    "name": "treemap",
+    "kind": "mermaid",
+    "source": "treemap-beta\n\"Notes\"\n  \"Drafts\": 12\n  \"Published\": 8"
+  },
+  {
+    "name": "flowchart-elk",
+    "kind": "mermaid",
+    "source": "flowchart-elk LR\n  A[Draft] --> B[Review]"
+  },
+  { "name": "info", "kind": "mermaid", "source": "info" },
+  {
+    "name": "agentflow",
+    "kind": "mermaid",
+    "source": "agentflow-beta TB\n  flow reviewer[\"Review\"]\n    draft[\"Draft\"]@{ shape: input }\n    check[\"Check\"]@{ shape: task }\n    draft --> check\n  end"
+  },
+  {
+    "name": "swimlane",
+    "kind": "mermaid",
+    "source": "swimlane-beta LR\n  subgraph Writer\n    draft[Draft]\n  end\n  subgraph Reviewer\n    check[Check]\n  end\n  draft --> check"
+  },
+  {
+    "name": "eventmodeling",
+    "kind": "mermaid",
+    "source": "eventmodeling\n  tf 01 ui Editor\n  tf 02 cmd SaveNote\n  tf 03 evt NoteSaved"
+  },
+  {
+    "name": "treeView",
+    "kind": "mermaid",
+    "source": "treeView-beta\n  notes/\n    draft.md\n    published/\n      release.md"
+  },
+  {
+    "name": "ishikawa",
+    "kind": "mermaid",
+    "source": "ishikawa-beta\n  Missing notes\n  Process\n    No review\n  Tools\n    Offline"
+  },
+  {
+    "name": "railroad",
+    "kind": "mermaid",
+    "source": "railroad-beta\n  note = sequence(terminal(\"#\"), nonterminal(\"title\")) ;"
+  },
+  {
+    "name": "railroad-ebnf",
+    "kind": "mermaid",
+    "source": "railroad-ebnf-beta\n  digit = \"0\" | \"1\" ;"
+  },
+  {
+    "name": "railroad-abnf",
+    "kind": "mermaid",
+    "source": "railroad-abnf-beta\n  digit = \"0\" / \"1\" ;"
+  },
+  {
+    "name": "railroad-peg",
+    "kind": "mermaid",
+    "source": "railroad-peg-beta\n  Digit <- \"0\" / \"1\" ;"
+  },
+  {
+    "name": "venn",
+    "kind": "mermaid",
+    "source": "venn-beta\n  set Writing\n  set Reading\n  union Writing,Reading[\"Review\"]"
+  },
+  {
+    "name": "wardley",
+    "kind": "mermaid",
+    "source": "wardley-beta\n  anchor Writer [0.9, 0.6]\n  component Notes [0.6, 0.8]\n  Writer -> Notes"
+  },
+  {
+    "name": "cynefin",
+    "kind": "mermaid",
+    "source": "cynefin-beta\n  clear\n  \"Save notes\"\n  complex\n  \"Find ideas\""
+  },
+  {
+    "name": "usecase",
+    "kind": "mermaid",
+    "source": "usecase-beta\n  direction LR\n  actor Writer\n  systemBoundary Notes\n    Capture(\"Capture note\")\n  end\n  Writer --> Capture"
+  },
+  {
+    "name": "plantuml-sequence",
+    "kind": "plantuml",
+    "source": "@startuml\nAlice -> Bob: Hello\n@enduml"
+  },
+  {
+    "name": "plantuml-class",
+    "kind": "plantuml",
+    "source": "@startuml\nclass Note\nclass Tag\nNote --> Tag\n@enduml"
+  },
+  {
+    "name": "markmap",
+    "kind": "markmap",
+    "source": "# Notes\n## Ideas\n- Capture\n## Tasks\n- Ship"
+  }
+]
