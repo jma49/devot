@@ -41,6 +41,21 @@ describe('the Kubai icon set', () => {
       expect(catalog.symbols).not.toHaveProperty(name)
   })
 
+  it('uses the dedicated glyphs for gallery, tasks, sync, plugins and appearance', () => {
+    expect(catalog.symbols).toMatchObject({
+      'layout.gallery': 'gallery-view',
+      'format.taskList': 'checkbox',
+      progress: 'clipboard-check',
+      'phone.settings.sync': 'sync',
+      'settings.tile.sync': 'sync',
+      'settings.sync': 'sync',
+      'settings.tile.plugins': 'component',
+      'settings.plugins': 'component',
+      'phone.settings.appearance': 'appearance',
+      'settings.appearanceMode': 'appearance',
+    })
+  })
+
   it('paints through classes, since the window refuses style attributes', () => {
     for (const content of Object.values(KUBAI_GLYPHS)) {
       expect(content).not.toMatch(/ style=|<script|\son\w+=/)
