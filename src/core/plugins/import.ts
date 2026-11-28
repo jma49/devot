@@ -1,3 +1,4 @@
+import { fromBase64 } from '../base64'
 import { importMarkdown, imageLinks, type ImportOptions, type PreparedImport } from '../import'
 import { checkUpload, detectImage, fileUri, MAX_FILE_BYTES } from '../files'
 import { htmlToMarkdown } from '../htmlImport'
@@ -65,7 +66,7 @@ function prepare(note: Converted, options: PluginImportOptions): PreparedImport 
     try {
       if (attachment.data.length > Math.ceil(MAX_FILE_BYTES / 3) * 4)
         throw new Error('E_FILE_SIZE_INVALID')
-      const data = Uint8Array.from(atob(attachment.data), (c) => c.charCodeAt(0))
+      const data = fromBase64(attachment.data)
       const mime = detectImage(data)
       if (!mime || !attachment.mime.startsWith('image/'))
         throw new Error('E_IMPORT_ATTACHMENT_UNSUPPORTED')

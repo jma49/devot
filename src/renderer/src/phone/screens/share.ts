@@ -1,3 +1,4 @@
+import { fromBase64 } from '../../../../core/base64'
 import type { SharedNote } from '../../../../core/capture'
 import type { ScreensHandlers } from './ops'
 
@@ -22,14 +23,6 @@ const invalid = () => new Error('E_SCREENS_ARGS_INVALID')
 const text = (value: unknown): string => {
   if (typeof value !== 'string') throw invalid()
   return value
-}
-
-/** Standard base64, as Swift sends an image's bytes. */
-export function bytes(base64: string): Uint8Array<ArrayBuffer> {
-  const binary = atob(base64)
-  const out = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)
-  return out
 }
 
 type Ledger = [string, string][]
@@ -76,7 +69,7 @@ export function shareHandlers(share: () => NativeShare | null): ScreensHandlers 
         images: images.map((image: unknown) => {
           if (typeof image !== 'object' || image === null) throw invalid()
           const { name, data } = image as Record<string, unknown>
-          return { name: text(name), data: bytes(text(data)) }
+          return { name: text(name), data: fromBase64(text(data)) }
         }),
       })
       remember(native.ledger, item, id)

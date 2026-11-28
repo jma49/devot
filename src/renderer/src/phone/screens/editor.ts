@@ -1,7 +1,7 @@
+import { fromBase64 } from '../../../../core/base64'
 import type { FindTarget } from '../../find/target'
 import type { EditorMode } from './message'
 import type { ScreensHandlers } from './ops'
-import { bytes } from './share'
 
 /** The formatting bar's buttons, the editor's format IDs Rust lets through (`screens::message`). */
 export const BAR_FORMATS = ['heading', 'bold', 'italic', 'taskList', 'code', 'link'] as const
@@ -176,7 +176,7 @@ export function editorHandlers(
           if (typeof image !== 'object' || image === null) throw invalid()
           const { name, data } = image as Record<string, unknown>
           if (typeof name !== 'string' || typeof data !== 'string') throw invalid()
-          return { name, data: bytes(data) }
+          return { name, data: fromBase64(data) }
         }),
       }
       if (attachment.images.length === 0 && text === '') throw invalid()

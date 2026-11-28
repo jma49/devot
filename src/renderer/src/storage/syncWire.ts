@@ -1,6 +1,7 @@
 // Sync between the core worker and the page: the engine's store and its transport cross to the
 // page, which alone reaches Tauri commands. A note's Yjs state and a record's plaintext cross as
 // base64, coded here in the worker (as in wire.ts), so the page hands them on without reading them.
+import { fromBase64, toBase64 } from '../../../core/base64'
 import type { SyncFileMeta, SyncLocal, SyncStore } from '../../../core/sync/store'
 import {
   pushOneByOne,
@@ -12,7 +13,7 @@ import {
   type Welcome,
 } from '../../../core/sync/transport'
 import type { RecordKind } from '../../../core/sync/protocol'
-import { fromBase64, toBase64, type WireNote } from './wire'
+import type { WireNote } from './wire'
 
 export type WireSyncLocal = Omit<SyncLocal, 'note'> & {
   note: (Omit<NonNullable<SyncLocal['note']>, 'note'> & { note: WireNote }) | null

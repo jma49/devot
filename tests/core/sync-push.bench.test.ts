@@ -19,7 +19,7 @@ import { createSyncEngine, PUSH_IDLE_MS, pushPaceMs } from '../../src/core/sync/
 import { decodeRecord } from '../../src/core/sync/records'
 import type { SyncTransport } from '../../src/core/sync/transport'
 import { fromWireSync, type WireSync } from '../../src/renderer/src/storage/syncWire'
-import { fromBase64, toBase64 } from '../../src/renderer/src/storage/wire'
+import { fromBase64, toBase64 } from '../../src/core/base64'
 import { expectWithinBudget } from '../support/budget'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'

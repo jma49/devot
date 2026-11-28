@@ -15,6 +15,7 @@ import type { Nodes as MdNodes, PhrasingContent, Root as MdRoot, RootContent } f
 import { gfmToMarkdown } from 'mdast-util-gfm'
 import { mathToMarkdown } from 'mdast-util-math'
 import { toMarkdown } from 'mdast-util-to-markdown'
+import { fromBase64 } from './base64'
 import { detectImage, fileUri } from './files'
 
 const STRIP = [
@@ -106,7 +107,7 @@ const dataLabel = (url: string) =>
 /** Null when the text is not base64. */
 function base64Bytes(text: string): Uint8Array | null {
   try {
-    return Uint8Array.from(atob(text.replace(/[\t\n\f\r ]/g, '')), (c) => c.charCodeAt(0))
+    return fromBase64(text.replace(/[\t\n\f\r ]/g, ''))
   } catch {
     return null
   }

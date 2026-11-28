@@ -7,7 +7,7 @@ import {
   type WirePushItem,
   type WireTransport,
 } from '../../src/renderer/src/storage/syncWire'
-import { toBase64 } from '../../src/renderer/src/storage/wire'
+import { toBase64 } from '../../src/core/base64'
 
 const item = (id: string, byte: number) => ({
   id,

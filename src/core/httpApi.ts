@@ -12,6 +12,7 @@ import {
   type AppendSeparator,
 } from './append'
 import { AUTHORSHIP_ID, cleanWriterName, newWriter, type Writer } from './authorship'
+import { fromBase64, toBase64 } from './base64'
 import { NOTE_STATUSES, type NoteStatus } from './storage'
 import type { StorageAdapter } from './storage'
 import { checkUpload, fileUri } from './files'
@@ -201,8 +202,13 @@ export async function runHttpApiCall(
       const encoded = text(args, 'data')
       if (encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded))
         throw new Error('E_FILE_BODY_INVALID')
-      if (encoded && btoa(atob(encoded)) !== encoded) throw new Error('E_FILE_BODY_INVALID')
-      const data = Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))
+      let data: Uint8Array
+      try {
+        data = fromBase64(encoded)
+      } catch {
+        throw new Error('E_FILE_BODY_INVALID')
+      }
+      if (toBase64(data) !== encoded) throw new Error('E_FILE_BODY_INVALID')
       const meta = { id: files.newId(), noteId: note, name: text(args, 'name') }
       if (checkUpload(meta, data) !== text(args, 'type')) throw new Error('E_FILE_TYPE_REFUSED')
       await files.storage.putFile(meta, data)

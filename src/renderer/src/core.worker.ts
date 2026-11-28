@@ -67,7 +67,7 @@ import { lazyEngine, lazyOnce } from './lazyStart'
 import type { SaveProblemsMessage } from './saving'
 import { starterTemplates } from './starterTemplates'
 import type { WireSync, WireTransport } from './storage/syncWire'
-import { fromBase64, fromWire, toBase64, type WireStorage } from './storage/wire'
+import { fromWire, type WireStorage } from './storage/wire'
 import { forwardWorkerLogs, type WorkerLogMessage } from './workerLog'
 
 // The worker's own warnings, errors and uncaught failures go to the page,
@@ -206,7 +206,7 @@ const coreApi = {
     mirrorStorage = storage
     coreParts = { storage, clock, newId: ids }
     welcome = (content) => seedWelcome({ storage, clock, content })
-    const relay = relayOut((out) => self.postMessage(out), toBase64, options.relayAll ?? false)
+    const relay = relayOut((out) => self.postMessage(out), options.relayAll ?? false)
     relayed = relay
     service = createNoteService({
       storage,
@@ -404,7 +404,7 @@ const coreApi = {
   /** What another window's core relayed (see NoteService.receive). */
   relayIn: (message: WireRelay) => {
     relayed?.heard(message.noteId)
-    return required().receive(fromWireRelay(message, fromBase64))
+    return required().receive(fromWireRelay(message))
   },
   listWithTemplates: () => requiredTemplates().listWithNotes(),
   createTemplate: () => requiredTemplates().create(),

@@ -1,3 +1,4 @@
+import { toBase64 } from '../src/core/base64'
 import { detectImage } from '../src/core/files'
 import { hasRemoteImages, storeImageLinks } from './images'
 import { mayDownload } from './network'
@@ -39,12 +40,7 @@ async function downloadImage(url: string): Promise<{ name: string; type: string;
   }
   const type = detectImage(bytes)
   if (!type) throw new Error('E_FILE_TYPE_REFUSED')
-  let binary = ''
-  for (const chunk of chunks) {
-    for (let at = 0; at < chunk.length; at += 8192)
-      binary += String.fromCharCode(...chunk.subarray(at, at + 8192))
-  }
-  return { name: `image.${type.slice(6)}`, type, data: btoa(binary) }
+  return { name: `image.${type.slice(6)}`, type, data: toBase64(bytes) }
 }
 
 export interface Settings {

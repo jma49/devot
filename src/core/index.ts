@@ -3,6 +3,7 @@
 // better-sqlite3 or Node built-ins (enforced by .oxlintrc.json).
 export * from './activity'
 export * from './append'
+export * from './base64'
 export * from './words'
 export * from './batch'
 export * from './ai'

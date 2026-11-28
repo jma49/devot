@@ -36,3 +36,25 @@ it('renderer modules never re-export runtime values from core/', () => {
   )
   expect(offenders).toEqual([])
 })
+
+const BASE64_ALLOWED = new Set([
+  'src/core/base64.ts',
+  // Relay wire format stays zero-import so Node's native type-stripping runs it directly.
+  'src/core/sync/protocol.ts',
+  // Mermaid stores ASCII JSON coordinates in `data-points`, not binary bytes.
+  'src/renderer/src/preview/mermaid-theme.ts',
+])
+
+it('encodes and decodes binary base64 in src/ and clipper/ only through src/core/base64.ts', () => {
+  const offenders = nonTestSources('src', 'clipper')
+    .filter((file) => !BASE64_ALLOWED.has(file))
+    .filter((file) => /\b(?:atob|btoa)\s*\(/.test(readFileSync(file, 'utf8')))
+  expect(offenders).toEqual([])
+})
+
+it('never spreads unbounded byte arrays into String.fromCharCode', () => {
+  const offenders = nonTestSources('src', 'clipper').filter((file) =>
+    /btoa\s*\(\s*String\.fromCharCode\s*\(\s*\.\.\./.test(readFileSync(file, 'utf8')),
+  )
+  expect(offenders).toEqual([])
+})
