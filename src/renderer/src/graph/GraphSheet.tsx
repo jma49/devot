@@ -421,7 +421,7 @@ export function GraphSheet(props: {
             </span>
           ) : null}
         </p>
-        <button type="button" className="button" onClick={onClose}>
+        <button type="button" className="button button-default" onClick={onClose}>
           {t('graph.done')}
         </button>
       </div>

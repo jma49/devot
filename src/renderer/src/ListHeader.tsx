@@ -120,10 +120,11 @@ export function ListHeader(props: ListHeaderProps) {
                 type="button"
                 className="sort-chip"
                 aria-label={t('sort.button')}
+                aria-haspopup="menu"
                 title={props.sort.label}
                 onClick={(e) => props.sort?.onOpen(e.currentTarget)}
               >
-                {props.sort.chip}
+                <span className="sort-chip-label">{props.sort.chip}</span>
                 <Icon name="popup.chevron" size="xs" />
               </button>
             ) : null}

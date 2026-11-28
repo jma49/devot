@@ -200,6 +200,7 @@ export function ListPane({
         sortButtonRef={sortButtonRef}
         layout={layoutControl}
         onFind={searching ? findAgain : findInView}
+        leading={sidebarToggle}
         headlines={loadHeadlines}
         properties={loadProperties}
         onWrite={writeProperty}
@@ -274,6 +275,7 @@ export function ListPane({
       onMenu={showNoteMenu}
       sort={sortButton}
       sortButtonRef={sortButtonRef}
+      layout={layoutControl}
       onEdit={editFromList}
       leading={sidebarToggle}
       selection={shownSelection}

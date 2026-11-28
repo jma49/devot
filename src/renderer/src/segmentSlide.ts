@@ -61,13 +61,15 @@ function moveThumb(
   const to = thumbTransform(x, lift)
   thumb.style.transform = to
   thumb.style.width = `${width}px`
-  return thumb.animate(
+  const animation = thumb.animate(
     [
       { transform: thumbTransform(from.x, from.lift), width: `${fromWidth}px` },
       { transform: to, width: `${width}px` },
     ],
     springTiming(spring),
   )
+  void animation.finished.catch(() => {})
+  return animation
 }
 
 function settle(group: HTMLElement, thumb: HTMLElement, target: HTMLElement): void {
@@ -112,7 +114,12 @@ function watchThumbDrag(group: HTMLElement): () => void {
     carried = null
     if (event.button !== 0 || motionReduced() || typeof group.animate !== 'function') return
     const on = (event.target as Element).closest<HTMLElement>('.segment')
-    if (!on || on.getAttribute('aria-pressed') !== 'true' || on.parentElement !== group) return
+    if (
+      !on ||
+      (on.getAttribute('aria-pressed') !== 'true' && on.getAttribute('aria-selected') !== 'true') ||
+      on.parentElement !== group
+    )
+      return
     if (on.hasAttribute('disabled')) return
     const thumb = thumbOf(group, on)
     thumb.dataset['held'] = ''

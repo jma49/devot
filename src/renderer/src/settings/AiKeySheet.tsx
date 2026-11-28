@@ -235,8 +235,7 @@ export function AiKeySheet(props: {
           {hasKey && !done ? (
             <button
               type="button"
-              className="button ai-key-remove"
-              data-destructive
+              className="button button-destructive ai-key-remove"
               aria-disabled={busy}
               onClick={remove}
             >

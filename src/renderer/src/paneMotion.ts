@@ -289,7 +289,9 @@ export function playModeChange(from: Mode, to: Mode, before: ModeBoxes): void {
 
 export function fadeInListBody(): void {
   fadeIn(
-    document.querySelector('.list .board-columns, .list .gallery-scroll, .list .rows'),
+    document.querySelector(
+      '.list .board-columns, .list .gallery-scroll, .list .table-scroll, .list .rows',
+    ),
     'motion.duration.popover',
   )
 }

@@ -1,6 +1,7 @@
-import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { current } from '../focus'
 import { t } from '../i18n'
+import { useSegmentSlide } from '../segmentSlide'
 import { INSPECTOR_TABS, inspectorTabStore, type InspectorTab } from './inspectorTab'
 import type { OutlinePanelProps } from './OutlinePanel'
 import type { useOutlineRoom } from './useOutlineRoom'
@@ -59,6 +60,8 @@ export function Inspector(props: {
   info?: ReactNode
 }) {
   const { active, select, focusFor, dropFocus } = props.tab
+  const tabList = useRef<HTMLDivElement>(null)
+  useSegmentSlide(tabList, tabs.indexOf(active))
   useEffect(() => {
     if (focusFor === undefined) return
     if (focusFor === props.noteId) document.getElementById(`inspector-tab-${active}`)?.focus()
@@ -78,7 +81,7 @@ export function Inspector(props: {
       aria-label={t('outline.inspector')}
     >
       <div className="inspector-resize" aria-label={t('outline.resize')} {...props.room.edge} />
-      <div className="segmented" role="tablist" aria-label={t('outline.tabs')}>
+      <div ref={tabList} className="segmented" role="tablist" aria-label={t('outline.tabs')}>
         {tabs.map((tab, i) => (
           <button
             type="button"

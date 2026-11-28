@@ -11,6 +11,7 @@ import { Localised, startLocale } from './liveLocale'
 import { forwardConsole, forwardUncaught, type LogEntry } from './log'
 import { startMotion } from './motionPreference'
 import { applyMotionScale } from './motionTiming'
+import { watchDialogExits } from './dialogMotion'
 import { NoteWindow } from './noteWindow/NoteWindow'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
@@ -42,6 +43,7 @@ startPluginThemes()
 startBackdropPainter()
 startMotion()
 applyMotionScale(document.documentElement)
+watchDialogExits()
 if (!DEVOT_UI_TEST) {
   void followSystemAccent(document.documentElement.style, () => editorSettings().systemAccent)
     .then((refresh) => subscribeEditorSettings(refresh))

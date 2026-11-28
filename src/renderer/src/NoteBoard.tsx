@@ -35,6 +35,7 @@ import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
 import { DRAG_NOTE, setNoteDragData } from './dragData'
 import { useEditorSetting } from './editorSettings'
+import { formatNumber } from './format'
 import { useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, t } from './i18n'
 import { Icon } from './icons/Icon'
@@ -664,7 +665,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
                 <div className="board-column-header" id={headingId}>
                   <Icon name={STATUS_ICONS[column.status]} size="sm" />
                   <span className="board-column-name">{t(`status.${column.status}`)}</span>
-                  <span className="board-count">{column.notes.length}</span>
+                  <span className="board-count">{formatNumber(column.notes.length, locale)}</span>
                 </div>
                 <ul
                   ref={observeColumn}

@@ -107,11 +107,11 @@ export function BackupsDialog(props: {
           {failureText(error.message, error.code)}
         </p>
       ) : null}
-      {backups && backups.length === 0 ? (
+      {backups === undefined ? null : backups.length === 0 ? (
         <p className="sheet-detail">{t('backups.empty')}</p>
       ) : (
         <ul className="backup-list" aria-labelledby="backups-title">
-          {backups?.map((b) => {
+          {backups.map((b) => {
             const date = backupDate(b.createdAt, locale)
             return (
               <li key={b.id} className="backup-row">
@@ -153,7 +153,7 @@ export function BackupsDialog(props: {
         </button>
         <button
           type="button"
-          className="button"
+          className="button button-default"
           aria-disabled={busy}
           ref={done}
           onClick={() => {
