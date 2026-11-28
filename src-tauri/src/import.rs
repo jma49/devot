@@ -11,9 +11,9 @@
 //! reloading the main window that shows it, cancels a scan still running. Nothing is written until
 //! the UI imports the scan.
 
-use crate::commands::files::{MAX_FILE_BYTES, Upload, store_upload};
-use crate::commands::notes::valid_note_id;
-use crate::storage::Db;
+#[cfg(test)]
+use crate::storage::validate_upload;
+use crate::storage::{Db, MAX_FILE_BYTES, Upload, store_upload, valid_note_id};
 use crate::strings;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -1525,7 +1525,7 @@ mod tests {
             name: image.name,
         };
         assert_eq!(
-            crate::commands::files::validate_upload(&upload, &image.data),
+            validate_upload(&upload, &image.data),
             Err("E_FILE_TYPE_REFUSED")
         );
     }

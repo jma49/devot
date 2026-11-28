@@ -20,7 +20,7 @@ fn checked_item(
     if !matches!(kind, "record" | "file") {
         return Err("E_SYNC_KIND_INVALID");
     }
-    if !crate::commands::notes::valid_note_id(id) {
+    if !crate::storage::valid_note_id(id) {
         return Err("E_SYNC_ID_INVALID");
     }
     if base >= MAX_SAFE {
@@ -221,7 +221,7 @@ impl SyncService {
         let checked: Vec<Result<Zeroizing<Vec<u8>>, &'static str>> = items
             .iter()
             .map(|i| {
-                if crate::commands::sync::valid_tag(&i.tag) {
+                if crate::storage::valid_sync_tag(&i.tag) {
                     checked_item(&i.id, i.base, &i.data, &i.kind)
                 } else {
                     Err(cloudkit::error::TAG_INVALID)

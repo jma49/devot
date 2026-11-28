@@ -8,10 +8,9 @@
 //! `quick_capture_claim`, `quick_capture_done`), so one core writes the library and the main
 //! window's lists stay current.
 
-use crate::commands::notes::{MAX_BODY_BYTES, MAX_TITLE_CHARS};
 use crate::editor_settings::{EditorSettingsStore, is_notebook_id};
 use crate::pending::{GaveUp, Pending};
-use crate::storage::NOTE_STATUSES;
+use crate::storage::{MAX_BODY_BYTES, MAX_TITLE_CHARS, NOTE_STATUSES};
 use crate::{exit, strings};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

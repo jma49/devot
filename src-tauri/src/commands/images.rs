@@ -1,9 +1,11 @@
 //! Copy Image and Save Image As for attachments. The web view names an attachment by its ID only; Rust reads the bytes and, for saving, asks for the path with the system save panel. The page never names a path.
 
-use super::notes::valid_note_id;
-use crate::storage::{Db, FileRecord};
+use crate::atomic_file::save_path;
+use crate::storage::{Db, FileRecord, valid_note_id};
 use crate::strings;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
 use tauri::{State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
@@ -45,20 +47,6 @@ pub fn save_name(name: &str, extension: &str) -> String {
     };
     let stem = if stem.is_empty() { "image" } else { stem };
     format!("{stem}.{extension}")
-}
-
-/// Checks the path the save panel returned: absolute, with a file name, in
-/// an existing folder, and not a folder itself. It is written as chosen: the
-/// panel asked before replacing a file of that name, and adding an extension
-/// here could replace another file without asking.
-pub fn save_path(path: &Path) -> Result<PathBuf, &'static str> {
-    if !path.is_absolute() || path.file_name().is_none() {
-        return Err("E_IMAGE_SAVE_PATH_INVALID");
-    }
-    if !path.parent().is_some_and(Path::is_dir) || path.is_dir() {
-        return Err("E_IMAGE_SAVE_PATH_INVALID");
-    }
-    Ok(path.to_owned())
 }
 
 /// Writes next to `path` first (never through a link, see `atomic_file`), then renames over it, so a failed write never leaves half an image.

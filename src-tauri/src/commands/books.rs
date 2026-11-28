@@ -1,5 +1,4 @@
-use super::notes::{valid_hlc, valid_note_id};
-use crate::storage::{BookRecord, Db, TAG_COLORS, Write, notebook_icon};
+use crate::storage::{BookRecord, Db, TAG_COLORS, Write, notebook_icon, valid_hlc, valid_note_id};
 use tauri::State;
 
 const MAX_NAME_CHARS: usize = 200;

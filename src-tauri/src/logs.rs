@@ -122,8 +122,17 @@ pub fn is_code(text: &str) -> bool {
             .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || *b == b'_')
 }
 
+pub fn is_error_code(text: &str) -> bool {
+    text.starts_with("E_") && is_code(text)
+}
+
+#[cfg(any(target_os = "ios", test))]
+pub fn is_error_or_warn_code(text: &str) -> bool {
+    (text.starts_with("E_") || text.starts_with("W_")) && is_code(text)
+}
+
 fn is_id(text: &str) -> bool {
-    is_code(text) || crate::commands::notes::valid_note_id(text)
+    is_code(text) || crate::storage::valid_note_id(text)
 }
 
 /// Authorship lines also carry write IDs (64 random bits in base64url), writer kinds and counts

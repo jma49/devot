@@ -1,6 +1,86 @@
 use rusqlite::{OptionalExtension, params};
 
-use super::{FileCopy, FileRecord, Result, Store};
+use super::{Db, FileCopy, FileRecord, Result, Store, Write, valid_note_id};
+
+pub const MAX_FILE_BYTES: usize = 10 * 1024 * 1024;
+pub(crate) const MAX_FILE_NAME_CHARS: usize = 200;
+
+pub fn detect_image(bytes: &[u8]) -> Option<&'static str> {
+    let starts = |magic: &[u8]| bytes.starts_with(magic);
+    if starts(b"\x89PNG\r\n\x1a\n") {
+        return Some("image/png");
+    }
+    if starts(&[0xff, 0xd8, 0xff]) {
+        return Some("image/jpeg");
+    }
+    if starts(b"GIF87a") || starts(b"GIF89a") {
+        return Some("image/gif");
+    }
+    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        return Some("image/webp");
+    }
+    if bytes.len() >= 12 && &bytes[4..8] == b"ftyp" {
+        return match &bytes[8..12] {
+            b"avif" | b"avis" => Some("image/avif"),
+            b"heic" | b"heix" | b"mif1" | b"msf1" => Some("image/heic"),
+            _ => None,
+        };
+    }
+    None
+}
+
+pub struct Upload {
+    pub id: String,
+    pub note_id: String,
+    pub name: String,
+}
+
+pub fn validate_upload(
+    upload: &Upload,
+    data: &[u8],
+) -> std::result::Result<&'static str, &'static str> {
+    if !valid_note_id(&upload.id) {
+        return Err("E_FILE_ID_INVALID");
+    }
+    if !valid_note_id(&upload.note_id) {
+        return Err("E_NOTE_ID_INVALID");
+    }
+    if upload.name.is_empty()
+        || upload.name.chars().count() > MAX_FILE_NAME_CHARS
+        || upload.name.chars().any(char::is_control)
+    {
+        return Err("E_FILE_NAME_INVALID");
+    }
+    if data.is_empty() || data.len() > MAX_FILE_BYTES {
+        return Err("E_FILE_SIZE_INVALID");
+    }
+    detect_image(data).ok_or("E_FILE_TYPE_REFUSED")
+}
+
+pub async fn store_upload(
+    db: &Db,
+    upload: Upload,
+    data: Vec<u8>,
+) -> std::result::Result<(), String> {
+    let mime = validate_upload(&upload, &data).map_err(String::from)?;
+    let file = FileRecord {
+        id: upload.id,
+        note_id: upload.note_id,
+        name: upload.name,
+        mime: mime.into(),
+        data,
+        created_at: crate::logs::now_ms(),
+    };
+    let stored = db
+        .write(Write::Content, move |store| store.put_file(&file))
+        .await
+        .map_err(|e| e.to_string())?;
+    if stored {
+        Ok(())
+    } else {
+        Err("E_NOTE_NOT_FOUND".into())
+    }
+}
 
 impl Store {
     /// Returns false (and stores nothing) when the note does not exist or is in the trash.

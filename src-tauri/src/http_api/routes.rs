@@ -6,7 +6,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::commands::notes::{MAX_TITLE_CHARS, valid_note_id};
+use crate::storage::{MAX_TITLE_CHARS, Upload, valid_note_id, validate_upload};
 
 use super::Refusal;
 
@@ -451,13 +451,12 @@ pub fn call(
             let data = base64::engine::general_purpose::STANDARD
                 .decode(&new.data)
                 .map_err(|_| Refusal::new(400, "E_FILE_BODY_INVALID"))?;
-            let upload = crate::commands::files::Upload {
+            let upload = Upload {
                 id: note.clone().ok_or(BAD_BODY)?,
                 note_id: note.clone().ok_or(BAD_BODY)?,
                 name: new.name.clone(),
             };
-            let mime = crate::commands::files::validate_upload(&upload, &data)
-                .map_err(|code| Refusal::new(400, code))?;
+            let mime = validate_upload(&upload, &data).map_err(|code| Refusal::new(400, code))?;
             if mime != new.mime {
                 return Err(Refusal::new(400, "E_FILE_TYPE_REFUSED"));
             }

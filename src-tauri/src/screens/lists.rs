@@ -6,8 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::commands::notes::valid_note_id;
-use crate::storage::{BookRecord, Db, NoteSummary, Store, TrashedNote};
+use crate::storage::{BookRecord, Db, NoteSummary, Store, TrashedNote, valid_note_id};
 
 /// `TEMPLATES_BOOK_ID` in src/core/templatesBook.ts, which a policy test holds this to.
 pub const TEMPLATES_BOOK_ID: &str = "00000000-0000-7000-8000-000000000001";

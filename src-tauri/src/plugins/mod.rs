@@ -12,7 +12,9 @@ pub mod package;
 pub mod serve;
 pub mod storage;
 
-use crate::atomic_file::{self, Folder, Place};
+use crate::atomic_file::{self, Folder, Place, save_path, write_replacing};
+use crate::settings_file::{Codes, SettingsFile};
+use crate::storage::MAX_TITLE_CHARS;
 use manifest::Manifest;
 use package::Package;
 use serde::{Deserialize, Serialize};
@@ -31,8 +33,7 @@ const STAGED_MAX: usize = 4;
 pub const IMPORT_FILES_MAX: usize = 20;
 pub const IMPORT_FILE_BYTES: u64 = 5 * 1024 * 1024;
 pub const EXPORT_CHARS_MAX: usize = 20 * 1024 * 1024;
-/// As the core's MAX_TITLE_CHARS.
-const TITLE_CHARS_MAX: usize = 1000;
+const TITLE_CHARS_MAX: usize = MAX_TITLE_CHARS;
 
 const NOT_FOUND: &str = "E_PLUGIN_NOT_FOUND";
 const DISABLED: &str = "E_PLUGIN_DISABLED";
@@ -119,8 +120,16 @@ pub struct Staged {
     pub replaces: Option<Replaced>,
 }
 
+const STATE_CODES: Codes = Codes {
+    unreadable: "W_PLUGINS_STATE_INVALID",
+    copy_failed: "W_PLUGINS_STATE_COPY_FAILED",
+    read_failed: "W_PLUGINS_STATE_READ_FAILED",
+    write_failed: FAILED,
+};
+
 pub struct Plugins {
     data: PathBuf,
+    state: SettingsFile,
     /// This build's release version, which a plugin's `minAppVersion` is checked against.
     app_version: String,
     staged: Mutex<Vec<(u64, Package)>>,
@@ -139,6 +148,7 @@ impl Plugins {
     pub fn new(data_dir: &Path) -> Self {
         Self {
             data: data_dir.to_path_buf(),
+            state: SettingsFile::new(&data_dir.join(STATE_FILE), &STATE_CODES),
             app_version: env!("CARGO_PKG_VERSION").to_string(),
             staged: Mutex::new(Vec::new()),
             next: Mutex::new(1),
@@ -155,40 +165,23 @@ impl Plugins {
         self
     }
 
-    fn state_path(&self) -> PathBuf {
-        self.data.join(STATE_FILE)
-    }
-
     fn stored(&self) -> Stored {
         self.read_stored().unwrap_or_default()
     }
 
     /// None when the state file cannot be read, or is damaged and no copy of it could be kept: nothing may write over it.
     fn read_stored(&self) -> Option<Stored> {
-        let path = self.state_path();
-        match std::fs::read(&path) {
-            Ok(bytes) => match serde_json::from_slice(&bytes) {
-                Ok(stored) => Some(stored),
-                Err(_) => {
-                    log::warn!("W_PLUGINS_STATE_INVALID");
-                    let kept = atomic_file::keep_damaged(&path, &bytes).is_ok();
-                    if !kept {
-                        log::warn!("W_PLUGINS_STATE_COPY_FAILED");
-                    }
-                    kept.then(Stored::default)
-                }
-            },
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(Stored::default()),
-            Err(_) => {
-                log::warn!("W_PLUGINS_STATE_READ_FAILED");
-                None
+        self.state.read_as(|map| {
+            if map.is_empty() {
+                Some(Stored::default())
+            } else {
+                serde_json::from_value(serde_json::Value::Object(map)).ok()
             }
-        }
+        })
     }
 
     fn store(&self, stored: &Stored) -> Result<(), &'static str> {
-        let bytes = serde_json::to_vec_pretty(stored).map_err(|_| FAILED)?;
-        atomic_file::write_replacing(&self.state_path(), &bytes).map_err(|_| FAILED)
+        self.state.write(stored)
     }
 
     fn folder(&self) -> std::io::Result<Folder> {
@@ -969,11 +962,9 @@ pub async fn plugin_export_save(
         return Ok(false);
     };
     let path = path.into_path().map_err(|_| "E_PLUGIN_EXPORT_FAILED")?;
-    let path = crate::commands::images::save_path(&path).map_err(|_| "E_PLUGIN_EXPORT_FAILED")?;
-    blocking(move || {
-        atomic_file::write_replacing(&path, text.as_bytes()).map_err(|_| "E_PLUGIN_EXPORT_FAILED")
-    })
-    .await?;
+    let path = save_path(&path).map_err(|_| "E_PLUGIN_EXPORT_FAILED")?;
+    blocking(move || write_replacing(&path, text.as_bytes()).map_err(|_| "E_PLUGIN_EXPORT_FAILED"))
+        .await?;
     log::info!("I_PLUGIN_EXPORTED {plugin} {format}");
     Ok(true)
 }

@@ -11,7 +11,7 @@ use super::client::{self, Connection, PushReply};
 use super::relay_tests::{NodeRelay, SECRET, Secrets, events, service_on};
 use super::service::PushDto;
 use super::{MAX_CHUNK_BYTES, Vault, chunk_count};
-use crate::commands::files::MAX_FILE_BYTES;
+use crate::storage::MAX_FILE_BYTES;
 
 const FILE: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789a1";
 const NOTE: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789a2";

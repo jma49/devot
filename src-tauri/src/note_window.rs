@@ -7,7 +7,7 @@
 //! A main window other than `main` closes the same way (`main_windows`). Desktop only: a phone has one
 //! window.
 
-use crate::commands::notes::valid_note_id;
+use crate::storage::valid_note_id;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

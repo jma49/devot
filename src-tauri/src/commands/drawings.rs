@@ -6,9 +6,8 @@ use std::collections::HashSet;
 use serde::Deserialize;
 use tauri::State;
 
-use super::notes::{valid_hlc, valid_note_id};
 use crate::plugins::manifest::{is_id, is_language};
-use crate::storage::{Db, KeptDrawing, NoteDrawings, Write};
+use crate::storage::{Db, KeptDrawing, NoteDrawings, Write, valid_hlc, valid_note_id};
 
 /// MAX_DRAWING_BYTES, MAX_NOTE_DRAWINGS and MAX_NOTE_DRAWINGS_BYTES in src/core/plugins/drawings.ts.
 const MAX_DRAWING_BYTES: usize = 256 * 1024;

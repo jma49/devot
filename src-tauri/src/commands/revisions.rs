@@ -1,10 +1,9 @@
 //! Revision history commands. The core decides when to take versions and
 //! which to compact; these store, list and delete them.
 
-use super::notes::{MAX_TITLE_CHARS, MAX_YDOC_BYTES, valid_note_id};
 use crate::storage::{
-    AI_EDIT, BASELINE, CompactableVersion, Db, MERGE, NOTE_STATUSES, REVISION_KINDS,
-    RevisionRecord, RevisionSummary, Write,
+    AI_EDIT, BASELINE, CompactableVersion, Db, MAX_TITLE_CHARS, MAX_YDOC_BYTES, MERGE,
+    NOTE_STATUSES, REVISION_KINDS, RevisionRecord, RevisionSummary, Write, valid_note_id,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;

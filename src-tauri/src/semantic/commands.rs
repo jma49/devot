@@ -5,8 +5,7 @@ use tauri::State;
 
 use super::chunks::passages;
 use super::{Semantic, Status};
-use crate::commands::notes::validate_query;
-use crate::storage::{Db, NoteQuery, NoteSummary};
+use crate::storage::{Db, NoteQuery, NoteSummary, validate_query};
 
 /// A query's text, as the search field holds it (src/core/semantic.ts, MAX_SEMANTIC_TEXT).
 const MAX_TEXT_CHARS: usize = 1_000;

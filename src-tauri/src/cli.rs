@@ -9,8 +9,8 @@ use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::commands::notes::{MAX_TITLE_CHARS, valid_note_id};
 use crate::single_instance::Answered;
+use crate::storage::{MAX_TITLE_CHARS, valid_note_id};
 use crate::{deep_link, import, single_instance, startup, strings};
 
 pub const FLAG: &str = "--cli";

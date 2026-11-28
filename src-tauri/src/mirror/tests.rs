@@ -774,17 +774,17 @@ fn hashes_attachments_one_at_a_time_and_leaves_out_missing_ones() {
     assert!(valid_ids(
         std::slice::from_ref(&present),
         MAX_HASH_IDS,
-        folder::valid_uuid
+        crate::storage::valid_uuid
     ));
     assert!(!valid_ids(
         &vec![present; MAX_HASH_IDS + 1],
         MAX_HASH_IDS,
-        folder::valid_uuid
+        crate::storage::valid_uuid
     ));
     assert!(!valid_ids(
         &["../x".to_string()],
         MAX_HASH_IDS,
-        folder::valid_uuid
+        crate::storage::valid_uuid
     ));
     assert_eq!(
         serde_json::to_value(FileHash {

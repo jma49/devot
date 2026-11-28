@@ -954,7 +954,7 @@ fn handle(
                 value
                     .get("id")
                     .and_then(Value::as_str)
-                    .filter(|id| crate::commands::notes::valid_note_id(id))
+                    .filter(|id| crate::storage::valid_note_id(id))
                     .map(str::to_string)
             } else {
                 None

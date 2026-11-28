@@ -8,8 +8,8 @@ use serde::Serialize;
 use serde_json::{Map, Value, json};
 
 use super::message::{Mode, ROUTE_NOTICE, VERSION};
-use crate::commands::notes::valid_note_id;
 use crate::deep_link::{LicenceKey, Link, PairingLink};
+use crate::storage::valid_note_id;
 
 /// A tab a route can show.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

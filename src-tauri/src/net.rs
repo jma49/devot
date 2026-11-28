@@ -201,7 +201,7 @@ impl<R: Resolver> Resolver for PublicOnly<R> {
 /// Tests reach this machine directly, so they keep to the environment's proxy alone.
 fn proxy_for(url: &Url, strict: bool) -> Option<ureq::Proxy> {
     ureq::Proxy::try_from_env().or_else(|| {
-        let host = url.host_str().filter(|_| strict)?;
+        let host = url.host_str().filter(|_| strict && !cfg!(test))?;
         let uri = proxy::https_proxy(&proxy::system(), host)?;
         ureq::Proxy::new(&uri).ok()
     })

@@ -16,9 +16,8 @@
 
 mod folder;
 
-use crate::commands::notes::valid_note_id;
 use crate::settings_file::{Codes, SettingsFile};
-use crate::storage::Db;
+use crate::storage::{Db, valid_note_id, valid_uuid};
 #[cfg(desktop)]
 use crate::strings;
 use folder::{
@@ -100,7 +99,7 @@ impl Stored {
         let library = value
             .get("library")
             .and_then(Value::as_str)
-            .filter(|l| folder::valid_uuid(l))
+            .filter(|l| valid_uuid(l))
             .map(String::from);
         Self {
             folder,
@@ -1057,7 +1056,7 @@ pub async fn mirror_bodies(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Bo
 #[tauri::command]
 pub async fn mirror_files(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<FileName>, String> {
     // Any UUID a link holds: one that is no attachment is simply not found.
-    if !valid_ids(&ids, MAX_IDS, folder::valid_uuid) {
+    if !valid_ids(&ids, MAX_IDS, valid_uuid) {
         return Err("E_MIRROR_IDS_INVALID".into());
     }
     let found = db
@@ -1079,7 +1078,7 @@ pub async fn mirror_files(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Fil
 /// read on its own, and only its hash crosses IPC.
 #[tauri::command]
 pub async fn mirror_hashes(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<FileHash>, String> {
-    if !valid_ids(&ids, MAX_HASH_IDS, folder::valid_uuid) {
+    if !valid_ids(&ids, MAX_HASH_IDS, valid_uuid) {
         return Err("E_MIRROR_IDS_INVALID".into());
     }
     let mut load = attachments(db.inner().clone());

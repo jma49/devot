@@ -138,7 +138,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - `id` is a `u64` from Swift's own counter, and a reply whose `id` is not waiting is dropped, as `store.rs` drops one.
 - Rust validates every message before it forwards it:
   - `op` and `notice` come from closed enums, and unknown fields are refused;
-  - note IDs pass `valid_note_id` (`src-tauri/src/commands/notes.rs`);
+  - note IDs pass `valid_note_id` (`src-tauri/src/storage/records.rs`);
   - a title is at most `MAX_TITLE_CHARS`, a tag name at most the tag limit, and a search query at most as long as 10 clauses of 100 characters a term (the core reads no further, so Rust checks only that length, not the clauses);
   - a message is at most 4 MiB, the store bridge's limit.
 - A code is for logs and for choosing what to show, never shown to the user.
