@@ -1,6 +1,6 @@
-import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
+import { listFiles } from '../support/git-files'
 
 // Rust writes every file outside its databases through one writer (src-tauri/src/atomic_file.rs):
 // a new temp file of random name, never opened over an existing one. A file written by path
@@ -21,10 +21,7 @@ const ALLOWED = new Set(['src-tauri/src/atomic_file.rs', 'src-tauri/src/logs.rs'
 const withoutTests = (text: string) => text.split(/#\[cfg\(test\)\]\s*mod tests \{/)[0]!
 
 it('Rust writes files only through atomic_file', () => {
-  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', 'src-tauri/src'], {
-    encoding: 'utf8',
-  })
-    .split('\n')
+  const files = listFiles('.', 'src-tauri/src')
     .filter((f) => f.endsWith('.rs') && !ALLOWED.has(f))
     .filter((f) => !/(^|\/)tests(\.rs|\/)/.test(f))
   const offenders = files.flatMap((file) => {
@@ -67,11 +64,9 @@ it('Rust changes the folders the user chose only through folder handles', () => 
 })
 
 it('Rust makes system calls on files only in atomic_file', () => {
-  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', 'src-tauri/src'], {
-    encoding: 'utf8',
-  })
-    .split('\n')
-    .filter((f) => f.endsWith('.rs') && f !== 'src-tauri/src/atomic_file.rs')
+  const files = listFiles('.', 'src-tauri/src').filter(
+    (f) => f.endsWith('.rs') && f !== 'src-tauri/src/atomic_file.rs',
+  )
   const offenders = files.filter((file) => /\brustix::/.test(readFileSync(file, 'utf8')))
   expect(offenders).toEqual([])
 })

@@ -4,7 +4,7 @@
 // does not name a pane falls back to the first.
 import type { IconName } from '../icons/symbols'
 import type { MessageKey } from '../i18n'
-import { localStore } from '../localStore'
+import { localStore } from '../localStore.ts'
 
 export const PANES = [
   'general',
