@@ -248,28 +248,45 @@ export function NoteInfoCard(props: {
 
   useLayoutEffect(() => {
     if (!editing) return
-    const row = rows.current[editing]
-    const panel = shownPicker(card.current, props.inline)
-    if (!row || !card.current || !panel) return
-    const margin =
-      Number.parseFloat(getComputedStyle(panel).getPropertyValue('--size-popover-margin')) || 8
-    const anchor = row.getBoundingClientRect()
-    const width = panel.offsetWidth
-    const height = panel.offsetHeight
-    const below = anchor.bottom + height + margin <= window.innerHeight
-    panel.dataset['side'] = below ? 'below' : 'above'
-    if (props.inline) {
-      panel.dataset['fixed'] = ''
-      const top = below ? anchor.bottom : Math.max(margin, anchor.top - height)
-      const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin))
-      panel.style.top = `${top}px`
-      panel.style.left = `${left}px`
-      return
+    const place = () => {
+      const row = rows.current[editing]
+      const panel = shownPicker(card.current, props.inline)
+      if (!row || !card.current || !panel) return
+      const margin =
+        Number.parseFloat(getComputedStyle(panel).getPropertyValue('--size-popover-margin')) || 8
+      const anchor = row.getBoundingClientRect()
+      const width = panel.offsetWidth
+      const height = panel.offsetHeight
+      const below = anchor.bottom + height + margin <= window.innerHeight
+      panel.dataset['side'] = below ? 'below' : 'above'
+      if (props.inline) {
+        panel.dataset['fixed'] = ''
+        const top = Math.max(
+          margin,
+          Math.min(
+            below ? anchor.bottom : anchor.top - height,
+            window.innerHeight - height - margin,
+          ),
+        )
+        const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin))
+        panel.style.top = `${top}px`
+        panel.style.left = `${left}px`
+        return
+      }
+      const box = card.current.getBoundingClientRect()
+      panel.style.top = below
+        ? `${anchor.bottom - box.top}px`
+        : `${anchor.top - box.top - height}px`
+      const maxLeft = window.innerWidth - width - margin - box.left
+      panel.style.left = `${Math.max(margin - box.left, Math.min(anchor.left - box.left, maxLeft))}px`
     }
-    const box = card.current.getBoundingClientRect()
-    panel.style.top = below ? `${anchor.bottom - box.top}px` : `${anchor.top - box.top - height}px`
-    const maxLeft = window.innerWidth - width - margin - box.left
-    panel.style.left = `${Math.max(margin - box.left, Math.min(anchor.left - box.left, maxLeft))}px`
+    place()
+    window.addEventListener('resize', place)
+    if (props.inline) window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      if (props.inline) window.removeEventListener('scroll', place, true)
+    }
   }, [editing, props.inline])
 
   useLayoutEffect(() => {

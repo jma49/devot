@@ -535,9 +535,8 @@ export function AuthorshipNotice(props: {
                 disabled={phase.busy || !props.editing}
                 onClick={() => {
                   setPhase({ kind: 'idle', busy: true })
-                  const mine = generation.current
                   void props.onUndoAll(writer).finally(() => {
-                    if (mine === generation.current) setPhase(IDLE)
+                    setPhase((now) => (now.kind === 'idle' && now.busy ? IDLE : now))
                     props.editor.current?.focus()
                   })
                 }}

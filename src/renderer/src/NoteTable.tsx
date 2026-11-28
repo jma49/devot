@@ -35,7 +35,7 @@ import { STATUS_ICONS } from './NoteRow'
 import { usePaneResize } from './paneResize'
 import { BOARD_PANE } from './paneWidth'
 import { useStable } from './stable'
-import { tagColorStyle } from './tagColorStyle'
+import { tagColorClass, tagColorStyle } from './tagColorStyle'
 import { TagDot } from './TagDot'
 import {
   editText,
@@ -673,7 +673,7 @@ export const NoteTable = memo(function NoteTable(props: NoteTableProps) {
           {chips.map((tag) => (
             <span
               key={tag.id}
-              className={`table-chip${tag.color ? ` tag-color-${tag.color}` : ''}`}
+              className={`table-chip${tag.color ? ` ${tagColorClass(tag.color)}` : ''}`}
               style={tagColorStyle(tag.color)}
               dir="auto"
             >
