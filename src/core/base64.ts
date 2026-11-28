@@ -7,11 +7,12 @@
 type NativeBytes = { toBase64?: (this: Uint8Array) => string }
 type NativeCodec = { fromBase64?: (text: string) => Uint8Array<ArrayBuffer> }
 
-const ALPHABET = new TextEncoder().encode(
+const ALPHABET = Uint8Array.from(
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/',
+  (c) => c.charCodeAt(0),
 )
 const PAD = 0x3d
-const ascii = new TextDecoder()
+let ascii: TextDecoder | undefined
 
 export function toBase64(bytes: Uint8Array): string {
   const native = (Uint8Array.prototype as NativeBytes).toBase64
@@ -35,6 +36,7 @@ export function toBase64(bytes: Uint8Array): string {
     out[o + 2] = two ? ALPHABET[(v >>> 6) & 63]! : PAD
     out[o + 3] = PAD
   }
+  ascii ??= new TextDecoder()
   return ascii.decode(out)
 }
 
