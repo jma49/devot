@@ -3749,10 +3749,9 @@ public enum Tokens {
     public static let inlineImageHeight: CGFloat = 160
     public static let scrollEdge: CGFloat = 28
     public static let sidebarScrollEdge: CGFloat = 18
-    public static let sidebarFooter: CGFloat = 20
+    public static let sidebarFooter: CGFloat = 28
     public static let capsuleEdge: CGFloat = 1
     public static let sidebarFooterGap: CGFloat = 6
-    public static let sidebarFooterEndSm: CGFloat = 6
     public static let scrollbar: CGFloat = 6
     public static let menuWidth: CGFloat = 325
     public static let menuMaxHeight: CGFloat = 210

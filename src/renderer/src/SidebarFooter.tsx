@@ -1,73 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, type BackupStatus } from './backups'
+import { Suspense, lazy, useEffect, useId, useRef, useState } from 'react'
+import { BACKUP_FAILED, listBackups } from './backups'
 import { footerStatus, type FooterBackups } from './footerStatus'
-import { currentLocale, format, t } from './i18n'
+import { format, t } from './i18n'
 import { Chevron } from './Chevron'
 import { clockTime, useLastWrite } from './lastWrite'
-import { pausedMessage, useMirrorStatus } from './mirror'
-import { failureText, logFailure } from './failure'
+import { useMirrorStatus } from './mirror'
 
-const dateTime = (ms: number) =>
-  new Intl.DateTimeFormat(currentLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(ms)
-
-type Backups =
-  | { kind: 'loading' }
-  | { kind: 'ready'; status: BackupStatus }
-  | { kind: 'failed'; code: string }
-
-function StatusPanel(props: { id: string; onClose: () => void }) {
-  const mirror = useMirrorStatus()
-  const [backups, setBackups] = useState<Backups>({ kind: 'loading' })
-  useEffect(() => {
-    let alive = true
-    listBackups().then(
-      (status) => alive && setBackups({ kind: 'ready', status }),
-      (error: unknown) =>
-        alive &&
-        setBackups({ kind: 'failed', code: logFailure(errorCode(error), 'W_BACKUPS_FAILED') }),
-    )
-    return () => {
-      alive = false
-    }
-  }, [])
-
-  const last = backups.kind === 'ready' ? backups.status.backups[0] : undefined
-  return (
-    <div id={props.id} className="footer-panel" role="group" aria-label={t('sidebar.statusLabel')}>
-      <p className="footer-line">
-        {backups.kind === 'failed'
-          ? failureText('generalSettings.backupsFailed', backups.code)
-          : backups.kind === 'loading'
-            ? ''
-            : last
-              ? format(t('sidebar.lastBackup'), { date: dateTime(last.createdAt) })
-              : t('backups.empty')}
-      </p>
-      {backups.kind === 'ready' && backups.status.lastError !== null ? (
-        <p className="footer-line footer-error">
-          {failureText('backups.autoFailed', backups.status.lastError)}
-        </p>
-      ) : null}
-      <p className="footer-line">
-        {mirror.folder === null
-          ? t('mirror.off')
-          : mirror.paused !== null
-            ? pausedMessage(mirror.paused)
-            : format(t('sidebar.mirrorOn'), { folder: mirror.folder })}
-      </p>
-      <button
-        type="button"
-        className="button"
-        onClick={() => {
-          props.onClose()
-          window.dispatchEvent(new CustomEvent(SHOW_BACKUPS))
-        }}
-      >
-        {t('backups.show')}
-      </button>
-    </div>
-  )
-}
+const StatusPanel = lazy(() => import('./SidebarFooterPanel'))
 
 function useFooterBackups(open: boolean): FooterBackups {
   const [backups, setBackups] = useState<FooterBackups>({ kind: 'loading' })
@@ -118,20 +57,27 @@ export function SidebarFooter() {
 
   return (
     <div ref={root} className="sidebar-footer">
-      {open ? <StatusPanel id={panelId} onClose={() => setOpen(false)} /> : null}
+      {open ? (
+        <Suspense fallback={null}>
+          <StatusPanel id={panelId} onClose={() => setOpen(false)} />
+        </Suspense>
+      ) : null}
       <button
         type="button"
         className="footer-toggle"
+        data-tone={status?.tone}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         title={at === null ? undefined : format(t('sidebar.savedAt'), { time: clockTime(at) })}
         onClick={() => setOpen((now) => !now)}
       >
+        <span className="footer-indicator" aria-hidden="true">
+          {status !== undefined ? <span className="footer-dot" data-tone={status.tone} /> : null}
+        </span>
         {status === undefined ? (
           <span className="footer-saved">{t('sidebar.statusLabel')}</span>
         ) : (
           <>
-            <span className="footer-dot" data-tone={status.tone} aria-hidden="true" />
             {/* The visible status is part of the name: an aria-label would replace it. */}
             <span className="visually-hidden">{t('sidebar.statusLabel')}: </span>
             <span className="footer-saved">{status.text}</span>
