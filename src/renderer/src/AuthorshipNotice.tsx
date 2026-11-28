@@ -523,7 +523,7 @@ export function AuthorshipNotice(props: {
           </p>
           <span className="authorship-notice-actions">
             {props.canReview || props.onStartReview ? (
-              <button type="button" className="button" onClick={startReview}>
+              <button type="button" className="button" disabled={phase.busy} onClick={startReview}>
                 {t('authorship.review')}
               </button>
             ) : null}
@@ -535,9 +535,8 @@ export function AuthorshipNotice(props: {
                 disabled={phase.busy || !props.editing}
                 onClick={() => {
                   setPhase({ kind: 'idle', busy: true })
-                  const mine = generation.current
                   void props.onUndoAll(writer).finally(() => {
-                    if (mine === generation.current) setPhase(IDLE)
+                    setPhase((now) => (now.kind === 'idle' && now.busy ? IDLE : now))
                     props.editor.current?.focus()
                   })
                 }}
@@ -548,6 +547,7 @@ export function AuthorshipNotice(props: {
             <button
               type="button"
               className="button"
+              disabled={phase.busy}
               onClick={() => {
                 props.onDismiss()
                 props.editor.current?.focus()

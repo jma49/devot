@@ -1,4 +1,5 @@
 import { useId, useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { NoteFacts } from '../../../core/noteFacts'
 import type { PropertyRow } from '../../../core/preview/frontMatterView'
 import { closingRef } from '../closing'
@@ -49,8 +50,10 @@ type Picker =
 
 const CLOSED: Picker = { kind: 'closed' }
 
-const shownPicker = (card: HTMLElement | null) =>
-  card?.querySelector<HTMLElement>(':scope > .date-picker:not([data-closing])') ?? null
+const shownPicker = (card: HTMLElement | null, inline?: boolean) =>
+  (inline
+    ? document.querySelector<HTMLElement>('body > .date-picker:not([data-closing])')
+    : card?.querySelector<HTMLElement>(':scope > .date-picker:not([data-closing])')) ?? null
 
 function Row(props: {
   icon?: IconName | undefined
@@ -245,18 +248,46 @@ export function NoteInfoCard(props: {
 
   useLayoutEffect(() => {
     if (!editing) return
-    const row = rows.current[editing]
-    const panel = shownPicker(card.current)
-    if (!row || !card.current || !panel) return
-    const box = card.current.getBoundingClientRect()
-    const anchor = row.getBoundingClientRect()
-    const below = anchor.bottom + panel.offsetHeight < window.innerHeight
-    panel.dataset['side'] = below ? 'below' : 'above'
-    panel.style.top = below
-      ? `${anchor.bottom - box.top}px`
-      : `${anchor.top - box.top - panel.offsetHeight}px`
-    panel.style.left = `${anchor.left - box.left}px`
-  }, [editing])
+    const place = () => {
+      const row = rows.current[editing]
+      const panel = shownPicker(card.current, props.inline)
+      if (!row || !card.current || !panel) return
+      const margin =
+        Number.parseFloat(getComputedStyle(panel).getPropertyValue('--size-popover-margin')) || 8
+      const anchor = row.getBoundingClientRect()
+      const width = panel.offsetWidth
+      const height = panel.offsetHeight
+      const below = anchor.bottom + height + margin <= window.innerHeight
+      panel.dataset['side'] = below ? 'below' : 'above'
+      if (props.inline) {
+        panel.dataset['fixed'] = ''
+        const top = Math.max(
+          margin,
+          Math.min(
+            below ? anchor.bottom : anchor.top - height,
+            window.innerHeight - height - margin,
+          ),
+        )
+        const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin))
+        panel.style.top = `${top}px`
+        panel.style.left = `${left}px`
+        return
+      }
+      const box = card.current.getBoundingClientRect()
+      panel.style.top = below
+        ? `${anchor.bottom - box.top}px`
+        : `${anchor.top - box.top - height}px`
+      const maxLeft = window.innerWidth - width - margin - box.left
+      panel.style.left = `${Math.max(margin - box.left, Math.min(anchor.left - box.left, maxLeft))}px`
+    }
+    place()
+    window.addEventListener('resize', place)
+    if (props.inline) window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      if (props.inline) window.removeEventListener('scroll', place, true)
+    }
+  }, [editing, props.inline])
 
   useLayoutEffect(() => {
     const away = (event: MouseEvent) => {
@@ -264,7 +295,7 @@ export function NoteInfoCard(props: {
       if (!(target instanceof Node)) return
       if (editing) {
         // The open picker's own row closes it on its click.
-        const inside = [shownPicker(card.current), rows.current[editing]]
+        const inside = [shownPicker(card.current, props.inline), rows.current[editing]]
         if (!inside.some((el) => el?.contains(target))) closePicker(editing)
         return
       }
@@ -460,7 +491,7 @@ export function NoteInfoCard(props: {
               })}
             </ul>
           ) : (
-            <p className="note-info-empty">
+            <p className={`note-info-empty${mentions ? '' : ' pending-text'}`}>
               {mentions ? t('noteInfo.noMentions') : t('noteInfo.findingMentions')}
             </p>
           )}
@@ -487,25 +518,30 @@ export function NoteInfoCard(props: {
           {facts ? formatNumber(facts.words, locale) : null}
         </Row>
         {props.inline && (
-          <Row label={t('counts.characters')}>
+          <Row icon="settings.textAppearance" label={t('counts.characters')}>
             {props.characters === undefined ? null : formatNumber(props.characters, locale)}
           </Row>
         )}
         {aiAccess ? <AiAccessRow access={aiAccess} /> : null}
       </div>
-      {editing ? (
-        <DatePicker
-          key={editing}
-          field={editing}
-          label={t(editing === 'created' ? 'noteInfo.created' : 'noteInfo.updated')}
-          at={editing === 'created' ? info.createdAt : info.updatedAt}
-          info={info}
-          locale={locale}
-          onPending={setPendingAt}
-          onCancel={() => closePicker(editing)}
-          onSet={(at) => setDate(editing, at)}
-        />
-      ) : null}
+      {editing
+        ? (() => {
+            const datePicker = (
+              <DatePicker
+                key={editing}
+                field={editing}
+                label={t(editing === 'created' ? 'noteInfo.created' : 'noteInfo.updated')}
+                at={editing === 'created' ? info.createdAt : info.updatedAt}
+                info={info}
+                locale={locale}
+                onPending={setPendingAt}
+                onCancel={() => closePicker(editing)}
+                onSet={(at) => setDate(editing, at)}
+              />
+            )
+            return props.inline ? createPortal(datePicker, document.body) : datePicker
+          })()
+        : null}
     </div>
   )
 }

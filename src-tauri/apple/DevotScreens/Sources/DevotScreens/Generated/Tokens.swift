@@ -3693,7 +3693,7 @@ public enum Tokens {
     public static let listMaxWidth: CGFloat = 500
     public static let boardMinWidth: CGFloat = 240
     public static let boardMaxWidth: CGFloat = 1600
-    public static let boardEditorMinWidth: CGFloat = 380
+    public static let boardEditorMinWidth: CGFloat = 412
     public static let boardColumnWidth: CGFloat = 180
     public static let boardColumnMinWidth: CGFloat = 150
     public static let cardMetaLine: CGFloat = 14

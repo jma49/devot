@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { Icon } from '../icons/Icon'
 import { t } from '../i18n'
+import { ToolTips } from '../ToolTips'
 import { listenHere, unlistenLater } from '../windowEvents'
 import { AiSection } from './AiSection'
 import { AppearanceSection } from './AppearanceSection'
@@ -81,6 +82,7 @@ export function SettingsWindow() {
   const [scrolled, setScrolled] = useState(false)
   const [toolbarEnd, setToolbarEnd] = useState<HTMLDivElement | null>(null)
   const body = useRef<HTMLDivElement>(null)
+  const searchInput = useRef<HTMLInputElement>(null)
   const scrolls = useRef(new Map<PaneId, number>())
   const tabs = useRef(new Map<PaneId, HTMLButtonElement>())
 
@@ -225,6 +227,7 @@ export function SettingsWindow() {
         <div className="settings-search">
           <Icon name="search" size="sm" />
           <input
+            ref={searchInput}
             type="search"
             className="settings-search-field"
             aria-label={t('settings.search')}
@@ -241,6 +244,22 @@ export function SettingsWindow() {
             }}
             onKeyDown={onSearchKey}
           />
+          {query ? (
+            <button
+              type="button"
+              className="search-clear"
+              aria-label={t('search.clear')}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setTarget(null)
+                setQuery('')
+                setResultIndex(0)
+                searchInput.current?.focus()
+              }}
+            >
+              <Icon name="tag.remove" size="sm" />
+            </button>
+          ) : null}
         </div>
         {searching ? (
           <div
@@ -370,6 +389,7 @@ export function SettingsWindow() {
           </div>
         </div>
       </div>
+      <ToolTips />
     </main>
   )
 }

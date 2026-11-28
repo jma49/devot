@@ -47,7 +47,7 @@ export function ShareWebBody(props: {
       <h2 id="share-web-title" className="sheet-title">
         {t('shareWeb.title')}
       </h2>
-      {shared ? (
+      {phase.kind === 'loading' ? null : shared ? (
         <>
           <p className="sheet-detail">
             {format(t('shareWeb.sharedDetail'), {
@@ -69,6 +69,7 @@ export function ShareWebBody(props: {
           <label className="share-web-choice">
             <span className="sheet-detail">{t('shareWeb.lifetimeLabel')}</span>
             <select
+              className="select"
               value={
                 phase.kind === 'unshared' || phase.kind === 'working'
                   ? phase.lifetime
@@ -103,7 +104,7 @@ export function ShareWebBody(props: {
           <>
             <button
               type="button"
-              className="button share-web-stop"
+              className="button button-destructive share-web-stop"
               disabled={working}
               onClick={() => props.onRun('stop')}
             >

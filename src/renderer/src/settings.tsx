@@ -15,6 +15,7 @@ import { startBackdropPainter } from './theme/backdropWindow'
 import { startMotion } from './motionPreference'
 import { startSidebarSurround } from './sidebarSurround'
 import { applyMotionScale } from './motionTiming'
+import { watchDialogExits } from './dialogMotion'
 import { Localised, localiseTitle, startLocale } from './liveLocale'
 import { watchCompositions } from './ime'
 import { SettingsWindow } from './settings/SettingsWindow'
@@ -31,6 +32,7 @@ startPluginThemes()
 startBackdropPainter()
 startMotion()
 applyMotionScale(document.documentElement)
+watchDialogExits()
 startShortcutSettings()
 startSidebarSurround()
 // The same accent as the main window, so "Use the System Accent Color" shows here too.

@@ -35,9 +35,15 @@
 
 .quick-capture-title {
   flex: none;
+  border-radius: var(--radius-control);
   font-size: var(--font-size-title);
   font-weight: var(--font-weight-bold);
   line-height: 1.25;
+}
+
+.quick-capture-title:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: var(--size-focus-ring);
 }
 
 .quick-capture-meta {

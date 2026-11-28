@@ -36,6 +36,8 @@ import { STATUS_ICONS } from './NoteRow'
 import { usePaneResize } from './paneResize'
 import { BOARD_PANE } from './paneWidth'
 import { useStable } from './stable'
+import { tagColorClass, tagColorStyle } from './tagColorStyle'
+import { TagDot } from './TagDot'
 import {
   editText,
   parseCell,
@@ -311,15 +313,19 @@ export const NoteTable = memo(function NoteTable(props: NoteTableProps) {
     setSettingsOf({ view: props.view, settings: next })
   })
   const { properties, patch } = useTableProperties(props.properties, notes)
-  const tagNames = useCallback(
+  const noteTags = useCallback(
     (note: NoteSummary) =>
       note.tagIds
         .flatMap((id) => {
-          const name = props.tags.get(id)?.name
-          return name === undefined ? [] : [name]
+          const tag = props.tags.get(id)
+          return tag === undefined ? [] : [tag]
         })
-        .sort((a, b) => compareNames(a, b, locale)),
+        .sort((a, b) => compareNames(a.name, b.name, locale)),
     [props.tags, locale],
+  )
+  const tagNames = useCallback(
+    (note: NoteSummary) => noteTags(note).map((tag) => tag.name),
+    [noteTags],
   )
   const columns = useMemo(
     () => tableColumns(notes, properties, settings, collator),
@@ -661,9 +667,21 @@ export const NoteTable = memo(function NoteTable(props: NoteTableProps) {
           </time>
         )
       }
+      const chips = noteTags(note)
+      if (chips.length === 0) return null
       return (
-        <span className="table-text" dir="auto">
-          {tagNames(note).join(', ')}
+        <span className="table-chips">
+          {chips.map((tag) => (
+            <span
+              key={tag.id}
+              className={`table-chip${tag.color ? ` ${tagColorClass(tag.color)}` : ''}`}
+              style={tagColorStyle(tag.color)}
+              dir="auto"
+            >
+              {tag.color ? <TagDot color={tag.color} name={tag.name} /> : null}
+              {tag.name}
+            </span>
+          ))}
         </span>
       )
     }
@@ -848,14 +866,10 @@ export const NoteTable = memo(function NoteTable(props: NoteTableProps) {
             ) : null}
             {rows.length === 0 && filtered ? (
               <div className="table-none">
-                <ListEmptyContent text={{ message: 'table.noMatches' }} />
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => changeSettings({ ...settings, filters: {} })}
-                >
-                  {t('table.clearFilters')}
-                </button>
+                <ListEmptyContent
+                  text={{ message: 'table.noMatches', action: 'table.clearFilters' }}
+                  onSearchAll={() => changeSettings({ ...settings, filters: {} })}
+                />
               </div>
             ) : (
               <div className="table-body" style={{ height: rows.length * ROW_HEIGHT }}>
@@ -881,6 +895,11 @@ export const NoteTable = memo(function NoteTable(props: NoteTableProps) {
                       }
                     >
                       {columns.map((column, index) => bodyCell(note, rowIndex, column, index))}
+                      <div
+                        role="presentation"
+                        className="table-cell table-cell-spacer"
+                        aria-hidden="true"
+                      />
                     </div>
                   )
                 })}

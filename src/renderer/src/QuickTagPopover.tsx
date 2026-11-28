@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useId,
   useInsertionEffect,
@@ -152,12 +153,14 @@ export function QuickTag(props: {
   }
   const optionId = (i: number) => `${listId}-${i}`
 
+  const setPanel = useCallback((el: HTMLDivElement | null) => {
+    panel.current = el
+    return panelRef(el)
+  }, [])
+
   return (
     <div
-      ref={(el) => {
-        panel.current = el
-        panelRef(el)
-      }}
+      ref={setPanel}
       className="picker-popover quick-tag"
       role="dialog"
       aria-label={t('quickTag.title')}

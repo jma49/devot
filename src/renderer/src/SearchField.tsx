@@ -10,6 +10,7 @@ import {
 } from 'react'
 import type { BookRecord, TagRecord } from '../../core/storage'
 import type { MenuPoint } from './contextMenu'
+import { closingRef } from './closing'
 import { format, t, type MessageKey } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
@@ -28,6 +29,9 @@ import {
 import { tagColorStyle } from './tagColorStyle'
 import { TagDot } from './TagDot'
 import { useLocale } from './liveLocale'
+
+const suggestionsCloseRef = closingRef('scale', 'search-suggestions')
+const helpCloseRef = closingRef('scale', 'search-help')
 
 const SYNTAX = [
   { example: 'word  "a phrase"  \'a phrase\'', note: 'search.help.text' },
@@ -340,7 +344,7 @@ export const SearchField = forwardRef<
         {value.trim() && onOptions ? (
           <button
             type="button"
-            className="search-help-button search-options-button"
+            className="search-options-button"
             aria-label={t('search.options')}
             title={t('search.options')}
             onMouseDown={(e) => e.preventDefault()}
@@ -367,6 +371,7 @@ export const SearchField = forwardRef<
       </label>
       {openSuggestions ? (
         <ul
+          ref={suggestionsCloseRef}
           id={listId}
           className="tag-suggestions search-suggestions"
           role="listbox"
@@ -396,6 +401,7 @@ export const SearchField = forwardRef<
       ) : null}
       {helpOpen ? (
         <div
+          ref={helpCloseRef}
           id="search-help"
           className="search-help"
           role="dialog"

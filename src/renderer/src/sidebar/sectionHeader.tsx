@@ -19,6 +19,9 @@ export const sectionHeader = (
   return (
     <div
       className={`section-header${topLevelDrop && dropAt && dropAt.id === null ? ' drop-target' : ''}`}
+      onClick={(e) => {
+        if (!(e.target as Element).closest('.section-tools')) toggleSection(section)
+      }}
       onDragEnter={topLevelDrop ? (e) => onDragOver(e, null) : undefined}
       onDragOver={topLevelDrop ? (e) => onDragOver(e, null) : undefined}
       onDragLeave={topLevelDrop ? (e) => onDragLeave(e, null) : undefined}

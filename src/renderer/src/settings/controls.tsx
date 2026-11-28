@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -7,6 +8,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
+import { closingRef } from '../closing'
 import { Icon } from '../icons/Icon'
 import type { EditorSettings } from '../../../core/editorSettings'
 import { errorCode } from '../../../core/errors'
@@ -307,10 +309,16 @@ export interface MoreMenuItem {
  * Escape closes it and gives the button the keyboard back, and so does a pick, before the item acts
  * (a dialog it opens then gives the keyboard back to the button). A disabled item stays reachable.
  */
+const moreMenuCloseRef = closingRef('scale', 'more-menu')
+
 export function MoreMenu({ label, items }: { label: string; items: readonly MoreMenuItem[] }) {
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
+  const menuRef = useCallback((el: HTMLDivElement | null) => {
+    menu.current = el
+    return moreMenuCloseRef(el)
+  }, [])
   const id = useId()
   const entries = () => [
     ...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []),
@@ -323,8 +331,15 @@ export function MoreMenu({ label, items }: { label: string; items: readonly More
       const at = e.target as Node
       if (!menu.current?.contains(at) && !button.current?.contains(at)) setOpen(false)
     }
+    const dismiss = () => setOpen(false)
     document.addEventListener('pointerdown', away)
-    return () => document.removeEventListener('pointerdown', away)
+    window.addEventListener('blur', dismiss)
+    window.addEventListener('resize', dismiss)
+    return () => {
+      document.removeEventListener('pointerdown', away)
+      window.removeEventListener('blur', dismiss)
+      window.removeEventListener('resize', dismiss)
+    }
   }, [open, button, menu])
 
   const close = () => {
@@ -373,7 +388,7 @@ export function MoreMenu({ label, items }: { label: string; items: readonly More
       </button>
       {open ? (
         <div
-          ref={menu}
+          ref={menuRef}
           id={id}
           role="menu"
           aria-label={label}

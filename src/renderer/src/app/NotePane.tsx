@@ -232,26 +232,29 @@ export function NotePane({
           >
             <ToolIcon name={focus ? 'mode.focus.exit' : 'mode.focus'} />
           </button>
-          <button
-            type="button"
-            className="tool"
-            aria-label={t('command.back')}
-            title={titleWithKey('command.backTitle', 'note.back')}
-            disabled={backAt === undefined}
-            onClick={() => void step(-1)}
-          >
-            <ToolIcon name="nav.back" />
-          </button>
-          <button
-            type="button"
-            className="tool"
-            aria-label={t('command.forward')}
-            title={titleWithKey('command.forwardTitle', 'note.forward')}
-            disabled={forwardAt === undefined}
-            onClick={() => void step(1)}
-          >
-            <ToolIcon name="nav.forward" />
-          </button>
+          <div className="trail-history" data-tauri-drag-region="false">
+            <button
+              type="button"
+              className="tool"
+              aria-label={t('command.back')}
+              title={titleWithKey('command.backTitle', 'note.back')}
+              disabled={backAt === undefined}
+              onClick={() => void step(-1)}
+            >
+              <ToolIcon name="nav.back" />
+            </button>
+            <span className="trail-history-divider" aria-hidden="true" />
+            <button
+              type="button"
+              className="tool"
+              aria-label={t('command.forward')}
+              title={titleWithKey('command.forwardTitle', 'note.forward')}
+              disabled={forwardAt === undefined}
+              onClick={() => void step(1)}
+            >
+              <ToolIcon name="nav.forward" />
+            </button>
+          </div>
         </div>
         {selected && !inTrash && !multiIds ? (
           <>

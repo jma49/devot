@@ -230,8 +230,8 @@ function PickerPanel(
   const panel = useRef<HTMLDivElement | null>(null)
   const search = useRef<HTMLInputElement>(null)
   const ref = useCallback((el: HTMLDivElement | null) => {
-    pickerClosing(el)
     panel.current = el
+    return pickerClosing(el)
   }, [])
   useLayoutEffect(() => {
     if (panel.current) placePickerPanel(panel.current)

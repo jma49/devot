@@ -20,16 +20,31 @@ export function TrashView(props: {
     createdAt: number
     updatedAt: number
   }>()
+  const [failedId, setFailedId] = useState<string>()
   useEffect(() => {
     let current = true
     core.peekTrashed(noteId).then(
-      (n) => current && setNote(n),
-      () => console.warn('W_TRASH_PEEK_FAILED', noteId),
+      (n) => {
+        if (!current) return
+        setNote(n)
+        setFailedId(undefined)
+      },
+      () => {
+        console.warn('W_TRASH_PEEK_FAILED', noteId)
+        if (current) setFailedId(noteId)
+      },
     )
     return () => {
       current = false
     }
   }, [core, noteId])
+  if (failedId === noteId) {
+    return (
+      <p role="alert" className="note-window-failure">
+        {t('noteWindow.unavailable')}
+      </p>
+    )
+  }
   if (!note) return null
   const name = displayTitle(note.title, headline(note.bodyMd))
   return (

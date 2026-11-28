@@ -66,7 +66,7 @@ const theme = EditorView.theme({
     fontSize: 'var(--font-size-body)',
     minWidth: '0',
     maxHeight: 'var(--size-menu-max-height)',
-    padding: 'var(--space-2)',
+    padding: 'var(--size-glass-popover-inset)',
   },
   '.cm-tooltip.cm-popup-full > ul': { minWidth: 'var(--size-menu-width)' },
   '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
@@ -75,7 +75,7 @@ const theme = EditorView.theme({
     gap: 'var(--space-4)',
     padding: '0 var(--space-4)',
     minHeight: 'var(--size-menu-row)',
-    borderRadius: 'var(--radius-button)',
+    borderRadius: 'var(--radius-glass-menu-row)',
     color: 'var(--color-text-primary)',
   },
   '.cm-tooltip-autocomplete ul li[aria-selected]': {

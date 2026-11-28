@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useInsertionEffect,
   useLayoutEffect,
@@ -191,12 +192,14 @@ export function TagMenu(props: {
     </div>
   ) : null
 
+  const setPanel = useCallback((el: HTMLDivElement | null) => {
+    panel.current = el
+    return menuRef(el)
+  }, [])
+
   return createPortal(
     <div
-      ref={(el) => {
-        panel.current = el
-        menuRef(el)
-      }}
+      ref={setPanel}
       className="picker-popover tag-menu"
       role={picking ? 'dialog' : 'menu'}
       aria-label={t(picking ? ('tagColor.customPick' as MessageKey) : 'tagMenu.label')}

@@ -4,6 +4,7 @@
 // the window, and goes when the pointer leaves, a button is pressed or the
 // pane scrolls.
 import {
+  useCallback,
   useEffect,
   useInsertionEffect,
   useLayoutEffect,
@@ -12,6 +13,7 @@ import {
   type RefObject,
 } from 'react'
 import { noteIdOf } from '../../../core/links'
+import { closingRef } from '../closing'
 import { noteCardDom } from '../noteCard'
 import type { LoadPreview, NotePreview } from '../notePreview'
 import { sizes } from '../theme/tokens'
@@ -30,6 +32,7 @@ interface Shown {
 }
 
 const NOTE_LINKS = 'a[href^="devot://note/"]'
+const cardCloseRef = closingRef('fade', 'note-card-pop')
 
 export function NoteHover({
   pane,
@@ -40,6 +43,10 @@ export function NoteHover({
 }) {
   const [shown, setShown] = useState<Shown>()
   const card = useRef<HTMLDivElement | null>(null)
+  const cardRef = useCallback((el: HTMLDivElement | null) => {
+    card.current = el
+    return cardCloseRef(el)
+  }, [])
   const loadRef = useRef(load)
   useInsertionEffect(() => {
     loadRef.current = load
@@ -111,7 +118,7 @@ export function NoteHover({
   if (!shown) return null
   return (
     <div
-      ref={card}
+      ref={cardRef}
       className="tool-tip note-card-pop"
       role="tooltip"
       style={{ visibility: 'hidden' }}

@@ -57,6 +57,7 @@ import {
 import { StatusPicker } from '../StatusPicker'
 import { STATUS_COMMANDS } from '../statusKeys'
 import { TagEditor } from '../TagEditor'
+import { ToolTips } from '../ToolTips'
 import { textStore } from '../textStore'
 import { unlistenLater } from '../windowEvents'
 import { useEditorSetting } from '../editorSettings'
@@ -457,7 +458,7 @@ export function NoteWindow() {
   return (
     <div className="window note-window" data-ready={core ? '' : undefined}>
       <main className="content" data-devot-part="editor">
-        <div className="toolbar editor-toolbar" data-devot-part="toolbar">
+        <div className="toolbar editor-toolbar" data-devot-part="toolbar" data-tauri-drag-region>
           {core ? <ModeControl mode={mode} onChange={setMode} /> : null}
         </div>
         {core && noteId ? (
@@ -681,6 +682,7 @@ export function NoteWindow() {
         ) : null}
       </Notices>
       {viewing ? <ImageViewer image={viewing} onClose={() => setViewing(null)} /> : null}
+      <ToolTips />
     </div>
   )
 }

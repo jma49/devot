@@ -73,7 +73,7 @@ export function ConfirmDialog(props: {
         </button>
         <button
           type="button"
-          className="button button-destructive"
+          className={props.destructive ? 'button button-destructive' : 'button button-default'}
           onClick={props.onConfirm}
           ref={confirmButton}
         >
