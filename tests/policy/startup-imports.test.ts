@@ -1,22 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { listFiles } from '../support/git-files'
+import { runtimeModuleSpecifiers } from '../support/ts-imports'
+
+const CORE_INDEX = /^(?:\.\.\/)+core(?:\/index(?:\.ts)?)?$/
 
 // The core index re-exports import, export and HTML conversion (parse5, yaml, remark): a value
 // import of it from the window puts them in the startup bundle. The worker may use it.
 export function hasCoreIndexValueImport(source: string): boolean {
-  if (/^(?:import|export)\s+\*(?:\s+as\s+\w+)?\s+from\s+'(?:\.\.\/)+core'$/m.test(source))
-    return true
-  return [
-    ...source.matchAll(/^(?:import|export)\s+(type\s+)?\{([^}]*)\}\s+from\s+'(?:\.\.\/)+core'$/gm),
-  ].some(
-    ([, typeOnly, names]) =>
-      !typeOnly &&
-      names!
-        .split(',')
-        .map((name) => name.trim())
-        .some((name) => name !== '' && !name.startsWith('type ')),
-  )
+  return runtimeModuleSpecifiers(source).some((spec) => CORE_INDEX.test(spec))
 }
 
 it('the window imports only types from the core index', () => {
@@ -27,13 +19,17 @@ it('the window imports only types from the core index', () => {
   expect(offenders).toEqual([])
 })
 
-it('flags named, multiline, namespace and re-exported values from the core index', () => {
+it('flags side-effect, named, multiline, namespace and re-exported values from the core index', () => {
   expect(hasCoreIndexValueImport("import type { NoteRecord } from '../../core'")).toBe(false)
   expect(hasCoreIndexValueImport("import { type NoteRecord } from '../../core'")).toBe(false)
+  expect(hasCoreIndexValueImport("export type { NoteRecord } from '../../core'")).toBe(false)
+  expect(hasCoreIndexValueImport("import '../../core'")).toBe(true)
+  expect(hasCoreIndexValueImport("import '../../core/index'")).toBe(true)
   expect(hasCoreIndexValueImport("import { errorCode } from '../../core'")).toBe(true)
   expect(
     hasCoreIndexValueImport("import {\n  type NoteRecord,\n  errorCode,\n} from '../../core'"),
   ).toBe(true)
   expect(hasCoreIndexValueImport("import * as core from '../../core'")).toBe(true)
   expect(hasCoreIndexValueImport("export { errorCode } from '../../core'")).toBe(true)
+  expect(hasCoreIndexValueImport("export * from '../../core'")).toBe(true)
 })

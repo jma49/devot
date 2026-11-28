@@ -3,6 +3,7 @@ import { dirname, relative, resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { NOTE_STATUSES, TAG_COLORS } from '../../src/core/storage'
 import { listFiles } from '../support/git-files'
+import { runtimeModuleSpecifiers } from '../support/ts-imports'
 
 const TSCONFIGS = [
   'tsconfig.node.json',
@@ -74,24 +75,9 @@ function runtimeStronglyConnectedCycles(files: readonly string[]): string[][] {
   const fileSet = new Set(files)
   const graph = new Map<string, string[]>()
   for (const file of files) {
-    const stripped = readFileSync(file, 'utf8')
-      .replace(/\/\/.*$/gm, '')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
     const deps = new Set<string>()
-    for (const match of stripped.matchAll(
-      /(?:import|export)\s+(type\s+)?([\s\S]*?\s+from\s+)?['"](\.[^'"]+)['"]/g,
-    )) {
-      if (match[1]) continue
-      const clause = (match[2] ?? '').replace(/\s+from\s+$/, '').trim()
-      if (clause.startsWith('{') && clause.endsWith('}')) {
-        const names = clause
-          .slice(1, -1)
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
-        if (names.length > 0 && names.every((name) => name.startsWith('type '))) continue
-      }
-      const resolved = resolveRelativeTs(file, match[3]!)
+    for (const spec of runtimeModuleSpecifiers(readFileSync(file, 'utf8'))) {
+      const resolved = resolveRelativeTs(file, spec)
       if (resolved && fileSet.has(resolved) && resolved !== file) deps.add(resolved)
     }
     graph.set(file, [...deps])
@@ -149,6 +135,19 @@ it('keeps TypeScript modules free of runtime circular dependencies across core, 
       /\.(ts|tsx)$/.test(file) && !/\.(test|spec)\.(ts|tsx)$/.test(file) && !file.endsWith('.d.ts'),
   )
   expect(runtimeStronglyConnectedCycles(files)).toEqual([])
+})
+
+it('parses each import and export declaration separately when extracting runtime edges', () => {
+  const sample = [
+    "import { useState } from 'react'",
+    "import type { B } from './b'",
+    "import { type OnlyType } from './c'",
+    "import './side-effect'",
+    "import { type T, val } from './d'",
+    "export type { E } from './e'",
+    "export * from './f'",
+  ].join('\n')
+  expect(runtimeModuleSpecifiers(sample)).toEqual(['react', './side-effect', './d', './f'])
 })
 
 it('keeps the Share on Web Worker isolated and openEnvelope zero-import', () => {
