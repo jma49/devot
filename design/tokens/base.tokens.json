@@ -2306,23 +2306,18 @@
     },
     "sidebar-footer": {
       "$type": "dimension",
-      "$value": { "value": 20, "unit": "px" },
-      "$description": "The Glass sidebar's footer capsule: size.sidebar-row-inset + 20 / 2 = radius.sidebar, so it shares a centre with the sidebar's corners."
+      "$value": { "value": 28, "unit": "px" },
+      "$description": "The Glass sidebar's footer row: takes radius.sidebar-row (10), concentric with radius.sidebar at size.sidebar-row-inset."
     },
     "capsule-edge": {
       "$type": "dimension",
       "$value": { "value": 1, "unit": "px" },
-      "$description": "The border of an outlined capsule (the Glass sidebar footer, the sort chip, a note row's tag chip); an end inset is measured from outside it."
+      "$description": "The border of an outlined capsule (the sort chip, a note row's tag chip); an end inset is measured from outside it."
     },
     "sidebar-footer-gap": {
       "$type": "dimension",
       "$value": { "value": 6, "unit": "px" },
-      "$description": "The Glass sidebar footer: the gap between its dot, text and chevron (space.3)."
-    },
-    "sidebar-footer-end-sm": {
-      "$type": "dimension",
-      "$value": { "value": 6, "unit": "px" },
-      "$description": "The Glass sidebar footer: the end padding after its chevron's 14 px box, so the chevron centres as far from its end as the dot, which sits a sidebar row's start padding from the outer edge, from the other: size.sidebar-row-padding + space.4 / 2 - size.icon-sm / 2 - size.capsule-edge."
+      "$description": "The Glass sidebar footer: the gap between its status indicator slot, text and chevron (space.3)."
     },
     "scrollbar": {
       "$type": "dimension",

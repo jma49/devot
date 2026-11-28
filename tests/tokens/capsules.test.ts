@@ -33,13 +33,6 @@ const CAPSULES: Capsule[] = [
     ],
   },
   {
-    name: 'sidebar footer',
-    height: 'size.sidebar-footer',
-    edge: 'size.capsule-edge',
-    gap: 'size.sidebar-footer-gap',
-    ends: [],
-  },
-  {
     name: 'sort chip',
     height: 'size.list-filter-control',
     edge: 'size.capsule-edge',
@@ -118,14 +111,6 @@ describe('capsule tokens', () => {
     )
   })
 
-  it("keeps the sidebar footer's dot on the rows' keyline, its chevron centred as far from the other end", () => {
-    const dotCentre = px('size.sidebar-row-padding') + px('space.4') / 2
-    expect(
-      px('size.capsule-edge') + px('size.sidebar-footer-end-sm') + px('size.icon-sm') / 2,
-    ).toBe(dotCentre)
-    expect(rules.some((r) => r.selector.includes('.footer-toggle:has('))).toBe(false)
-  })
-
   it('makes a floating bar a capsule', () => {
     expect(px('radius.glass-floating-bar')).toBe(px('size.float-toolbar-height') / 2)
   })
@@ -139,7 +124,6 @@ describe('capsule tokens', () => {
     const named = [
       ...CAPSULES.flatMap((c) => [c.gap, ...c.ends.map(([inset]) => inset)]),
       'size.note-pill-remove-cover',
-      'size.sidebar-footer-end-sm',
     ]
     for (const path of named.filter((p) => p?.startsWith('size.'))) {
       expect(layout).toContain(`\`${path}\``)
@@ -159,11 +143,6 @@ describe('capsule tokens', () => {
         'padding-inline',
         'var(--size-note-pill-pad) var(--size-note-pill-end-xs)',
       ],
-      [
-        '.footer-toggle',
-        'padding-inline',
-        'calc(var(--size-sidebar-row-padding) - var(--size-capsule-edge)) var(--size-sidebar-footer-end-sm)',
-      ],
       ['.palette-field', 'padding', '0 var(--space-6) 0 var(--size-glass-palette-field-end-md)'],
       ['.note-meta .popup', 'gap', 'var(--size-note-pill-gap)'],
       [
@@ -172,7 +151,6 @@ describe('capsule tokens', () => {
         'var(--size-note-pill-end-xs)',
       ],
       ['.note-meta .book-popup', 'padding-inline-start', 'var(--size-note-pill-end-sm)'],
-      ['.footer-toggle', 'column-gap', 'var(--size-sidebar-footer-gap)'],
       ['.sort-chip', 'gap', 'var(--size-list-filter-control-gap)'],
       [
         '.list-filter .search-icon',

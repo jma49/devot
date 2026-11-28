@@ -23,11 +23,6 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
   it.each([
     ['window, sidebar', radius('window') - size('sidebar-inset'), radius('sidebar')],
     ['sidebar, row', radius('sidebar') - size('sidebar-row-inset'), radius('sidebar-row')],
-    [
-      'sidebar, footer capsule',
-      radius('sidebar') - size('sidebar-row-inset'),
-      size('sidebar-footer') / 2,
-    ],
     ['dialog, group', radius('glass-dialog') - size('glass-dialog-inset'), radius('glass-group')],
     [
       'popover, menu row',
@@ -92,10 +87,10 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
     expect(Number(corner)).toBe(radius('window'))
   })
 
-  it('keeps the sidebar footer a capsule', () => {
+  it('keeps the sidebar footer concentric with the sidebar corners', () => {
     const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
     const footer = rules.find((r) => r.selector === '.footer-toggle')
-    expect(footer?.body.get('border-radius')).toBe('var(--radius-capsule)')
+    expect(footer?.body.get('border-radius')).toBe('var(--radius-sidebar-row)')
   })
 
   it('sets settings toolbar controls as far from the right edge as from the top', () => {

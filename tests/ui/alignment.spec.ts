@@ -262,10 +262,16 @@ test('sidebar rows step 30 px with no gap', async ({ page }) => {
 
   const source = sidebar.locator('.source').first()
   const footer = sidebar.locator('.footer-toggle')
-  expect((await box(footer)).height).toBe(20)
-  // The footer's status dot, or its text while the status loads, stands on the rows' icon column.
-  const lead = footer.locator('.footer-dot, .footer-saved').first()
-  expect((await box(lead)).x).toBeCloseTo((await box(source.locator('.icon').first())).x, 1)
+  expect((await box(footer)).height).toBe(28)
+  // The footer's indicator centres on the rows' icon column and its text aligns with the rows' labels.
+  const iconBox = await box(source.locator('.icon').first())
+  const indicatorBox = await box(footer.locator('.footer-indicator'))
+  expect(indicatorBox.x).toBeCloseTo(iconBox.x, 1)
+  expect(indicatorBox.x + indicatorBox.width / 2).toBeCloseTo(iconBox.x + iconBox.width / 2, 1)
+  expect((await box(footer.locator('.footer-saved'))).x).toBeCloseTo(
+    (await box(source.locator('.source-label'))).x,
+    1,
+  )
 })
 
 test('the note text has the same edges in edit and preview as the title', async ({ page }) => {

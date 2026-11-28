@@ -13,14 +13,18 @@ describe('footerStatus', () => {
     })
   })
 
-  it('keeps a mirror that is off from reading as a problem', () => {
+  it('omits the mirror when it is off so the footer stays calm', () => {
     expect(footerStatus(BACKED_UP, MIRROR_OFF)).toEqual({
       tone: 'ok',
-      text: 'Backed up · Mirror off',
+      text: 'Backed up',
     })
   })
 
   it('warns while there is no backup yet or the mirror is paused', () => {
+    expect(footerStatus({ kind: 'ready', count: 0, lastError: null }, MIRROR_OFF)).toEqual({
+      tone: 'warn',
+      text: 'Not backed up yet',
+    })
     expect(footerStatus({ kind: 'ready', count: 0, lastError: null }, MIRROR_ON)).toEqual({
       tone: 'warn',
       text: 'Not backed up yet · Mirror on',
@@ -38,7 +42,7 @@ describe('footerStatus', () => {
     })
     expect(footerStatus({ kind: 'failed' }, MIRROR_OFF)).toEqual({
       tone: 'error',
-      text: 'Backup failed · Mirror off',
+      text: 'Backup failed',
     })
   })
 
