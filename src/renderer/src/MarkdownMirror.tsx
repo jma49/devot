@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { errorCode } from '../../core/errors'
 import type { Core } from './core-client'
 import { currentLocale, t, type MessageKey } from './i18n'
+import { Notice } from './Notices'
 import {
   changeMirror,
   keptMessage,
@@ -138,41 +139,34 @@ export function useMarkdownMirror(core: Core | undefined, ready: boolean): Markd
   const notices: ReactNode[] = []
   if (failure) {
     notices.push(
-      <div key="mirror-failure" role="alert" className="notice" data-devot-part="notice">
-        <span className="notice-text">{failureText(failure.message, failure.code)}</span>
-        <button type="button" className="button" onClick={() => setFailure(undefined)}>
-          {t('notice.dismiss')}
-        </button>
-      </div>,
+      <Notice
+        key="mirror-failure"
+        text={failureText(failure.message, failure.code)}
+        onDismiss={() => setFailure(undefined)}
+      />,
     )
   }
   if (status.folder !== null && status.paused !== null && status.paused !== dismissedPause) {
     const code = status.paused
     notices.push(
-      <div key="mirror-paused" role="alert" className="notice" data-devot-part="notice">
-        <span className="notice-text">{pausedMessage(code)}</span>
-        <button type="button" className="button" onClick={() => setDismissedPause(code)}>
-          {t('notice.dismiss')}
-        </button>
-      </div>,
+      <Notice
+        key="mirror-paused"
+        text={pausedMessage(code)}
+        onDismiss={() => setDismissedPause(code)}
+      />,
     )
   }
   if (status.keptCount > 0) {
     notices.push(
-      <div key="mirror-kept" role="alert" className="notice" data-devot-part="notice">
-        <span className="notice-text">{keptMessage(status.kept, status.keptCount, locale)}</span>
-        <button
-          type="button"
-          className="button"
-          onClick={() =>
-            void changeMirror({ dismissKept: true }).catch(() =>
-              console.warn('W_MIRROR_DISMISS_FAILED'),
-            )
-          }
-        >
-          {t('notice.dismiss')}
-        </button>
-      </div>,
+      <Notice
+        key="mirror-kept"
+        text={keptMessage(status.kept, status.keptCount, locale)}
+        onDismiss={() =>
+          void changeMirror({ dismissKept: true }).catch(() =>
+            console.warn('W_MIRROR_DISMISS_FAILED'),
+          )
+        }
+      />,
     )
   }
 

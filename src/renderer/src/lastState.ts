@@ -11,6 +11,7 @@ import { isRecord } from '../../core/isRecord'
 import { NOTE_STATUSES, type NoteStatus } from '../../core/storage'
 import type { NoteFilter } from '../../core/tags'
 import { current } from './focus'
+import { localStore } from './localStore'
 import type { Mode } from './ModeControl'
 
 export type LibraryView = { kind: 'all' } | { kind: 'book'; id: string } | { kind: 'templates' }
@@ -268,13 +269,7 @@ export function defaultMode(storage: InstallStorage | undefined): 'write' | 'edi
 
 /** The install's default mode, from the webview's local storage, which every window shares. */
 export function currentDefaultMode(): 'write' | 'edit' {
-  let storage: InstallStorage | undefined
-  try {
-    storage = (globalThis as { localStorage?: InstallStorage }).localStorage
-  } catch {
-    storage = undefined
-  }
-  return defaultMode(storage)
+  return defaultMode(localStore())
 }
 
 export interface LiveLibrary {

@@ -3,6 +3,7 @@
 // later build still draws what this one has.
 import { isRecord } from '../../../core/isRecord'
 import { invoke } from '../ipc'
+import { localStore } from '../localStore'
 import { watchPlugins } from '../plugins/api'
 import { unlistenLater } from '../windowEvents'
 import { shownAppearance, subscribeAppearance, type Appearance } from './appearance'
@@ -155,14 +156,6 @@ export function rememberedThemes(storage: ThemeStorage | undefined): PluginTheme
   }
 }
 
-function windowStorage(): ThemeStorage | undefined {
-  try {
-    return (globalThis as { localStorage?: ThemeStorage }).localStorage
-  } catch {
-    return undefined
-  }
-}
-
 export const listPluginThemes = () => invoke<unknown>('plugin_themes').then(readPluginThemes)
 
 export const choosePluginTheme = (appearance: Appearance, theme: ThemeRef | null) =>
@@ -190,7 +183,7 @@ let started = false
 /** Draws the chosen plugin theme and follows choices, plugins turned on or off, and the appearance. Once per page. */
 export function startPluginThemes(
   root: ThemeTarget = document.documentElement as unknown as ThemeTarget,
-  storage: ThemeStorage | undefined = windowStorage(),
+  storage: ThemeStorage | undefined = localStore(),
 ): void {
   if (started) return
   started = true

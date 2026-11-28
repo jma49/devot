@@ -1,6 +1,7 @@
 import type { SaveProblem } from '../../core'
 import { countOf } from './format'
 import { currentLocale, t } from './i18n'
+import { Notice } from './Notices'
 
 /**
  * Tells the user that changes to some notes could not be saved: Devot keeps
@@ -22,14 +23,10 @@ export function SaveNotice(props: {
       : (['save.failedOne', 'save.failedOther'] as const)
   const text = countOf(props.problems.length, currentLocale(), one, other)
   return (
-    <div role="alert" className="notice" data-devot-part="notice">
-      <span className="notice-text">{text}</span>
+    <Notice text={text} onDismiss={props.onDismiss}>
       <button type="button" className="button" onClick={props.onRetry}>
         {t('save.retry')}
       </button>
-      <button type="button" className="button" onClick={props.onDismiss}>
-        {t('notice.dismiss')}
-      </button>
-    </div>
+    </Notice>
   )
 }

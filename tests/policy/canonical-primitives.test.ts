@@ -58,3 +58,21 @@ it('never spreads unbounded byte arrays into String.fromCharCode', () => {
   )
   expect(offenders).toEqual([])
 })
+
+it('accesses globalThis.localStorage and sessionStorage only through localStore.ts', () => {
+  const offenders = nonTestSources('src/renderer/src')
+    .filter((file) => file !== 'src/renderer/src/localStore.ts')
+    .filter((file) => /globalThis[^;\n]*(?:local|session)Storage/.test(readFileSync(file, 'utf8')))
+  expect(offenders).toEqual([])
+})
+
+it('notice components render through the <Notice> primitive in Notices.tsx', () => {
+  const offenders = nonTestSources('src/renderer/src')
+    .filter((file) => /Notice(s)?\.tsx$/.test(file))
+    .filter(
+      (file) =>
+        file !== 'src/renderer/src/Notices.tsx' && file !== 'src/renderer/src/AuthorshipNotice.tsx',
+    )
+    .filter((file) => /data-devot-part="notice"/.test(readFileSync(file, 'utf8')))
+  expect(offenders).toEqual([])
+})

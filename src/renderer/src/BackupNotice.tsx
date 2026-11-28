@@ -1,16 +1,13 @@
 import { t } from './i18n'
 import { failureText } from './failure'
+import { Notice } from './Notices'
 
 export function BackupNotice(props: { code: string; onShow: () => void; onDismiss: () => void }) {
   return (
-    <div role="alert" className="notice" data-devot-part="notice">
-      <span className="notice-text">{failureText('backups.autoFailed', props.code)}</span>
+    <Notice text={failureText('backups.autoFailed', props.code)} onDismiss={props.onDismiss}>
       <button type="button" className="button" onClick={props.onShow}>
         {t('backups.show')}
       </button>
-      <button type="button" className="button" onClick={props.onDismiss}>
-        {t('notice.dismiss')}
-      </button>
-    </div>
+    </Notice>
   )
 }

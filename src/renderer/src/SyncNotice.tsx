@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { sentences, t } from './i18n'
+import { sentences } from './i18n'
 import { LICENCE_REQUIRED } from './licence'
 import { LicenceButton } from './LicenceLocked'
+import { Notice } from './Notices'
 import { usePauseOver, type SyncSnapshot } from './sync'
 import { syncNoticeMessages } from './syncNoticeText'
 import { dismissUsageNotice, useUsageNotice } from './syncUsage'
@@ -25,19 +26,14 @@ export function SyncNotice(props: { snapshot: SyncSnapshot }) {
   const text = sentences(shown)
   const { code } = props.snapshot.status
   return (
-    <div role="alert" className="notice" data-devot-part="notice">
-      <span className="notice-text">{text}</span>
+    <Notice
+      text={text}
+      onDismiss={() => {
+        setDismissed(all)
+        dismissUsageNotice()
+      }}
+    >
       {state === 'stopped' && code === LICENCE_REQUIRED ? <LicenceButton /> : null}
-      <button
-        type="button"
-        className="button"
-        onClick={() => {
-          setDismissed(all)
-          dismissUsageNotice()
-        }}
-      >
-        {t('notice.dismiss')}
-      </button>
-    </div>
+    </Notice>
   )
 }

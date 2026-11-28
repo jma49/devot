@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { currentWindowLabel } from './focus'
 import { t } from './i18n'
+import { Notice } from './Notices'
 import {
   downloadUpdate,
   restartToUpdate,
@@ -28,13 +29,13 @@ export function useUpdates(): { status: UpdateStatus; notice: ReactNode } {
   if (!model || model.key === dismissed) return { status, notice: null }
   const dismiss = () => setDismissed(model.key)
   const notice = (
-    <div
+    <Notice
       role={status.state === 'failed' ? 'alert' : 'status'}
-      className="notice"
-      data-devot-part="notice"
+      text={model.text}
+      dismissLabel={model.action ? 'updates.later' : 'notice.dismiss'}
+      onDismiss={dismiss}
       data-devot-update={status.state}
     >
-      <span className="notice-text">{model.text}</span>
       {model.action === 'download' ? (
         <button
           type="button"
@@ -49,10 +50,7 @@ export function useUpdates(): { status: UpdateStatus; notice: ReactNode } {
           {t('updates.restart')}
         </button>
       ) : null}
-      <button type="button" className="button" onClick={dismiss}>
-        {t(model.action ? 'updates.later' : 'notice.dismiss')}
-      </button>
-    </div>
+    </Notice>
   )
   return { status, notice }
 }

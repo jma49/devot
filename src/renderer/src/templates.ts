@@ -2,7 +2,7 @@
 // for this device, so they live in the webview's local storage, never in
 // the note database, and never sync.
 
-type KeyValue = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+import { localStore, type KeyValue } from './localStore'
 
 const RECENT_KEY = 'devot.templates.recent'
 export const MAX_RECENT_TEMPLATES = 5
@@ -32,13 +32,7 @@ export function recentTemplates(storage: KeyValue | undefined) {
 }
 
 export function currentRecentTemplates() {
-  let storage: KeyValue | undefined
-  try {
-    storage = localStorage
-  } catch {
-    storage = undefined
-  }
-  return recentTemplates(storage)
+  return recentTemplates(localStore())
 }
 
 /**

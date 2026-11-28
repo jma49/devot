@@ -18,6 +18,7 @@ import { fontVariables, importedFontLoaded, subscribeFontsLoaded, syncImportedFo
 import { sizes } from './theme/tokens'
 import { createSyncedStore } from './syncedStore'
 import { invoke } from './ipc'
+import { sessionStore } from './localStore'
 import { followRustState } from './rustState'
 
 const EDITOR_SETTINGS_CHANGED = 'devot:editor-settings-changed'
@@ -59,17 +60,9 @@ export function readSnapshot(value: unknown): EditorSettingsSnapshot | undefined
 
 const SESSION_KEY = 'devot.editorSettings'
 
-interface SessionStore {
-  getItem(key: string): string | null
-  setItem(key: string, value: string): void
-}
-
-const session = (): SessionStore | undefined =>
-  (globalThis as { sessionStorage?: SessionStore }).sessionStorage
-
 function remember(snapshot: EditorSettingsSnapshot) {
   try {
-    session()?.setItem(SESSION_KEY, JSON.stringify(snapshot))
+    sessionStore()?.setItem(SESSION_KEY, JSON.stringify(snapshot))
   } catch {
     // Without it a reload starts from the settings the window was built with.
   }
@@ -84,7 +77,7 @@ function remembered(): EditorSettingsSnapshot | undefined {
   try {
     const [entry] = performance.getEntriesByType('navigation') as { type?: string }[]
     if (entry?.type !== 'reload') return undefined
-    const raw = session()?.getItem(SESSION_KEY)
+    const raw = sessionStore()?.getItem(SESSION_KEY)
     return raw ? readSnapshot(JSON.parse(raw)) : undefined
   } catch {
     return undefined

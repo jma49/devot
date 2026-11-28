@@ -7,6 +7,7 @@
 // holds nothing that needs to survive, and storage that is off means an
 // empty list.
 import type { BookNode } from '../../core/books'
+import { localStore } from './localStore'
 
 export interface NotebookChoice {
   id: string
@@ -25,14 +26,6 @@ const TEMPLATES_KEY = 'devot.templateChoices'
 interface KeyValue {
   getItem(key: string): string | null
   setItem(key: string, value: string): void
-}
-
-function local(): KeyValue | undefined {
-  try {
-    return (globalThis as { localStorage?: KeyValue }).localStorage
-  } catch {
-    return undefined
-  }
 }
 
 export function choicesFromTree(tree: readonly BookNode[]): NotebookChoice[] {
@@ -76,11 +69,14 @@ function subscribe(key: string, notify: () => void): () => void {
   return () => window.removeEventListener('storage', onStorage)
 }
 
-export function publishNotebooks(choices: readonly NotebookChoice[], storage = local()): void {
+export function publishNotebooks(
+  choices: readonly NotebookChoice[],
+  storage: KeyValue | undefined = localStore(),
+): void {
   publish(KEY, choices, storage)
 }
 
-export function readNotebooks(storage = local()): NotebookChoice[] {
+export function readNotebooks(storage: KeyValue | undefined = localStore()): NotebookChoice[] {
   return read<NotebookChoice>(
     KEY,
     (c) => typeof c.id === 'string' && typeof c.name === 'string' && Number.isInteger(c.depth),
@@ -92,11 +88,14 @@ export function subscribeNotebooks(notify: () => void): () => void {
   return subscribe(KEY, notify)
 }
 
-export function publishTemplates(choices: readonly TemplateChoice[], storage = local()): void {
+export function publishTemplates(
+  choices: readonly TemplateChoice[],
+  storage: KeyValue | undefined = localStore(),
+): void {
   publish(TEMPLATES_KEY, choices, storage)
 }
 
-export function readTemplates(storage = local()): TemplateChoice[] {
+export function readTemplates(storage: KeyValue | undefined = localStore()): TemplateChoice[] {
   return read<TemplateChoice>(
     TEMPLATES_KEY,
     (c) => typeof c.id === 'string' && typeof c.title === 'string',

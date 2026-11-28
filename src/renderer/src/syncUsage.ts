@@ -14,6 +14,7 @@ import {
 import { errorCode } from '../../core/errors'
 import type { MessageKey } from './i18n'
 import { invoke } from './ipc'
+import { localStore } from './localStore'
 import type { SyncSnapshot } from './sync'
 import { changeLogger } from './failure'
 
@@ -107,7 +108,7 @@ const SEEN_KEY = 'devot.syncUsageSeen'
 const FILLS: readonly Fill[] = ['ok', 'warn', 'full']
 
 function seenByRelay(): Map<string, unknown> {
-  const stored: unknown = JSON.parse(globalThis.localStorage?.getItem(SEEN_KEY) ?? 'null')
+  const stored: unknown = JSON.parse(localStore()?.getItem(SEEN_KEY) ?? 'null')
   return typeof stored === 'object' && stored !== null
     ? new Map(Object.entries(stored))
     : new Map<string, unknown>()
@@ -130,7 +131,7 @@ function seenFor(relay: string): Seen {
 function remember(relay: string, seen: Seen) {
   try {
     const bands = seenByRelay().set(relay, seen)
-    globalThis.localStorage?.setItem(SEEN_KEY, JSON.stringify(Object.fromEntries(bands)))
+    localStore()?.setItem(SEEN_KEY, JSON.stringify(Object.fromEntries(bands)))
   } catch {
     console.warn('W_SYNC_USAGE_NOT_KEPT')
   }

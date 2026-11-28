@@ -3,6 +3,7 @@
 // view preference of the window: it lives in the webview's local storage, never in the settings
 // files, and is saved when a drag ends.
 import { NOTE_STATUSES } from '../../core/storage'
+import { localStore, type KeyValue } from './localStore'
 import { sizes } from './theme/tokens'
 
 const px = (value: string) => Number.parseFloat(value)
@@ -57,12 +58,6 @@ export const SIDEBAR_PANE: PaneSpec = {
   min: px(sizes['size.sidebar-min-width']),
   default: px(sizes['size.sidebar-width']),
   max: px(sizes['size.sidebar-max-width']),
-}
-
-interface KeyValue {
-  getItem(key: string): string | null
-  setItem(key: string, value: string): void
-  removeItem(key: string): void
 }
 
 const PANE_KEY_STEP = 10
@@ -143,11 +138,5 @@ export function paneWidthStore(pane: PaneSpec, storage: KeyValue | undefined) {
 }
 
 export function currentPaneWidthStore(pane: PaneSpec) {
-  let storage: KeyValue | undefined
-  try {
-    storage = (globalThis as { localStorage?: KeyValue }).localStorage
-  } catch {
-    storage = undefined
-  }
-  return paneWidthStore(pane, storage)
+  return paneWidthStore(pane, localStore())
 }
