@@ -40,6 +40,7 @@ Docs are written one sentence per line, so a change touches only the sentences i
 - [iPhone screens](specs/iphone-screens.md): the iPhone's native screens around the one web view, the bridge and its envelope, which way each operation goes, the editor screen, the glass map, the Settings tree and the spikes.
 - [Share Extension](specs/share-extension.md): sharing text, links and images into Devot from any iPhone app, the inbox file in the App Group, and how the app drains it into notes.
 - [Stateful code](specs/stateful-code.md): keeping lifecycles explicit, tying answers to their request, resetting on every exit, persisting steps before acting on them, and how to audit a change for implicit state.
+- [Modularity and code structure](specs/modularity.md): one source of truth per rule, one canonical implementation per responsibility, deep modules with narrow interfaces, strict dependency direction without cycles, locality of change, deleting superseded paths in the same change, and turning invariants into automated checks.
 
 ## Product
 
@@ -154,7 +155,7 @@ The core is plain TypeScript, so the UI worker and the iOS app share it.
 - The core imports neither `@tauri-apps/*`, `better-sqlite3` nor Node built-ins.
   It talks to storage through an adapter interface: the app's adapter calls Tauri commands; tests use better-sqlite3.
 - Tauri commands are reachable from the page only, so the core worker's storage calls cross to the page (`src/renderer/src/storage/wire.ts`).
-  A version's Yjs state crosses as the base64 string the commands take, coded in the worker (by the engine's own `toBase64` and `fromBase64` where it has them).
+  A version's Yjs state crosses as the base64 string the commands take, coded in the worker through `src/core/base64.ts` (using the engine's own `toBase64` and `fromBase64` where it has them).
   A note's save crosses as bytes (`note_put`, `putNote`): a 4-byte length, the note's fields, links and agent rows as JSON, a 4-byte length, the body as UTF-8, then the Yjs state; the worker moves the bytes to the page without a copy, and the page hands them to Tauri as the request's body, which Tauri sends as it is (an argument of any other kind is coded as JSON on the UI thread).
   A save that changed no text sends the note's fields alone (`note_put_meta`, `putNoteMeta`, data-model spec).
   The worker also finds a note's links and checks its limits; the page hands what it gets to the commands as it is, so a save or an open costs the UI thread no work for each byte of a state (several MiB for a long, much-edited note).
