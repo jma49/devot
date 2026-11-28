@@ -28,6 +28,7 @@ import type {
   StorageAdapter,
   TagRecord,
 } from '../../../core'
+import { toBase64 } from '../../../core/base64'
 import { MAX_HEAD_CHARS } from '../../../core/storage'
 import { checkUpload, fileUri, type FileMeta } from '../../../core/files'
 import { noteLinks } from '../../../core/links'
@@ -354,7 +355,7 @@ export const memoryStorage: StorageAdapter = {
     await slowWrite(DELAY_FILE_WRITES)
     const live = read<Stored>(NOTES).some((n) => n.id === meta.noteId && n.deletedAt === null)
     if (!live) throw new Error('E_NOTE_NOT_FOUND')
-    const base64 = btoa(String.fromCharCode(...data))
+    const base64 = toBase64(data)
     localStorage.setItem(
       FILES,
       JSON.stringify([...read<StoredFile>(FILES), { ...meta, mime, base64 }]),

@@ -17,6 +17,7 @@ import { TEMPLATES_BOOK_ID } from '../../../core/templatesBook'
 import { aiTransport } from '../ai'
 import { aiSuggestFailure } from '../aiEditView'
 import { licenceEntitlements, useEditing } from '../licence'
+import { localStore } from '../localStore'
 import { loadAiSettings } from '../settings/aiProviders'
 import { useAlertMenu } from '../editor/alertMenu'
 import { changeLogger } from '../failure'
@@ -682,7 +683,7 @@ export function PhoneNote(props: {
               core
                 .addTag(note.id, name)
                 .then((id) => {
-                  rememberTag(globalThis.localStorage, id)
+                  rememberTag(localStore(), id)
                   return color ? core.setTagColor(id, color) : undefined
                 })
                 .then(store.refresh),

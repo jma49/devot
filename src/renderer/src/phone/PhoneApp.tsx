@@ -13,6 +13,7 @@ import { buildBookTree } from '../../../core/books'
 import { errorCode } from '../../../core/errors'
 import type { NoteSummary } from '../../../core/storage'
 import { editorSettings } from '../editorSettings'
+import { localStore } from '../localStore'
 import { motionMs } from '../motionTiming'
 import { motionReduced } from '../motionPreference'
 import {
@@ -447,13 +448,7 @@ export function PhoneApp() {
         void phoneData.refresh()
         return note
       },
-      ledger: (() => {
-        try {
-          return globalThis.localStorage
-        } catch {
-          return null
-        }
-      })(),
+      ledger: localStore() ?? null,
     }
   })
   useEffect(() => {

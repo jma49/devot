@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { Chevron } from '../Chevron'
 import { writeClipboardText } from '../clipboard'
 import { format, t, type MessageKey } from '../i18n'

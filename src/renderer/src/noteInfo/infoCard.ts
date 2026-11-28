@@ -1,4 +1,6 @@
 // The open note's Note Info card (NoteInfoCard.tsx): its dates, its rule for them, and its folds.
+import { localStore } from '../localStore'
+
 export interface NoteInfoData {
   noteId: string
   createdAt: number
@@ -24,21 +26,13 @@ const FOLD_KEY = 'devot.noteInfo.folded.'
 
 type KeyValue = Pick<Storage, 'getItem' | 'setItem'>
 
-function viewStorage(): KeyValue | undefined {
-  try {
-    return (globalThis as { localStorage?: KeyValue }).localStorage
-  } catch {
-    return undefined
-  }
-}
-
 /**
  * Whether a section of the card is open: a view preference of the window,
  * the same for every note, kept in the web view's storage (open at first).
  */
 export function sectionOpen(
   section: InfoSection,
-  storage: KeyValue | undefined = viewStorage(),
+  storage: KeyValue | undefined = localStore(),
 ): boolean {
   try {
     return storage?.getItem(FOLD_KEY + section) !== '1'
@@ -50,7 +44,7 @@ export function sectionOpen(
 export function setSectionOpen(
   section: InfoSection,
   open: boolean,
-  storage: KeyValue | undefined = viewStorage(),
+  storage: KeyValue | undefined = localStore(),
 ) {
   try {
     storage?.setItem(FOLD_KEY + section, open ? '0' : '1')

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { WELCOME_BOOK_ID, welcomeSeed } from '../../../core'
 import { noteLinks } from '../../../core/links'
 import { createSlugger, slug } from '../../../core/preview/headingIds'
-import { toBase64 } from '../storage/wire'
+import { toBase64 } from '../../../core/base64'
 import { fillWelcome, welcomeContent } from './content'
 import example from './markdown-example.md?raw'
 

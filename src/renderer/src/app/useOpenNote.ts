@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from 'react'
 import { adjacentNote, stepTarget, trailTo, visit, type Trail } from '../../../core/navigation'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { inEditor } from '../commands/dispatch'
 import type { Core } from '../core-client'
 import type { EditorHandle } from '../editor/handle'

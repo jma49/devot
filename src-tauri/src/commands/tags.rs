@@ -1,6 +1,8 @@
-use super::notes::{valid_hlc, valid_note_id};
 use super::saved_searches;
-use crate::storage::{Db, NoteTagRecord, SavedSearchRecord, TagRecord, Write, valid_tag_color};
+use crate::storage::{
+    Db, NoteTagRecord, SavedSearchRecord, TagRecord, Write, valid_hlc, valid_note_id,
+    valid_tag_color,
+};
 use tauri::State;
 
 const MAX_NAME_CHARS: usize = 100;

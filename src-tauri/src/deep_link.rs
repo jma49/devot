@@ -31,9 +31,9 @@ use tauri::webview::{PageLoadEvent, PageLoadPayload};
 use tauri::{AppHandle, Emitter, Manager, Runtime, Window, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 
-use crate::commands::notes::valid_note_id;
 use crate::main_windows::{self, is_main};
 use crate::settings;
+use crate::storage::valid_note_id;
 
 pub(crate) const RELEASE_SCHEME: &str = "devot";
 pub(crate) const DEBUG_SCHEME: &str = "devot-dev";

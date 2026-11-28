@@ -11,7 +11,7 @@ import {
   type AskStorage,
 } from '../../core/askNotes'
 import { askFailure } from './aiEditView'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import { logFailure } from './failure'
 import { format, t } from './i18n'
 import { isImeKey } from './ime'

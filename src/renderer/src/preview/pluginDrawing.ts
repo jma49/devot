@@ -11,7 +11,7 @@ import {
 } from '../../../core/preview/registry'
 import { t } from '../i18n'
 import { dark, light, type ThemeColor } from '../theme/tokens'
-import { pointsElsewhere, withoutRemoteCss } from './diagram-css'
+import { pointsElsewhere, withoutRemoteCss } from '../../../core/diagramCss'
 import type { IslandContent, IslandContext, PreviewIsland } from './islands'
 import { keptAnswers } from './kept'
 import { findKeptDrawing, keptDrawingsOf, keptDrawingsRevision } from './keptDrawings'

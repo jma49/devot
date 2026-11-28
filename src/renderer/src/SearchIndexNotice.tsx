@@ -2,6 +2,7 @@ import { t } from './i18n'
 import { countOf } from './format'
 import type { RebuildState } from './searchIndex'
 import { failureText } from './failure'
+import { Notice } from './Notices'
 
 export function SearchIndexNotice(props: {
   state: RebuildState
@@ -9,31 +10,18 @@ export function SearchIndexNotice(props: {
   onDismiss: () => void
 }) {
   const { state } = props
-  const failed = state.phase === 'failed'
+  const text =
+    state.phase === 'running'
+      ? t('searchIndex.rebuilding')
+      : state.phase === 'done'
+        ? countOf(state.notes, props.locale, 'searchIndex.rebuiltOne', 'searchIndex.rebuiltOther')
+        : failureText('searchIndex.failed', state.code)
   return (
-    <div
-      role={failed ? 'alert' : 'status'}
-      className="notice"
-      data-devot-part="notice"
+    <Notice
+      role={state.phase === 'failed' ? 'alert' : 'status'}
+      text={text}
+      onDismiss={state.phase === 'running' ? undefined : props.onDismiss}
       data-devot-search-index={state.phase}
-    >
-      <span className="notice-text">
-        {state.phase === 'running'
-          ? t('searchIndex.rebuilding')
-          : state.phase === 'done'
-            ? countOf(
-                state.notes,
-                props.locale,
-                'searchIndex.rebuiltOne',
-                'searchIndex.rebuiltOther',
-              )
-            : failureText('searchIndex.failed', state.code)}
-      </span>
-      {state.phase === 'running' ? null : (
-        <button type="button" className="button" onClick={props.onDismiss}>
-          {t('notice.dismiss')}
-        </button>
-      )}
-    </div>
+    />
   )
 }

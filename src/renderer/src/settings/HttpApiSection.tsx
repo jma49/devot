@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { writeClipboardText } from '../clipboard'
 import { format, registerMessages, t, type MessageKey } from '../i18n'
 import { messages as browserExtensions } from '../i18n/en/browserExtensions'

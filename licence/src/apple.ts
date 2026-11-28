@@ -5,7 +5,7 @@
  * chain and the signature check out.
  */
 import { children, DerError, expect, oidOf, readOnly, TAG, timeOf, type Tlv } from './der.ts'
-import { fromBase64Url } from './format.ts'
+import { fromBase64Url, isRecord } from './format.ts'
 
 /** Apple Root CA - G3, from https://www.apple.com/certificateauthority/, SHA-256 63343abf…3e9179. */
 export const APPLE_ROOT_CA_G3 = fromStandardBase64(
@@ -167,9 +167,7 @@ function json(part: string | undefined): Record<string, unknown> | null {
     const value: unknown = JSON.parse(
       new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes),
     )
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null
+    return isRecord(value) ? value : null
   } catch {
     return null
   }

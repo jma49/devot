@@ -12,13 +12,15 @@ import {
   useTrialOver,
 } from './licence'
 import { licenceProblem, reminderDue, reminderText, REMINDER_MS } from './licenceView'
+import { localStore } from './localStore'
+import { Notice } from './Notices'
 
 const REMINDED_KEY = 'devot.trial.reminded'
 
 /** The end of the trial whose reminder was dismissed; kept beside the window's other view state. */
 function remindedFor(): number | null {
   try {
-    const stored = Number(globalThis.localStorage?.getItem(REMINDED_KEY))
+    const stored = Number(localStore()?.getItem(REMINDED_KEY))
     return Number.isSafeInteger(stored) && stored > 0 ? stored : null
   } catch {
     return null
@@ -47,7 +49,7 @@ function subscribeReminded(notify: () => void): () => void {
 function remember(endsAt: number) {
   remindedHere = endsAt
   try {
-    globalThis.localStorage?.setItem(REMINDED_KEY, String(endsAt))
+    localStore()?.setItem(REMINDED_KEY, String(endsAt))
   } catch {
     console.warn('W_TRIAL_REMINDER_NOT_KEPT')
   }
@@ -101,10 +103,9 @@ export function TrialEndedBar() {
   }, [over])
   if (!over) return null
   return (
-    <div ref={bar} role="status" className="notice" data-devot-part="notice" data-devot-trial-ended>
-      <span className="notice-text">{t('trial.ended')}</span>
+    <Notice ref={bar} role="status" text={t('trial.ended')} data-devot-trial-ended>
       <TrialButtons />
-    </div>
+    </Notice>
   )
 }
 
@@ -124,15 +125,14 @@ export function ActivationBar() {
           : 'licenceSettings.devices.required',
       )
   return (
-    <div role="status" className="notice" data-devot-part="notice" data-devot-activation>
-      <span className="notice-text">{text}</span>
+    <Notice role="status" text={text} data-devot-activation>
       <button type="button" className="button" onClick={retryLicence}>
         {t('licenceSettings.devices.retry')}
       </button>
       <button type="button" className="button" onClick={openDevices}>
         {t('licenceSettings.devices.manage')}
       </button>
-    </div>
+    </Notice>
   )
 }
 
@@ -184,12 +184,12 @@ export function TrialReminder() {
 
   if (endsAt === null || !reminderDue(licence, now, dismissed)) return null
   return (
-    <div role="alert" className="notice" data-devot-part="notice" data-devot-trial-reminder>
-      <span className="notice-text">{reminderText(endsAt, now, currentLocale())}</span>
+    <Notice
+      text={reminderText(endsAt, now, currentLocale())}
+      onDismiss={() => remember(endsAt)}
+      data-devot-trial-reminder
+    >
       <TrialButtons />
-      <button type="button" className="button" onClick={() => remember(endsAt)}>
-        {t('notice.dismiss')}
-      </button>
-    </div>
+    </Notice>
   )
 }

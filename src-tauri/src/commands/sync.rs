@@ -9,10 +9,13 @@ use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use super::notes::{NoteDto, valid_hlc, valid_note_id, validate_purge};
+use super::notes::{NoteDto, validate_purge};
+#[cfg(test)]
+use crate::storage::MAX_SYNC_TAG as MAX_TAG;
 use crate::storage::{
     BookRecord, Db, NoteDrawings, NoteTagRecord, SYNC_KINDS, SavedSearchRecord, SyncEntry,
-    SyncFile, SyncFileWrite, SyncLocal, SyncPending, TagRecord, Write,
+    SyncFile, SyncFileWrite, SyncLocal, SyncPending, TagRecord, Write, valid_hlc, valid_note_id,
+    valid_sync_tag,
 };
 use crate::sync::file_record::{self, Fields};
 
@@ -21,8 +24,6 @@ const MAX_SYNC_IDS: usize = 100;
 const MAX_STATE_VALUE: usize = 128;
 /// The pull cursor is the transport's: a decimal `seq` on a relay, an archived change token on iCloud.
 const MAX_CURSOR: usize = 4096;
-/// A change tag is the transport's too: empty on a relay, archived record system fields on iCloud.
-pub(crate) const MAX_TAG: usize = 8192;
 const STATE_KEYS: [&str; 9] = [
     "since",
     "epoch",
@@ -96,18 +97,10 @@ fn validate_entry(entry: &SyncEntry) -> Result<(), &'static str> {
     if !(entry.body_hlc.is_empty() || valid_hlc(&entry.body_hlc)) {
         return Err("E_SYNC_ENTRY_HLC_INVALID");
     }
-    if !valid_tag(&entry.tag) {
+    if !valid_sync_tag(&entry.tag) {
         return Err("E_SYNC_ENTRY_TAG_INVALID");
     }
     Ok(())
-}
-
-/// Base64 of at most `MAX_TAG` characters, or empty.
-pub(crate) fn valid_tag(tag: &str) -> bool {
-    tag.len() <= MAX_TAG
-        && tag
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
 }
 
 fn validate_state(key: &str, value: &str) -> Result<(), &'static str> {

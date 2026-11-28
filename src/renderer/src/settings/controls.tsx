@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { Icon } from '../icons/Icon'
 import type { EditorSettings } from '../../../core/editorSettings'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { logFailure } from '../failure'
 import { changeEditorSettings } from '../editorSettings'
 import { useSegmentSlide } from '../segmentSlide'

@@ -11,13 +11,11 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::commands::notes::valid_note_id;
 use crate::export::PageImage;
-use crate::storage::Db;
+use crate::storage::{Db, MAX_TITLE_CHARS, valid_note_id};
 use client::Sender;
 
 pub const HOST: &str = "https://share.devot.online";
-const MAX_TITLE_CHARS: usize = 1_000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

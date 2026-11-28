@@ -13,7 +13,7 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 
-use crate::commands::notes::MAX_TITLE_CHARS;
+use crate::storage::MAX_TITLE_CHARS;
 
 /// The query, encoded; macOS hands over far longer URLs, but a capture is a note's start.
 pub(crate) const MAX_CAPTURE_URL_LEN: usize = 256 * 1024;

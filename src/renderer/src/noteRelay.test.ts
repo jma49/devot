@@ -9,7 +9,7 @@ import {
   type RelayOut,
   type WireRelay,
 } from './noteRelayWire'
-import { fromBase64, toBase64 } from './storage/wire'
+import { fromBase64, toBase64 } from '../../core/base64'
 
 const ID = '0192a6f0-0000-7000-8000-000000000001'
 const OTHER = '0192a6f0-0000-7000-8000-000000000002'
@@ -68,7 +68,7 @@ describe('the note relay between windows', () => {
   it('posts no change of a note no other window has spoken of, and codes nothing for it', () => {
     const posted: RelayOut[] = []
     const code = vi.fn<typeof toBase64>(toBase64)
-    const out = relayOut((message) => posted.push(message), code, false)
+    const out = relayOut((message) => posted.push(message), false, code)
     const update = { kind: 'update' as const, noteId: ID, data: Uint8Array.of(1) }
     out.send(update)
     out.send({ kind: 'saved', noteId: ID, updatedAt: 1 })
@@ -84,7 +84,7 @@ describe('the note relay between windows', () => {
 
   it('posts every change of a note window, which another window always shows', () => {
     const posted: RelayOut[] = []
-    const out = relayOut((message) => posted.push(message), toBase64, true)
+    const out = relayOut((message) => posted.push(message), true)
     out.send({ kind: 'update', noteId: OTHER, data: Uint8Array.of(1) })
     expect(posted).toEqual([{ noteRelay: { kind: 'update', noteId: OTHER, data: 'AQ==' } }])
   })

@@ -6,8 +6,9 @@
 
 use serde::Deserialize;
 
-use crate::commands::files::{MAX_FILE_BYTES, Upload, detect_image, validate_upload};
-use crate::commands::notes::{valid_hlc, valid_note_id};
+use crate::storage::{
+    MAX_FILE_BYTES, Upload, detect_image, valid_hlc, valid_note_id, validate_upload,
+};
 
 const FORMAT: u8 = 1;
 const MAX_HEADER_BYTES: usize = 4096;

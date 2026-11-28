@@ -23,6 +23,7 @@ import { compareNames } from '../../core/sort'
 import { commandMatches } from './commands/registry'
 import { useContextMenu, type MenuGroups, type MenuPoint } from './contextMenu'
 import { useEditorSetting } from './editorSettings'
+import { localStore } from './localStore'
 import { fullDate, rowDate } from './format'
 import { displayTitle, useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, format, t, type MessageKey } from './i18n'
@@ -299,7 +300,7 @@ export const NoteTable = memo(function NoteTable(props: NoteTableProps) {
     () => ({ compare: (a: string, b: string) => compareNames(a, b, locale) }),
     [locale],
   )
-  const store = useMemo(() => tableSettingsStore(globalThis.localStorage), [])
+  const store = useMemo(() => tableSettingsStore(localStore()), [])
   const [settingsOf, setSettingsOf] = useState(() => ({
     view: props.view,
     settings: store.load(props.view),

@@ -6,10 +6,11 @@
 // out, so note titles, bodies, attachments and user names never leave the
 // machine. The Rust side does the same (src-tauri/src/crash_scrub.rs).
 import type { ErrorEvent, Exception, StackFrame } from '@sentry/browser'
+import { errorCode } from '../../core/errors'
+import { UUID_SOURCE } from '../../core/ids'
 import { crashReports } from './crashReports'
 
 const REDACTED = '<redacted>'
-const CODE_PREFIX = /^[EWI]_[A-Z0-9_]{1,62}(?![A-Za-z0-9_])/
 /**
  * What the SDK writes before a thrown or rejected value that is not an Error,
  * such as the code a command rejects with.
@@ -21,7 +22,7 @@ const SOURCE = /^[A-Za-z_$][\w$.[\]]{0,63}$/
 const PRINTABLE = /^[\x20-\x7e]{1,512}$/
 const SCRIPT = /\.(?:[cm]?js|jsx|tsx?|mts)$/
 const EVENT_ID = /^[0-9a-f]{32}$/
-const DEBUG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const DEBUG_ID = new RegExp(`^${UUID_SOURCE}$`)
 const RELEASE = /^[a-z-]{1,32}@[0-9A-Za-z.+-]{1,64}$/
 const VERSION = /^\d[0-9A-Za-z.+-]{0,31}$/
 const SDK_NAME = /^[a-z][a-z0-9._-]{0,63}$/
@@ -31,7 +32,7 @@ function redact(text: string | undefined): string | undefined {
   if (text === undefined) return undefined
   const wrapper = WRAPPERS.find((w) => text.startsWith(w))
   const rest = wrapper ? text.slice(wrapper.length) : text
-  return CODE_PREFIX.exec(rest)?.[0] ?? REDACTED
+  return errorCode(rest, REDACTED)
 }
 
 function scrubPath(path: string): string {

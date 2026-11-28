@@ -1,6 +1,6 @@
 import { useContext, useId, useMemo, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { useKeyLayout } from '../commands/dispatch'
 import { shortcutLabel } from '../commands/keys'
 import {

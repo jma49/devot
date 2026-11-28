@@ -1,5 +1,6 @@
 // Development builds and the UI tests' build only: `localStorage['devot.motionScale'] = '5'`
 // slows every motion, the stylesheet's too, five times.
+import { localStore } from './localStore'
 import { sizes } from './theme/tokens'
 
 type Token = keyof typeof sizes
@@ -16,7 +17,7 @@ export const parseMotionScale = (stored: string | null): number => {
 export function motionScale(): number {
   if (!import.meta.env.DEV && !DEVOT_UI_TEST) return 1
   try {
-    return parseMotionScale(localStorage.getItem(MOTION_SCALE_KEY))
+    return parseMotionScale(localStore()?.getItem(MOTION_SCALE_KEY) ?? null)
   } catch {
     return 1
   }

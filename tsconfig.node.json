@@ -9,6 +9,7 @@
     "src/core",
     "plugin-kit/src",
     "plugin-kit/types",
+    "plugins",
     "src/renderer/src/build.d.ts",
     "relay/src/node",
     "licence/scripts",

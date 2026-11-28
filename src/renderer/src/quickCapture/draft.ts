@@ -5,6 +5,7 @@
 import { NOTE_STATUSES, type NoteStatus } from '../../../core/storage'
 import { MAX_TAG_NAME_CHARS, sameName } from '../../../core/tagNames'
 import { charCount, trimWhitespace, wellFormed } from '../../../core/text'
+import { localStore, type KeyValue } from '../localStore'
 
 export const MAX_CAPTURE_TAGS = 50
 
@@ -17,20 +18,6 @@ export interface CaptureDraft {
 }
 
 const KEY = 'devot.quickCapture.draft'
-
-interface KeyValue {
-  getItem(key: string): string | null
-  setItem(key: string, value: string): void
-  removeItem(key: string): void
-}
-
-function local(): KeyValue | undefined {
-  try {
-    return (globalThis as { localStorage?: KeyValue }).localStorage
-  } catch {
-    return undefined
-  }
-}
 
 export function isEmptyCapture(capture: Pick<CaptureDraft, 'title' | 'body'>): boolean {
   return capture.title.trim() === '' && capture.body.trim() === ''
@@ -69,7 +56,7 @@ export function flushQuickTagDraft(tags: readonly string[], raw: string): string
   return current
 }
 
-export function readDraft(storage = local()): CaptureDraft | null {
+export function readDraft(storage: KeyValue | undefined = localStore()): CaptureDraft | null {
   try {
     const stored: unknown = JSON.parse(storage?.getItem(KEY) ?? 'null')
     if (typeof stored !== 'object' || stored === null) return null
@@ -107,7 +94,10 @@ export function readDraft(storage = local()): CaptureDraft | null {
   }
 }
 
-export function writeDraft(draft: CaptureDraft, storage = local()): void {
+export function writeDraft(
+  draft: CaptureDraft,
+  storage: KeyValue | undefined = localStore(),
+): void {
   if (isEmptyCapture(draft) && !hasMeta(draft)) return clearDraft(storage)
   try {
     const stored: CaptureDraft = {
@@ -123,7 +113,7 @@ export function writeDraft(draft: CaptureDraft, storage = local()): void {
   }
 }
 
-export function clearDraft(storage = local()): void {
+export function clearDraft(storage: KeyValue | undefined = localStore()): void {
   try {
     storage?.removeItem(KEY)
   } catch {

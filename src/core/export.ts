@@ -26,7 +26,7 @@ import {
   mayShowImages,
   type MarkdownFacts,
 } from './import'
-import { FILE_ID_SOURCE, fileUri } from './files'
+import { fileIdOf } from './files'
 import { splitImageSize, withImageSize, type ImageSize } from './images'
 import type { NoteService } from './notes'
 import type { BookRecord, NoteStatus } from './storage'
@@ -244,13 +244,10 @@ export async function planExport(options: PlanOptions): Promise<ExportPlan> {
   return { name: fileStem(target.name, '_'), entries }
 }
 
-/** Any other ID names no attachment, so its image stays as written (Rust would refuse it, and the whole page with it). */
-export const FILE_URL = new RegExp(`^${fileUri(`(${FILE_ID_SOURCE})`)}$`)
-
 /** Null for URLs that are not attachments. */
 function attachmentOf(url: string): { id: string; size: ImageSize } | null {
   const sized = splitImageSize(url)
-  const id = FILE_URL.exec(sized.url)?.[1]
+  const id = fileIdOf(sized.url)
   return id === undefined ? null : { id, size: sized.size }
 }
 

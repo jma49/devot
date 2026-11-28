@@ -22,7 +22,8 @@ import { toHtml } from 'hast-util-to-html'
 import { find, svg as svgSchema } from 'property-information'
 import { allowsSvgAttribute, allowsSvgElement, foreignObjectText } from './diagramSvg'
 import { withoutRemoteCss } from './diagramCss'
-import { FILE_URL } from './export'
+import { fileIdOf } from './files'
+import { noteIdOf } from './links'
 import { fragmentId } from './preview/headingIds'
 import { drawCodeMarks } from './preview/code'
 
@@ -44,7 +45,6 @@ export interface PageBody {
   images: PageImage[]
 }
 
-const NOTE_URL = /^devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 const NONCE = /^[0-9a-f]{32}$/
 const WEB_URL = /^https?:/i
 /** A path or URL the page's own CSP would refuse as an image: not `data:`, a web URL or an attachment. */
@@ -190,11 +190,11 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
     // A task's box can be ticked in the preview only.
     if (node.tagName === 'input') properties['disabled'] = true
     if (node.tagName === 'img') {
-      const id = FILE_URL.exec(String(node.properties['src'] ?? ''))?.[1]
+      const id = fileIdOf(String(node.properties['src'] ?? ''))
       if (id) properties['src'] = placeholder(id)
     }
     if (node.tagName === 'a') {
-      const id = NOTE_URL.exec(String(node.properties['href'] ?? ''))?.[1]
+      const id = noteIdOf(String(node.properties['href'] ?? ''))
       const href = id === undefined ? null : (options.noteHref?.(id) ?? null)
       if (href !== null) properties['href'] = href
       const fragment = /^#(.+)$/s.exec(String(node.properties['href'] ?? ''))?.[1]

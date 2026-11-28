@@ -168,7 +168,7 @@ pub async fn sync_push(
     kind: Option<String>,
     tag: Option<String>,
 ) -> Result<PushDto, String> {
-    if !tag.as_deref().is_none_or(crate::commands::sync::valid_tag) {
+    if !tag.as_deref().is_none_or(crate::storage::valid_sync_tag) {
         return Err("E_SYNC_TAG_INVALID".into());
     }
     task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {

@@ -15,7 +15,7 @@ import type {
   TrashedNote,
 } from '../../../core'
 import { compareNames } from '../../../core/sort'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import type { Core } from '../core-client'
 import { notesLoaded } from '../externalChanges'
 import { markWrite } from '../lastWrite'

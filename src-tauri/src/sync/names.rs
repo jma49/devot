@@ -43,7 +43,7 @@ fn is_store_name(name: &str) -> bool {
 /// A record filed under its own ID by a build before store names. Its epoch is over: it is left
 /// where it is and not handed on.
 pub(crate) fn is_legacy(name: &str) -> bool {
-    name != MOVED_ID && crate::commands::notes::valid_note_id(name)
+    name != MOVED_ID && crate::storage::valid_note_id(name)
 }
 
 /// Whether a name is one this build opens: a store name or the marker's.
@@ -167,7 +167,7 @@ mod tests {
                 .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
         );
         assert!(!name.contains("0192f4c8"));
-        assert!(!crate::commands::notes::valid_note_id(&name));
+        assert!(!crate::storage::valid_note_id(&name));
     }
 
     #[test]

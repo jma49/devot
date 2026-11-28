@@ -652,6 +652,19 @@ pub fn write_replacing(path: &Path, bytes: &[u8]) -> io::Result<()> {
     write(path, bytes, Place::Replace)
 }
 
+/// Checks the path a system save panel returned: absolute, with a file name, in an existing
+/// folder, and not a folder itself. It is written as chosen: the panel asked before replacing a
+/// file of that name, and adding an extension could replace another file without asking.
+pub fn save_path(path: &Path) -> Result<PathBuf, &'static str> {
+    if !path.is_absolute() || path.file_name().is_none() {
+        return Err("E_IMAGE_SAVE_PATH_INVALID");
+    }
+    if !path.parent().is_some_and(Path::is_dir) || path.is_dir() {
+        return Err("E_IMAGE_SAVE_PATH_INVALID");
+    }
+    Ok(path.to_owned())
+}
+
 pub const DAMAGED_SUFFIX: &str = ".damaged";
 
 /// A settings file that cannot be parsed is replaced by the next change, so its bytes are kept

@@ -4,6 +4,7 @@
 // changes anything), and `{{id:<name>}}` the fixed ID of a first-launch note
 // or picture.
 import type { WelcomeContent } from '../../../core'
+import { fromBase64 } from '../../../core/base64'
 import { COMMANDS, defaultKeys, type CommandId } from '../commands/registry'
 import { shortcutLabel } from '../commands/keys'
 import { t } from '../i18n'
@@ -37,8 +38,6 @@ export function fillWelcome(text: string): string {
   })
 }
 
-const bytes = (base64: string) => Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
-
 export function welcomeContent(): WelcomeContent {
   return {
     bookName: t('welcome.book'),
@@ -48,7 +47,7 @@ export function welcomeContent(): WelcomeContent {
         id: EXAMPLE_NOTE_ID,
         title: t('welcome.exampleTitle'),
         body: fillWelcome(example),
-        files: [{ id: IMAGE_ID, name: t('welcome.imageName'), data: bytes(SAMPLE_PNG) }],
+        files: [{ id: IMAGE_ID, name: t('welcome.imageName'), data: fromBase64(SAMPLE_PNG) }],
       },
     ],
   }

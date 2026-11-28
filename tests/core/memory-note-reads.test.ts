@@ -88,4 +88,18 @@ describe('memory storage note reads', () => {
     expect(await storage.listTrash()).toEqual([])
     await storage.purgeNotes([], 7, HLC)
   })
+
+  it('stores an attachment past 128 KB without overflowing the call stack', async () => {
+    await storage.putNote(record(1))
+    const png = new Uint8Array(150_000)
+    png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    await storage.putFile({ id: id(10), noteId: id(1), name: 'large.png' }, png)
+    const storedFiles = JSON.parse(localStorage.getItem('devot.test.files') ?? '[]') as {
+      id: string
+      base64: string
+    }[]
+    expect(storedFiles).toHaveLength(1)
+    expect(storedFiles[0]?.id).toBe(id(10))
+    expect(storedFiles[0]?.base64.length).toBe(200_000)
+  })
 })

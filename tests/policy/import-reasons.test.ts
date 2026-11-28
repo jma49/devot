@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { importReason } from '../../src/renderer/src/importReasons'
 
-const SOURCES = ['src-tauri/src/import.rs', 'src-tauri/src/commands/files.rs', 'src/core/import.ts']
+const SOURCES = [
+  'src-tauri/src/import.rs',
+  'src-tauri/src/storage/files.rs',
+  'src-tauri/src/commands/files.rs',
+  'src/core/import.ts',
+]
 
 it('every import problem code has a reason in the catalog', () => {
   const codes = new Set(

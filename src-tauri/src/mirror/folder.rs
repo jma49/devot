@@ -23,8 +23,8 @@
 //!   never lost, and written again). The manifest itself is flushed.
 
 use crate::atomic_file::{self, Folder, Place, Stamp};
-use crate::commands::notes::valid_note_id;
 use crate::export::{plain_rel_path, valid_rel_path};
+use crate::storage::{valid_note_id, valid_uuid};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
@@ -101,12 +101,6 @@ struct ManifestOut<'a> {
     version: u32,
     #[serde(flatten)]
     manifest: &'a Manifest,
-}
-
-/// Attachments Devot stores have UUIDv7 IDs; a link to any other UUID is simply to no attachment,
-/// never a reason to refuse the note.
-pub fn valid_uuid(id: &str) -> bool {
-    uuid::Uuid::try_parse(id).is_ok_and(|u| u.hyphenated().to_string() == id)
 }
 
 pub fn valid_sha256(text: &str) -> bool {

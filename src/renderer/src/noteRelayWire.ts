@@ -1,6 +1,7 @@
 // The core's relay messages as they cross between the worker, the page and Rust (noteRelay.ts): Yjs
 // data as the base64 the worker codes, so the page passes it on without reading it.
 import type { NoteRelayMessage, TakenIn } from '../../core'
+import { fromBase64, toBase64 } from '../../core/base64'
 
 export type WireRelay =
   | { kind: 'update'; noteId: string; data: string }
@@ -25,20 +26,20 @@ export function takenInIn(data: unknown): TakenIn | undefined {
 
 export function toWireRelay(
   message: NoteRelayMessage,
-  toBase64: (bytes: Uint8Array) => string,
+  encode: (bytes: Uint8Array) => string = toBase64,
 ): WireRelay {
   if (message.kind === 'update' || message.kind === 'want') {
-    return { ...message, data: toBase64(message.data) }
+    return { ...message, data: encode(message.data) }
   }
   return message
 }
 
 export function fromWireRelay(
   message: WireRelay,
-  fromBase64: (text: string) => Uint8Array,
+  decode: (text: string) => Uint8Array = fromBase64,
 ): NoteRelayMessage {
   if (message.kind === 'update' || message.kind === 'want') {
-    return { ...message, data: fromBase64(message.data) }
+    return { ...message, data: decode(message.data) }
   }
   return message
 }
@@ -61,13 +62,13 @@ export function relayGate(always: boolean) {
 /** The worker's side of the relay: what `relayGate` lets through is coded and posted to the page; nothing else is coded at all. */
 export function relayOut(
   post: (out: RelayOut) => void,
-  toBase64: (bytes: Uint8Array) => string,
   always: boolean,
+  encode: (bytes: Uint8Array) => string = toBase64,
 ) {
   const gate = relayGate(always)
   return {
     send: (message: NoteRelayMessage) => {
-      if (gate.allows(message)) post({ noteRelay: toWireRelay(message, toBase64) })
+      if (gate.allows(message)) post({ noteRelay: toWireRelay(message, encode) })
     },
     heard: gate.heard,
   }

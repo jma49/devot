@@ -19,6 +19,7 @@ import type { ListDatesStyle } from '../../core/editorSettings'
 import { useContextMenu, type MenuEntry, type MenuGroups } from './contextMenu'
 import { changeEditorSettings, editorSettings } from './editorSettings'
 import { t } from './i18n'
+import { localStore, type KeyValue } from './localStore'
 
 export type ListOrder = NoteSort | 'relevance'
 
@@ -37,8 +38,6 @@ export function sortView(options: {
   if (filter?.kind === 'agent') return `filter:agent:${filter.writer}`
   return options.bookId === null ? 'all' : `book:${options.bookId}`
 }
-
-type KeyValue = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 export interface ViewOrder {
   order: ListOrder
@@ -101,13 +100,7 @@ const sameOrder = (a: ListOrder, b: ListOrder) =>
   a === b || (a !== 'relevance' && b !== 'relevance' && noteSortId(a) === noteSortId(b))
 
 function currentSortStore() {
-  let storage: KeyValue | undefined
-  try {
-    storage = (globalThis as { localStorage?: KeyValue }).localStorage
-  } catch {
-    storage = undefined
-  }
-  return sortStore(storage)
+  return sortStore(localStore())
 }
 
 /** Titles collate in the user's preferred languages, then the UI locale. */

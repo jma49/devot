@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { countOf } from './format'
 import { currentLocale, t } from './i18n'
+import { Notice } from './Notices'
 import { sizes } from './theme/tokens'
 
 const STAYS_MS = Number.parseFloat(sizes['motion.duration.notice-undo'])
@@ -16,10 +17,10 @@ export function TrashNotice(props: { count: number; onUndo: () => void; onDismis
     return () => window.clearTimeout(timer)
   }, [resting, onDismiss])
   return (
-    <div
+    <Notice
       role="status"
-      className="notice"
-      data-devot-part="notice"
+      text={countOf(props.count, currentLocale(), 'batch.trashedOne', 'batch.trashedOther')}
+      onDismiss={onDismiss}
       onPointerEnter={() => setHeld((h) => ({ ...h, pointer: true }))}
       onPointerLeave={() => setHeld((h) => ({ ...h, pointer: false }))}
       onFocus={() => setHeld((h) => ({ ...h, focus: true }))}
@@ -28,15 +29,9 @@ export function TrashNotice(props: { count: number; onUndo: () => void; onDismis
           setHeld((h) => ({ ...h, focus: false }))
       }}
     >
-      <span className="notice-text">
-        {countOf(props.count, currentLocale(), 'batch.trashedOne', 'batch.trashedOther')}
-      </span>
       <button type="button" className="button" onClick={props.onUndo}>
         {t('notice.undo')}
       </button>
-      <button type="button" className="button" onClick={onDismiss}>
-        {t('notice.dismiss')}
-      </button>
-    </div>
+    </Notice>
   )
 }

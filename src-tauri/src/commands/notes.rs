@@ -1,21 +1,16 @@
 use super::authorship::validate_agent_writes;
+#[cfg(test)]
+use crate::storage::MAX_SEARCH_IDS;
 use crate::storage::{
-    AgentWriteRow, Db, LinkGraph, NOTE_STATUSES, NoteBody, NoteHead, NoteMeta, NoteQuery,
-    NoteRecord, NoteSummary, SetKind, TrashedNote, Write,
+    AgentWriteRow, Db, LinkGraph, MAX_BODY_BYTES, MAX_BODY_VERSION, MAX_LINKS, MAX_TITLE_CHARS,
+    MAX_YDOC_BYTES, NOTE_STATUSES, NoteBody, NoteHead, NoteMeta, NoteQuery, NoteRecord,
+    NoteSummary, TrashedNote, Write, valid_hlc, valid_note_id, validate_query,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use tauri::ipc::{InvokeBody, Request};
-
-pub(crate) const MAX_TITLE_CHARS: usize = 1_000;
-pub(crate) const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
-pub(crate) const MAX_YDOC_BYTES: usize = 64 * 1024 * 1024;
-/// Matches MAX_NOTE_LINKS in src/core/links.ts, which the AI service checks before it writes.
-const MAX_LINKS: usize = 10_000;
-/// The largest whole number JavaScript holds exactly, so the version storage moves a write on to stays exact in the core. Matches MAX_BODY_VERSION in src/core/noteLimits.ts.
-const MAX_BODY_VERSION: i64 = 9_007_199_254_740_991;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -66,30 +61,6 @@ impl From<NoteRecord> for NoteDto {
             deleted_hlc: note.deleted_hlc,
         }
     }
-}
-
-pub(crate) fn valid_note_id(id: &str) -> bool {
-    uuid::Uuid::try_parse(id)
-        .is_ok_and(|u| u.get_version_num() == 7 && u.hyphenated().to_string() == id)
-}
-
-/// The core's shape (`parseHlc` in src/core/hlc.ts): `<16-digit wall ms>-<4 hex counter>-<node>`.
-/// Storage orders stamps as text, so a stamp of any other shape could win every later merge.
-pub(crate) fn valid_hlc(hlc: &str) -> bool {
-    const MAX_WALL: u64 = 8_640_000_000_000_000;
-    let mut parts = hlc.splitn(3, '-');
-    let (Some(wall), Some(counter), Some(node)) = (parts.next(), parts.next(), parts.next()) else {
-        return false;
-    };
-    wall.len() == 16
-        && wall.bytes().all(|b| b.is_ascii_digit())
-        && wall.parse::<u64>().is_ok_and(|w| w <= MAX_WALL)
-        && counter.len() == 4
-        && counter
-            .bytes()
-            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-        && (1..=32).contains(&node.len())
-        && node.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'z'))
 }
 
 /// A note's fields without its body: what `note_put_meta` takes, and the fields of a `note_put` frame.
@@ -475,34 +446,8 @@ fn validate_links(links: &[String]) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// The core sends at most 10 clauses of a query (MAX_SEARCH_TERMS in src/core/search.ts) plus two for the current view.
-const MAX_SEARCH_CONDITIONS: usize = 12;
-const MAX_TERM_CHARS: usize = 100;
-const MAX_SEARCH_IDS: usize = 10_000;
 /// One more than the list shows (SEARCH_LIMIT in src/core/search.ts), so the core can tell a capped search.
 const MAX_SEARCH_LIMIT: u32 = 201;
-
-pub(crate) fn validate_query(query: &NoteQuery) -> Result<(), &'static str> {
-    if query.text.len() + query.sets.len() > MAX_SEARCH_CONDITIONS {
-        return Err("E_SEARCH_TERMS_INVALID");
-    }
-    if query.text.iter().any(|t| {
-        let n = t.value.chars().count();
-        n == 0 || n > MAX_TERM_CHARS
-    }) {
-        return Err("E_SEARCH_TERM_INVALID");
-    }
-    for set in &query.sets {
-        let valid = |id: &String| match set.kind {
-            SetKind::Book | SetKind::Tag => valid_note_id(id),
-            SetKind::Status => NOTE_STATUSES.contains(&id.as_str()),
-        };
-        if set.ids.is_empty() || set.ids.len() > MAX_SEARCH_IDS || !set.ids.iter().all(valid) {
-            return Err("E_SEARCH_IDS_INVALID");
-        }
-    }
-    Ok(())
-}
 
 fn validate_search_limit(limit: u32) -> Result<(), &'static str> {
     if (1..=MAX_SEARCH_LIMIT).contains(&limit) {
@@ -634,22 +579,6 @@ mod tests {
     use super::*;
 
     const ID: &str = "0192a6f0-0000-7000-8000-000000000001";
-
-    #[derive(Deserialize)]
-    struct Stamps {
-        valid: Vec<String>,
-        invalid: Vec<String>,
-    }
-
-    #[test]
-    fn takes_the_stamps_the_core_takes_and_no_others() {
-        let stamps: Stamps =
-            serde_json::from_str(include_str!("../../tests/fixtures/hlc-stamps.json")).unwrap();
-        let refused: Vec<&String> = stamps.valid.iter().filter(|s| !valid_hlc(s)).collect();
-        assert!(refused.is_empty(), "{refused:?}");
-        let taken: Vec<&String> = stamps.invalid.iter().filter(|s| valid_hlc(s)).collect();
-        assert!(taken.is_empty(), "{taken:?}");
-    }
 
     /// The record `note_put` writes for `note`, its fields checked as a frame's are.
     fn into_record(note: NoteDto) -> Result<NoteRecord, &'static str> {

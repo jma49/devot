@@ -9,7 +9,7 @@ const NATIVE = readFileSync('src-tauri/src/native/mod.rs', 'utf8')
 
 it('uses the limit Rust checks: what a note may hold', () => {
   const stated = /const MAX_CLIPBOARD_TEXT_LEN: usize = ([^;]+);/.exec(NATIVE)?.[1]
-  expect(stated).toBe('crate::commands::notes::MAX_BODY_BYTES')
+  expect(stated).toBe('crate::storage::MAX_BODY_BYTES')
   expect(NATIVE_CLIPBOARD_LIMIT).toBe(MAX_BODY_BYTES)
 })
 

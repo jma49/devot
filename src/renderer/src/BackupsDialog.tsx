@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { backupNow, errorCode, listBackups, type BackupInfo } from './backups'
+import { errorCode } from '../../core/errors'
+import { backupNow, listBackups, type BackupInfo } from './backups'
 import { ConfirmDialog } from './ConfirmDialog'
 import { fileSize } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'

@@ -4,9 +4,9 @@
 //! gives only the clock stamp and the time, never content, and it writes only into a library that
 //! has never held these notes (`Store::seed_welcome`).
 
-use super::files::detect_image;
-use super::notes::valid_hlc;
-use crate::storage::{BookRecord, Db, FileRecord, NoteRecord, WelcomeNote, Write};
+use crate::storage::{
+    BookRecord, Db, FileRecord, NoteRecord, WelcomeNote, Write, detect_image, valid_hlc,
+};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 use tauri::State;

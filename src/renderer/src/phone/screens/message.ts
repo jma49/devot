@@ -2,6 +2,7 @@
 // Rust checks every message before it comes and after it leaves; the page checks only the
 // envelope, so a request from another version of the app is dropped rather than misread.
 
+import { isRecord } from '../../../../core/isRecord'
 import type { NoteStatus } from '../../../../core/storage'
 import type { HapticKind } from '../haptics'
 import type { PhoneTab } from '../navigation'
@@ -108,9 +109,6 @@ export interface ScreensRequest {
 export type ScreensReply =
   | { readonly v: 1; readonly id: number; readonly ok: true; readonly result: unknown }
   | { readonly v: 1; readonly id: number; readonly ok: false; readonly code: string }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const isOp = (op: unknown): op is ScreensOp => SCREENS_OPS.some((known) => known === op)
 

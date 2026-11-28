@@ -2,7 +2,8 @@
 // code (the first argument) and arguments that are IDs or codes are sent (of
 // an error or a text that starts with a code, the code alone); anything else
 // could be note content and stays in the console.
-import { errorCode } from '../../core/errors'
+import { errorCode, isErrorCode } from '../../core/errors'
+import { UUID_V7_SOURCE } from '../../core/ids'
 
 export type LogLevel = 'error' | 'warn' | 'info'
 export interface LogEntry {
@@ -11,8 +12,7 @@ export interface LogEntry {
   ids: string[]
 }
 
-const CODE = /^[EWI]_[A-Z0-9_]{1,62}$/
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const ID = new RegExp(`^${UUID_V7_SOURCE}$`)
 const MAX_IDS = 4
 
 // Authorship lines also carry write IDs (64 random bits in base64url), writer kinds and counts (ADR 0007). Only they
@@ -37,7 +37,7 @@ export function sanitizeEntry(value: unknown): LogEntry | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { level, code, ids } = value as Record<string, unknown>
   if (!LEVELS.includes(level as LogLevel)) return undefined
-  if (typeof code !== 'string' || !CODE.test(code)) return undefined
+  if (!isErrorCode(code)) return undefined
   const kept = Array.isArray(ids)
     ? ids.map((id) => asId(id, code)).filter((id): id is string => id !== undefined)
     : []
@@ -46,7 +46,7 @@ export function sanitizeEntry(value: unknown): LogEntry | undefined {
 
 export function logEntry(level: LogLevel, args: unknown[]): LogEntry | undefined {
   const [code, ...rest] = args
-  if (typeof code !== 'string' || !CODE.test(code)) return undefined
+  if (!isErrorCode(code)) return undefined
   const ids = rest.map((id) => asId(id, code)).filter((id): id is string => id !== undefined)
   return { level, code, ids: ids.slice(0, MAX_IDS) }
 }

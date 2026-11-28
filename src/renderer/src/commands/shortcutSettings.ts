@@ -19,6 +19,7 @@ import {
 import { setCommandKeys } from './registry'
 import { createSyncedStore } from '../syncedStore'
 import { invoke } from '../ipc'
+import { followRustState } from '../rustState'
 
 const KEYBOARD_SHORTCUTS_CHANGED = 'devot:keyboard-shortcuts-changed'
 const TAURI_EVENT = 'devot://keyboard-shortcuts-changed'
@@ -79,22 +80,14 @@ let started = false
 export function startShortcutSettings(): void {
   if (started) return
   started = true
-  window.addEventListener(KEYBOARD_SHORTCUTS_CHANGED, (e) =>
-    store.confirm(reported(readShortcutsSnapshot((e as CustomEvent<unknown>).detail))),
-  )
-  void invoke<unknown>('keyboard_shortcuts_get').then(
-    (stored) => store.confirm(reported(readShortcutsSnapshot(stored))),
-    () => console.warn('W_KEYBOARD_SHORTCUTS_READ_FAILED'),
-  )
-  if (!DEVOT_UI_TEST) {
-    import('@tauri-apps/api/event')
-      .then(({ listen }) =>
-        listen<unknown>(TAURI_EVENT, (e) =>
-          window.dispatchEvent(new CustomEvent(KEYBOARD_SHORTCUTS_CHANGED, { detail: e.payload })),
-        ),
-      )
-      .catch(() => console.warn('W_KEYBOARD_SHORTCUTS_LISTEN_FAILED'))
-  }
+  void followRustState({
+    event: TAURI_EVENT,
+    pageEvent: KEYBOARD_SHORTCUTS_CHANGED,
+    read: () => invoke<unknown>('keyboard_shortcuts_get'),
+    take: (stored) => store.confirm(reported(readShortcutsSnapshot(stored))),
+    readFailed: 'W_KEYBOARD_SHORTCUTS_READ_FAILED',
+    listenFailed: 'W_KEYBOARD_SHORTCUTS_LISTEN_FAILED',
+  })
 }
 
 /**

@@ -4,9 +4,9 @@
 //! show: every main window about every note, a note window about its own. The message is checked here
 //! and passed on as it came; Yjs data stays the base64 the page sent and is never decoded.
 
-use crate::commands::notes::{MAX_TITLE_CHARS, MAX_YDOC_BYTES, valid_hlc, valid_note_id};
 use crate::main_windows::is_main;
 use crate::note_window;
+use crate::storage::{MAX_TITLE_CHARS, MAX_YDOC_BYTES, valid_hlc, valid_note_id};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, EventTarget, Manager, WebviewWindow};
 

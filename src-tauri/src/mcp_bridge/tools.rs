@@ -4,8 +4,8 @@
 
 use serde_json::{Map, Value, json};
 
-use crate::commands::notes::{MAX_BODY_BYTES, MAX_TITLE_CHARS};
 use crate::http_api::routes::MAX_MARKDOWN_BYTES;
+use crate::storage::{MAX_BODY_BYTES, MAX_TITLE_CHARS};
 
 pub const SERVER_NAME: &str = "devot";
 pub const SERVER_INSTRUCTIONS: &str = "Devot is a Markdown note app. These tools see only notebooks whose owner turned on Allow AI Access, and only the notes filed directly in them. Notes are Markdown. Edits apply directly; Devot keeps the text from before each edit in the note history, and trashed notes stay in the Trash until the owner empties it.";

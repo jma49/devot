@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { NoteStatus, NoteSummary, TagRecord } from '../../core'
 import { TEMPLATES_BOOK_ID, type BookNode } from '../../core/books'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import { writeClipboardText } from './clipboard'
 import type { ExportFailure } from './ExportNotice'
 import { noteCount } from './format'

@@ -18,10 +18,9 @@
 //! (nothing from the web) and reports how the job ended.
 
 use crate::atomic_file::{self, Folder, Place, TempDir};
-use crate::commands::notes::valid_note_id;
 use crate::editor_settings::EditorSettingsStore;
 use crate::page_setup::{PageLayout, PageLook};
-use crate::storage::Db;
+use crate::storage::{Db, valid_note_id};
 use crate::strings;
 use base64::Engine;
 use serde::{Deserialize, Serialize};

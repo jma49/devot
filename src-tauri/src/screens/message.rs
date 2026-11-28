@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::direct;
-use crate::commands::notes::{MAX_TITLE_CHARS, valid_hlc, valid_note_id};
-use crate::storage::NOTE_STATUSES;
+use crate::storage::{
+    MAX_FILE_BYTES, MAX_FILE_NAME_CHARS, MAX_TITLE_CHARS, NOTE_STATUSES, detect_image, valid_hlc,
+    valid_note_id,
+};
 
 pub const VERSION: u64 = 1;
 /// The store bridge's reply limit (`STORE_REPLY_LIMIT`).
@@ -865,7 +867,7 @@ fn reply(message: &mut Map<String, Value>) -> Result<Reply, &'static str> {
         }
         Some(Value::Bool(false)) if has_only(message, &["ok", "code"]) => {
             match message.remove("code") {
-                Some(Value::String(code)) if valid_code(&code) => Err(code),
+                Some(Value::String(code)) if crate::logs::is_error_or_warn_code(&code) => Err(code),
                 _ => return Err("E_SCREENS_CODE_INVALID"),
             }
         }
@@ -885,18 +887,6 @@ fn notice(mut message: Map<String, Value>) -> Result<Notice, &'static str> {
     let notice: Notice = serde_json::from_value(tagged).map_err(|_| "E_SCREENS_ARGS_INVALID")?;
     validate_notice(&notice)?;
     Ok(notice)
-}
-
-/// A code as Rust and the page write them (`E_…` or `W_…`), so a reply never carries text.
-fn valid_code(code: &str) -> bool {
-    let Some(rest) = code.strip_prefix("E_").or_else(|| code.strip_prefix("W_")) else {
-        return false;
-    };
-    !rest.is_empty()
-        && code.len() <= MAX_CODE_CHARS
-        && rest
-            .bytes()
-            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
 }
 
 fn note_ids(ids: &[String], max: usize) -> Result<(), &'static str> {
@@ -1069,7 +1059,7 @@ fn attached(attach: &EditorAttach) -> Result<(), &'static str> {
 fn shared_image(image: &SharedImage) -> Result<(), &'static str> {
     use base64::Engine as _;
     if image.name.is_empty()
-        || image.name.chars().count() > crate::commands::files::MAX_NAME_CHARS
+        || image.name.chars().count() > MAX_FILE_NAME_CHARS
         || image.name.chars().any(char::is_control)
     {
         return Err("E_SCREENS_FILE_INVALID");
@@ -1077,10 +1067,7 @@ fn shared_image(image: &SharedImage) -> Result<(), &'static str> {
     let data = base64::engine::general_purpose::STANDARD
         .decode(&image.data)
         .map_err(|_| "E_SCREENS_FILE_INVALID")?;
-    if data.is_empty()
-        || data.len() > crate::commands::files::MAX_FILE_BYTES
-        || crate::commands::files::detect_image(&data).is_none()
-    {
+    if data.is_empty() || data.len() > MAX_FILE_BYTES || detect_image(&data).is_none() {
         return Err("E_SCREENS_FILE_INVALID");
     }
     Ok(())

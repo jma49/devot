@@ -186,17 +186,9 @@ fn read_code(stream: &mut UnixStream) -> String {
     let mut bytes = Vec::new();
     let _ = stream.take(MAX_CODE).read_to_end(&mut bytes);
     match String::from_utf8(bytes) {
-        Ok(code) if is_code(&code) => code,
+        Ok(code) if crate::logs::is_error_code(&code) => code,
         _ => "E_CLI_HANDOFF_REFUSED".to_owned(),
     }
-}
-
-fn is_code(code: &str) -> bool {
-    code.starts_with("E_")
-        && code.len() >= 3
-        && code
-            .bytes()
-            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
 }
 
 pub(crate) fn send(identifier: &str, message: &[u8]) -> Result<bool, &'static str> {

@@ -3,6 +3,7 @@ import { dismissImageActionFailure, useImageActionFailure } from './imageMenu'
 import { countOf } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 import { failureText } from './failure'
+import { Notice } from './Notices'
 
 const REASONS: Readonly<Record<string, MessageKey>> = {
   E_FILE_SIZE_INVALID: 'images.reason.size',
@@ -21,14 +22,7 @@ export function refusedImagesText(codes: readonly string[]): string {
 }
 
 export function ImageNotice(props: { codes: readonly string[]; onDismiss: () => void }) {
-  return (
-    <div role="alert" className="notice" data-devot-part="notice">
-      <span className="notice-text">{refusedImagesText(props.codes)}</span>
-      <button type="button" className="button" onClick={props.onDismiss}>
-        {t('notice.dismiss')}
-      </button>
-    </div>
-  )
+  return <Notice text={refusedImagesText(props.codes)} onDismiss={props.onDismiss} />
 }
 
 /** A failed Copy Image or Save Image As, in the window that ran it (runImageAction logged its code). */
@@ -39,12 +33,5 @@ export function ImageActionNotice() {
     failure.action === 'copy' ? 'images.copyFailed' : 'images.saveFailed',
     failure.code,
   )
-  return (
-    <div role="alert" className="notice" data-devot-part="notice">
-      <span className="notice-text">{text}</span>
-      <button type="button" className="button" onClick={dismissImageActionFailure}>
-        {t('notice.dismiss')}
-      </button>
-    </div>
-  )
+  return <Notice text={text} onDismiss={dismissImageActionFailure} />
 }

@@ -1,6 +1,7 @@
 import { failureText } from './failure'
-import { t, type MessageKey } from './i18n'
+import type { MessageKey } from './i18n'
 import type { ExportAction } from './noteMenu'
+import { Notice } from './Notices'
 
 export type ExportFailure =
   | 'export'
@@ -38,13 +39,9 @@ export function ExportNotice(props: {
   onDismiss: () => void
 }) {
   return (
-    <div role="alert" className="notice" data-devot-part="notice">
-      <span className="notice-text">
-        {failureText(MESSAGES[props.failure], props.code, stringValues(props.values))}
-      </span>
-      <button type="button" className="button" onClick={props.onDismiss}>
-        {t('notice.dismiss')}
-      </button>
-    </div>
+    <Notice
+      text={failureText(MESSAGES[props.failure], props.code, stringValues(props.values))}
+      onDismiss={props.onDismiss}
+    />
   )
 }

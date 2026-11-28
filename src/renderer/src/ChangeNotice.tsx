@@ -1,13 +1,6 @@
 import { changeMessage } from './changeMessage'
-import { t } from './i18n'
+import { Notice } from './Notices'
 
 export function ChangeNotice(props: { code: string; onDismiss: () => void }) {
-  return (
-    <div role="alert" className="notice" data-devot-part="notice">
-      <span className="notice-text">{changeMessage(props.code)}</span>
-      <button type="button" className="button" onClick={props.onDismiss}>
-        {t('notice.dismiss')}
-      </button>
-    </div>
-  )
+  return <Notice text={changeMessage(props.code)} onDismiss={props.onDismiss} />
 }

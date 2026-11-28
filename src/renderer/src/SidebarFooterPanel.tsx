@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { SHOW_BACKUPS, errorCode, listBackups, type BackupStatus } from './backups'
+import { errorCode } from '../../core/errors'
+import { SHOW_BACKUPS, listBackups, type BackupStatus } from './backups'
 import { closingRef } from './closing'
 import { failureText, logFailure } from './failure'
 import { currentLocale, format, t } from './i18n'

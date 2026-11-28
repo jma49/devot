@@ -5,6 +5,7 @@
 import { RESTORE_CHOICE } from '../../core/sync/restore'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as Comlink from 'comlink'
+import { isErrorCode } from '../../core/errors'
 import { MAX_WALL } from '../../core/hlc'
 import type { SyncStatus } from '../../core/sync/engine'
 import type { SyncPending } from '../../core/sync/store'
@@ -113,8 +114,6 @@ export const SYNC_OFF: SyncSnapshot = {
   rotated: false,
 }
 
-const CODE = /^[EWI]_[A-Z0-9_]+$/
-
 export { STORAGE_FULL }
 
 /** What a person does about a sync that stopped for these codes. */
@@ -158,7 +157,7 @@ function readICloudJoin(value: unknown): ICloudJoin | null {
     state,
     notes: readCount(v['notes']),
     reason: ICLOUD_FALLBACK_REASONS.find((reason) => reason === v['reason']) ?? null,
-    code: typeof v['code'] === 'string' && CODE.test(v['code']) ? v['code'] : null,
+    code: isErrorCode(v['code']) ? v['code'] : null,
   }
 }
 
@@ -181,7 +180,7 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
     status: {
       state,
       lastSync: readTime(s['lastSync']),
-      code: typeof s['code'] === 'string' && CODE.test(s['code']) ? s['code'] : null,
+      code: isErrorCode(s['code']) ? s['code'] : null,
       tooLarge,
       pausedUntil: state === 'paused' ? readTime(s['pausedUntil']) : null,
       upload: readUpload(s['upload']),

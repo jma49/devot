@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { formatNumber } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Select, Setting, SettingsSection, SettingToggle } from './controls'

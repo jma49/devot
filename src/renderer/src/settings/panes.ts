@@ -4,6 +4,7 @@
 // does not name a pane falls back to the first.
 import type { IconName } from '../icons/symbols'
 import type { MessageKey } from '../i18n'
+import { localStore } from '../localStore.ts'
 
 export const PANES = [
   'general',
@@ -108,13 +109,7 @@ export function paneFromQuery(search: string): PaneId | undefined {
 }
 
 export function currentPaneStore() {
-  let storage: KeyValue | undefined
-  try {
-    storage = (globalThis as { localStorage?: KeyValue }).localStorage
-  } catch {
-    storage = undefined
-  }
-  return paneStore(storage)
+  return paneStore(localStore())
 }
 
 /**

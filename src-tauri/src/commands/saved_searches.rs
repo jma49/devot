@@ -1,6 +1,5 @@
 use super::books::valid_sort_key;
-use super::notes::{valid_hlc, valid_note_id};
-use crate::storage::{Db, SavedSearchRecord, Write};
+use crate::storage::{Db, SavedSearchRecord, Write, valid_hlc, valid_note_id};
 use tauri::State;
 
 /// MAX_SAVED_SEARCH_NAME_CHARS and MAX_SAVED_SEARCH_QUERY_CHARS in src/core/savedSearches.ts.

@@ -256,11 +256,7 @@ fn end(app: &AppHandle, result: Result<(), String>) {
 
 /// The page may print an error code and nothing else.
 fn valid_code(code: &str) -> bool {
-    code.len() <= MAX_CODE_LEN
-        && code.starts_with("E_")
-        && code
-            .bytes()
-            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+    code.len() <= MAX_CODE_LEN && crate::logs::is_error_code(code)
 }
 
 #[cfg(target_os = "macos")]

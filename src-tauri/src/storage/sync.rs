@@ -11,6 +11,17 @@ use super::{
     TagRecord,
 };
 
+/// A change tag is the transport's: empty on a relay, archived record system fields on iCloud.
+pub(crate) const MAX_SYNC_TAG: usize = 8192;
+
+/// Base64 of at most `MAX_SYNC_TAG` characters, or empty.
+pub fn valid_sync_tag(tag: &str) -> bool {
+    tag.len() <= MAX_SYNC_TAG
+        && tag
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
+}
+
 const SYNC_PENDING_SQL: &str = "SELECT id, edits, upload_key AS uploadKey FROM sync_records
      WHERE edits <> synced AND upload_key > @after ORDER BY upload_key LIMIT @limit";
 const SYNC_PENDING_COUNT_SQL: &str = "SELECT COUNT(*) AS n FROM sync_records WHERE edits <> synced";

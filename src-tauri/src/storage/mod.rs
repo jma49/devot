@@ -21,7 +21,14 @@ mod sync;
 mod tags;
 mod welcome;
 
-pub use sync::{SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal, SyncPending};
+#[cfg(any(target_os = "ios", test))]
+pub(crate) use files::MAX_FILE_NAME_CHARS;
+pub use files::{MAX_FILE_BYTES, Upload, detect_image, store_upload, validate_upload};
+#[cfg(test)]
+pub(crate) use sync::MAX_SYNC_TAG;
+pub use sync::{
+    SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal, SyncPending, valid_sync_tag,
+};
 
 pub use db::{Db, Write};
 pub use drawings::{KeptDrawing, NoteDrawings};

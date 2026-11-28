@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import type { AiApiProviderId, AiCatalog, AiProviderView } from '../../../core/aiProvider'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { Chevron } from '../Chevron'
 import { failureText, logFailure } from '../failure'
 import { countOf } from '../format'

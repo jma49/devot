@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { withoutRemoteCss } from './diagram-css'
+import { withoutRemoteCss } from './diagramCss'
 
 describe('diagram CSS', () => {
   it('keeps ordinary rules and same-document references', () => {

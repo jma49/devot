@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, useSyncExternalStore } from 'react'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { crashReports, type CrashReports } from '../crashReports'
 import { shortcutLabel } from '../commands/keys'
 import { QUICK_CAPTURE_KEY } from '../commands/registry'

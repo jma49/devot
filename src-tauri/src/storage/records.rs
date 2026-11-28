@@ -1,5 +1,41 @@
 use serde::{Deserialize, Serialize};
 
+pub const MAX_TITLE_CHARS: usize = 1_000;
+pub const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
+pub const MAX_YDOC_BYTES: usize = 64 * 1024 * 1024;
+/// Matches MAX_NOTE_LINKS in src/core/links.ts, which the AI service checks before it writes.
+pub const MAX_LINKS: usize = 10_000;
+/// The largest whole number JavaScript holds exactly, so the version storage moves a write on to stays exact in the core. Matches MAX_BODY_VERSION in src/core/noteLimits.ts.
+pub const MAX_BODY_VERSION: i64 = 9_007_199_254_740_991;
+
+pub fn valid_uuid(id: &str) -> bool {
+    uuid::Uuid::try_parse(id).is_ok_and(|u| u.hyphenated().to_string() == id)
+}
+
+pub fn valid_note_id(id: &str) -> bool {
+    uuid::Uuid::try_parse(id)
+        .is_ok_and(|u| u.get_version_num() == 7 && u.hyphenated().to_string() == id)
+}
+
+/// The core's shape (`parseHlc` in src/core/hlc.ts): `<16-digit wall ms>-<4 hex counter>-<node>`.
+/// Storage orders stamps as text, so a stamp of any other shape could win every later merge.
+pub fn valid_hlc(hlc: &str) -> bool {
+    const MAX_WALL: u64 = 8_640_000_000_000_000;
+    let mut parts = hlc.splitn(3, '-');
+    let (Some(wall), Some(counter), Some(node)) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    wall.len() == 16
+        && wall.bytes().all(|b| b.is_ascii_digit())
+        && wall.parse::<u64>().is_ok_and(|w| w <= MAX_WALL)
+        && counter.len() == 4
+        && counter
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        && (1..=32).contains(&node.len())
+        && node.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'z'))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteRecord {
@@ -425,4 +461,52 @@ pub enum SetKind {
     Book,
     Tag,
     Status,
+}
+
+/// The core sends at most 10 clauses of a query (MAX_SEARCH_TERMS in src/core/search.ts) plus two for the current view.
+pub const MAX_SEARCH_CONDITIONS: usize = 12;
+const MAX_TERM_CHARS: usize = 100;
+pub const MAX_SEARCH_IDS: usize = 10_000;
+
+pub fn validate_query(query: &NoteQuery) -> std::result::Result<(), &'static str> {
+    if query.text.len() + query.sets.len() > MAX_SEARCH_CONDITIONS {
+        return Err("E_SEARCH_TERMS_INVALID");
+    }
+    if query.text.iter().any(|t| {
+        let n = t.value.chars().count();
+        n == 0 || n > MAX_TERM_CHARS
+    }) {
+        return Err("E_SEARCH_TERM_INVALID");
+    }
+    for set in &query.sets {
+        let valid = |id: &String| match set.kind {
+            SetKind::Book | SetKind::Tag => valid_note_id(id),
+            SetKind::Status => NOTE_STATUSES.contains(&id.as_str()),
+        };
+        if set.ids.is_empty() || set.ids.len() > MAX_SEARCH_IDS || !set.ids.iter().all(valid) {
+            return Err("E_SEARCH_IDS_INVALID");
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Deserialize)]
+    struct Stamps {
+        valid: Vec<String>,
+        invalid: Vec<String>,
+    }
+
+    #[test]
+    fn takes_the_stamps_the_core_takes_and_no_others() {
+        let stamps: Stamps =
+            serde_json::from_str(include_str!("../../tests/fixtures/hlc-stamps.json")).unwrap();
+        let refused: Vec<&String> = stamps.valid.iter().filter(|s| !valid_hlc(s)).collect();
+        assert!(refused.is_empty(), "{refused:?}");
+        let taken: Vec<&String> = stamps.invalid.iter().filter(|s| valid_hlc(s)).collect();
+        assert!(taken.is_empty(), "{taken:?}");
+    }
 }

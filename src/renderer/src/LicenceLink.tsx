@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import { ConfirmDialog } from './ConfirmDialog'
 import type { DeepLink } from './deepLink'
 import { format, t } from './i18n'
 import { addLicence, readCurrentLicence } from './licence'
 import { licenceProblem, licenseeName, planLicenceLink, type LicenceOffer } from './licenceView'
 import { failureText, logFailure } from './failure'
+import { Notice } from './Notices'
 
 type LicenceLink = Extract<DeepLink, { kind: 'licence' }>
 
@@ -86,12 +87,7 @@ export function useLicenceLink(): {
       />
     ) : null,
     notice: notice ? (
-      <div role="alert" className="notice" data-devot-part="notice" data-devot-licence-link>
-        <span className="notice-text">{notice}</span>
-        <button type="button" className="button" onClick={() => setNotice(undefined)}>
-          {t('notice.dismiss')}
-        </button>
-      </div>
+      <Notice text={notice} onDismiss={() => setNotice(undefined)} data-devot-licence-link />
     ) : null,
   }
 }

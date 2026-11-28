@@ -2,6 +2,8 @@
 // window. They are view preferences, so they live in the webview's local
 // storage, not in the note database.
 
+import { localStore, sessionStore } from './localStore'
+
 type KeyValue = Pick<Storage, 'getItem' | 'setItem'>
 
 interface TauriInternals {
@@ -58,14 +60,8 @@ export function currentWindowLabel(): string {
  * a later window with the same label starts fresh.
  */
 export function current<T>(store: (storage: KeyValue | undefined, label: string) => T): T {
-  const w = globalThis as { localStorage?: KeyValue; sessionStorage?: KeyValue }
   const label = currentWindowLabel()
-  let storage: KeyValue | undefined
-  try {
-    storage = isSecondaryLabel(label) ? w.sessionStorage : w.localStorage
-  } catch {
-    storage = undefined
-  }
+  const storage = isSecondaryLabel(label) ? sessionStore() : localStore()
   return store(storage, label)
 }
 

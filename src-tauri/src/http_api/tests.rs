@@ -105,7 +105,16 @@ fn send_raw(port: u16, bytes: &[u8]) -> Response {
     stream
         .set_read_timeout(Some(Duration::from_secs(5)))
         .unwrap();
-    stream.write_all(bytes).unwrap();
+    match stream.write_all(bytes) {
+        Ok(()) => {}
+        // An early refusal (such as 413 from Content-Length) answers and closes before a multi-MiB body finishes writing.
+        Err(e)
+            if matches!(
+                e.kind(),
+                std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset
+            ) => {}
+        Err(e) => panic!("write failed: {e}"),
+    }
     read_response(&mut stream)
 }
 

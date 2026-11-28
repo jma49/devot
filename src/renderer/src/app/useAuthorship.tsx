@@ -11,7 +11,7 @@ import {
 import { markSeen, unseenOf, type useAgentWrites } from '../agentWrites'
 import { AuthorshipNotice } from '../AuthorshipNotice'
 import { writerNames, type WriterRef } from '../authorshipLabels'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { ConfirmDialog } from '../ConfirmDialog'
 import type { Core } from '../core-client'
 import type { EditorHandle } from '../editor/handle'

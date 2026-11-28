@@ -3,8 +3,7 @@
 //! marking a note's writes seen. The core derives the rows from untrusted records (another device,
 //! an outside writer, a later build), so every row is checked here again.
 
-use super::notes::valid_note_id;
-use crate::storage::{AgentWriteRow, AgentWriteSummary, Db, Write};
+use crate::storage::{AgentWriteRow, AgentWriteSummary, Db, Write, valid_note_id};
 use tauri::State;
 
 /// MAX_AGENT_WRITE_ROWS in src/core/authorship.ts (a policy test checks they match).

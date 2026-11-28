@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { QUOTA } from '../../../core/sync/transport'
 import { countOf, untilTime, uploadCounts } from '../format'
 import { currentLocale, format, sentences, t, type MessageKey } from '../i18n'

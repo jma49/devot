@@ -407,7 +407,7 @@ pub fn show_appearance<R: tauri::Runtime>(app: &tauri::AppHandle<R>, theme: Opti
 /// Longest text the clipboard command accepts: as much as a note may hold,
 /// as a paste takes, so Copy Note Links on any selection a library allows
 /// (and any code block) fits.
-const MAX_CLIPBOARD_TEXT_LEN: usize = crate::commands::notes::MAX_BODY_BYTES;
+const MAX_CLIPBOARD_TEXT_LEN: usize = crate::storage::MAX_BODY_BYTES;
 
 fn validate_clipboard_text(text: &str) -> Result<(), &'static str> {
     if text.is_empty() {
@@ -548,7 +548,7 @@ pub async fn clipboard_write_secret(app: tauri::AppHandle, text: String) -> Resu
     all(not(test), not(target_os = "macos")),
     expect(dead_code, reason = "only macOS and tests use it")
 )]
-const MAX_CLIPBOARD_READ_BYTES: usize = crate::commands::notes::MAX_BODY_BYTES;
+const MAX_CLIPBOARD_READ_BYTES: usize = crate::storage::MAX_BODY_BYTES;
 
 #[cfg_attr(
     all(not(test), not(target_os = "macos")),
@@ -1333,15 +1333,12 @@ mod tests {
         // Copy Note Links on 1,500 notes, each title the longest a note may
         // have (in three-byte characters): one link per line.
         let id = "0192a6f0-0000-7000-8000-00000000000a";
-        let title = "\u{2026}".repeat(crate::commands::notes::MAX_TITLE_CHARS);
+        let title = "\u{2026}".repeat(crate::storage::MAX_TITLE_CHARS);
         let links = vec![format!("[{title}](devot://note/{id})"); 1_500].join("\n");
         assert!(links.len() > 4_000_000);
         assert_eq!(validate_clipboard_text(&links), Ok(()));
         // As much as a note may hold, so what is copied can be pasted into one.
-        assert_eq!(
-            MAX_CLIPBOARD_TEXT_LEN,
-            crate::commands::notes::MAX_BODY_BYTES
-        );
+        assert_eq!(MAX_CLIPBOARD_TEXT_LEN, crate::storage::MAX_BODY_BYTES);
     }
 
     #[test]

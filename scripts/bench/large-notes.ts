@@ -18,12 +18,11 @@ export function summary(values: number[]) {
 }
 
 export async function runLargeNotes() {
-  const { createClock, createIdGenerator, createNoteService, BODY } =
+  const { createClock, createIdGenerator, createNoteService, BODY, toBase64, fromBase64 } =
     await import('../../src/core/index.ts')
   const { openSqliteAdapter } = await import('../../tests/support/sqlite-adapter.ts')
   const { tempDir, removeTempDirs } = await import('../../tests/support/temp-dirs.ts')
-  const { fromWire, toWire, toBase64, fromBase64 } =
-    await import('../../src/renderer/src/storage/wire.ts')
+  const { fromWire, toWire } = await import('../../src/renderer/src/storage/wire.ts')
   const { fromWireSync } = await import('../../src/renderer/src/storage/syncWire.ts')
   const { createSyncEngine } = await import('../../src/core/sync/engine.ts')
   const { sampleNote } = await import('./fixtures.ts')
