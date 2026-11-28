@@ -61,6 +61,7 @@ const GLASS = [
   '.plugin-panel',
   '.notice',
   '.empty-pane-card',
+  '.footer-panel',
 ]
 
 describe('the glass material', () => {
@@ -154,8 +155,8 @@ describe('the glass material', () => {
   })
 
   it('puts no glass on glass: controls inside it are washes', () => {
-    expect(background('.footer-toggle:not(:hover, :active)')).toBe('var(--color-fill-track)')
-    expect(background('.footer-toggle:hover')).toBe('var(--color-fill-tool-hover)')
+    expect(background('.footer-toggle')).toBe('transparent')
+    expect(background('.footer-toggle:hover')).toBe('var(--color-fill-row-selected-inactive)')
     expect(background('.palette-field')).toBe('var(--color-fill-track)')
     expect(background('.palette-field:hover')).toBe('var(--color-fill-tool-hover)')
     expect(background('.settings-search')).toBe('var(--color-fill-track)')

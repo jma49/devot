@@ -227,19 +227,19 @@ test('rows answer the pointer, and the selected row and a drop target keep their
   expect(selected).not.toBe(hover)
 })
 
-test('the footer is a 20 px capsule 8 px from the sidebar edges, concentric with its corners', async ({
+test('the footer is a 28 px row 8 px from the sidebar edges, concentric with its corners', async ({
   page,
 }) => {
   await setUp(page)
   const side = await box(sidebar(page))
   const toggle = sidebar(page).locator('.footer-toggle')
   const footer = await box(toggle)
-  expect(footer.height).toBe(20)
+  expect(footer.height).toBe(28)
   expect(footer.x - side.x).toBe(8)
   expect(side.x + side.width - (footer.x + footer.width)).toBe(8)
   expect(side.y + side.height - (footer.y + footer.height)).toBe(8)
   const radius = await toggle.evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius))
-  expect(radius).toBeGreaterThanOrEqual(10)
+  expect(radius).toBe(10)
 })
 
 test('the editor toolbar ends on the keyline, its controls centred in its height', async ({

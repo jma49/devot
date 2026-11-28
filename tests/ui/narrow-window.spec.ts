@@ -145,9 +145,7 @@ test.describe('Simplified Chinese', () => {
     await expect.poll(async () => (await box(overlay)).width).toBe(170)
 
     const status = overlay.locator('.footer-saved')
-    await expect(status).toHaveText(
-      `${zhHans['sidebar.notBackedUp']} · ${zhHans['sidebar.mirrorOffShort']}`,
-    )
+    await expect(status).toHaveText(zhHans['sidebar.notBackedUp'])
     await expect.poll(() => status.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
     expect(await Promise.all([box(editor), box(preview)])).toEqual(split)
   })

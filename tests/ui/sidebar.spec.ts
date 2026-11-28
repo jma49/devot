@@ -142,15 +142,17 @@ test('the footer sums up backups and the mirror, and tells when the last note wa
   })
   await page.reload()
   const toggle = sidebar(page).locator('.footer-toggle')
-  await expect(toggle.locator('.footer-saved')).toHaveText('Backed up · Mirror off')
+  await expect(toggle.locator('.footer-saved')).toHaveText('Backed up')
   // The visible status is part of the button's name, not replaced by it (A174).
-  await expect(toggle).toHaveAccessibleName('Backup and mirror status: Backed up · Mirror off')
+  await expect(toggle).toHaveAccessibleName('Backup and mirror status: Backed up')
   await expect(toggle.locator('.footer-dot')).toHaveAttribute('data-tone', 'ok')
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Saved')
   await expect(toggle).toHaveAttribute('title', /^Saved at \d\d:\d\d:\d\d$/)
   await toggle.click()
-  await expect(sidebar(page).getByRole('group', { name: 'Backup and mirror status' })).toBeVisible()
+  const panel = sidebar(page).getByRole('group', { name: 'Backup and mirror status' })
+  await expect(panel).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Show Backups' })).toBeVisible()
 })
 
 test('the sidebar scrolls when its notebooks and tags overflow, and focus reveals an off-screen row', async ({
