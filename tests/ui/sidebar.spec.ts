@@ -153,6 +153,12 @@ test('the footer sums up backups and the mirror, and tells when the last note wa
   const panel = sidebar(page).getByRole('group', { name: 'Backup and mirror status' })
   await expect(panel).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Show Backups' })).toBeVisible()
+  const sideBox = await sidebar(page).boundingBox()
+  const panelBox = await panel.boundingBox()
+  expect(sideBox).not.toBeNull()
+  expect(panelBox).not.toBeNull()
+  expect(panelBox!.x).toBeGreaterThanOrEqual(sideBox!.x)
+  expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(sideBox!.x + sideBox!.width)
 })
 
 test('the sidebar scrolls when its notebooks and tags overflow, and focus reveals an off-screen row', async ({
