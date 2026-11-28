@@ -2,6 +2,7 @@
 // structure from validated values.
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
 import { textOf } from '../hastText'
+import { UUID_SOURCE } from '../ids'
 import { createEmojiRenderer } from './emoji'
 import {
   parseImageMarkdown,
@@ -334,9 +335,8 @@ const images: PreviewRenderer = {
   },
 }
 
-const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
-const NOTE_URL = new RegExp(`^devot://note/${UUID}$`)
-const FILE_URL = new RegExp(`^devot://file/${UUID}$`)
+const NOTE_URL = new RegExp(`^devot://note/${UUID_SOURCE}$`)
+const FILE_URL = new RegExp(`^devot://file/${UUID_SOURCE}$`)
 
 const links: PreviewRenderer = {
   id: 'devot.links',

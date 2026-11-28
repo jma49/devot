@@ -3,6 +3,7 @@
 // What is embedded is read-only (no task boxes, no offsets into the host note, no ids or footnotes of its own).
 // Without the targets (exported pages), an embed inline in text or past MAX_NOTE_EMBEDS, it is a note link.
 import type { Element, ElementContent, Root, RootContent } from 'hast'
+import { noteIdOf, noteUri } from '../links'
 import { chip } from './noteLinks'
 import {
   PIECE_OFFSET_PROPERTIES,
@@ -13,8 +14,6 @@ import {
 } from './registry'
 
 export const NOTE_EMBEDS_ID = 'devot.note-embeds'
-
-const NOTE_SRC = /^devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 
 export type RenderEmbedded = (
   markdown: string,
@@ -29,7 +28,7 @@ const isBlank = (node: RootContent | ElementContent) =>
 const embeddedId = (node: ElementContent | RootContent): string | undefined => {
   if (node.type !== 'element' || node.tagName !== 'img') return undefined
   const src = node.properties['src']
-  return typeof src === 'string' ? NOTE_SRC.exec(src.split('#')[0]!)?.[1] : undefined
+  return typeof src === 'string' ? noteIdOf(src.split('#')[0]!) : undefined
 }
 
 function asLink(img: Element, id: string): Element {
@@ -37,7 +36,7 @@ function asLink(img: Element, id: string): Element {
   return {
     type: 'element',
     tagName: 'a',
-    properties: { href: `devot://note/${id}` },
+    properties: { href: noteUri(id) },
     children: [{ type: 'text', value: typeof alt === 'string' ? alt : '' }],
     ...(img.position ? { position: img.position } : {}),
   }

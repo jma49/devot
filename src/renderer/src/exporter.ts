@@ -11,7 +11,7 @@ import type { ExportPlan, ExportReport, ExportSink, ExportTarget, PageImage } fr
 import type { PreviewOptions } from '../../core/preview/registry'
 import { exportName, fileStem, relativeHref } from '../../core/export'
 import { htmlDocument, pageBody } from '../../core/htmlExport'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import type { Core } from './core-client'
 import { currentLocale, t } from './i18n'
 import type { ExportAction } from './noteMenu'

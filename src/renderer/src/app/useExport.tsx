@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ExportReport } from '../../../core'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { useMenuEvent } from '../commands/dispatch'
 import type { Core } from '../core-client'
 import { changeEditorSettings } from '../editorSettings'

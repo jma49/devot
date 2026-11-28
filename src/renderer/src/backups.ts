@@ -83,5 +83,3 @@ export function onRestoreElsewhere(prepare: () => Promise<void>): () => void {
     stops.forEach((stop) => stop())
   }
 }
-
-export { errorCode } from '../../core/errors'

@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { BookRecord, DiffBlock, HistoryEntry } from '../../core'
 import { NOTE_STATUSES, type NoteStatus } from '../../core/storage'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import { describeChange } from './historyChange'
 import type { Core } from './core-client'
 import { countOf } from './format'

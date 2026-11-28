@@ -1,6 +1,8 @@
 // Attachments: images pasted or dropped into a note. The format is read from the bytes (the same rules as the Rust store, commands/files.rs); SVG and anything that
 // is not a known raster image are refused.
 
+import { UUID_V7_SOURCE } from './ids'
+
 export const MAX_FILE_BYTES = 10 * 1024 * 1024
 export const MAX_FILE_NAME_CHARS = 200
 
@@ -15,12 +17,17 @@ export interface FileCopy {
   to: string
 }
 
-export const FILE_ID_SOURCE = '[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}'
+export const FILE_ID_SOURCE = UUID_V7_SOURCE
 
 const FILE_LINK = new RegExp(`devot://file/(${FILE_ID_SOURCE})(?![0-9a-f-])`, 'g')
+const FILE_URI = new RegExp(`^devot://file/(${FILE_ID_SOURCE})$`)
 
 export function fileUri(id: string): string {
   return `devot://file/${id}`
+}
+
+export function fileIdOf(url: string): string | undefined {
+  return FILE_URI.exec(url)?.[1]
 }
 
 /** An ID that appears twice is listed twice. Anything after the ID, such as a size preset (`#half`), is not part of it. */

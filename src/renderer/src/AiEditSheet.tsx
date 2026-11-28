@@ -8,7 +8,7 @@ import {
 } from '../../core/aiEdit'
 import type { AiGenerator } from '../../core/aiProvider'
 import { aiEditFailure, proposalRows } from './aiEditView'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import type { Core } from './core-client'
 import { aiChoiceLabel, type AiEditStart } from './editor/aiMenu'
 import { countOf } from './format'

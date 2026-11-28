@@ -10,7 +10,7 @@
 // once the user agrees).
 import * as Comlink from 'comlink'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import type { Core } from './core-client'
 import { currentLocale, t, type MessageKey } from './i18n'
 import {

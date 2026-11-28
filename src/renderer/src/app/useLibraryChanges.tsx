@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { BatchChange } from '../../../core'
 import { bookWithDescendants } from '../../../core/books'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { BatchNotice } from '../BatchNotice'
 import type { Core } from '../core-client'
 import { t } from '../i18n'

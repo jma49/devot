@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { TagColorValue, TagRecord } from '../../../core'
 import type { NoteFilter } from '../../../core/tags'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { useContextMenu } from '../contextMenu'
 import type { Core } from '../core-client'
 import type { ExportFailure } from '../ExportNotice'

@@ -1,5 +1,6 @@
 // The message protocol between Devot and a plugin's frame (ADR 0005), version 1. Every message a plugin sends is read here
 // before the host acts on it: its shape, a known method, the permission behind it and its sizes.
+import { isErrorCode } from '../errors'
 import { MAX_BODY_BYTES, MAX_TITLE_CHARS } from '../noteLimits'
 import { utf8Length, wellFormed } from '../text'
 import { isRecord } from '../isRecord'
@@ -410,9 +411,7 @@ export function checkResult(method: HostMethod, value: unknown, apiVersion = 2):
           if (
             !Array.isArray(diagnostics) ||
             diagnostics.length > 1000 ||
-            !diagnostics.every(
-              (code) => typeof code === 'string' && /^[EWI]_[A-Z0-9_]{1,62}$/.test(code),
-            )
+            !diagnostics.every(isErrorCode)
           )
             return invalid()
           out.diagnostics = diagnostics

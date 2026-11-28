@@ -9,7 +9,7 @@ import {
   type AiSettingsView,
 } from '../../../core/aiProvider'
 import { SUGGEST_AFTER_CHARS, SUGGEST_BEFORE_CHARS } from '../../../core/aiSuggest'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { Chevron } from '../Chevron'
 import { failureText, logFailure } from '../failure'
 import { formatNumber } from '../format'

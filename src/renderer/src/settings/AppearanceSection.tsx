@@ -36,7 +36,7 @@ import type { IconName } from '../icons/symbols'
 import { useDraggedNumber } from './draggedNumber'
 import type { Appearance } from '../theme/appearance'
 import { failureText } from '../failure'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { watchPlugins } from '../plugins/api'
 import {
   choosePluginTheme,

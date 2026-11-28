@@ -4,6 +4,7 @@
 import type { Element, ElementContent, Root, RootContent } from 'hast'
 import { textOf } from '../hastText'
 import { island } from './builtins'
+import { UUID_SOURCE } from '../ids'
 import {
   PIECE_OFFSET_PROPERTIES,
   PLUGIN_ISLAND,
@@ -25,7 +26,7 @@ export type RenderPluginBlock = (key: string, source: string) => Promise<string 
 /** The notes an answer links to that the note's own text does not: a plugin's answer may list notes the note never names. */
 export type PluginLinkTargets = (ids: string[]) => Promise<Readonly<Record<string, NoteLinkTarget>>>
 
-const NOTE_LINK = /devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/g
+const NOTE_LINK = new RegExp(`devot://note/(${UUID_SOURCE})`, 'g')
 
 async function withAnswerTargets(
   markdown: string,

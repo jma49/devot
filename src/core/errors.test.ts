@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { errorCode } from './errors'
+import { errorCode, isErrorCode } from './errors'
 
 describe('errorCode', () => {
   it('takes the code an Error or a command starts with', () => {
@@ -20,5 +20,24 @@ describe('errorCode', () => {
     expect(errorCode({ code: 'E_X', message: 'E_X' })).toBe('E_UNKNOWN')
     expect(errorCode(undefined, 'E_BATCH_NOTE')).toBe('E_BATCH_NOTE')
     expect(errorCode(null)).toBe('E_UNKNOWN')
+  })
+})
+
+describe('isErrorCode', () => {
+  it('matches exact E_, W_ and I_ codes up to 64 characters', () => {
+    expect(isErrorCode('E_NOTE_NOT_FOUND')).toBe(true)
+    expect(isErrorCode('W_IMPORT_SKIPPED')).toBe(true)
+    expect(isErrorCode('I_APP_LANGUAGE_SET')).toBe(true)
+    expect(isErrorCode(`E_${'A'.repeat(62)}`)).toBe(true)
+  })
+
+  it('refuses trailing text, lowercase, overlong codes and non-strings', () => {
+    expect(isErrorCode(`E_${'A'.repeat(63)}`)).toBe(false)
+    expect(isErrorCode('E_NOTE_NOT_FOUND extra')).toBe(false)
+    expect(isErrorCode('E_note')).toBe(false)
+    expect(isErrorCode('E_')).toBe(false)
+    expect(isErrorCode('X_CODE')).toBe(false)
+    expect(isErrorCode(null)).toBe(false)
+    expect(isErrorCode(42)).toBe(false)
   })
 })

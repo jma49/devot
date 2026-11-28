@@ -14,7 +14,7 @@ import {
   type PluginSetting,
   type SettingValue,
 } from '../../../core/plugins'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { format, t, type MessageKey } from '../i18n'
 import { Select, Setting, SettingsSection } from './controls'

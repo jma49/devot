@@ -12,6 +12,7 @@ import {
   type TrialSource,
   type TrialState,
 } from '../../core/entitlements'
+import { isErrorCode } from '../../core/errors'
 import { invoke } from './ipc'
 import { openPurchase } from './purchaseSheet'
 import { followRustState } from './rustState'
@@ -94,7 +95,6 @@ export const LICENCE_UNKNOWN: LicenceSnapshot = {
   appStore: null,
 }
 
-const CODE = /^[EWI]_[A-Z0-9_]+$/
 const LICENCE_ID = /^[A-Za-z0-9_-]{22}$/
 
 export const isLicenceId = (value: unknown): value is string =>
@@ -123,8 +123,7 @@ function readActivation(value: unknown): ActivationSnapshot | null {
   }
 }
 
-const readCode = (value: unknown): string | null =>
-  typeof value === 'string' && CODE.test(value) ? value : null
+const readCode = (value: unknown): string | null => (isErrorCode(value) ? value : null)
 
 function readTrial(value: unknown): TrialSnapshot | null {
   if (typeof value !== 'object' || value === null) return null

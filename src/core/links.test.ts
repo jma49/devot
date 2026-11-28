@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { noteLink, noteLinks, noteUri } from './links'
+import { noteIdOf, noteLink, noteLinks, noteUri } from './links'
 
 const A = '0192a6f0-0000-7000-8000-00000000000a'
 const B = '0192a6f0-0000-7000-8000-00000000000b'
@@ -56,6 +56,9 @@ describe('noteLink', () => {
 describe('noteUri', () => {
   it('is the devot://note/<id> URI that links resolve by', () => {
     expect(noteUri(A)).toBe(`devot://note/${A}`)
+    expect(noteIdOf(noteUri(A))).toBe(A)
+    expect(noteIdOf('devot://note/------------------------------------')).toBeUndefined()
+    expect(noteIdOf(`devot://note/${A.toUpperCase()}`)).toBeUndefined()
   })
 
   it('is the target of the note link and is found by the link index', () => {

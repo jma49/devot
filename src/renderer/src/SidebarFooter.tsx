@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, type BackupStatus } from './backups'
+import { errorCode } from '../../core/errors'
+import { BACKUP_FAILED, SHOW_BACKUPS, listBackups, type BackupStatus } from './backups'
 import { footerStatus, type FooterBackups } from './footerStatus'
 import { currentLocale, format, t } from './i18n'
 import { Chevron } from './Chevron'

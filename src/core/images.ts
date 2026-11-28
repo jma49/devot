@@ -4,7 +4,7 @@
 // The alt text also takes `width:`/`height:` (or `w:`/`h:`) with a number in px (bare), %, pt, pc, in, cm, mm, em, ex or ch, as in `w:320 h:240`.
 // Older notes store a preset as a URL fragment (`#small`, `#half`, `#full`); those still read, and setting a size rewrites them to the alt form.
 
-import { FILE_ID_SOURCE, fileUri } from './files'
+import { fileIdOf } from './files'
 
 export type ImageSize = 'auto' | 'small' | 'half' | 'full'
 
@@ -93,11 +93,9 @@ function splitWrittenSize(dest: string): { url: string; size: ImageSize } {
   return { url: dest.slice(0, match.index + slashes - (slashes % 2)), size: match[2] as ImageSize }
 }
 
-const ATTACHMENT = new RegExp(`^${fileUri(`(${FILE_ID_SOURCE})`)}$`)
-
 /** Null when the URL shows no attachment, with or without a size. */
 export function attachmentId(url: string): string | null {
-  return ATTACHMENT.exec(splitImageSize(url).url)?.[1] ?? null
+  return fileIdOf(splitImageSize(url).url) ?? null
 }
 
 export interface ImageMarkdown {

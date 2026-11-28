@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { currentLocale, format, t } from '../i18n'
 import {

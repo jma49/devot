@@ -7,6 +7,7 @@
 // out falls back on its own, and anything gone since (a notebook, a tag, the
 // note) is skipped quietly when restoring (`restorePlan`).
 import { UUID_V7 } from '../../core/ids'
+import { isRecord } from '../../core/isRecord'
 import { NOTE_STATUSES, type NoteStatus } from '../../core/storage'
 import type { NoteFilter } from '../../core/tags'
 import { current } from './focus'
@@ -57,10 +58,6 @@ export interface LastState {
 const VERSION = 1
 const MODES: readonly string[] = ['write', 'edit', 'split', 'preview'] satisfies Mode[]
 
-type Json = Record<string, unknown>
-
-const isObject = (value: unknown): value is Json =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 const isId = (value: unknown): value is string => typeof value === 'string' && UUID_V7.test(value)
 const isPosition = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
@@ -68,14 +65,14 @@ const isOffset = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
 
 function readView(value: unknown): LibraryView {
-  if (!isObject(value)) return { kind: 'all' }
+  if (!isRecord(value)) return { kind: 'all' }
   if (value['kind'] === 'templates') return { kind: 'templates' }
   if (value['kind'] === 'book' && isId(value['id'])) return { kind: 'book', id: value['id'] }
   return { kind: 'all' }
 }
 
 function readFilter(value: unknown): NoteFilter | null {
-  if (!isObject(value)) return null
+  if (!isRecord(value)) return null
   const kind = value['kind']
   if (kind === 'pinned') return { kind }
   const status = value['status']
@@ -87,14 +84,14 @@ function readFilter(value: unknown): NoteFilter | null {
 }
 
 function readNote(value: unknown): NoteState | undefined {
-  if (!isObject(value) || !isId(value['id'])) return undefined
+  if (!isRecord(value) || !isId(value['id'])) return undefined
   const note: NoteState = { id: value['id'], keyboard: value['keyboard'] === true }
   const selection = value['selection']
-  if (isObject(selection) && isPosition(selection['anchor']) && isPosition(selection['head'])) {
+  if (isRecord(selection) && isPosition(selection['anchor']) && isPosition(selection['head'])) {
     note.selection = { anchor: selection['anchor'], head: selection['head'] }
   }
   const top = value['editorTop']
-  if (isObject(top) && isPosition(top['pos']) && isOffset(top['offset'])) {
+  if (isRecord(top) && isPosition(top['pos']) && isOffset(top['offset'])) {
     note.editorTop = { pos: top['pos'], offset: top['offset'] }
   }
   const previewTop = value['previewTop']
@@ -190,7 +187,7 @@ export function parseLastState(raw: string | null): LastState | undefined {
   } catch {
     return undefined
   }
-  if (!isObject(value) || value['v'] !== VERSION) return undefined
+  if (!isRecord(value) || value['v'] !== VERSION) return undefined
   const stored = value['mode']
   const mode = typeof stored === 'string' && MODES.includes(stored) ? (stored as Mode) : 'edit'
   const state: LastState = {

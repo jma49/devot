@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import { ConfirmDialog } from './ConfirmDialog'
 import type { DeepLink } from './deepLink'
 import { format, t } from './i18n'

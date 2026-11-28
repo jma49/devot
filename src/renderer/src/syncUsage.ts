@@ -11,7 +11,7 @@ import {
   type StorageView,
   type UsageNotice,
 } from '../../core/sync/usage'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import type { MessageKey } from './i18n'
 import { invoke } from './ipc'
 import type { SyncSnapshot } from './sync'

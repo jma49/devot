@@ -11,7 +11,7 @@ import {
 // pull in the rest of the core.
 import { ACTIVITY_LEVELS, DAY_MS, weekday, type ActivityHeatmap } from '../../core/activity'
 import { dateOf, monthLabels } from './activityMonths'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import { sheetOpen } from './commands/dispatch'
 import type { Core } from './core-client'
 import { countOf } from './format'

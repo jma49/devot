@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { ListedLibrary, TakenIn } from '../../core'
-import { errorCode, onRestoreElsewhere } from './backups'
+import { errorCode } from '../../core/errors'
+import { onRestoreElsewhere } from './backups'
 import { startCore, stopCore, type Core } from './core-client'
 import { listenExitCancelled } from './exitCancelled'
 import { invoke } from './ipc'

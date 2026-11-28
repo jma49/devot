@@ -2,7 +2,7 @@
 // folder panel over the window, and the confirmation a folder that is not
 // empty (and has no manifest) needs before the mirror uses it.
 import { useCallback, useState, type ReactNode } from 'react'
-import { errorCode } from './backups'
+import { errorCode } from '../../core/errors'
 import { ConfirmDialog } from './ConfirmDialog'
 import { format, t } from './i18n'
 import { chooseMirrorFolder, confirmMirrorFolder } from './mirror'

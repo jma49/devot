@@ -1,5 +1,6 @@
 // The table layout's columns, order, filters and cells: the note fields, then each front matter
 // property the view's notes hold, typed by their values (core/propertyTypes.ts).
+import { isRecord } from '../../core/isRecord'
 import { NOTE_STATUSES } from '../../core/storage'
 import type { NoteSummary } from '../../core'
 import {
@@ -173,9 +174,6 @@ export function withFilter(
   return { ...settings, filters: filter ? { ...others, [column]: filter } : others }
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
 const FILTERS: readonly string[] = [
   'filled',
   'empty',
@@ -186,13 +184,13 @@ const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string').slice(0, 200) : []
 
 export function readTableSettings(value: unknown): TableSettings {
-  if (!isObject(value)) return NO_SETTINGS
+  if (!isRecord(value)) return NO_SETTINGS
   const sort =
-    isObject(value['sort']) && typeof value['sort']['column'] === 'string'
+    isRecord(value['sort']) && typeof value['sort']['column'] === 'string'
       ? { column: value['sort']['column'], descending: value['sort']['descending'] === true }
       : undefined
   const filters: Record<string, TableFilter> = {}
-  if (isObject(value['filters'])) {
+  if (isRecord(value['filters'])) {
     for (const [column, filter] of Object.entries(value['filters'])) {
       if (typeof filter === 'string' && FILTERS.includes(filter))
         filters[column] = filter as TableFilter
@@ -212,7 +210,7 @@ export function tableSettingsStore(storage: KeyValue | undefined) {
   const all = (): Record<string, unknown> => {
     try {
       const value: unknown = JSON.parse(storage?.getItem(STORE_KEY) ?? '{}')
-      return isObject(value) ? value : {}
+      return isRecord(value) ? value : {}
     } catch {
       return {}
     }

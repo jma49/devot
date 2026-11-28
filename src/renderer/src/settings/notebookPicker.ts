@@ -1,4 +1,4 @@
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import { invoke } from '../ipc'
 
 /** Opens the AI access picker, which lives in the main window: Rust focuses or opens one and tells it. */

@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import type { NoteStatus } from '../../../core'
-import { errorCode } from '../backups'
+import { errorCode } from '../../../core/errors'
 import {
   appliedChanges,
   changesByStatus,

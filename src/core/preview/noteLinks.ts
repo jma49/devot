@@ -5,11 +5,10 @@
 // exported pages keep plain links. Every value it shows goes in as text.
 import type { Element, ElementContent, Root } from 'hast'
 import { textOf } from '../hastText'
+import { noteIdOf } from '../links'
 import { customTagColorProperties, tagColorClass } from '../tags'
 import { glyph } from './glyphs'
 import { PREVIEW_API_VERSION, type NoteLinkTarget, type PreviewRenderer } from './registry'
-
-const NOTE_HREF = /^devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 
 const squash = (text: string) => text.replace(/\s+/g, ' ').trim()
 
@@ -75,7 +74,7 @@ function visit(
     // An embedded note's links were rendered with its own targets: none here.
     if (isEmbedBody(child)) continue
     const href = child.tagName === 'a' ? child.properties['href'] : undefined
-    const id = typeof href === 'string' ? NOTE_HREF.exec(href)?.[1] : undefined
+    const id = typeof href === 'string' ? noteIdOf(href) : undefined
     if (!id) {
       visit(child, targets, labels)
       continue

@@ -7,7 +7,8 @@ import {
   type RefObject,
 } from 'react'
 import type { ImportScan } from '../../core'
-import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
+import { errorCode } from '../../core/errors'
+import { BACKUP_FAILED, SHOW_BACKUPS, listBackups, restoreBackup } from './backups'
 import type { Core } from './core-client'
 import type { ImportJob } from './ImportDialog'
 import type { ImportChoices } from './importChoices'
